@@ -11,6 +11,7 @@ use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use hf_hub::api::sync::ApiBuilder;
 use hf_hub::api::Progress;
 use hf_hub::Cache;
+use ort::environment::{GlobalThreadPoolOptions, ThreadManager};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -34,6 +35,20 @@ const MODEL_FILES: [&str; 5] = [
 ];
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 const ONNX_RUNTIME_DYLIB_RESOURCE: &str = "libonnxruntime.dylib";
+
+/// Upper bound on ONNX Runtime intra-op threads. fastembed sizes its session
+/// pool to every logical CPU, and ORT workers spin-wait between ops. The
+/// embedding pipeline sends one note at a time (two or three chunks), so a
+/// large pool mostly spins: a full backfill of a 2.5k-note graph burned about
+/// 17 CPU-minutes across 7 workers on an 8-core M2.
+///
+/// Measured on that M2 (600 texts, 3 per `embed` call, spin control off,
+/// three interleaved rounds): 2 threads cut CPU time by 27% to 45% against
+/// the default pool and 4 threads by 15% to 20%, while a call still returns
+/// in about 15 ms with 2 threads. Latency matters only for the ⌘K query
+/// vector (one text per call); the bulk of the work is background backfill,
+/// where CPU time is what the user notices.
+const MAX_INTRA_OP_THREADS: usize = 2;
 
 /// Byte counts for an active model download. Absent until the download
 /// starts (cache probing, or a cached model that skips downloading); after
@@ -243,9 +258,35 @@ fn download_model_files(app: &AppHandle, cache_dir: &Path) -> Result<(), String>
     Ok(())
 }
 
+/// Spawns the global pool's workers as named OS threads. ort only treats an
+/// environment as having a global pool (and so only disables per-session
+/// threads) when a thread manager is set; plain thread counts alone leave
+/// every session on its own full-size pool. The name also makes the workers
+/// easy to spot in `sample` and Activity Monitor.
+struct OnnxThreadManager;
+
+impl ThreadManager for OnnxThreadManager {
+    type Thread = std::thread::JoinHandle<()>;
+
+    fn create(&self, work: impl FnOnce() + Send + 'static) -> ort::Result<Self::Thread> {
+        std::thread::Builder::new()
+            .name("onnx-worker".to_string())
+            .spawn(work)
+            .map_err(|err| ort::Error::new(format!("spawning ONNX worker thread: {err}")))
+    }
+
+    fn join(thread: Self::Thread) -> ort::Result<()> {
+        let _ = thread.join();
+        Ok(())
+    }
+}
+
+/// Commit the ort environment before fastembed builds its session: load the
+/// bundled runtime where it is not linked in, and size the global thread pool
+/// (see [`MAX_INTRA_OP_THREADS`]). A no-op after the first successful call.
 fn configure_onnx_runtime(app: &AppHandle) -> Result<(), String> {
     #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    {
+    let (builder, source) = {
         let dylib = app
             .path()
             .resource_dir()
@@ -257,16 +298,33 @@ fn configure_onnx_runtime(app: &AppHandle) -> Result<(), String> {
                 dylib.display()
             ));
         }
-        let committed = ort::init_from(&dylib)
-            .map_err(|err| format!("loading ONNX Runtime from {}: {err}", dylib.display()))?
-            .commit();
-        if committed {
-            tracing::info!(path = %dylib.display(), "loaded bundled ONNX Runtime");
-        }
-    }
+        let builder = ort::init_from(&dylib)
+            .map_err(|err| format!("loading ONNX Runtime from {}: {err}", dylib.display()))?;
+        (builder, dylib.display().to_string())
+    };
     #[cfg(not(all(target_os = "macos", target_arch = "x86_64")))]
-    {
+    let (builder, source) = {
         let _ = app;
+        (ort::init(), "linked".to_string())
+    };
+
+    // A global thread pool (with a thread manager, see `OnnxThreadManager`)
+    // makes ort disable per-session threads on every session it builds
+    // afterwards, fastembed's included: the only seam fastembed leaves for
+    // sizing the pool. Spin control off: the pool blocks between runs
+    // instead of burning CPU waiting for the next batch.
+    let intra_threads = std::thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(1)
+        .clamp(1, MAX_INTRA_OP_THREADS);
+    let pool = GlobalThreadPoolOptions::default()
+        .with_intra_threads(intra_threads)
+        .and_then(|pool| pool.with_spin_control(false))
+        .and_then(|pool| pool.with_thread_manager(OnnxThreadManager))
+        .map_err(|err| format!("configuring ONNX Runtime thread pool: {err}"))?;
+    let committed = builder.with_global_thread_pool(pool).commit();
+    if committed {
+        tracing::info!(source, intra_threads, "configured ONNX Runtime");
     }
     Ok(())
 }
