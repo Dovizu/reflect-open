@@ -98,6 +98,7 @@ export {
   ReflectError,
   type AppError,
 } from '../errors.ts'
+export { createLogger, errorField, type LogFields, type Logger, type LogLevel } from '../log.ts'
 export {
   DAILY_DIR,
   NOTES_DIR,

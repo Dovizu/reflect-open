@@ -3,6 +3,9 @@ import { db } from '../indexing/db.ts'
 import { searchWithFilters } from '../indexing/filtered-search.ts'
 import { literalSearchQuery } from '../indexing/filter-query.ts'
 import { embedTexts } from './commands.ts'
+import { createLogger, errorField } from '../log.ts'
+
+const log = createLogger('embeddings')
 
 /**
  * The shared retrieval contract (Plan 09): one `retrieve()` for search and AI.
@@ -178,7 +181,7 @@ export async function retrieve(query: string, options?: RetrieveOptions): Promis
   const [lexical, semantic] = await Promise.all([
     lexicalHits(query, limit),
     semanticHits(query, limit).catch((cause): RetrievalHit[] => {
-      console.error('semantic leg failed; serving lexical only:', cause)
+      log.warn('semantic leg failed; serving lexical only', errorField(cause))
       return []
     }),
   ])

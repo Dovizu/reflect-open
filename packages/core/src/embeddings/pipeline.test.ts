@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { setBridge } from '../ipc/bridge.ts'
-import { embedNote } from './pipeline.ts'
+import { backfillEmbeddings, embedNote } from './pipeline.ts'
 
 afterEach(() => {
   setBridge(null)
@@ -257,5 +257,57 @@ describe('embedNote', () => {
     const count = await embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
     expect(count).toBe(1)
     expect(second.embedded).toEqual([['Now a snowy mountain pass.']])
+  })
+})
+
+describe('backfillEmbeddings', () => {
+  it('logs one summary naming the notes the hash-skip did not catch', async () => {
+    const logged: Array<Record<string, unknown>> = []
+    const embedded: string[][] = []
+    setBridge({
+      invoke: async (command, args) => {
+        if (command === 'log_event') {
+          logged.push(args)
+          return null
+        }
+        if (command === 'db_query') {
+          const sql = (args as { sql: string }).sql
+          // The notes listing; chunk-row lookups find nothing stored.
+          return sql.includes('"notes"') ? [{ path: 'notes/a.md' }, { path: 'notes/b.md' }] : []
+        }
+        if (command === 'note_read_local') {
+          return { kind: 'content', content: 'hello world' }
+        }
+        if (command === 'embed_texts') {
+          const texts = (args as { texts: string[] }).texts
+          embedded.push(texts)
+          return texts.map(() => [0.5, 0.5])
+        }
+        return null
+      },
+      listen: async () => () => {},
+    })
+
+    const outcome = await backfillEmbeddings({ generation: 1, modelId: MODEL })
+
+    expect(outcome).toBe('completed')
+    expect(embedded).toHaveLength(2)
+    const summary = logged.find((line) => line.message === 'backfill finished')
+    expect(summary).toMatchObject({
+      level: 'info',
+      module: 'embeddings',
+      fields: {
+        outcome: 'completed',
+        model: MODEL,
+        generation: 1,
+        notes: 2,
+        done: 2,
+        notesEmbedded: 2,
+        chunksEmbedded: 2,
+        failed: 0,
+      },
+    })
+    const fields = summary?.fields as { elapsedMs: number } | undefined
+    expect(fields?.elapsedMs).toBeGreaterThanOrEqual(0)
   })
 })

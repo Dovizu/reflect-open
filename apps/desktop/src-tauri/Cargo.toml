@@ -50,6 +50,7 @@ tauri-plugin-dialog = "2.8.1"
 base64 = "0.23.1"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-appender = "0.2.5"
 keyring-core = "1.0.0"
 # Git backup/sync primitives (Plan 12) + SSH transport for generic remotes
 # (Plan 16 V1: agent auth only). Everything is vendored/static — libssh2 and

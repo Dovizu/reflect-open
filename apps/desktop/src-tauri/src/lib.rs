@@ -29,6 +29,7 @@ mod git;
 mod graph_gitignore;
 mod icloud;
 mod link_preview;
+mod logging;
 mod menu;
 mod quit;
 mod recents;
@@ -104,17 +105,9 @@ mod capability_tests {
     }
 }
 
-/// Route `tracing` output to stderr, honoring `RUST_LOG` (default `info`).
-fn init_tracing() {
-    use tracing_subscriber::EnvFilter;
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    // `try_init` so a second call (tests, mobile re-entry) is a no-op, not a panic.
-    let _ = tracing_subscriber::fmt().with_env_filter(filter).try_init();
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    init_tracing();
+    logging::init_tracing();
     let builder = tauri::Builder::default();
 
     // Single-instance must be the first plugin so a second launch is caught
@@ -149,6 +142,7 @@ pub fn run() {
     // geometry, but mobile has no window-state plugin, so show it here or the
     // UI would never appear.
     let builder = builder.setup(|app| {
+        logging::attach_log_file(app.handle());
         #[cfg(any(target_os = "linux", all(windows, debug_assertions)))]
         {
             use tauri_plugin_deep_link::DeepLinkExt;
@@ -278,6 +272,7 @@ pub fn run() {
             fs::x_archive::x_archive_owners,
             fs::x_syndication::x_syndication_fetch,
             app_version,
+            logging::log_event,
             background_task::background_task_begin,
             background_task::background_task_end,
             icloud::storage::mobile_storage,

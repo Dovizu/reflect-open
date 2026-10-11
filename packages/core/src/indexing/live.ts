@@ -14,6 +14,9 @@ import {
 import { detectExternalMoves } from './move-healing.ts'
 import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
 import { getIndexedFileFactsByPath, getNoteIdsByPath, type IndexedFileFacts } from './queries.ts'
+import { createLogger, errorField } from '../log.ts'
+
+const log = createLogger('indexing')
 
 /**
  * Live re-indexing from the Rust watcher (Plan 04b). Batches of
@@ -41,7 +44,7 @@ export type ApplyErrorHandler = (error: unknown, change: FileChange) => void
 export type MovedHandler = (from: string, to: string) => void
 
 const logApplyError: ApplyErrorHandler = (error, change) => {
-  console.error(`failed to index change for ${change.path}:`, error)
+  log.error('failed to index change', { path: change.path, ...errorField(error) })
 }
 
 /**
@@ -127,7 +130,7 @@ async function prefetchFacts(paths: string[]): Promise<Map<string, IndexedFileFa
   try {
     return await getIndexedFileFactsByPath(paths)
   } catch (error) {
-    console.error('stored-facts prefetch failed; applying the batch without skips:', error)
+    log.warn('stored-facts prefetch failed; applying the batch without skips', errorField(error))
     return new Map()
   }
 }
@@ -171,7 +174,7 @@ export async function applyIndexChanges(
   } catch (error) {
     // Healing is best-effort: a failure here (e.g. the id lookup) must not
     // cost the batch — everything degrades to the plain path below.
-    console.error('move healing failed; applying the batch plainly:', error)
+    log.warn('move healing failed; applying the batch plainly', errorField(error))
     handled = new Set()
   }
 
@@ -332,7 +335,7 @@ export function subscribeIndexChanges(
         emitIndexApplied(changes, generation)
       })
       .catch((error) => {
-        console.error('failed to apply watcher batch:', error)
+        log.error('failed to apply watcher batch', errorField(error))
       })
   })
 }

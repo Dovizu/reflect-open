@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { embedNote, embedRemove, isNotePath, subscribeIndexApplied } from '@reflect/core'
+import {
+  createLogger,
+  embedNote,
+  embedRemove,
+  errorField,
+  isNotePath,
+  subscribeIndexApplied,
+} from '@reflect/core'
 import {
   backfillEmbeddingsVisibly,
   consumeLegacySemanticOptIn,
@@ -9,6 +16,8 @@ import { useEmbedStatus } from '@/lib/use-embed-status.ts'
 import { isMainWindow } from '@/lib/windows/window-role.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
+
+const log = createLogger('embeddings')
 
 /**
  * Keeps embeddings in sync with the graph (Plan 09). Renders nothing; mounted
@@ -92,7 +101,7 @@ export function EmbeddingsSync(): null {
       .catch((cause) => {
         // A rejection here must not poison the queue (later change items
         // chain off this promise) nor masquerade as a per-change failure.
-        console.error('embedding backfill failed:', cause)
+        log.error('backfill queue failed', errorField(cause))
       })
 
     const unlisten = subscribeIndexApplied((changes, appliedGeneration) => {
@@ -113,7 +122,7 @@ export function EmbeddingsSync(): null {
               : embedNote({ path: change.path, generation, modelId }).then(() => {})
           })
           .catch((cause) => {
-            console.error(`embedding sync failed for ${change.path}:`, cause)
+            log.error('sync failed for a note', { path: change.path, ...errorField(cause) })
           })
       }
     })
