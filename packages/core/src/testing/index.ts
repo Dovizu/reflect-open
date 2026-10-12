@@ -153,6 +153,11 @@ export {
   type TestGraphSessionServiceOptions,
 } from './graph-session.ts'
 export {
+  createTestMobileOnboardingService,
+  type TestMobileOnboardingService,
+  type TestMobileOnboardingServiceOptions,
+} from './mobile-onboarding.ts'
+export {
   createTestIndexLifecycleService,
   type TestIndexLifecycleService,
   type TestIndexLifecycleServiceOptions,

@@ -85,6 +85,10 @@ import {
 import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
+import {
+  createTestMobileOnboardingService,
+  type TestMobileOnboardingService,
+} from './mobile-onboarding.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
 import {
@@ -192,6 +196,7 @@ export interface TestAppServices extends AppServices {
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
   readonly graphSession: TestGraphSessionService
+  readonly mobileOnboarding: TestMobileOnboardingService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
@@ -245,6 +250,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     clock: overrides?.clock ?? clock,
     logger,
     operations: overrides?.operations ?? operations,
+  })
+  const graphSession = createTestGraphSessionService({
+    ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
+    indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+    indexStore: overrides?.indexStore ?? indexStore,
+    noteFile: overrides?.noteFile ?? noteFile,
+    id: overrides?.id ?? id,
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+    window: overrides?.window ?? windowService,
+    dialog: overrides?.dialog ?? dialog,
+    path: overrides?.path ?? path,
+    platform: overrides?.platform ?? platform,
+    lifecycle: overrides?.lifecycle ?? lifecycle,
+    mobileStorage: overrides?.mobileStorage ?? mobileStorage,
+    logger,
   })
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
@@ -321,19 +341,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
     indexLifecycle,
-    graphSession: createTestGraphSessionService({
-      ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
-      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-      indexStore: overrides?.indexStore ?? indexStore,
-      noteFile: overrides?.noteFile ?? noteFile,
-      id: overrides?.id ?? id,
-      fileChanges: overrides?.fileChanges ?? fileChanges,
-      window: overrides?.window ?? windowService,
-      dialog: overrides?.dialog ?? dialog,
-      path: overrides?.path ?? path,
-      platform: overrides?.platform ?? platform,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
+    graphSession,
+    mobileOnboarding: createTestMobileOnboardingService({
       mobileStorage: overrides?.mobileStorage ?? mobileStorage,
+      settings: overrides?.settings ?? settings,
+      graphSession: overrides?.graphSession ?? graphSession,
+      platform: overrides?.platform ?? platform,
+      clock: overrides?.clock ?? clock,
       logger,
     }),
     aiCredentials: createTestAiCredentialService({

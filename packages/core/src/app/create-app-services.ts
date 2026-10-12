@@ -62,6 +62,10 @@ import {
   createGraphSessionService,
   type GraphSessionService,
 } from '../graph/graph-session-service.ts'
+import {
+  createMobileOnboardingService,
+  type MobileOnboardingService,
+} from '../graph/mobile-onboarding-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
@@ -233,6 +237,7 @@ export interface AppServices {
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
+  readonly mobileOnboarding: MobileOnboardingService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
@@ -394,6 +399,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
     operations,
   })
+  const graphSession = createGraphSessionService({
+    ipc,
+    indexLifecycle,
+    indexStore,
+    noteFile,
+    id,
+    fileChanges,
+    window: windowService,
+    dialog: adapters.dialog,
+    path,
+    platform,
+    lifecycle,
+    mobileStorage,
+    logger,
+  })
   return {
     ipc,
     logger,
@@ -474,19 +494,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     ...indexReads,
     ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
     indexLifecycle,
-    graphSession: createGraphSessionService({
-      ipc,
-      indexLifecycle,
-      indexStore,
-      noteFile,
-      id,
-      fileChanges,
-      window: windowService,
-      dialog: adapters.dialog,
-      path,
-      platform,
-      lifecycle,
+    graphSession,
+    mobileOnboarding: createMobileOnboardingService({
       mobileStorage,
+      settings,
+      graphSession,
+      platform,
+      clock,
       logger,
     }),
     aiCredentials: createAiCredentialService({ secretStore }),
