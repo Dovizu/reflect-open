@@ -411,6 +411,15 @@ export {
   type WeekWindow,
 } from '../daily/week-window.ts'
 export {
+  createTemplateService,
+  defaultTemplates,
+  setDefaultTemplates,
+  type TemplateInsertTarget,
+  type TemplateService,
+  type TemplateServiceDeps,
+  type TemplateSlashItem,
+} from '../documents/template-service.ts'
+export {
   createNoteDocumentService,
   defaultNoteDocuments,
   isOstensiblyEmptyNoteSource,

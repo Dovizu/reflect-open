@@ -105,6 +105,7 @@ import {
   type NoteActionsService,
 } from '../documents/note-actions-service.ts'
 import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
+import { createTemplateService, type TemplateService } from '../documents/template-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -303,6 +304,7 @@ export interface AppServices {
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
   readonly dailyNotes: DailyNoteService
+  readonly templates: TemplateService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -658,6 +660,14 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     noteRows: createNoteRowService(),
     dailyNotes: createDailyNoteService({ database, clock, lifecycle }),
+    templates: createTemplateService({
+      noteFile,
+      indexQuery: indexReads.indexQuery,
+      notePath: indexReads.notePath,
+      noteMove,
+      openDocuments,
+      operations,
+    }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

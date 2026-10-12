@@ -37,6 +37,7 @@ import { setDefaultNoteRows } from '../documents/note-row-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
 import { setDefaultNoteMove } from '../documents/note-move-service.ts'
 import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
+import { setDefaultTemplates } from '../documents/template-service.ts'
 import { setDefaultTitleRename } from '../documents/title-rename-service.ts'
 import { setDefaultEmbeddingIndex } from '../embeddings/embedding-index-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
@@ -159,6 +160,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteActions(services.noteActions)
   setDefaultNoteRows(services.noteRows)
   setDefaultDailyNotes(services.dailyNotes)
+  setDefaultTemplates(services.templates)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -256,6 +258,7 @@ export function resetDefaultServices(): void {
   setDefaultNoteActions(null)
   setDefaultNoteRows(null)
   setDefaultDailyNotes(null)
+  setDefaultTemplates(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)
