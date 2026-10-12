@@ -120,9 +120,9 @@ function setup(options?: {
     window,
     platform: createTestPlatformService(options?.platform),
     settings: { ...createTestSettingsService(), flush: settings.fn },
+    openDocuments: { flushAll: documents.fn },
     logger,
   })
-  disposers.push(service.registerFlusher('documents', documents.fn))
   disposers.push(service.registerFlusher('backup', backup.fn))
   return {
     service,
@@ -197,14 +197,14 @@ describe('flushAll', () => {
     ])
   })
 
-  it('flushes settings alone when nothing is registered', async () => {
+  it('flushes documents and settings alone when no backup is registered', async () => {
     const { service, log } = setup()
     for (const dispose of disposers.splice(0)) {
       dispose()
     }
 
     await service.flushAll()
-    expect(log).toEqual(['settings'])
+    expect(log).toEqual(['documents', 'settings'])
   })
 
   it('replaces a flusher of the same kind, and a stale remover keeps the new one', async () => {

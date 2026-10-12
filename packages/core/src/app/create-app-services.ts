@@ -707,6 +707,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     window: windowService,
     platform,
     settings,
+    openDocuments,
     logger,
   })
   const gitRepository = createGitRepositoryService({ ipc })
@@ -977,6 +978,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       graphSession,
       platform,
       clock,
+      lifecycle,
       logger,
     }),
     aiCredentials,

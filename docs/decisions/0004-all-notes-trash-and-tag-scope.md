@@ -104,8 +104,8 @@ tag-rename UI either.
 
 ## Follow-ups
 
-- The frontend comment in
-  [`apps/desktop/src/lib/note-delete.ts`](../../apps/desktop/src/lib/note-delete.ts)
+- The frontend comment in `apps/desktop/src/lib/note-delete.ts` (since removed; the
+  comment now lives on `NoteActionsService.trash` and names both destinations)
   still describes the delete as moving into `.reflect/trash/`. That is the
   *mobile* behavior; on desktop it is the OS trash. The comment (and the
   "graph trash" wording in the trash-confirm dialog) should be corrected to match.

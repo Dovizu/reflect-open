@@ -444,7 +444,9 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const attachments = createTestAttachmentService()
-  const persistenceFlush = createTestPersistenceFlushService()
+  const persistenceFlush = createTestPersistenceFlushService({
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+  })
   const gitRepository = createTestGitRepositoryService()
   const githubAuth = createTestGithubAuthService({
     secretStore: overrides?.secretStore ?? secretStore,
@@ -740,6 +742,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       graphSession: overrides?.graphSession ?? graphSession,
       platform: overrides?.platform ?? platform,
       clock: overrides?.clock ?? clock,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
       logger,
     }),
     aiCredentials,

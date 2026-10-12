@@ -144,6 +144,8 @@ export interface NoteActionsService {
    * Never rejects and reports nothing: a failure comes back in `failed`.
    */
   trash(path: string, generation: number): Promise<NoteTrashResult>
+  /** {@link NoteActionsService.trash}, rejecting with the cause when the note could not be trashed. */
+  trashOne(path: string, generation: number): Promise<void>
   /**
    * {@link NoteActionsService.trash} for each path in order, under one
    * "Trashing notes" operation. A failure is recorded, not rethrown
@@ -336,6 +338,7 @@ export function createNoteActionsService(deps: {
         return { succeeded: [], failed: [{ path, cause }] }
       }
     },
+    trashOne,
     async trashMany(paths, generation, options) {
       const succeeded: string[] = []
       const failed: NoteTrashFailure[] = []

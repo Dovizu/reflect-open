@@ -27,7 +27,7 @@ const noteSource = { value: '# A\n' }
 
 // The services of the rendered app; set by `mount`.
 let app: TestAppServices
-let trash: MockInstance<NoteActionsService['trash']>
+let trash: MockInstance<NoteActionsService['trashOne']>
 let noteContent: MockInstance<TestAppServices['share']['noteContent']>
 
 /**
@@ -147,9 +147,7 @@ async function mount(path = 'notes/meeting.md', onDeleted = vi.fn()) {
   })
   vi.spyOn(created.indexQuery, 'getNote').mockImplementation(getNote)
   vi.spyOn(created.indexQuery, 'getPinnedNotes').mockResolvedValue([])
-  trash = vi
-    .spyOn(created.noteActions, 'trash')
-    .mockResolvedValue({ succeeded: [path], failed: [] })
+  trash = vi.spyOn(created.noteActions, 'trashOne').mockResolvedValue()
   noteContent = vi.spyOn(created.share, 'noteContent').mockReturnValue(SHARED)
   const view = await renderInApp(<NoteActionsMenu path={path} onDeleted={onDeleted} />, {
     app: created,

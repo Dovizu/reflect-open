@@ -1,3 +1,4 @@
+import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import type {
   PersistenceFlusher,
   PersistenceFlusherKind,
@@ -16,8 +17,14 @@ export interface TestPersistenceFlushService extends PersistenceFlushService {
 }
 
 /** An in-memory {@link PersistenceFlushService}. Its policies listen to nothing. */
-export function createTestPersistenceFlushService(): TestPersistenceFlushService {
+export function createTestPersistenceFlushService(deps?: {
+  openDocuments?: Pick<OpenDocumentsService, 'flushAll'>
+}): TestPersistenceFlushService {
   const flushers = new Map<PersistenceFlusherKind, PersistenceFlusher>()
+  const openDocuments = deps?.openDocuments
+  if (openDocuments !== undefined) {
+    flushers.set('documents', () => openDocuments.flushAll())
+  }
   const policies = { desktopQuit: 0, mobileBackground: 0 }
   let flushAllCount = 0
 

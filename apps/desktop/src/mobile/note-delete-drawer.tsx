@@ -8,7 +8,6 @@ import {
   DrawerDescription,
   DrawerTitle,
 } from '@/components/ui/drawer.tsx'
-import { deleteOpenNote } from '@/lib/note-delete.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
@@ -57,7 +56,7 @@ export function NoteDeleteDrawer({
     setBusy(true)
     setError(null)
     try {
-      await deleteOpenNote({ noteActions }, path, graph.generation)
+      await noteActions.trashOne(path, graph.generation)
       onOpenChange(false)
       onDeleted()
     } catch (cause) {

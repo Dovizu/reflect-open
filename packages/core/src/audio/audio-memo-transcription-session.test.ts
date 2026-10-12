@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { audioMemoIdentity } from '../actions/audio-memo.ts'
+import { audioMemoIdentity } from './audio-memo.ts'
 import type { FileMeta } from '../graph/schemas.ts'
 import { AUDIO_MEMOS_DIR } from '../graph/paths.ts'
 import {

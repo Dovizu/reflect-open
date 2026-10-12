@@ -1,5 +1,5 @@
 import { vi, type Mock, type MockInstance } from 'vitest'
-import { audioMemoIdentity } from '../actions/audio-memo.ts'
+import { audioMemoIdentity } from './audio-memo.ts'
 import { aiKeySecretName } from '../ai/ai-credential-service.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'

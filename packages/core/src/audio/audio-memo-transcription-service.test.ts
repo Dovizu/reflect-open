@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { audioMemoIdentity, audioMemoPartPath } from '../actions/audio-memo.ts'
+import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
 import { APP_REVIEW_STUB_KEY } from '../ai/app-review-demo.ts'
 import { TranscriptionRejectedError } from '../ai/transcribe-http.ts'
 import { withAppReviewDemoTranscription } from '../ai/transcription-service.ts'

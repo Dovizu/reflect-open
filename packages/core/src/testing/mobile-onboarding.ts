@@ -10,6 +10,7 @@ import { createTestLoggerService } from './logger.ts'
 import { createTestMobileStorageService } from './mobile-storage.ts'
 import { createTestPlatformService } from './platform.ts'
 import { createTestSettingsService } from './settings.ts'
+import { createTestLifecycleService } from './shell.ts'
 
 /** The services a test mobile onboarding runs on; each defaults to a fresh test double. */
 export interface TestMobileOnboardingServiceOptions extends Partial<MobileOnboardingServiceDeps> {
@@ -32,6 +33,7 @@ export function createTestMobileOnboardingService(
     graphSession: options?.graphSession ?? createTestGraphSessionService(),
     platform: options?.platform ?? createTestPlatformService(),
     clock: options?.clock ?? createTestClockService(),
+    lifecycle: options?.lifecycle ?? createTestLifecycleService(),
     logger: options?.logger ?? createTestLoggerService(),
   })
 

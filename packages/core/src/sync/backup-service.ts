@@ -1,4 +1,4 @@
-import { isCaptureSpoolPath } from '../actions/capture-identity.ts'
+import { isCaptureSpoolPath } from '../capture/capture-identity.ts'
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'

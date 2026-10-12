@@ -28,7 +28,7 @@ let noteSource: string
 
 // The services of the rendered app; set by `renderSection`.
 let operations: TestOperationsService
-let trash: MockInstance<NoteActionsService['trash']>
+let trash: MockInstance<NoteActionsService['trashOne']>
 
 async function renderSection(path: string, showTrash = false, copies = 1) {
   const app = createTestAppServices({
@@ -48,7 +48,7 @@ async function renderSection(path: string, showTrash = false, copies = 1) {
   })
   vi.spyOn(app.indexQuery, 'getPinnedNotes').mockImplementation(getPinnedNotes)
   vi.spyOn(app.indexQuery, 'getNote').mockImplementation(getNote)
-  trash = vi.spyOn(app.noteActions, 'trash').mockResolvedValue({ succeeded: [path], failed: [] })
+  trash = vi.spyOn(app.noteActions, 'trashOne').mockResolvedValue()
   operations = app.operations
   const view = await renderInApp(
     Array.from({ length: copies }, (_, copy) => (

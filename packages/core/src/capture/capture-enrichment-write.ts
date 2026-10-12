@@ -1,4 +1,4 @@
-import type { CaptureIdentity } from '../actions/capture-identity.ts'
+import type { CaptureIdentity } from './capture-identity.ts'
 import {
   captureNoteMeta,
   notePrivate,
@@ -6,7 +6,7 @@ import {
   retitleDailyEntry,
   type CaptureNoteMeta,
   type CaptureStatus,
-} from '../actions/capture-note.ts'
+} from './capture-note.ts'
 import type { HashService } from '../app/hash-service.ts'
 import { isAppError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'

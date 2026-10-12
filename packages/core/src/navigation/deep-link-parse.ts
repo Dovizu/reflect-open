@@ -1,5 +1,5 @@
 import { isIsoDate } from '@reflect/utils'
-import type { TextCaptureKind } from '../actions/capture-envelope.ts'
+import type { TextCaptureKind } from '../capture/capture-envelope.ts'
 import { isDaily, isNotePath } from '../graph/paths.ts'
 import { DEEP_LINK_SCHEME, DEEP_LINK_TEXT_MAX_LENGTH, type DeepLink } from './deep-link.ts'
 import { routeForPath, type Route } from './route.ts'

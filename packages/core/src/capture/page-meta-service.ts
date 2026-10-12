@@ -1,5 +1,5 @@
 import type { WebFetchService } from '../app/web-fetch-service.ts'
-import { oembedRequestURL, parseOEmbedAnswer } from '../actions/oembed.ts'
+import { oembedRequestURL, parseOEmbedAnswer } from '../embeds/oembed.ts'
 import { toAppError } from '../errors.ts'
 import { normalizePageMetaValue, parsePageMeta, type PageMeta } from '../link-preview/metadata.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
@@ -14,7 +14,7 @@ import type { CloudSafe } from '../privacy/cloud-safe.ts'
 export interface PageMetaService {
   /**
    * Fetch and parse one captured page's meta tags. URLs a registered oEmbed
-   * provider claims (see `actions/oembed`) resolve through that provider's
+   * provider claims (see `embeds/oembed`) resolve through that provider's
    * endpoint first; every other page, and any claimed URL whose oEmbed attempt
    * failed permanently, takes the generic HTML scrape. Propagates the fetch's
    * typed errors (`network` for transient failures the enrichment pass should
