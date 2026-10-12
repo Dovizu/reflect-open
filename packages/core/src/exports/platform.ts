@@ -104,6 +104,7 @@ export {
   platformFacts,
   setDefaultPlatform,
   type ColorScheme,
+  type FileSrcConverter,
   type PlatformFacts,
   type PlatformMedia,
   type PlatformService,
@@ -248,6 +249,19 @@ export {
   setDefaultAssetStore,
   type AssetStoreService,
 } from '../graph/asset-store-service.ts'
+export {
+  LARGE_FILE_BYTES,
+  createAttachmentService,
+  defaultAttachments,
+  setDefaultAttachments,
+  type AssetSaveError,
+  type AssetSaveResult,
+  type AttachFilesRequest,
+  type AttachmentInsertTarget,
+  type AttachmentSaveScope,
+  type AttachmentService,
+  type WikiEmbedDisplay,
+} from '../documents/attachment-service.ts'
 export {
   createXArchiveService,
   defaultXArchive,

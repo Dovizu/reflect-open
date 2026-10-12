@@ -16,6 +16,7 @@ import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultAssetStore } from '../graph/asset-store-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
+import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
 import { defaultIndexStore } from '../indexing/index-store-service.ts'
@@ -93,6 +94,7 @@ describe('installDefaultServices', () => {
     expect(defaultWebAuth()).toBe(services.webAuth)
     expect(defaultNoteFile()).toBe(services.noteFile)
     expect(defaultAssetStore()).toBe(services.assetStore)
+    expect(defaultAttachments()).toBe(services.attachments)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
@@ -137,6 +139,7 @@ describe('resetDefaultServices', () => {
     expect(defaultWebAuth()).not.toBe(services.webAuth)
     expect(defaultNoteFile()).not.toBe(services.noteFile)
     expect(defaultAssetStore()).not.toBe(services.assetStore)
+    expect(defaultAttachments()).not.toBe(services.attachments)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

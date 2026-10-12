@@ -1,9 +1,8 @@
 import { useCallback } from 'react'
 import type { LinkClickHandler } from '@meowdown/core'
 import { isOpenableExternalUrl } from '@/editor/open-external-link.ts'
-import { openAssetOrReveal, resolveAssetOpenPath } from '@/editor/use-asset-persistence.ts'
 import { useMarkdownLinkNavigation } from '@/editor/use-markdown-link-navigation.ts'
-import { useNoteAttachments } from '@/editor/use-note-attachments.ts'
+import { useAttachments } from '@/editor/use-note-attachments.ts'
 import { isDeepLinkUrl } from '@/lib/deep-links/parse.ts'
 import { useFollowDeepLink } from '@/lib/deep-links/use-follow-deep-link.ts'
 import { openUrlSync } from '@/lib/open-url.ts'
@@ -21,15 +20,15 @@ export function useMarkdownLinkClick(
 ): LinkClickHandler {
   const followDeepLink = useFollowDeepLink()
   const navigateNoteLink = useMarkdownLinkNavigation(generation, sourcePath ?? '')
-  const { resolveAttachmentPath } = useNoteAttachments(generation, sourcePath ?? '')
+  const attachments = useAttachments()
 
   return useCallback<LinkClickHandler>(
     ({ href, event, mod }) => {
       event.preventDefault()
       if (generation !== null && sourcePath !== null) {
-        const assetPath = resolveAssetOpenPath(href, resolveAttachmentPath)
+        const assetPath = attachments.resolveAssetOpenPath(sourcePath, href, generation)
         if (assetPath !== null) {
-          void openAssetOrReveal(assetPath, generation)
+          void attachments.openOrReveal(assetPath, generation)
           return
         }
       }
@@ -45,6 +44,6 @@ export function useMarkdownLinkClick(
         navigateNoteLink({ href, openInNewWindow: mod })
       }
     },
-    [followDeepLink, generation, navigateNoteLink, resolveAttachmentPath, sourcePath],
+    [attachments, followDeepLink, generation, navigateNoteLink, sourcePath],
   )
 }

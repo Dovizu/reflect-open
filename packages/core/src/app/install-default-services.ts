@@ -9,6 +9,7 @@ import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
+import { setDefaultAttachments } from '../documents/attachment-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
@@ -83,6 +84,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultWebAuth(services.webAuth ?? null)
   setDefaultNoteFile(services.noteFile)
   setDefaultAssetStore(services.assetStore)
+  setDefaultAttachments(services.attachments)
   setDefaultIpc(services.ipc)
 }
 
@@ -128,5 +130,6 @@ export function resetDefaultServices(): void {
   setDefaultWebAuth(null)
   setDefaultNoteFile(null)
   setDefaultAssetStore(null)
+  setDefaultAttachments(null)
   setDefaultIpc(null)
 }

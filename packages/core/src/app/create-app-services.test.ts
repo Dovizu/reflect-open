@@ -55,6 +55,7 @@ const SERVICE_KEYS = [
   'audioRecorder',
   'noteFile',
   'assetStore',
+  'attachments',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

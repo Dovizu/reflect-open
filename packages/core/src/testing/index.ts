@@ -169,3 +169,10 @@ export {
   type TestNoteFileService,
   type TestNoteFileServiceOptions,
 } from './graph.ts'
+export {
+  createTestAttachmentService,
+  type AttachmentSave,
+  type TestAttachmentEntry,
+  type TestAttachmentService,
+  type TestAttachmentServiceOptions,
+} from './attachments.ts'
