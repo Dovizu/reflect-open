@@ -116,12 +116,14 @@ describe('page signals', () => {
   it('reports wake, visibility, pagehide, and beforeunload to their subscribers', () => {
     const { lifecycle, fake } = setup()
     const wake = vi.fn()
+    const focus = vi.fn()
     const visible = vi.fn()
     const hidden = vi.fn()
     const pageHide = vi.fn()
     const beforeUnload = vi.fn()
     const disposers = [
       lifecycle.subscribeWake(wake),
+      lifecycle.subscribeFocus(focus),
       lifecycle.subscribeVisible(visible),
       lifecycle.subscribeHidden(hidden),
       lifecycle.subscribePageHide(pageHide),
@@ -138,6 +140,7 @@ describe('page signals', () => {
     fake.dispatch('beforeunload')
 
     expect(wake).toHaveBeenCalledTimes(2)
+    expect(focus).toHaveBeenCalledOnce()
     expect(hidden).toHaveBeenCalledOnce()
     expect(visible).toHaveBeenCalledOnce()
     expect(pageHide).toHaveBeenCalledOnce()

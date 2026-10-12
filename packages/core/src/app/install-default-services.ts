@@ -22,6 +22,11 @@ import { setDefaultGithubAuth } from '../sync/github-auth-service.ts'
 import { setDefaultGithubRepos } from '../sync/github-repo-service.ts'
 import { setDefaultSyncEngines } from '../sync/engine.ts'
 import { setDefaultBackups } from '../sync/backup-service.ts'
+import { setDefaultConflictResolution } from '../sync/conflict-resolution-service.ts'
+import { setDefaultICloudDownloads } from '../sync/icloud-download-service.ts'
+import { setDefaultICloudMigration } from '../sync/icloud-migration-service.ts'
+import { setDefaultICloudSyncs } from '../sync/icloud-sync-service.ts'
+import { setDefaultSyncStatus } from '../sync/sync-status-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
@@ -147,6 +152,11 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultBackups(services.backups)
   setDefaultGists(services.gists)
   setDefaultICloudNative(services.icloudNative)
+  setDefaultICloudSyncs(services.icloudSyncs)
+  setDefaultICloudDownloads(services.icloudDownloads)
+  setDefaultICloudMigration(services.icloudMigration)
+  setDefaultConflictResolution(services.conflictResolution)
+  setDefaultSyncStatus(services.syncStatus)
   setDefaultCaptureInbox(services.captureInbox)
   setDefaultWebFetch(services.webFetch)
   setDefaultXArchive(services.xArchive)
@@ -254,6 +264,11 @@ export function resetDefaultServices(): void {
   setDefaultBackups(null)
   setDefaultGists(null)
   setDefaultICloudNative(null)
+  setDefaultICloudSyncs(null)
+  setDefaultICloudDownloads(null)
+  setDefaultICloudMigration(null)
+  setDefaultConflictResolution(null)
+  setDefaultSyncStatus(null)
   setDefaultCaptureInbox(null)
   setDefaultWebFetch(null)
   setDefaultXArchive(null)

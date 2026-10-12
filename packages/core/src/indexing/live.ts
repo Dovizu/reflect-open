@@ -1,18 +1,9 @@
 import type { Unlisten } from '../ipc/bridge.ts'
 import { isAssetPath, isNotePath } from '../graph/paths.ts'
-import {
-  defaultFileChanges,
-  type FileChange,
-  type FileChangeService,
-} from './file-change-service.ts'
+import type { FileChange, FileChangeService } from './file-change-service.ts'
 import { matchesTrustedMtime } from './hash.ts'
 import type { IndexedFileFacts } from './index-query-service.ts'
-import {
-  createNoteIndexer,
-  defaultIndexingDeps,
-  type ChangesAppliedEmitter,
-  type IndexingDeps,
-} from './indexer.ts'
+import { createNoteIndexer, type ChangesAppliedEmitter, type IndexingDeps } from './indexer.ts'
 import { createMoveHealing } from './move-healing.ts'
 import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
 
@@ -365,20 +356,4 @@ export function createLiveIndex(
   }
 
   return { apply, subscribe }
-}
-
-/** {@link LiveIndex.apply} over the default services. */
-export async function applyIndexChanges(
-  changes: FileChange[],
-  generation: number,
-  onError?: ApplyErrorHandler,
-  onMoved?: MovedHandler,
-  canApply?: () => boolean,
-): Promise<number> {
-  return await createLiveIndex({
-    ...defaultIndexingDeps(),
-    fileChanges: defaultFileChanges(),
-    // `apply` reports no batch (only `subscribe` does), so nothing listens.
-    emitChangesApplied: () => {},
-  }).apply(changes, generation, onError, onMoved, canApply)
 }

@@ -45,13 +45,18 @@ import {
 } from './capture.ts'
 import {
   createTestBackupServiceFactory,
+  createTestConflictResolutionService,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
+  createTestICloudDownloadServiceFactory,
+  createTestICloudMigrationService,
   createTestICloudNativeService,
+  createTestICloudSyncServiceFactory,
   createTestSyncEngineFactory,
+  createTestSyncStatusService,
   type TestGitRepositoryService,
   type TestGithubAuthService,
   type TestICloudNativeService,
@@ -418,6 +423,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     secretStore: overrides?.secretStore ?? secretStore,
   })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
+  const icloudNative = createTestICloudNativeService()
   const syncEngines = createTestSyncEngineFactory({
     git: overrides?.gitRepository ?? gitRepository,
     clock: overrides?.clock ?? clock,
@@ -503,7 +509,31 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       logger,
     }),
     gists: createTestGistService({ http: overrides?.http ?? http }),
-    icloudNative: createTestICloudNativeService(),
+    icloudNative,
+    icloudSyncs: createTestICloudSyncServiceFactory({
+      icloudNative: overrides?.icloudNative ?? icloudNative,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    icloudDownloads: createTestICloudDownloadServiceFactory({
+      icloudNative: overrides?.icloudNative ?? icloudNative,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    icloudMigration: createTestICloudMigrationService({
+      icloudNative: overrides?.icloudNative ?? icloudNative,
+    }),
+    conflictResolution: createTestConflictResolutionService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+    }),
+    syncStatus: createTestSyncStatusService(),
     captureInbox,
     webFetch: createTestWebFetchService(),
     xArchive,

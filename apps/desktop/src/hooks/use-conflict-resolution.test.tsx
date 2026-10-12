@@ -1,23 +1,20 @@
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
+import { ReflectError, resolveConflictMarkers, type GraphInfo } from '@reflect/core'
 import {
-  emitFileChanges,
-  indexNote,
-  readNote,
-  resolveConflictMarkers,
-  writeNote,
-  type GraphInfo,
-} from '@reflect/core'
+  createTestAppServices,
+  createTestFileChangeService,
+  createTestIndexLifecycleService,
+  createTestNoteFileService,
+  type TestFileChangeService,
+  type TestIndexLifecycleService,
+  type TestNoteFileService,
+} from '@reflect/core/testing'
 import { invalidateIndexQueries } from '@/lib/query-client.ts'
+import { AppServicesProvider } from '@/services/services-provider.tsx'
 import { useConflictResolution } from './use-conflict-resolution.ts'
 
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  readNote: vi.fn(),
-  writeNote: vi.fn(async () => {}),
-  indexNote: vi.fn(async () => {}),
-  emitFileChanges: vi.fn(),
-}))
 vi.mock('@/lib/query-client.ts', () => ({ invalidateIndexQueries: vi.fn() }))
 
 const graphState = vi.hoisted(() => ({
@@ -26,6 +23,7 @@ const graphState = vi.hoisted(() => ({
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({ useGraph: () => graphState }))
 
+const PATH = 'notes/clash.md'
 const SOURCE = [
   '<<<<<<< this device',
   'mine',
@@ -35,74 +33,106 @@ const SOURCE = [
   '',
 ].join('\n')
 
+let noteFile: TestNoteFileService
+let fileChanges: TestFileChangeService
+let indexLifecycle: TestIndexLifecycleService
+let indexed: Array<{ path: string; generation: number; content: string | undefined }>
+
 beforeEach(() => {
   graphState.graph = { root: '/g', name: 'G', generation: 3 }
   graphState.indexGeneration = 7
-  vi.mocked(readNote).mockResolvedValue(SOURCE)
+  noteFile = createTestNoteFileService({ files: { [PATH]: SOURCE } })
+  fileChanges = createTestFileChangeService()
+  indexed = []
+  indexLifecycle = {
+    ...createTestIndexLifecycleService({ noteFile, fileChanges }),
+    indexNote: async (path, options) => {
+      indexed.push({ path, generation: options.generation, content: options.content })
+    },
+  }
 })
 
 afterEach(() => {
   vi.clearAllMocks()
 })
 
+/** Render the hook over app services built on the fakes above. */
+async function mount(overrides?: { noteFile?: TestNoteFileService }) {
+  const app = createTestAppServices({
+    noteFile: overrides?.noteFile ?? noteFile,
+    fileChanges,
+    indexLifecycle,
+  })
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <AppServicesProvider services={app}>{children}</AppServicesProvider>
+  )
+  return await renderHook(() => useConflictResolution(PATH), { wrapper })
+}
+
 describe('useConflictResolution', () => {
   it('writes the spliced side, reindexes, and notifies open views', async () => {
-    const { result, act } = await renderHook(() => useConflictResolution('notes/clash.md'))
+    const { result, act } = await mount()
 
     await act(async () => {
       await result.current.resolve('ours')
     })
 
     const resolved = resolveConflictMarkers(SOURCE, 'ours')
-    expect(vi.mocked(writeNote)).toHaveBeenCalledWith('notes/clash.md', resolved, 3)
-    expect(vi.mocked(indexNote)).toHaveBeenCalledWith('notes/clash.md', {
-      generation: 7,
-      content: resolved,
-    })
-    expect(vi.mocked(emitFileChanges)).toHaveBeenCalledWith(
-      [{ path: 'notes/clash.md', kind: 'upsert' }],
-      'own-write',
-    )
+    expect(noteFile.writes()).toEqual([{ path: PATH, contents: resolved, generation: 3 }])
+    expect(indexed).toEqual([{ path: PATH, generation: 7, content: resolved }])
+    expect(fileChanges.batches()).toEqual([
+      { changes: [{ path: PATH, kind: 'upsert' }], source: 'own-write' },
+    ])
     expect(vi.mocked(invalidateIndexQueries)).toHaveBeenCalled()
     expect(result.current.error).toBeNull()
     expect(result.current.busy).toBe(false)
   })
 
   it('a failed write surfaces the error and notifies nothing', async () => {
-    vi.mocked(writeNote).mockRejectedValueOnce({ kind: 'io', message: 'disk full' })
-    const { result, act } = await renderHook(() => useConflictResolution('notes/clash.md'))
+    const { result, act } = await mount({
+      noteFile: {
+        ...noteFile,
+        write: async () => {
+          throw new ReflectError('io', 'disk full')
+        },
+      },
+    })
 
     await act(async () => {
       await result.current.resolve('theirs')
     })
 
     expect(result.current.error).toBe('disk full')
-    expect(vi.mocked(emitFileChanges)).not.toHaveBeenCalled()
+    expect(result.current.busy).toBe(false)
+    expect(fileChanges.batches()).toEqual([])
     expect(vi.mocked(invalidateIndexQueries)).not.toHaveBeenCalled()
   })
 
   it('a failed reindex still notifies — the file on disk did change', async () => {
-    vi.mocked(indexNote).mockRejectedValueOnce({ kind: 'io', message: 'index closed' })
-    const { result, act } = await renderHook(() => useConflictResolution('notes/clash.md'))
+    indexLifecycle.indexNote = async () => {
+      throw new ReflectError('io', 'index closed')
+    }
+    const { result, act } = await mount()
 
     await act(async () => {
       await result.current.resolve('both')
     })
 
     expect(result.current.error).toBe('index closed')
-    expect(vi.mocked(emitFileChanges)).toHaveBeenCalled()
+    expect(fileChanges.batches()).toHaveLength(1)
     expect(vi.mocked(invalidateIndexQueries)).toHaveBeenCalled()
   })
 
   it('does nothing without an open graph', async () => {
     graphState.graph = null
-    const { result, act } = await renderHook(() => useConflictResolution('notes/clash.md'))
+    const { result, act } = await mount()
 
     await act(async () => {
       await result.current.resolve('ours')
     })
 
-    expect(vi.mocked(readNote)).not.toHaveBeenCalled()
-    expect(vi.mocked(writeNote)).not.toHaveBeenCalled()
+    expect(noteFile.writes()).toEqual([])
+    expect(fileChanges.batches()).toEqual([])
+    expect(vi.mocked(invalidateIndexQueries)).not.toHaveBeenCalled()
   })
 })

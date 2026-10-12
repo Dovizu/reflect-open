@@ -149,13 +149,19 @@ export {
 export {
   createTestBackupService,
   createTestBackupServiceFactory,
+  createTestConflictResolutionService,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
+  createTestICloudDownloadServiceFactory,
+  createTestICloudMigrationService,
   createTestICloudNativeService,
+  createTestICloudSyncService,
+  createTestICloudSyncServiceFactory,
   createTestSyncEngineFactory,
+  createTestSyncStatusService,
   type BackupCall,
   type GitRepositoryCall,
   type GitRepositoryHandler,
@@ -165,6 +171,7 @@ export {
   type TestGithubAuthOptions,
   type TestGithubAuthService,
   type TestICloudNativeService,
+  type TestICloudSyncService,
 } from './sync.ts'
 export {
   createTestAiCredentialService,
