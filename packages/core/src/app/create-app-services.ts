@@ -711,6 +711,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     window: windowService,
     platform,
     settings,
+    openDocuments,
     logger,
   })
   const gitRepository = createGitRepositoryService({ ipc })

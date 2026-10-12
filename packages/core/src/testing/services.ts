@@ -444,7 +444,9 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const attachments = createTestAttachmentService()
-  const persistenceFlush = createTestPersistenceFlushService()
+  const persistenceFlush = createTestPersistenceFlushService({
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+  })
   const gitRepository = createTestGitRepositoryService()
   const githubAuth = createTestGithubAuthService({
     secretStore: overrides?.secretStore ?? secretStore,
