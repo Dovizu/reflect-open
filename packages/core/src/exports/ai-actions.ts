@@ -57,19 +57,17 @@ export {
   type CloudSendable,
 } from '../privacy/checkers.ts'
 export {
-  buildNoteTools,
   MAX_DAILY_NOTE_DAYS,
   type ListDailyNotesOutput,
   type ListRecentNotesOutput,
   type NoteHitSummary,
   type NoteToolCall,
-  type NoteToolDeps,
   type NoteToolResult,
   type NoteTools,
   type ReadAssetSummary,
   type ReadNoteSummary,
   type SearchNotesOutput,
-} from '../ai/chat/tools.ts'
+} from '../ai/chat/note-tools-service.ts'
 export {
   MAX_NOTE_CONTENT_CHARS,
   MAX_READ_NOTES,
@@ -83,12 +81,16 @@ export {
   type ReadAssetsOutput,
 } from '../ai/chat/read-assets.ts'
 export { chatSystemPrompt, type SystemPromptInput } from '../ai/chat/system-prompt.ts'
+export { MAX_CONTEXT_TAGS } from '../ai/chat/chat-graph-context-service.ts'
+export type { ChatStreamEvent, ChatTurnRequest } from '../ai/chat/chat-engine-service.ts'
 export {
-  loadChatGraphContext,
-  MAX_CONTEXT_TAGS,
-  type GraphContextDeps,
-} from '../ai/chat/graph-context.ts'
-export { streamChat, type ChatStreamEvent, type StreamChatOptions } from '../ai/chat/stream-chat.ts'
+  conversationTitle,
+  type ChatSession,
+  type ChatSessionOptions,
+  type ChatSessionState,
+  type ChatStatus,
+} from '../ai/chat/chat-session-service.ts'
+export { readChatAttachment } from '../ai/chat/chat-attachments.ts'
 export {
   BUILT_IN_AI_PROMPTS,
   filterAiPrompts,
@@ -104,13 +106,7 @@ export {
   type ChatAttachment,
   type ChatTurn,
 } from '../ai/chat/transcript.ts'
-export {
-  deleteChatConversation,
-  listChatConversations,
-  loadChatMessages,
-  saveChatMessage,
-  type ChatConversation,
-} from '../ai/chat/store.ts'
+export { listChatConversations, type ChatConversation } from '../ai/chat/store.ts'
 export {
   estimateTokens,
   fitToContextWindow,

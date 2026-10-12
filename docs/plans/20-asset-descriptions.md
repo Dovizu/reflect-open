@@ -174,7 +174,7 @@ async function classifyAsset(assetPath: string, generation: number): Promise<Ass
 ```
 
 Implementation (reusing the established live-recheck pattern from
-[`ai/chat/tools.ts` `isPrivateLive`](../../packages/core/src/ai/chat/tools.ts) and
+[`ai/chat/note-tools-service.ts`](../../packages/core/src/ai/chat/note-tools-service.ts) and
 [`actions/capture.ts` `notePrivate`](../../packages/core/src/actions/capture.ts)):
 
 1. **Candidate set** from the index `assets` join (already populated by the

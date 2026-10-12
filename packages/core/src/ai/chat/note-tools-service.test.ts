@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { ReflectError } from '../../errors.ts'
 import type { ToolExecutionOptions } from '@reflect/modules/ai'
 import type { RetrievalHit, RetrieveOptions } from '../../embeddings/retrieve.ts'
 import type { DailyNoteRow, DailyNotesRange } from '../../indexing/queries.ts'
@@ -12,15 +13,51 @@ import {
   type ReadAssetsOutput,
 } from './read-assets.ts'
 import { MAX_NOTE_CONTENT_CHARS, type ReadNoteResult, type ReadNotesOutput } from './read-notes.ts'
+import { createPrivacyService } from '../../privacy/privacy-service.ts'
+import { createTestXArchiveService } from '../../testing/index.ts'
 import {
-  buildNoteTools,
+  createNoteToolsService,
   INVALID_TAG_ERROR,
   MAX_DAILY_NOTE_DAYS,
   type ListDailyNotesOutput,
   type ListRecentNotesOutput,
   type NoteTools,
   type SearchNotesOutput,
-} from './tools.ts'
+} from './note-tools-service.ts'
+
+/** The effects one test scripts; the rest answer as an empty graph does. */
+interface ToolEffects {
+  retrieveFn?: (query: string, options?: RetrieveOptions) => Promise<RetrievalHit[]>
+  readNoteFn?: (path: string) => Promise<string>
+  listRecentNotesFn?: (options: RecentNotesOptions) => Promise<RecentNoteRow[]>
+  listDailyNotesFn?: (range: DailyNotesRange) => Promise<DailyNoteRow[]>
+  assetReferencingNotePathsFn?: (assetPath: string, owners?: readonly string[]) => Promise<string[]>
+  xArchiveOwners?: Readonly<Record<string, readonly string[]>>
+  semanticSearchEnabled?: boolean
+}
+
+/** The tool set of a `NoteToolsService` over `effects`, with the real privacy gate. */
+function buildNoteTools(effects: ToolEffects = {}): NoteTools {
+  const noteFile = {
+    read: async (path: string): Promise<string> => {
+      if (effects.readNoteFn === undefined) {
+        throw new ReflectError('notFound', `${path} not found`)
+      }
+      return await effects.readNoteFn(path)
+    },
+  }
+  return createNoteToolsService({
+    retrieval: { retrieve: effects.retrieveFn ?? (async () => []) },
+    noteFile,
+    noteList: { listRecentNotes: effects.listRecentNotesFn ?? (async () => []) },
+    dailyNotes: { listDailyNotes: effects.listDailyNotesFn ?? (async () => []) },
+    assetReferences: { notePaths: effects.assetReferencingNotePathsFn ?? (async () => []) },
+    xArchive: createTestXArchiveService(
+      effects.xArchiveOwners === undefined ? {} : { owners: effects.xArchiveOwners },
+    ),
+    privacy: createPrivacyService({ noteFile }),
+  }).build({ semanticSearchEnabled: effects.semanticSearchEnabled ?? true })
+}
 
 const CALL: ToolExecutionOptions<Record<string, unknown>> = {
   toolCallId: 'call-1',
@@ -355,6 +392,37 @@ describe('read_assets', () => {
     expect(output.asset.path).toBe(ASSET)
     expect(output.asset.description).toBe(`A bar chart.\n\nOCR: ${DESCRIPTION_BODY}`)
     expect(output.asset.truncated).toBe(false)
+  })
+
+  it('asks the X archive for the owners of an archived media file', async () => {
+    const media = 'assets/x/media/1.jpg'
+    const archive = 'assets/x/posts/1.json'
+    const seenOwners: (readonly string[] | undefined)[] = []
+    const files: Record<string, string> = {
+      [`${media}.reflect.md`]: `---\nreflectAsset: true\n---\n${DESCRIPTION_BODY}\n`,
+      'notes/post.md': `# Post\n\n![post](${archive})\n`,
+    }
+    const tools = buildNoteTools({
+      readNoteFn: async (path) => {
+        const source = files[path]
+        if (source === undefined) {
+          throw { kind: 'notFound', message: 'no such file' }
+        }
+        return source
+      },
+      assetReferencingNotePathsFn: async (_assetPath, owners) => {
+        seenOwners.push(owners)
+        return ['notes/post.md']
+      },
+      xArchiveOwners: { [media]: [archive] },
+    })
+
+    const output = await runReadAsset(tools, media)
+
+    // The note embeds the archive file, not the media file: only the owners
+    // from the X archive make the asset count as publicly referenced.
+    expect(seenOwners).toEqual([[archive]])
+    expect(output.ok).toBe(true)
   })
 
   it('canonicalizes markdown-spelled paths to the indexed assets/… form', async () => {

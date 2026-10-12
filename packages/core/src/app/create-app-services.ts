@@ -35,10 +35,23 @@ import {
   withAppReviewDemo,
   type LanguageModelService,
 } from '../ai/language-model-service.ts'
+import { createChatEngineService, type ChatEngineService } from '../ai/chat/chat-engine-service.ts'
+import {
+  createChatGraphContextService,
+  type ChatGraphContextService,
+} from '../ai/chat/chat-graph-context-service.ts'
 import {
   createChatHistoryService,
   type ChatHistoryService,
 } from '../ai/chat/chat-history-service.ts'
+import {
+  createChatSessionService,
+  type ChatSessionService,
+} from '../ai/chat/chat-session-service.ts'
+import { fitToContextWindow } from '../ai/chat/context-window.ts'
+import { createNoteToolsService, type NoteToolsService } from '../ai/chat/note-tools-service.ts'
+import { createAssetReferences } from '../indexing/asset-refs.ts'
+import { listDailyNotes } from '../indexing/queries.ts'
 import {
   createBacklinkTargetService,
   type BacklinkTargetService,
@@ -361,6 +374,11 @@ export interface AppServices {
   readonly assetDescriber: AssetDescriberService
   readonly transcription: TranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly noteTools: NoteToolsService
+  readonly chatEngine: ChatEngineService
+  readonly chatGraphContext: ChatGraphContextService
+  /** Creates the chat session of an open graph; the workspace owns the session. */
+  readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: CaptureService
   readonly assetPrivacy: AssetPrivacyService
@@ -598,6 +616,22 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexLifecycle,
     logger,
   })
+  const chatHistory = createChatHistoryService({ ipc, database, logger })
+  const noteTools = createNoteToolsService({
+    retrieval,
+    noteFile,
+    noteList: indexReads.noteList,
+    dailyNotes: { listDailyNotes },
+    assetReferences: createAssetReferences({ database, xArchive }),
+    xArchive,
+    privacy: noteServices.privacy,
+  })
+  const chatEngine = createChatEngineService({ languageModel, noteTools, fitToContextWindow })
+  const chatGraphContext = createChatGraphContextService({
+    graphStats: indexReads.graphStats,
+    privacy: noteServices.privacy,
+  })
+  const imageCodec = adapters.imageCodec ?? createUnavailableImageCodec()
   return {
     ipc,
     logger,
@@ -619,7 +653,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     contacts: createContactsService({ ipc }),
     agentSkill: createAgentSkillService({ ipc }),
     mobileStorage,
-    imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
+    imageCodec,
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
     settings,
@@ -628,7 +662,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     database,
     indexStore,
     embeddingRuntime,
-    chatHistory: createChatHistoryService({ ipc, database, logger }),
+    chatHistory,
     navigation: createNavigationService(),
     deepLink: createDeepLinkService({
       source: adapters.deepLink ?? createNoDeepLinkSource(),
@@ -782,6 +816,23 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       createTranscriptionService({ http: adapters.http }),
     ),
     transcriptEnrichment: createTranscriptEnrichmentService({ languageModel }),
+    noteTools,
+    chatEngine,
+    chatGraphContext,
+    chatSessions: createChatSessionService({
+      chatEngine,
+      chatHistory,
+      chatGraphContext,
+      providerConfig: aiProviderConfig,
+      credentials: aiCredentials,
+      embeddingRuntime,
+      settings,
+      graphSession,
+      clock,
+      id,
+      imageCodec,
+      logger,
+    }),
     backlinkTarget,
     capture: createCaptureService({
       captureInbox,

@@ -39,7 +39,7 @@ through the **Rust** HTTP plugin, not webview `fetch`:
   `fetchFn` ([`apps/desktop/src/providers/chat-provider.tsx:307`](../../apps/desktop/src/providers/chat-provider.tsx)
   → `createOpenAI/Anthropic/GoogleGenerativeAI({ fetch })`, with OpenRouter using
   the OpenAI-compatible provider at a custom base URL, in
-  [`packages/core/src/ai/chat/stream-chat.ts`](../../packages/core/src/ai/chat/stream-chat.ts)).
+  [`packages/core/src/ai/chat/chat-engine-service.ts`](../../packages/core/src/ai/chat/chat-engine-service.ts)).
 - GitHub calls use the same plugin.
 - The allowed hosts are already enumerated in
   [`capabilities/default.json`](../../apps/desktop/src-tauri/capabilities/default.json)

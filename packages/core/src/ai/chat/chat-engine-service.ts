@@ -1,19 +1,19 @@
 import type { LanguageModel, ModelMessage } from '@reflect/modules/ai'
 import { errorMessage } from '../../errors.ts'
-import { languageModel } from '../language-model.ts'
-import { modelContextWindow } from '../provider-catalog.ts'
+import type { CloudGraphContext, CloudSafe } from '../../privacy/privacy-service.ts'
 import type { AiProviderConfig } from '../../settings/schema.ts'
-import type { CloudGraphContext, CloudSafe } from '../../privacy/checkers.ts'
-import { fitToContextWindow } from './context-window.ts'
-import { chatSystemPrompt } from './system-prompt.ts'
+import type { LanguageModelService } from '../language-model-service.ts'
+import { modelContextWindow } from '../provider-catalog.ts'
+import type { ContextWindowOptions } from './context-window.ts'
 import {
-  buildNoteTools,
   noteToolCall,
   noteToolResult,
   type NoteToolCall,
-  type NoteToolDeps,
   type NoteToolResult,
-} from './tools.ts'
+  type NoteTools,
+  type NoteToolsService,
+} from './note-tools-service.ts'
+import { chatSystemPrompt } from './system-prompt.ts'
 
 /**
  * The streaming chat engine (Plan 10, read-only first wave): one BYOK call
@@ -21,7 +21,8 @@ import {
  * read-only tools. The provider SDK's stream is normalized into a small typed
  * event union so the UI renders text, tool activity, and errors from one
  * shape regardless of provider. Tool payloads stay opaque here — their
- * shapes (and the only code that knows tool names) live in `./tools`.
+ * shapes (and the only code that knows tool names) live in
+ * `./note-tools-service`.
  */
 
 /**
@@ -33,16 +34,12 @@ import {
  */
 export const MAX_STEPS = 12
 
-export interface StreamChatOptions {
+/** One chat turn for {@link ChatEngineService.streamTurn}. */
+export interface ChatTurnRequest {
   /** The provider entry to call, with `model` set to the model id to use. */
   config: AiProviderConfig
   /** The BYOK API key, or an empty string for no-key compatible endpoints. */
   apiKey: string
-  /**
-   * Transport for the provider call — the desktop passes its shell fetch
-   * (CORS-free, host-allowlisted); tests pass a stub.
-   */
-  fetchFn: typeof fetch
   /** Full model-facing history including the new user message. */
   messages: ModelMessage[]
   /** Local ISO date for the system prompt (daily-note key space). */
@@ -52,7 +49,7 @@ export interface StreamChatOptions {
   /** User-authored instructions appended to Reflect's built-in system prompt. */
   customSystemPrompt: string
   /**
-   * Graph overview for the system prompt (`loadChatGraphContext`), or
+   * Graph overview for the system prompt (`ChatGraphContextService.load`), or
    * `null` to send the prompt without it — required so call sites decide
    * the degraded mode explicitly rather than forgetting the block.
    */
@@ -71,43 +68,64 @@ export type ChatStreamEvent =
   | { type: 'aborted'; messages: ModelMessage[] }
   | { type: 'complete'; messages: ModelMessage[] }
 
-/**
- * Run one chat turn against the user's configured provider, yielding
- * normalized {@link ChatStreamEvent}s. The history is first fitted to the
- * model's context budget ({@link fitToContextWindow}) — a long conversation
- * trims its oldest turns here rather than erroring at the provider. See
- * {@link streamChatTurn} for the stream's contract.
- */
-export async function* streamChat(options: StreamChatOptions): AsyncGenerator<ChatStreamEvent> {
-  try {
-    options.signal?.throwIfAborted()
-    const messages = fitToContextWindow(options.messages, {
-      contextWindow: modelContextWindow(options.config.provider, options.config.model),
-      systemPrompt: chatSystemPrompt({
-        today: options.today,
-        context: options.context,
-        semanticSearchEnabled: options.semanticSearchEnabled,
-        customSystemPrompt: options.customSystemPrompt,
-      }),
-    })
-    const model = await languageModel(options.config, options.apiKey)
-    options.signal?.throwIfAborted()
-    yield* streamChatTurn(model, {
-      messages,
-      today: options.today,
-      semanticSearchEnabled: options.semanticSearchEnabled,
-      customSystemPrompt: options.customSystemPrompt,
-      context: options.context,
-      signal: options.signal,
-    })
-  } catch (cause) {
-    yield options.signal?.aborted
-      ? { type: 'aborted', messages: [] }
-      : { type: 'error', message: errorMessage(cause), messages: [] }
+/** Fits a model-facing history into a context budget; see `fitToContextWindow`. */
+export type FitToContextWindow = (
+  messages: ModelMessage[],
+  options: ContextWindowOptions,
+) => ModelMessage[]
+
+/** Runs tool-grounded chat turns against the user's provider. */
+export interface ChatEngineService {
+  /**
+   * Run one chat turn against the user's configured provider, yielding
+   * normalized {@link ChatStreamEvent}s. The history is first fitted to the
+   * model's context budget — a long conversation trims its oldest turns here
+   * rather than erroring at the provider. See {@link streamChatTurn} for the
+   * stream's contract.
+   */
+  streamTurn: (request: ChatTurnRequest) => AsyncGenerator<ChatStreamEvent>
+}
+
+export function createChatEngineService(deps: {
+  languageModel: LanguageModelService
+  noteTools: NoteToolsService
+  fitToContextWindow: FitToContextWindow
+}): ChatEngineService {
+  const { languageModel, noteTools, fitToContextWindow } = deps
+  return {
+    async *streamTurn(request) {
+      try {
+        request.signal?.throwIfAborted()
+        const messages = fitToContextWindow(request.messages, {
+          contextWindow: modelContextWindow(request.config.provider, request.config.model),
+          systemPrompt: chatSystemPrompt({
+            today: request.today,
+            context: request.context,
+            semanticSearchEnabled: request.semanticSearchEnabled,
+            customSystemPrompt: request.customSystemPrompt,
+          }),
+        })
+        const model = await languageModel.create(request.config, request.apiKey)
+        request.signal?.throwIfAborted()
+        yield* streamChatTurn(model, {
+          messages,
+          today: request.today,
+          semanticSearchEnabled: request.semanticSearchEnabled,
+          customSystemPrompt: request.customSystemPrompt,
+          context: request.context,
+          signal: request.signal,
+          tools: noteTools.build({ semanticSearchEnabled: request.semanticSearchEnabled }),
+        })
+      } catch (cause) {
+        yield request.signal?.aborted
+          ? { type: 'aborted', messages: [] }
+          : { type: 'error', message: errorMessage(cause), messages: [] }
+      }
+    },
   }
 }
 
-/** {@link streamChatTurn}'s options: {@link StreamChatOptions} minus provider wiring. */
+/** {@link streamChatTurn}'s options: {@link ChatTurnRequest} minus provider wiring, plus the tools. */
 export interface ChatTurnOptions {
   /** Full model-facing history including the new user message. */
   messages: ModelMessage[]
@@ -121,12 +139,12 @@ export interface ChatTurnOptions {
   context: CloudSafe<CloudGraphContext> | null
   /** Aborts the provider call mid-stream (the UI's stop button). */
   signal?: AbortSignal | undefined
-  /** Test seam for the note tools' effects. */
-  toolDeps?: NoteToolDeps | undefined
+  /** The tools the model can call (`NoteToolsService.build`). */
+  tools: NoteTools
 }
 
 /**
- * The engine under {@link streamChat}, taking a concrete model — the seam
+ * The engine under {@link ChatEngineService.streamTurn}, taking a concrete model — the seam
  * tests drive with a mock model instead of a provider. The stream terminates
  * with exactly one of `complete`, `aborted`, or `error` — each carrying the
  * assistant/tool messages to append to the model history. For a cut-short
@@ -139,11 +157,6 @@ export async function* streamChatTurn(
   model: LanguageModel,
   options: ChatTurnOptions,
 ): AsyncGenerator<ChatStreamEvent> {
-  const tools = buildNoteTools({
-    ...options.toolDeps,
-    semanticSearchEnabled: options.semanticSearchEnabled,
-  })
-
   // Messages for all *completed* steps (cumulative, assistant/tool pairs)…
   let stepMessages: ModelMessage[] = []
   // …and the text streamed so far in the step still in flight.
@@ -165,7 +178,7 @@ export async function* streamChatTurn(
         customSystemPrompt: options.customSystemPrompt,
       }),
       messages: options.messages,
-      tools,
+      tools: options.tools,
       stopWhen: isStepCount(MAX_STEPS),
       // On the final permitted step, disable tools so the model must answer
       // from what it has already gathered. Without this a turn still calling
