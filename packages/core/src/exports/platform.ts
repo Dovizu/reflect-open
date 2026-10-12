@@ -108,6 +108,34 @@ export {
   type GithubRepoService,
 } from '../sync/github-repo-service.ts'
 export {
+  createSyncEngineFactory,
+  defaultSyncEngines,
+  setDefaultSyncEngines,
+  type SyncEngineFactory,
+} from '../sync/engine.ts'
+export {
+  createBackupService,
+  createBackupServiceFactory,
+  defaultBackups,
+  setDefaultBackups,
+  type BackupService,
+  type BackupServiceDeps,
+  type BackupServiceFactory,
+  type BackupServiceOptions,
+  type BackupState,
+  type ConnectExistingResult,
+} from '../sync/backup-service.ts'
+export {
+  createConnectGithubWizardService,
+  type ConnectAuthKind,
+  type ConnectFinishView,
+  type ConnectGithubWizardDeps,
+  type ConnectGithubWizardOptions,
+  type ConnectGithubWizardService,
+  type ConnectGithubWizardState,
+  type ConnectWizardStep,
+} from '../sync/connect-github-wizard-service.ts'
+export {
   createGistService,
   defaultGists,
   setDefaultGists,

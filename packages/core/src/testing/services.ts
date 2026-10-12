@@ -41,13 +41,16 @@ import {
   type TestXArchiveService,
 } from './capture.ts'
 import {
+  createTestBackupServiceFactory,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
   createTestICloudNativeService,
+  createTestSyncEngineFactory,
   type TestGitRepositoryService,
+  type TestGithubAuthService,
   type TestICloudNativeService,
 } from './sync.ts'
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
@@ -204,6 +207,7 @@ export interface TestAppServices extends AppServices {
   readonly navigation: TestNavigationService
   readonly deepLink: TestDeepLinkService
   readonly gitRepository: TestGitRepositoryService
+  readonly githubAuth: TestGithubAuthService
   readonly icloudNative: TestICloudNativeService
   readonly captureInbox: TestCaptureInboxService
   readonly webFetch: TestWebFetchService
@@ -323,6 +327,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: overrides?.mobileStorage ?? mobileStorage,
     logger,
   })
+  const persistenceFlush = createTestPersistenceFlushService()
+  const gitRepository = createTestGitRepositoryService()
+  const githubAuth = createTestGithubAuthService({
+    secretStore: overrides?.secretStore ?? secretStore,
+    http: overrides?.http ?? http,
+    clock: overrides?.clock ?? clock,
+  })
+  const gitHostCredentials = createTestGitHostCredentialService({
+    secretStore: overrides?.secretStore ?? secretStore,
+  })
+  const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
+  const syncEngines = createTestSyncEngineFactory({
+    git: overrides?.gitRepository ?? gitRepository,
+    clock: overrides?.clock ?? clock,
+  })
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
@@ -349,7 +368,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     operations,
     settings,
     theme: createTestThemeService(),
-    persistenceFlush: createTestPersistenceFlushService(),
+    persistenceFlush,
     database,
     fileChanges,
     indexStore,
@@ -365,16 +384,25 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
     }),
-    gitRepository: createTestGitRepositoryService(),
-    githubAuth: createTestGithubAuthService({
-      secretStore: overrides?.secretStore ?? secretStore,
-      http: overrides?.http ?? http,
-      clock: overrides?.clock ?? clock,
+    gitRepository,
+    githubAuth,
+    gitHostCredentials,
+    githubRepos,
+    syncEngines,
+    backups: createTestBackupServiceFactory({
+      git: overrides?.gitRepository ?? gitRepository,
+      syncEngines: overrides?.syncEngines ?? syncEngines,
+      githubAuth: overrides?.githubAuth ?? githubAuth,
+      githubRepos: overrides?.githubRepos ?? githubRepos,
+      gitHostCredentials: overrides?.gitHostCredentials ?? gitHostCredentials,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      operations: overrides?.operations ?? operations,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      platform: overrides?.platform ?? platform,
+      persistenceFlush: overrides?.persistenceFlush ?? persistenceFlush,
+      logger,
     }),
-    gitHostCredentials: createTestGitHostCredentialService({
-      secretStore: overrides?.secretStore ?? secretStore,
-    }),
-    githubRepos: createTestGithubRepoService({ http: overrides?.http ?? http }),
     gists: createTestGistService({ http: overrides?.http ?? http }),
     icloudNative: createTestICloudNativeService(),
     captureInbox,

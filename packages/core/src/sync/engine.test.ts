@@ -1,22 +1,52 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestGitRepositoryService, type TestGitRepositoryService } from '../testing/sync.ts'
-import { createSyncEngine, isSyncError, type SyncStatus } from './engine.ts'
 import {
-  setDefaultGitRepository,
-  type CommitOutcome,
-  type MergeOutcome,
-  type PushOutcome,
-  type RemoteDelta,
+  createSyncEngineFactory,
+  isSyncError,
+  type SyncEngine,
+  type SyncEngineOptions,
+  type SyncStatus,
+} from './engine.ts'
+import type {
+  CommitOutcome,
+  MergeOutcome,
+  PushOutcome,
+  RemoteDelta,
 } from './git-repository-service.ts'
 
+let clock: TestClockService
+let activeGit: TestGitRepositoryService
+
 beforeEach(() => {
-  vi.useFakeTimers()
+  clock = createTestClockService()
+  activeGit = createTestGitRepositoryService()
 })
 
-afterEach(() => {
-  vi.useRealTimers()
-  setDefaultGitRepository(null)
-})
+/** An engine over the git fake of the last {@link fakeGit} call and the test clock. */
+function createSyncEngine(options: SyncEngineOptions): SyncEngine {
+  return createSyncEngineFactory({ git: activeGit, clock }).create(options)
+}
+
+/** Let every promise chain that is already runnable settle. */
+async function flush(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+/** Move the clock by `ms`, running the timers that come due, then settle. */
+async function advance(ms: number): Promise<void> {
+  await clock.advance(ms)
+  await flush()
+}
+
+/** Run every scheduled timer, however far away, then settle. */
+async function runAllTimers(): Promise<void> {
+  await flush()
+  while (clock.pendingTimers() > 0) {
+    await clock.advance(60_000)
+    await flush()
+  }
+}
 
 const CRED = { username: 'x-access-token', secret: 'tok' }
 const CLEAN_COMMIT: CommitOutcome = { committed: false, sha: null, ahead: 0, skippedLargeFiles: [] }
@@ -36,7 +66,7 @@ function fakeGit(): TestGitRepositoryService {
   git.onCommitAll(() => COMMITTED)
   git.onFetch(() => DELTA)
   git.onMergeRemote(() => MERGED)
-  setDefaultGitRepository(git)
+  activeGit = git
   return git
 }
 
@@ -44,7 +74,7 @@ function methodsOf(git: TestGitRepositoryService): string[] {
   return git.calls().map((call) => call.method)
 }
 
-describe('createSyncEngine', () => {
+describe('createSyncEngineFactory', () => {
   it('debounces edits into one commit→push cycle pinned to the generation', async () => {
     const git = fakeGit()
     const statuses: SyncStatus[] = []
@@ -60,10 +90,10 @@ describe('createSyncEngine', () => {
 
     engine.noteChanged()
     engine.noteChanged() // coalesces into the same cycle
-    await vi.advanceTimersByTimeAsync(99)
+    await advance(99)
     expect(git.calls()).toHaveLength(0)
-    await vi.advanceTimersByTimeAsync(1)
-    await vi.runAllTimersAsync()
+    await advance(1)
+    await runAllTimers()
 
     expect(git.calls()).toEqual([
       { method: 'commitAll', args: ['Update notes', 7] },
@@ -84,14 +114,14 @@ describe('createSyncEngine', () => {
 
     // An edit every 80ms keeps resetting the idle window…
     engine.noteChanged()
-    await vi.advanceTimersByTimeAsync(80)
+    await advance(80)
     engine.noteChanged()
-    await vi.advanceTimersByTimeAsync(80)
+    await advance(80)
     engine.noteChanged()
     expect(git.calls()).toHaveLength(0)
     // …but the 250ms ceiling forces the cycle anyway.
-    await vi.advanceTimersByTimeAsync(100)
-    await vi.runAllTimersAsync()
+    await advance(100)
+    await runAllTimers()
     expect(methodsOf(git)).toContain('commitAll')
     engine.stop()
   })
@@ -114,7 +144,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(methodsOf(git)).toEqual(['commitAll', 'push', 'fetch', 'mergeRemote', 'push'])
     expect(statuses.at(-1)?.state).toBe('idle')
@@ -143,7 +173,7 @@ describe('createSyncEngine', () => {
         idleMs: 10,
       })
       engine.noteChanged()
-      await vi.runAllTimersAsync()
+      await runAllTimers()
       expect(statuses.at(-1)).toMatchObject(expected)
       engine.stop()
     }
@@ -165,7 +195,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(statuses.at(-1)?.state).toBe('offline')
     engine.stop()
@@ -187,7 +217,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(statuses.at(-1)).toMatchObject({ state: 'error', errorKind: 'auth' })
     engine.stop()
@@ -307,7 +337,7 @@ describe('createSyncEngine', () => {
     const first = engine.syncNow()
     await vi.waitFor(() => expect(methodsOf(git)).toContain('mergeRemote'))
     engine.noteChanged() // the debounce asks for a push
-    await vi.advanceTimersByTimeAsync(10)
+    await advance(10)
     const flushed = engine.commitNow() // the flush asks for a commit
     gate.release()
     await first
@@ -362,12 +392,12 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
     expect(statuses.at(-1)).toMatchObject({ state: 'error', errorKind: 'auth' })
     const emitted = statuses.length
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
     expect(methodsOf(git).filter((method) => method === 'commitAll')).toHaveLength(2)
     expect(pushes).toBe(1)
     expect(statuses).toHaveLength(emitted) // the auth error stays on screen
@@ -397,7 +427,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     const last = statuses.at(-1)
     if (last === undefined || !isSyncError(last)) {
@@ -424,7 +454,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(git.calls().filter((call) => call.method === 'push')).toHaveLength(3)
     expect(statuses.at(-1)?.state).toBe('error')
@@ -445,14 +475,14 @@ describe('createSyncEngine', () => {
     const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED, idleMs: 10 })
 
     engine.noteChanged()
-    await vi.advanceTimersByTimeAsync(10)
+    await advance(10)
     expect(methodsOf(git)).toEqual(['commitAll', 'push'])
 
     // A focus/manual sync arrives mid-cycle: its fetch+merge must not be
     // downgraded to a push-only follow-up.
     void engine.syncNow()
     pushGate.resolve?.(PUSHED)
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(methodsOf(git)).toEqual([
       'commitAll',
@@ -514,7 +544,7 @@ describe('createSyncEngine', () => {
     })
 
     const syncing = engine.syncNow()
-    await vi.advanceTimersByTimeAsync(0)
+    await advance(0)
 
     // The projection is still gated, but the merge's Markdown has already
     // continued through the durable Git push. Only the idle boundary waits.
@@ -562,7 +592,7 @@ describe('createSyncEngine', () => {
     })
 
     const syncing = engine.syncNow()
-    await vi.advanceTimersByTimeAsync(0)
+    await advance(0)
 
     expect(methodsOf(git)).toEqual([
       'commitAll',
@@ -606,7 +636,7 @@ describe('createSyncEngine', () => {
     })
 
     const syncing = engine.syncNow()
-    await vi.advanceTimersByTimeAsync(0)
+    await advance(0)
     expect(methodsOf(git)).toEqual(['commitAll', 'fetch', 'mergeRemote', 'push'])
 
     canStartCycle = false
@@ -645,7 +675,7 @@ describe('createSyncEngine', () => {
     })
 
     const syncing = engine.syncNow()
-    await vi.advanceTimersByTimeAsync(0)
+    await advance(0)
 
     // The projection has already rejected, but that failure must not strand
     // the merged Markdown before its required push.
@@ -681,7 +711,7 @@ describe('createSyncEngine', () => {
     })
 
     const syncing = engine.syncNow()
-    await vi.advanceTimersByTimeAsync(0)
+    await advance(0)
     expect(methodsOf(git)).toEqual(['commitAll', 'fetch', 'mergeRemote'])
 
     engine.stop()
@@ -716,7 +746,7 @@ describe('createSyncEngine', () => {
     })
 
     const syncing = engine.syncNow()
-    await vi.advanceTimersByTimeAsync(0)
+    await advance(0)
     const commandsBeforeStop = methodsOf(git)
     expect(commandsBeforeStop).toEqual(['commitAll', 'fetch', 'mergeRemote', 'push'])
     expect(statuses.map((status) => status.state)).toEqual(['syncing'])
@@ -782,7 +812,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(skipped).toEqual([[{ path: 'assets/movie.mp4', size: 200_000_000 }]])
     engine.stop()
@@ -803,15 +833,15 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.advanceTimersByTimeAsync(10)
+    await advance(10)
     expect(methodsOf(git)).toEqual(['commitAll', 'push'])
 
     engine.noteChanged() // lands mid-cycle: must not start a second commit
-    await vi.advanceTimersByTimeAsync(50)
+    await advance(50)
     expect(methodsOf(git)).toEqual(['commitAll', 'push'])
 
     pushGate.resolve?.(PUSHED)
-    await vi.runAllTimersAsync()
+    await runAllTimers()
     // The mid-cycle edit got its own follow-up cycle.
     expect(methodsOf(git)).toEqual(['commitAll', 'push', 'commitAll', 'push'])
     engine.stop()
@@ -825,7 +855,7 @@ describe('createSyncEngine', () => {
     const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED, idleMs: 10 })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(methodsOf(git)).toEqual(['commitAll'])
     engine.stop()
@@ -860,7 +890,7 @@ describe('createSyncEngine', () => {
 
     engine.noteChanged() // schedules a debounced pass…
     await engine.syncNow() // …which this full cycle already covers
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(methodsOf(git)).toEqual(['commitAll', 'fetch', 'mergeRemote', 'push'])
     engine.stop()
@@ -876,7 +906,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
     await engine.syncNow()
 
     expect(methodsOf(git)).toEqual(['commitAll', 'commitAll'])
@@ -889,7 +919,7 @@ describe('createSyncEngine', () => {
 
     engine.noteChanged()
     engine.stop()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(git.calls()).toHaveLength(0)
   })
@@ -913,7 +943,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     const push = git.calls().find((call) => call.method === 'push')
     expect(push?.args[0]).toBeNull()
@@ -936,7 +966,7 @@ describe('createSyncEngine', () => {
     engine.stop()
     engine.noteChanged()
     await engine.syncNow()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(git.calls()).toHaveLength(0)
     expect(statuses).toHaveLength(0)
@@ -955,14 +985,14 @@ describe('createSyncEngine', () => {
     const first = engine.syncNow()
     const second = engine.syncNow()
     const third = engine.syncNow()
-    await vi.runAllTimersAsync()
+    await runAllTimers()
     // Only the first cycle has started; the others coalesced, not interleaved.
     expect(methodsOf(git)).toEqual(['commitAll', 'fetch', 'mergeRemote', 'push'])
 
     pushGates.shift()?.(PUSHED)
-    await vi.runAllTimersAsync()
+    await runAllTimers()
     pushGates.shift()?.(PUSHED)
-    await vi.runAllTimersAsync()
+    await runAllTimers()
     await Promise.all([first, second, third])
 
     // The two queued requests collapsed into a single full follow-up cycle.
@@ -997,7 +1027,7 @@ describe('createSyncEngine', () => {
     })
 
     const syncing = engine.syncNow()
-    await vi.advanceTimersByTimeAsync(0)
+    await advance(0)
     expect(methodsOf(git)).toEqual(['commitAll', 'fetch'])
 
     canStartCycle = false
@@ -1028,7 +1058,7 @@ describe('createSyncEngine', () => {
     })
 
     engine.noteChanged()
-    await vi.advanceTimersByTimeAsync(10)
+    await advance(10)
     expect(methodsOf(git)).toEqual(['commitAll', 'push'])
 
     // Disconnect/teardown while the push is in flight: the resolution would
@@ -1036,7 +1066,7 @@ describe('createSyncEngine', () => {
     // emission — a stopped engine must do neither.
     engine.stop()
     pushGate.resolve(NON_FAST_FORWARD)
-    await vi.runAllTimersAsync()
+    await runAllTimers()
 
     expect(methodsOf(git)).toEqual(['commitAll', 'push'])
     expect(statuses.map((status) => status.state)).toEqual(['syncing'])
