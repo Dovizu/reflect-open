@@ -1,5 +1,5 @@
 import { createContext, use, type ReactElement, type ReactNode } from 'react'
-import type { AppServices, GraphServices } from '@reflect/core'
+import { defaultAppServices, type AppServices, type GraphServices } from '@reflect/core'
 
 const AppServicesContext = createContext<AppServices | null>(null)
 const GraphServicesContext = createContext<GraphServices | null>(null)
@@ -25,13 +25,16 @@ export function GraphServicesProvider({
   return <GraphServicesContext value={services}>{children}</GraphServicesContext>
 }
 
-/** The {@link AppServices} of the nearest `AppServicesProvider`. */
+/**
+ * The {@link AppServices} of the nearest `AppServicesProvider`. Outside one,
+ * the process-wide defaults as one object; `optional` gives `null` instead.
+ */
 export function useAppServices(options: { optional: true }): AppServices | null
 export function useAppServices(): AppServices
 export function useAppServices(options?: { optional: true }): AppServices | null {
   const services = use(AppServicesContext)
   if (services === null && !options?.optional) {
-    throw new Error('useAppServices() must be called inside an <AppServicesProvider>')
+    return defaultAppServices()
   }
   return services
 }

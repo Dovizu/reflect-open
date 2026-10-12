@@ -1,7 +1,5 @@
-import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
-import { ReflectError, resolveConflictMarkers, type GraphInfo } from '@reflect/core'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { ReflectError, resolveConflictMarkers } from '@reflect/core'
 import {
   createTestAppServices,
   createTestFileChangeService,
@@ -10,18 +8,14 @@ import {
   type TestFileChangeService,
   type TestIndexLifecycleService,
   type TestNoteFileService,
+  type TestOpenGraph,
 } from '@reflect/core/testing'
-import { invalidateIndexQueries } from '@/lib/query-client.ts'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { queryClient, queryKeys } from '@/lib/query-client.ts'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useConflictResolution } from './use-conflict-resolution.ts'
 
-vi.mock('@/lib/query-client.ts', () => ({ invalidateIndexQueries: vi.fn() }))
-
-const graphState = vi.hoisted(() => ({
-  graph: { root: '/g', name: 'G', generation: 3 } as GraphInfo | null,
-  indexGeneration: 7 as number | null,
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({ useGraph: () => graphState }))
+const GRAPH: TestOpenGraph = { root: '/g', name: 'G', generation: 3, indexGeneration: 7 }
+const INDEX_QUERIES = { queryKey: queryKeys.index.all }
 
 const PATH = 'notes/clash.md'
 const SOURCE = [
@@ -36,11 +30,12 @@ const SOURCE = [
 let noteFile: TestNoteFileService
 let fileChanges: TestFileChangeService
 let indexLifecycle: TestIndexLifecycleService
+let invalidateQueries: MockInstance<typeof queryClient.invalidateQueries>
 let indexed: Array<{ path: string; generation: number; content: string | undefined }>
 
 beforeEach(() => {
-  graphState.graph = { root: '/g', name: 'G', generation: 3 }
-  graphState.indexGeneration = 7
+  // `invalidateIndexQueries` goes through the app's query client.
+  invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
   noteFile = createTestNoteFileService({ files: { [PATH]: SOURCE } })
   fileChanges = createTestFileChangeService()
   indexed = []
@@ -52,21 +47,17 @@ beforeEach(() => {
   }
 })
 
-afterEach(() => {
-  vi.clearAllMocks()
-})
-
 /** Render the hook over app services built on the fakes above. */
-async function mount(overrides?: { noteFile?: TestNoteFileService }) {
+async function mount(overrides?: { noteFile?: TestNoteFileService; graph?: null }) {
   const app = createTestAppServices({
     noteFile: overrides?.noteFile ?? noteFile,
     fileChanges,
     indexLifecycle,
   })
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <AppServicesProvider services={app}>{children}</AppServicesProvider>
-  )
-  return await renderHook(() => useConflictResolution(PATH), { wrapper })
+  return await renderHookInApp(() => useConflictResolution(PATH), {
+    app,
+    graph: overrides?.graph === null ? null : GRAPH,
+  })
 }
 
 describe('useConflictResolution', () => {
@@ -83,7 +74,7 @@ describe('useConflictResolution', () => {
     expect(fileChanges.batches()).toEqual([
       { changes: [{ path: PATH, kind: 'upsert' }], source: 'own-write' },
     ])
-    expect(vi.mocked(invalidateIndexQueries)).toHaveBeenCalled()
+    expect(invalidateQueries).toHaveBeenCalledWith(INDEX_QUERIES)
     expect(result.current.error).toBeNull()
     expect(result.current.busy).toBe(false)
   })
@@ -105,7 +96,7 @@ describe('useConflictResolution', () => {
     expect(result.current.error).toBe('disk full')
     expect(result.current.busy).toBe(false)
     expect(fileChanges.batches()).toEqual([])
-    expect(vi.mocked(invalidateIndexQueries)).not.toHaveBeenCalled()
+    expect(invalidateQueries).not.toHaveBeenCalledWith(INDEX_QUERIES)
   })
 
   it('a failed reindex still notifies — the file on disk did change', async () => {
@@ -120,12 +111,11 @@ describe('useConflictResolution', () => {
 
     expect(result.current.error).toBe('index closed')
     expect(fileChanges.batches()).toHaveLength(1)
-    expect(vi.mocked(invalidateIndexQueries)).toHaveBeenCalled()
+    expect(invalidateQueries).toHaveBeenCalledWith(INDEX_QUERIES)
   })
 
   it('does nothing without an open graph', async () => {
-    graphState.graph = null
-    const { result, act } = await mount()
+    const { result, act } = await mount({ graph: null })
 
     await act(async () => {
       await result.current.resolve('ours')
@@ -133,6 +123,6 @@ describe('useConflictResolution', () => {
 
     expect(noteFile.writes()).toEqual([])
     expect(fileChanges.batches()).toEqual([])
-    expect(vi.mocked(invalidateIndexQueries)).not.toHaveBeenCalled()
+    expect(invalidateQueries).not.toHaveBeenCalledWith(INDEX_QUERIES)
   })
 })

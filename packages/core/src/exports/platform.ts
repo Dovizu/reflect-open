@@ -684,6 +684,7 @@ export {
   type GraphServices,
 } from '../app/create-graph-services.ts'
 export { installDefaultServices } from '../app/install-default-services.ts'
+export { defaultAppServices } from '../app/default-app-services.ts'
 export {
   agentSkillStatus,
   agentSkillInstall,

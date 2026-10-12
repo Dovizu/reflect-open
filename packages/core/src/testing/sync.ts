@@ -12,6 +12,7 @@ import {
   type BackupService,
   type BackupServiceDeps,
   type BackupServiceFactory,
+  type BackupServiceOptions,
   type BackupState,
   type ConnectExistingResult,
 } from '../sync/backup-service.ts'
@@ -470,6 +471,33 @@ export function createTestBackupServiceFactory(
     persistenceFlush: deps?.persistenceFlush ?? createTestPersistenceFlushService(),
     logger: deps?.logger ?? createTestLoggerService(),
   })
+}
+
+/** A {@link BackupServiceFactory} whose every `create` hands out one scripted service. */
+export interface TestScriptedBackupServiceFactory extends BackupServiceFactory {
+  /** The service every `create` call returns. */
+  readonly backup: TestBackupService
+  /** The options of every `create` call, in order. */
+  creations(): readonly BackupServiceOptions[]
+}
+
+/**
+ * A {@link BackupServiceFactory} for surfaces that only read a backup: no
+ * engine runs, and the state is what `backup.setState` says (`state` at first).
+ */
+export function createTestScriptedBackupServiceFactory(options?: {
+  state?: BackupState
+}): TestScriptedBackupServiceFactory {
+  const backup = createTestBackupService(options)
+  const created: BackupServiceOptions[] = []
+  return {
+    backup,
+    create: (createOptions) => {
+      created.push(createOptions)
+      return backup
+    },
+    creations: () => [...created],
+  }
 }
 
 /** One recorded {@link TestBackupService} action. */

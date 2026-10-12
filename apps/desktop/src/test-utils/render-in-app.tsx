@@ -1,0 +1,235 @@
+import type { ReactElement, ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { onTestFinished } from 'vitest'
+import { render, renderHook, type RenderHookResult, type RenderResult } from 'vitest-browser-react'
+import type {
+  AppServices,
+  BackupState,
+  GraphSessionState,
+  MobileOnboardingState,
+  Settings,
+} from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestPlatformService,
+  createTestScriptedBackupServiceFactory,
+  installTestServices,
+  type TestAppServices,
+  type TestBackupService,
+  type TestOpenGraph,
+  type TestPlatformOptions,
+} from '@reflect/core/testing'
+import { TooltipProvider } from '@/components/ui/tooltip.tsx'
+import { registerAppCommands } from '@/lib/commands/app-commands.ts'
+import { GraphProvider, useGraph } from '@/providers/graph-provider.tsx'
+import { SettingsProvider } from '@/providers/settings-provider.tsx'
+import { SyncProvider } from '@/providers/sync-provider.tsx'
+import type { Route } from '@/routing/route.ts'
+import { RouterProvider } from '@/routing/router.tsx'
+import { AppServicesProvider } from '@/services/services-provider.tsx'
+
+/** The platform facts of the mobile app: pass as `platform` to render a mobile surface. */
+export const MOBILE_PLATFORM: TestPlatformOptions = {
+  appPlatform: 'ios',
+  isMacosDesktop: false,
+  hasMacosTitleBarOverlay: false,
+  surface: { mobileApp: true, touchEditor: true },
+}
+
+export interface RenderInAppOptions {
+  /**
+   * The open graph, reported through `app.graphSession.setGraph()`. Left out,
+   * the graph `test` at `/graphs/test` is open with both generations 1. `null`
+   * is the graph chooser: no graph, and no graph services.
+   */
+  graph?: TestOpenGraph | null
+  /** Reported over the graph state, e.g. `{ indexing: true }`, `{ error }`, `{ recents }`. */
+  graphState?: Partial<GraphSessionState>
+  /** The stored settings document, loaded before the first render. */
+  settings?: Partial<Settings>
+  /** Reported over the mobile onboarding state, e.g. `{ kind: 'icloud' }`. */
+  mobile?: Partial<MobileOnboardingState>
+  /** The route the router starts on; defaults to today. `null` mounts no router. */
+  route?: Route | null
+  /**
+   * Mount the real `SyncProvider` for the open graph. A `BackupState` also
+   * swaps the backup factory for a scripted one that starts in this state;
+   * the result's `backup` drives it. Needs an open graph.
+   */
+  sync?: boolean | BackupState
+  /** The facts of the test platform. Only without `app`; see {@link MOBILE_PLATFORM}. */
+  platform?: TestPlatformOptions
+  /** Defaults to a fresh client without retries, cleared when the test ends. */
+  queryClient?: QueryClient
+  /** Wraps `ui` inside every provider, for providers this helper does not mount. */
+  wrapper?: (children: ReactNode) => ReactNode
+}
+
+interface InAppHandles<App extends AppServices> {
+  readonly app: App
+  readonly queryClient: QueryClient
+  /** The scripted backup when `sync` was a `BackupState`, else `null`. */
+  readonly backup: TestBackupService | null
+}
+
+export interface InAppRenderResult<App extends AppServices>
+  extends RenderResult, InAppHandles<App> {}
+
+export interface InAppRenderHookResult<Result, Props, App extends AppServices>
+  extends RenderHookResult<Result, Props>, InAppHandles<App> {}
+
+type WithApp<App> = RenderInAppOptions & { app: App }
+type WithoutApp = RenderInAppOptions & { app?: undefined }
+type AnyOptions = RenderInAppOptions & { app?: AppServices | undefined }
+
+function GraphSync({ children }: { children: ReactNode }): ReactNode {
+  const { graph } = useGraph()
+  return graph === null ? children : <SyncProvider graph={graph}>{children}</SyncProvider>
+}
+
+/** Prepare `app` and the provider tree; the caller renders `wrap(ui)` and calls `dispose` after. */
+async function prepare(options: AnyOptions | undefined): Promise<
+  InAppHandles<AppServices> & {
+    wrap: (children: ReactNode) => ReactElement
+    dispose: () => void
+  }
+> {
+  const scriptedBackups =
+    typeof options?.sync === 'object'
+      ? createTestScriptedBackupServiceFactory({ state: options.sync })
+      : null
+  if (options?.app !== undefined && (scriptedBackups !== null || options.platform !== undefined)) {
+    throw new Error(
+      'renderInApp: with your own `app`, give it the platform and the backup factory yourself',
+    )
+  }
+  const overrides: Partial<AppServices> = {
+    ...(options?.platform === undefined
+      ? {}
+      : { platform: createTestPlatformService(options.platform) }),
+    ...(scriptedBackups === null ? {} : { backups: scriptedBackups }),
+  }
+  const app: AppServices = options?.app ?? (createTestAppServices(overrides) as AppServices)
+
+  const { graphSession, settings, mobileOnboarding } = app
+  if (!('setGraph' in graphSession) || !('setState' in graphSession)) {
+    throw new Error('renderInApp: `app.graphSession` must be a test graph session')
+  }
+  const session = graphSession as TestAppServices['graphSession']
+  session.setGraph(options?.graph === undefined ? {} : options.graph)
+  if (options?.graphState !== undefined) {
+    session.setState(options.graphState)
+  }
+  if (options?.settings !== undefined) {
+    if (!('seed' in settings)) {
+      throw new Error('renderInApp: `settings` needs a test settings service in `app`')
+    }
+    ;(settings as TestAppServices['settings']).seed(options.settings)
+  }
+  if (options?.mobile !== undefined) {
+    if (!('setState' in mobileOnboarding)) {
+      throw new Error('renderInApp: `mobile` needs a test mobile onboarding service in `app`')
+    }
+    ;(mobileOnboarding as TestAppServices['mobileOnboarding']).setState(options.mobile)
+  }
+  // The first render already shows the stored settings, not the defaults.
+  await settings.whenLoaded()
+
+  const queryClient =
+    options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const restore = installTestServices(app)
+  registerAppCommands()
+
+  const route = options?.route
+  const wrap = (children: ReactNode): ReactElement => {
+    const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
+    const synced = (options?.sync ?? false) === false ? wrapped : <GraphSync>{wrapped}</GraphSync>
+    return (
+      <AppServicesProvider services={app}>
+        <QueryClientProvider client={queryClient}>
+          <SettingsProvider>
+            <GraphProvider platform={app.platform.appPlatform}>
+              <TooltipProvider>
+                {route === null ? (
+                  synced
+                ) : (
+                  <RouterProvider {...(route === undefined ? {} : { initialRoute: route })}>
+                    {synced}
+                  </RouterProvider>
+                )}
+              </TooltipProvider>
+            </GraphProvider>
+          </SettingsProvider>
+        </QueryClientProvider>
+      </AppServicesProvider>
+    )
+  }
+  return {
+    app,
+    queryClient,
+    backup: scriptedBackups?.backup ?? null,
+    wrap,
+    dispose: () => {
+      queryClient.clear()
+      restore()
+    },
+  }
+}
+
+/**
+ * Render `ui` the way the app does: inside `AppServicesProvider`, a query
+ * client, and the real `SettingsProvider`, `GraphProvider` (which provides
+ * the graph services), `RouterProvider` and, on request, `SyncProvider`. All
+ * of them read `app`, which defaults to test doubles and is also installed as
+ * the process-wide defaults until the test ends. Tests drive and observe the
+ * app through the returned `app`: `app.graphSession.setGraph()`,
+ * `app.settings.get()`, `app.navigation.navigations()`,
+ * `app.operations.getAll()`.
+ *
+ * Pass your own `app` to replace or spy on a service before the first render.
+ */
+export async function renderInApp(
+  ui: ReactNode,
+  options?: WithoutApp,
+): Promise<InAppRenderResult<TestAppServices>>
+export async function renderInApp<App extends AppServices>(
+  ui: ReactNode,
+  options: WithApp<App>,
+): Promise<InAppRenderResult<App>>
+export async function renderInApp(
+  ui: ReactNode,
+  options?: AnyOptions,
+): Promise<InAppRenderResult<AppServices>> {
+  const { wrap, dispose, ...handles } = await prepare(options)
+  const screen = await render(ui, { wrapper: ({ children }) => wrap(children) })
+  onTestFinished(async () => {
+    await screen.unmount()
+    dispose()
+  })
+  return Object.assign(screen, handles)
+}
+
+/** {@link renderInApp} for a hook: `hook` runs inside the same providers. */
+export async function renderHookInApp<Result, Props = undefined>(
+  hook: (props?: Props) => Result,
+  options?: WithoutApp & { initialProps?: Props },
+): Promise<InAppRenderHookResult<Result, Props, TestAppServices>>
+export async function renderHookInApp<Result, Props, App extends AppServices>(
+  hook: (props?: Props) => Result,
+  options: WithApp<App> & { initialProps?: Props },
+): Promise<InAppRenderHookResult<Result, Props, App>>
+export async function renderHookInApp<Result, Props>(
+  hook: (props?: Props) => Result,
+  options?: AnyOptions & { initialProps?: Props },
+): Promise<InAppRenderHookResult<Result, Props, AppServices>> {
+  const { wrap, dispose, ...handles } = await prepare(options)
+  const rendered = await renderHook<Props, Result>(hook, {
+    wrapper: ({ children }) => wrap(children),
+    initialProps: options?.initialProps,
+  })
+  onTestFinished(async () => {
+    await rendered.unmount()
+    dispose()
+  })
+  return Object.assign(rendered, handles)
+}
