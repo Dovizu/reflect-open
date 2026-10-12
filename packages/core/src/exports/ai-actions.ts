@@ -106,13 +106,7 @@ export {
   type ChatAttachment,
   type ChatTurn,
 } from '../ai/chat/transcript.ts'
-export {
-  deleteChatConversation,
-  listChatConversations,
-  loadChatMessages,
-  saveChatMessage,
-  type ChatConversation,
-} from '../ai/chat/store.ts'
+export { listChatConversations, type ChatConversation } from '../ai/chat/store.ts'
 export {
   estimateTokens,
   fitToContextWindow,
