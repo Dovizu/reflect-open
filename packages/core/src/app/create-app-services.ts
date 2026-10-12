@@ -88,6 +88,12 @@ import { createGithubRepoService, type GithubRepoService } from '../sync/github-
 import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
 import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
+import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
+import {
+  createLinkPreviewService,
+  type LinkPreviewService,
+} from '../link-preview/link-preview-service.ts'
+import { parseLinkPreviewMeta } from '../link-preview/metadata.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 import { createPlatformAudioRecorder } from '../audio/default-audio-recorder.ts'
@@ -313,6 +319,8 @@ export interface AppServices {
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
   readonly xArchive: XArchiveService
+  readonly embedMedia: EmbedMediaService
+  readonly linkPreview: LinkPreviewService
   readonly audioRecorder: AudioRecorderService
   /** Mobile only. */
   readonly haptics?: HapticsService
@@ -718,6 +726,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     captureInbox,
     webFetch,
     xArchive,
+    embedMedia: createEmbedMediaService({ xArchive, webFetch, platform, clock, logger }),
+    linkPreview: createLinkPreviewService({
+      noteDocuments,
+      privacy: noteServices.privacy,
+      webFetch,
+      parseMetadata: parseLinkPreviewMeta,
+    }),
     audioRecorder: createPlatformAudioRecorder({
       platform: adapters.platform,
       ipc,

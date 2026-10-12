@@ -146,6 +146,8 @@ export {
   type TestXArchiveService,
   type WebFetchKind,
 } from './capture.ts'
+export { createTestEmbedMediaService, type TestEmbedMediaServiceOptions } from './embeds.ts'
+export { createTestLinkPreviewService, type TestLinkPreviewServiceOptions } from './link-preview.ts'
 export {
   createTestBackupService,
   createTestBackupServiceFactory,

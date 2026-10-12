@@ -932,7 +932,12 @@ export {
   vaultScanStats,
   type VaultScanStats,
 } from '../graph/commands.ts'
-export { fetchYouTubeVideo } from '../youtube-video.ts'
+export {
+  createEmbedMediaService,
+  defaultEmbedMedia,
+  setDefaultEmbedMedia,
+  type EmbedMediaService,
+} from '../embeds/embed-media-service.ts'
 export { createAsset, importAsset } from '../graph/assets.ts'
 export { assetFileName } from '../graph/asset-names.ts'
 export {

@@ -105,23 +105,3 @@ export function defaultXArchive(): XArchiveService {
 export function setDefaultXArchive(service: XArchiveService | null): void {
   defaultService = service
 }
-
-export async function resolveArchivedPost(
-  generation: number,
-  postId: string,
-): Promise<ResolvedArchivedPost | null> {
-  return await defaultXArchive().resolve(generation, postId)
-}
-
-export async function getXArchiveOwners(assetPath: string, generation?: number): Promise<string[]> {
-  return await defaultXArchive().owners(assetPath, generation)
-}
-
-export async function saveArchivedPost(generation: number, incoming: ArchivedXPost): Promise<void> {
-  await defaultXArchive().write(generation, incoming)
-}
-
-/** The post from X's syndication API, or `null` when X has no renderable public post with this id. */
-export async function fetchSyndicationPost(postId: string): Promise<XPost | null> {
-  return await defaultXArchive().fetchSyndication(postId)
-}

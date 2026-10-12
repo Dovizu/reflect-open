@@ -24,6 +24,8 @@ import { setDefaultGithubRepos } from '../sync/github-repo-service.ts'
 import { setDefaultSyncEngines } from '../sync/engine.ts'
 import { setDefaultBackups } from '../sync/backup-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
+import { setDefaultEmbedMedia } from '../embeds/embed-media-service.ts'
+import { setDefaultLinkPreview } from '../link-preview/link-preview-service.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { setDefaultClassicAccess } from '../classic/classic-access-service.ts'
@@ -149,6 +151,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultCaptureInbox(services.captureInbox)
   setDefaultWebFetch(services.webFetch)
   setDefaultXArchive(services.xArchive)
+  setDefaultEmbedMedia(services.embedMedia)
+  setDefaultLinkPreview(services.linkPreview)
   setDefaultAudioRecorder(services.audioRecorder)
   setDefaultHaptics(services.haptics ?? null)
   setDefaultIap(services.iap ?? null)
@@ -255,6 +259,8 @@ export function resetDefaultServices(): void {
   setDefaultCaptureInbox(null)
   setDefaultWebFetch(null)
   setDefaultXArchive(null)
+  setDefaultEmbedMedia(null)
+  setDefaultLinkPreview(null)
   setDefaultAudioRecorder(null)
   setDefaultHaptics(null)
   setDefaultIap(null)

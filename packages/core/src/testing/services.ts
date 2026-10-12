@@ -206,6 +206,8 @@ import {
   type TestAssetDescriptionService,
 } from './assets.ts'
 import type { CommandService } from '../commands/command-service.ts'
+import { createTestEmbedMediaService } from './embeds.ts'
+import { createTestLinkPreviewService } from './link-preview.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
@@ -334,6 +336,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const fileChanges = createTestFileChangeService()
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
+  const webFetch = createTestWebFetchService()
   const hash = createTestHashService()
   const aiCredentials = createTestAiCredentialService({
     secretStore: overrides?.secretStore ?? secretStore,
@@ -500,8 +503,20 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     icloudNative: createTestICloudNativeService(),
     captureInbox,
-    webFetch: createTestWebFetchService(),
+    webFetch,
     xArchive,
+    embedMedia: createTestEmbedMediaService({
+      xArchive: overrides?.xArchive ?? xArchive,
+      webFetch: overrides?.webFetch ?? webFetch,
+      platform: overrides?.platform ?? platform,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    linkPreview: createTestLinkPreviewService({
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      privacy: overrides?.privacy ?? privacy,
+      webFetch: overrides?.webFetch ?? webFetch,
+    }),
     audioRecorder: createTestAudioRecorderService(),
     haptics: createTestHapticsService(),
     iap: createTestIapService(),

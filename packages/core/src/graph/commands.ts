@@ -1,6 +1,4 @@
-import { defaultWebFetch } from '../app/web-fetch-service.ts'
 import { defaultWindow } from '../app/window-service.ts'
-import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import { defaultAssetStore } from './asset-store-service.ts'
 import { defaultNoteFile, type LocalNoteRead, type VaultScanStats } from './note-file-service.ts'
 import type { FileMeta, NoteCreateOutcome, WindowBootstrap } from './schemas.ts'
@@ -134,14 +132,4 @@ export async function listAttachments(generation?: number): Promise<FileMeta[]> 
 /** `defaultNoteFile().vaultScanStats`. */
 export async function vaultScanStats(generation?: number): Promise<VaultScanStats> {
   return await defaultNoteFile().vaultScanStats(generation)
-}
-
-/**
- * Fetch an oEmbed endpoint's JSON answer as text. The Rust side only bounds
- * the transport (https only, JSON only, a small byte cap, no redirects);
- * which URLs are oEmbed endpoints is policy in `actions/oembed`. The privacy
- * gate runs before any call here.
- */
-export async function captureOEmbedFetch(url: string): Promise<string> {
-  return await defaultWebFetch().fetchOembed(url as CloudSafe<string>)
 }

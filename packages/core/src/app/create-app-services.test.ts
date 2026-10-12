@@ -70,6 +70,8 @@ const SERVICE_KEYS = [
   'captureInbox',
   'webFetch',
   'xArchive',
+  'embedMedia',
+  'linkPreview',
   'audioRecorder',
   'classicAccess',
   'noteFile',

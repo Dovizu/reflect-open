@@ -1,23 +1,24 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { setDefaultXArchive, type ResolvedArchivedPost } from '@reflect/core'
-import { createTestXArchiveService, type TestXArchiveService } from '@reflect/core/testing'
+import { setDefaultEmbedMedia, type ResolvedArchivedPost } from '@reflect/core'
+import {
+  createTestEmbedMediaService,
+  createTestPlatformService,
+  createTestXArchiveService,
+  type TestXArchiveService,
+} from '@reflect/core/testing'
 import { invalidateXPostQueries, queryClient } from '@/lib/query-client.ts'
 import { createXPostResolver, getXPostResolver } from './use-x-post-resolver.ts'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  convertFileSrc: (path: string) => `reflect-asset://${path}`,
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({ useGraph: () => null }))
-
+const platform = createTestPlatformService()
 let xArchive: TestXArchiveService
 
 beforeEach(() => {
   xArchive = createTestXArchiveService()
-  setDefaultXArchive(xArchive)
+  setDefaultEmbedMedia(createTestEmbedMediaService({ xArchive, platform }))
 })
 
 afterEach(() => {
-  setDefaultXArchive(null)
+  setDefaultEmbedMedia(null)
   queryClient.clear()
   vi.restoreAllMocks()
 })
@@ -52,7 +53,9 @@ it('rewrites media URLs while retaining URLs without a local mapping', async () 
   ]
   xArchive.setPost('123', result)
   const post = await createXPostResolver(7)(URL)
-  expect(post?.author.avatar).toBe(`reflect-asset://7/x-media/123/${'a'.repeat(64)}`)
+  expect(post?.author.avatar).toBe(
+    platform.convertFileSrc(`7/x-media/123/${'a'.repeat(64)}`, 'reflect-asset'),
+  )
   expect(post?.media?.[0]).toEqual({
     type: 'photo',
     url: 'https://pbs.twimg.com/unmapped.png',

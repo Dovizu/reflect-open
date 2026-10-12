@@ -6,7 +6,6 @@ import {
   createArchivedPost,
   createXArchiveService,
   defaultXArchive,
-  fetchSyndicationPost,
   setDefaultXArchive,
   xPostSchema,
   type ResolvedArchivedPost,
@@ -166,11 +165,11 @@ it('writes an archived post', async () => {
   ])
 })
 
-it('delegates the free functions to the installed service', async () => {
+it('installs the process-wide service', async () => {
   const fake = createTestXArchiveService({ syndication: { '123': POST } })
   setDefaultXArchive(fake)
   expect(defaultXArchive()).toBe(fake)
-  await expect(fetchSyndicationPost('123')).resolves.toEqual(POST)
+  await expect(defaultXArchive().fetchSyndication('123')).resolves.toEqual(POST)
 
   setDefaultXArchive(null)
   expect(defaultXArchive()).not.toBe(fake)
