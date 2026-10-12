@@ -1,32 +1,23 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { readNoteLocal } from '../graph/commands.ts'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { setDefaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import { createTestNoteFileService, type TestNoteFileService } from '../testing/index.ts'
 import {
   gatherAssetDescriptionBodies,
   gatherAssetDescriptionText,
   MAX_ASSET_TEXT_CHARS,
 } from './asset-description-text.ts'
 
-vi.mock('../graph/commands', () => ({
-  readNoteLocal: vi.fn(),
-}))
-
-const readNoteMock = vi.mocked(readNoteLocal)
-
-const notFound = (): unknown => ({ kind: 'notFound', message: 'missing' })
-
-/** Description files keyed by their `.reflect.md` path. */
-const files = new Map<string, string>()
+let noteFile: TestNoteFileService
+let readNoteMock: MockInstance<NoteFileService['readLocal']>
 
 beforeEach(() => {
-  files.clear()
-  vi.clearAllMocks()
-  readNoteMock.mockImplementation(async (path: string) => {
-    const value = files.get(path)
-    if (value === undefined) {
-      throw notFound()
-    }
-    return { kind: 'content', content: value }
-  })
+  noteFile = createTestNoteFileService()
+  readNoteMock = vi.spyOn(noteFile, 'readLocal')
+  setDefaultNoteFile(noteFile)
+})
+
+afterEach(() => {
+  setDefaultNoteFile(null)
 })
 
 describe('gatherAssetDescriptionText', () => {
@@ -35,11 +26,11 @@ describe('gatherAssetDescriptionText', () => {
   })
 
   it('reads each asset description body, stripping frontmatter, joined', async () => {
-    files.set(
+    noteFile.set(
       'assets/a.png.reflect.md',
       '---\nreflectAsset: true\nsource: assets/a.png\n---\n\nA flow diagram of the pipeline.\n',
     )
-    files.set('assets/b.pdf.reflect.md', '---\nreflectAsset: true\n---\n\nQ4 revenue report.\n')
+    noteFile.set('assets/b.pdf.reflect.md', '---\nreflectAsset: true\n---\n\nQ4 revenue report.\n')
 
     const text = await gatherAssetDescriptionText(['assets/a.png', 'assets/b.pdf'])
 
@@ -48,19 +39,19 @@ describe('gatherAssetDescriptionText', () => {
   })
 
   it('skips assets with no description file', async () => {
-    files.set('assets/a.png.reflect.md', '---\nreflectAsset: true\n---\n\nDescribed.\n')
+    noteFile.set('assets/a.png.reflect.md', '---\nreflectAsset: true\n---\n\nDescribed.\n')
     // assets/b.pdf has no description yet
     expect(await gatherAssetDescriptionText(['assets/a.png', 'assets/b.pdf'])).toBe('Described.')
   })
 
   it('folds an asset referenced twice only once', async () => {
-    files.set('assets/a.png.reflect.md', '---\nreflectAsset: true\n---\n\nOnce.\n')
+    noteFile.set('assets/a.png.reflect.md', '---\nreflectAsset: true\n---\n\nOnce.\n')
     expect(await gatherAssetDescriptionText(['assets/a.png', 'assets/a.png'])).toBe('Once.')
     expect(readNoteMock).toHaveBeenCalledTimes(1)
   })
 
   it('also folds a user-authored description file (no managed marker)', async () => {
-    files.set(
+    noteFile.set(
       'assets/a.png.reflect.md',
       '# My own caption\n\nHand-written notes about this image.\n',
     )
@@ -69,14 +60,15 @@ describe('gatherAssetDescriptionText', () => {
   })
 
   it('caps the combined text', async () => {
-    files.set('assets/a.png.reflect.md', 'x'.repeat(MAX_ASSET_TEXT_CHARS + 5_000))
+    noteFile.set('assets/a.png.reflect.md', 'x'.repeat(MAX_ASSET_TEXT_CHARS + 5_000))
     const text = await gatherAssetDescriptionText(['assets/a.png'])
     expect(text.length).toBe(MAX_ASSET_TEXT_CHARS)
   })
 
   it('skips an iCloud-evicted description instead of forcing a download', async () => {
-    files.set('assets/b.pdf.reflect.md', '---\nreflectAsset: true\n---\n\nStill local.\n')
-    readNoteMock.mockResolvedValueOnce({ kind: 'evicted' }) // assets/a.png's sidecar
+    noteFile.set('assets/b.pdf.reflect.md', '---\nreflectAsset: true\n---\n\nStill local.\n')
+    noteFile.set('assets/a.png.reflect.md', 'Not local.')
+    noteFile.evict('assets/a.png.reflect.md')
     const text = await gatherAssetDescriptionText(['assets/a.png', 'assets/b.pdf'])
     expect(text).toBe('Still local.')
   })
@@ -89,8 +81,8 @@ describe('gatherAssetDescriptionText', () => {
 
 describe('gatherAssetDescriptionBodies', () => {
   it('returns per-asset bodies attributed to their asset paths', async () => {
-    files.set('assets/a.png.reflect.md', '---\nreflectAsset: true\n---\n\nA flow diagram.\n')
-    files.set('assets/b.pdf.reflect.md', '---\nreflectAsset: true\n---\n\nQ4 revenue report.\n')
+    noteFile.set('assets/a.png.reflect.md', '---\nreflectAsset: true\n---\n\nA flow diagram.\n')
+    noteFile.set('assets/b.pdf.reflect.md', '---\nreflectAsset: true\n---\n\nQ4 revenue report.\n')
 
     const { bodies, evicted } = await gatherAssetDescriptionBodies(['assets/a.png', 'assets/b.pdf'])
 
@@ -102,8 +94,8 @@ describe('gatherAssetDescriptionBodies', () => {
   })
 
   it('skips missing descriptions, empty bodies, and repeated assets', async () => {
-    files.set('assets/a.png.reflect.md', '---\nreflectAsset: true\n---\n\nDescribed.\n')
-    files.set('assets/empty.png.reflect.md', '---\nreflectAsset: true\n---\n\n  \n')
+    noteFile.set('assets/a.png.reflect.md', '---\nreflectAsset: true\n---\n\nDescribed.\n')
+    noteFile.set('assets/empty.png.reflect.md', '---\nreflectAsset: true\n---\n\n  \n')
 
     const { bodies } = await gatherAssetDescriptionBodies([
       'assets/a.png',
@@ -117,8 +109,8 @@ describe('gatherAssetDescriptionBodies', () => {
   })
 
   it('stops accumulating once the combined length reaches the cap', async () => {
-    files.set('assets/a.png.reflect.md', 'x'.repeat(MAX_ASSET_TEXT_CHARS))
-    files.set('assets/b.png.reflect.md', 'never reached')
+    noteFile.set('assets/a.png.reflect.md', 'x'.repeat(MAX_ASSET_TEXT_CHARS))
+    noteFile.set('assets/b.png.reflect.md', 'never reached')
 
     const { bodies } = await gatherAssetDescriptionBodies(['assets/a.png', 'assets/b.png'])
 
@@ -127,8 +119,9 @@ describe('gatherAssetDescriptionBodies', () => {
   })
 
   it('reports an evicted sidecar so full-replace consumers can skip the write', async () => {
-    files.set('assets/b.pdf.reflect.md', '---\nreflectAsset: true\n---\n\nStill local.\n')
-    readNoteMock.mockResolvedValueOnce({ kind: 'evicted' }) // assets/a.png's sidecar
+    noteFile.set('assets/b.pdf.reflect.md', '---\nreflectAsset: true\n---\n\nStill local.\n')
+    noteFile.set('assets/a.png.reflect.md', 'Not local.')
+    noteFile.evict('assets/a.png.reflect.md')
 
     const { bodies, evicted } = await gatherAssetDescriptionBodies(['assets/a.png', 'assets/b.pdf'])
 

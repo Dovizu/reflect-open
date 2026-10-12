@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
+import { defaultAssetStore } from '../graph/asset-store-service.ts'
+import { defaultNoteFile } from '../graph/note-file-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -57,6 +59,8 @@ describe('installDefaultServices', () => {
     expect(defaultImageCodec()).toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultFileChanges()).toBe(services.fileChanges)
+    expect(defaultNoteFile()).toBe(services.noteFile)
+    expect(defaultAssetStore()).toBe(services.assetStore)
   })
 })
 
@@ -74,6 +78,8 @@ describe('resetDefaultServices', () => {
     expect(defaultImageCodec()).not.toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
+    expect(defaultNoteFile()).not.toBe(services.noteFile)
+    expect(defaultAssetStore()).not.toBe(services.assetStore)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

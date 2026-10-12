@@ -1,5 +1,7 @@
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
+import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
 import {
   createIpcBridgeService,
@@ -69,6 +71,8 @@ export interface AppServices {
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly fileChanges: FileChangeService
+  readonly noteFile: NoteFileService
+  readonly assetStore: AssetStoreService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -102,6 +106,10 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
+  const fileChanges = createFileChangeService(
+    { ipc, logger },
+    { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
+  )
   return {
     ipc,
     logger,
@@ -129,9 +137,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
-    fileChanges: createFileChangeService(
-      { ipc, logger },
-      { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
-    ),
+    fileChanges,
+    noteFile: createNoteFileService({ ipc, clock, fileChanges }),
+    assetStore: createAssetStoreService({ ipc, clock, fileChanges }),
   }
 }

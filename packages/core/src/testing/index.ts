@@ -111,3 +111,13 @@ export {
   type TestFileChangeService,
   type TestFileChangeServiceOptions,
 } from './file-change.ts'
+export {
+  createTestAssetStoreService,
+  createTestNoteFileService,
+  type AssetUpload,
+  type NoteFileWrite,
+  type TestAssetStoreService,
+  type TestAssetStoreServiceOptions,
+  type TestNoteFileService,
+  type TestNoteFileServiceOptions,
+} from './graph.ts'
