@@ -1,14 +1,18 @@
-import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  createTestAppServices,
+  createTestContactsService,
+  createTestPlatformService,
+} from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { SETTINGS_SECTIONS, settingsSectionDomId } from './sections.ts'
 import { SettingsNavigator } from './settings-navigator.tsx'
 
-// No bridge is installed here, so the platform-gated entries are hidden
-// (Integrations needs the Rust contacts answer; Agents needs `isMacosDesktop`,
-// which requires a Tauri webview) — the navigator lists the sections every
+// The app here is not macOS desktop and has no Contacts framework, so the
+// platform-gated entries are hidden (Integrations needs the contacts answer;
+// Agents needs `isMacosDesktop`) — the navigator lists the sections every
 // platform shows.
 const VISIBLE_SECTIONS = SETTINGS_SECTIONS.filter(
   (section) => section.id !== 'integrations' && section.id !== 'agents',
@@ -30,24 +34,26 @@ function sectionTop(index: number): number {
 }
 
 async function renderNavigatorPage(): Promise<HTMLElement> {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const view = await render(
-    <QueryClientProvider client={queryClient}>
-      <div data-testid="scroller" style={{ overflowY: 'auto', height: VIEWPORT_PX }}>
-        <div style={{ position: 'relative', paddingTop: PAGE_PADDING_PX }}>
-          <div style={{ position: 'absolute', top: 0, left: 0 }}>
-            <SettingsNavigator />
-          </div>
-          {VISIBLE_SECTIONS.map((section) => (
-            <section
-              key={section.id}
-              id={settingsSectionDomId(section.id)}
-              style={{ height: SECTION_STRIDE_PX }}
-            />
-          ))}
+  const app = createTestAppServices({
+    platform: createTestPlatformService({ isMacosDesktop: false }),
+    contacts: createTestContactsService({ status: 'unavailable' }),
+  })
+  const view = await renderInApp(
+    <div data-testid="scroller" style={{ overflowY: 'auto', height: VIEWPORT_PX }}>
+      <div style={{ position: 'relative', paddingTop: PAGE_PADDING_PX }}>
+        <div style={{ position: 'absolute', top: 0, left: 0 }}>
+          <SettingsNavigator />
         </div>
+        {VISIBLE_SECTIONS.map((section) => (
+          <section
+            key={section.id}
+            id={settingsSectionDomId(section.id)}
+            style={{ height: SECTION_STRIDE_PX }}
+          />
+        ))}
       </div>
-    </QueryClientProvider>,
+    </div>,
+    { app },
   )
   return view.getByTestId('scroller').element() as HTMLElement
 }

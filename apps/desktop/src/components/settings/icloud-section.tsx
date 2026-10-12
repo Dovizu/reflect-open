@@ -1,13 +1,7 @@
 import { useState, type ReactElement } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  defaultICloudMigration,
-  icloudPendingCount,
-  icloudStatus,
-  isICloudRoot,
-} from '@reflect/core'
+import { isICloudRoot } from '@reflect/core'
 import { ConflictedNoteLinks } from '@/components/settings/conflicted-note-links.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { SettingsField } from '@/components/settings/field.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import {
@@ -25,10 +19,9 @@ import {
   createConflictedNotesQueryOptions,
   createDuplicateNoteIdsQueryOptions,
 } from '@/lib/query-options.ts'
-import { isMacosDesktop } from '@/lib/platform.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSync } from '@/providers/sync-provider.tsx'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 const PENDING_NOTES_REFETCH_MS = 5_000
 
@@ -77,21 +70,21 @@ function reviewLine(conflictCount: number, forkCount: number): string {
 export function IcloudSettingsField(): ReactElement | null {
   const { graph, openRecent } = useGraph()
   const { backup, disconnectGraph } = useSync()
-  const migration = useOptionalAppServices()?.icloudMigration ?? defaultICloudMigration()
+  const { icloudMigration: migration, icloudNative, platform } = useAppServices()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const bridgeAvailable = useBridgeReady()
   const hosted = graph !== null && isICloudRoot(graph.root)
   const { data: status } = useQuery({
     queryKey: queryKeys.icloud.status,
-    queryFn: icloudStatus,
-    enabled: bridgeAvailable && isMacosDesktop(),
+    queryFn: () => icloudNative.status(),
+    enabled: platform.isMacosDesktop,
   })
   const pendingNotes = useQuery({
     queryKey: queryKeys.icloud.pendingNotes(graph?.root),
-    queryFn: () => (graph === null ? Promise.resolve(0) : icloudPendingCount(graph.root, 'notes')),
-    enabled: bridgeAvailable && isMacosDesktop() && hosted,
+    queryFn: () =>
+      graph === null ? Promise.resolve(0) : icloudNative.pendingCount(graph.root, 'notes'),
+    enabled: platform.isMacosDesktop && hosted,
     staleTime: PENDING_NOTES_REFETCH_MS,
     refetchInterval: (query) => {
       const count = query.state.data
@@ -100,16 +93,16 @@ export function IcloudSettingsField(): ReactElement | null {
   })
   const conflicted = useQuery({
     ...createConflictedNotesQueryOptions(graph?.root),
-    enabled: bridgeAvailable && hosted,
+    enabled: hosted,
   })
   const duplicateIds = useQuery({
     ...createDuplicateNoteIdsQueryOptions(graph?.root),
-    enabled: bridgeAvailable && hosted,
+    enabled: hosted,
   })
 
   // The navigator hides the entry off macOS through the same gate — the two
   // must agree (see use-visible-settings-sections).
-  if (!isMacosDesktop() || graph === null) {
+  if (!platform.isMacosDesktop || graph === null) {
     return null
   }
   const backupConnected = backup.phase === 'connected'
