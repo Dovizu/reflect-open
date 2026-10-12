@@ -102,6 +102,10 @@ import {
   createSecretStoreService,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
+import {
+  createNavigationService,
+  type NavigationService,
+} from '../navigation/navigation-service.ts'
 import { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
 import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
 import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
@@ -181,6 +185,8 @@ export interface AppServices {
   readonly embeddingRuntime: EmbeddingRuntimeService
   readonly chatHistory: ChatHistoryService
   readonly update: UpdateService
+  /** The webview's navigation history; a note window has its own webview, hence its own. */
+  readonly navigation: NavigationService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -405,6 +411,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexStore,
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
     chatHistory: createChatHistoryService({ ipc, database, logger }),
+    navigation: createNavigationService(),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,

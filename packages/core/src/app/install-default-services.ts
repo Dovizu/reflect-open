@@ -43,6 +43,7 @@ import { setDefaultIap } from '../ipc/iap-plugin.ts'
 import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
+import { setDefaultNavigation } from '../navigation/navigation-service.ts'
 import { setDefaultPrivacy } from '../privacy/privacy-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import { setDefaultSettings } from '../settings/settings-service.ts'
@@ -102,6 +103,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultEmbeddingRuntime(services.embeddingRuntime)
   setDefaultChatHistory(services.chatHistory)
   setDefaultUpdate(services.update)
+  setDefaultNavigation(services.navigation)
   setDefaultGitRepository(services.gitRepository)
   setDefaultGithubAuth(services.githubAuth)
   setDefaultGitHostCredentials(services.gitHostCredentials)
@@ -175,6 +177,7 @@ export function resetDefaultServices(): void {
   setDefaultEmbeddingRuntime(null)
   setDefaultChatHistory(null)
   setDefaultUpdate(null)
+  setDefaultNavigation(null)
   setDefaultGitRepository(null)
   setDefaultGithubAuth(null)
   setDefaultGitHostCredentials(null)

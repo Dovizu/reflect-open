@@ -294,6 +294,26 @@ export {
   type PrivacyService,
 } from '../privacy/privacy-service.ts'
 export {
+  createNavigationService,
+  defaultNavigation,
+  setDefaultNavigation,
+  type NavigateOptions,
+  type NavigationPosition,
+  type NavigationService,
+  type NavigationServiceDeps,
+  type NavigationState,
+} from '../navigation/navigation-service.ts'
+export {
+  effectiveDailyDate,
+  focusedNotePathForRoute,
+  normalizeRoute,
+  notePathForRoute,
+  routeForPath,
+  routesEqual,
+  type NoteRoute,
+  type Route,
+} from '../navigation/route.ts'
+export {
   createAssetStoreService,
   defaultAssetStore,
   setDefaultAssetStore,
