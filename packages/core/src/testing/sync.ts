@@ -7,6 +7,15 @@ import type {
 } from '../ipc/icloud-native-service.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HttpService } from '../app/http-service.ts'
+import {
+  createBackupServiceFactory,
+  type BackupService,
+  type BackupServiceDeps,
+  type BackupServiceFactory,
+  type BackupState,
+  type ConnectExistingResult,
+} from '../sync/backup-service.ts'
+import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import { createGistService, type GistService } from '../sync/gist-service.ts'
 import {
@@ -28,10 +37,21 @@ import {
   type GithubAuth,
   type GithubAuthService,
 } from '../sync/github-auth-service.ts'
-import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
+import {
+  createGithubRepoService,
+  type GithubRepoRef,
+  type GithubRepoService,
+} from '../sync/github-repo-service.ts'
 import { createTestClockService } from './clock.ts'
+import { createTestFileChangeService } from './file-change.ts'
 import { createTestHttpService } from './http.ts'
+import { createTestIndexLifecycleService } from './index-lifecycle.ts'
+import { createTestLoggerService } from './logger.ts'
+import { createTestOperationsService } from './operations.ts'
+import { createTestPersistenceFlushService } from './persistence-flush.ts'
+import { createTestPlatformService } from './platform.ts'
 import { createTestSecretStoreService } from './secrets.ts'
+import { createTestLifecycleService } from './shell.ts'
 
 type GitMethod = keyof GitRepositoryService
 
@@ -292,9 +312,22 @@ export interface TestGithubAuthOptions {
   clock?: ClockService
 }
 
-/** The real {@link GithubAuthService} over an in-memory keychain, an HTTP fake and a test clock. */
-export function createTestGithubAuthService(options?: TestGithubAuthOptions): GithubAuthService {
-  return createGithubAuthService({
+export interface TestGithubAuthService extends GithubAuthService {
+  /**
+   * Answer `runDeviceFlow` with `handler` instead of running the flow over
+   * HTTP; `null` restores the real flow.
+   */
+  onRunDeviceFlow(handler: GithubAuthService['runDeviceFlow'] | null): void
+}
+
+/**
+ * The real {@link GithubAuthService} over an in-memory keychain, an HTTP fake
+ * and a test clock. `onRunDeviceFlow` scripts the device flow.
+ */
+export function createTestGithubAuthService(
+  options?: TestGithubAuthOptions,
+): TestGithubAuthService {
+  const service = createGithubAuthService({
     secretStore:
       options?.secretStore ??
       createTestSecretStoreService(
@@ -303,6 +336,14 @@ export function createTestGithubAuthService(options?: TestGithubAuthOptions): Gi
     http: options?.http ?? createTestHttpService(),
     clock: options?.clock ?? createTestClockService(),
   })
+  let deviceFlow: GithubAuthService['runDeviceFlow'] | null = null
+  return {
+    ...service,
+    runDeviceFlow: (flowOptions) => (deviceFlow ?? service.runDeviceFlow)(flowOptions),
+    onRunDeviceFlow(handler) {
+      deviceFlow = handler
+    },
+  }
 }
 
 /**
@@ -333,4 +374,130 @@ export function createTestGithubRepoService(options?: { http?: HttpService }): G
 /** The real {@link GistService} over `http`, an HTTP fake with no routes by default. */
 export function createTestGistService(options?: { http?: HttpService }): GistService {
   return createGistService({ http: options?.http ?? createTestHttpService() })
+}
+
+/** The real {@link SyncEngineFactory} over `git` and `clock`; each defaults to a fresh test double. */
+export function createTestSyncEngineFactory(options?: {
+  git?: GitRepositoryService
+  clock?: ClockService
+}): SyncEngineFactory {
+  return createSyncEngineFactory({
+    git: options?.git ?? createTestGitRepositoryService(),
+    clock: options?.clock ?? createTestClockService(),
+  })
+}
+
+/**
+ * The real {@link BackupServiceFactory} over `deps`; each service left out
+ * defaults to a fresh test double. The default platform is a native desktop
+ * shell, so a graph without a backup runs local history.
+ */
+export function createTestBackupServiceFactory(
+  deps?: Partial<BackupServiceDeps>,
+): BackupServiceFactory {
+  const git = deps?.git ?? createTestGitRepositoryService()
+  const fileChanges = deps?.fileChanges ?? createTestFileChangeService()
+  return createBackupServiceFactory({
+    git,
+    syncEngines: deps?.syncEngines ?? createTestSyncEngineFactory({ git }),
+    githubAuth: deps?.githubAuth ?? createTestGithubAuthService(),
+    githubRepos: deps?.githubRepos ?? createTestGithubRepoService(),
+    gitHostCredentials: deps?.gitHostCredentials ?? createTestGitHostCredentialService(),
+    fileChanges,
+    indexLifecycle: deps?.indexLifecycle ?? createTestIndexLifecycleService({ fileChanges }),
+    operations: deps?.operations ?? createTestOperationsService(),
+    lifecycle: deps?.lifecycle ?? createTestLifecycleService(),
+    platform: deps?.platform ?? createTestPlatformService({ isNativeShell: true }),
+    persistenceFlush: deps?.persistenceFlush ?? createTestPersistenceFlushService(),
+    logger: deps?.logger ?? createTestLoggerService(),
+  })
+}
+
+/** One recorded {@link TestBackupService} action. */
+export type BackupCall =
+  | { readonly method: 'start' | 'disconnectGraph' | 'signOut' | 'backUpNow' | 'dispose' }
+  | { readonly method: 'connectNewRepo'; readonly name: string }
+  | {
+      readonly method: 'connectExistingRepo'
+      readonly ref: GithubRepoRef
+      readonly allowPublic: boolean
+    }
+
+export interface TestBackupService extends BackupService {
+  /** Publish `state` as the backup state and notify subscribers. */
+  setState(state: BackupState): void
+  /** Every action called, in order. */
+  calls(): readonly BackupCall[]
+  /** Answer `connectNewRepo`; it resolves `connected` by default. */
+  onConnectNewRepo(handler: BackupService['connectNewRepo']): void
+  /** Answer `connectExistingRepo`; it resolves `connected` by default. */
+  onConnectExistingRepo(handler: BackupService['connectExistingRepo']): void
+}
+
+/**
+ * A scripted {@link BackupService}: it runs no engine and touches no
+ * repository. The state starts at `state` (`loading` by default) and moves
+ * only through `setState`; every action is recorded.
+ */
+export function createTestBackupService(options?: { state?: BackupState }): TestBackupService {
+  let state: BackupState = options?.state ?? { phase: 'loading' }
+  const listeners = new Set<() => void>()
+  const log: BackupCall[] = []
+  let connectNew: BackupService['connectNewRepo'] = async () => 'connected'
+  let connectExisting: BackupService['connectExistingRepo'] =
+    async (): Promise<ConnectExistingResult> => 'connected'
+
+  return {
+    start: async () => {
+      log.push({ method: 'start' })
+    },
+    getState: () => state,
+    subscribe: (listener) => {
+      // Wrapped for identity, so one function added twice detaches independently.
+      const deliver = (): void => {
+        listener()
+      }
+      listeners.add(deliver)
+      return () => {
+        listeners.delete(deliver)
+      }
+    },
+    connectNewRepo: async (name) => {
+      log.push({ method: 'connectNewRepo', name })
+      return await connectNew(name)
+    },
+    connectExistingRepo: async (ref, connectOptions) => {
+      log.push({
+        method: 'connectExistingRepo',
+        ref,
+        allowPublic: connectOptions?.allowPublic ?? false,
+      })
+      return await connectExisting(ref, connectOptions)
+    },
+    disconnectGraph: async () => {
+      log.push({ method: 'disconnectGraph' })
+    },
+    signOut: async () => {
+      log.push({ method: 'signOut' })
+    },
+    backUpNow: async () => {
+      log.push({ method: 'backUpNow' })
+    },
+    dispose: () => {
+      log.push({ method: 'dispose' })
+    },
+    setState(next) {
+      state = next
+      for (const listener of listeners) {
+        listener()
+      }
+    },
+    calls: () => [...log],
+    onConnectNewRepo(handler) {
+      connectNew = handler
+    },
+    onConnectExistingRepo(handler) {
+      connectExisting = handler
+    },
+  }
 }

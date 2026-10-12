@@ -14,13 +14,8 @@ export {
   githubAppInstallUrl,
   isDeviceFlowConfigured,
   githubAuthSchema,
-  saveGithubAuth,
-  loadGithubAuth,
-  clearGithubAuth,
-  runDeviceFlow,
   getGithubToken,
   githubCredential,
-  getAuthenticatedUser,
   type DeviceFlowStart,
   type DevicePollResult,
   type GithubAuth,
@@ -29,8 +24,6 @@ export {
 } from './github-auth.ts'
 export {
   BACKUP_REPO_DESCRIPTION,
-  createGithubRepo,
-  getGithubRepo,
   githubRemoteUrl,
   newRepoUrl,
   parseGithubRemote,

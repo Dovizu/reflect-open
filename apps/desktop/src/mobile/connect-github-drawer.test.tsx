@@ -8,7 +8,7 @@ import {
   createTestPlatformService,
   createTestSecretStoreService,
 } from '@reflect/core/testing'
-import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
+import type { ConnectExistingResult } from '@reflect/core'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { ConnectGithubDrawer } from './connect-github-drawer.tsx'
 
