@@ -683,6 +683,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
   })
   const opener = createOpenerService({ transport: adapters.opener, logger })
+  const navigation = createNavigationService()
   const deepLink = createDeepLinkService({
     source: adapters.deepLink ?? createNoDeepLinkSource(),
     indexQuery: indexReads.indexQuery,
@@ -828,7 +829,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexStore,
     embeddingRuntime,
     chatHistory,
-    navigation: createNavigationService(),
+    navigation,
     deepLink,
     linkNavigation: createLinkNavigationService({
       noteLinkResolver: noteServices.noteLinkResolver,
@@ -838,6 +839,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
       opener,
       deepLink,
+      navigation,
       attachments,
       operations,
       logger,

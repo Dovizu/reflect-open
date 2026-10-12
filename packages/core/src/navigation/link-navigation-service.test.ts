@@ -7,6 +7,7 @@ import {
   createTestDeepLinkService,
   createTestLinkNavigationService,
   createTestLoggerService,
+  createTestNavigationService,
   createTestNoteCreationService,
   createTestNoteFileService,
   createTestNoteLinkResolverService,
@@ -55,6 +56,7 @@ function setup(options?: {
   const attachments = createTestAttachmentService()
   const operations = createTestOperationsService()
   const logger = createTestLoggerService()
+  const navigation = createTestNavigationService()
   const linkNavigation = createTestLinkNavigationService({
     noteLinkResolver: options?.noteLinkResolver ?? noteLinkResolver,
     noteCreation: options?.noteCreation ?? noteCreation,
@@ -63,6 +65,7 @@ function setup(options?: {
     platform: createTestPlatformService(options?.platform),
     opener,
     deepLink,
+    navigation,
     attachments,
     operations,
     logger,
@@ -70,6 +73,7 @@ function setup(options?: {
   return {
     linkNavigation,
     host: createHost(linkNavigation),
+    navigation,
     noteFile,
     noteLinkResolver,
     noteCreation,
@@ -82,7 +86,7 @@ function setup(options?: {
   }
 }
 
-/** A link host whose activations go stale on a newer intent or on `leave()`. */
+/** A link host whose activations go stale as the service's probe says, or on `leave()`. */
 function createHost(linkNavigation: LinkNavigationService): LinkNavigationHost & {
   routes: () => readonly Route[]
   leave: () => void
@@ -94,8 +98,8 @@ function createHost(linkNavigation: LinkNavigationService): LinkNavigationHost &
       routes.push(route)
     },
     beginIntent: () => {
-      const intent = linkNavigation.beginIntent()
-      return () => left || !linkNavigation.isCurrentIntent(intent)
+      const isStale = linkNavigation.beginIntent()
+      return () => left || isStale()
     },
     routes: () => [...routes],
     leave: () => {
@@ -113,19 +117,27 @@ describe('intent token', () => {
   it('keeps only the newest intent current', () => {
     const { linkNavigation } = setup()
     const older = linkNavigation.beginIntent()
-    expect(linkNavigation.isCurrentIntent(older)).toBe(true)
+    expect(older()).toBe(false)
     const newer = linkNavigation.beginIntent()
-    expect(linkNavigation.isCurrentIntent(older)).toBe(false)
-    expect(linkNavigation.isCurrentIntent(newer)).toBe(true)
+    expect(older()).toBe(true)
+    expect(newer()).toBe(false)
   })
 
   it('is separate for each service', () => {
     const first = setup().linkNavigation
     const second = setup().linkNavigation
-    const intent = first.beginIntent()
+    const isStale = first.beginIntent()
     second.beginIntent()
     second.beginIntent()
-    expect(first.isCurrentIntent(intent)).toBe(true)
+    expect(isStale()).toBe(false)
+  })
+
+  it('goes stale once the navigation revision advances', () => {
+    const { linkNavigation, navigation } = setup()
+    const isStale = linkNavigation.beginIntent()
+    navigation.navigate({ kind: 'tasks' })
+    expect(isStale()).toBe(true)
+    expect(linkNavigation.beginIntent()()).toBe(false)
   })
 })
 

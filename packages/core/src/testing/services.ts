@@ -434,6 +434,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const opener = createTestOpenerService({ logger })
+  const navigation = createTestNavigationService()
   const deepLink = createTestDeepLinkService({
     indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
     captureInbox: overrides?.captureInbox ?? captureInbox,
@@ -564,7 +565,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     embeddingRuntime,
     chatHistory,
     update: createTestUpdateService(),
-    navigation: createTestNavigationService(),
+    navigation,
     deepLink,
     linkNavigation: createTestLinkNavigationService({
       noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
@@ -574,6 +575,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       platform: overrides?.platform ?? platform,
       opener: overrides?.opener ?? opener,
       deepLink: overrides?.deepLink ?? deepLink,
+      navigation,
       attachments: overrides?.attachments ?? attachments,
       operations: overrides?.operations ?? operations,
       logger,

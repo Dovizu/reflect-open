@@ -194,14 +194,6 @@ export function useRouter(): RouterValue {
   return context
 }
 
-/**
- * Read the router's synchronous navigation-revision getter when a provider is
- * present. Low-level rendered-link hooks use the nullable form so their
- * standalone component harnesses remain valid outside a full app router.
- */
-export function useNavigationRevision(): (() => number) | null {
-  return use(RouterContext)?.navigationRevision ?? null
-}
 
 interface RouterFreezeProps {
   /** While true, the subtree keeps the last router value it saw unfrozen. */
