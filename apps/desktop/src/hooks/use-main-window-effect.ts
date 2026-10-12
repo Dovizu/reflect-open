@@ -1,5 +1,5 @@
 import { useEffect, type DependencyList, type EffectCallback } from 'react'
-import { isMainWindow } from '@/lib/windows/window-role.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * `useEffect` that runs only in the MAIN window — the mount point for every
@@ -16,8 +16,9 @@ import { isMainWindow } from '@/lib/windows/window-role.ts'
  * `additionalHooks` — treat this exactly like `useEffect`.
  */
 export function useMainWindowEffect(effect: EffectCallback, deps: DependencyList): void {
+  const { window: appWindow } = useAppServices()
   useEffect(() => {
-    if (!isMainWindow()) {
+    if (!appWindow.isMainWindow()) {
       return
     }
     return effect()

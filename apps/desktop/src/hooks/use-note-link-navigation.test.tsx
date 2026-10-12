@@ -1,12 +1,17 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render } from 'vitest-browser-react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
 import { isModEvent } from '@meowdown/core'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { createTestAppServices, createTestWindowService } from '@reflect/core/testing'
+import { useRouter } from '@/routing/router.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { useNoteLinkNavigation } from './use-note-link-navigation.ts'
 
-const { openNoteWindow } = installTestLinkNavigation()
+// Receives the `reflect://` link of every note window a test opens.
+const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
+
+beforeEach(() => {
+  openNoteWindow.mockReset().mockResolvedValue(true)
+})
 
 const ALPHA_LINK = 'reflect://note/notes%2Falpha.md'
 
@@ -61,15 +66,21 @@ interface HarnessProps {
 
 function Harness({ scopeKey, visible = true }: HarnessProps): ReactElement {
   return (
-    <RouterProvider initialRoute={{ kind: 'allNotes', tag: null }}>
+    <>
       {visible ? <Links scopeKey={scopeKey} /> : null}
       <ReopenCurrentRoute />
       <RouteProbe />
-    </RouterProvider>
+    </>
   )
 }
 
-function route(view: Awaited<ReturnType<typeof render>>): unknown {
+/** Render `ui` on the All Notes route of an app whose note windows go to `openNoteWindow`. */
+async function mount(ui: ReactElement) {
+  const app = createTestAppServices({ window: createTestWindowService({ openNoteWindow }) })
+  return await renderInApp(ui, { app, route: { kind: 'allNotes', tag: null } })
+}
+
+function route(view: Awaited<ReturnType<typeof mount>>): unknown {
   return JSON.parse(view.getByTestId('route').element().textContent ?? 'null')
 }
 
@@ -80,7 +91,7 @@ async function settle(): Promise<void> {
 
 describe('useNoteLinkNavigation', () => {
   it('navigates a plain click in the current window', async () => {
-    const view = await render(<Harness />)
+    const view = await mount(<Harness />)
 
     await view.getByRole('button', { name: 'Alpha' }).click()
 
@@ -89,7 +100,7 @@ describe('useNoteLinkNavigation', () => {
   })
 
   it('opens a modifier-click in a secondary window without navigating', async () => {
-    const view = await render(<Harness />)
+    const view = await mount(<Harness />)
 
     await view.getByRole('button', { name: 'Alpha' }).click({ modifiers: ['ControlOrMeta'] })
 
@@ -99,7 +110,7 @@ describe('useNoteLinkNavigation', () => {
 
   it('falls back to current-window navigation when a secondary window is declined', async () => {
     openNoteWindow.mockResolvedValue(false)
-    const view = await render(<Harness />)
+    const view = await mount(<Harness />)
 
     await view.getByRole('button', { name: 'Alpha' }).click({ modifiers: ['ControlOrMeta'] })
 
@@ -108,7 +119,7 @@ describe('useNoteLinkNavigation', () => {
 
   it('falls back to current-window navigation when a secondary window open rejects', async () => {
     openNoteWindow.mockRejectedValue(new Error('window creation failed'))
-    const view = await render(<Harness />)
+    const view = await mount(<Harness />)
 
     await view.getByRole('button', { name: 'Alpha' }).click({ modifiers: ['ControlOrMeta'] })
 
@@ -118,7 +129,7 @@ describe('useNoteLinkNavigation', () => {
   it('does not let an older failed open override a newer note-link intent', async () => {
     const pendingOpen = Promise.withResolvers<boolean>()
     openNoteWindow.mockReturnValue(pendingOpen.promise)
-    const view = await render(<Harness />)
+    const view = await mount(<Harness />)
 
     await view.getByRole('button', { name: 'Alpha' }).click({ modifiers: ['ControlOrMeta'] })
     await vi.waitFor(() => expect(openNoteWindow).toHaveBeenCalledTimes(1))
@@ -141,7 +152,7 @@ describe('useNoteLinkNavigation', () => {
           }),
       )
       .mockResolvedValueOnce(true)
-    const view = await render(<Harness />)
+    const view = await mount(<Harness />)
 
     await view.getByRole('button', { name: 'Alpha' }).click({ modifiers: ['ControlOrMeta'] })
     await vi.waitFor(() => expect(openNoteWindow).toHaveBeenCalledTimes(1))
@@ -157,7 +168,7 @@ describe('useNoteLinkNavigation', () => {
   it('does not fall back after another control re-navigates to the same route', async () => {
     const pendingOpen = Promise.withResolvers<boolean>()
     openNoteWindow.mockReturnValue(pendingOpen.promise)
-    const view = await render(<Harness />)
+    const view = await mount(<Harness />)
 
     await view.getByRole('button', { name: 'Alpha' }).click({ modifiers: ['ControlOrMeta'] })
     await vi.waitFor(() => expect(openNoteWindow).toHaveBeenCalledTimes(1))
@@ -171,7 +182,7 @@ describe('useNoteLinkNavigation', () => {
   it('does not fall back after the host surface changes scope', async () => {
     const pendingOpen = Promise.withResolvers<boolean>()
     openNoteWindow.mockReturnValue(pendingOpen.promise)
-    const view = await render(<Harness scopeKey="2026-07-10" />)
+    const view = await mount(<Harness scopeKey="2026-07-10" />)
 
     await view.getByRole('button', { name: 'Alpha' }).click({ modifiers: ['ControlOrMeta'] })
     await vi.waitFor(() => expect(openNoteWindow).toHaveBeenCalledTimes(1))
@@ -185,7 +196,7 @@ describe('useNoteLinkNavigation', () => {
   it('does not navigate after the link host unmounts', async () => {
     const pendingOpen = Promise.withResolvers<boolean>()
     openNoteWindow.mockReturnValue(pendingOpen.promise)
-    const view = await render(<Harness />)
+    const view = await mount(<Harness />)
 
     await view.getByRole('button', { name: 'Alpha' }).click({ modifiers: ['ControlOrMeta'] })
     await vi.waitFor(() => expect(openNoteWindow).toHaveBeenCalledTimes(1))

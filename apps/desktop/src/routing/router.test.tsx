@@ -1,16 +1,15 @@
-import { render, renderHook } from 'vitest-browser-react'
 import { describe, expect, it } from 'vitest'
-import type { ReactElement, ReactNode } from 'react'
-import { defaultNavigation } from '@reflect/core'
-import { emitNoteMoved } from '@/lib/note-moves.ts'
+import type { ReactElement } from 'react'
+import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { renderHookInApp, renderInApp } from '@/test-utils/render-in-app.tsx'
 import type { Route } from './route.ts'
-import { RouterFreeze, RouterProvider, useRouter } from './router.tsx'
+import { RouterFreeze, useRouter } from './router.tsx'
 
-function routerHook(initialRoute?: Route) {
-  return renderHook(() => useRouter(), {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <RouterProvider initialRoute={initialRoute}>{children}</RouterProvider>
-    ),
+/** `useRouter()` under the app's `RouterProvider`, mounted on `initialRoute`. */
+function routerHook(initialRoute?: Route, app: TestAppServices = createTestAppServices()) {
+  return renderHookInApp(() => useRouter(), {
+    app,
+    ...(initialRoute === undefined ? {} : { route: initialRoute }),
   })
 }
 
@@ -30,7 +29,7 @@ describe('router', () => {
   })
 
   it('renders the navigation service through navigate, back, and forward', async () => {
-    const { result, act } = await routerHook()
+    const { result, act, app } = await routerHook()
     await act(() => result.current.navigate({ kind: 'daily', date: '2026-06-08' }))
     await act(() =>
       result.current.navigate({ kind: 'note', path: 'notes/a.md' }, { focusEditor: true }),
@@ -39,7 +38,7 @@ describe('router', () => {
     expect(result.current.arrivalSeq).toBe(2)
     expect(result.current.arrivalFocusEditor).toBe(true)
     expect(result.current.backRoute).toEqual({ kind: 'daily', date: '2026-06-08' })
-    expect(defaultNavigation().getState().route).toEqual({ kind: 'note', path: 'notes/a.md' })
+    expect(app.navigation.getState().route).toEqual({ kind: 'note', path: 'notes/a.md' })
 
     await act(() => result.current.back())
     expect(result.current.route).toEqual({ kind: 'daily', date: '2026-06-08' })
@@ -51,8 +50,8 @@ describe('router', () => {
   })
 
   it('follows navigation made on the service itself', async () => {
-    const { result, act } = await routerHook()
-    await act(() => defaultNavigation().navigate({ kind: 'tasks' }))
+    const { result, act, app } = await routerHook()
+    await act(() => app.navigation.navigate({ kind: 'tasks' }))
     expect(result.current.route).toEqual({ kind: 'tasks' })
   })
 
@@ -62,7 +61,7 @@ describe('router', () => {
     await first.act(() => first.result.current.saveScrollState(40))
     await first.unmount()
 
-    const { result } = await routerHook()
+    const { result } = await routerHook(undefined, first.app)
     expect(result.current.route).toEqual({ kind: 'today' })
     expect(result.current.canBack).toBe(false)
     expect(result.current.arrivalSeq).toBe(0)
@@ -121,16 +120,16 @@ describe('router', () => {
     }
     function Harness({ frozen }: { frozen: boolean }): ReactElement {
       return (
-        <RouterProvider>
+        <>
           <Capture />
           <RouterFreeze frozen={frozen}>
             <Probe />
           </RouterFreeze>
-        </RouterProvider>
+        </>
       )
     }
 
-    const view = await render(<Harness frozen={false} />)
+    const view = await renderInApp(<Harness frozen={false} />)
     await expect.element(view.getByTestId('frozen-probe')).toMatchTextContent('today:0')
 
     // Covered by a pushed note (the mobile stack hides it): navigations must
@@ -147,13 +146,13 @@ describe('router', () => {
 
   describe('note moves (Plan 17)', () => {
     it('rewrites the current route when a note moves', async () => {
-      const { result, act } = await routerHook()
+      const { result, act, app } = await routerHook()
       await act(() => result.current.navigate({ kind: 'note', path: 'notes/01abc.md' }))
       const arrivalsBefore = result.current.arrivalSeq
       const entryBefore = result.current.entryId
       const revisionBefore = result.current.navigationRevision()
 
-      await act(() => emitNoteMoved('notes/01abc.md', 'notes/meeting-notes.md'))
+      await act(() => app.noteMove.followHealedMove('notes/01abc.md', 'notes/meeting-notes.md'))
 
       expect(result.current.route).toEqual({ kind: 'note', path: 'notes/meeting-notes.md' })
       expect(result.current.arrivalSeq).toBe(arrivalsBefore)
@@ -162,11 +161,11 @@ describe('router', () => {
     })
 
     it('a move settling after the workspace unmounts is harmless', async () => {
-      const { result, act, unmount } = await routerHook()
+      const { result, act, unmount, app } = await routerHook()
       await act(() => result.current.navigate({ kind: 'note', path: 'notes/01abc.md' }))
       unmount()
 
-      emitNoteMoved('notes/01abc.md', 'notes/meeting-notes.md')
+      app.noteMove.followHealedMove('notes/01abc.md', 'notes/meeting-notes.md')
     })
   })
 })

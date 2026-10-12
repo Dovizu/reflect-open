@@ -1,34 +1,30 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
-import { setBridge, setDefaultClock, setDefaultLogger, upsertFrontmatter } from '@reflect/core'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { upsertFrontmatter, type FileChange, type NoteFileService } from '@reflect/core'
 import {
+  createTestAppServices,
   createTestClockService,
+  createTestIndexStoreService,
   createTestLoggerService,
+  createTestNoteFileService,
+  seedNotes,
   type TestClockService,
+  type TestDatabaseService,
+  type TestLoggerService,
+  type TestNoteFileService,
 } from '@reflect/core/testing'
-import { onNoteMoved } from '@/lib/note-moves.ts'
-import { flushOpenDocuments } from './open-documents.ts'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
+import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { useNoteDocument } from './use-note-document.ts'
 
-let emitChange: ((payload: unknown) => void) | null = null
-const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
-
-setBridge({
-  invoke: mockInvoke,
-  listen: async (_event, handler) => {
-    emitChange = handler
-    return () => {
-      emitChange = null
-    }
-  },
-})
-
-/** The fake on-disk file + a write log, behind the mocked IPC. */
-let disk: string
-let writes: string[]
 /** Runs the save debounce and the rename quiet period. */
 let clock: TestClockService
+let logger: TestLoggerService
+/** The files of the graph, with a log of every write. */
+let noteFile: TestNoteFileService
+/** What a note write does; a test replaces it to hold or fail a write. */
+let writeNote: NoteFileService['write']
+let app: ReturnType<typeof createApp>
 
 /** Run every pending timer, and the timers those arm. */
 async function runAllTimers(): Promise<void> {
@@ -63,105 +59,104 @@ function fakeEditor(): NoteEditorHandle & { applied: string[] } {
   }
 }
 
-afterEach(() => {
-  setDefaultClock(null)
-  setDefaultLogger(null)
+/** The app of one test: the real document services over `noteFile`, `clock` and `logger`. */
+function createApp(database: TestDatabaseService) {
+  const files: NoteFileService = {
+    ...noteFile,
+    write: (...args) => writeNote(...args),
+  }
+  const indexStore = createTestIndexStoreService()
+  return createTestAppServices({
+    clock,
+    logger,
+    database,
+    noteFile: files,
+    indexStore: {
+      ...indexStore,
+      // Mirrors the Rust command for the paths these tests exercise: a free
+      // destination renames (occupied ones refuse, but no test stages that).
+      moveIndexed: async (from, to, generation) => {
+        const contents = noteFile.files().get(from)
+        if (contents !== undefined && !noteFile.files().has(to)) {
+          noteFile.set(to, contents)
+        }
+        await noteFile.delete(from, generation)
+        await indexStore.moveIndexed(from, to, generation)
+      },
+    },
+  })
+}
+
+beforeEach(async () => {
+  clock = createTestClockService()
+  logger = createTestLoggerService()
+  noteFile = createTestNoteFileService({ files: { 'notes/a.md': '# Hello\n' } })
+  writeNote = (...args) => noteFile.write(...args)
+  // Opened here, so every index read of a rename settles in microtasks.
+  app = createApp(await createWasmTestDatabaseService())
 })
 
-beforeEach(() => {
-  clock = createTestClockService()
-  setDefaultClock(clock)
-  disk = '# Hello\n'
-  writes = []
-  emitChange = null
-  mockInvoke.mockReset()
-  mockInvoke.mockImplementation(async (command, args) => {
-    if (command === 'note_read') {
-      return disk
-    }
-    if (command === 'note_write') {
-      const contents = (args as { contents: string }).contents
-      disk = contents
-      writes.push(contents)
-      return null
-    }
-    return null
-  })
-})
+/** Render `hook` in the app of the running test, whose graph is open on generation 1. */
+function mount<Result, Props = undefined>(
+  hook: (props?: Props) => Result,
+  options?: { initialProps: Props },
+) {
+  return renderHookInApp(hook, { app, ...options })
+}
+
+/** The contents of every note write so far, in order. */
+function writes(): string[] {
+  return noteFile.writes().map((write) => write.contents)
+}
+
+/** The current contents of `path`, or `undefined` when no such file exists. */
+function file(path: string): string | undefined {
+  return noteFile.files().get(path)
+}
+
+/** Deliver watcher changes to the open documents, and let the reads they start settle. */
+async function emitChange(changes: FileChange[]): Promise<void> {
+  app.fileChanges.emit({ changes, source: 'external' })
+  // The test doubles answer in microtasks, so one task later nothing is pending.
+  await new Promise((resolve) => setTimeout(resolve))
+}
 
 async function readyHook() {
-  const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+  const hook = await mount(() => useNoteDocument('notes/a.md', 1))
   await vi.waitFor(() => expect(hook.result.current.status).toBe('ready'))
   return hook
 }
 
-interface GraphFakeOptions {
-  files: Record<string, string>
-  /** Rows for the rewrite's `links` source query; may throw to simulate failure. */
-  linkSources?: () => Array<{ source_path: string }>
-  /** Path returned by title resolution (simulates a title collision). */
-  resolveTitleTo?: string
+/** Replace the files of the graph with `files`, and index the notes in `indexed`. */
+function seedGraph(files: Record<string, string>, indexed: readonly string[] = []): void {
+  for (const path of noteFile.files().keys()) {
+    void noteFile.delete(path, 1)
+  }
+  for (const [path, contents] of Object.entries(files)) {
+    noteFile.set(path, contents)
+  }
+  seedNotes(
+    app.database,
+    indexed.map((path) => ({ path, markdown: files[path] ?? '' })),
+  )
 }
 
 /**
- * Hold the IPC calls matching `match` until the returned release runs, so a
+ * Hold every note write to `path` until the returned release runs, so a
  * background chain can be parked mid-flight. The browser-mode `unmount()`
  * awaits React's act (it flushes microtasks), which would otherwise run a
  * teardown chain to completion before the test can stage the next step.
  */
-function gateInvokes(match: (command: string, args: Record<string, unknown>) => boolean) {
-  const ungated = mockInvoke.getMockImplementation()
+function gateWrites(path: string): () => void {
+  const ungated = writeNote
   const gate = Promise.withResolvers<void>()
-  mockInvoke.mockImplementation(async (command, args) => {
-    if (match(command, args)) {
+  writeNote = async (...args) => {
+    if (args[0] === path) {
       await gate.promise
     }
-    return await ungated?.(command, args)
-  })
+    return await ungated(...args)
+  }
   return gate.resolve
-}
-
-/** One bridge fake for the rename scenarios: a files map + the index queries. */
-function installGraphFake({ files, linkSources, resolveTitleTo }: GraphFakeOptions) {
-  mockInvoke.mockImplementation(async (command, args) => {
-    if (command === 'note_read') {
-      const content = files[(args as { path: string }).path]
-      if (content === undefined) {
-        throw { kind: 'notFound', message: 'missing' }
-      }
-      return content
-    }
-    if (command === 'note_write') {
-      const { path: writePath, contents } = args as { path: string; contents: string }
-      files[writePath] = contents
-      return null
-    }
-    if (command === 'db_query') {
-      const sql = (args as { sql: string }).sql
-      if (sql.includes('"links"')) {
-        return linkSources ? linkSources() : []
-      }
-      if (resolveTitleTo !== undefined && sql.includes('note_keys')) {
-        return [{ note_path: resolveTitleTo }]
-      }
-      return []
-    }
-    if (command === 'note_exists') {
-      return files[(args as { path: string }).path] !== undefined
-    }
-    if (command === 'note_move_indexed') {
-      const { from, to } = (args as { request: { from: string; to: string } }).request
-      // Mirrors the Rust command for the paths these tests exercise: a free
-      // destination renames (occupied ones refuse, but no test stages that).
-      if (files[to] === undefined && files[from] !== undefined) {
-        files[to] = files[from]
-      }
-      delete files[from]
-      return null
-    }
-    return null
-  })
-  return files
 }
 
 describe('useNoteDocument', () => {
@@ -172,31 +167,31 @@ describe('useNoteDocument', () => {
   })
 
   it('debounces edits into an atomic write and clears dirty', async () => {
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
 
     await hook.act(() => hook.result.current.onEditorChange('# Hello edited\n'))
     expect(hook.result.current.dirty).toBe(true)
-    expect(writes).toEqual([])
+    expect(writes()).toEqual([])
 
     await hook.act(() => clock.advance(1000))
-    expect(writes).toEqual(['# Hello edited\n'])
+    expect(writes()).toEqual(['# Hello edited\n'])
     expect(hook.result.current.dirty).toBe(false)
   })
 
   it('flushOpenDocuments persists a pending edit without waiting out the debounce (quit path)', async () => {
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
 
     await hook.act(() => hook.result.current.onEditorChange('# Quitting\n'))
-    expect(writes).toEqual([]) // still inside the 800ms debounce window
+    expect(writes()).toEqual([]) // still inside the 800ms debounce window
 
     // The quit path: the registry flush settles only once the write has
     // landed — no timer advance, the way a ⌘Q teardown would run it.
-    await hook.act(() => flushOpenDocuments())
-    expect(writes).toEqual(['# Quitting\n'])
+    await hook.act(() => app.openDocuments.flushAll())
+    expect(writes()).toEqual(['# Quitting\n'])
     expect(hook.result.current.dirty).toBe(false)
   })
 
@@ -211,10 +206,10 @@ describe('useNoteDocument', () => {
 
     await hook.act(() => hook.result.current.bindEditor(editor))
     await hook.act(() => hook.result.current.bindEditor(null))
-    await hook.act(() => flushOpenDocuments())
+    await hook.act(() => app.openDocuments.flushAll())
 
     expect(getMarkdown).toHaveBeenCalledOnce()
-    expect(writes).toEqual(['# 🧠 Business ideas\n'])
+    expect(writes()).toEqual(['# 🧠 Business ideas\n'])
     await hook.unmount()
   })
 
@@ -223,20 +218,22 @@ describe('useNoteDocument', () => {
     await hook.act(() => hook.result.current.onEditorChange('# Edited\n'))
     await hook.unmount() // unmount itself flushes once (the existing final-flush path)
     await hook.act(async () => {})
-    const writesAfterUnmount = writes.length
+    const writesAfterUnmount = writes().length
 
-    await flushOpenDocuments() // the unmounted buffer must no longer be registered
-    expect(writes.length).toBe(writesAfterUnmount)
+    await app.openDocuments.flushAll() // the unmounted buffer must no longer be registered
+    expect(writes().length).toBe(writesAfterUnmount)
   })
 
   it('a settled title change rewrites inbound links and records the alias (Plan 07b)', async () => {
-    const files: Record<string, string> = {
-      'notes/a.md': managedNote('# Old Title\n'),
-      'notes/src.md': 'see [[Old Title]]\n',
-    }
-    installGraphFake({ files, linkSources: () => [{ source_path: 'notes/src.md' }] })
+    seedGraph(
+      {
+        'notes/a.md': managedNote('# Old Title\n'),
+        'notes/src.md': 'see [[Old Title]]\n',
+      },
+      ['notes/a.md', 'notes/src.md'],
+    )
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
 
@@ -250,22 +247,24 @@ describe('useNoteDocument', () => {
     })
     await hook.act(() => runAllTimers())
 
-    expect(files['notes/src.md']).toBe('see [[New Title]]\n')
+    expect(file('notes/src.md')).toBe('see [[New Title]]\n')
     // The file followed its title (Plan 17): alias and content move along.
-    expect(files['notes/a.md']).toBeUndefined()
-    expect(files['notes/new-title.md']).toContain('aliases:')
-    expect(files['notes/new-title.md']).toContain('Old Title')
-    expect(files['notes/new-title.md']!.endsWith('# New Title\n')).toBe(true)
+    expect(file('notes/a.md')).toBeUndefined()
+    expect(file('notes/new-title.md')).toContain('aliases:')
+    expect(file('notes/new-title.md')).toContain('Old Title')
+    expect(file('notes/new-title.md')!.endsWith('# New Title\n')).toBe(true)
   })
 
   it('a rename settled by pane teardown still rewrites links and lands the alias', async () => {
-    const files: Record<string, string> = {
-      'notes/a.md': managedNote('# Old Title\n'),
-      'notes/src.md': 'see [[Old Title]]\n',
-    }
-    installGraphFake({ files, linkSources: () => [{ source_path: 'notes/src.md' }] })
+    seedGraph(
+      {
+        'notes/a.md': managedNote('# Old Title\n'),
+        'notes/src.md': 'see [[Old Title]]\n',
+      },
+      ['notes/a.md', 'notes/src.md'],
+    )
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000)) // save lands, quiet timer armed
@@ -273,51 +272,52 @@ describe('useNoteDocument', () => {
     await hook.unmount() // teardown settles the tracker — the session is disposed
     await hook.act(() => runAllTimers())
 
-    expect(files['notes/src.md']).toBe('see [[New Title]]\n')
+    expect(file('notes/src.md')).toBe('see [[New Title]]\n')
     // The alias can't go through the disposed session — it lands on disk,
     // and the move then carries it to the slug path.
-    expect(files['notes/new-title.md']).toContain('aliases:')
-    expect(files['notes/new-title.md']).toContain('Old Title')
-    expect(files['notes/a.md']).toBeUndefined()
+    expect(file('notes/new-title.md')).toContain('aliases:')
+    expect(file('notes/new-title.md')).toContain('Old Title')
+    expect(file('notes/a.md')).toBeUndefined()
   })
 
   it('a rename settling after a note switch never touches the new note', async () => {
-    const files: Record<string, string> = {
-      'notes/a.md': managedNote('# Old Title\n'),
-      'notes/b.md': '# Note B\n',
-      'notes/src.md': 'see [[Old Title]]\n',
-    }
-    installGraphFake({ files, linkSources: () => [{ source_path: 'notes/src.md' }] })
+    seedGraph(
+      {
+        'notes/a.md': managedNote('# Old Title\n'),
+        'notes/b.md': '# Note B\n',
+        'notes/src.md': 'see [[Old Title]]\n',
+      },
+      ['notes/a.md', 'notes/src.md'],
+    )
 
     // Note A: edit the title, save lands, rename pending.
-    const paneA = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const paneA = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await paneA.act(() => clock.advance(0))
     await paneA.act(() => paneA.result.current.onEditorChange('# New Title\n'))
     await paneA.act(() => clock.advance(1000))
     await paneA.unmount() // teardown settles A's rename asynchronously
 
     // Note B mounts immediately — the rename must not be able to see it.
-    const paneB = await renderHook(() => useNoteDocument('notes/b.md', 1, { trackRenames: true }))
+    const paneB = await mount(() => useNoteDocument('notes/b.md', 1, { trackRenames: true }))
     await paneB.act(() => runAllTimers())
 
-    expect(files['notes/src.md']).toBe('see [[New Title]]\n')
-    expect(files['notes/new-title.md']).toContain('aliases:') // alias on A, via disk
-    expect(files['notes/b.md']).toBe('# Note B\n') // B untouched
+    expect(file('notes/src.md')).toBe('see [[New Title]]\n')
+    expect(file('notes/new-title.md')).toContain('aliases:') // alias on A, via disk
+    expect(file('notes/b.md')).toBe('# Note B\n') // B untouched
     await paneB.unmount()
   })
 
   it('a title collision skips both the rewrite and the alias', async () => {
-    const files: Record<string, string> = {
-      'notes/a.md': managedNote('# Old Title\n'),
-      'notes/src.md': 'see [[Old Title]]\n',
-    }
-    installGraphFake({
-      files,
-      linkSources: () => [{ source_path: 'notes/src.md' }],
-      resolveTitleTo: 'notes/other-owner.md', // another note owns "Old Title"
-    })
+    seedGraph(
+      {
+        'notes/a.md': managedNote('# Old Title\n'),
+        'notes/src.md': 'see [[Old Title]]\n',
+        'notes/other-owner.md': '# Old Title\n', // another note owns "Old Title"
+      },
+      ['notes/other-owner.md', 'notes/src.md'],
+    )
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -329,28 +329,24 @@ describe('useNoteDocument', () => {
     // Links keep resolving to their deliberate target; no competing alias.
     // The file still follows the NEW title — the guard is about the old
     // title's links, not the filename.
-    expect(files['notes/src.md']).toBe('see [[Old Title]]\n')
-    expect(files['notes/new-title.md']).toContain(`id: ${MANAGED_ID}`)
-    expect(files['notes/new-title.md']!.endsWith('# New Title\n')).toBe(true)
-    expect(files['notes/a.md']).toBeUndefined()
+    expect(file('notes/src.md')).toBe('see [[Old Title]]\n')
+    expect(file('notes/new-title.md')).toContain(`id: ${MANAGED_ID}`)
+    expect(file('notes/new-title.md')!.endsWith('# New Title\n')).toBe(true)
+    expect(file('notes/a.md')).toBeUndefined()
     await hook.unmount()
   })
 
   it('a failed rewrite still records the alias (the resolve safety net)', async () => {
-    const logger = createTestLoggerService()
-    setDefaultLogger(logger)
-    const files: Record<string, string> = {
+    seedGraph({
       'notes/a.md': managedNote('# Old Title\n'),
       'notes/src.md': 'see [[Old Title]]\n',
-    }
-    installGraphFake({
-      files,
-      linkSources: () => {
-        throw new Error('index unavailable') // the rewrite cannot run
-      },
     })
+    // The rewrite cannot run.
+    const unavailable = new Error('index unavailable')
+    vi.spyOn(app.wikiResolver, 'getLinkSources').mockRejectedValue(unavailable)
+    vi.spyOn(app.wikiResolver, 'getPathLinkSources').mockRejectedValue(unavailable)
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -361,9 +357,9 @@ describe('useNoteDocument', () => {
 
     // The rewrite failed, the baseline has advanced — the alias is what
     // keeps [[Old Title]] resolving here, so it must land regardless.
-    expect(files['notes/src.md']).toBe('see [[Old Title]]\n')
-    expect(files['notes/new-title.md']).toContain('aliases:')
-    expect(files['notes/new-title.md']).toContain('Old Title')
+    expect(file('notes/src.md')).toBe('see [[Old Title]]\n')
+    expect(file('notes/new-title.md')).toContain('aliases:')
+    expect(file('notes/new-title.md')).toContain('Old Title')
     // The same broken link query also fails the path-link pass after the move.
     expect(logger.getErrors().map((entry) => entry.message)).toEqual([
       'rename link rewrite failed:',
@@ -373,20 +369,12 @@ describe('useNoteDocument', () => {
   })
 
   it('a lazy note\u{2019}s first heading never fires a rename', async () => {
-    const files: Record<string, string> = {
-      'notes/src.md': 'unrelated\n',
-    }
-    const linkQueries: string[] = []
-    installGraphFake({
-      files,
-      linkSources: () => {
-        linkQueries.push('sources-query')
-        return []
-      },
-    })
+    seedGraph({ 'notes/src.md': 'unrelated\n' }, ['notes/src.md'])
+    const linkSources = vi.spyOn(app.wikiResolver, 'getLinkSources')
+    const pathLinkSources = vi.spyOn(app.wikiResolver, 'getPathLinkSources')
 
     const placeholderPath = 'notes/01arz3ndektsv4rrffq69g5fav.md'
-    const hook = await renderHook(() =>
+    const hook = await mount(() =>
       useNoteDocument(placeholderPath, 1, {
         createIfMissing: true,
         trackRenames: true,
@@ -405,30 +393,26 @@ describe('useNoteDocument', () => {
 
     // Titling an untitled note is a birth: no rewrite ran, no alias landed —
     // but the file shed its placeholder name for the title's slug (Plan 17).
-    expect(linkQueries).toEqual([])
-    expect(files['notes/brand-new-note.md']).toContain(`id: ${MANAGED_ID}`)
-    expect(files['notes/brand-new-note.md']!.endsWith('# Brand New Note\n')).toBe(true)
-    expect(files[placeholderPath]).toBeUndefined()
+    expect(linkSources).not.toHaveBeenCalled()
+    expect(pathLinkSources).not.toHaveBeenCalled()
+    expect(file('notes/brand-new-note.md')).toContain(`id: ${MANAGED_ID}`)
+    expect(file('notes/brand-new-note.md')!.endsWith('# Brand New Note\n')).toBe(true)
+    expect(file(placeholderPath)).toBeUndefined()
     await hook.unmount()
   })
 
   it('maintains links for an adopted retitle without moving its file', async () => {
-    const files: Record<string, string> = {
-      'notes/adopted.md': '# Old Title\n',
-      'notes/source.md': 'see [[Old Title]]\n',
-    }
-    const linkQueries: string[] = []
-    installGraphFake({
-      files,
-      linkSources: () => {
-        linkQueries.push('sources-query')
-        return [{ source_path: 'notes/source.md' }]
+    seedGraph(
+      {
+        'notes/adopted.md': '# Old Title\n',
+        'notes/source.md': 'see [[Old Title]]\n',
       },
-    })
-
-    const hook = await renderHook(() =>
-      useNoteDocument('notes/adopted.md', 1, { trackRenames: true }),
+      ['notes/adopted.md', 'notes/source.md'],
     )
+    const linkSources = vi.spyOn(app.wikiResolver, 'getLinkSources')
+    const pathLinkSources = vi.spyOn(app.wikiResolver, 'getPathLinkSources')
+
+    const hook = await mount(() => useNoteDocument('notes/adopted.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -437,66 +421,57 @@ describe('useNoteDocument', () => {
     })
     await hook.act(() => runAllTimers())
 
-    expect(files['notes/adopted.md']).toBe(
+    expect(file('notes/adopted.md')).toBe(
       upsertFrontmatter('# New Title\n', { aliases: ['Old Title'] }),
     )
-    expect(files['notes/new-title.md']).toBeUndefined()
-    expect(files['notes/source.md']).toBe('see [[New Title]]\n')
-    expect(linkQueries).toEqual(['sources-query'])
+    expect(file('notes/new-title.md')).toBeUndefined()
+    expect(file('notes/source.md')).toBe('see [[New Title]]\n')
+    expect(linkSources).toHaveBeenCalledOnce()
+    expect(pathLinkSources).not.toHaveBeenCalled()
     await hook.unmount()
   })
 
   it('the pane adopts its retargeted session when the route follows a move (Plan 17)', async () => {
-    const moves: Array<[string, string]> = []
-    const unsubscribe = onNoteMoved((from, to) => {
-      moves.push([from, to])
-    })
-    try {
-      const files: Record<string, string> = { 'notes/a.md': managedNote('# Old Title\n') }
-      installGraphFake({ files })
+    seedGraph({ 'notes/a.md': managedNote('# Old Title\n') })
 
-      const hook = await renderHook(
-        ({ path }: { path: string } = { path: 'notes/a.md' }) =>
-          useNoteDocument(path, 1, { trackRenames: true }),
-        { initialProps: { path: 'notes/a.md' } },
-      )
-      await hook.act(() => clock.advance(0))
-      expect(hook.result.current.status).toBe('ready')
-      const epochBefore = hook.result.current.sessionEpoch
+    const hook = await mount(
+      ({ path }: { path: string } = { path: 'notes/a.md' }) =>
+        useNoteDocument(path, 1, { trackRenames: true }),
+      { initialProps: { path: 'notes/a.md' } },
+    )
+    await hook.act(() => clock.advance(0))
+    expect(hook.result.current.status).toBe('ready')
+    const epochBefore = hook.result.current.sessionEpoch
 
-      await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
-      await hook.act(() => clock.advance(1000)) // save lands
-      await hook.act(() => runAllTimers()) // quiet period → rename + move
+    await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
+    await hook.act(() => clock.advance(1000)) // save lands
+    await hook.act(() => runAllTimers()) // quiet period → rename + move
 
-      expect(moves).toEqual([['notes/a.md', 'notes/new-title.md']])
-      // Alias frontmatter (the rename's breadcrumb) + content, at the slug path.
-      expect(files['notes/new-title.md']).toContain('Old Title')
-      expect(files['notes/new-title.md']).toContain('# New Title\n')
-      expect(files['notes/a.md']).toBeUndefined()
+    expect(app.noteMove.moved()).toEqual([['notes/a.md', 'notes/new-title.md']])
+    // Alias frontmatter (the rename's breadcrumb) + content, at the slug path.
+    expect(file('notes/new-title.md')).toContain('Old Title')
+    expect(file('notes/new-title.md')).toContain('# New Title\n')
+    expect(file('notes/a.md')).toBeUndefined()
 
-      // The router (subscribed to onNoteMoved) re-renders the pane with the
-      // new path; the hook adopts the retargeted session — no reload, no new
-      // epoch, so the live editor (and its cursor) survives.
-      await hook.rerender({ path: 'notes/new-title.md' })
-      await hook.act(async () => {})
-      expect(hook.result.current.status).toBe('ready')
-      expect(hook.result.current.sessionEpoch).toBe(epochBefore)
+    // The router (subscribed to the note moves) re-renders the pane with the
+    // new path; the hook adopts the retargeted session — no reload, no new
+    // epoch, so the live editor (and its cursor) survives.
+    await hook.rerender({ path: 'notes/new-title.md' })
+    await hook.act(async () => {})
+    expect(hook.result.current.status).toBe('ready')
+    expect(hook.result.current.sessionEpoch).toBe(epochBefore)
 
-      // Subsequent edits land on the new path only — nothing resurrects a.md.
-      await hook.act(() => hook.result.current.onEditorChange('# New Title\n\nmore\n'))
-      await hook.act(() => clock.advance(1000))
-      expect(files['notes/new-title.md']).toContain('# New Title\n\nmore\n')
-      expect(files['notes/a.md']).toBeUndefined()
-      await hook.unmount()
-    } finally {
-      unsubscribe()
-    }
+    // Subsequent edits land on the new path only — nothing resurrects a.md.
+    await hook.act(() => hook.result.current.onEditorChange('# New Title\n\nmore\n'))
+    await hook.act(() => clock.advance(1000))
+    expect(file('notes/new-title.md')).toContain('# New Title\n\nmore\n')
+    expect(file('notes/a.md')).toBeUndefined()
+    await hook.unmount()
   })
 
   it('watcher upserts at the retargeted path reconcile before React catches up (Plan 17)', async () => {
-    const files: Record<string, string> = { 'notes/a.md': managedNote('# Old Title\n') }
-    installGraphFake({ files })
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    seedGraph({ 'notes/a.md': managedNote('# Old Title\n') })
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -505,10 +480,8 @@ describe('useNoteDocument', () => {
     // An external edit lands at the NEW path while the pane still renders
     // the old route path (no rerender yet) — it must reconcile against the
     // session's current path, not the stale prop.
-    files['notes/new-title.md'] = '# New Title\n\nedited elsewhere\n'
-    await hook.act(() => {
-      emitChange?.([{ path: 'notes/new-title.md', kind: 'upsert' }])
-    })
+    noteFile.set('notes/new-title.md', '# New Title\n\nedited elsewhere\n')
+    await hook.act(() => emitChange([{ path: 'notes/new-title.md', kind: 'upsert' }]))
     await hook.act(() => runAllTimers())
 
     expect(hook.result.current.initialContent).toContain('edited elsewhere')
@@ -516,10 +489,9 @@ describe('useNoteDocument', () => {
   })
 
   it('an unadopted retargeted session still tears down on unmount (no orphan flush)', async () => {
-    const files: Record<string, string> = { 'notes/a.md': managedNote('# Old Title\n') }
-    installGraphFake({ files })
+    seedGraph({ 'notes/a.md': managedNote('# Old Title\n') })
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -529,21 +501,23 @@ describe('useNoteDocument', () => {
     // deferred teardown must still dispose it and flush nothing stale.
     await hook.unmount()
     await hook.act(async () => {})
-    const after = { ...files }
+    const after = noteFile.files()
 
-    await flushOpenDocuments() // an orphan would flush here and resurrect a.md
-    expect(files).toEqual(after)
-    expect(files['notes/a.md']).toBeUndefined()
+    await app.openDocuments.flushAll() // an orphan would flush here and resurrect a.md
+    expect(noteFile.files()).toEqual(after)
+    expect(file('notes/a.md')).toBeUndefined()
   })
 
   it('alias placement preserves aliases gained while the rewrite ran', async () => {
-    const files: Record<string, string> = {
-      'notes/a.md': managedNote('# Old Title\n'),
-      'notes/src.md': 'see [[Old Title]]\n',
-    }
-    installGraphFake({ files, linkSources: () => [{ source_path: 'notes/src.md' }] })
+    seedGraph(
+      {
+        'notes/a.md': managedNote('# Old Title\n'),
+        'notes/src.md': 'see [[Old Title]]\n',
+      },
+      ['notes/a.md', 'notes/src.md'],
+    )
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -552,35 +526,35 @@ describe('useNoteDocument', () => {
     // An external writer adds an alias before the chain's placement read —
     // the settle-time snapshot doesn't know about it. The write has to land
     // before the unmount promise flushes the chain's continuation.
-    files['notes/a.md'] = '---\naliases:\n  - Keeper\n---\n# New Title\n'
+    noteFile.set('notes/a.md', '---\naliases:\n  - Keeper\n---\n# New Title\n')
     await teardown
     await hook.act(() => runAllTimers())
 
-    expect(files['notes/new-title.md']).toContain('Keeper') // concurrently-gained, kept
-    expect(files['notes/new-title.md']).toContain('Old Title') // the rename's alias
+    expect(file('notes/new-title.md')).toContain('Keeper') // concurrently-gained, kept
+    expect(file('notes/new-title.md')).toContain('Old Title') // the rename's alias
   })
 
   it('a teardown rename routes its alias through a reopened dirty session', async () => {
-    const files: Record<string, string> = {
-      'notes/a.md': managedNote('# Old Title\n'),
-      'notes/src.md': 'see [[Old Title]]\n',
-    }
-    installGraphFake({ files, linkSources: () => [{ source_path: 'notes/src.md' }] })
+    seedGraph(
+      {
+        'notes/a.md': managedNote('# Old Title\n'),
+        'notes/src.md': 'see [[Old Title]]\n',
+      },
+      ['notes/a.md', 'notes/src.md'],
+    )
 
-    const paneA = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const paneA = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await paneA.act(() => clock.advance(0))
     await paneA.act(() => paneA.result.current.onEditorChange('# New Title\n'))
     await paneA.act(() => clock.advance(1000))
     // Park the chain at its link rewrite so the reopen lands first, the way
     // it does in the app.
-    const releaseRewrite = gateInvokes(
-      (command, args) => command === 'note_write' && args['path'] === 'notes/src.md',
-    )
+    const releaseRewrite = gateWrites('notes/src.md')
     await paneA.unmount() // settles the rename; its chain runs on
 
     // The same note is reopened immediately and edited before the chain's
     // alias placement runs.
-    const paneA2 = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const paneA2 = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await paneA2.act(() => clock.advance(0))
     await paneA2.act(() => paneA2.result.current.onEditorChange('# New Title\n\nfresh edit\n'))
     releaseRewrite()
@@ -590,29 +564,31 @@ describe('useNoteDocument', () => {
     // background write, and the user's edit and the alias both persist
     // (carried to the slug path by the move).
     expect(paneA2.result.current.conflict).toBeNull()
-    expect(files['notes/new-title.md']).toContain('aliases:')
-    expect(files['notes/new-title.md']).toContain('Old Title')
-    expect(files['notes/new-title.md']).toContain('fresh edit')
+    expect(file('notes/new-title.md')).toContain('aliases:')
+    expect(file('notes/new-title.md')).toContain('Old Title')
+    expect(file('notes/new-title.md')).toContain('fresh edit')
     await paneA2.unmount()
   })
 
   it('quit-time flushOpenDocuments settles a pending rename before resolving', async () => {
-    const files: Record<string, string> = {
-      'notes/a.md': managedNote('# Old Title\n'),
-      'notes/src.md': 'see [[Old Title]]\n',
-    }
-    installGraphFake({ files, linkSources: () => [{ source_path: 'notes/src.md' }] })
+    seedGraph(
+      {
+        'notes/a.md': managedNote('# Old Title\n'),
+        'notes/src.md': 'see [[Old Title]]\n',
+      },
+      ['notes/a.md', 'notes/src.md'],
+    )
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000)) // save lands, quiet timer armed
 
     // ⌘Q: the registry flush must settle the rename and await its writes.
-    await hook.act(() => flushOpenDocuments())
+    await hook.act(() => app.openDocuments.flushAll())
 
-    expect(files['notes/src.md']).toBe('see [[New Title]]\n')
-    expect(files['notes/new-title.md']).toContain('aliases:')
+    expect(file('notes/src.md')).toBe('see [[New Title]]\n')
+    expect(file('notes/new-title.md')).toContain('aliases:')
     await hook.unmount()
   })
 
@@ -622,7 +598,7 @@ describe('useNoteDocument', () => {
     await act(() => result.current.bindEditor(editor))
 
     // The watcher reports our own write back; content matches disk state.
-    await act(() => emitChange?.([{ path: 'notes/a.md', kind: 'upsert' }]))
+    await act(() => emitChange([{ path: 'notes/a.md', kind: 'upsert' }]))
     await act(async () => {})
     expect(editor.applied).toEqual([])
     expect(result.current.conflict).toBeNull()
@@ -633,8 +609,8 @@ describe('useNoteDocument', () => {
     const editor = fakeEditor()
     await act(() => result.current.bindEditor(editor))
 
-    disk = '# Changed outside\n'
-    await act(() => emitChange?.([{ path: 'notes/a.md', kind: 'upsert' }]))
+    noteFile.set('notes/a.md', '# Changed outside\n')
+    await act(() => emitChange([{ path: 'notes/a.md', kind: 'upsert' }]))
     await vi.waitFor(() => expect(editor.applied).toEqual(['# Changed outside\n']))
     expect(result.current.conflict).toBeNull()
     expect(result.current.dirty).toBe(false)
@@ -646,8 +622,8 @@ describe('useNoteDocument', () => {
     await act(() => result.current.bindEditor(editor))
 
     await act(() => result.current.onEditorChange('# My unsaved edit\n'))
-    disk = '# Theirs\n'
-    await act(() => emitChange?.([{ path: 'notes/a.md', kind: 'upsert' }]))
+    noteFile.set('notes/a.md', '# Theirs\n')
+    await act(() => emitChange([{ path: 'notes/a.md', kind: 'upsert' }]))
     await vi.waitFor(() => expect(result.current.conflict).toBe('# Theirs\n'))
     expect(editor.applied).toEqual([]) // never clobbered
 
@@ -660,9 +636,11 @@ describe('useNoteDocument', () => {
 
   it('opens a note the editor would corrupt in protected mode and never saves it', async () => {
     // meowdown's converter mangles git conflict markers, so the guard must catch it.
-    disk =
-      '# Shared\n\n<<<<<<< this device\nedited on a\n=======\nedited on b\n>>>>>>> other device\n'
-    const hook = await renderHook(() => useNoteDocument('notes/tasks.md', 1))
+    noteFile.set(
+      'notes/tasks.md',
+      '# Shared\n\n<<<<<<< this device\nedited on a\n=======\nedited on b\n>>>>>>> other device\n',
+    )
+    const hook = await mount(() => useNoteDocument('notes/tasks.md', 1))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
     expect(hook.result.current.protected).toBe(true)
@@ -670,18 +648,21 @@ describe('useNoteDocument', () => {
     // Even if an edit somehow reaches the pipeline, nothing is written.
     await hook.act(() => hook.result.current.onEditorChange('mangled'))
     await hook.act(() => clock.advance(2000))
-    expect(writes).toEqual([])
+    expect(writes()).toEqual([])
   })
 
   it('an external change that introduces conflict markers flips the note protected', async () => {
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
     await hook.act(() => clock.advance(0))
     const editor = fakeEditor()
     await hook.act(() => hook.result.current.bindEditor(editor))
     expect(hook.result.current.protected).toBe(false)
 
-    disk = '# Shared\n\n<<<<<<< this device\na\n=======\nb\n>>>>>>> other device\n'
-    await hook.act(() => emitChange?.([{ path: 'notes/a.md', kind: 'upsert' }]))
+    noteFile.set(
+      'notes/a.md',
+      '# Shared\n\n<<<<<<< this device\na\n=======\nb\n>>>>>>> other device\n',
+    )
+    await hook.act(() => emitChange([{ path: 'notes/a.md', kind: 'upsert' }]))
     await hook.act(() => clock.advance(0))
 
     expect(hook.result.current.protected).toBe(true)
@@ -690,8 +671,10 @@ describe('useNoteDocument', () => {
   })
 
   it('a note documenting a conflict inside a fence stays editable and saves', async () => {
-    disk = '# How to resolve\n\n```\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n```\n'
-    const hook = await renderHook(() => useNoteDocument('notes/tasks.md', 1))
+    const disk =
+      '# How to resolve\n\n```\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n```\n'
+    noteFile.set('notes/tasks.md', disk)
+    const hook = await mount(() => useNoteDocument('notes/tasks.md', 1))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
     expect(hook.result.current.protected).toBe(false)
@@ -699,11 +682,11 @@ describe('useNoteDocument', () => {
     // And it saves like any other note: the fenced markers are content.
     await hook.act(() => hook.result.current.onEditorChange(disk + '\nmore\n'))
     await hook.act(() => clock.advance(2000))
-    expect(writes).toHaveLength(1)
+    expect(writes()).toHaveLength(1)
   })
 
   it('an external reload never dirties the buffer, even when serialization normalizes', async () => {
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
     await hook.act(() => clock.advance(0))
 
     // The editor's change handler fires synchronously inside setMarkdown and
@@ -722,75 +705,69 @@ describe('useNoteDocument', () => {
     }
     await hook.act(() => hook.result.current.bindEditor(normalizing))
 
-    disk = '# Changed outside\n'
-    await hook.act(() => emitChange?.([{ path: 'notes/a.md', kind: 'upsert' }]))
+    noteFile.set('notes/a.md', '# Changed outside\n')
+    await hook.act(() => emitChange([{ path: 'notes/a.md', kind: 'upsert' }]))
     await hook.act(() => clock.advance(0))
     expect(editor.applied).toEqual(['# Changed outside\n'])
     expect(hook.result.current.dirty).toBe(false)
 
     // No save may fire from the reload alone.
     await hook.act(() => clock.advance(5000))
-    expect(writes).toEqual([])
+    expect(writes()).toEqual([])
 
     // A persistence flush and ref teardown both ask Meowdown to reconcile,
     // but its unchanged normalized snapshot is not itself a user edit.
-    await hook.act(() => flushOpenDocuments())
+    await hook.act(() => app.openDocuments.flushAll())
     await hook.act(() => hook.result.current.bindEditor(null))
     await hook.act(() => clock.advance(0))
-    expect(writes).toEqual([])
+    expect(writes()).toEqual([])
   })
 
   it('pauses saves while a conflict is parked (no clobbering theirs)', async () => {
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
     await hook.act(() => clock.advance(0))
 
     // An edit schedules a save, then an external change parks a conflict
     // before the debounce fires.
     await hook.act(() => hook.result.current.onEditorChange('# Mine\n'))
-    disk = '# Theirs\n'
-    await hook.act(() => emitChange?.([{ path: 'notes/a.md', kind: 'upsert' }]))
+    noteFile.set('notes/a.md', '# Theirs\n')
+    await hook.act(() => emitChange([{ path: 'notes/a.md', kind: 'upsert' }]))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.conflict).toBe('# Theirs\n')
 
     // Neither the pending debounce nor an explicit flush may write now.
     await hook.act(() => hook.result.current.onEditorChange('# Mine v2\n'))
     await hook.act(() => clock.advance(5000))
-    expect(writes).toEqual([])
+    expect(writes()).toEqual([])
 
     // Resolution unblocks: keepMine rewrites with the buffer.
     await hook.act(() => hook.result.current.keepMine())
     await hook.act(() => clock.advance(0))
-    expect(writes).toEqual(['# Mine v2\n'])
+    expect(writes()).toEqual(['# Mine v2\n'])
   })
 
   it('treats a watcher event for an in-flight save as an echo, not a conflict', async () => {
-    // Make note_write update the fake disk synchronously but resolve later,
+    // Make the write update the file synchronously but resolve later,
     // simulating the watcher event racing the IPC promise settlement.
     let resolveWrite: (() => void) | null = null
-    mockInvoke.mockImplementation(async (command, args) => {
-      if (command === 'note_read') {
-        return disk
-      }
-      if (command === 'note_write') {
-        disk = (args as { contents: string }).contents
-        writes.push(disk)
-        return await new Promise<null>((resolve) => {
-          resolveWrite = () => resolve(null)
-        })
-      }
-      return null
-    })
+    writeNote = async (...args) => {
+      const written = noteFile.write(...args)
+      await new Promise<void>((resolve) => {
+        resolveWrite = resolve
+      })
+      return await written
+    }
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
     await hook.act(() => clock.advance(0))
 
     await hook.act(() => hook.result.current.onEditorChange('# Saved\n'))
     await hook.act(() => clock.advance(1000)) // write dispatched, unresolved
-    expect(writes).toEqual(['# Saved\n'])
+    expect(writes()).toEqual(['# Saved\n'])
 
     // User keeps typing (dirty again) while the watcher reports our write.
     await hook.act(() => hook.result.current.onEditorChange('# Saved and more\n'))
-    await hook.act(() => emitChange?.([{ path: 'notes/a.md', kind: 'upsert' }]))
+    await hook.act(() => emitChange([{ path: 'notes/a.md', kind: 'upsert' }]))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.conflict).toBeNull() // echo, not a conflict
 
@@ -804,30 +781,23 @@ describe('useNoteDocument', () => {
     // First write hangs; the queued second save must re-evaluate when it runs.
     let resolveWrite: (() => void) | null = null
     let writeCount = 0
-    mockInvoke.mockImplementation(async (command, args) => {
-      if (command === 'note_read') {
-        return disk
+    writeNote = async (...args) => {
+      const written = noteFile.write(...args)
+      writeCount += 1
+      if (writeCount === 1) {
+        await new Promise<void>((resolve) => {
+          resolveWrite = resolve
+        })
       }
-      if (command === 'note_write') {
-        disk = (args as { contents: string }).contents
-        writes.push(disk)
-        writeCount += 1
-        if (writeCount === 1) {
-          return await new Promise<null>((resolve) => {
-            resolveWrite = () => resolve(null)
-          })
-        }
-        return null
-      }
-      return null
-    })
+      return await written
+    }
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
     await hook.act(() => clock.advance(0))
 
     await hook.act(() => hook.result.current.onEditorChange('# A\n'))
     await hook.act(() => clock.advance(1000)) // write1(A) dispatched, hanging
-    expect(writes).toEqual(['# A\n'])
+    expect(writes()).toEqual(['# A\n'])
 
     // More typing queues a second save; then the user reverts to A before
     // write1 settles. The queued step must NOT persist the stale "# B".
@@ -838,29 +808,21 @@ describe('useNoteDocument', () => {
       resolveWrite?.()
     })
     await hook.act(() => clock.advance(2000))
-    expect(writes).toEqual(['# A\n']) // no stale second write
+    expect(writes()).toEqual(['# A\n']) // no stale second write
     expect(hook.result.current.dirty).toBe(false)
   })
 
   it('surfaces a failed save as error and clears it on the next success', async () => {
     let failNext = true
-    mockInvoke.mockImplementation(async (command, args) => {
-      if (command === 'note_read') {
-        return disk
+    writeNote = async (...args) => {
+      if (failNext) {
+        failNext = false
+        throw new Error('disk full')
       }
-      if (command === 'note_write') {
-        if (failNext) {
-          failNext = false
-          throw new Error('disk full')
-        }
-        disk = (args as { contents: string }).contents
-        writes.push(disk)
-        return null
-      }
-      return null
-    })
+      return await noteFile.write(...args)
+    }
 
-    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
     await hook.act(() => clock.advance(0))
 
     await hook.act(() => hook.result.current.onEditorChange('# Edited\n'))
@@ -872,24 +834,13 @@ describe('useNoteDocument', () => {
     await hook.act(() => hook.result.current.onEditorChange('# Edited again\n'))
     await hook.act(() => clock.advance(1000))
     expect(hook.result.current.error).toBeNull()
-    expect(writes).toEqual(['# Edited again\n'])
+    expect(writes()).toEqual(['# Edited again\n'])
   })
 
   it('flushes the previous note when the path switches (final-flush snapshot)', async () => {
-    const written: Array<{ path: string; contents: string }> = []
-    mockInvoke.mockImplementation(async (command, args) => {
-      if (command === 'note_read') {
-        return disk
-      }
-      if (command === 'note_write') {
-        const { path, contents } = args as { path: string; contents: string }
-        written.push({ path, contents })
-        return null
-      }
-      return null
-    })
+    noteFile.set('notes/b.md', '# Hello\n')
 
-    const hook = await renderHook(
+    const hook = await mount(
       ({ path }: { path: string } = { path: 'notes/a.md' }) => useNoteDocument(path, 1),
       {
         initialProps: { path: 'notes/a.md' },
@@ -903,12 +854,12 @@ describe('useNoteDocument', () => {
     await hook.rerender({ path: 'notes/b.md' })
     await hook.act(() => clock.advance(2000))
 
-    expect(written).toContainEqual({ path: 'notes/a.md', contents: '# Unsaved on A\n' })
-    expect(written.some((write) => write.path === 'notes/b.md')).toBe(false)
+    expect(noteFile.getWrites('notes/a.md')).toContain('# Unsaved on A\n')
+    expect(noteFile.getWrites('notes/b.md')).toEqual([])
   })
 
   it('reconciles pending editor input during a same-path session rebind', async () => {
-    const hook = await renderHook(
+    const hook = await mount(
       ({ createIfMissing }: { createIfMissing: boolean } = { createIfMissing: false }) =>
         useNoteDocument('notes/a.md', 1, { createIfMissing }),
       { initialProps: { createIfMissing: false } },
@@ -934,62 +885,31 @@ describe('useNoteDocument', () => {
     await hook.act(() => clock.advance(2000))
 
     expect(editor.getMarkdown).toHaveBeenCalled()
-    expect(writes).toContain('# Pending native input\n')
+    expect(writes()).toContain('# Pending native input\n')
   })
 
   it('lazy notes open empty when missing and are created by the first save', async () => {
-    mockInvoke.mockImplementation(async (command, args) => {
-      if (command === 'note_read') {
-        throw { kind: 'notFound', message: 'missing' } // AppError shape
-      }
-      if (command === 'note_write') {
-        disk = (args as { contents: string }).contents
-        writes.push(disk)
-        return null
-      }
-      return null
-    })
-
-    const hook = await renderHook(() =>
+    const hook = await mount(() =>
       useNoteDocument('daily/2026-06-09.md', 1, { createIfMissing: true }),
     )
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
     expect(hook.result.current.initialContent).toBe('')
     expect(hook.result.current.dirty).toBe(false)
-    expect(writes).toEqual([]) // opening alone never creates the file
+    expect(writes()).toEqual([]) // opening alone never creates the file
 
     await hook.act(() => hook.result.current.onEditorChange('first keystroke\n'))
     await hook.act(() => clock.advance(1000))
-    expect(writes).toEqual(['first keystroke\n'])
+    expect(writes()).toEqual(['first keystroke\n'])
   })
 
   it('a missing non-lazy note is still an error', async () => {
-    mockInvoke.mockImplementation(async (command) => {
-      if (command === 'note_read') {
-        throw { kind: 'notFound', message: 'missing' }
-      }
-      return null
-    })
-    const hook = await renderHook(() => useNoteDocument('notes/gone.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/gone.md', 1))
     await vi.waitFor(() => expect(hook.result.current.status).toBe('error'))
   })
 
   it('a same-graph generation bump keeps unsaved edits and saves with the new generation', async () => {
-    const written: Array<{ contents: string; generation: number }> = []
-    mockInvoke.mockImplementation(async (command, args) => {
-      if (command === 'note_read') {
-        return disk
-      }
-      if (command === 'note_write') {
-        const { contents, generation } = args as { contents: string; generation: number }
-        written.push({ contents, generation })
-        return null
-      }
-      return null
-    })
-
-    const hook = await renderHook(
+    const hook = await mount(
       ({ gen }: { gen: number } = { gen: 1 }) => useNoteDocument('notes/a.md', gen),
       {
         initialProps: { gen: 1 },
@@ -1006,19 +926,21 @@ describe('useNoteDocument', () => {
     expect(hook.result.current.dirty).toBe(true)
 
     await hook.act(() => clock.advance(1000))
-    expect(written).toEqual([{ contents: '# Unsaved\n', generation: 2 }])
+    expect(noteFile.writes()).toEqual([
+      { path: 'notes/a.md', contents: '# Unsaved\n', generation: 2 },
+    ])
     expect(hook.result.current.dirty).toBe(false)
   })
 
   it('keepMine rewrites the file with the buffer', async () => {
     const { result, act } = await readyHook()
     await act(() => result.current.onEditorChange('# My unsaved edit\n'))
-    disk = '# Theirs\n'
-    await act(() => emitChange?.([{ path: 'notes/a.md', kind: 'upsert' }]))
+    noteFile.set('notes/a.md', '# Theirs\n')
+    await act(() => emitChange([{ path: 'notes/a.md', kind: 'upsert' }]))
     await vi.waitFor(() => expect(result.current.conflict).toBe('# Theirs\n'))
 
     await act(() => result.current.keepMine())
-    await vi.waitFor(() => expect(writes).toContain('# My unsaved edit\n'))
+    await vi.waitFor(() => expect(writes()).toContain('# My unsaved edit\n'))
     expect(result.current.conflict).toBeNull()
   })
 })

@@ -16,7 +16,6 @@ import type {
 } from '@meowdown/react'
 import {
   chatModelOptions,
-  defaultSelectionTransform,
   filterAiPrompts,
   type AiPrompt,
   type AiPromptMode,
@@ -103,8 +102,7 @@ export function useEditorAiMenu({
     noteRow?.isPrivate ??
     (resolvedPrivacy?.epoch === sessionEpoch ? resolvedPrivacy.isPrivate : true)
   const { providers } = useAiProviders()
-  const selectionTransform =
-    useAppServices({ optional: true })?.selectionTransform ?? defaultSelectionTransform()
+  const { selectionTransform } = useAppServices()
   const { prompts } = useAiPrompts()
   const { navigate } = useRouter()
 

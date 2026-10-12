@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useLinkNavigationHost } from '@/hooks/use-link-navigation-host.ts'
-import { useLinkNavigationService } from '@/hooks/use-link-navigation-service.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import type { NoteRoute } from '@/routing/route.ts'
 
 /** Open one concrete note from a link-like UI control. */
@@ -21,7 +21,7 @@ export type NoteLinkNavigation = (options: { target: NoteRoute; openInNewWindow:
  *   date, which can change without a router navigation).
  */
 export function useNoteLinkNavigation(scopeKey?: string | number | null): NoteLinkNavigation {
-  const linkNavigation = useLinkNavigationService()
+  const { linkNavigation } = useAppServices()
   const host = useLinkNavigationHost(scopeKey)
 
   return useCallback(

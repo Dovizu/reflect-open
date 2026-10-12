@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { defaultGithubAuth, errorMessage } from '@reflect/core'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { errorMessage } from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /** What a device-flow surface renders: nothing yet, or the code to enter. */
 export type DeviceFlowView =
@@ -26,13 +26,12 @@ export interface DeviceFlowAuth {
  * The GitHub device-flow state machine, separated from rendering so any
  * surface (the connect dialog, restore, a future onboarding screen) can drive
  * the same auth. Polling policy lives further down in core's
- * `GithubAuthService.runDeviceFlow` (the service of the nearest
- * `AppServicesProvider`, else the process-wide one); this hook owns the React
- * side: the view/busy/error states and aborting the poll when the owning
- * component unmounts.
+ * `GithubAuthService.runDeviceFlow`; this hook owns the React side: the
+ * view/busy/error states and aborting the poll when the owning component
+ * unmounts.
  */
 export function useDeviceFlowAuth(): DeviceFlowAuth {
-  const githubAuth = useOptionalAppServices()?.githubAuth
+  const { githubAuth } = useAppServices()
   const [view, setView] = useState<DeviceFlowView>({ view: 'idle' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +54,7 @@ export function useDeviceFlowAuth(): DeviceFlowAuth {
     setBusy(true)
     try {
       const signal = abortRef.current?.signal
-      const auth = await (githubAuth ?? defaultGithubAuth()).runDeviceFlow({
+      const auth = await githubAuth.runDeviceFlow({
         signal,
         onCode: (code) => {
           setView({ view: 'code', userCode: code.userCode, verificationUri: code.verificationUri })

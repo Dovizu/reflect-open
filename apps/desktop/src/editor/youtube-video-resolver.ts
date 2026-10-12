@@ -1,7 +1,9 @@
+import { useCallback } from 'react'
 import type { YouTubeVideoResolver } from '@meowdown/core'
-import { defaultEmbedMedia } from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 
-/** `defaultEmbedMedia().resolveYouTubeVideo`. */
-export const resolveYouTubeVideo: YouTubeVideoResolver = (url) => {
-  return defaultEmbedMedia().resolveYouTubeVideo(url)
+/** `EmbedMediaService.resolveYouTubeVideo` as the resolver a Markdown view takes. */
+export function useYouTubeVideoResolver(): YouTubeVideoResolver {
+  const { embedMedia } = useAppServices()
+  return useCallback((url) => embedMedia.resolveYouTubeVideo(url), [embedMedia])
 }

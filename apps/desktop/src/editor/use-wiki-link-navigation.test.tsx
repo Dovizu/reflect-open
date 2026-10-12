@@ -1,26 +1,23 @@
 import {
+  createTestAppServices,
+  createTestLinkNavigationService,
   createTestLoggerService,
   createTestOperationsService,
+  createTestWindowService,
   type TestOperationsService,
 } from '@reflect/core/testing'
-import { setDefaultOperations } from '@reflect/core'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render } from 'vitest-browser-react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { useRouter } from '@/routing/router.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { useWikiLinkNavigation } from './use-wiki-link-navigation.ts'
 
 const resolveWikiTarget = vi.fn()
 const resolveExistingWikiTarget = vi.fn()
 const resolveOrCreateNoteWithTitle = vi.fn()
+// Receives the `reflect://` link of every note window a test opens.
+const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 const logger = createTestLoggerService()
-const { openNoteWindow } = installTestLinkNavigation({
-  wikiResolver: { resolveWikiTarget },
-  noteLinkResolver: { resolveWikiTarget: resolveExistingWikiTarget, resolveMarkdownHref: vi.fn() },
-  noteCreation: { resolveOrCreateNoteWithTitle },
-  logger,
-})
 
 let lastHandler: ((options: { target: string; openInNewWindow: boolean }) => void) | null = null
 let navigate: ReturnType<typeof useRouter>['navigate'] | null = null
@@ -40,12 +37,31 @@ function RouteProbe(): ReactNode {
   )
 }
 
+/** Render `ui` in an app whose link navigation runs on the scripted resolvers above. */
+function renderWithLinkNavigation(ui: ReactNode) {
+  const app = createTestAppServices({
+    operations,
+    linkNavigation: createTestLinkNavigationService({
+      wikiResolver: { resolveWikiTarget },
+      noteLinkResolver: {
+        resolveWikiTarget: resolveExistingWikiTarget,
+        resolveMarkdownHref: vi.fn(),
+      },
+      noteCreation: { resolveOrCreateNoteWithTitle },
+      window: createTestWindowService({ openNoteWindow }),
+      operations,
+      logger,
+    }),
+  })
+  return renderInApp(ui, { app })
+}
+
 function renderHost(generation: number | null = 1) {
-  return render(
-    <RouterProvider>
+  return renderWithLinkNavigation(
+    <>
       <Host generation={generation} />
       <RouteProbe />
-    </RouterProvider>,
+    </>,
   )
 }
 
@@ -57,16 +73,12 @@ let operations: TestOperationsService
 
 beforeEach(() => {
   operations = createTestOperationsService()
-  setDefaultOperations(operations)
+  openNoteWindow.mockReset().mockResolvedValue(true)
   resolveWikiTarget.mockReset()
   resolveExistingWikiTarget.mockReset()
   resolveOrCreateNoteWithTitle.mockReset()
   lastHandler = null
   navigate = null
-})
-
-afterEach(() => {
-  setDefaultOperations(null)
 })
 
 describe('useWikiLinkNavigation', () => {
@@ -80,7 +92,6 @@ describe('useWikiLinkNavigation', () => {
     await vi.waitFor(() => expect(currentRoute(view)).toContain('notes/target.md'))
     expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Target', 1)
     expect(resolveWikiTarget).not.toHaveBeenCalled()
-    await view.unmount()
   })
 
   it('arrives at a resolved note without a focus intent (no keyboard on navigation)', async () => {
@@ -92,7 +103,6 @@ describe('useWikiLinkNavigation', () => {
     lastHandler?.({ target: 'Target', openInNewWindow: false })
     await vi.waitFor(() => expect(currentRoute(view)).toContain('notes/target.md'))
     expect(view.getByTestId('route').element().getAttribute('data-focus')).toBe('false')
-    await view.unmount()
   })
 
   it('treats an unresolved ISO date as a daily target, without a focus intent', async () => {
@@ -105,7 +115,6 @@ describe('useWikiLinkNavigation', () => {
     expect(resolveOrCreateNoteWithTitle).not.toHaveBeenCalled()
     expect(resolveExistingWikiTarget).toHaveBeenCalledWith('2026-06-09', 1)
     expect(resolveWikiTarget).not.toHaveBeenCalled()
-    await view.unmount()
   })
 
   it('preserves an existing regular note titled as an ISO date', async () => {
@@ -119,7 +128,6 @@ describe('useWikiLinkNavigation', () => {
 
     await vi.waitFor(() => expect(currentRoute(view)).toContain('"note"'))
     expect(currentRoute(view)).toContain('notes/2026-06-09.md')
-    await view.unmount()
   })
 
   it('retains read-only index resolution for ISO dates without a graph generation', async () => {
@@ -131,7 +139,6 @@ describe('useWikiLinkNavigation', () => {
     await vi.waitFor(() => expect(currentRoute(view)).toContain('notes/2026-06-09.md'))
     expect(resolveWikiTarget).toHaveBeenCalledWith('2026-06-09')
     expect(resolveExistingWikiTarget).not.toHaveBeenCalled()
-    await view.unmount()
   })
 
   it('does not choose between ambiguous ISO-date targets', async () => {
@@ -148,7 +155,6 @@ describe('useWikiLinkNavigation', () => {
     )
     expect(currentRoute(view)).toContain('"today"')
     expect(resolveOrCreateNoteWithTitle).not.toHaveBeenCalled()
-    await view.unmount()
   })
 
   it('does not turn an unavailable ISO-date target into a lazy daily route', async () => {
@@ -169,7 +175,6 @@ describe('useWikiLinkNavigation', () => {
       ),
     )
     expect(currentRoute(view)).toContain('"today"')
-    await view.unmount()
   })
 
   it('routes a resolved daily alias through the daily view', async () => {
@@ -183,7 +188,6 @@ describe('useWikiLinkNavigation', () => {
 
     await vi.waitFor(() => expect(currentRoute(view)).toContain('"daily"'))
     expect(currentRoute(view)).toContain('2026-06-09')
-    await view.unmount()
   })
 
   it('creates and opens an unresolved title, without a focus intent', async () => {
@@ -196,7 +200,6 @@ describe('useWikiLinkNavigation', () => {
     await vi.waitFor(() => expect(currentRoute(view)).toContain('notes/created.md'))
     expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Brand New', 7)
     expect(view.getByTestId('route').element().getAttribute('data-focus')).toBe('false')
-    await view.unmount()
   })
 
   it('does not create when no generation is available', async () => {
@@ -206,7 +209,6 @@ describe('useWikiLinkNavigation', () => {
     await vi.waitFor(() => expect(resolveWikiTarget).toHaveBeenCalled())
     expect(resolveOrCreateNoteWithTitle).not.toHaveBeenCalled()
     expect(currentRoute(view)).toContain('"today"')
-    await view.unmount()
   })
 
   it('ignores an unresolved empty target', async () => {
@@ -216,7 +218,6 @@ describe('useWikiLinkNavigation', () => {
     expect(resolveWikiTarget).not.toHaveBeenCalled()
     expect(resolveOrCreateNoteWithTitle).not.toHaveBeenCalled()
     expect(currentRoute(view)).toContain('"today"')
-    await view.unmount()
   })
 
   it('an `openInNewWindow` request opens the resolved note in a new window instead of navigating', async () => {
@@ -230,7 +231,6 @@ describe('useWikiLinkNavigation', () => {
       expect(openNoteWindow).toHaveBeenCalledWith('reflect://note/notes%2Ftarget.md'),
     )
     expect(currentRoute(view)).toContain('"today"') // this window stays put
-    await view.unmount()
   })
 
   it('an `openInNewWindow` request on an unresolved title still creates, then opens the new window', async () => {
@@ -245,7 +245,6 @@ describe('useWikiLinkNavigation', () => {
     )
     expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Brand New', 7)
     expect(currentRoute(view)).toContain('"today"')
-    await view.unmount()
   })
 
   it('does not navigate when indexed or on-disk title resolution is ambiguous', async () => {
@@ -263,7 +262,6 @@ describe('useWikiLinkNavigation', () => {
       message:
         'Couldn’t safely choose one note matching “Business ideas”. Rename conflicting notes or wait for unavailable notes to become available, then try again.',
     })
-    await view.unmount()
   })
 
   it('does not navigate or create when a matching title is unavailable', async () => {
@@ -285,7 +283,6 @@ describe('useWikiLinkNavigation', () => {
     )
     expect(currentRoute(view)).toContain('"today"')
     expect(resolveWikiTarget).not.toHaveBeenCalled()
-    await view.unmount()
   })
 
   it('surfaces a resolution failure instead of silently doing nothing', async () => {
@@ -306,7 +303,6 @@ describe('useWikiLinkNavigation', () => {
       message: 'wiki-link resolution failed:',
       cause: failure,
     })
-    await view.unmount()
   })
 
   it('a declined new-window open falls back to in-window navigation', async () => {
@@ -318,31 +314,29 @@ describe('useWikiLinkNavigation', () => {
     const view = await renderHost()
     lastHandler?.({ target: 'Target', openInNewWindow: true })
     await vi.waitFor(() => expect(currentRoute(view)).toContain('notes/target.md'))
-    await view.unmount()
   })
 
   it('drops a resolution that lands after the host unmounts', async () => {
     const pending = Promise.withResolvers<{ kind: 'resolved'; path: string }>()
     resolveOrCreateNoteWithTitle.mockReturnValue(pending.promise)
-    const view = await render(
-      <RouterProvider>
+    const view = await renderWithLinkNavigation(
+      <>
         <Host key="host" generation={1} />
         <RouteProbe key="probe" />
-      </RouterProvider>,
+      </>,
     )
     lastHandler?.({ target: 'Target', openInNewWindow: false })
     await vi.waitFor(() => expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Target', 1))
     // Unmount only the host; the router (and probe) live on, so a navigate
     // slipping through the guard would be visible as a route change.
     await view.rerender(
-      <RouterProvider>
+      <>
         <RouteProbe key="probe" />
-      </RouterProvider>,
+      </>,
     )
     pending.resolve({ kind: 'resolved', path: 'notes/target.md' })
     await new Promise((tick) => setTimeout(tick, 0))
     expect(view.getByTestId('route').element().textContent).toContain('"today"')
-    await view.unmount()
   })
 
   it('drops an older resolution after a newer wiki-link click', async () => {
@@ -364,7 +358,6 @@ describe('useWikiLinkNavigation', () => {
 
     expect(currentRoute(view)).toContain('notes/newer.md')
     expect(currentRoute(view)).not.toContain('notes/older.md')
-    await view.unmount()
   })
 
   it('drops a pending resolution after unrelated router navigation', async () => {
@@ -382,7 +375,6 @@ describe('useWikiLinkNavigation', () => {
 
     expect(currentRoute(view)).toContain('"settings"')
     expect(currentRoute(view)).not.toContain('notes/target.md')
-    await view.unmount()
   })
 
   it('drops a pending note creation after unrelated router navigation', async () => {
@@ -402,6 +394,5 @@ describe('useWikiLinkNavigation', () => {
 
     expect(currentRoute(view)).toContain('"settings"')
     expect(currentRoute(view)).not.toContain('notes/created.md')
-    await view.unmount()
   })
 })

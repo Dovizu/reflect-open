@@ -1,9 +1,8 @@
 import { useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ContactsAuthorization } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { queryKeys } from '@/lib/query-client.ts'
-import { useContactSuggestionService } from '@/services/use-contacts-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * One shared query for the Contacts permission state, consumed by the
@@ -14,12 +13,10 @@ import { useContactSuggestionService } from '@/services/use-contacts-services.ts
  */
 /** The Contacts permission state, or `null` while the first read is in flight. */
 export function useContactsAuthorization(): ContactsAuthorization | null {
-  const bridgeReady = useBridgeReady()
-  const contactSuggestions = useContactSuggestionService()
+  const { contactSuggestions } = useAppServices()
   const { data } = useQuery({
     queryKey: queryKeys.contacts.authorization,
     queryFn: () => contactSuggestions.authorizationStatus(),
-    enabled: bridgeReady,
   })
   return data ?? null
 }
