@@ -240,16 +240,28 @@ export {
   AssetDescriptionRejectedError,
   type AssetKind,
   type DescribeAssetRequest,
-} from '../ai/describe-asset.ts'
+} from '../ai/asset-describer-service.ts'
 export {
   buildDescriptionSource,
-  classifyAsset,
   isEligibleAssetPath,
-  reconcileAssetDescriptions,
   readManagedDescription,
   type AssetDescriptionMeta,
+} from '../assets/asset-description-helpers.ts'
+export {
+  createAssetDescriptionService,
+  defaultAssetDescription,
+  setDefaultAssetDescription,
   type AssetDescriptionMode,
-  type AssetVerdict,
+  type AssetDescriptionService,
+  type AssetDescriptionSession,
+  type AssetDescriptionSessionOptions,
   type ReconcileAssetDescriptionsInput,
   type ReconcileAssetDescriptionsOutcome,
-} from '../actions/asset-description.ts'
+} from '../assets/asset-description-service.ts'
+export {
+  createAssetPrivacyService,
+  defaultAssetPrivacy,
+  setDefaultAssetPrivacy,
+  type AssetPrivacyService,
+  type AssetVerdict,
+} from '../assets/asset-privacy-service.ts'

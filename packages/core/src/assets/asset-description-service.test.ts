@@ -1,0 +1,768 @@
+import { describe, expect, it } from 'vitest'
+import { AssetDescriptionRejectedError } from '../ai/asset-describer-service.ts'
+import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
+import { ReflectError } from '../errors.ts'
+import { descriptionPathFor } from '../graph/paths.ts'
+import type { FileChange } from '../indexing/file-change-service.ts'
+import type { IndexChangesAppliedEvent } from '../indexing/index-lifecycle-service.ts'
+import type { SecretStoreService } from '../secrets/secret-store-service.ts'
+import type { AiProviderConfig } from '../settings/schema.ts'
+import {
+  createTestAiCredentialService,
+  createTestAssetDescriberService,
+  createTestAssetPrivacyService,
+  createTestAssetReferences,
+  createTestAssetStoreService,
+  createTestClockService,
+  createTestHashService,
+  createTestLifecycleService,
+  createTestLoggerService,
+  createTestNoteFileService,
+  createTestOperationsService,
+  createTestSecretStoreService,
+} from '../testing/index.ts'
+import {
+  assetTypeFor,
+  base64ByteLength,
+  buildDescriptionSource,
+  isEligibleAssetPath,
+  readManagedDescription,
+} from './asset-description-helpers.ts'
+import {
+  createAssetDescriptionService,
+  type ReconcileAssetDescriptionsInput,
+} from './asset-description-service.ts'
+
+const PROVIDER: AiProviderConfig = {
+  id: 'cfg-anthropic',
+  provider: 'anthropic',
+  model: 'claude-opus-4-8',
+  keyHint: 'wxyz1',
+}
+
+const GENERATION = 7
+const NOW = Date.parse('2026-06-16T00:00:00.000Z')
+
+const hashService = createTestHashService()
+
+/** A public note referencing `assetPath`. */
+function publicNote(assetPath: string): string {
+  return `# Diagram\n\n![](${assetPath})\n`
+}
+
+/** A private note referencing `assetPath`. */
+function privateNote(assetPath: string): string {
+  return `---\nprivate: true\n---\n\n![](${assetPath})\n`
+}
+
+function upsert(path: string): FileChange {
+  return { path, kind: 'upsert', modifiedMs: 1 }
+}
+
+function flush(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+/**
+ * The service over test doubles: an in-memory graph (notes and descriptions
+ * in `files`, asset bytes added with `addAsset`), the index references in
+ * `refs`, one configured provider with its key, and a describer that answers
+ * "A flow diagram.".
+ */
+function setup(options?: { provider?: AiProviderConfig | null; secretStore?: SecretStoreService }) {
+  const files = createTestNoteFileService()
+  const assetStore = createTestAssetStoreService()
+  const refs = createTestAssetReferences()
+  const describer = createTestAssetDescriberService('A flow diagram.')
+  const lifecycle = createTestLifecycleService()
+  const clock = createTestClockService({ now: NOW })
+  const operations = createTestOperationsService(clock)
+  const logger = createTestLoggerService()
+  const privacy = createTestAssetPrivacyService({ noteFile: files, assetReferences: refs })
+  /** Every asset the privacy gate classified, in order: one per asset a pass reached. */
+  const classified: string[] = []
+  /** Every asset whose bytes were read, in order. */
+  const assetReads: string[] = []
+  const appliedListeners = new Set<(event: IndexChangesAppliedEvent) => void>()
+  /** Every `reindexNotesReferencing` call, as `[assetPaths, generation]`. */
+  const reindexed: Array<[readonly string[], number]> = []
+  const index = {
+    /** When set, the next re-index rejects with it. */
+    reindexError: null as unknown,
+    listenerCount: () => appliedListeners.size,
+    emit(changes: FileChange[], generation: number = GENERATION): void {
+      for (const listener of appliedListeners) {
+        listener({ generation, changes })
+      }
+    },
+  }
+  const provider = options?.provider === undefined ? PROVIDER : options.provider
+  const service = createAssetDescriptionService({
+    assetStore: {
+      readBase64: async (path, generation) => {
+        assetReads.push(path)
+        return await assetStore.readBase64(path, generation)
+      },
+    },
+    noteFile: files,
+    assetPrivacy: {
+      classifyAsset: async (assetPath, generation) => {
+        classified.push(assetPath)
+        return await privacy.classifyAsset(assetPath, generation)
+      },
+    },
+    assetDescriber: describer,
+    aiProviderConfig: { defaultProvider: () => provider },
+    aiCredentials: createTestAiCredentialService({
+      secretStore:
+        options?.secretStore ??
+        createTestSecretStoreService({ 'ai-api-key:cfg-anthropic': 'sk-live' }),
+    }),
+    hash: hashService,
+    clock,
+    reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
+    indexLifecycle: {
+      onChangesApplied: (listener) => {
+        appliedListeners.add(listener)
+        return () => {
+          appliedListeners.delete(listener)
+        }
+      },
+      reindexNotesReferencing: async (assetPaths, generation) => {
+        reindexed.push([assetPaths, generation])
+        if (index.reindexError !== null) {
+          const error = index.reindexError
+          index.reindexError = null
+          throw error
+        }
+      },
+    },
+    operations,
+    logger,
+  })
+  let indexedEvents = 0
+  service.onDescriptionsIndexed(() => {
+    indexedEvents += 1
+  })
+  /** Put an asset into the graph: its bytes in the asset store and its file in the listing. */
+  async function addAsset(path: string, base64: string): Promise<void> {
+    await assetStore.writeBase64(path, base64, GENERATION)
+    files.set(path, atob(base64), { modifiedMs: 1 }) // far before any ISO `generatedAt`
+  }
+  return {
+    service,
+    files,
+    refs,
+    describer,
+    lifecycle,
+    operations,
+    logger,
+    classified,
+    assetReads,
+    reindexed,
+    index,
+    indexedEvents: () => indexedEvents,
+    addAsset,
+    reconcile: async (overrides: Partial<ReconcileAssetDescriptionsInput> = {}) =>
+      await service.reconcile({
+        generation: GENERATION,
+        mode: 'incremental',
+        changed: ['assets/a.png'],
+        ...overrides,
+      }),
+  }
+}
+
+describe('pure helpers', () => {
+  it('assetTypeFor maps eligible extensions and rejects the rest', () => {
+    expect(assetTypeFor('assets/a.png')).toEqual({ kind: 'image', mediaType: 'image/png' })
+    expect(assetTypeFor('assets/a.JPG')).toEqual({ kind: 'image', mediaType: 'image/jpeg' })
+    expect(assetTypeFor('assets/a.jpeg')).toEqual({ kind: 'image', mediaType: 'image/jpeg' })
+    expect(assetTypeFor('assets/a.gif')).toEqual({ kind: 'image', mediaType: 'image/gif' })
+    expect(assetTypeFor('assets/a.webp')).toEqual({ kind: 'image', mediaType: 'image/webp' })
+    expect(assetTypeFor('assets/a.svg')).toEqual({ kind: 'svg', mediaType: 'image/svg+xml' })
+    expect(assetTypeFor('assets/a.pdf')).toEqual({ kind: 'pdf', mediaType: 'application/pdf' })
+    expect(assetTypeFor('assets/a.txt')).toBeNull()
+    expect(assetTypeFor('notes/a.png')).toBeNull()
+    expect(assetTypeFor('assets/a.png.reflect.md')).toBeNull() // never describe a description
+    expect(assetTypeFor('assets/noext')).toBeNull()
+  })
+
+  it('isEligibleAssetPath and descriptionPathFor', () => {
+    expect(isEligibleAssetPath('assets/a.png')).toBe(true)
+    expect(isEligibleAssetPath('assets/a.png.reflect.md')).toBe(false)
+    expect(descriptionPathFor('assets/a.png')).toBe('assets/a.png.reflect.md')
+  })
+
+  it('base64ByteLength matches the decoded size', () => {
+    expect(base64ByteLength('aGVsbG8=')).toBe(5) // "hello"
+    expect(base64ByteLength('')).toBe(0)
+    expect(base64ByteLength('YWJjZA==')).toBe(4) // "abcd"
+  })
+
+  it('readManagedDescription recognizes managed files and rejects user-authored ones', async () => {
+    const built = buildDescriptionSource(
+      {
+        source: 'assets/a.png',
+        sourceHash: 'abc',
+        sourceSize: 5,
+        provider: 'anthropic',
+        model: 'claude-opus-4-8',
+        generatedAt: '2026-06-16T00:00:00.000Z',
+      },
+      'A flow diagram.',
+    )
+    expect(readManagedDescription(built)).toEqual({
+      sourceHash: 'abc',
+      sourceSize: 5,
+      generatedAtMs: Date.parse('2026-06-16T00:00:00.000Z'),
+    })
+    expect(built).toContain('A flow diagram.')
+    expect(built).toContain('source: assets/a.png')
+    // A file the user wrote (no managed marker) is never claimed.
+    expect(readManagedDescription('# My own notes about this image\n')).toBeNull()
+    expect(readManagedDescription('---\ntitle: Hand written\n---\n\nbody\n')).toBeNull()
+  })
+})
+
+describe('AssetDescriptionService.reconcile', () => {
+  it('describes a public asset and writes a managed, generation-pinned description', async () => {
+    const { files, refs, addAsset, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+
+    const outcome = await reconcile()
+
+    expect(outcome.described).toBe(1)
+    expect(outcome.describedAssetPaths).toEqual(['assets/a.png'])
+    expect(outcome.stopped).toBeNull()
+    const hash = await hashService.sha256Hex('aGVsbG8=')
+    const written = files.files().get('assets/a.png.reflect.md')!
+    expect(readManagedDescription(written)).toMatchObject({ sourceHash: hash })
+    expect(written).toContain('A flow diagram.')
+    expect(written).toContain('provider: anthropic')
+    expect(written).toContain('generatedAt: 2026-06-16T00:00:00.000Z')
+    expect(files.writes()).toEqual([
+      { path: 'assets/a.png.reflect.md', contents: written, generation: GENERATION },
+    ])
+  })
+
+  it('skips an up-to-date managed description without calling the provider', async () => {
+    const { files, refs, addAsset, describer, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+    const hash = await hashService.sha256Hex('aGVsbG8=')
+    files.set(
+      'assets/a.png.reflect.md',
+      buildDescriptionSource(
+        {
+          source: 'assets/a.png',
+          sourceHash: hash,
+          sourceSize: 5,
+          provider: 'anthropic',
+          model: 'm',
+          generatedAt: 'x',
+        },
+        'old',
+      ),
+    )
+
+    const outcome = await reconcile()
+
+    expect(outcome.skippedUpToDate).toBe(1)
+    expect(outcome.described).toBe(0)
+    expect(describer.calls()).toEqual([])
+  })
+
+  it('re-reads and rehashes a same-size replacement instead of trusting mtime/size', async () => {
+    const { files, refs, addAsset, assetReads, reconcile } = setup()
+    // A `cp -p`-style replacement: same byte size, mtime not advanced, different
+    // content. The hash differs, so it must be re-described — never stat-skipped.
+    await addAsset('assets/a.png', 'Ym9keTI=') // "body2", 5 bytes
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+    files.set(
+      'assets/a.png.reflect.md',
+      buildDescriptionSource(
+        {
+          source: 'assets/a.png',
+          sourceHash: 'stale-hash-of-the-old-5-byte-file',
+          sourceSize: 5, // same size as the new bytes
+          provider: 'anthropic',
+          model: 'm',
+          generatedAt: '2026-06-16T00:00:00.000Z', // at/after the stat mtime
+        },
+        'old description',
+      ),
+    )
+
+    const outcome = await reconcile()
+
+    expect(assetReads).toEqual(['assets/a.png']) // the bytes are read + rehashed
+    expect(outcome.described).toBe(1) // hash differs → re-described, not skipped
+    expect(outcome.skippedUpToDate).toBe(0)
+  })
+
+  it('regenerates a managed description when the source hash changed', async () => {
+    const { files, refs, addAsset, reconcile } = setup()
+    await addAsset('assets/a.png', 'bmV3Qnl0ZXM=') // different bytes
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+    files.set(
+      'assets/a.png.reflect.md',
+      buildDescriptionSource(
+        {
+          source: 'assets/a.png',
+          sourceHash: 'oldhash',
+          sourceSize: 5,
+          provider: 'anthropic',
+          model: 'm',
+          generatedAt: 'x',
+        },
+        'old',
+      ),
+    )
+
+    const outcome = await reconcile()
+
+    expect(outcome.described).toBe(1)
+    expect(files.files().get('assets/a.png.reflect.md')).toContain('A flow diagram.')
+  })
+
+  it('never overwrites a user-authored description', async () => {
+    const { files, refs, addAsset, describer, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+    files.set('assets/a.png.reflect.md', '# My own caption\n')
+
+    const outcome = await reconcile()
+
+    expect(outcome.skippedUserAuthored).toBe(1)
+    expect(outcome.described).toBe(0)
+    expect(files.files().get('assets/a.png.reflect.md')).toBe('# My own caption\n')
+    expect(describer.calls()).toEqual([])
+  })
+
+  it('blocks an asset referenced by a private note', async () => {
+    const { files, refs, addAsset, describer, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/secret.md', privateNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/secret.md'])
+
+    const outcome = await reconcile()
+
+    expect(outcome.skippedPrivate).toBe(1)
+    expect(outcome.described).toBe(0)
+    expect(describer.calls()).toEqual([])
+    expect(files.files().has('assets/a.png.reflect.md')).toBe(false)
+  })
+
+  it('skips an unreferenced asset', async () => {
+    const { refs, addAsset, describer, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    refs.set('assets/a.png', [])
+
+    const outcome = await reconcile()
+
+    expect(outcome.skippedUnreferenced).toBe(1)
+    expect(describer.calls()).toEqual([])
+  })
+
+  it('never reads an asset until a non-private note is associated (gate before attempt)', async () => {
+    const { files, refs, addAsset, describer, assetReads, reconcile } = setup()
+    await addAsset('assets/secret.png', 'aGVsbG8=')
+    await addAsset('assets/orphan.png', 'aGVsbG8=')
+    files.set('notes/secret.md', privateNote('assets/secret.png'))
+    refs.set('assets/secret.png', ['notes/secret.md']) // referenced only by a private note
+    refs.set('assets/orphan.png', []) // referenced by nothing
+
+    const outcome = await reconcile({ changed: ['assets/secret.png', 'assets/orphan.png'] })
+
+    expect(outcome.skippedPrivate).toBe(1)
+    expect(outcome.skippedUnreferenced).toBe(1)
+    expect(assetReads).toEqual([]) // bytes never touched
+    expect(describer.calls()).toEqual([])
+  })
+
+  it('logs a permanent refusal and writes no description, continuing the pass', async () => {
+    const { files, refs, addAsset, describer, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    await addAsset('assets/b.pdf', 'JVBERg==')
+    files.set('notes/pub.md', `# Both\n\n![](assets/a.png)\n![](assets/b.pdf)\n`)
+    refs.set('assets/a.png', ['notes/pub.md'])
+    refs.set('assets/b.pdf', ['notes/pub.md'])
+    describer.setResult((request) => {
+      if (request.filename === 'a.png') {
+        throw new AssetDescriptionRejectedError('unsupported')
+      }
+      return 'A PDF.'
+    })
+
+    const outcome = await reconcile({ changed: ['assets/a.png', 'assets/b.pdf'] })
+
+    expect(outcome.refused).toBe(1)
+    expect(outcome.described).toBe(1)
+    expect(outcome.stopped).toBeNull()
+    expect(files.files().has('assets/a.png.reflect.md')).toBe(false)
+    expect(files.files().has('assets/b.pdf.reflect.md')).toBe(true)
+  })
+
+  it('stops the pass on a transient (network) provider error for a later retry', async () => {
+    const { files, refs, addAsset, describer, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+    describer.setResult(() => {
+      throw new ReflectError('network', 'offline')
+    })
+
+    const outcome = await reconcile()
+
+    expect(outcome.stopped).toEqual({ reason: 'network', message: 'offline' })
+    expect(outcome.described).toBe(0)
+    expect(files.files().has('assets/a.png.reflect.md')).toBe(false)
+  })
+
+  it('stops with a config reason when no provider is configured', async () => {
+    const { refs, addAsset, describer, reconcile } = setup({ provider: null })
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    refs.set('assets/a.png', ['notes/pub.md'])
+
+    const outcome = await reconcile()
+
+    expect(outcome.stopped?.reason).toBe('config')
+    expect(describer.calls()).toEqual([])
+  })
+
+  it('stops with a config reason when the API key is missing from the keychain', async () => {
+    const { refs, addAsset, describer, reconcile } = setup({
+      secretStore: {
+        ...createTestSecretStoreService(),
+        get: async () => {
+          throw new Error('no key')
+        },
+      },
+    })
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    refs.set('assets/a.png', ['notes/pub.md'])
+    const outcome = await reconcile()
+
+    expect(outcome.stopped?.reason).toBe('config')
+    expect(describer.calls()).toEqual([])
+  })
+
+  it('aborts before processing when the graph session ends', async () => {
+    const { files, refs, addAsset, describer, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+
+    const outcome = await reconcile({ isStale: () => true })
+
+    expect(outcome.stopped?.reason).toBe('stale')
+    expect(outcome.described).toBe(0)
+    expect(describer.calls()).toEqual([])
+  })
+
+  it('backfill enumerates every eligible asset and reports progress', async () => {
+    const { files, refs, addAsset, reconcile } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    await addAsset('assets/b.pdf', 'JVBERg==')
+    await addAsset('assets/notes.txt', 'aGk=') // ineligible — never listed as a candidate
+    files.set('notes/pub.md', `# Both\n\n![](assets/a.png)\n![](assets/b.pdf)\n`)
+    refs.set('assets/a.png', ['notes/pub.md'])
+    refs.set('assets/b.pdf', ['notes/pub.md'])
+    const progress: Array<[number, number]> = []
+
+    const outcome = await reconcile({
+      // `changed` is ignored in backfill mode — the listing enumerates the candidates.
+      mode: 'backfill',
+      onProgress: (done, total) => void progress.push([done, total]),
+    })
+
+    expect(outcome.pending).toBe(2)
+    expect(outcome.described).toBe(2)
+    expect(progress).toEqual([
+      [1, 2],
+      [2, 2],
+    ])
+  })
+})
+
+describe('AssetDescriptionService.openSession', () => {
+  /** A graph where `assets/a.png` and `assets/b.pdf` are public and describable. */
+  async function describable(options?: Parameters<typeof setup>[0]) {
+    const context = setup(options)
+    await context.addAsset('assets/a.png', 'aGVsbG8=')
+    await context.addAsset('assets/b.pdf', 'JVBERg==')
+    context.files.set('notes/pub.md', `# Both\n\n![](assets/a.png)\n![](assets/b.pdf)\n`)
+    context.refs.set('assets/a.png', ['notes/pub.md'])
+    context.refs.set('assets/b.pdf', ['notes/pub.md'])
+    const session = context.service.openSession({ generation: GENERATION })
+    return { ...context, session }
+  }
+
+  it('runs no launch pass — existing assets are never auto-scanned', async () => {
+    const { session, classified } = await describable()
+    session.start()
+    await flush()
+    expect(classified).toEqual([])
+  })
+
+  it('describes a newly observed eligible asset, pinned to the generation', async () => {
+    const { session, index, classified, describer, files } = await describable()
+    session.start()
+    index.emit([upsert('assets/a.png')])
+    await flush()
+
+    expect(classified).toEqual(['assets/a.png'])
+    expect(describer.calls()).toHaveLength(1)
+    expect(files.writes().map((write) => [write.path, write.generation])).toEqual([
+      ['assets/a.png.reflect.md', GENERATION],
+    ])
+  })
+
+  it('re-indexes the notes referencing assets it described, so the text is searchable', async () => {
+    const { session, index, reindexed, indexedEvents } = await describable()
+    session.start()
+    index.emit([upsert('assets/a.png')])
+    await flush()
+
+    expect(reindexed).toEqual([[['assets/a.png'], GENERATION]])
+    // The re-index wrote search rows directly, so index-backed caches must be
+    // told for ⌘K to reflect the new descriptions.
+    expect(indexedEvents()).toBe(1)
+  })
+
+  it('still reports the descriptions as indexed when the re-index fails, and logs it', async () => {
+    const { session, index, logger, indexedEvents } = await describable()
+    const failure = new ReflectError('io', 'index closed')
+    index.reindexError = failure
+    session.start()
+    index.emit([upsert('assets/a.png')])
+    await flush()
+
+    expect(indexedEvents()).toBe(1)
+    expect(logger.getWarnings()).toEqual([
+      { message: 'asset-description re-index failed:', cause: failure },
+    ])
+  })
+
+  it('does not re-index when nothing was described this pass', async () => {
+    const { session, index, refs, classified, reindexed, indexedEvents } = await describable()
+    refs.set('assets/a.png', []) // unreferenced: skipped, nothing written
+    session.start()
+    index.emit([upsert('assets/a.png')])
+    await flush()
+
+    expect(classified).toEqual(['assets/a.png'])
+    expect(reindexed).toEqual([])
+    expect(indexedEvents()).toBe(0)
+  })
+
+  it('ignores descriptions, ineligible types, removes, and notes with no asset refs', async () => {
+    const { session, index, files, classified } = await describable()
+    files.set('notes/x.md', '# A note with no asset references\n')
+    session.start()
+    index.emit([
+      upsert('assets/a.png.reflect.md'),
+      upsert('assets/notes.txt'),
+      { path: 'assets/a.png', kind: 'remove' },
+      upsert('notes/x.md'),
+    ])
+    await flush()
+
+    expect(classified).toEqual([])
+  })
+
+  it('re-evaluates assets referenced by a changed note (an asset newly made public)', async () => {
+    const { session, index, files, classified } = await describable()
+    files.set('notes/x.md', '# Now public\n\n![](assets/a.png)\n')
+    session.start()
+    index.emit([upsert('notes/x.md')])
+    await flush()
+
+    expect(classified).toEqual(['assets/a.png'])
+  })
+
+  it('coalesces a trigger that lands mid-pass into one follow-up', async () => {
+    const { session, index, describer, classified } = await describable()
+    const first = Promise.withResolvers<string>()
+    describer.setResult((request) => (request.filename === 'a.png' ? first.promise : 'A PDF.'))
+    session.start()
+
+    index.emit([upsert('assets/a.png')]) // starts the pass (now in-flight)
+    await flush()
+    index.emit([upsert('assets/b.pdf')]) // lands mid-pass → queued
+    await flush()
+    expect(classified).toEqual(['assets/a.png'])
+
+    first.resolve('A flow diagram.') // clears a.png; the follow-up runs for b.pdf
+    await flush()
+
+    expect(classified).toEqual(['assets/a.png', 'assets/b.pdf'])
+  })
+
+  it('keeps an asset dirty after a transient stop and retries it on wake', async () => {
+    const { session, index, describer, lifecycle, logger, files } = await describable()
+    describer.setResult(() => {
+      throw new ReflectError('network', 'offline')
+    })
+    session.start()
+
+    index.emit([upsert('assets/a.png')])
+    await flush()
+    expect(describer.calls()).toHaveLength(1)
+    expect(logger.getWarnings()).toEqual([]) // a network stop heals itself: never logged
+
+    describer.setResult('A flow diagram.')
+    lifecycle.emitWake() // back online → retry the leftover
+    await flush()
+
+    expect(describer.calls()).toHaveLength(2)
+    expect(files.files().has('assets/a.png.reflect.md')).toBe(true)
+  })
+
+  it('logs an unexpected stop once, not on every retry', async () => {
+    const { session, index, describer, lifecycle, logger } = await describable()
+    describer.setResult(() => {
+      throw new ReflectError('io', 'index not ready')
+    })
+    session.start()
+
+    index.emit([upsert('assets/a.png')])
+    await flush()
+    lifecycle.emitWake()
+    await flush()
+
+    expect(describer.calls()).toHaveLength(2)
+    expect(logger.getWarnings()).toEqual([
+      { message: 'asset description stopped (io): index not ready', cause: undefined },
+    ])
+  })
+
+  it('does not retry an asset a clean pass already handled', async () => {
+    const { session, index, lifecycle, classified } = await describable()
+    session.start()
+
+    index.emit([upsert('assets/a.png')])
+    await flush()
+    lifecycle.emitWake()
+    await flush()
+
+    expect(classified).toEqual(['assets/a.png'])
+  })
+
+  it('dispose unlistens and stops further passes', async () => {
+    const { session, index, classified } = await describable()
+    session.start()
+    expect(index.listenerCount()).toBe(1)
+    session.dispose()
+
+    expect(index.listenerCount()).toBe(0)
+    index.emit([upsert('assets/a.png')])
+    session.schedule()
+    await flush()
+    expect(classified).toEqual([])
+  })
+
+  it('start is idempotent — repeated calls do not duplicate subscriptions or passes', async () => {
+    const { session, index, classified } = await describable()
+    session.start()
+    session.start() // second call must be a no-op
+    await flush()
+
+    expect(index.listenerCount()).toBe(1)
+    index.emit([upsert('assets/a.png')])
+    await flush()
+    expect(classified).toEqual(['assets/a.png']) // one pass, not two
+  })
+
+  it('ignores a post-apply batch from a different graph generation', async () => {
+    const { session, index, classified } = await describable()
+    session.start()
+
+    index.emit([upsert('assets/a.png')], GENERATION + 1) // a stale emit from another graph
+    await flush()
+    expect(classified).toEqual([])
+
+    index.emit([upsert('assets/a.png')]) // our generation → processed
+    await flush()
+    expect(classified).toEqual(['assets/a.png'])
+  })
+})
+
+describe('AssetDescriptionService.backfillVisibly', () => {
+  it('describes every eligible asset, re-indexes the referencing notes, and finishes the operation', async () => {
+    const { service, files, refs, addAsset, operations, reindexed, indexedEvents } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    await addAsset('assets/b.pdf', 'JVBERg==')
+    files.set('notes/pub.md', `# Both\n\n![](assets/a.png)\n![](assets/b.pdf)\n`)
+    refs.set('assets/a.png', ['notes/pub.md'])
+    refs.set('assets/b.pdf', ['notes/pub.md'])
+
+    const running = service.backfillVisibly(GENERATION)
+    expect(operations.findByLabel('Describing assets')).toMatchObject({ status: 'running' })
+    const outcome = await running
+
+    expect(outcome.described).toBe(2)
+    expect(reindexed).toEqual([[['assets/a.png', 'assets/b.pdf'], GENERATION]])
+    expect(indexedEvents()).toBe(1)
+    expect(operations.getAll().filter((operation) => operation.status !== 'running')).toEqual([])
+  })
+
+  it('coalesces a second request at the same generation into the run in flight', async () => {
+    const { service, files, refs, addAsset, describer } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+
+    const first = service.backfillVisibly(GENERATION)
+    const second = service.backfillVisibly(GENERATION)
+
+    expect(second).toBe(first)
+    await first
+    expect(describer.calls()).toHaveLength(1)
+  })
+
+  it('warns when no AI provider is configured', async () => {
+    const { service, addAsset, operations } = setup({ provider: null })
+    await addAsset('assets/a.png', 'aGVsbG8=')
+
+    const outcome = await service.backfillVisibly(GENERATION)
+
+    expect(outcome.stopped?.reason).toBe('config')
+    expect(operations.findByLabel('Describing assets')).toMatchObject({
+      status: 'warning',
+      message: 'Add an AI provider in Settings to describe assets.',
+    })
+  })
+
+  it('warns on a network stop and fails on any other', async () => {
+    const { service, files, refs, addAsset, describer, operations } = setup()
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/pub.md', publicNote('assets/a.png'))
+    refs.set('assets/a.png', ['notes/pub.md'])
+
+    describer.setResult(() => {
+      throw new ReflectError('network', 'offline')
+    })
+    await service.backfillVisibly(GENERATION)
+    expect(operations.findByLabel('Describing assets')).toMatchObject({
+      status: 'warning',
+      message: 'Some assets could not be described — check your connection and try again.',
+    })
+
+    describer.setResult(() => {
+      throw new ReflectError('io', 'disk error')
+    })
+    await service.backfillVisibly(GENERATION)
+    expect(operations.findByLabel('Describing assets')).toMatchObject({
+      status: 'failed',
+      message: 'disk error',
+    })
+  })
+})

@@ -114,6 +114,8 @@ const SERVICE_KEYS = [
   'transcriptEnrichment',
   'backlinkTarget',
   'capture',
+  'assetPrivacy',
+  'assetDescription',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

@@ -8,7 +8,6 @@ import {
   type FileChange,
   type FileChangeService,
 } from './file-change-service.ts'
-import { subscribeIndexApplied } from './index-applied.ts'
 import { createNoteIndexer, defaultIndexingDeps, type IndexingDeps } from './indexer.ts'
 import { createLiveIndex } from './live.ts'
 
@@ -242,6 +241,13 @@ export interface IndexLifecycleService {
     path: string,
     options: { generation: number; content?: string | undefined; mtime?: number | undefined },
   ) => Promise<void>
+  /**
+   * Re-index every note that references any of `assetPaths`, so an asset
+   * description written after its notes were indexed reaches their search
+   * rows. The re-applied notes report through
+   * {@link IndexLifecycleService.onChangesApplied}.
+   */
+  reindexNotesReferencing: (assetPaths: readonly string[], generation: number) => Promise<void>
 }
 
 /** The services an {@link IndexLifecycleService} runs on. */
@@ -257,11 +263,9 @@ export interface IndexLifecycleDeps extends IndexingDeps {
  */
 export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLifecycleService {
   const { indexStore, fileChanges, operations, clock, logger } = deps
-  const indexer = createNoteIndexer(deps)
-  const liveIndex = createLiveIndex(deps)
-
   const progressListeners = new Set<(progress: IndexLifecycleProgress) => void>()
   const appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
+  const changesAppliedListeners = new Set<(event: IndexChangesAppliedEvent) => void>()
   const reconciledListeners = new Set<(event: IndexReconciledEvent) => void | Promise<void>>()
   const movedListeners = new Set<(from: string, to: string) => void>()
   const fileProgressListeners = new Set<(done: number, total: number, worked: number) => void>()
@@ -274,6 +278,15 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
       listeners.delete(listener)
     }
   }
+
+  function emitChangesApplied(changes: readonly FileChange[], generation: number): void {
+    for (const listener of changesAppliedListeners) {
+      listener({ generation, changes })
+    }
+  }
+
+  const indexer = createNoteIndexer({ ...deps, emitChangesApplied })
+  const liveIndex = createLiveIndex({ ...deps, emitChangesApplied })
 
   let currentFileProgress: IndexFileProgress | null = null
 
@@ -578,10 +591,7 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
       }
       return mutations
     },
-    onChangesApplied: (listener) =>
-      subscribeIndexApplied((changes, generation) => {
-        listener({ generation, changes })
-      }),
+    onChangesApplied: (listener) => attach(changesAppliedListeners, listener),
     onReconciled: (listener) => attach(reconciledListeners, listener),
     onMoved: (listener) => attach(movedListeners, listener),
     onFileProgress: (listener) => attach(fileProgressListeners, listener),
@@ -591,6 +601,9 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     rebuildVisibly,
     indexNote: async (path, options) => {
       await indexer.indexNote(path, options)
+    },
+    reindexNotesReferencing: async (assetPaths, generation) => {
+      await indexer.reindexNotesReferencing(assetPaths, generation)
     },
   }
 }

@@ -12,10 +12,10 @@ import {
   type TestIndexStoreServiceOptions,
 } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { subscribeIndexApplied } from './index-applied.ts'
+import type { FileChange } from './file-change-service.ts'
 import { createIndexQueryService } from './index-query-service.ts'
 import { buildIndexedNote, PROJECTION_VERSION } from './indexed-note.ts'
-import { createNoteIndexer, PROJECTION_VERSION_KEY } from './indexer.ts'
+import { createNoteIndexer, PROJECTION_VERSION_KEY, type ChangesAppliedEmitter } from './indexer.ts'
 import { createLiveIndex } from './live.ts'
 
 const NOW = 1_750_000_000_000
@@ -84,7 +84,20 @@ function setup(options?: {
   const clock = createTestClockService({ now: NOW })
   const logger = createTestLoggerService()
   const reads: string[] = []
+  const appliedListeners = new Set<ChangesAppliedEmitter>()
+  /** Listen for the batches the indexer and the live index report as applied. */
+  function subscribeIndexApplied(listener: ChangesAppliedEmitter): () => void {
+    appliedListeners.add(listener)
+    return () => {
+      appliedListeners.delete(listener)
+    }
+  }
   const deps = {
+    emitChangesApplied: (changes: readonly FileChange[], generation: number) => {
+      for (const listener of appliedListeners) {
+        listener(changes, generation)
+      }
+    },
     indexStore: store,
     noteFile: {
       ...files,
@@ -115,6 +128,7 @@ function setup(options?: {
   return {
     indexer: createNoteIndexer(deps),
     liveIndex: createLiveIndex(deps),
+    subscribeIndexApplied,
     store,
     clock,
     logger,
@@ -156,7 +170,7 @@ describe('reindexNotesReferencing', () => {
   const REFERENCING = '# Hello\n\n![pic](assets/pic.png)\n'
 
   it('re-applies referencing notes and emits the post-apply signal', async () => {
-    const { indexer, findCall } = setup({
+    const { indexer, findCall, subscribeIndexApplied } = setup({
       files: { 'notes/a.md': { contents: REFERENCING, modifiedMs: 5 } },
       indexed: [{ path: 'notes/a.md', markdown: REFERENCING }],
     })
@@ -180,7 +194,7 @@ describe('reindexNotesReferencing', () => {
   })
 
   it('still emits the applied prefix when a later note’s re-index throws', async () => {
-    const { indexer } = setup({
+    const { indexer, subscribeIndexApplied } = setup({
       files: {
         'notes/a.md': { contents: REFERENCING, modifiedMs: 5 },
         'notes/b.md': { contents: REFERENCING, modifiedMs: 5 },
@@ -211,7 +225,7 @@ describe('reindexNotesReferencing', () => {
   })
 
   it('emits nothing when no note references the assets', async () => {
-    const { indexer } = setup()
+    const { indexer, subscribeIndexApplied } = setup()
     const emitted: unknown[] = []
     const unsubscribe = subscribeIndexApplied((changes) => {
       emitted.push(changes)

@@ -187,6 +187,12 @@ import {
   type TestNativeMenuService,
 } from './commands.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
+import type { AssetPrivacyService } from '../assets/asset-privacy-service.ts'
+import {
+  createTestAssetDescriptionService,
+  createTestAssetPrivacyService,
+  type TestAssetDescriptionService,
+} from './assets.ts'
 import type { CommandService } from '../commands/command-service.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 
@@ -272,6 +278,8 @@ export interface TestAppServices extends AppServices {
   readonly transcriptEnrichment: TranscriptEnrichmentService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: TestCaptureService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescription: TestAssetDescriptionService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -586,6 +594,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       noteCreation: overrides?.noteCreation ?? noteCreation,
     }),
     capture: createTestCaptureService(),
+    assetPrivacy: createTestAssetPrivacyService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      xArchive: overrides?.xArchive ?? xArchive,
+    }),
+    assetDescription: createTestAssetDescriptionService(),
   }
   return Object.assign(services, overrides)
 }
