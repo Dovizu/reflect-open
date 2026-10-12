@@ -124,14 +124,14 @@ export function GraphProvider({
   useEffect(() => bootGraphSession(session), [session])
 
   // The mobile bootstrap + onboarding slice (Plans 19/21) lives in its own
-  // hook; `onParked` is its channel back onto the session's status/error.
+  // service; it opens and parks through the session.
   const {
     needsOnboarding,
     mobileStorageInfo,
     mobileStorageResolving,
     mobileStorageKind,
     completeOnboarding,
-  } = useMobileGraphBoot({ platform, openRecent: session.openRecent, onParked: session.park })
+  } = useMobileGraphBoot({ platform, session })
 
   const value = useMemo<GraphContextValue>(
     () => ({

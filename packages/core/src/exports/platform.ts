@@ -718,11 +718,6 @@ export {
 } from '../graph/schemas.ts'
 export {
   windowBootstrap,
-  createGraph,
-  importReflectV1Zip,
-  subscribeImportProgress,
-  cancelReflectV1Import,
-  markReflectV1ImportOwnWrites,
   readNote,
   readNoteLocal,
   type LocalNoteRead,
@@ -776,6 +771,33 @@ export {
   type GraphStatus,
 } from '../graph/graph-session-service.ts'
 export {
+  createKeyboardService,
+  defaultKeyboard,
+  setDefaultKeyboard,
+  type KeyboardService,
+} from '../mobile/keyboard-service.ts'
+export {
+  createShareService,
+  defaultShare,
+  noteShareContent,
+  setDefaultShare,
+  type NoteShareContent,
+  type ShareService,
+} from '../mobile/share-service.ts'
+export {
+  createV1ImportService,
+  type V1ImportService,
+  type V1ImportServiceDeps,
+  type V1ImportState,
+} from '../graph/v1-import-service.ts'
+export {
+  createMobileOnboardingService,
+  type MobileOnboardingService,
+  type MobileOnboardingServiceDeps,
+  type MobileOnboardingState,
+} from '../graph/mobile-onboarding-service.ts'
+export {
+  DEFAULT_GRAPH_NAME,
   cleanGraphName,
   graphNameFromRoot,
   graphRootForName,

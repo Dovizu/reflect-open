@@ -87,6 +87,12 @@ import {
   createGraphSessionService,
   type GraphSessionService,
 } from '../graph/graph-session-service.ts'
+import {
+  createMobileOnboardingService,
+  type MobileOnboardingService,
+} from '../graph/mobile-onboarding-service.ts'
+import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
+import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import {
   createNoteDocumentService,
@@ -277,6 +283,9 @@ export interface AppServices {
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
+  readonly mobileOnboarding: MobileOnboardingService
+  readonly keyboard: KeyboardService
+  readonly share: ShareService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
@@ -464,6 +473,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
     operations,
   })
+  const graphSession = createGraphSessionService({
+    ipc,
+    indexLifecycle,
+    indexStore,
+    noteFile,
+    id,
+    fileChanges,
+    window: windowService,
+    dialog: adapters.dialog,
+    path,
+    platform,
+    lifecycle,
+    mobileStorage,
+    logger,
+  })
   return {
     ipc,
     logger,
@@ -542,23 +566,19 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
+    keyboard: createKeyboardService(),
+    share: createShareService({ openDocuments }),
     noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,
-    graphSession: createGraphSessionService({
-      ipc,
-      indexLifecycle,
-      indexStore,
-      noteFile,
-      id,
-      fileChanges,
-      window: windowService,
-      dialog: adapters.dialog,
-      path,
-      platform,
-      lifecycle,
+    graphSession,
+    mobileOnboarding: createMobileOnboardingService({
       mobileStorage,
+      settings,
+      graphSession,
+      platform,
+      clock,
       logger,
     }),
     aiCredentials,

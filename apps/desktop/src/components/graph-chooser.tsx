@@ -10,7 +10,12 @@ import { Input } from '@/components/ui/input.tsx'
 import { Spinner } from '@/components/ui/spinner.tsx'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useGraphColors } from '@/hooks/use-graph-colors.ts'
-import { cleanGraphName, graphNameFromRoot, isGraphNameTaken } from '@/lib/graph-names.ts'
+import {
+  DEFAULT_GRAPH_NAME,
+  cleanGraphName,
+  graphNameFromRoot,
+  isGraphNameTaken,
+} from '@/lib/graph-names.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { graphColorCss } from '@/lib/graph-colors.ts'
 import { cn } from '@/lib/utils.ts'
@@ -216,7 +221,7 @@ function IcloudCard({
   // list the row starts empty — a prefilled default would collide with the
   // usual first graph ("Notes") and paint the screen invalid before the
   // user touched it.
-  const name = typedName ?? (existing.length > 0 ? '' : 'Notes')
+  const name = typedName ?? (existing.length > 0 ? '' : DEFAULT_GRAPH_NAME)
   const cleanName = cleanGraphName(name)
   // macOS folder names are case-insensitive — a same-named create would
   // land inside the existing graph instead of next to it.

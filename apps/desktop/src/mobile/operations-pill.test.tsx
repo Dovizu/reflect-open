@@ -2,10 +2,19 @@ import { act } from 'react'
 import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LINGER_MS, MIN_VISIBLE_MS, setDefaultOperations } from '@reflect/core'
-import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import {
+  LINGER_MS,
+  MIN_VISIBLE_MS,
+  setDefaultKeyboard,
+  setDefaultOperations,
+  type KeyboardService,
+} from '@reflect/core'
+import {
+  createTestKeyboardService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import { startOperation, type OperationHandle } from '@/lib/operations.ts'
-import { publishKeyboardHeight } from '@/mobile/use-keyboard.ts'
 import { MobileOperationsPills } from './operations-pill.tsx'
 import { MobileStatusLayer } from './status-layer.tsx'
 
@@ -20,15 +29,18 @@ import { MobileStatusLayer } from './status-layer.tsx'
 vi.mock('@/mobile/use-sync-status.ts', () => ({ useMobileSyncStatus: () => null }))
 
 let operations: TestOperationsService
+let keyboard: KeyboardService
 
 beforeEach(() => {
+  keyboard = createTestKeyboardService()
+  setDefaultKeyboard(keyboard)
   operations = createTestOperationsService()
   setDefaultOperations(operations)
 })
 
 afterEach(async () => {
   await cleanup()
-  publishKeyboardHeight(0)
+  setDefaultKeyboard(null)
   setDefaultOperations(null)
 })
 
@@ -96,7 +108,7 @@ describe('MobileStatusLayer', () => {
     act(() => handle.fail('The note is busy.'))
     await expect.element(page.getByRole('alert')).toBeVisible()
 
-    act(() => publishKeyboardHeight(300))
+    act(() => keyboard.publish(300))
 
     expect(page.getByRole('alert').query()).toBeNull()
   })
