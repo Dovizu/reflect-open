@@ -1,4 +1,4 @@
-import { randomNotePath, toggleDevtools, untitledNotePath } from '@reflect/core'
+import { defaultCommands, randomNotePath, toggleDevtools, untitledNotePath } from '@reflect/core'
 import { attachFilesToNote } from '@/lib/attach-files.ts'
 import { runCopyNotePath } from '@/lib/note-copy-path.ts'
 import { runCopyDeepLink } from '@/lib/note-deep-link.ts'
@@ -365,19 +365,21 @@ export function keybindingFor(commandId: string): string | null {
   return APP_COMMANDS.find((command) => command.id === commandId)?.keybinding ?? null
 }
 
-let registered = false
+const registeredIn = new WeakSet<object>()
 
 /**
- * Register the first-wave commands. Called explicitly from `main.tsx` (and by
- * tests) — registration as an import side effect couples behavior to module
- * graph order, which is exactly the kind of spooky action a registry invites.
- * Idempotent: hosts and tests can call it without coordinating.
+ * Register the first-wave commands in the process-wide registry. Called
+ * explicitly from `main.tsx` (and by tests) — registration as an import side
+ * effect couples behavior to module graph order, which is exactly the kind of
+ * spooky action a registry invites. Idempotent per registry: hosts and tests
+ * can call it without coordinating.
  */
 export function registerAppCommands(): void {
-  if (registered) {
+  const registry = defaultCommands()
+  if (registeredIn.has(registry)) {
     return
   }
-  registered = true
+  registeredIn.add(registry)
   registerCommands(APP_COMMANDS)
 }
 

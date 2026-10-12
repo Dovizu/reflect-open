@@ -1,3 +1,4 @@
+import { defaultCommands, type CommandService } from '@reflect/core'
 import type { AppCommand, CommandContext } from './types.ts'
 
 /**
@@ -6,40 +7,22 @@ import type { AppCommand, CommandContext } from './types.ts'
  * commands up by id — one command system, not three.
  */
 
-const commands = new Map<string, AppCommand>()
+/** The process-wide registry, typed with the context this app's commands run with. */
+function appCommands(): CommandService<CommandContext> {
+  return defaultCommands()
+}
 
 /** Register commands; duplicate or blank ids/titles are programmer errors. */
 export function registerCommands(definitions: AppCommand[]): void {
-  for (const command of definitions) {
-    if (command.id.trim() === '') {
-      throw new Error('command id cannot be empty')
-    }
-    if (command.title.trim() === '') {
-      throw new Error(`command title cannot be empty: ${command.id}`)
-    }
-    if (commands.has(command.id)) {
-      throw new Error(`command id already registered: ${command.id}`)
-    }
-    commands.set(command.id, command)
-  }
+  appCommands().register(definitions)
 }
 
 /** Every registered command, in registration order. */
 export function listCommands(): AppCommand[] {
-  return [...commands.values()]
+  return appCommands().list()
 }
 
 /** Run a command by id; unknown ids are a loud no-op (deep links may dangle). */
 export async function runCommand(id: string, context: CommandContext): Promise<void> {
-  const command = commands.get(id)
-  if (!command) {
-    console.error(`unknown command: ${id}`)
-    return
-  }
-  await command.run(context)
-}
-
-/** Test seam. */
-export function resetCommands(): void {
-  commands.clear()
+  await appCommands().run(id, context)
 }

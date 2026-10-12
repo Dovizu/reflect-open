@@ -188,6 +188,14 @@ import {
   type UpdateService,
 } from './update-service.ts'
 import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
+import { createCommandService, type CommandService } from '../commands/command-service.ts'
+import { createKeymapService, type KeymapService } from '../commands/keymap-service.ts'
+import {
+  createNativeMenuService,
+  createUnsupportedNativeMenuHost,
+  type NativeMenuHost,
+  type NativeMenuService,
+} from '../commands/native-menu-service.ts'
 
 /** The app-scoped services: one instance each for the lifetime of the webview. */
 export interface AppServices {
@@ -273,6 +281,10 @@ export interface AppServices {
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly keymap: KeymapService
+  /** The command registry. The app decides the context type that its commands run with. */
+  readonly commands: CommandService
+  readonly nativeMenu: NativeMenuService
   readonly aiProviderConfig: AiProviderConfigService
   readonly selectionTransform: SelectionTransformService
   readonly pageDescriber: PageDescriberService
@@ -356,6 +368,8 @@ export interface AppAdapters {
   readonly exceptionTelemetry?: ExceptionTelemetryService
   /** The native updater; without one, updates are unsupported. */
   readonly updater?: UpdaterAdapter
+  /** The native menus; without a host, every menu operation rejects. */
+  readonly nativeMenu?: NativeMenuHost
   /** Defaults to the URL shape of Apple webviews. */
   readonly convertFileSrc?: FileSrcConverter
 }
@@ -423,6 +437,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
   const xArchive = createXArchiveService({ ipc })
+  const commands = createCommandService({ platform, logger })
   const aiCredentials = createAiCredentialService({ secretStore })
   const aiKeyValidation = createAiKeyValidationService({ http: adapters.http })
   const languageModel = withAppReviewDemo(
@@ -550,6 +565,16 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     aiKeyValidation,
     languageModel,
     aiPrompts: createAiPromptService({ settings, id }),
+    keymap: createKeymapService({ platform }),
+    commands,
+    nativeMenu: createNativeMenuService({
+      commands,
+      window: windowService,
+      platform,
+      ipc,
+      logger,
+      host: adapters.nativeMenu ?? createUnsupportedNativeMenuHost(),
+    }),
     aiProviderConfig,
     selectionTransform: createSelectionTransformService({
       languageModel,

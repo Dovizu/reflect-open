@@ -1,51 +1,51 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  buildIndexedNote,
+  parseNote,
+  setDefaultDatabase,
+  setDefaultEmbeddingRuntime,
   setDefaultIndexLifecycle,
-  setDefaultPlatform,
-  type EmbedStatus,
   setDefaultOperations,
+  setDefaultPlatform,
+  setDefaultWindow,
 } from '@reflect/core'
 import {
+  createTestDatabaseService,
+  createTestEmbeddingRuntimeService,
   createTestIndexLifecycleService,
-  createTestPlatformService,
   createTestOperationsService,
+  createTestPlatformService,
+  createTestWindowService,
+  type TestDatabaseService,
+  type TestEmbeddingRuntimeService,
   type TestIndexLifecycleService,
   type TestOperationsService,
+  type TestWindowService,
 } from '@reflect/core/testing'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 import { notePathForRoute, type Route } from '@/routing/route.ts'
 import type { NavigateOptions } from '@/routing/router.tsx'
 import type { CommandContext } from './types.ts'
 
 const TODAY = '2026-06-09'
 
-const randomNotePath = vi.hoisted(() => vi.fn())
-const embedStatus = vi.hoisted(() =>
-  vi.fn<() => Promise<EmbedStatus>>(async () => ({ status: 'uninitialized' })),
-)
 const backfillEmbeddingsVisibly = vi.hoisted(() => vi.fn(async () => 'completed'))
 const runCopyDeepLink = vi.hoisted(() => vi.fn(async () => undefined))
 const runCopyNotePath = vi.hoisted(() => vi.fn(async () => undefined))
-const toggleDevtools = vi.hoisted(() => vi.fn(async () => undefined))
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@/lib/semantic.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/semantic.ts')>()),
   backfillEmbeddingsVisibly,
 }))
 vi.mock('@/lib/note-deep-link.ts', () => ({ runCopyDeepLink }))
 vi.mock('@/lib/note-copy-path.ts', () => ({ runCopyNotePath }))
-vi.mock('@/lib/windows/open-in-new-window.ts', () => ({ openRouteInNewWindow }))
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  randomNotePath,
-  embedStatus,
-  toggleDevtools,
-}))
 
-// Importing registers the commands (module side effect, like production).
 const { APP_COMMANDS, keybindingFor } = await import('./app-commands.ts')
 
 let operations: TestOperationsService
 let indexLifecycle: TestIndexLifecycleService
+let windows: TestWindowService
+let database: TestDatabaseService
+let embeddingRuntime: TestEmbeddingRuntimeService
 
 beforeEach(() => {
   setDefaultPlatform(createTestPlatformService())
@@ -53,12 +53,22 @@ beforeEach(() => {
   setDefaultOperations(operations)
   indexLifecycle = createTestIndexLifecycleService({ operations })
   setDefaultIndexLifecycle(indexLifecycle)
+  windows = createTestWindowService()
+  setDefaultWindow(windows)
+  database = createTestDatabaseService()
+  setDefaultDatabase(database)
+  embeddingRuntime = createTestEmbeddingRuntimeService({ status: { status: 'uninitialized' } })
+  setDefaultEmbeddingRuntime(embeddingRuntime)
 })
 
 afterEach(() => {
+  database.close()
   setDefaultPlatform(null)
   setDefaultOperations(null)
   setDefaultIndexLifecycle(null)
+  setDefaultWindow(null)
+  setDefaultDatabase(null)
+  setDefaultEmbeddingRuntime(null)
 })
 
 function command(id: string) {
@@ -252,37 +262,42 @@ describe('app commands', () => {
   })
 
   it('note.openInNewWindow opens the selected note, including the focused daily note', async () => {
-    openRouteInNewWindow.mockReset().mockResolvedValue(true)
     const { context } = fakeContext({ route: () => ({ kind: 'note', path: 'notes/a.md' }) })
     await command('note.openInNewWindow').run(context)
-    expect(openRouteInNewWindow).toHaveBeenLastCalledWith({
-      kind: 'note',
-      path: 'notes/a.md',
-    })
+    expect(windows.openedNoteWindows()).toEqual([
+      deepLinkForRoute({ kind: 'note', path: 'notes/a.md' }),
+    ])
 
     const { context: focusedDaily } = fakeContext({
       notePath: () => 'daily/2026-06-18.md',
     })
     await command('note.openInNewWindow').run(focusedDaily)
-    expect(openRouteInNewWindow).toHaveBeenLastCalledWith({ kind: 'daily', date: '2026-06-18' })
+    expect(windows.openedNoteWindows().at(-1)).toBe(
+      deepLinkForRoute({ kind: 'daily', date: '2026-06-18' }),
+    )
   })
 
   it('note.openInNewWindow is inert on a screen with no selected note', async () => {
-    openRouteInNewWindow.mockReset().mockResolvedValue(true)
     const { context } = fakeContext({ route: () => ({ kind: 'settings' }) })
     await command('note.openInNewWindow').run(context)
-    expect(openRouteInNewWindow).not.toHaveBeenCalled()
+    expect(windows.openedNoteWindows()).toEqual([])
   })
 
   it('note.random navigates to the picked note and no-ops on an empty graph', async () => {
     const { context, navigated } = fakeContext()
-    randomNotePath.mockResolvedValueOnce('notes/lucky.md')
+    await command('note.random').run(context)
+    expect(navigated).toEqual([])
+
+    const source = '# Lucky\n'
+    database.applyProjection(
+      buildIndexedNote(parseNote({ path: 'notes/lucky.md', source }), {
+        fileHash: 'hash',
+        mtime: 1,
+        source,
+      }),
+    )
     await command('note.random').run(context)
     expect(navigated).toEqual([{ kind: 'note', path: 'notes/lucky.md' }])
-
-    randomNotePath.mockResolvedValueOnce(null)
-    await command('note.random').run(context)
-    expect(navigated).toHaveLength(1) // unchanged
   })
 
   it('note.togglePin delegates to the shared pin capability', async () => {
@@ -338,18 +353,16 @@ describe('app commands', () => {
   })
 
   it('dev.toggleDevtools toggles the inspector through the native shell', async () => {
-    toggleDevtools.mockClear()
     const { context } = fakeContext()
     await command('dev.toggleDevtools').run(context)
-    expect(toggleDevtools).toHaveBeenCalledTimes(1)
+    expect(windows.devtoolsToggles()).toBe(1)
   })
 
   it('dev.toggleDevtools no-ops without a native shell (plain-browser dev)', async () => {
     setDefaultPlatform(createTestPlatformService({ isNativeShell: false }))
-    toggleDevtools.mockClear()
     const { context } = fakeContext()
     await expect(command('dev.toggleDevtools').run(context)).resolves.toBeUndefined()
-    expect(toggleDevtools).not.toHaveBeenCalled()
+    expect(windows.devtoolsToggles()).toBe(0)
   })
 
   it('semantic.enable persists the opt-in through the context capability', async () => {
@@ -372,7 +385,7 @@ describe('app commands', () => {
   })
 
   it('index.rebuild re-runs the embedding backfill when the model is ready', async () => {
-    embedStatus.mockResolvedValueOnce({ status: 'ready', model: 'all-MiniLM-L6-v2' })
+    embeddingRuntime.setStatus({ status: 'ready', model: 'all-MiniLM-L6-v2' })
     const { context } = fakeContext()
     await command('index.rebuild').run(context)
     // index_clear wiped the embedding tables; rebuild must repopulate them.

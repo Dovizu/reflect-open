@@ -148,6 +148,14 @@ import {
 import { createTestStorageService, type TestStorageService } from './storage.ts'
 import { createTestThemeService, type TestThemeService } from './theme.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
+import {
+  createTestCommandService,
+  createTestKeymapService,
+  createTestNativeMenuService,
+  type TestNativeMenuService,
+} from './commands.ts'
+import type { CommandService } from '../commands/command-service.ts'
+import type { KeymapService } from '../commands/keymap-service.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
 export interface TestAppServices extends AppServices {
@@ -211,6 +219,9 @@ export interface TestAppServices extends AppServices {
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly keymap: KeymapService
+  readonly commands: CommandService
+  readonly nativeMenu: TestNativeMenuService
   readonly aiProviderConfig: AiProviderConfigService
   readonly selectionTransform: SelectionTransformService
   readonly pageDescriber: TestPageDescriberService
@@ -264,6 +275,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     id: overrides?.id ?? id,
   })
   const platform = createTestPlatformService()
+  const commands = createTestCommandService({
+    platform: overrides?.platform ?? platform,
+    logger,
+  })
   const dialog = createTestDialogService()
   const path = createTestPathService()
   const windowService = createTestWindowService()
@@ -381,6 +396,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     aiPrompts: createTestAiPromptService({
       settings: overrides?.settings ?? settings,
       id: overrides?.id ?? id,
+    }),
+    keymap: createTestKeymapService({ platform: overrides?.platform ?? platform }),
+    commands,
+    nativeMenu: createTestNativeMenuService({
+      commands: overrides?.commands ?? commands,
+      window: overrides?.window ?? windowService,
+      platform: overrides?.platform ?? platform,
+      logger,
     }),
     aiProviderConfig,
     selectionTransform: createTestSelectionTransformService({
