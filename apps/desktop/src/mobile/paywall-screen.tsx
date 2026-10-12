@@ -5,7 +5,6 @@ import { IAP_PRODUCT_IDS } from '@reflect/core'
 import appIcon from '@/assets/app-icon.png'
 import { Button } from '@/components/ui/button.tsx'
 import { Spinner } from '@/components/ui/spinner.tsx'
-import { openUrlSync } from '@/lib/open-url.ts'
 import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
 import { cn } from '@/lib/utils.ts'
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/mobile/legal-urls.ts'
@@ -16,7 +15,7 @@ import {
   useClassicAccess,
   useClassicSignIn,
 } from '@/mobile/use-classic-access.ts'
-import { usePaywallService } from '@/services/use-monetization-services.ts'
+import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
 
 type PurchasePlan = 'monthly' | 'yearly'
 
@@ -29,7 +28,7 @@ interface PurchaseVariables {
 const CLAIM_FREE_YEAR_URL = 'https://reflect.app/claim-reflect-open'
 
 export function PaywallScreen(): ReactElement {
-  const paywall = usePaywallService()
+  const { paywall, opener } = useMobileAppServices()
   const [selectedPlan, setSelectedPlan] = useState<PurchasePlan>('yearly')
   const [classicDrawerOpen, setClassicDrawerOpen] = useState(false)
 
@@ -229,13 +228,17 @@ export function PaywallScreen(): ReactElement {
         </div>
 
         <footer className="mt-auto flex justify-center gap-4 text-[13px] text-text-muted">
-          <button type="button" className="underline" onClick={() => openUrlSync(TERMS_OF_USE_URL)}>
+          <button
+            type="button"
+            className="underline"
+            onClick={() => opener.openUrlSync(TERMS_OF_USE_URL)}
+          >
             Terms of Use
           </button>
           <button
             type="button"
             className="underline"
-            onClick={() => openUrlSync(PRIVACY_POLICY_URL)}
+            onClick={() => opener.openUrlSync(PRIVACY_POLICY_URL)}
           >
             Privacy Policy
           </button>
@@ -247,7 +250,7 @@ export function PaywallScreen(): ReactElement {
         onSignIn={verifyClassic}
         onWebClaim={() => {
           setClassicDrawerOpen(false)
-          openUrlSync(CLAIM_FREE_YEAR_URL)
+          opener.openUrlSync(CLAIM_FREE_YEAR_URL)
         }}
       />
       <ClassicSignInProgress signIn={classicSignIn} />

@@ -1,6 +1,6 @@
 import { useSyncExternalStore, type ReactElement } from 'react'
-import { getIndexProgress, subscribeIndexProgress } from '@/lib/index-progress.ts'
 import { useKeyboardVisible } from '@/mobile/use-keyboard.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Below this listing size the pass finishes before a pill is worth showing —
@@ -22,11 +22,15 @@ const MIN_WORKED = 100
  * Progress for the running index pass, in the sync pill's shape. Appears only
  * during a pass doing real work over a large graph — the first open of a
  * synced-down graph reads every note, which on a big graph takes long enough
- * that a silent shell reads as frozen. Subscribes to the module store
+ * that a silent shell reads as frozen. Subscribes to the service
  * directly (not graph context) so per-tick updates re-render this pill alone.
  */
 export function IndexProgressPill(): ReactElement | null {
-  const progress = useSyncExternalStore(subscribeIndexProgress, getIndexProgress)
+  const { indexLifecycle } = useAppServices()
+  const progress = useSyncExternalStore(
+    indexLifecycle.subscribeFileProgress,
+    indexLifecycle.fileProgress,
+  )
   const keyboardVisible = useKeyboardVisible()
 
   if (

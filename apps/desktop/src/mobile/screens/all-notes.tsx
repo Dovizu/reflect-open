@@ -3,15 +3,12 @@ import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-quer
 import { ChevronLeft, FileText, SearchX } from 'lucide-react'
 import {
   foldTag,
-  listNoteTags,
   parseHighlights,
-  searchWithFilters,
   type DateFormat,
   type FilteredSearchHit,
   type NoteTagFacet,
 } from '@reflect/core'
 import { Spinner } from '@/components/ui/spinner.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { formatDayLabel } from '@/lib/dates.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { FilterBar } from '@/mobile/search-filters/filter-bar.tsx'
@@ -32,6 +29,7 @@ import {
 } from '@/mobile/top-bar.tsx'
 import { useArrivalFocus } from '@/mobile/use-arrival-focus.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { useDateFormat } from '@/hooks/use-date-format.ts'
 import { routeForPath } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
@@ -94,10 +92,10 @@ export function MobileAllNotes({
   onFiltersChange,
 }: MobileAllNotesProps): ReactElement {
   const { graph } = useGraph()
+  const { noteList, search } = useAppServices()
   const { navigate, back, arrivalSeq, arrivalFocusEditor } = useRouter()
   const queryClient = useQueryClient()
-  const bridgeReady = useBridgeReady()
-  const enabled = bridgeReady && graph !== null
+  const enabled = graph !== null
 
   // The All-tab double-tap (`focusEditor` arrivals) lands in the search bar,
   // the tab's capture surface — the daily double-tap's All-flavored twin.
@@ -117,12 +115,12 @@ export function MobileAllNotes({
 
   const { data: facets } = useQuery({
     queryKey: queryKeys.index.allNotesTags(graph?.root),
-    queryFn: () => listNoteTags(),
+    queryFn: () => noteList.listNoteTags(),
     enabled,
   })
   const { data: hits } = useQuery({
     queryKey: queryKeys.index.mobileAllNotesWithSearch(graph?.root, parsed),
-    queryFn: () => searchWithFilters(parsed, searchPlanFor(parsed)),
+    queryFn: () => search.searchWithFilters(parsed, searchPlanFor(parsed)),
     enabled,
     // Typing re-keys the query as the deferred value settles; holding the
     // previous rows avoids a blank flash between keystrokes.

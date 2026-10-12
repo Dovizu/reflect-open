@@ -3,7 +3,7 @@ import type { PaywallGate } from '@reflect/core'
 import { useActiveSubscription } from '@/mobile/use-active-subscription.ts'
 import { useAppStoreEnvironment } from '@/mobile/use-app-store-environment.ts'
 import { useClassicAccess } from '@/mobile/use-classic-access.ts'
-import { usePaywallService } from '@/services/use-monetization-services.ts'
+import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
 
 export type { PaywallGate } from '@reflect/core'
 
@@ -15,6 +15,6 @@ export function usePaywallGate(): PaywallGate {
   useActiveSubscription()
   useClassicAccess()
   useAppStoreEnvironment()
-  const paywall = usePaywallService()
+  const { paywall } = useMobileAppServices()
   return useSyncExternalStore(paywall.subscribe, paywall.gate)
 }

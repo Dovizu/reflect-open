@@ -4,7 +4,6 @@ import { Archive, CircleCheck, Plus, SlidersHorizontal } from 'lucide-react'
 import type { OpenTask } from '@reflect/core'
 import { Button } from '@/components/ui/button.tsx'
 import { Spinner } from '@/components/ui/spinner.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useRecentlyCompleted } from '@/lib/tasks/recently-completed.ts'
 import { getTaskKey } from '@/lib/tasks/task-identity.ts'
 import { useTaskFilters } from '@/lib/tasks/task-filters.ts'
@@ -18,6 +17,7 @@ import {
 import { useTaskActions } from '@/lib/tasks/use-task-actions.ts'
 import { useToday } from '@/lib/use-today.ts'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
+import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
 import { SearchInput } from '@/mobile/search-input.tsx'
 import { MobileTaskEditSheet } from '@/mobile/task-edit-sheet.tsx'
 import { TaskFiltersDrawer } from '@/mobile/task-filters-drawer.tsx'
@@ -44,6 +44,7 @@ import { useRouter } from '@/routing/router.tsx'
  * completed tasks.
  */
 export function MobileTasks(): ReactElement {
+  const { haptics } = useMobileAppServices()
   const { graph } = useGraph()
   const { navigate, arrivalSeq, arrivalFocusEditor } = useRouter()
   const today = useToday()
@@ -60,8 +61,7 @@ export function MobileTasks(): ReactElement {
   // Whether the current sheet visit should open with the editor focused
   // (keyboard up) — set per visit: true for "+"-added tasks, false for row taps.
   const [autoFocusEditor, setAutoFocusEditor] = useState(false)
-  const bridgeReady = useBridgeReady()
-  const enabled = bridgeReady && graph !== null
+  const enabled = graph !== null
 
   // The Tasks-tab double-tap lands in the tab's capture surface: its live
   // search filter, selected so a replacement query can start immediately.
@@ -115,7 +115,7 @@ export function MobileTasks(): ReactElement {
 
   const editTask = (task: OpenTask, options?: { autoFocus?: boolean; haptic?: boolean }): void => {
     if (options?.haptic !== false) {
-      hapticImpactLight()
+      hapticImpactLight({ haptics })
     }
     setAutoFocusEditor(options?.autoFocus === true)
     setEditingTask(task)
@@ -126,7 +126,7 @@ export function MobileTasks(): ReactElement {
   // visible, write it, then open its quick-edit sheet with the editor focused
   // so typing starts immediately.
   const onAdd = (target: InsertTaskTarget): void => {
-    hapticImpactLight()
+    hapticImpactLight({ haptics })
     setQuery('')
     void actions.insert(target).then((created) => {
       if (created !== null) {
@@ -136,7 +136,7 @@ export function MobileTasks(): ReactElement {
   }
 
   const archiveCompleted = (): void => {
-    hapticImpactLight()
+    hapticImpactLight({ haptics })
     actions.archive()
   }
 
@@ -166,7 +166,7 @@ export function MobileTasks(): ReactElement {
             edge="trailing"
             aria-label="Task filters"
             onClick={() => {
-              hapticImpactLight()
+              hapticImpactLight({ haptics })
               setFiltersOpen(true)
             }}
           >

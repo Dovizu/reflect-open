@@ -8,14 +8,13 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import {
-  defaultMobileAudioMemo,
-  type AudioMemoPhase,
-  type GraphInfo,
-  type MobileAudioMemoSession,
-  type MobileAudioMemoSessionState,
+import type {
+  AudioMemoPhase,
+  GraphInfo,
+  MobileAudioMemoSession,
+  MobileAudioMemoSessionState,
 } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
 
 /**
  * The mobile React surface for audio memos: a thin shell over the
@@ -89,8 +88,7 @@ export function MobileAudioMemoProvider({
   graph,
   children,
 }: MobileAudioMemoProviderProps): ReactElement {
-  const mobileAudioMemo =
-    useAppServices({ optional: true })?.mobileAudioMemo ?? defaultMobileAudioMemo()
+  const { mobileAudioMemo } = useMobileAppServices()
 
   // Opened before paint, so the mic action never shows the closed state.
   const [session, setSession] = useState<MobileAudioMemoSession | null>(null)

@@ -7,6 +7,7 @@ import { formatShortDate } from '@/lib/dates.ts'
 import { getTaskKey } from '@/lib/tasks/task-identity.ts'
 import { cn } from '@/lib/utils.ts'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
+import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
 import { SWIPE_ACTION_WIDTH, SwipeActionButton } from '@/mobile/swipe-action-button.tsx'
 import { useRowSwipe } from '@/mobile/use-row-swipe.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
@@ -57,6 +58,7 @@ export function MobileTaskRow({
   onOpenNote,
   onDelete,
 }: MobileTaskRowProps): ReactElement {
+  const { haptics } = useMobileAppServices()
   const { settings } = useSettings()
   const label = task.text || 'Empty task'
   const edit = (): void => onEdit(task)
@@ -86,7 +88,7 @@ export function MobileTaskRow({
           revealed={revealed}
           className="bg-accent"
           onClick={() => {
-            hapticImpactLight()
+            hapticImpactLight({ haptics })
             onClose()
             onOpenNote()
           }}
@@ -98,7 +100,7 @@ export function MobileTaskRow({
           revealed={revealed}
           className="bg-destructive"
           onClick={() => {
-            hapticImpactLight()
+            hapticImpactLight({ haptics })
             onClose()
             onDelete()
           }}
@@ -129,7 +131,7 @@ export function MobileTaskRow({
           aria-label={task.checked ? `Reopen: ${label}` : `Complete: ${label}`}
           disabled={togglePending}
           onClick={() => {
-            hapticImpactLight()
+            hapticImpactLight({ haptics })
             onToggle()
           }}
           // A generous touch target around the small glyph; self-stretch keeps
