@@ -516,6 +516,26 @@ describe('trash', () => {
   })
 })
 
+describe('trashOne', () => {
+  it('moves the note to the trash', async () => {
+    const { actions, files } = setup({ files: { 'notes/keep.md': '# Keep\n' } })
+
+    await actions.trashOne('notes/keep.md', 7)
+
+    expect(files.trashed()).toEqual(['notes/keep.md'])
+  })
+
+  it('rejects with the cause when the note cannot be trashed', async () => {
+    const { actions, files } = setup({ files: { 'daily/2026-06-15.md': '# Day\n' } })
+
+    await expect(actions.trashOne('daily/2026-06-15.md', 7)).rejects.toThrow(
+      'Daily notes cannot be deleted',
+    )
+
+    expect(files.trashed()).toEqual([])
+  })
+})
+
 function setupWith(files: NoteFileService, session: NoteSession) {
   const openDocuments = createTestOpenDocumentsService({ sessions: [session] })
   const actions = createTestNoteActionsService({ noteFile: files, openDocuments })
