@@ -1,3 +1,4 @@
+import type { Command } from '@reflect/core'
 import type { Route } from '@/routing/route.ts'
 import type { NavigateOptions } from '@/routing/router.tsx'
 
@@ -66,14 +67,5 @@ export interface CommandContext {
   enableSemanticSearch: () => void
 }
 
-export interface AppCommand {
-  /** Stable id — the deep-link/CLI name (e.g. `nav.today`). */
-  id: string
-  /** Palette display title. */
-  title: string
-  /** Extra match terms for palette filtering. */
-  keywords?: string[]
-  /** Keymap-registry binding (app scope), e.g. `Mod-d`. */
-  keybinding?: string
-  run: (context: CommandContext) => void | Promise<void>
-}
+/** A command of this app: it runs with a {@link CommandContext}. */
+export type AppCommand = Command<CommandContext>

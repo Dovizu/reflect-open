@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultAudioRecorder } from '../audio/default-audio-recorder.ts'
+import { defaultCommands } from '../commands/command-service.ts'
+import { defaultKeymap } from '../commands/keymap-service.ts'
+import { defaultNativeMenu } from '../commands/native-menu-service.ts'
 import { defaultAppStore } from '../ipc/app-store-plugin.ts'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
 import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
@@ -137,6 +140,9 @@ describe('installDefaultServices', () => {
     expect(defaultNoteLinkResolver()).toBe(services.noteLinkResolver)
     expect(defaultNoteCreation()).toBe(services.noteCreation)
     expect(defaultPrivacy()).toBe(services.privacy)
+    expect(defaultKeymap()).toBe(services.keymap)
+    expect(defaultCommands()).toBe(services.commands)
+    expect(defaultNativeMenu()).toBe(services.nativeMenu)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
@@ -218,5 +224,8 @@ describe('resetDefaultServices', () => {
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)
+    expect(defaultKeymap()).not.toBe(services.keymap)
+    expect(defaultCommands()).not.toBe(services.commands)
+    expect(defaultNativeMenu()).not.toBe(services.nativeMenu)
   })
 })

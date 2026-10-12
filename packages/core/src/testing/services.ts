@@ -128,6 +128,14 @@ import {
 import { createTestStorageService, type TestStorageService } from './storage.ts'
 import { createTestThemeService, type TestThemeService } from './theme.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
+import {
+  createTestCommandService,
+  createTestKeymapService,
+  createTestNativeMenuService,
+  type TestNativeMenuService,
+} from './commands.ts'
+import type { CommandService } from '../commands/command-service.ts'
+import type { KeymapService } from '../commands/keymap-service.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
 export interface TestAppServices extends AppServices {
@@ -188,6 +196,9 @@ export interface TestAppServices extends AppServices {
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly keymap: KeymapService
+  readonly commands: CommandService
+  readonly nativeMenu: TestNativeMenuService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -221,20 +232,26 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
   const hash = createTestHashService()
+  const platform = createTestPlatformService()
+  const windowService = createTestWindowService()
+  const commands = createTestCommandService({
+    platform: overrides?.platform ?? platform,
+    logger,
+  })
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
     clock,
     id,
     hash,
-    platform: createTestPlatformService(),
+    platform,
     storage: createTestStorageService(),
     http,
     dialog: createTestDialogService(),
     clipboard: createTestClipboardService(),
     opener: createTestOpenerService({ logger }),
     path: createTestPathService(),
-    window: createTestWindowService(),
+    window: windowService,
     lifecycle: createTestLifecycleService(),
     secretStore,
     appInfo: createTestAppInfoService(),
@@ -308,6 +325,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     aiPrompts: createTestAiPromptService({
       settings: overrides?.settings ?? settings,
       id: overrides?.id ?? id,
+    }),
+    keymap: createTestKeymapService({ platform: overrides?.platform ?? platform }),
+    commands,
+    nativeMenu: createTestNativeMenuService({
+      commands: overrides?.commands ?? commands,
+      window: overrides?.window ?? windowService,
+      platform: overrides?.platform ?? platform,
+      logger,
     }),
   }
   return Object.assign(services, overrides)

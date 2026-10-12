@@ -864,3 +864,40 @@ export {
   type WebAuthOptions,
   type WebAuthService,
 } from '../ipc/web-auth-plugin.ts'
+export {
+  createCommandService,
+  defaultCommands,
+  setDefaultCommands,
+  type Command,
+  type CommandKeyEvent,
+  type CommandService,
+  type CommandServiceDeps,
+} from '../commands/command-service.ts'
+export { formatBinding } from '../commands/keybindings.ts'
+export {
+  createKeymapService,
+  defaultKeymap,
+  setDefaultKeymap,
+  type KeymapScope,
+  type KeymapService,
+  type KeymapServiceDeps,
+} from '../commands/keymap-service.ts'
+export {
+  createNativeMenuService,
+  createUnsupportedNativeMenuHost,
+  defaultNativeMenu,
+  setDefaultNativeMenu,
+  type AppMenuEntry,
+  type AppSubmenuLayout,
+  type FocusedNoteMenuCommand,
+  type MenuCommandDispatch,
+  type NativeAppMenu,
+  type NativeContextMenuItem,
+  type NativeContextMenuOptions,
+  type NativeMenuHost,
+  type NativeMenuItem,
+  type NativeMenuPredefinedItem,
+  type NativeMenuService,
+  type NativeMenuServiceDeps,
+  type NativeSubmenu,
+} from '../commands/native-menu-service.ts'

@@ -82,6 +82,9 @@ const SERVICE_KEYS = [
   'aiKeyValidation',
   'languageModel',
   'aiPrompts',
+  'keymap',
+  'commands',
+  'nativeMenu',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
