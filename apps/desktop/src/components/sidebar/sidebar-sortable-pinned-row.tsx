@@ -6,7 +6,6 @@ import { errorMessage } from '@reflect/core'
 import type { PinnedNote } from '@reflect/core'
 import { unpinNote } from '@/lib/note-pin.ts'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
-import { openNativeContextMenu } from '@/lib/native-menu/context-menu.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { routeForPath, routesEqual } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
@@ -27,7 +26,7 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
   const noteLabel = useNoteLabel()
   const { graph } = useGraph()
   const queryClient = useQueryClient()
-  const { operations } = useAppServices()
+  const { nativeMenu, operations } = useAppServices()
   const target = routeForPath(note.path)
   const active = routesEqual(route, target)
   const label = noteLabel(note)
@@ -45,25 +44,27 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
       if (graph === null) {
         return
       }
-      void openNativeContextMenu({
-        items: [
-          {
-            text: 'Unpin Note',
-            action: () => {
-              void unpinNote({
-                queryClient,
-                root: graph.root,
-                generation: graph.generation,
-                path: note.path,
-              })
+      void nativeMenu
+        .openContextMenu({
+          items: [
+            {
+              text: 'Unpin Note',
+              action: () => {
+                void unpinNote({
+                  queryClient,
+                  root: graph.root,
+                  generation: graph.generation,
+                  path: note.path,
+                })
+              },
             },
-          },
-        ],
-      }).catch((cause: unknown) => {
-        operations.start('Opening note menu').fail(errorMessage(cause))
-      })
+          ],
+        })
+        .catch((cause: unknown) => {
+          operations.start('Opening note menu').fail(errorMessage(cause))
+        })
     },
-    [graph, note, queryClient, operations],
+    [graph, nativeMenu, note, queryClient, operations],
   )
 
   return (

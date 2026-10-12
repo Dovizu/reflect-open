@@ -10,7 +10,7 @@ import {
   createTestWindowService,
 } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import { formatBinding } from '@/lib/keybindings.ts'
+import { formatBinding } from '@reflect/core'
 import { useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'

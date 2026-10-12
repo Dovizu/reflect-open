@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/command.tsx'
 import { noteEditorHandleFor } from '@/editor/editor-handle-registry.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import { insertTemplate } from '@/lib/note-templates.ts'
 import { createTemplatesQueryOptions } from '@/lib/query-options.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useNoteTemplates } from '@/providers/note-templates-provider.tsx'
@@ -45,9 +44,9 @@ export function TemplatePicker({ context }: TemplatePickerProps): ReactElement {
     if (target === null) {
       return // the command opens the picker only where a note is being edited
     }
-    // `insertTemplate` owns all feedback — a missing editor (protected or
+    // `TemplateService.insertTemplate` owns all feedback — a missing editor (protected or
     // still-loading note) and a failed read both surface as failed operations.
-    void insertTemplate(path, noteEditorHandleFor(target))
+    void context.services.templates.insertTemplate(path, noteEditorHandleFor(target))
   }
 
   return (

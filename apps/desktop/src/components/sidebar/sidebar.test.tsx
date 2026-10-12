@@ -6,6 +6,7 @@ import {
   isOstensiblyEmptyNoteSource,
   untitledNotePath,
   type GraphSessionService,
+  type NativeContextMenuOptions,
   type NoteDocumentService,
   type PinnedNote,
   type SettingsService,
@@ -25,21 +26,9 @@ import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 import { Sidebar } from './sidebar.tsx'
 
-interface NativeContextMenuItemForTest {
-  text: string
-  action: () => void
-}
-
-interface NativeContextMenuOptionsForTest {
-  items: NativeContextMenuItemForTest[]
-}
-
-const openNativeContextMenu = vi.hoisted(() =>
-  vi.fn(async (options: NativeContextMenuOptionsForTest) => {
-    options.items[0]?.action()
-  }),
-)
-vi.mock('@/lib/native-menu/context-menu.ts', () => ({ openNativeContextMenu }))
+const openNativeContextMenu = vi.fn(async (options: NativeContextMenuOptions) => {
+  options.items[0]?.action()
+})
 
 const audioMemo = vi.hoisted(() => ({
   phase: 'idle' as const,
@@ -130,6 +119,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
     backups: createTestScriptedBackupServiceFactory({ state: { phase: 'disconnected' } }),
   })
   vi.spyOn(app.indexQuery, 'getPinnedNotes').mockImplementation(getPinnedNotes)
+  vi.spyOn(app.nativeMenu, 'openContextMenu').mockImplementation(openNativeContextMenu)
   openRecent = vi.spyOn(app.graphSession, 'openRecent').mockResolvedValue(true)
   pickAndOpen = vi.spyOn(app.graphSession, 'pickAndOpen').mockResolvedValue()
   chooseGraph = vi.spyOn(app.graphSession, 'chooseGraph').mockResolvedValue()
