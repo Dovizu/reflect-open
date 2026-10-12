@@ -31,7 +31,7 @@ interface NoteActionsMenuProps {
  */
 export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): ReactElement {
   const { graph } = useGraph()
-  const { share: shareService } = useAppServices()
+  const { noteActions, share: shareService } = useAppServices()
   const queryClient = useQueryClient()
   const isPinned = usePinnedNotes().some((note) => note.path === path)
   const { row: noteRow, settled: privacyReady } = useNoteRowState(path)
@@ -46,18 +46,24 @@ export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): Reac
 
   const pin = (): void => {
     if (graph !== null) {
-      void toggleNotePinned({
-        queryClient,
-        root: graph.root,
-        generation: graph.generation,
-        path,
-      })
+      void toggleNotePinned(
+        { noteActions },
+        {
+          queryClient,
+          root: graph.root,
+          generation: graph.generation,
+          path,
+        },
+      )
     }
   }
 
   const togglePrivate = async (): Promise<void> => {
     if (graph !== null) {
-      await toggleNotePrivate({ queryClient, root: graph.root, generation: graph.generation, path })
+      await toggleNotePrivate(
+        { noteActions },
+        { queryClient, root: graph.root, generation: graph.generation, path },
+      )
     }
   }
 

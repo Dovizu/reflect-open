@@ -6,7 +6,6 @@ import { ListIcon } from '@/components/icons/list-icon.tsx'
 import { PencilIcon } from '@/components/icons/pencil-icon.tsx'
 import { usePinnedNotes } from '@/hooks/use-pinned-notes.ts'
 import { keybindingFor } from '@/lib/commands/app-commands.ts'
-import { runCommand } from '@/lib/commands/registry.ts'
 import { useToday } from '@/lib/use-today.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { cn } from '@/lib/utils.ts'
@@ -74,7 +73,7 @@ export function Sidebar({ graph, context }: SidebarProps): ReactElement {
             label="Daily notes"
             binding={keybindingFor('nav.today') ?? undefined}
             active={(route.kind === 'today' || route.kind === 'daily') && !hasActivePinnedNote}
-            onClick={() => void runCommand('nav.today', context)}
+            onClick={() => void context.services.commands.run('nav.today', context)}
           />
           <SidebarItem
             icon={
@@ -89,7 +88,7 @@ export function Sidebar({ graph, context }: SidebarProps): ReactElement {
             // title slug is also what hands the note off to ordinary
             // navigation, releasing the highlight.
             active={route.kind === 'note' && isUntitledNotePath(route.path)}
-            onClick={() => void runCommand('note.new', context)}
+            onClick={() => void context.services.commands.run('note.new', context)}
           />
           <SidebarItem
             icon={<ListIcon className="shrink-0" />}
@@ -103,7 +102,7 @@ export function Sidebar({ graph, context }: SidebarProps): ReactElement {
               route.kind === 'allNotes' ||
               (route.kind === 'note' && !isUntitledNotePath(route.path) && !hasActivePinnedNote)
             }
-            onClick={() => void runCommand('nav.allNotes', context)}
+            onClick={() => void context.services.commands.run('nav.allNotes', context)}
           />
           <SidebarItem
             icon={
@@ -114,7 +113,7 @@ export function Sidebar({ graph, context }: SidebarProps): ReactElement {
             label="Tasks"
             binding={keybindingFor('nav.tasks') ?? undefined}
             active={route.kind === 'tasks'}
-            onClick={() => void runCommand('nav.tasks', context)}
+            onClick={() => void context.services.commands.run('nav.tasks', context)}
           />
           <SidebarItem
             icon={
@@ -125,7 +124,7 @@ export function Sidebar({ graph, context }: SidebarProps): ReactElement {
             label="Chat"
             binding={keybindingFor('chat.open') ?? undefined}
             active={route.kind === 'chat'}
-            onClick={() => void runCommand('chat.open', context)}
+            onClick={() => void context.services.commands.run('chat.open', context)}
           />
         </nav>
       </div>

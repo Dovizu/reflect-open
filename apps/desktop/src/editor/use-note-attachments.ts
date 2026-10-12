@@ -21,11 +21,6 @@ export interface NoteAttachments {
   resolveWikiEmbed: WikiEmbedResolver
 }
 
-/** The `AttachmentService` of the nearest `AppServicesProvider`. */
-export function useAttachments(): AttachmentService {
-  return useAppServices().attachments
-}
-
 /** Attachment resolution for rendering `notePath` in graph session `generation`. */
 export function createNoteAttachments(
   generation: number | null,

@@ -7,6 +7,7 @@ import { usePinnedNotes } from '@/hooks/use-pinned-notes.ts'
 import { keybindingFor } from '@/lib/commands/app-commands.ts'
 import { toggleNotePinned } from '@/lib/note-pin.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { toggleNotePrivate } from '@/lib/note-private.ts'
 import { NoteActionButton } from './note-action-button.tsx'
 import { NoteGistAction } from './note-gist-action.tsx'
@@ -41,21 +42,28 @@ export function NoteActionsSection({
   const noteRow = useNoteRow(path)
   const isPrivate = noteRow?.isPrivate ?? false
   const { graph } = useGraph()
+  const { noteActions } = useAppServices()
   const queryClient = useQueryClient()
   const togglePin = async (): Promise<void> => {
     if (graph !== null) {
-      await toggleNotePinned({
-        queryClient,
-        root: graph.root,
-        generation: graph.generation,
-        path,
-      })
+      await toggleNotePinned(
+        { noteActions },
+        {
+          queryClient,
+          root: graph.root,
+          generation: graph.generation,
+          path,
+        },
+      )
     }
   }
 
   const togglePrivate = async (): Promise<void> => {
     if (graph !== null) {
-      await toggleNotePrivate({ queryClient, root: graph.root, generation: graph.generation, path })
+      await toggleNotePrivate(
+        { noteActions },
+        { queryClient, root: graph.root, generation: graph.generation, path },
+      )
     }
   }
 

@@ -1,25 +1,8 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import {
-  createMobileOnboardingService,
-  defaultClock,
-  defaultLogger,
-  defaultMobileStorage,
-  defaultSettings,
-  type AppPlatform,
-  type GraphSessionService,
-  type MobileOnboardingService,
-  type MobileStorageInfo,
-  type MobileStorageKind,
-} from '@reflect/core'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { useEffect, useSyncExternalStore } from 'react'
+import type { MobileStorageInfo, MobileStorageKind } from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 
-export interface MobileGraphBootOptions {
-  platform: AppPlatform
-  /** The session the fallback service opens and parks through. */
-  session: GraphSessionService
-}
-
-/** The mobile-only slice of the graph context, read from {@link MobileOnboardingService}. */
+/** The mobile-only slice of the graph context, read from `MobileOnboardingService`. */
 export interface MobileGraphBoot {
   /**
    * The user hasn't yet chosen where their notes live (Plan 19, step 6), so
@@ -62,39 +45,12 @@ export interface MobileGraphBoot {
 }
 
 /**
- * The {@link MobileOnboardingService} of the nearest `AppServicesProvider`.
- * Outside one, a service of this component over the process-wide services
- * and `session`, which boots as `platform`.
- */
-function useMobileOnboardingService(options: MobileGraphBootOptions): MobileOnboardingService {
-  const { platform, session } = options
-  const app = useOptionalAppServices()
-  const [fallback] = useState(() =>
-    app !== null
-      ? null
-      : createMobileOnboardingService({
-          mobileStorage: defaultMobileStorage(),
-          settings: defaultSettings(),
-          graphSession: session,
-          platform: { appPlatform: platform },
-          clock: defaultClock(),
-          logger: defaultLogger(),
-        }),
-  )
-  const service = app?.mobileOnboarding ?? fallback
-  if (service === null) {
-    throw new Error('GraphProvider lost its <AppServicesProvider>')
-  }
-  return service
-}
-
-/**
  * The mobile graph bootstrap (Plans 19/21) as the graph context reads it:
- * boots the {@link MobileOnboardingService} and publishes its state. Inert
- * on desktop.
+ * boots the `MobileOnboardingService` and publishes its state. Inert on
+ * desktop.
  */
-export function useMobileGraphBoot(options: MobileGraphBootOptions): MobileGraphBoot {
-  const service = useMobileOnboardingService(options)
+export function useMobileGraphBoot(): MobileGraphBoot {
+  const { mobileOnboarding: service } = useAppServices()
   const { needsOnboarding, storageInfo, resolving, kind } = useSyncExternalStore(
     service.subscribe,
     service.getState,

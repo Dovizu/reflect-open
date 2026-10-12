@@ -1,10 +1,11 @@
-import { setDefaultICloudNative } from '@reflect/core'
 import {
+  createTestAppServices,
   createTestICloudNativeService,
   createTestIndexLifecycleService,
   createTestIndexStoreService,
   createTestNoteFileService,
   type TestICloudNativeService,
+  type TestIndexLifecycleService,
 } from '@reflect/core/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryClient, queryKeys } from '@/lib/query-client.ts'
@@ -14,16 +15,24 @@ import { bindGraphIndex } from './graph-index.ts'
 // desktop app does with its events.
 
 let icloud: TestICloudNativeService
+let closeDatabase: () => void
 
 beforeEach(() => {
   icloud = createTestICloudNativeService()
-  setDefaultICloudNative(icloud)
+  closeDatabase = () => {}
 })
 
 afterEach(() => {
-  setDefaultICloudNative(null)
+  closeDatabase()
   vi.restoreAllMocks()
 })
+
+/** Bind the app to `index`, over test doubles for the other services. */
+function bind(index: TestIndexLifecycleService): () => void {
+  const app = createTestAppServices({ indexLifecycle: index, icloudNative: icloud })
+  closeDatabase = () => app.database.close()
+  return bindGraphIndex(app)
+}
 
 /** A lifecycle whose first sync pass is a full rebuild over `notes/a.md` and the `evicted` notes. */
 function setup(options?: { evicted?: string[] }) {
@@ -37,7 +46,7 @@ function setup(options?: { evicted?: string[] }) {
       evicted,
     }),
   })
-  const unbind = bindGraphIndex(index)
+  const unbind = bind(index)
   return { index, unbind }
 }
 
@@ -69,7 +78,7 @@ describe('bindGraphIndex', () => {
         fail: (call) => (call.method === 'clear' ? new Error('index on fire') : undefined),
       }),
     })
-    const unbind = bindGraphIndex(index)
+    const unbind = bind(index)
 
     await index.rebuildVisibly(5)
 

@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
   createPlatformService,
   defaultPlatform,
-  platformFacts,
   setDefaultPlatform,
   type PlatformFacts,
 } from './platform-service.ts'
@@ -70,7 +69,7 @@ const DARK = '(prefers-color-scheme: dark)'
 describe('createPlatformService', () => {
   it('exposes the facts it was given', () => {
     const platform = createPlatformService(FACTS, {})
-    expect(platformFacts(platform)).toEqual(FACTS)
+    expect(platform).toMatchObject(FACTS)
   })
 
   it('reads and follows the reduced-motion preference', () => {

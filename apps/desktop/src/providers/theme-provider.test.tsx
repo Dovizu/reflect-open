@@ -1,20 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
-import type { ReactNode } from 'react'
+import { act } from 'react'
 import {
   createThemeService,
-  setDefaultTheme,
   THEME_PREFERENCE_CACHE_KEY,
+  type AppServices,
   type Settings,
   type ThemeService,
 } from '@reflect/core'
 import {
+  createTestAppServices,
   createTestPlatformService,
   createTestSettingsService,
   createTestStorageService,
   type TestSettingsService,
   type TestStorageService,
 } from '@reflect/core/testing'
+import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { ThemeProvider, useTheme } from './theme-provider.tsx'
 
 /**
@@ -26,6 +27,7 @@ import { ThemeProvider, useTheme } from './theme-provider.tsx'
 let settings: TestSettingsService
 let storage: TestStorageService
 let theme: ThemeService
+let app: AppServices
 let releaseLoad: () => void
 let originalClassName: string
 let originalColorScheme: string
@@ -41,16 +43,41 @@ function install(stored: Partial<Settings>, options: { gateLoad?: boolean } = {}
     })
   }
   storage = createTestStorageService()
-  theme = createThemeService({
-    settings,
-    storage,
-    platform: createTestPlatformService({ colorScheme: 'light' }),
-  })
-  setDefaultTheme(theme)
+  const platform = createTestPlatformService({ colorScheme: 'light' })
+  theme = createThemeService({ settings, storage, platform })
+  app = createTestAppServices({ settings, storage, platform, theme })
 }
 
-function wrapper({ children }: { children: ReactNode }) {
-  return <ThemeProvider>{children}</ThemeProvider>
+let current: ReturnType<typeof useTheme>
+
+function Probe(): null {
+  current = useTheme()
+  return null
+}
+
+/**
+ * Mount the provider over the services of the last `install`. Not through
+ * `renderInApp`: that waits for the settings load, which one case gates.
+ */
+async function renderTheme() {
+  await renderWithServices(
+    <ThemeProvider>
+      <Probe />
+    </ThemeProvider>,
+    { app },
+  )
+  return {
+    result: {
+      get current() {
+        return current
+      },
+    },
+    act: async (callback: () => unknown): Promise<void> => {
+      await act(async () => {
+        await callback()
+      })
+    },
+  }
 }
 
 type Act = (callback: () => unknown) => Promise<void>
@@ -74,7 +101,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  setDefaultTheme(null)
   document.documentElement.className = originalClassName
   document.documentElement.style.colorScheme = originalColorScheme
 })
@@ -86,7 +112,7 @@ describe('ThemeProvider', () => {
     paintDarkFirstFrame()
     install({ theme: 'light' }, { gateLoad: true })
 
-    const { act } = await renderHook(() => useTheme(), { wrapper })
+    const { act } = await renderTheme()
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(document.documentElement.style.colorScheme).toBe('dark')
 
@@ -99,7 +125,7 @@ describe('ThemeProvider', () => {
   it('exposes the loaded preference and its resolved theme', async () => {
     install({ theme: 'system' })
 
-    const { result, act } = await renderHook(() => useTheme(), { wrapper })
+    const { result, act } = await renderTheme()
     await settleLoad(act)
     expect(result.current.theme).toBe('system')
     expect(result.current.resolvedTheme).toBe('light')
@@ -108,7 +134,7 @@ describe('ThemeProvider', () => {
   it('applies and persists a preference chosen during the session', async () => {
     install({ theme: 'light' })
 
-    const { result, act } = await renderHook(() => useTheme(), { wrapper })
+    const { result, act } = await renderTheme()
     await settleLoad(act)
     await act(() => {
       result.current.setTheme('dark')
@@ -126,7 +152,7 @@ describe('ThemeProvider', () => {
     install({})
     settings.failLoad()
 
-    const { result, act } = await renderHook(() => useTheme(), { wrapper })
+    const { result, act } = await renderTheme()
     await settleLoad(act)
     expect(document.documentElement.style.colorScheme).toBe('light')
 

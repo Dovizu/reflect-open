@@ -44,7 +44,7 @@ import { useRouter } from '@/routing/router.tsx'
  * completed tasks.
  */
 export function MobileTasks(): ReactElement {
-  const { haptics } = useMobileAppServices()
+  const { haptics, tasks: taskService } = useMobileAppServices()
   const { graph } = useGraph()
   const { navigate, arrivalSeq, arrivalFocusEditor } = useRouter()
   const today = useToday()
@@ -73,11 +73,11 @@ export function MobileTasks(): ReactElement {
   })
 
   const { data: open, isError: openFailed } = useQuery({
-    ...createOpenTasksQueryOptions(graph?.root),
+    ...createOpenTasksQueryOptions({ tasks: taskService }, graph?.root),
     enabled,
   })
   const { data: completed, isError: completedFailed } = useQuery({
-    ...createCompletedTasksQueryOptions(graph?.root),
+    ...createCompletedTasksQueryOptions({ tasks: taskService }, graph?.root),
     enabled: enabled && filters.archived,
   })
   const isError = openFailed || (filters.archived && completedFailed)

@@ -7,11 +7,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import {
-  defaultTheme,
-  type ResolvedTheme as CoreResolvedTheme,
-  type ThemePreference,
-} from '@reflect/core'
+import type { ResolvedTheme as CoreResolvedTheme, ThemePreference } from '@reflect/core'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 /** User-selectable theme; `system` follows the OS preference. */
@@ -43,7 +39,7 @@ interface ThemeProviderProps {
  * straight back.
  */
 export function ThemeProvider({ children }: ThemeProviderProps): ReactElement {
-  const service = useAppServices({ optional: true })?.theme ?? defaultTheme()
+  const { theme: service } = useAppServices()
   const theme = useSyncExternalStore(service.subscribe, service.preference)
   const resolvedTheme = useSyncExternalStore(service.subscribe, service.resolved)
   const settled = useSyncExternalStore(service.subscribe, service.settled)

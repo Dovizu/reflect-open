@@ -1,12 +1,9 @@
-import { isNotNullish } from '@ocavue/utils'
 import { useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toggleNotePinned } from '@/lib/note-pin.ts'
 import { toggleNotePrivate } from '@/lib/note-private.ts'
 import { getIsComposing } from '@meowdown/core'
 import { usePalette } from '@/components/command-palette/palette-provider.tsx'
-import { registerKeymap } from '@/editor/keymap.ts'
-import { APP_COMMANDS } from '@/lib/commands/app-commands.ts'
 import { todayIso } from '@/lib/dates.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { useAudioMemo } from '@/providers/audio-memo-provider.tsx'
@@ -26,19 +23,10 @@ import { useRouter } from './router.tsx'
 /**
  * App-scope keyboard shortcuts, driven by the command registry (Plan 08): a
  * binding and its behavior are one command definition — the switch statement
- * this file used to hold is gone. Bindings still register through the central
- * keymap registry, the shared collision ledger with editor-scope keys.
+ * this file used to hold is gone. Bindings still register in the central
+ * keymap registry, the shared collision ledger with editor-scope keys
+ * (`registerAppKeymaps`).
  */
-
-const BOUND_COMMANDS = APP_COMMANDS.map((command) =>
-  command.keybinding ? { binding: command.keybinding, command } : null,
-).filter(isNotNullish)
-
-/** Registered once at module scope; values are display descriptions. */
-export const APP_BINDINGS = registerKeymap(
-  'app',
-  Object.fromEntries(BOUND_COMMANDS.map(({ binding, command }) => [binding, command.title])),
-)
 
 const HISTORY_COMMAND_IDS = new Set(['history.back', 'history.forward'])
 
@@ -60,6 +48,7 @@ const NATIVE_MACOS_MENU_COMMAND_IDS = new Set([
  * mounted (`setMenuCommandDispatch`).
  */
 export function useAppShortcuts(): CommandContext {
+  const services = useAppServices()
   const { route, navigate, back, forward, clearScrollState } = useRouter()
   const { commands, nativeMenu, platform, semanticSearch } = useAppServices()
   const queryClient = useQueryClient()
@@ -117,6 +106,7 @@ export function useAppShortcuts(): CommandContext {
 
   const context = useMemo<CommandContext>(
     () => ({
+      services,
       navigate,
       route: () => routeRef.current,
       // Resolve through the focused stream day so a note-scoped command targets
@@ -133,7 +123,7 @@ export function useAppShortcuts(): CommandContext {
           focusedDailyDateRef.current,
         )
         if (root !== null && generation !== null && path !== null) {
-          await toggleNotePinned({ queryClient, root, generation, path })
+          await toggleNotePinned(services, { queryClient, root, generation, path })
         }
       },
       togglePrivate: async () => {
@@ -145,7 +135,7 @@ export function useAppShortcuts(): CommandContext {
           focusedDailyDateRef.current,
         )
         if (root !== null && generation !== null && path !== null) {
-          await toggleNotePrivate({ queryClient, root, generation, path })
+          await toggleNotePrivate(services, { queryClient, root, generation, path })
         }
       },
       back,
@@ -183,6 +173,7 @@ export function useAppShortcuts(): CommandContext {
       },
     }),
     [
+      services,
       queryClient,
       navigate,
       back,

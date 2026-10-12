@@ -1,15 +1,11 @@
 import { useEffect, type ReactElement } from 'react'
-import { defaultNoteMove } from '@reflect/core'
 import { App } from '@/app.tsx'
 import { AppErrorBoundary } from '@/components/app-error-boundary.tsx'
 import { attachOperationToasts } from '@/components/operation-toasts.ts'
 import { Toaster } from '@/components/ui/toast.tsx'
 import { WindowDragRegion } from '@/components/window-drag-region.tsx'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
-import { startDeepLinkListener } from '@/lib/deep-links/intake.ts'
-import { isNativeShell } from '@/lib/platform.ts'
 import { trackSubscriptions } from '@/lib/subscriptions.ts'
 import { GraphProvider } from '@/providers/graph-provider.tsx'
 import { SidebarWidthEffect } from '@/providers/sidebar-width.tsx'
@@ -22,23 +18,22 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * chooser/workspace app — none of which exist on mobile.
  */
 export function DesktopRoot(): ReactElement {
-  const bridgeReady = useBridgeReady()
-  const { operations } = useAppServices()
+  const { deepLink, noteMove, operations, platform } = useAppServices()
   // Deep-link intake starts with the surface, not the workspace: a
   // `reflect://` URL that launched the app (or arrived on the graph chooser)
   // buffers in `intake.ts` until a graph opens. Browser dev has no plugin.
   // Main window only: the plugin's event stream reaches every webview, and a
   // ⌘-clicked note window must not also navigate itself on OS-delivered URLs
-  // (in-note `reflect://` clicks still work — `dispatchDeepLink` and the
-  // handler are per-webview state).
+  // (in-note `reflect://` clicks still work — the intake and the handler
+  // are per-webview state).
   useMainWindowEffect(() => {
-    if (!isNativeShell()) {
+    if (!platform.isNativeShell) {
       return
     }
-    startDeepLinkListener().catch((cause: unknown) => {
+    deepLink.startListener().catch((cause: unknown) => {
       console.error('deep link listener failed to start:', cause)
     })
-  }, [])
+  }, [deepLink, platform])
 
   // Renames commit in whichever window drove them (a title edit works in
   // note windows too) and broadcast on `note:moved` — EVERY window follows,
@@ -46,15 +41,12 @@ export function DesktopRoot(): ReactElement {
   // window also followed in-process; the echo is idempotent (the session no
   // longer matches `from`, and re-routing an absent entry is a no-op).
   useEffect(() => {
-    if (!bridgeReady) {
-      return
-    }
     const subscriptions = trackSubscriptions()
-    void subscriptions.add(defaultNoteMove().followNativeMoves())
+    void subscriptions.add(noteMove.followNativeMoves())
     return () => {
       subscriptions.disposeAll()
     }
-  }, [bridgeReady])
+  }, [noteMove])
 
   // Every desktop window mirrors its own operations store into toasts (the
   // store is per-webview, matching the per-window mount this replaces). The

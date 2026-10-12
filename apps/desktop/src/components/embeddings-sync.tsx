@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useSemanticSearch } from '@/lib/semantic.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Keeps embeddings in sync with the graph (Plan 09) for as long as it is
@@ -7,7 +7,7 @@ import { useSemanticSearch } from '@/lib/semantic.ts'
  * `SemanticSearchService.start` in `@reflect/core`.
  */
 export function EmbeddingsSync(): null {
-  const semanticSearch = useSemanticSearch()
+  const { semanticSearch } = useAppServices()
 
   useEffect(() => semanticSearch.start(), [semanticSearch])
 

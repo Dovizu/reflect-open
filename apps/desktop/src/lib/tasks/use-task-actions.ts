@@ -13,7 +13,7 @@ import { getTaskKey } from '@/lib/tasks/task-identity.ts'
 import { createInsertedTaskRow, type InsertTaskTarget } from '@/lib/tasks/task-insert-target.ts'
 import { useTaskCacheWriter, type TaskCacheSnapshot } from '@/lib/tasks/use-task-cache.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useTaskService } from '@/services/use-task-service.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Bulk task actions for the Tasks view's keyboard shortcuts (Plan 18): complete
@@ -90,7 +90,7 @@ export function useTaskActions(): TaskActions {
   const { graph } = useGraph()
   const root = graph?.root ?? null
   const cache = useTaskCacheWriter()
-  const taskService = useTaskService()
+  const { tasks: taskService } = useAppServices()
 
   /** Re-key the cached rows and the session's struck set from a write's `moved` map. */
   const relocate = (notePath: string, moved: TaskMoves): void => {

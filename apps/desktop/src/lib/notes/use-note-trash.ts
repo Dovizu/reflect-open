@@ -1,16 +1,16 @@
 import { useCallback, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { defaultNoteActions, type NoteListEntry } from '@reflect/core'
-import { startOperation } from '@/lib/operations.ts'
+import type { NoteListEntry } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 export interface NoteTrash {
   /**
    * Trash the given notes, resolving `true` when **every** note went to the
    * trash and `false` when any could not. Failures — a per-note error or a
    * missing graph — are reported through the operations toast
-   * ({@link startOperation}), the app's standard channel for background work,
+   * (`OperationsService.start`), the app's standard channel for background work,
    * rather than thrown: the caller only needs to know whether it fully
    * succeeded (to clear the selection) and can close its confirm either way.
    */
@@ -41,6 +41,7 @@ export interface NoteTrash {
  */
 export function useNoteTrash(): NoteTrash {
   const { graph } = useGraph()
+  const { noteActions, operations } = useAppServices()
   const queryClient = useQueryClient()
   const [isTrashing, setIsTrashing] = useState(false)
 
@@ -53,12 +54,12 @@ export function useNoteTrash(): NoteTrash {
       const root = graph?.root
       if (generation === undefined || root === undefined) {
         // No graph to trash into — report it; never a silent success.
-        startOperation('Trashing notes').fail('No graph is open.')
+        operations.start('Trashing notes').fail('No graph is open.')
         return false
       }
       setIsTrashing(true)
       try {
-        const { failed } = await defaultNoteActions().trashMany(paths, generation, {
+        const { failed } = await noteActions.trashMany(paths, generation, {
           // Drop the row the moment it's actually gone — the desktop list
           // otherwise waits on the watcher's reindex. Crucially, a note that
           // *fails* is left in the list, so it keeps its place in the
@@ -81,7 +82,7 @@ export function useNoteTrash(): NoteTrash {
         setIsTrashing(false)
       }
     },
-    [graph, queryClient],
+    [graph, noteActions, operations, queryClient],
   )
 
   return { trash, isTrashing }

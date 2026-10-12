@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultAttachments } from '@reflect/core'
-import { createTestAttachmentService, type TestAttachmentService } from '@reflect/core/testing'
+import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import {
   registerNoteEditorHandle,
   unregisterNoteEditorHandle,
@@ -9,19 +8,19 @@ import type { NoteEditorHandle } from '@/editor/note-editor.tsx'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { attachFilesToNote } from './attach-files.ts'
 
-let attachments: TestAttachmentService
+let app: TestAppServices
 
 beforeEach(() => {
-  attachments = createTestAttachmentService()
-  setDefaultAttachments(attachments)
+  app = createTestAppServices()
 })
 
 afterEach(() => {
-  setDefaultAttachments(null)
+  app.database.close()
 })
 
 function contextFor(notePath: string | null, generation: number | null): CommandContext {
   return {
+    services: app,
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => notePath,
@@ -70,7 +69,7 @@ describe('attachFilesToNote', () => {
   it("attaches into the routed note's editor, looked up on every call", async () => {
     await attachFilesToNote(contextFor('notes/plan.md', 4))
 
-    const [request] = attachments.attachRequests()
+    const [request] = app.attachments.attachRequests()
     expect(request?.generation).toBe(4)
     expect(request?.findEditor()).toBeNull()
 
@@ -85,6 +84,6 @@ describe('attachFilesToNote', () => {
     await attachFilesToNote(contextFor(null, 4))
     await attachFilesToNote(contextFor('notes/plan.md', null))
 
-    expect(attachments.attachRequests()).toEqual([])
+    expect(app.attachments.attachRequests()).toEqual([])
   })
 })

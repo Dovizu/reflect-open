@@ -1,19 +1,14 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { act } from 'react'
-import { renderHook } from 'vitest-browser-react'
-import { setDefaultClock } from '@reflect/core'
-import { createTestClockService } from '@reflect/core/testing'
+import { createTestAppServices, createTestClockService } from '@reflect/core/testing'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useToday } from './use-today.ts'
-
-afterEach(() => {
-  setDefaultClock(null)
-})
 
 describe('useToday', () => {
   it('follows the clock when the local date changes', async () => {
     const clock = createTestClockService({ today: '2026-06-09' })
-    setDefaultClock(clock)
-    const { result, unmount } = await renderHook(() => useToday())
+    const app = createTestAppServices({ clock })
+    const { result, unmount } = await renderHookInApp(() => useToday(), { app })
     expect(result.current).toBe('2026-06-09')
 
     act(() => {
@@ -30,8 +25,8 @@ describe('useToday', () => {
 
   it('rolls over when time advances past local midnight', async () => {
     const clock = createTestClockService({ now: new Date(2026, 5, 9, 23, 59, 0).getTime() })
-    setDefaultClock(clock)
-    const { result, unmount } = await renderHook(() => useToday())
+    const app = createTestAppServices({ clock })
+    const { result, unmount } = await renderHookInApp(() => useToday(), { app })
     expect(result.current).toBe('2026-06-09')
 
     await act(async () => {
@@ -43,9 +38,9 @@ describe('useToday', () => {
 
   it('mounted hooks share the same date', async () => {
     const clock = createTestClockService({ today: '2026-06-09' })
-    setDefaultClock(clock)
-    const first = await renderHook(() => useToday())
-    const second = await renderHook(() => useToday())
+    const app = createTestAppServices({ clock })
+    const first = await renderHookInApp(() => useToday(), { app })
+    const second = await renderHookInApp(() => useToday(), { app })
 
     act(() => {
       clock.setToday('2026-06-10')

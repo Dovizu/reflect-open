@@ -10,7 +10,7 @@ import {
   createTestWindowService,
 } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import { formatBinding } from '@/lib/keybindings.ts'
+import { formatBinding } from '@reflect/core'
 import { useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -83,6 +83,9 @@ function RouteProbe(): ReactNode {
 async function renderPalette(query: string, context?: Partial<CommandContext>) {
   const navigate = vi.fn()
   const fullContext: CommandContext = {
+    get services() {
+      return app
+    },
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,

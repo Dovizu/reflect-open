@@ -1,14 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { listRegisteredBindings, registerKeymap } from './keymap.ts'
+import { createTestKeymapService } from '@reflect/core/testing'
+import { registerAppKeymaps } from '@/lib/shortcuts.ts'
+
+function registered() {
+  const keymap = createTestKeymapService()
+  registerAppKeymaps(keymap)
+  return keymap
+}
 
 describe('keymap registry', () => {
   it('rejects an app binding that collides with an editor binding', () => {
-    expect(() => registerKeymap('app', { 'Mod-b': 'collides' })).toThrow(/duplicate keybinding/)
-    expect(listRegisteredBindings().get('Mod-b')).toBe('editor') // untouched
+    const keymap = registered()
+    expect(() => keymap.register('app', { 'Mod-b': 'collides' })).toThrow(/duplicate keybinding/)
+    expect(keymap.list().get('Mod-b')).toBe('editor') // untouched
   })
 
   it('holds meowdown editor bindings editor-scope', () => {
-    const bindings = listRegisteredBindings()
+    const bindings = registered().list()
     expect(bindings.get('Mod-b')).toBe('editor')
     expect(bindings.get('Mod-i')).toBe('editor')
     expect(bindings.get('Mod-Alt-1')).toBe('editor')

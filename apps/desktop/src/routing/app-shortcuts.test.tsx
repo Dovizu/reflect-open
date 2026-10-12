@@ -9,6 +9,7 @@ import {
 } from '@reflect/core'
 import {
   createTestAppServices,
+  createTestKeymapService,
   createTestPlatformService,
   createTestThemeService,
   type TestAppServices,
@@ -24,7 +25,7 @@ import { isModEvent } from '@meowdown/core'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { PaletteProvider, usePalette } from '@/components/command-palette/palette-provider.tsx'
-import { listRegisteredBindings } from '@/editor/keymap.ts'
+import { registerAppKeymaps } from '@/lib/shortcuts.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
@@ -233,7 +234,9 @@ describe('app shortcuts', () => {
   })
 
   it('registers the command keybindings in the central keymap registry', () => {
-    const bindings = listRegisteredBindings()
+    const keymap = createTestKeymapService()
+    registerAppKeymaps(keymap)
+    const bindings = keymap.list()
     for (const key of [
       'Mod-d',
       'Mod-Shift-a',

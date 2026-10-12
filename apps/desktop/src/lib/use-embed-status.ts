@@ -1,30 +1,24 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { defaultEmbeddingRuntime, type EmbedStatus, type Unlisten } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
-
-function noop(): void {}
+import type { EmbedStatus, Unlisten } from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * The embedding runtime's live status (Plan 09). Polls once on mount, then
  * tracks `embed:status` events; a later mount starts from the last status
- * the runtime observed. Without a bridge semantic features stay in
- * `uninitialized`, which keeps them invisible.
+ * the runtime observed.
  */
 export function useEmbedStatus(): EmbedStatus {
-  const bridgeReady = useBridgeReady()
-  const runtime = defaultEmbeddingRuntime()
+  const { embeddingRuntime } = useAppServices()
   const subscribe = useCallback(
-    (onChange: () => void): Unlisten => (bridgeReady ? runtime.subscribe(onChange) : noop),
-    [bridgeReady, runtime],
+    (onChange: () => void): Unlisten => embeddingRuntime.subscribe(onChange),
+    [embeddingRuntime],
   )
 
-  const getSnapshot = useCallback(() => runtime.lastStatus(), [runtime])
+  const getSnapshot = useCallback(() => embeddingRuntime.lastStatus(), [embeddingRuntime])
 
   useEffect(() => {
-    if (bridgeReady) {
-      void runtime.status()
-    }
-  }, [bridgeReady, runtime])
+    void embeddingRuntime.status()
+  }, [embeddingRuntime])
 
   return useSyncExternalStore(subscribe, getSnapshot)
 }

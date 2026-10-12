@@ -8,8 +8,6 @@ import {
   type ReactNode,
 } from 'react'
 import {
-  defaultBackups,
-  defaultICloudSyncs,
   isICloudRoot,
   ReflectError,
   type BackupService,
@@ -18,11 +16,9 @@ import {
   type GithubRepoRef,
   type GraphInfo,
 } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
-import { isMobileSurface } from '@/lib/platform-surface.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 export type { BackupState, ConnectExistingResult } from '@reflect/core'
 
@@ -55,20 +51,19 @@ interface SyncProviderProps {
  * service per (graph, index session), created and disposed by an effect,
  * surfaced through `useSyncExternalStore`. All sync behavior lives in the
  * service — this component owns nothing but the mounting. The service comes
- * from the nearest `AppServicesProvider`'s factory, else the process-wide one.
+ * from the nearest `AppServicesProvider`'s factory.
  */
 export function SyncProvider({ graph, children }: SyncProviderProps): ReactElement {
   const { indexGeneration } = useGraph()
-  const services = useOptionalAppServices()
-  const backups = services?.backups
-  const icloudSyncs = services?.icloudSyncs
+  const { backups, icloudSyncs, platform } = useAppServices()
+  const metadataWatch = platform.surface.mobileApp
   const [controller, setController] = useState<BackupService | null>(null)
 
   // One backup service per app: a secondary note window mounting a
   // second one would race commits/pulls against the main window's. Its
   // sync state stays 'loading' — the note window edits, main syncs.
   useMainWindowEffect(() => {
-    const next = (backups ?? defaultBackups()).create({
+    const next = backups.create({
       generation: graph.generation,
       indexGeneration,
     })
@@ -88,22 +83,21 @@ export function SyncProvider({ graph, children }: SyncProviderProps): ReactEleme
   // only — the metadata-query watch that stands in for the file watcher.
   // Same per-(graph, index session) shape as the backup service; a graph
   // outside iCloud mounts nothing.
-  const bridgeReady = useBridgeReady()
   useMainWindowEffect(() => {
-    if (!bridgeReady || !isICloudRoot(graph.root)) {
+    if (!isICloudRoot(graph.root)) {
       return
     }
-    const icloud = (icloudSyncs ?? defaultICloudSyncs()).create({
+    const icloud = icloudSyncs.create({
       root: graph.root,
       generation: graph.generation,
       indexGeneration,
-      metadataWatch: isMobileSurface(),
+      metadataWatch,
     })
     void icloud.start()
     return () => {
       icloud.dispose()
     }
-  }, [bridgeReady, icloudSyncs, graph, indexGeneration])
+  }, [icloudSyncs, graph, indexGeneration, metadataWatch])
 
   const backup = useSyncExternalStore(
     controller?.subscribe ?? (() => () => {}),

@@ -7,10 +7,9 @@ import {
   type CalendarInfo,
   type CalendarAuthorizationStatus,
 } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useCalendarEventsService } from '@/services/use-contacts-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * TanStack Query hooks over `CalendarEventsService`
@@ -20,8 +19,8 @@ import { useCalendarEventsService } from '@/services/use-contacts-services.ts'
 
 /** Whether calendar queries can run at all in this environment. */
 function useCalendarAvailable(): boolean {
-  const calendarEvents = useCalendarEventsService()
-  return useBridgeReady() && calendarEvents.isAvailable()
+  const { calendarEvents } = useAppServices()
+  return calendarEvents.isAvailable()
 }
 
 /**
@@ -34,7 +33,7 @@ function useCalendarAvailable(): boolean {
 export function useCalendarAuthorization(
   enabled: boolean,
 ): CalendarAuthorizationStatus | undefined {
-  const calendarEvents = useCalendarEventsService()
+  const { calendarEvents } = useAppServices()
   const available = useCalendarAvailable()
   const query = useQuery({
     queryKey: queryKeys.calendar.authorization,
@@ -57,7 +56,7 @@ export interface CalendarsResult {
 
 /** Every calendar on the Mac, for the Settings section's checkbox list. */
 export function useCalendars(enabled: boolean): CalendarsResult {
-  const calendarEvents = useCalendarEventsService()
+  const { calendarEvents } = useAppServices()
   const available = useCalendarAvailable()
   const query = useQuery({
     queryKey: queryKeys.calendar.calendars,
@@ -78,7 +77,7 @@ export function useCalendars(enabled: boolean): CalendarsResult {
  */
 export function useDayEvents(date: string): CalendarEvent[] {
   const { settings } = useSettings()
-  const calendarEvents = useCalendarEventsService()
+  const { calendarEvents } = useAppServices()
   const available = useCalendarAvailable()
   const enabled = showsDayEvents(settings) && available
   const query = useQuery({
@@ -100,7 +99,7 @@ export function useDayEvents(date: string): CalendarEvent[] {
  */
 export function useCalendarChangeInvalidation(enabled: boolean): void {
   const queryClient = useQueryClient()
-  const calendarEvents = useCalendarEventsService()
+  const { calendarEvents } = useAppServices()
   const available = useCalendarAvailable()
   useEffect(() => {
     if (!enabled || !available) {

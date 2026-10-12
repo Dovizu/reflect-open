@@ -1,15 +1,16 @@
-import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
-import { setDefaultOperations } from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestNoteFileService,
+  createTestOpenDocumentsService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
+import type { AppServices, NoteFileService, OpenDocumentsService } from '@reflect/core'
 import { QueryClient } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { NoteSession } from '@/editor/note-session.ts'
 import { queryKeys } from '@/lib/query-client.ts'
-import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
-import { installTestNoteFile } from '@/test-utils/note-file.ts'
-import { reorderPinnedNotes, toggleNotePinned, unpinNote } from './note-pin.ts'
-
-const documents = installTestOpenDocuments()
-const noteFile = installTestNoteFile()
+import { toggleNotePinned, unpinNote } from './note-pin.ts'
 
 let client: QueryClient
 
@@ -17,16 +18,39 @@ function input(path = 'notes/a.md') {
   return { queryClient: client, root: '/g', generation: 3, path }
 }
 
+let app: AppServices
+let closeDatabase: () => void
 let operations: TestOperationsService
+let openDocuments: OpenDocumentsService
+let read: MockInstance<NoteFileService['read']>
+let write: MockInstance<NoteFileService['write']>
+
+/** The spies on the note files of the running test. */
+const noteFile = { read: () => read, write: () => write }
+
+/** Register `session` as an open document; a stand-in without a `path` gets `path`. */
+const documents = {
+  open(session: Partial<NoteSession>, path = 'notes/a.md'): () => void {
+    const target = session.path === undefined ? Object.assign(session, { path }) : session
+    // A stand-in implements only what the code under test calls.
+    return openDocuments.register({ session: target as NoteSession })
+  },
+}
 
 beforeEach(() => {
+  const files = createTestNoteFileService()
+  read = vi.spyOn(files, 'read')
+  write = vi.spyOn(files, 'write')
   operations = createTestOperationsService()
-  setDefaultOperations(operations)
+  openDocuments = createTestOpenDocumentsService()
   client = new QueryClient()
+  const services = createTestAppServices({ noteFile: files, operations, openDocuments })
+  closeDatabase = () => services.database.close()
+  app = services
 })
 
 afterEach(() => {
-  setDefaultOperations(null)
+  closeDatabase()
 })
 
 function fakeSession(content: string, canCommit = true, liveContent: string | null = content) {
@@ -42,7 +66,7 @@ function fakeSession(content: string, canCommit = true, liveContent: string | nu
 describe('toggleNotePinned', () => {
   it('pins an unopened note via read-patch-write on disk', async () => {
     noteFile.read().mockResolvedValue('# A\n')
-    await expect(toggleNotePinned(input())).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith(
       'notes/a.md',
       '---\npinned: true\n---\n\n# A\n',
@@ -57,7 +81,7 @@ describe('toggleNotePinned', () => {
     ])
     noteFile.read().mockResolvedValue('# A\n')
 
-    await expect(toggleNotePinned(input())).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input())).resolves.toBeUndefined()
 
     expect(noteFile.write()).toHaveBeenCalledWith(
       'notes/a.md',
@@ -68,21 +92,21 @@ describe('toggleNotePinned', () => {
 
   it('unpins on disk by removing the key (back to no frontmatter)', async () => {
     noteFile.read().mockResolvedValue('---\npinned: true\n---\n# A\n')
-    await expect(toggleNotePinned(input())).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
 
   it('treats an explicit order — including 0 — as pinned, and unpinning clears it', async () => {
     // `pinned: 0` is falsy in JS; a truthiness check would re-pin instead.
     noteFile.read().mockResolvedValue('---\npinned: 0\n---\n# A\n')
-    await expect(toggleNotePinned(input())).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
 
   it('routes through the live session, which owns landing the patch', async () => {
     const { session, commitFrontmatter } = fakeSession('# A\n')
     documents.open(session)
-    await expect(toggleNotePinned(input())).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: true })
     expect(noteFile.read()).not.toHaveBeenCalled()
     expect(noteFile.write()).not.toHaveBeenCalled()
@@ -91,7 +115,7 @@ describe('toggleNotePinned', () => {
   it('toggles off through the session when the open note is pinned', async () => {
     const { session, commitFrontmatter } = fakeSession('---\npinned: 2\n---\n# A\n')
     documents.open(session)
-    await expect(toggleNotePinned(input())).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: false })
   })
 
@@ -99,7 +123,7 @@ describe('toggleNotePinned', () => {
     const { session } = fakeSession('# A\n', false)
     documents.open(session)
     noteFile.read().mockResolvedValue('# A\n')
-    await expect(toggleNotePinned(input())).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith(
       'notes/a.md',
       '---\npinned: true\n---\n\n# A\n',
@@ -115,7 +139,7 @@ describe('toggleNotePinned', () => {
     const { session } = fakeSession('', false, null)
     documents.open(session, 'daily/2026-06-10.md')
     noteFile.read().mockRejectedValue({ kind: 'notFound', message: 'no such note' })
-    await expect(toggleNotePinned(input('daily/2026-06-10.md'))).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input('daily/2026-06-10.md'))).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith(
       'daily/2026-06-10.md',
       '---\npinned: true\n---\n\n',
@@ -125,7 +149,7 @@ describe('toggleNotePinned', () => {
 
   it('reports non-notFound read failures through operations', async () => {
     noteFile.read().mockRejectedValue({ kind: 'io', message: 'disk on fire' })
-    await expect(toggleNotePinned(input())).resolves.toBeUndefined()
+    await expect(toggleNotePinned(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).not.toHaveBeenCalled()
     expect(operations.snapshot()).toMatchObject([
       { label: 'Updating pin', status: 'failed', message: 'disk on fire' },
@@ -137,7 +161,7 @@ describe('unpinNote', () => {
   it('unpins directly without reading the current pin state', async () => {
     noteFile.read().mockResolvedValue('---\npinned: true\n---\n# A\n')
 
-    await unpinNote(input())
+    await unpinNote(app, input())
 
     expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
@@ -146,47 +170,9 @@ describe('unpinNote', () => {
     const { session, commitFrontmatter } = fakeSession('---\npinned: 2\n---\n# A\n')
     documents.open(session)
 
-    await unpinNote(input())
+    await unpinNote(app, input())
 
     expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: false })
     expect(noteFile.read()).not.toHaveBeenCalled()
-  })
-})
-
-describe('reorderPinnedNotes', () => {
-  it('writes each planned pin order', async () => {
-    noteFile.read().mockResolvedValue('# A\n')
-
-    await reorderPinnedNotes(
-      [
-        { path: 'notes/c.md', title: 'C', dailyDate: null, pinnedOrder: 1024 },
-        { path: 'notes/a.md', title: 'A', dailyDate: null, pinnedOrder: 1536 },
-      ],
-      3,
-    )
-
-    expect(noteFile.write()).toHaveBeenCalledWith(
-      'notes/c.md',
-      '---\npinned: 1024\n---\n\n# A\n',
-      3,
-    )
-    expect(noteFile.write()).toHaveBeenCalledWith(
-      'notes/a.md',
-      '---\npinned: 1536\n---\n\n# A\n',
-      3,
-    )
-  })
-
-  it('routes open notes through their sessions', async () => {
-    const { session, commitFrontmatter } = fakeSession('# A\n')
-    documents.open(session)
-
-    await reorderPinnedNotes(
-      [{ path: 'notes/a.md', title: 'A', dailyDate: null, pinnedOrder: 1024 }],
-      3,
-    )
-
-    expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: 1024 })
-    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 })

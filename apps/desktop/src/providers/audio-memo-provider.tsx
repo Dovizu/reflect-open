@@ -10,12 +10,11 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import {
-  defaultAudioMemo,
-  type AudioMemoPhase,
-  type AudioMemoSession,
-  type AudioMemoSessionState,
-  type GraphInfo,
+import type {
+  AudioMemoPhase,
+  AudioMemoSession,
+  AudioMemoSessionState,
+  GraphInfo,
 } from '@reflect/core'
 import {
   dismissRecordingReminder,
@@ -90,7 +89,7 @@ interface AudioMemoProviderProps {
 }
 
 export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): ReactElement {
-  const audioMemo = useAppServices({ optional: true })?.audioMemo ?? defaultAudioMemo()
+  const { audioMemo } = useAppServices()
   const { collapsed, toggleSidebar } = useSidebar()
 
   // Read at call time: the session outlives the renders that made these.

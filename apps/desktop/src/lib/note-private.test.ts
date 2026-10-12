@@ -1,4 +1,5 @@
 import {
+  createTestAppServices,
   createTestClockService,
   createTestLoggerService,
   createTestNoteFileService,
@@ -8,20 +9,16 @@ import {
 } from '@reflect/core/testing'
 import {
   createNoteSessionService,
-  setDefaultOpenDocuments,
-  setDefaultOperations,
+  type AppServices,
   type NoteFileService,
   type NoteSession,
   type OpenDocumentsService,
 } from '@reflect/core'
 import { QueryClient } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { NoteRow } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
-import { installTestNoteFile } from '@/test-utils/note-file.ts'
 import { toggleNotePrivate } from './note-private.ts'
-
-const noteFile = installTestNoteFile()
 
 let client: QueryClient
 
@@ -29,20 +26,30 @@ function input(path = 'notes/a.md') {
   return { queryClient: client, root: '/g', generation: 3, path }
 }
 
+let app: AppServices
+let closeDatabase: () => void
 let operations: TestOperationsService
 let openDocuments: OpenDocumentsService
+let read: MockInstance<NoteFileService['read']>
+let write: MockInstance<NoteFileService['write']>
+
+/** The spies on the note files of the running test. */
+const noteFile = { read: () => read, write: () => write }
 
 beforeEach(() => {
+  const files = createTestNoteFileService()
+  read = vi.spyOn(files, 'read')
+  write = vi.spyOn(files, 'write')
   operations = createTestOperationsService()
-  setDefaultOperations(operations)
   client = new QueryClient()
   openDocuments = createTestOpenDocumentsService()
-  setDefaultOpenDocuments(openDocuments)
+  const services = createTestAppServices({ noteFile: files, operations, openDocuments })
+  closeDatabase = () => services.database.close()
+  app = services
 })
 
 afterEach(() => {
-  setDefaultOpenDocuments(null)
-  setDefaultOperations(null)
+  closeDatabase()
 })
 
 /** An open session of `path`, registered with the open documents. */
@@ -66,7 +73,7 @@ function fakeSession(
 describe('toggleNotePrivate', () => {
   it('marks an unopened note private via read-patch-write on disk', async () => {
     noteFile.read().mockResolvedValue('# A\n')
-    await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith(
       'notes/a.md',
       '---\nprivate: true\n---\n\n# A\n',
@@ -76,7 +83,7 @@ describe('toggleNotePrivate', () => {
 
   it('un-marks on disk by removing the key (back to no frontmatter)', async () => {
     noteFile.read().mockResolvedValue('---\nprivate: true\n---\n# A\n')
-    await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
 
@@ -84,13 +91,13 @@ describe('toggleNotePrivate', () => {
     // A 1.2 loader reads `yes` as a string; the schema's coercion still
     // honours it, so the toggle must too — re-marking would be a silent no-op.
     noteFile.read().mockResolvedValue('---\nprivate: yes\n---\n# A\n')
-    await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
 
   it('replaces an explicit `private: false` with `private: true` when toggling on', async () => {
     noteFile.read().mockResolvedValue('---\nprivate: false\n---\n# A\n')
-    await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith(
       'notes/a.md',
       '---\nprivate: true\n---\n\n# A\n',
@@ -100,7 +107,7 @@ describe('toggleNotePrivate', () => {
 
   it('routes through the live session, which owns landing the patch', async () => {
     const { commitFrontmatter } = fakeSession('# A\n')
-    await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ private: true })
     expect(noteFile.read()).not.toHaveBeenCalled()
     expect(noteFile.write()).not.toHaveBeenCalled()
@@ -108,14 +115,14 @@ describe('toggleNotePrivate', () => {
 
   it('toggles off through the session when the open note is private', async () => {
     const { commitFrontmatter } = fakeSession('---\nprivate: true\n---\n# A\n')
-    await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ private: false })
   })
 
   it('falls back to disk when the session cannot take the patch', async () => {
     fakeSession('# A\n', false)
     noteFile.read().mockResolvedValue('# A\n')
-    await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith(
       'notes/a.md',
       '---\nprivate: true\n---\n\n# A\n',
@@ -127,7 +134,7 @@ describe('toggleNotePrivate', () => {
     // Still-loading session: `liveContent` is null, so the read falls to disk.
     fakeSession('', false, null, 'daily/2026-06-10.md')
     noteFile.read().mockRejectedValue({ kind: 'notFound', message: 'no such note' })
-    await expect(toggleNotePrivate(input('daily/2026-06-10.md'))).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input('daily/2026-06-10.md'))).resolves.toBeUndefined()
     expect(noteFile.write()).toHaveBeenCalledWith(
       'daily/2026-06-10.md',
       '---\nprivate: true\n---\n\n',
@@ -137,7 +144,7 @@ describe('toggleNotePrivate', () => {
 
   it('reports non-notFound read failures through operations', async () => {
     noteFile.read().mockRejectedValue({ kind: 'io', message: 'disk on fire' })
-    await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
+    await expect(toggleNotePrivate(app, input())).resolves.toBeUndefined()
     expect(noteFile.write()).not.toHaveBeenCalled()
     expect(operations.snapshot()).toMatchObject([
       { label: 'Updating privacy', status: 'failed', message: 'disk on fire' },
@@ -168,10 +175,10 @@ describe('privacy feedback', () => {
     noteFile.read().mockResolvedValue('# A\n')
     noteFile.write().mockReturnValueOnce(write.promise)
 
-    const action = toggleNotePrivate(input())
+    const action = toggleNotePrivate(app, input())
     await vi.waitFor(() => expect(noteFile.write()).toHaveBeenCalledOnce())
     expect(client.getQueryData(queryKey)).toEqual({ ...previous, isPrivate: true })
-    await toggleNotePrivate(input())
+    await toggleNotePrivate(app, input())
     expect(noteFile.write()).toHaveBeenCalledOnce()
     stale.resolve(previous)
     await request
@@ -184,7 +191,7 @@ describe('privacy feedback', () => {
     const queryKey = queryKeys.index.note('/g', 'notes/a.md')
     client.setQueryData(queryKey, cachedRow())
     noteFile.read().mockResolvedValue('---\nprivate: true\n---\n# A\n')
-    await toggleNotePrivate(input())
+    await toggleNotePrivate(app, input())
     expect(client.getQueryData<NoteRow>(queryKey)?.isPrivate).toBe(false)
     expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
@@ -218,7 +225,7 @@ describe('privacy feedback', () => {
       session.load()
       await vi.waitFor(() => expect(session.liveContent()).toBe('# A\n'))
       const close = openDocuments.register({ session })
-      const action = toggleNotePrivate(input())
+      const action = toggleNotePrivate(app, input())
       await writeStarted.promise
       session.editorChanged('# Typed while locking\n')
       write.reject(new Error('disk full'))
@@ -232,7 +239,7 @@ describe('privacy feedback', () => {
       session.discard()
       close()
       noteFile.read().mockResolvedValue('# A\n')
-      await toggleNotePrivate(input())
+      await toggleNotePrivate(app, input())
       expect(noteFile.write()).toHaveBeenCalledOnce()
     } finally {
       session.discard()

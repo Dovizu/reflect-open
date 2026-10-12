@@ -18,12 +18,12 @@ import { useAppServices } from '@/services/services-provider.tsx'
 export function useMobileSyncStatus(): MobileSyncStatus | null {
   const { graph } = useGraph()
   const sync = useSyncContext()
-  const { syncStatus } = useAppServices()
+  const { indexQuery, syncStatus } = useAppServices()
   const backup = sync?.backup ?? null
   const connected = backup !== null && backup.phase === 'connected'
 
   const { data: conflicted, isError: countUnavailable } = useQuery({
-    ...createConflictedNotesQueryOptions(graph?.root),
+    ...createConflictedNotesQueryOptions({ indexQuery }, graph?.root),
     enabled: graph !== null && connected,
   })
 

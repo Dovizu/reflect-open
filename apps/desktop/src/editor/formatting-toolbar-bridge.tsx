@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useEditor } from '@meowdown/react'
 import { buildFileMarkdown, type EditorExtension } from '@meowdown/core'
 import { toPortableImageFile } from '@/lib/image-file.ts'
-import { isTouchEditorSurface } from '@/lib/platform-surface.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { whenEditorMounted } from './when-editor-mounted.ts'
 import {
   clearFormattingToolbar,
@@ -43,6 +43,8 @@ export function FormattingToolbarBridge({
   saveFile?: ((file: File) => Promise<string | undefined>) | undefined
 }): null {
   const editor = useEditor<EditorExtension>()
+  const { imageCodec, platform } = useAppServices()
+  const touchEditor = platform.surface.touchEditor
   // Read through a ref like the editor's other host callbacks: a changing
   // identity must not tear down and re-attach the published toolbar.
   const saveFileRef = useRef(saveFile)
@@ -52,7 +54,7 @@ export function FormattingToolbarBridge({
   const canAttachFiles = saveFile !== undefined
 
   useEffect(() => {
-    if (!isTouchEditorSurface()) {
+    if (!touchEditor) {
       return
     }
     const owner = Symbol('formatting-toolbar')
@@ -99,7 +101,7 @@ export function FormattingToolbarBridge({
           }
           const markdown: string[] = []
           for (const picked of files) {
-            const file = await toPortableImageFile(picked)
+            const file = await toPortableImageFile({ imageCodec }, picked)
             // `saveFile` owns its failures (it resolves undefined and the
             // pane raises the banner), so a file that did not land is
             // skipped and the ones that did are still linked.
@@ -183,7 +185,7 @@ export function FormattingToolbarBridge({
     // `canAttachFiles` is fixed per editor in practice (a pane either has a
     // saveFile or does not), so re-attaching on a flip costs nothing and
     // keeps the published capability honest.
-  }, [editor, canAttachFiles])
+  }, [editor, canAttachFiles, imageCodec, touchEditor])
 
   return null
 }

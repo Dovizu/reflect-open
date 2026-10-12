@@ -1,6 +1,6 @@
 import { createContext, use, useSyncExternalStore, type ReactElement, type ReactNode } from 'react'
 import type { Settings, SettingsLoadOutcome } from '@reflect/core'
-import { useSettingsService } from '@/providers/use-settings-service.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 export type { SettingsLoadOutcome } from '@reflect/core'
 
@@ -17,7 +17,7 @@ interface SettingsContextValue {
 const SettingsContext = createContext<SettingsContextValue | null>(null)
 
 export function SettingsProvider({ children }: { children: ReactNode }): ReactElement {
-  const service = useSettingsService()
+  const { settings: service } = useAppServices()
   const settings = useSyncExternalStore(service.subscribe, service.get)
   const value: SettingsContextValue = {
     settings,

@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
-import { defaultCapture, type GraphInfo } from '@reflect/core'
+import type { GraphInfo } from '@reflect/core'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
 
@@ -17,7 +17,7 @@ interface CaptureProviderProps {
 }
 
 export function CaptureProvider({ graph, children }: CaptureProviderProps): ReactElement {
-  const capture = useAppServices({ optional: true })?.capture ?? defaultCapture()
+  const { capture } = useAppServices()
 
   // One drain per app: a secondary note window running its own would race
   // the main window's over the same spooled envelopes.

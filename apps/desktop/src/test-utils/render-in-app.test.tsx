@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import { defaultPlatform } from '@reflect/core'
 import { createTestAppServices } from '@reflect/core/testing'
-import { isMobileSurface } from '@/lib/platform-surface.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useSyncContext } from '@/providers/sync-provider.tsx'
@@ -105,7 +104,7 @@ describe('renderInApp', () => {
       .element(page.getByTestId('graph'))
       .toHaveTextContent('ready /graphs/test 1 1 idle 0 icloud')
     expect(defaultPlatform()).toBe(app.platform)
-    expect(isMobileSurface()).toBe(true)
+    expect(defaultPlatform().surface.mobileApp).toBe(true)
   })
 
   it('uses the given app, so a test can spy on a service before the first render', async () => {

@@ -1,8 +1,8 @@
-import {
-  defaultNativeMenu,
-  type AppMenuEntry,
-  type AppSubmenuLayout,
-  type NativeMenuPredefinedItem,
+import type {
+  AppMenuEntry,
+  AppSubmenuLayout,
+  NativeMenuPredefinedItem,
+  NativeMenuService,
 } from '@reflect/core'
 
 /**
@@ -16,11 +16,6 @@ import {
  * dispatch `useAppShortcuts` runs keydown bindings through, so menu clicks
  * respect the modal palette/cheat-sheet exactly like keystrokes do.
  */
-
-/** Whether this webview has successfully installed the native app menu. */
-export function isNativeMenuInstalled(): boolean {
-  return defaultNativeMenu().isInstalled()
-}
 
 function command(commandId: string, text?: string): AppMenuEntry {
   return { kind: 'command', commandId, text }
@@ -130,6 +125,6 @@ export function appMenuLayout(): AppSubmenuLayout[] {
  * deliberately exempted there so its key equivalent belongs to this native
  * macOS application menu.
  */
-export async function installNativeMenu(): Promise<void> {
-  await defaultNativeMenu().install(appMenuLayout())
+export async function installNativeMenu(nativeMenu: NativeMenuService): Promise<void> {
+  await nativeMenu.install(appMenuLayout())
 }

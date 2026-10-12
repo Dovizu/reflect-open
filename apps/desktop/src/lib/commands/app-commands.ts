@@ -1,13 +1,6 @@
-import { defaultCommands, randomNotePath, toggleDevtools, untitledNotePath } from '@reflect/core'
+import { defaultCommands, type AppServices, type CommandService } from '@reflect/core'
 import { attachFilesToNote } from '@/lib/attach-files.ts'
-import { runCopyNotePath } from '@/lib/note-copy-path.ts'
-import { runCopyDeepLink } from '@/lib/note-deep-link.ts'
-import { runGistPublish } from '@/lib/note-gist.ts'
-import { isNativeShell } from '@/lib/platform.ts'
-import { rebuildIndexVisibly } from '@/lib/rebuild-index.ts'
-import { openRouteInNewWindow } from '@/lib/windows/open-in-new-window.ts'
 import { routeForPath, type Route } from '@/routing/route.ts'
-import { registerCommands } from './registry.ts'
 import type { AppCommand, CommandContext } from './types.ts'
 
 /**
@@ -21,8 +14,8 @@ import type { AppCommand, CommandContext } from './types.ts'
  * (the same contract as daily notes). Shared by ⌘N and the All Notes screen's
  * New note button so "what a new note is" stays one definition.
  */
-export function newNoteRoute(): Route {
-  return { kind: 'note', path: untitledNotePath() }
+export function newNoteRoute(ctx: Pick<AppServices, 'noteCreation'>): Route {
+  return { kind: 'note', path: ctx.noteCreation.untitledNotePath() }
 }
 
 /**
@@ -37,7 +30,7 @@ function openNewNote(context: CommandContext): void {
   if (route.kind === 'today' || route.kind === 'daily') {
     context.clearScrollState()
   }
-  context.navigate(newNoteRoute())
+  context.navigate(newNoteRoute(context.services))
 }
 
 const GRAPH_SWITCH_COMMANDS: AppCommand[] = Array.from({ length: 9 }, (_, index) => {
@@ -99,7 +92,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await openRouteInNewWindow(routeForPath(path))
+      await context.services.linkNavigation.openRouteInNewWindow(routeForPath(path))
     },
   },
   {
@@ -188,7 +181,7 @@ const APP_COMMANDS: AppCommand[] = [
     // Publishes the body of the note the current route edits to a secret
     // GitHub gist (republishing to the same gist thereafter) and copies the
     // link. No default keybinding: the palette keeps it keyboard-reachable
-    // without spending a shortcut. `runGistPublish` owns all feedback — the
+    // without spending a shortcut. `GistPublishService.publish` owns all feedback — the
     // progress line, the failure surface, and the "link copied" confirmation.
     run: async (context) => {
       const generation = context.generation()
@@ -196,7 +189,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (generation === null || path === null) {
         return
       }
-      await runGistPublish(path, generation)
+      await context.services.gistPublish.publish(path, generation)
     },
   },
   {
@@ -215,7 +208,7 @@ const APP_COMMANDS: AppCommand[] = [
     keywords: ['url', 'share', 'clipboard', 'reflect://', 'address'],
     // The original app's copy-link shortcut. Copies a `reflect://` address for
     // the note the current route edits — id-shaped so it survives renames,
-    // minting the frontmatter id on first copy. `runCopyDeepLink` owns all
+    // minting the frontmatter id on first copy. `NoteActionsService.copyDeepLink` owns all
     // feedback (the "Deep link copied" status line and failure surfaces).
     keybinding: 'Alt-Mod-l',
     run: async (context) => {
@@ -224,7 +217,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (generation === null || path === null) {
         return
       }
-      await runCopyDeepLink(path, generation)
+      await context.services.noteActions.copyDeepLink(path, generation)
     },
   },
   {
@@ -233,7 +226,7 @@ const APP_COMMANDS: AppCommand[] = [
     keywords: ['file', 'absolute', 'filesystem', 'clipboard', 'location'],
     // The OS-path sibling of "Copy deep link": copies the note's absolute
     // file path (Finder's Copy-as-Pathname chord) for use outside Reflect,
-    // where a reflect:// address cannot resolve. `runCopyNotePath` owns all
+    // where a reflect:// address cannot resolve. `NoteActionsService.copyPath` owns all
     // feedback (the "Note path copied" status line and failure surfaces).
     keybinding: 'Alt-Mod-c',
     run: async (context) => {
@@ -241,7 +234,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await runCopyNotePath(context.graphRoot(), path)
+      await context.services.noteActions.copyPath(context.graphRoot(), path)
     },
   },
   {
@@ -249,7 +242,7 @@ const APP_COMMANDS: AppCommand[] = [
     title: 'Open random note',
     keywords: ['shuffle', 'serendipity'],
     run: async (context) => {
-      const path = await randomNotePath()
+      const path = await context.services.indexQuery.randomNotePath()
       if (path !== null) {
         context.navigate({ kind: 'note', path })
       }
@@ -330,7 +323,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (generation === null) {
         return
       }
-      await rebuildIndexVisibly(generation)
+      await context.services.indexLifecycle.rebuildVisibly(generation)
     },
   },
   {
@@ -342,12 +335,12 @@ const APP_COMMANDS: AppCommand[] = [
     // own DevTools — so this no-ops there rather than throwing through the
     // bridge. Errors are swallowed: a debug affordance never interrupts the user.
     keybinding: 'Mod-Shift-i',
-    run: async () => {
-      if (!isNativeShell()) {
+    run: async (context) => {
+      if (!context.services.platform.isNativeShell) {
         return
       }
       try {
-        await toggleDevtools()
+        await context.services.window.toggleDevtools()
       } catch {
         // Best effort — opening the inspector is never worth a surfaced failure.
       }
@@ -368,19 +361,20 @@ export function keybindingFor(commandId: string): string | null {
 const registeredIn = new WeakSet<object>()
 
 /**
- * Register the first-wave commands in the process-wide registry. Called
- * explicitly from `main.tsx` (and by tests) — registration as an import side
- * effect couples behavior to module graph order, which is exactly the kind of
- * spooky action a registry invites. Idempotent per registry: hosts and tests
- * can call it without coordinating.
+ * Register the first-wave commands in `registry` (left out, the process-wide
+ * one). Called explicitly from `main.tsx` (and by tests) — registration as an
+ * import side effect couples behavior to module graph order, which is exactly
+ * the kind of spooky action a registry invites. Idempotent per registry:
+ * hosts and tests can call it without coordinating.
  */
-export function registerAppCommands(): void {
-  const registry = defaultCommands()
+export function registerAppCommands(
+  registry: CommandService<CommandContext> = defaultCommands(),
+): void {
   if (registeredIn.has(registry)) {
     return
   }
   registeredIn.add(registry)
-  registerCommands(APP_COMMANDS)
+  registry.register(APP_COMMANDS)
 }
 
 export { APP_COMMANDS }

@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import { getCompletedTasks, getOpenTasks } from '@reflect/core'
+import type { AppServices } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
 
 /**
@@ -8,10 +8,13 @@ import { queryKeys } from '@/lib/query-client.ts'
  * (which reads it) and a task row (which optimistically updates it on
  * completion), so the two can't drift.
  */
-export function createOpenTasksQueryOptions(graphRoot: string | undefined) {
+export function createOpenTasksQueryOptions(
+  ctx: Pick<AppServices, 'tasks'>,
+  graphRoot: string | undefined,
+) {
   return queryOptions({
     queryKey: queryKeys.index.openTasks(graphRoot),
-    queryFn: getOpenTasks,
+    queryFn: () => ctx.tasks.getOpenTasks(),
   })
 }
 
@@ -21,9 +24,12 @@ export function createOpenTasksQueryOptions(graphRoot: string | undefined) {
  * can move its row from the open cache into this one optimistically rather than
  * letting it vanish until the refetch.
  */
-export function createCompletedTasksQueryOptions(graphRoot: string | undefined) {
+export function createCompletedTasksQueryOptions(
+  ctx: Pick<AppServices, 'tasks'>,
+  graphRoot: string | undefined,
+) {
   return queryOptions({
     queryKey: queryKeys.index.completedTasks(graphRoot),
-    queryFn: getCompletedTasks,
+    queryFn: () => ctx.tasks.getCompletedTasks(),
   })
 }

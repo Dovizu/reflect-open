@@ -16,7 +16,6 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx'
 import { useGraphColors } from '@/hooks/use-graph-colors.ts'
 import { keybindingFor } from '@/lib/commands/app-commands.ts'
-import { runCommand } from '@/lib/commands/registry.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
@@ -154,7 +153,7 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
           ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => void runCommand('settings.open', context)}
+            onClick={() => void context.services.commands.run('settings.open', context)}
             className={MENU_ITEM_CLASS}
           >
             <Settings aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
@@ -186,7 +185,7 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
               size="icon-sm"
               aria-label="Open settings"
               aria-current={settingsActive ? 'page' : undefined}
-              onClick={() => void runCommand('settings.open', context)}
+              onClick={() => void context.services.commands.run('settings.open', context)}
               className={cn(
                 'size-7 shrink-0 text-text-muted transition-colors duration-100 hover:bg-surface-hover hover:text-text-secondary',
                 settingsActive

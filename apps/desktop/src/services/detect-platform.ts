@@ -40,6 +40,10 @@ function devPlatformOverride(env: string): AppPlatform | null {
 /**
  * Detect the host's platform facts from the user agent and the build env.
  * `nativeShell` is Tauri's `isTauri()`, passed in so this module stays free of Tauri imports.
+ *
+ * The surface facets follow `appPlatform`, which is also what selects the
+ * mobile root (`@platform-root` in `vite.config.ts`, `platform-root.unknown.tsx`
+ * in plain-browser dev): the mobile tree and the mobile surface cannot disagree.
  */
 export function detectPlatformFacts(nativeShell: boolean): PlatformFacts {
   const env = import.meta.env.TAURI_ENV_PLATFORM || ''
@@ -51,14 +55,17 @@ export function detectPlatformFacts(nativeShell: boolean): PlatformFacts {
     navigator.userAgent.includes('Macintosh') &&
     navigator.maxTouchPoints === 0
 
+  const appPlatform = devPlatformOverride(env) ?? envPlatform(env)
+  const mobile = appPlatform !== 'desktop'
+
   return {
-    appPlatform: devPlatformOverride(env) ?? envPlatform(env),
+    appPlatform,
     isNativeShell: nativeShell,
     isMacosDesktop: macosDesktop,
     isApplePlatform:
       hasNavigator && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent),
     hasMacosTitleBarOverlay: macosDesktop,
-    surface: { touchEditor: false, mobileApp: false },
+    surface: { touchEditor: mobile, mobileApp: mobile },
     isDev: import.meta.env.DEV,
     appVersion: __REFLECT_VERSION__,
   }

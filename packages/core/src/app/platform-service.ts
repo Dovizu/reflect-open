@@ -110,20 +110,6 @@ export function createPlatformService(
   }
 }
 
-/** The facts of `platform` as plain data. */
-export function platformFacts(platform: PlatformFacts): PlatformFacts {
-  return {
-    appPlatform: platform.appPlatform,
-    isNativeShell: platform.isNativeShell,
-    isMacosDesktop: platform.isMacosDesktop,
-    isApplePlatform: platform.isApplePlatform,
-    hasMacosTitleBarOverlay: platform.hasMacosTitleBarOverlay,
-    surface: { touchEditor: platform.surface.touchEditor, mobileApp: platform.surface.mobileApp },
-    isDev: platform.isDev,
-    appVersion: platform.appVersion,
-  }
-}
-
 const NEUTRAL_FACTS: PlatformFacts = {
   appPlatform: 'desktop',
   isNativeShell: false,

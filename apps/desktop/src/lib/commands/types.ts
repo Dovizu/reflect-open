@@ -1,4 +1,4 @@
-import type { Command } from '@reflect/core'
+import type { AppServices, Command } from '@reflect/core'
 import type { Route } from '@/routing/route.ts'
 import type { NavigateOptions } from '@/routing/router.tsx'
 
@@ -10,6 +10,8 @@ import type { NavigateOptions } from '@/routing/router.tsx'
  */
 
 export interface CommandContext {
+  /** The app services, for the commands that call one directly. */
+  services: AppServices
   navigate: (route: Route, options?: NavigateOptions) => void
   /** The current route, read at run time. */
   route: () => Route
