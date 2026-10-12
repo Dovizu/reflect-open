@@ -63,6 +63,11 @@ import {
   type GraphSessionService,
 } from '../graph/graph-session-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
+import {
+  createTitleRenameService,
+  type TitleRenameService,
+} from '../documents/title-rename-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
   createOpenDocumentsService,
@@ -220,6 +225,8 @@ export interface AppServices {
   readonly attachments: AttachmentService
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
+  readonly noteMove: NoteMoveService
+  readonly titleRename: TitleRenameService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -382,6 +389,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const xArchive = createXArchiveService({ ipc })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const openDocuments = createOpenDocumentsService()
+  const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
     noteFile,
@@ -470,7 +479,19 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
-    openDocuments: createOpenDocumentsService(),
+    openDocuments,
+    noteMove,
+    titleRename: createTitleRenameService({
+      noteFile,
+      wikiResolver: indexReads.wikiResolver,
+      backlinks: indexReads.backlinks,
+      notePath: indexReads.notePath,
+      noteMove,
+      openDocuments,
+      operations,
+      clock,
+      logger,
+    }),
     ...indexReads,
     ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
     indexLifecycle,

@@ -111,7 +111,8 @@ editor work must survive pane teardown. The pieces to understand are:
   work before the webview dies; the rename coordinator uses `openSession(path)`
   to discover whether a note is open (possibly *reopened* in a new pane) and
   route through its live session instead of racing the disk.
-- **`rename-coordinator.ts` + `title-rename.ts` + `move-note.ts`** — the
+- **`TitleRenameService` + `NoteMoveService`** (`packages/core/src/documents/`:
+  `title-rename-service.ts`, `title-rename-tracker.ts`, `note-move-service.ts`) — the
   auto-rename flow (Plans 07b/17). The tracker watches the session's
   `onContent` stream and fires only on *settled* titles (quiet timer, or a
   settle point: blur/teardown/quit) — never per keystroke, so intermediate
@@ -131,9 +132,7 @@ editor work must survive pane teardown. The pieces to understand are:
 | `note-editor.tsx` | meowdown composition + our extensions; imperative handle |
 | `roundtrip.ts` | fidelity classification (`exact` / `normalizing` / `lossy`) |
 | `open-documents.ts` | app-global live-session registry; quit flush |
-| `title-rename.ts` | settled-title detection (pure, timer-driven) |
-| `rename-coordinator.ts` | rename lifecycle: rewrite chain + alias placement + file move |
-| `move-note.ts` | move a note while carrying/following a live session |
+| `move-note.ts` | delegations to core's `NoteMoveService`: move a note while carrying/following a live session |
 | `wiki-links.ts` | `[[…]]` chips as view decorations over literal text |
 | `wiki-autocomplete.tsx` / `-entries.ts` | `[[` popover; pure row assembly |
 | `use-wiki-link-navigation.ts` | chip click → resolve → navigate or create |

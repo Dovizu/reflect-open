@@ -54,9 +54,13 @@ import {
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
+  createTestNoteMoveService,
   createTestNoteSessionService,
   createTestOpenDocumentsService,
+  createTestTitleRenameService,
+  type TestNoteMoveService,
   type TestNoteSessionService,
+  type TestTitleRenameService,
 } from './documents.ts'
 import {
   createTestAssetStoreService,
@@ -187,6 +191,8 @@ export interface TestAppServices extends AppServices {
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
   readonly noteSessions: TestNoteSessionService
+  readonly noteMove: TestNoteMoveService
+  readonly titleRename: TestTitleRenameService
   readonly noteLinkResolver: TestNoteLinkResolverService
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
@@ -246,8 +252,16 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
     operations: overrides?.operations ?? operations,
   })
+  const ipc = createTestIpcBridgeService({ logger })
+  const openDocuments = createTestOpenDocumentsService()
+  const noteMove = createTestNoteMoveService({
+    ipc: overrides?.ipc ?? ipc,
+    indexStore: overrides?.indexStore ?? indexStore,
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+    logger,
+  })
   const services: TestAppServices = {
-    ipc: createTestIpcBridgeService({ logger }),
+    ipc,
     logger: testLogger,
     clock,
     id,
@@ -311,7 +325,19 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
     }),
-    openDocuments: createTestOpenDocumentsService(),
+    openDocuments,
+    noteMove,
+    titleRename: createTestTitleRenameService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+      backlinks: overrides?.backlinks ?? indexReads.backlinks,
+      notePath: overrides?.notePath ?? indexReads.notePath,
+      noteMove: overrides?.noteMove ?? noteMove,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      operations: overrides?.operations ?? operations,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
     ...indexReads,
     noteLinkResolver,
     noteCreation: createTestNoteCreationService({

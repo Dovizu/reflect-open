@@ -25,7 +25,9 @@ import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
+import { setDefaultNoteMove } from '../documents/note-move-service.ts'
 import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
+import { setDefaultTitleRename } from '../documents/title-rename-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
@@ -127,6 +129,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAttachments(services.attachments)
   setDefaultNoteSessions(services.noteSessions)
   setDefaultOpenDocuments(services.openDocuments)
+  setDefaultNoteMove(services.noteMove)
+  setDefaultTitleRename(services.titleRename)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -202,6 +206,8 @@ export function resetDefaultServices(): void {
   setDefaultAttachments(null)
   setDefaultNoteSessions(null)
   setDefaultOpenDocuments(null)
+  setDefaultNoteMove(null)
+  setDefaultTitleRename(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)
