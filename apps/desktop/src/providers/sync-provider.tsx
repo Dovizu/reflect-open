@@ -9,6 +9,8 @@ import {
 } from 'react'
 import {
   defaultBackups,
+  defaultICloudSyncs,
+  isICloudRoot,
   ReflectError,
   type BackupService,
   type BackupState,
@@ -17,7 +19,6 @@ import {
   type GraphInfo,
 } from '@reflect/core'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
-import { createIcloudController, isICloudRoot } from '@/lib/icloud-controller.ts'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { isMobileSurface } from '@/lib/platform-surface.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
@@ -58,7 +59,9 @@ interface SyncProviderProps {
  */
 export function SyncProvider({ graph, children }: SyncProviderProps): ReactElement {
   const { indexGeneration } = useGraph()
-  const backups = useOptionalAppServices()?.backups
+  const services = useOptionalAppServices()
+  const backups = services?.backups
+  const icloudSyncs = services?.icloudSyncs
   const [controller, setController] = useState<BackupService | null>(null)
 
   // One backup service per app: a secondary note window mounting a
@@ -90,8 +93,9 @@ export function SyncProvider({ graph, children }: SyncProviderProps): ReactEleme
     if (!bridgeReady || !isICloudRoot(graph.root)) {
       return
     }
-    const icloud = createIcloudController({
-      graph,
+    const icloud = (icloudSyncs ?? defaultICloudSyncs()).create({
+      root: graph.root,
+      generation: graph.generation,
       indexGeneration,
       metadataWatch: isMobileSurface(),
     })
@@ -99,7 +103,7 @@ export function SyncProvider({ graph, children }: SyncProviderProps): ReactEleme
     return () => {
       icloud.dispose()
     }
-  }, [bridgeReady, graph, indexGeneration])
+  }, [bridgeReady, icloudSyncs, graph, indexGeneration])
 
   const backup = useSyncExternalStore(
     controller?.subscribe ?? (() => () => {}),

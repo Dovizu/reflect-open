@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { BackupState } from '@reflect/core'
-import { mobileSyncStatus } from './sync-status.ts'
+import type { BackupState } from './backup-service.ts'
+import { createSyncStatusService, mobileSyncStatus } from './sync-status-service.ts'
 
 /**
  * The plain-language mapping (Plan 19, step 10): engine product states plus
@@ -69,5 +69,52 @@ describe('mobileSyncStatus', () => {
     expect(status?.label).toBe('Offline')
     expect(status?.tone).toBe('attention')
     expect(status?.detail).toMatch(/saved locally/)
+  })
+})
+
+describe('SyncStatusService', () => {
+  const service = createSyncStatusService()
+
+  it('has nothing to say without a backup lifecycle', () => {
+    expect(
+      service.status({ backup: null, conflictCount: 0, conflictCountUnavailable: false }),
+    ).toBeNull()
+  })
+
+  it('claims nothing until the conflict count is known', () => {
+    expect(
+      service.status({
+        backup: connected({ state: 'offline', message: 'Offline' }),
+        conflictCount: undefined,
+        conflictCountUnavailable: false,
+      }),
+    ).toBeNull()
+  })
+
+  it('still reports engine states when the conflict count failed to load', () => {
+    expect(
+      service.status({
+        backup: connected({ state: 'offline', message: 'Offline' }),
+        conflictCount: undefined,
+        conflictCountUnavailable: true,
+      }),
+    ).toEqual({ label: 'Offline', tone: 'attention', detail: 'Offline' })
+  })
+
+  it('joins the backup state with the conflict count', () => {
+    expect(
+      service.status({
+        backup: connected({ state: 'idle' }),
+        conflictCount: 2,
+        conflictCountUnavailable: false,
+      })?.label,
+    ).toBe('Needs review')
+    expect(
+      service.status({
+        backup: { phase: 'disconnected' },
+        conflictCount: undefined,
+        conflictCountUnavailable: false,
+      }),
+    ).toBeNull()
   })
 })

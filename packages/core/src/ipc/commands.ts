@@ -31,16 +31,6 @@ export async function mobileStorageLocal(): Promise<string> {
 }
 
 export const icloudStatus: ICloudNativeService['status'] = () => defaultICloudNative().status()
-export const icloudAdoptGraph: ICloudNativeService['adoptGraph'] = (...args) =>
-  defaultICloudNative().adoptGraph(...args)
-export const icloudConflictsScan: ICloudNativeService['conflictsScan'] = (...args) =>
-  defaultICloudNative().conflictsScan(...args)
-export const icloudWatchStart: ICloudNativeService['watchStart'] = (...args) =>
-  defaultICloudNative().watchStart(...args)
-export const icloudWatchStop: ICloudNativeService['watchStop'] = () =>
-  defaultICloudNative().watchStop()
-export const icloudDownloadPending: ICloudNativeService['downloadPending'] = (...args) =>
-  defaultICloudNative().downloadPending(...args)
 export const icloudPendingCount: ICloudNativeService['pendingCount'] = (...args) =>
   defaultICloudNative().pendingCount(...args)
 export const icloudRequestDownloads: ICloudNativeService['requestDownloads'] = (...args) =>
