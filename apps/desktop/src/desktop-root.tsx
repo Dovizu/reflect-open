@@ -1,7 +1,6 @@
 import { useEffect, type ReactElement } from 'react'
-import { subscribeNoteMoved } from '@reflect/core'
+import { defaultNoteMove } from '@reflect/core'
 import { App } from '@/app.tsx'
-import { followHealedMove } from '@/editor/move-note.ts'
 import { AppErrorBoundary } from '@/components/app-error-boundary.tsx'
 import { attachOperationToasts } from '@/components/operation-toasts.ts'
 import { Toaster } from '@/components/ui/toast.tsx'
@@ -49,7 +48,7 @@ export function DesktopRoot(): ReactElement {
       return
     }
     const subscriptions = trackSubscriptions()
-    void subscriptions.add(subscribeNoteMoved(followHealedMove))
+    void subscriptions.add(defaultNoteMove().followNativeMoves())
     return () => {
       subscriptions.disposeAll()
     }

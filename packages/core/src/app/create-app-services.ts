@@ -94,6 +94,11 @@ import {
 import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
+import {
+  createTitleRenameService,
+  type TitleRenameService,
+} from '../documents/title-rename-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -277,6 +282,8 @@ export interface AppServices {
   readonly attachments: AttachmentService
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
+  readonly noteMove: NoteMoveService
+  readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
@@ -471,6 +478,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const captureInbox = createCaptureInboxService({ ipc })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
@@ -586,6 +594,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
+    noteMove,
+    titleRename: createTitleRenameService({
+      noteFile,
+      wikiResolver: indexReads.wikiResolver,
+      backlinks: indexReads.backlinks,
+      notePath: indexReads.notePath,
+      noteMove,
+      openDocuments,
+      operations,
+      clock,
+      logger,
+    }),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
     noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
