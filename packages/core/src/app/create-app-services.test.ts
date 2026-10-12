@@ -63,6 +63,7 @@ const SERVICE_KEYS = [
   'gitHostCredentials',
   'githubRepos',
   'gists',
+  'gistPublish',
   'syncEngines',
   'backups',
   'icloudNative',
