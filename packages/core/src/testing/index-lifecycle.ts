@@ -1,0 +1,94 @@
+import type { ClockService } from '../app/clock-service.ts'
+import type { HashService } from '../app/hash-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { DatabaseService } from '../indexing/database-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
+import {
+  createIndexLifecycleService,
+  type IndexFileProgress,
+  type IndexLifecycleService,
+} from '../indexing/index-lifecycle-service.ts'
+import { createIndexQueryService } from '../indexing/index-query-service.ts'
+import type { IndexStoreService } from '../indexing/index-store-service.ts'
+import type { XArchiveService } from '../x-archive.ts'
+import { createTestXArchiveService } from './capture.ts'
+import { createTestClockService } from './clock.ts'
+import { createTestDatabaseService } from './database.ts'
+import { createTestFileChangeService } from './file-change.ts'
+import { createTestNoteFileService } from './graph.ts'
+import { createTestHashService } from './id.ts'
+import { createTestIndexStoreService } from './index-store.ts'
+import { createTestLoggerService } from './logger.ts'
+import { createTestOperationsService } from './operations.ts'
+
+/** The services a test lifecycle runs on; each defaults to a fresh test double. */
+export interface TestIndexLifecycleServiceOptions {
+  indexStore?: IndexStoreService
+  noteFile?: NoteFileService
+  fileChanges?: FileChangeService
+  /** Read lazily, so the default (Node only) costs nothing until a pass reads rows. */
+  database?: DatabaseService
+  xArchive?: XArchiveService
+  hash?: HashService
+  clock?: ClockService
+  logger?: LoggerService
+  operations?: OperationsService
+}
+
+export interface TestIndexLifecycleService extends IndexLifecycleService {
+  /** Publish file progress as a running pass would; `null` clears it. */
+  setFileProgress: (progress: IndexFileProgress | null) => void
+  /** The generation of every `rebuildVisibly` request, in order. */
+  rebuilds: () => readonly number[]
+}
+
+/** The real {@link IndexLifecycleService} over test doubles, plus seeding and a rebuild log. */
+export function createTestIndexLifecycleService(
+  options?: TestIndexLifecycleServiceOptions,
+): TestIndexLifecycleService {
+  const database = options?.database ?? createTestDatabaseService()
+  const clock = options?.clock ?? createTestClockService()
+  const service = createIndexLifecycleService({
+    indexStore: options?.indexStore ?? createTestIndexStoreService(),
+    noteFile: options?.noteFile ?? createTestNoteFileService(),
+    fileChanges: options?.fileChanges ?? createTestFileChangeService(),
+    indexQuery: createIndexQueryService({ database }),
+    database,
+    xArchive: options?.xArchive ?? createTestXArchiveService(),
+    hash: options?.hash ?? createTestHashService(),
+    clock,
+    logger: options?.logger ?? createTestLoggerService(),
+    operations: options?.operations ?? createTestOperationsService(),
+  })
+  const rebuildLog: number[] = []
+  const seededListeners = new Set<() => void>()
+  let seeded: { progress: IndexFileProgress | null } | null = null
+  service.subscribeFileProgress(() => {
+    seeded = null
+  })
+  return {
+    ...service,
+    fileProgress: () => (seeded !== null ? seeded.progress : service.fileProgress()),
+    subscribeFileProgress: (listener) => {
+      const unlisten = service.subscribeFileProgress(listener)
+      seededListeners.add(listener)
+      return () => {
+        unlisten()
+        seededListeners.delete(listener)
+      }
+    },
+    rebuildVisibly: (generation) => {
+      rebuildLog.push(generation)
+      return service.rebuildVisibly(generation)
+    },
+    setFileProgress: (progress) => {
+      seeded = { progress }
+      for (const listener of seededListeners) {
+        listener()
+      }
+    },
+    rebuilds: () => [...rebuildLog],
+  }
+}

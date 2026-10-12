@@ -3,15 +3,12 @@
  * notes into the SQLite projection, plus the typed read getters over it.
  */
 export {
-  openIndex,
   applyIndexedNote,
   applyIndexedNotes,
   removeFromIndex,
   moveNoteIndexed,
   clearIndex,
   setIndexMeta,
-  watchStart,
-  watchStop,
 } from './commands.ts'
 export {
   subscribeFileChanges,
@@ -30,12 +27,7 @@ export { subscribeIcloudConflicts, subscribeIcloudWatchFailed } from './icloud-c
 export { subscribeIndexApplied, type IndexAppliedListener } from './index-applied.ts'
 export { INDEX_WRITTEN_EVENT, subscribeIndexWritten } from './index-written.ts'
 export { NOTE_MOVED_EVENT, subscribeNoteMoved } from './note-moved.ts'
-export {
-  subscribeIndexChanges,
-  applyIndexChanges,
-  type ApplyErrorHandler,
-  type MovedHandler,
-} from './live.ts'
+export { applyIndexChanges, type ApplyErrorHandler, type MovedHandler } from './live.ts'
 export { hashContent } from './hash.ts'
 export { availableTemplatePath, slugPathForTitle, templateSlugPathForTitle } from './note-paths.ts'
 export { listTemplates, type TemplateEntry } from './template-list.ts'
@@ -57,9 +49,6 @@ export {
 export {
   indexNote,
   reindexNotesReferencing,
-  rebuildIndex,
-  reconcileIndex,
-  syncIndex,
   PROJECTION_VERSION_KEY,
   type IndexPassOptions,
 } from './indexer.ts'

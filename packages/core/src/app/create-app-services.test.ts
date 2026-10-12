@@ -41,6 +41,7 @@ const SERVICE_KEYS = [
   'agentSkill',
   'mobileStorage',
   'imageCodec',
+  'indexLifecycle',
   'exceptionTelemetry',
   'operations',
   'settings',

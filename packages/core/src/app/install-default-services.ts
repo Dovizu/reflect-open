@@ -25,6 +25,7 @@ import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
 import { setDefaultGraphStats } from '../indexing/graph-stats-service.ts'
+import { setDefaultIndexLifecycle } from '../indexing/index-lifecycle-service.ts'
 import { setDefaultIndexQuery } from '../indexing/index-query-service.ts'
 import { setDefaultNoteList } from '../indexing/note-list-service.ts'
 import { setDefaultNotePath } from '../indexing/note-path-service.ts'
@@ -125,6 +126,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteLinkResolver(services.noteLinkResolver)
   setDefaultNoteCreation(services.noteCreation)
   setDefaultPrivacy(services.privacy)
+  setDefaultIndexLifecycle(services.indexLifecycle)
   setDefaultAiCredentials(services.aiCredentials)
   setDefaultAiKeyValidation(services.aiKeyValidation)
   setDefaultLanguageModel(services.languageModel)
@@ -193,6 +195,7 @@ export function resetDefaultServices(): void {
   setDefaultNoteLinkResolver(null)
   setDefaultNoteCreation(null)
   setDefaultPrivacy(null)
+  setDefaultIndexLifecycle(null)
   setDefaultAiCredentials(null)
   setDefaultAiKeyValidation(null)
   setDefaultLanguageModel(null)

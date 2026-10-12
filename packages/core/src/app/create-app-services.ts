@@ -64,6 +64,10 @@ import { createDatabaseService, type DatabaseService } from '../indexing/databas
 import { createBacklinkService, type BacklinkService } from '../indexing/backlink-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
 import { createGraphStatsService, type GraphStatsService } from '../indexing/graph-stats-service.ts'
+import {
+  createIndexLifecycleService,
+  type IndexLifecycleService,
+} from '../indexing/index-lifecycle-service.ts'
 import { createIndexQueryService, type IndexQueryService } from '../indexing/index-query-service.ts'
 import { createNoteListService, type NoteListService } from '../indexing/note-list-service.ts'
 import { createNotePathService, type NotePathService } from '../indexing/note-path-service.ts'
@@ -205,6 +209,7 @@ export interface AppServices {
   readonly noteLinkResolver: NoteLinkResolverService
   readonly noteCreation: NoteCreationService
   readonly privacy: PrivacyService
+  readonly indexLifecycle: IndexLifecycleService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
@@ -349,12 +354,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
   const indexReads = createIndexReadServices({ database, noteFile })
+  const hash = adapters.hash ?? createWebCryptoHashService()
+  const indexStore = createIndexStoreService({ ipc, database })
+  const xArchive = createXArchiveService({ ipc })
   return {
     ipc,
     logger,
     clock,
     id,
-    hash: adapters.hash ?? createWebCryptoHashService(),
+    hash,
     platform,
     storage,
     http: adapters.http,
@@ -383,7 +391,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       logger,
     }),
     database,
-    indexStore: createIndexStoreService({ ipc, database }),
+    indexStore,
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     update: adapters.updater
@@ -399,7 +407,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox: createCaptureInboxService({ ipc }),
     webFetch: createWebFetchService({ ipc }),
-    xArchive: createXArchiveService({ ipc }),
+    xArchive,
     audioRecorder: createPlatformAudioRecorder({
       platform: adapters.platform,
       ipc,
@@ -422,6 +430,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     ...indexReads,
     ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
+    indexLifecycle: createIndexLifecycleService({
+      indexStore,
+      noteFile,
+      fileChanges,
+      indexQuery: indexReads.indexQuery,
+      database,
+      xArchive,
+      hash,
+      clock,
+      logger,
+      operations,
+    }),
     aiCredentials: createAiCredentialService({ secretStore }),
     aiKeyValidation: createAiKeyValidationService({ http: adapters.http }),
     languageModel: withAppReviewDemo(
