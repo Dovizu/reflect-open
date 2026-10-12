@@ -294,6 +294,26 @@ export {
   type PrivacyService,
 } from '../privacy/privacy-service.ts'
 export {
+  createNavigationService,
+  defaultNavigation,
+  setDefaultNavigation,
+  type NavigateOptions,
+  type NavigationPosition,
+  type NavigationService,
+  type NavigationServiceDeps,
+  type NavigationState,
+} from '../navigation/navigation-service.ts'
+export {
+  effectiveDailyDate,
+  focusedNotePathForRoute,
+  normalizeRoute,
+  notePathForRoute,
+  routeForPath,
+  routesEqual,
+  type NoteRoute,
+  type Route,
+} from '../navigation/route.ts'
+export {
   createAssetStoreService,
   defaultAssetStore,
   setDefaultAssetStore,
@@ -536,6 +556,54 @@ export {
   type AiPromptDraft,
   type AiPromptService,
 } from '../ai/ai-prompt-service.ts'
+export {
+  createAiProviderConfigService,
+  defaultAiProviderConfig,
+  setDefaultAiProviderConfig,
+  type AiProviderConfigService,
+  type AiProviderDraftCheck,
+  type NewAiProvider,
+} from '../ai/ai-provider-config-service.ts'
+export {
+  createSelectionTransformService,
+  defaultSelectionTransform,
+  setDefaultSelectionTransform,
+  type SelectionTransformRequest,
+  type SelectionTransformService,
+  type TransformStreamEvent,
+} from '../ai/selection-transform-service.ts'
+export {
+  createPageDescriberService,
+  defaultPageDescriber,
+  setDefaultPageDescriber,
+  type PageDescriberService,
+  type PageEnrichment,
+} from '../ai/page-describer-service.ts'
+export {
+  createAssetDescriberService,
+  defaultAssetDescriber,
+  setDefaultAssetDescriber,
+  type AssetDescriberService,
+} from '../ai/asset-describer-service.ts'
+export {
+  createTranscriptionService,
+  defaultTranscription,
+  setDefaultTranscription,
+  withAppReviewDemoTranscription,
+  type TranscriptionService,
+} from '../ai/transcription-service.ts'
+export {
+  createTranscriptEnrichmentService,
+  defaultTranscriptEnrichment,
+  setDefaultTranscriptEnrichment,
+  type AudioMemoEnrichmentCredentials,
+  type EnrichedSessionTranscript,
+  type EnrichSessionTranscriptInput,
+  type FormatAudioMemoTranscriptRequest,
+  type FormattedAudioMemoTranscript,
+  type GenerateAudioMemoTitleRequest,
+  type TranscriptEnrichmentService,
+} from '../ai/transcript-enrichment-service.ts'
 export {
   createLanguageModelService,
   createLazyAiSdkLoader,

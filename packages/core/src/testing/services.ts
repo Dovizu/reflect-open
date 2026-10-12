@@ -10,10 +10,22 @@ import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
 import type { AiPromptService } from '../ai/ai-prompt-service.ts'
+import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
+import type { SelectionTransformService } from '../ai/selection-transform-service.ts'
+import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
 import {
   createTestAiCredentialService,
   createTestAiKeyValidationService,
   createTestAiPromptService,
+  createTestAiProviderConfigService,
+  createTestAssetDescriberService,
+  createTestPageDescriberService,
+  createTestSelectionTransformService,
+  createTestTranscriptEnrichmentService,
+  createTestTranscriptionService,
+  type TestAssetDescriberService,
+  type TestPageDescriberService,
+  type TestTranscriptionService,
   createTestLanguageModelService,
   type TestAiKeyValidationService,
   type TestLanguageModelService,
@@ -131,6 +143,7 @@ import {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
+import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
 import { createTestSettingsService, type TestSettingsService } from './settings.ts'
 import {
   createTestPersistenceFlushService,
@@ -174,6 +187,7 @@ export interface TestAppServices extends AppServices {
   readonly embeddingRuntime: TestEmbeddingRuntimeService
   readonly chatHistory: TestChatHistoryService
   readonly update: TestUpdateService
+  readonly navigation: TestNavigationService
   readonly gitRepository: TestGitRepositoryService
   readonly icloudNative: TestICloudNativeService
   readonly captureInbox: TestCaptureInboxService
@@ -202,6 +216,12 @@ export interface TestAppServices extends AppServices {
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly aiProviderConfig: AiProviderConfigService
+  readonly selectionTransform: SelectionTransformService
+  readonly pageDescriber: TestPageDescriberService
+  readonly assetDescriber: TestAssetDescriberService
+  readonly transcription: TestTranscriptionService
+  readonly transcriptEnrichment: TranscriptEnrichmentService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -235,6 +255,18 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
   const hash = createTestHashService()
+  const aiCredentials = createTestAiCredentialService({
+    secretStore: overrides?.secretStore ?? secretStore,
+  })
+  const aiKeyValidation = createTestAiKeyValidationService()
+  const languageModel = createTestLanguageModelService()
+  const privacy = createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile })
+  const aiProviderConfig = createTestAiProviderConfigService({
+    settings: overrides?.settings ?? settings,
+    credentials: overrides?.aiCredentials ?? aiCredentials,
+    keyValidation: overrides?.aiKeyValidation ?? aiKeyValidation,
+    id: overrides?.id ?? id,
+  })
   const platform = createTestPlatformService()
   const dialog = createTestDialogService()
   const path = createTestPathService()
@@ -301,6 +333,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     embeddingRuntime: createTestEmbeddingRuntimeService(),
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
+    navigation: createTestNavigationService(),
     gitRepository: createTestGitRepositoryService(),
     githubAuth: createTestGithubAuthService({
       secretStore: overrides?.secretStore ?? secretStore,
@@ -343,7 +376,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
       id: overrides?.id ?? id,
     }),
-    privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
+    privacy,
     indexLifecycle,
     graphSession,
     mobileOnboarding: createTestMobileOnboardingService({
@@ -354,14 +387,25 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
     }),
-    aiCredentials: createTestAiCredentialService({
-      secretStore: overrides?.secretStore ?? secretStore,
-    }),
-    aiKeyValidation: createTestAiKeyValidationService(),
-    languageModel: createTestLanguageModelService(),
+    aiCredentials,
+    aiKeyValidation,
+    languageModel,
     aiPrompts: createTestAiPromptService({
       settings: overrides?.settings ?? settings,
       id: overrides?.id ?? id,
+    }),
+    aiProviderConfig,
+    selectionTransform: createTestSelectionTransformService({
+      languageModel: overrides?.languageModel ?? languageModel,
+      providerConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
+      credentials: overrides?.aiCredentials ?? aiCredentials,
+      privacy: overrides?.privacy ?? privacy,
+    }),
+    pageDescriber: createTestPageDescriberService(),
+    assetDescriber: createTestAssetDescriberService(),
+    transcription: createTestTranscriptionService(),
+    transcriptEnrichment: createTestTranscriptEnrichmentService({
+      languageModel: overrides?.languageModel ?? languageModel,
     }),
   }
   return Object.assign(services, overrides)

@@ -1,29 +1,22 @@
 import { APICallError } from '@reflect/modules/ai'
-import {
-  createTestHttpService,
-  createTestLanguageModelService,
-  type TestLanguageModelService,
-} from '../testing/index.ts'
+import { createTestLanguageModelService, type TestLanguageModelService } from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3CallOptions, LanguageModelV3Usage } from '@ai-sdk/provider'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import {
-  describeAsset,
+  createAssetDescriberService,
   isAssetDescriptionRejected,
+  type AssetDescriberService,
   type DescribeAssetRequest,
-} from './describe-asset.ts'
-import { setDefaultLanguageModel } from './language-model-service.ts'
+} from './asset-describer-service.ts'
 
 let languageModelService: TestLanguageModelService
+let assetDescriber: AssetDescriberService
 
 beforeEach(() => {
   languageModelService = createTestLanguageModelService()
-  setDefaultLanguageModel(languageModelService)
-})
-
-afterEach(() => {
-  setDefaultLanguageModel(null)
+  assetDescriber = createAssetDescriberService({ languageModel: languageModelService })
 })
 
 const USAGE: LanguageModelV3Usage = {
@@ -76,14 +69,13 @@ function apiError(statusCode: number): APICallError {
 }
 
 function request(overrides: Partial<DescribeAssetRequest> = {}): Promise<string> {
-  return describeAsset({
+  return assetDescriber.describe({
     config: CONFIG,
     apiKey: 'sk-live-key',
     kind: 'image',
     mediaType: 'image/png',
     data: 'aGVsbG8=',
     filename: 'diagram.png',
-    fetchFn: createTestHttpService().fetchFn,
     ...overrides,
   })
 }
@@ -94,7 +86,7 @@ function partsOf(calls: LanguageModelV3CallOptions[]): PromptPart[] {
   return calls[0]!.prompt[0]!.content as PromptPart[]
 }
 
-describe('describeAsset', () => {
+describe('AssetDescriberService', () => {
   it('returns the trimmed description and sends an image as a file part', async () => {
     const calls = modelAnswering('  A flow diagram.  ')
 
