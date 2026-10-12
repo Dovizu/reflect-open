@@ -1,20 +1,25 @@
 import { render } from 'vitest-browser-react'
 import { page, userEvent, type Locator } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ContactMatch, MeetingAttendee, WikiSuggestion } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  setDefaultMeetings,
+  type ContactMatch,
+  type MeetingAttendee,
+  type SuggestionService,
+  type WikiSuggestion,
+} from '@reflect/core'
+import {
+  createTestContactsService,
+  createTestIpcBridgeService,
+  createTestMeetingService,
+  installTestBridge,
+  type TestContactsService,
+} from '@reflect/core/testing'
 import { AttendeeCombobox } from './attendee-combobox.tsx'
 
-const suggestWikiTargets = vi.hoisted(() => vi.fn<() => Promise<WikiSuggestion[]>>(async () => []))
-const contactLinkSuggestions = vi.hoisted(() =>
-  vi.fn<() => Promise<ContactMatch[]>>(async () => []),
-)
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-  suggestWikiTargets,
-  contactLinkSuggestions,
-}))
+// The note suggestions are the seam: one case needs a fetch that never settles.
+const suggestWikiTargets = vi.fn<SuggestionService['suggestWikiTargets']>(async () => [])
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
 }))
@@ -24,6 +29,9 @@ vi.mock('@/providers/settings-provider.tsx', () => ({
 vi.mock('@/hooks/use-contacts-authorization.ts', () => ({
   useContactsAuthorization: () => 'authorized',
 }))
+
+let contacts: TestContactsService
+let removeBridge: () => void
 
 function noteSuggestion(title: string, overrides: Partial<WikiSuggestion> = {}): WikiSuggestion {
   return { target: title, path: `notes/${title}.md`, title, alias: null, date: null, ...overrides }
@@ -57,8 +65,15 @@ async function findHighlighted(text: string): Promise<Locator> {
 
 beforeEach(() => {
   suggestWikiTargets.mockReset().mockResolvedValue([])
-  contactLinkSuggestions.mockReset().mockResolvedValue([])
+  contacts = createTestContactsService()
+  setDefaultMeetings(createTestMeetingService({ suggestions: { suggestWikiTargets }, contacts }))
+  removeBridge = installTestBridge(createTestIpcBridgeService())
   onAdd.mockClear()
+})
+
+afterEach(() => {
+  removeBridge()
+  setDefaultMeetings(null)
 })
 
 describe('AttendeeCombobox', () => {
@@ -75,7 +90,7 @@ describe('AttendeeCombobox', () => {
   })
 
   it('a picked contact carries all emails for identity resolution', async () => {
-    contactLinkSuggestions.mockResolvedValue([
+    contacts.setContacts([
       {
         ...contact('Grace Hopper', 'grace@example.com'),
         emails: ['grace@example.com', 'grace@work.example'],
@@ -105,7 +120,7 @@ describe('AttendeeCombobox', () => {
   })
 
   it('blur does not bypass an exact Contact row', async () => {
-    contactLinkSuggestions.mockResolvedValue([contact('Grace Hopper', 'grace@example.com')])
+    contacts.setContacts([contact('Grace Hopper', 'grace@example.com')])
     const input = await renderCombobox()
 
     await input.fill('Grace Hopper')

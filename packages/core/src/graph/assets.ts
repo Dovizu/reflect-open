@@ -9,15 +9,6 @@ export async function createAsset(
   return await defaultAssetStore().uploadBlob(desiredName, contents, generation)
 }
 
-/** `defaultAssetStore().uploadToPath`. */
-export async function writeAssetStreamed(
-  path: string,
-  contents: Blob,
-  generation: number,
-): Promise<void> {
-  await defaultAssetStore().uploadToPath(path, contents, generation)
-}
-
 /** `defaultAssetStore().importFile`. */
 export async function importAsset(
   sourcePath: string,

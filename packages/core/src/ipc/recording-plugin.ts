@@ -123,16 +123,6 @@ export async function recordingStatus(): Promise<RecordingStatus> {
   return await recordingStatusCommand(defaultIpc(), {})
 }
 
-/** The webview's action surface is mounted — deliver any queued native action. */
-export async function actionsReady(): Promise<void> {
-  await actionsReadyCommand(defaultIpc(), {})
-}
-
-/** Retire the delivered native action so it doesn't re-fire on next launch. */
-export async function actionPerformed(): Promise<void> {
-  await actionPerformedCommand(defaultIpc(), {})
-}
-
 /** Finished recordings still in staging (crash orphans, files mid-ingest). */
 export async function listStaged(): Promise<StagedRecordingFile[]> {
   const { files } = await listStagedCommand(defaultIpc(), {})
@@ -205,8 +195,3 @@ export const recordingNativeActionEvent = definePluginEvent(
   'nativeAction',
   nativeActionSchema,
 )
-export function subscribeRecordingNativeAction(
-  handler: (payload: RecordingNativeActionEvent) => void,
-): PluginSubscription {
-  return recordingNativeActionEvent(defaultIpc(), handler)
-}

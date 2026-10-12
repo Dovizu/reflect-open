@@ -2,9 +2,9 @@ import { useMemo, type ReactElement, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   canReadCalendars,
+  countSelectedCalendars,
   defaultOpener,
-  requestCalendarAccess,
-  type CalendarInfo,
+  groupCalendarsBySource,
 } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Button } from '@/components/ui/button.tsx'
@@ -18,7 +18,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog.tsx'
-import { isMacosDesktop } from '@/lib/platform.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import {
   useCalendarAuthorization,
@@ -26,6 +25,7 @@ import {
   useCalendars,
 } from '@/lib/use-calendar.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
+import { useCalendarEventsService } from '@/services/use-contacts-services.ts'
 import { SettingsSwitchField } from './switch-field.tsx'
 
 const ACTION_BUTTON_CLASS =
@@ -41,55 +41,36 @@ const ACTION_BUTTON_CLASS =
  * elsewhere.
  */
 export function CalendarIntegrationField(): ReactElement | null {
-  const { settings, updateSettings, updateSettingsWith } = useSettings()
+  const { settings } = useSettings()
   const queryClient = useQueryClient()
+  const calendarEvents = useCalendarEventsService()
   const status = useCalendarAuthorization(settings.calendarEnabled)
   const canRead = status !== undefined && canReadCalendars(status)
   const { calendars, isLoaded } = useCalendars(settings.calendarEnabled && canRead)
   useCalendarChangeInvalidation(settings.calendarEnabled)
 
-  const groups = useMemo(() => {
-    const bySource = new Map<string, CalendarInfo[]>()
-    for (const calendar of calendars) {
-      const group = bySource.get(calendar.source)
-      if (group) {
-        group.push(calendar)
-      } else {
-        bySource.set(calendar.source, [calendar])
-      }
-    }
-    return [...bySource]
-  }, [calendars])
+  const groups = useMemo(() => groupCalendarsBySource(calendars), [calendars])
 
-  if (!isMacosDesktop()) {
+  if (!calendarEvents.isAvailable()) {
     return null
+  }
+
+  const recheck = (): void => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.calendar.all })
   }
 
   const requestAccess = (): void => {
     // Resolves instantly when the OS already remembers an answer; prompts
     // only on the very first request. Either way the queries re-check.
-    void requestCalendarAccess()
-      .catch((cause: unknown) => {
-        console.error('calendar access request failed:', cause)
-      })
-      .finally(() => {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.calendar.all })
-      })
+    void calendarEvents.requestAccess().finally(recheck)
   }
 
   const handleToggle = (checked: boolean): void => {
-    updateSettings({ calendarEnabled: checked })
-    if (checked) {
-      requestAccess()
-    }
-  }
-
-  const toggleCalendar = (id: string, checked: boolean): void => {
-    updateSettingsWith((current) => ({
-      calendarIds: checked
-        ? [...current.calendarIds.filter((existing) => existing !== id), id]
-        : current.calendarIds.filter((existing) => existing !== id),
-    }))
+    void calendarEvents.setEnabled(checked).then(({ accessRequested }) => {
+      if (accessRequested) {
+        recheck()
+      }
+    })
   }
 
   let detail: ReactNode = null
@@ -121,11 +102,7 @@ export function CalendarIntegrationField(): ReactElement | null {
       </div>
     )
   } else if (settings.calendarEnabled && canRead && isLoaded) {
-    // Count only ids the Mac still knows — settings may hold identifiers
-    // from since-removed accounts, and "3/2 calendars" would be nonsense.
-    const enabledCount = calendars.filter((calendar) =>
-      settings.calendarIds.includes(calendar.id),
-    ).length
+    const enabledCount = countSelectedCalendars(calendars, settings.calendarIds)
     detail =
       groups.length === 0 ? (
         <p className="text-xs text-text-muted">
@@ -163,7 +140,7 @@ export function CalendarIntegrationField(): ReactElement | null {
                               <Checkbox
                                 checked={settings.calendarIds.includes(calendar.id)}
                                 onCheckedChange={(checked) =>
-                                  toggleCalendar(calendar.id, checked === true)
+                                  calendarEvents.toggleCalendar(calendar.id, checked === true)
                                 }
                                 aria-label={calendar.title}
                               />

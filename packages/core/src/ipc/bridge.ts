@@ -86,7 +86,7 @@ export function hasBridge(): boolean {
  * in-memory bridge does not. Callers use this to choose streamed binary
  * asset IO over the base64 JSON fallback.
  */
-export function hasBinaryIpc(): boolean {
+function hasBinaryIpc(): boolean {
   return activeBridge !== null && activeBridge.invokeBinary !== undefined
 }
 

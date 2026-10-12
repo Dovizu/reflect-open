@@ -4,24 +4,31 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   calendarEventSchema,
+  defaultSettings,
   setBridge,
   setDefaultCalendar,
   setDefaultContacts,
+  setDefaultMeetings,
   setDefaultPlatform,
   setDefaultStorage,
   type CalendarEvent,
+  type MeetingService,
   setDefaultSettings,
 } from '@reflect/core'
 import {
   createTestCalendarService,
   createTestContactsService,
+  createTestMeetingService,
   createTestPlatformService,
   createTestStorageService,
+  seedNotes,
   type TestCalendarService,
   type TestContactsService,
+  type TestDatabaseService,
 } from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
+import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 import { DailyEventsSection } from './daily-events-section.tsx'
 
 // The calendar queries only run in the macOS desktop webview; the test
@@ -40,25 +47,9 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
 }))
 
 // The action itself is covered in @reflect/core; here it is the seam the
-// dialog submits through. The attendee combobox's suggestion sources are
-// stubbed empty — the combobox itself is covered by its own test file.
-const addMeetingToDaily = vi.hoisted(() =>
-  vi.fn(async () => ({ appended: true, createdNotes: [] })),
-)
-const suggestWikiTargets = vi.hoisted(() => vi.fn(async () => []))
-const contactLinkSuggestions = vi.hoisted(() => vi.fn(async () => []))
-// Identity by default: the email → note-title canonicalization is covered in
-// @reflect/core; here it is the seam the chip-upgrade effect renders through.
-const resolveMeetingAttendees = vi.hoisted(() =>
-  vi.fn(async (attendees: readonly unknown[]) => [...attendees]),
-)
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  addMeetingToDaily,
-  suggestWikiTargets,
-  contactLinkSuggestions,
-  resolveMeetingAttendees,
-}))
+// dialog submits through: the real `MeetingService` over an empty index and
+// in-memory note files, with the submit observed.
+const addMeetingToDaily = vi.fn<MeetingService['addMeetingToDaily']>()
 
 const DATE = '2026-07-01'
 
@@ -81,6 +72,7 @@ function eventAt(hour: number, overrides: Record<string, unknown> = {}): Calenda
 let stored: Record<string, unknown>
 let calendar: TestCalendarService
 let contacts: TestContactsService
+let database: TestDatabaseService
 
 function installFakeBridge(): void {
   setBridge({
@@ -110,22 +102,25 @@ async function renderSection(): Promise<void> {
   )
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   stored = { calendarEnabled: true, calendarIds: ['cal-work'] }
   calendar = createTestCalendarService()
   setDefaultCalendar(calendar)
   contacts = createTestContactsService({ status: 'unavailable' })
   setDefaultContacts(contacts)
-  addMeetingToDaily.mockClear()
-  addMeetingToDaily.mockResolvedValue({ appended: true, createdNotes: [] })
-  resolveMeetingAttendees.mockClear()
   setDefaultStorage(createTestStorageService())
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   installFakeBridge()
   setDefaultSettings(null)
+  database = await createWasmTestDatabaseService()
+  const meetings = createTestMeetingService({ database, contacts, settings: defaultSettings() })
+  addMeetingToDaily.mockReset().mockImplementation((input) => meetings.addMeetingToDaily(input))
+  setDefaultMeetings({ ...meetings, addMeetingToDaily })
 })
 
 afterEach(() => {
+  setDefaultMeetings(null)
+  database.close()
   setDefaultStorage(null)
   setBridge(null)
   setDefaultSettings(null)
@@ -261,8 +256,11 @@ describe('DailyEventsSection', () => {
   })
 
   it('upgrades a prefilled chip to the note that owns its invite email', async () => {
-    resolveMeetingAttendees.mockResolvedValueOnce([
-      { name: 'Ada Lovelace', emails: ['ada@example.com'] },
+    seedNotes(database, [
+      {
+        path: 'notes/ada.md',
+        markdown: '# Ada Lovelace\n\n- Type: #person\n- Email: ada@example.com\n',
+      },
     ])
     calendar.setEvents([
       eventAt(9, {
