@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { page } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useState, type ReactElement, type ReactNode } from 'react'
@@ -7,13 +6,13 @@ import {
   createTestAppServices,
   createTestChatEngineService,
   createTestSecretStoreService,
-  createTestSettingsService,
   type TestChatEngineService,
 } from '@reflect/core/testing'
 import { ChatProvider } from '@/providers/chat-provider.tsx'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { useRouter } from '@/routing/router.tsx'
 import { fireEvent } from '@/test-utils/fire-event.ts'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
+import { MobileChat } from './chat.tsx'
 
 /**
  * The Chat tab over a faked engine (the desktop chat-screen harness, mobile
@@ -29,13 +28,6 @@ const settingsState = {
   defaultId: null as string | null,
 }
 
-// The history drawer reads the index generation here: none. The session reads
-// the graph session service, which has no open graph either, so persistence
-// stays inert; chat-session-service.test.ts covers it.
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ indexGeneration: null, graph: null }),
-}))
-
 // Keep sheet content inline so this suite isolates the chat flow.
 vi.mock('@/components/ui/drawer.tsx', () => ({
   Drawer: ({ children }: { children?: ReactNode }) => <>{children}</>,
@@ -44,7 +36,7 @@ vi.mock('@/components/ui/drawer.tsx', () => ({
   DrawerTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
 }))
 
-const { MobileChat } = await import('./chat.tsx')
+const GRAPH = { root: '/graphs/test', name: 'test-graph', generation: 1 }
 
 const MODEL: AiProviderConfig = { id: 'm1', provider: 'openai', model: 'gpt-5.1', keyHint: '12345' }
 
@@ -85,33 +77,28 @@ function FocusChatProbe(): ReactElement {
 function Harness(): ReactElement {
   const [showScreen, setShowScreen] = useState(true)
   return (
-    <QueryClientProvider client={new QueryClient()}>
-      <RouterProvider>
-        <RouteProbe />
-        <FocusChatProbe />
-        <button type="button" onClick={() => setShowScreen((shown) => !shown)}>
-          switch tab
-        </button>
-        <ChatProvider graph={{ root: '/graphs/test', name: 'test-graph', generation: 1 }}>
-          {showScreen ? <MobileChat /> : null}
-        </ChatProvider>
-      </RouterProvider>
-    </QueryClientProvider>
+    <>
+      <RouteProbe />
+      <FocusChatProbe />
+      <button type="button" onClick={() => setShowScreen((shown) => !shown)}>
+        switch tab
+      </button>
+      <ChatProvider graph={GRAPH}>{showScreen ? <MobileChat /> : null}</ChatProvider>
+    </>
   )
 }
 
 async function renderHarness() {
-  const settings = createTestSettingsService({
-    aiProviders: settingsState.models,
-    defaultAiProviderId: settingsState.defaultId,
-  })
-  await settings.whenLoaded()
   const app = createTestAppServices({
-    settings,
     secretStore: createTestSecretStoreService({ [aiKeySecretName(MODEL.id)]: 'sk-test' }),
     chatEngine,
   })
-  return await renderWithServices(<Harness />, { app })
+  // The index is not open, so the history drawer reads nothing.
+  return await renderInApp(<Harness />, {
+    app,
+    graph: { ...GRAPH, indexGeneration: null },
+    settings: { aiProviders: settingsState.models, defaultAiProviderId: settingsState.defaultId },
+  })
 }
 
 describe('MobileChat', () => {
