@@ -1,7 +1,13 @@
-import { act } from 'react'
-import { renderHook, cleanup } from 'vitest-browser-react'
+import type { ReactNode } from 'react'
+import { cleanup, renderHook } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import type { ICloudDownloadServiceOptions } from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestIpcBridgeService,
+  installTestBridge,
+} from '@reflect/core/testing'
+import { AppServicesProvider } from '@/services/services-provider.tsx'
 import { useICloudRefresh } from './use-icloud-refresh.ts'
 
 const graphState = vi.hoisted<{
@@ -17,67 +23,47 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => graphState.current,
 }))
 
-let downloadCalls: string[]
-let countCalls: string[]
-/** Full-scope (assets included) download requests — the deferred bulk. */
-let allScopeDownloadCalls: string[]
-/** What the fake pending commands report — note placeholders remaining. */
-let pendingCount: number
-let refreshIndex: ReturnType<typeof vi.fn<() => void>>
-/** Simulated `document.visibilityState` (the use-wake-to-today pattern). */
-let visibility: DocumentVisibilityState = 'visible'
+function refreshIndex(): void {}
+
+let uninstallBridge: () => void = () => {}
 
 beforeEach(() => {
-  vi.useFakeTimers()
-  Object.defineProperty(document, 'visibilityState', {
-    configurable: true,
-    get: () => visibility,
-  })
-  visibility = 'visible'
-  downloadCalls = []
-  countCalls = []
-  allScopeDownloadCalls = []
-  pendingCount = 0
-  refreshIndex = vi.fn<() => void>()
   graphState.current = {
     graph: { root: '/iCloud/Documents' },
     mobileStorageKind: 'icloud',
     refreshIndex,
   }
-  setBridge({
-    invoke: async (command, args) => {
-      if (command === 'icloud_download_pending') {
-        if (args['notesOnly'] === true) {
-          downloadCalls.push(String(args['root']))
-          return pendingCount
+  uninstallBridge = installTestBridge(createTestIpcBridgeService())
+})
+
+afterEach(async () => {
+  await cleanup()
+  uninstallBridge()
+})
+
+/** App services whose download factory hands out scripted services, recorded in order. */
+function setup() {
+  const created: Array<{ options: ICloudDownloadServiceOptions; calls: string[] }> = []
+  const app = createTestAppServices({
+    icloudDownloads: {
+      create: (options) => {
+        const calls: string[] = []
+        created.push({ options, calls })
+        return {
+          start: () => {
+            calls.push('start')
+          },
+          dispose: () => {
+            calls.push('dispose')
+          },
         }
-        allScopeDownloadCalls.push(String(args['root']))
-        return pendingCount
-      }
-      if (command === 'icloud_pending_count') {
-        expect(args['notesOnly']).toBe(true) // the poll gates on the notes
-        countCalls.push(String(args['root']))
-        return pendingCount
-      }
-      return null
+      },
     },
-    listen: async () => () => {},
   })
-})
-
-afterEach(() => {
-  cleanup()
-  setBridge(null)
-  vi.useRealTimers()
-  vi.clearAllMocks()
-})
-
-/** Let the pending `icloudDownloadPending` promise settle inside act. */
-async function flush(): Promise<void> {
-  await act(async () => {
-    await Promise.resolve()
-    await Promise.resolve()
-  })
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <AppServicesProvider services={app}>{children}</AppServicesProvider>
+  )
+  return { created, wrapper }
 }
 
 describe('useICloudRefresh', () => {
@@ -87,246 +73,49 @@ describe('useICloudRefresh', () => {
       mobileStorageKind: 'local',
       refreshIndex,
     }
-    await renderHook(() => useICloudRefresh())
-    await flush()
+    const { created, wrapper } = setup()
+    await renderHook(() => useICloudRefresh(), { wrapper })
 
-    expect(downloadCalls).toEqual([])
-    expect(refreshIndex).not.toHaveBeenCalled()
+    expect(created).toEqual([])
   })
 
-  it('nudges note downloads on mount without repeating the open-time reconcile', async () => {
-    await renderHook(() => useICloudRefresh())
-    await flush()
+  it('is inert until the bridge is installed', async () => {
+    uninstallBridge()
+    const { created, wrapper } = setup()
+    await renderHook(() => useICloudRefresh(), { wrapper })
 
-    expect(downloadCalls).toEqual(['/iCloud/Documents'])
-    // The graph open just synced the index against local disk; an immediate
-    // second full pass would repeat that work on a large first sync.
-    expect(refreshIndex).not.toHaveBeenCalled()
-    // No notes pending — the deferred bulk (assets) may start right away.
-    expect(allScopeDownloadCalls).toEqual(['/iCloud/Documents'])
+    expect(created).toEqual([])
   })
 
-  it('polls the note count while pending and reconciles + starts assets when they land', async () => {
-    pendingCount = 3
-    await renderHook(() => useICloudRefresh())
-    await flush()
-    expect(downloadCalls).toHaveLength(1)
-    expect(refreshIndex).not.toHaveBeenCalled()
-    // Notes still pending — the bulk (assets) must wait its turn.
-    expect(allScopeDownloadCalls).toHaveLength(0)
+  it('starts one download service for the open iCloud graph', async () => {
+    const { created, wrapper } = setup()
+    await renderHook(() => useICloudRefresh(), { wrapper })
 
-    // Still pending after one poll: no reconcile yet, keep waiting — and the
-    // poll only counts, it never re-requests the downloads.
-    await act(async () => {
-      vi.runOnlyPendingTimers()
-    })
-    await flush()
-    expect(countCalls).toHaveLength(1)
-    expect(downloadCalls).toHaveLength(1)
-    expect(refreshIndex).not.toHaveBeenCalled()
-
-    // Notes finished: the next poll reconciles immediately — and only now
-    // does the full-scope (assets) request fire.
-    pendingCount = 0
-    await act(async () => {
-      vi.runOnlyPendingTimers()
-    })
-    await flush()
-    expect(countCalls).toHaveLength(2)
-    expect(refreshIndex).toHaveBeenCalledTimes(1)
-    expect(allScopeDownloadCalls).toHaveLength(1)
-
-    // Settled — no further polling.
-    await act(async () => {
-      vi.runOnlyPendingTimers()
-    })
-    await flush()
-    expect(countCalls).toHaveLength(2)
+    expect(created).toHaveLength(1)
+    expect(created[0]?.options).toEqual({ root: '/iCloud/Documents', refreshIndex })
+    expect(created[0]?.calls).toEqual(['start'])
   })
 
-  it('backs the poll off geometrically while notes stay pending', async () => {
-    pendingCount = 3
-    await renderHook(() => useICloudRefresh())
-    await flush()
-
-    // First wait: the 1s floor.
-    await act(async () => {
-      vi.advanceTimersByTime(999)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(0)
-    await act(async () => {
-      vi.advanceTimersByTime(1)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(1)
-
-    // Second wait doubles to 2s...
-    await act(async () => {
-      vi.advanceTimersByTime(1999)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(1)
-    await act(async () => {
-      vi.advanceTimersByTime(1)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(2)
-
-    // ...then 4s, the ceiling.
-    await act(async () => {
-      vi.advanceTimersByTime(3999)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(2)
-    await act(async () => {
-      vi.advanceTimersByTime(1)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(3)
-  })
-
-  it('stops polling when the app hides, and the next foreground restarts the drain', async () => {
-    pendingCount = 3
-    await renderHook(() => useICloudRefresh())
-    await flush()
-    expect(downloadCalls).toHaveLength(1)
-
-    visibility = 'hidden'
-    await act(async () => {
-      vi.advanceTimersByTime(1000)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(0) // the armed tick bailed hidden
-
-    await act(async () => {
-      vi.advanceTimersByTime(60_000)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(0) // and nothing re-armed behind the webview
-
-    visibility = 'visible'
-    await act(async () => {
-      document.dispatchEvent(new Event('visibilitychange'))
-    })
-    await flush()
-    expect(downloadCalls).toHaveLength(2) // the resume renudges...
-    await act(async () => {
-      vi.advanceTimersByTime(1000)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(1) // ...and the poll starts over
-  })
-
-  it('a quick hide → show inside the dedupe window still restarts the drain', async () => {
-    pendingCount = 3
-    await renderHook(() => useICloudRefresh())
-    await flush()
-    expect(downloadCalls).toHaveLength(1)
-
-    // Hide and let the armed tick bail — the poll is now abandoned…
-    visibility = 'hidden'
-    await act(async () => {
-      vi.advanceTimersByTime(1000)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(0)
-
-    // …and a return to visible only 200ms later (inside the 1.5s resume
-    // dedupe) must not be swallowed, or nothing would be scheduled at all.
-    visibility = 'visible'
-    await act(async () => {
-      vi.advanceTimersByTime(200)
-      document.dispatchEvent(new Event('visibilitychange'))
-    })
-    await flush()
-    expect(downloadCalls).toHaveLength(2)
-    await act(async () => {
-      vi.advanceTimersByTime(1000)
-    })
-    await flush()
-    expect(countCalls).toHaveLength(1)
-  })
-
-  it('gives up polling at the limit with one final reconcile', async () => {
-    pendingCount = 3
-    await renderHook(() => useICloudRefresh())
-    await flush()
-    expect(refreshIndex).not.toHaveBeenCalled()
-
-    // Never finishes downloading (a big asset on a slow link): the poll caps
-    // out with a last reconcile instead of spinning forever.
-    for (let i = 0; i < 25; i += 1) {
-      await act(async () => {
-        vi.runOnlyPendingTimers()
-      })
-      await flush()
-    }
-    expect(refreshIndex).toHaveBeenCalledTimes(1)
-    // Well-bounded: one nudge, then at most limit/interval count polls.
-    expect(downloadCalls).toHaveLength(1)
-    expect(countCalls.length).toBeLessThanOrEqual(21)
-    // Notes never drained, so the bulk request stays deferred — it would
-    // compete with the notes still downloading on the slow link.
-    expect(allScopeDownloadCalls).toHaveLength(0)
-  })
-
-  it('a failed nudge never starts the bulk download', async () => {
-    // `pending` defaulting to 0 on error must not read as "notes are in".
-    setBridge({
-      invoke: async (command) => {
-        if (command === 'icloud_download_pending') {
-          throw { kind: 'io', message: 'container hiccup' }
-        }
-        return null
-      },
-      listen: async () => () => {},
-    })
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      await renderHook(() => useICloudRefresh())
-      await flush()
-
-      expect(allScopeDownloadCalls).toHaveLength(0)
-      expect(errorSpy).toHaveBeenCalled()
-    } finally {
-      errorSpy.mockRestore()
-    }
-  })
-
-  it('collapses the resume event burst into one refresh — which reconciles', async () => {
-    await renderHook(() => useICloudRefresh())
-    await flush()
-    expect(downloadCalls).toHaveLength(1)
-
-    // WKWebView fires visibilitychange + focus together on resume.
-    await act(async () => {
-      document.dispatchEvent(new Event('visibilitychange'))
-      window.dispatchEvent(new Event('focus'))
-    })
-    await flush()
-    expect(downloadCalls).toHaveLength(1) // deduped — still within the window
-    expect(refreshIndex).not.toHaveBeenCalled()
-
-    await act(async () => {
-      vi.advanceTimersByTime(2000)
-      window.dispatchEvent(new Event('focus'))
-    })
-    await flush()
-    expect(downloadCalls).toHaveLength(2) // a real later resume refreshes
-    expect(refreshIndex).toHaveBeenCalledTimes(1) // and resume does reconcile
-  })
-
-  it('stops listening after unmount', async () => {
-    const { unmount } = await renderHook(() => useICloudRefresh())
-    await flush()
+  it('disposes the service on unmount', async () => {
+    const { created, wrapper } = setup()
+    const { unmount } = await renderHook(() => useICloudRefresh(), { wrapper })
     await unmount()
 
-    await act(async () => {
-      vi.advanceTimersByTime(5000)
-      window.dispatchEvent(new Event('focus'))
-    })
-    await flush()
-    expect(downloadCalls).toHaveLength(1)
+    expect(created[0]?.calls).toEqual(['start', 'dispose'])
+  })
+
+  it('replaces the service when another iCloud graph opens', async () => {
+    const { created, wrapper } = setup()
+    const { rerender } = await renderHook(() => useICloudRefresh(), { wrapper })
+
+    graphState.current = { ...graphState.current, graph: { root: '/iCloud/Other' } }
+    await rerender()
+
+    expect(created.map((entry) => entry.options.root)).toEqual([
+      '/iCloud/Documents',
+      '/iCloud/Other',
+    ])
+    expect(created[0]?.calls).toEqual(['start', 'dispose'])
+    expect(created[1]?.calls).toEqual(['start'])
   })
 })

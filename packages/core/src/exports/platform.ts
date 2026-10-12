@@ -61,14 +61,9 @@ export {
   getAppVersion,
   mobileStorage,
   mobileStorageLocal,
-  icloudDownloadPending,
   icloudPendingCount,
   icloudRequestDownloads,
   icloudStatus,
-  icloudAdoptGraph,
-  icloudConflictsScan,
-  icloudWatchStart,
-  icloudWatchStop,
   type IcloudDownloadScope,
   type IcloudScanOptions,
   type IcloudSweepScope,
@@ -125,6 +120,53 @@ export {
   type BackupState,
   type ConnectExistingResult,
 } from '../sync/backup-service.ts'
+export {
+  createICloudSyncService,
+  createICloudSyncServiceFactory,
+  defaultICloudSyncs,
+  isICloudRoot,
+  setDefaultICloudSyncs,
+  type ICloudSyncService,
+  type ICloudSyncServiceDeps,
+  type ICloudSyncServiceFactory,
+  type ICloudSyncServiceOptions,
+} from '../sync/icloud-sync-service.ts'
+export {
+  createICloudDownloadService,
+  createICloudDownloadServiceFactory,
+  defaultICloudDownloads,
+  setDefaultICloudDownloads,
+  type ICloudDownloadService,
+  type ICloudDownloadServiceDeps,
+  type ICloudDownloadServiceFactory,
+  type ICloudDownloadServiceOptions,
+} from '../sync/icloud-download-service.ts'
+export {
+  createICloudMigrationService,
+  defaultICloudMigration,
+  setDefaultICloudMigration,
+  type ICloudMigrationService,
+  type ICloudMigrationServiceDeps,
+  type MoveGraphToICloudOptions,
+} from '../sync/icloud-migration-service.ts'
+export {
+  createConflictResolutionService,
+  defaultConflictResolution,
+  setDefaultConflictResolution,
+  type ConflictResolutionOutcome,
+  type ConflictResolutionService,
+  type ConflictResolutionServiceDeps,
+  type ConflictResolutionSession,
+} from '../sync/conflict-resolution-service.ts'
+export {
+  createSyncStatusService,
+  defaultSyncStatus,
+  mobileSyncStatus,
+  setDefaultSyncStatus,
+  type MobileSyncStatus,
+  type SyncStatusInput,
+  type SyncStatusService,
+} from '../sync/sync-status-service.ts'
 export {
   createConnectGithubWizardService,
   type ConnectAuthKind,

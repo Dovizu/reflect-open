@@ -86,6 +86,23 @@ import { createGithubAuthService, type GithubAuthService } from '../sync/github-
 import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
 import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
 import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
+import {
+  createConflictResolutionService,
+  type ConflictResolutionService,
+} from '../sync/conflict-resolution-service.ts'
+import {
+  createICloudDownloadServiceFactory,
+  type ICloudDownloadServiceFactory,
+} from '../sync/icloud-download-service.ts'
+import {
+  createICloudMigrationService,
+  type ICloudMigrationService,
+} from '../sync/icloud-migration-service.ts'
+import {
+  createICloudSyncServiceFactory,
+  type ICloudSyncServiceFactory,
+} from '../sync/icloud-sync-service.ts'
+import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
@@ -327,6 +344,13 @@ export interface AppServices {
   /** Builds the backup lifecycle of one (graph, index session) pair. */
   readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
+  /** Builds the iCloud conflict lifecycle of one (graph, index session) pair. */
+  readonly icloudSyncs: ICloudSyncServiceFactory
+  /** Builds the download refresh of one open iCloud graph (mobile). */
+  readonly icloudDownloads: ICloudDownloadServiceFactory
+  readonly icloudMigration: ICloudMigrationService
+  readonly conflictResolution: ConflictResolutionService
+  readonly syncStatus: SyncStatusService
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
   readonly xArchive: XArchiveService
@@ -643,6 +667,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const gitHostCredentials = createGitHostCredentialService({ secretStore })
   const githubRepos = createGithubRepoService({ http: adapters.http })
   const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
+  const icloudNative = createICloudNativeService({ ipc, logger })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
   const retrieval = createRetrievalService({
     database,
@@ -748,7 +773,20 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       logger,
     }),
     gists: createGistService({ http: adapters.http }),
-    icloudNative: createICloudNativeService({ ipc, logger }),
+    icloudNative,
+    icloudSyncs: createICloudSyncServiceFactory({
+      icloudNative,
+      fileChanges,
+      indexLifecycle,
+      openDocuments,
+      lifecycle,
+      clock,
+      logger,
+    }),
+    icloudDownloads: createICloudDownloadServiceFactory({ icloudNative, lifecycle, clock, logger }),
+    icloudMigration: createICloudMigrationService({ icloudNative }),
+    conflictResolution: createConflictResolutionService({ noteFile, indexLifecycle, fileChanges }),
+    syncStatus: createSyncStatusService(),
     captureInbox,
     webFetch,
     xArchive,

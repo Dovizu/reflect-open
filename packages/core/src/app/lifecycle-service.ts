@@ -33,6 +33,8 @@ export interface AppLifecycleService {
   subscribeResume(listener: () => void): Unlisten
   /** Window focus or network back, unthrottled. */
   subscribeWake(listener: () => void): Unlisten
+  /** Window focus alone, unthrottled. */
+  subscribeFocus(listener: () => void): Unlisten
   subscribeVisible(listener: () => void): Unlisten
   subscribeHidden(listener: () => void): Unlisten
   subscribePageHide(listener: () => void): Unlisten
@@ -116,6 +118,7 @@ export function createLifecycleService(deps: {
       }
     },
     subscribeWake,
+    subscribeFocus: (listener) => dom.onPageEvent('focus', listener),
     subscribeVisible: (listener) => subscribeVisibility(true, listener),
     subscribeHidden: (listener) => subscribeVisibility(false, listener),
     subscribePageHide: (listener) => dom.onPageEvent('pagehide', listener),

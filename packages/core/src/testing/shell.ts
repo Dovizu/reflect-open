@@ -283,6 +283,7 @@ export function createTestWindowService(options?: {
 export interface TestLifecycleService extends AppLifecycleService {
   emitResume(): void
   emitWake(): void
+  emitFocus(): void
   emitVisible(): void
   emitHidden(): void
   emitPageHide(): void
@@ -305,6 +306,7 @@ export function createTestLifecycleService(options?: {
 }): TestLifecycleService {
   const resume = createListeners()
   const wake = createListeners()
+  const focus = createListeners()
   const visible = createListeners()
   const hiddenListeners = createListeners()
   const pageHide = createListeners()
@@ -317,6 +319,7 @@ export function createTestLifecycleService(options?: {
   return {
     subscribeResume: (listener) => resume.add(listener),
     subscribeWake: (listener) => wake.add(listener),
+    subscribeFocus: (listener) => focus.add(listener),
     subscribeVisible: (listener) => visible.add(listener),
     subscribeHidden: (listener) => hiddenListeners.add(listener),
     subscribePageHide: (listener) => pageHide.add(listener),
@@ -345,6 +348,9 @@ export function createTestLifecycleService(options?: {
     },
     emitWake: () => {
       wake.emit()
+    },
+    emitFocus: () => {
+      focus.emit()
     },
     emitVisible() {
       isHidden = false

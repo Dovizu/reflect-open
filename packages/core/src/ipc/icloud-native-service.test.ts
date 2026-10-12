@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { subscribeIcloudConflicts } from '../indexing/icloud-conflicts.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestICloudNativeService } from '../testing/sync.ts'
@@ -126,17 +125,9 @@ describe('defaultICloudNative', () => {
   it('backs the free functions and can be replaced', async () => {
     const icloud = createTestICloudNativeService({ pendingCount: 3 })
     setDefaultICloudNative(icloud)
-    const received: string[][] = []
-    const unlisten = await subscribeIcloudConflicts((paths) => {
-      received.push(paths)
-    })
 
     await expect(icloudPendingCount('/c', 'notes')).resolves.toBe(3)
-    icloud.emitConflicts(['notes/a.md'])
-    unlisten()
-    icloud.emitConflicts(['notes/b.md'])
 
     expect(icloud.calls()).toEqual([{ method: 'pendingCount', args: ['/c', 'notes'] }])
-    expect(received).toEqual([['notes/a.md']])
   })
 })
