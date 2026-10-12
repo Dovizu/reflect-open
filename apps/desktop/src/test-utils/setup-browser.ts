@@ -3,7 +3,7 @@ import '@/styles/index.css'
 import { resetLocalStorageStores } from '@/lib/local-storage.ts'
 import { resetSessionStorageStores } from '@/lib/session-storage.ts'
 
-// A store holds its key's value in memory, so a test that clears
+// The default storage caches values in memory, so a test that clears
 // localStorage or sessionStorage would otherwise keep reading what the
 // previous one left behind.
 beforeEach(() => {

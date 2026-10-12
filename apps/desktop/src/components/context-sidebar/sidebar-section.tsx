@@ -1,5 +1,6 @@
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
+import { getSessionStorageStore } from '@/lib/session-storage.ts'
 import { cn } from '@/lib/utils.ts'
 
 interface SidebarSectionProps {
@@ -12,7 +13,7 @@ interface SidebarSectionProps {
 const STORAGE_PREFIX = 'reflect.context-sidebar.'
 
 function readOpenState(storageKey: string): boolean {
-  return window.sessionStorage.getItem(STORAGE_PREFIX + storageKey) !== 'closed'
+  return getSessionStorageStore(STORAGE_PREFIX + storageKey).get() !== 'closed'
 }
 
 /**
@@ -28,7 +29,7 @@ export function SidebarSection({ storageKey, title, children }: SidebarSectionPr
   const toggle = (): void => {
     const next = !open
     setOpen(next)
-    window.sessionStorage.setItem(STORAGE_PREFIX + storageKey, next ? 'open' : 'closed')
+    getSessionStorageStore(STORAGE_PREFIX + storageKey).set(next ? 'open' : 'closed')
   }
 
   const Chevron = open ? ChevronDown : ChevronRight

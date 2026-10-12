@@ -1,4 +1,4 @@
-import type { ThemePreference } from '@reflect/core'
+import { defaultStorage, type ThemePreference } from '@reflect/core'
 
 /**
  * Where the theme preference is mirrored for the *next* launch.
@@ -22,9 +22,5 @@ export const THEME_PREFERENCE_CACHE_KEY = 'reflect.theme.preference'
  * with storage unavailable just falls back to the OS preference.
  */
 export function writeCachedThemePreference(preference: ThemePreference): void {
-  try {
-    localStorage.setItem(THEME_PREFERENCE_CACHE_KEY, preference)
-  } catch {
-    // Storage is unavailable; theme-init.js falls back to `prefers-color-scheme`.
-  }
+  defaultStorage().local.set(THEME_PREFERENCE_CACHE_KEY, preference)
 }

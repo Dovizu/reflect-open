@@ -1,9 +1,10 @@
-import { upsertFrontmatter, type PinnedNote } from '@reflect/core'
+import { setDefaultStorage, upsertFrontmatter, type PinnedNote } from '@reflect/core'
+import { createTestStorageService } from '@reflect/core/testing'
 import { frontmatterPatchToYaml, type FrontmatterPatch } from '@/editor/note-session.ts'
 import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { queryKeys } from '@/lib/query-client.ts'
 import { RouterProvider } from '@/routing/router.tsx'
@@ -54,7 +55,7 @@ async function renderSection(path: string, showTrash = false) {
 }
 
 beforeEach(() => {
-  window.sessionStorage.clear()
+  setDefaultStorage(createTestStorageService())
   getPinnedNotes.mockReset().mockResolvedValue([])
   getNote.mockReset().mockResolvedValue(noteRow('notes/a.md', false))
   noteSource.value = '# A\n'
@@ -66,6 +67,10 @@ beforeEach(() => {
   startOperation.mockClear()
   operationFail.mockClear()
   isApplePlatform.mockReturnValue(false)
+})
+
+afterEach(() => {
+  setDefaultStorage(null)
 })
 
 function noteRow(path: string, isPrivate: boolean, title = 'A') {

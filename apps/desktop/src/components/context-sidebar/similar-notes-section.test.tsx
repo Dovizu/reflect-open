@@ -1,7 +1,9 @@
 import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultStorage } from '@reflect/core'
+import { createTestStorageService } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { SimilarNotesSection } from './similar-notes-section.tsx'
@@ -51,11 +53,15 @@ function renderSimilar(path: string, probe: boolean = true) {
 }
 
 beforeEach(() => {
-  window.sessionStorage.clear()
+  setDefaultStorage(createTestStorageService())
   semanticSetting.enabled = true
   readNote.mockReset().mockResolvedValue('- daily entry\n')
   relatedNotes.mockReset().mockResolvedValue([])
   openRouteInNewWindow.mockReset().mockResolvedValue(true)
+})
+
+afterEach(() => {
+  setDefaultStorage(null)
 })
 
 describe('SimilarNotesSection', () => {
