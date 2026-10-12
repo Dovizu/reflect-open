@@ -1,3 +1,4 @@
+import { defaultLogger } from '../app/logger-service.ts'
 import type { Unlisten } from '../ipc/bridge.ts'
 import { isAssetPath, isNotePath } from '../graph/paths.ts'
 import { readNote } from '../graph/commands.ts'
@@ -41,7 +42,7 @@ export type ApplyErrorHandler = (error: unknown, change: FileChange) => void
 export type MovedHandler = (from: string, to: string) => void
 
 const logApplyError: ApplyErrorHandler = (error, change) => {
-  console.error(`failed to index change for ${change.path}:`, error)
+  defaultLogger().error(`failed to index change for ${change.path}:`, error)
 }
 
 /**
@@ -127,7 +128,7 @@ async function prefetchFacts(paths: string[]): Promise<Map<string, IndexedFileFa
   try {
     return await getIndexedFileFactsByPath(paths)
   } catch (error) {
-    console.error('stored-facts prefetch failed; applying the batch without skips:', error)
+    defaultLogger().error('stored-facts prefetch failed; applying the batch without skips:', error)
     return new Map()
   }
 }
@@ -135,7 +136,7 @@ async function prefetchFacts(paths: string[]): Promise<Map<string, IndexedFileFa
 /**
  * Apply a batch of watcher changes to the index at `generation`. Same-batch
  * rename pairs heal as moves first ({@link healBatchMoves}); the rest apply
- * in order. A failing change is reported (default: `console.error`) and
+ * in order. A failing change is reported (default: logged as an error) and
  * skipped, so one unreadable file can't stall the rest of the batch.
  *
  * Returns how many index mutations the batch actually performed (applies,
@@ -171,7 +172,7 @@ export async function applyIndexChanges(
   } catch (error) {
     // Healing is best-effort: a failure here (e.g. the id lookup) must not
     // cost the batch — everything degrades to the plain path below.
-    console.error('move healing failed; applying the batch plainly:', error)
+    defaultLogger().error('move healing failed; applying the batch plainly:', error)
     handled = new Set()
   }
 
@@ -332,7 +333,7 @@ export function subscribeIndexChanges(
         emitIndexApplied(changes, generation)
       })
       .catch((error) => {
-        console.error('failed to apply watcher batch:', error)
+        defaultLogger().error('failed to apply watcher batch:', error)
       })
   })
 }

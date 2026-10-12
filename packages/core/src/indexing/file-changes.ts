@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defaultLogger } from '../app/logger-service.ts'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 
 /**
@@ -62,7 +63,7 @@ export function subscribeFileChanges(handler: FileChangeHandler): Promise<Unlist
       } else {
         // A malformed payload means the Rust↔TS event contract drifted — loud
         // beats silently-stale indexes and editors.
-        console.error('invalid index:changed payload:', parsed.error)
+        defaultLogger().error('invalid index:changed payload:', parsed.error)
       }
     })
     .then(

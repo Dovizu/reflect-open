@@ -12,6 +12,7 @@ import {
   type MarkdownTableCell,
 } from '@meowdown/markdown'
 import { DefaultMap } from '@ocavue/utils'
+import { defaultLogger } from '../app/logger-service.ts'
 import { appendBlock } from './append-section.ts'
 import { splitFrontmatter } from './frontmatter.ts'
 import { renderInlineText } from './inline-text.ts'
@@ -319,7 +320,7 @@ function resolveTaskLocator<T>(
   }
   const byContent = entries.filter((entry) => hasSameContent(locatorOf(entry), locator))
   if (byContent.length > 1) {
-    console.warn(
+    defaultLogger().warn(
       `task is ambiguous, taking the first of ${byContent.length}: ${JSON.stringify(locator.markdown)}`,
     )
   }

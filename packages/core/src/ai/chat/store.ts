@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { ModelMessage } from '@reflect/modules/ai'
+import { defaultLogger } from '../../app/logger-service.ts'
 import { db } from '../../indexing/db.ts'
 import { call } from '../../ipc/invoke.ts'
 import type { AssistantPart, ChatTurn } from './transcript.ts'
@@ -216,7 +217,7 @@ export async function loadChatMessages(conversationId: string): Promise<ChatTurn
   return rows.flatMap((row) => {
     const turn = parseTurn(row)
     if (turn === null) {
-      console.error(`dropping unreadable chat message ${row.id} in ${conversationId}`)
+      defaultLogger().error(`dropping unreadable chat message ${row.id} in ${conversationId}`)
       return []
     }
     return [turn]

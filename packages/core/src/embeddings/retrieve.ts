@@ -1,4 +1,5 @@
 import { sql } from 'kysely'
+import { defaultLogger } from '../app/logger-service.ts'
 import { db } from '../indexing/db.ts'
 import { searchWithFilters } from '../indexing/filtered-search.ts'
 import { literalSearchQuery } from '../indexing/filter-query.ts'
@@ -178,7 +179,7 @@ export async function retrieve(query: string, options?: RetrieveOptions): Promis
   const [lexical, semantic] = await Promise.all([
     lexicalHits(query, limit),
     semanticHits(query, limit).catch((cause): RetrievalHit[] => {
-      console.error('semantic leg failed; serving lexical only:', cause)
+      defaultLogger().error('semantic leg failed; serving lexical only:', cause)
       return []
     }),
   ])

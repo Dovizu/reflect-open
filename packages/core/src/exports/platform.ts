@@ -64,6 +64,7 @@ export { WINDOW_NAVIGATE_EVENT, subscribeWindowNavigate } from '../app/window-ev
 export { toggleDevtools } from '../app/devtools.ts'
 export { createSystemIdService, type IdService, type PkcePair } from '../app/id-service.ts'
 export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
+export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export {
   agentSkillStatus,
   agentSkillInstall,

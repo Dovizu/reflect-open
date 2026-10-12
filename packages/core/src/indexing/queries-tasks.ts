@@ -1,3 +1,4 @@
+import { defaultLogger } from '../app/logger-service.ts'
 import {
   compareTaskPaths,
   decodeTaskPath,
@@ -75,7 +76,10 @@ function toTaskRows(rows: readonly TaskRecord[]): OpenTask[] {
         isPinned: isPinned !== 0,
       })
     } catch (cause) {
-      console.error(`tasks: skipping an unreadable row in ${row.notePath} (${astPath})`, cause)
+      defaultLogger().error(
+        `tasks: skipping an unreadable row in ${row.notePath} (${astPath})`,
+        cause,
+      )
     }
   }
   return tasks

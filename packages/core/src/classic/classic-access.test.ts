@@ -1,7 +1,9 @@
 import { verifyChallenge } from 'pkce-challenge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultLogger } from '../app/logger-service.ts'
 import { setBridge } from '../ipc/bridge.ts'
 import { createTestIdService } from '../testing/index.ts'
+import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import {
   CLASSIC_ACCESS_SECRET,
   classicAccessUntil,
@@ -102,7 +104,11 @@ function storedAccess(overrides: Partial<ClassicAccess> = {}): ClassicAccess {
   }
 }
 
+let logger: TestLoggerService
+
 beforeEach(() => {
+  logger = createTestLoggerService()
+  setDefaultLogger(logger)
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
 })
@@ -111,6 +117,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   setBridge(null)
+  setDefaultLogger(null)
 })
 
 describe('classicPaidThrough', () => {
@@ -283,7 +290,6 @@ describe('signInWithClassic', () => {
 
   it('rejects and logs a code that Reflect Classic does not accept', async () => {
     fakeKeychain()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { fetchFn } = fakeFetch({
       '/api/oauth/token': () => jsonResponse({ error: { type: 'error' } }, 400),
     })
@@ -291,12 +297,13 @@ describe('signInWithClassic', () => {
     await expect(
       signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
     ).rejects.toMatchObject({ kind: 'auth' })
-    expect(warn).toHaveBeenCalledWith('Reflect Classic answered 400 (/api/oauth/token)')
+    expect(logger.getWarnings()).toEqual([
+      { message: 'Reflect Classic answered 400 (/api/oauth/token)', cause: undefined },
+    ])
   })
 
   it('reports and logs an error status as a network failure', async () => {
     fakeKeychain()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { fetchFn } = fakeFetch({
       '/api/oauth/token': tokenRoute(),
       '/api/users/me': () => jsonResponse({ error: { type: 'error' } }, 500),
@@ -305,12 +312,13 @@ describe('signInWithClassic', () => {
     await expect(
       signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
     ).rejects.toMatchObject({ kind: 'network' })
-    expect(warn).toHaveBeenCalledWith('Reflect Classic answered 500 (/api/users/me)')
+    expect(logger.getWarnings()).toEqual([
+      { message: 'Reflect Classic answered 500 (/api/users/me)', cause: undefined },
+    ])
   })
 
   it('reports and logs a body that is not JSON as a parse failure', async () => {
     fakeKeychain()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { fetchFn } = fakeFetch({
       '/api/oauth/token': tokenRoute(),
       '/api/users/me': () => new Response('<html>oops</html>', { status: 200 }),
@@ -319,15 +327,16 @@ describe('signInWithClassic', () => {
     await expect(
       signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
     ).rejects.toMatchObject({ kind: 'parse' })
-    expect(warn).toHaveBeenCalledWith(
-      'Reflect Classic returned a body that is not JSON (/api/users/me)',
-      expect.any(SyntaxError),
-    )
+    expect(logger.getWarnings()).toEqual([
+      {
+        message: 'Reflect Classic returned a body that is not JSON (/api/users/me)',
+        cause: expect.any(SyntaxError),
+      },
+    ])
   })
 
   it('reports and logs a body with an unexpected shape as a parse failure', async () => {
     fakeKeychain()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { fetchFn } = fakeFetch({
       '/api/oauth/token': tokenRoute(),
       '/api/users/me': () => jsonResponse({ email: 'a@example.com' }),
@@ -336,14 +345,15 @@ describe('signInWithClassic', () => {
     await expect(
       signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
     ).rejects.toMatchObject({ kind: 'parse' })
-    expect(warn).toHaveBeenCalledWith(
-      'Reflect Classic returned an unexpected body (/api/users/me)',
-      expect.anything(),
-    )
+    expect(logger.getWarnings()).toEqual([
+      {
+        message: 'Reflect Classic returned an unexpected body (/api/users/me)',
+        cause: expect.anything(),
+      },
+    ])
   })
   it('reports and logs an invoice period end that is not a date as a parse failure', async () => {
     fakeKeychain()
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { fetchFn } = fakeFetch({
       '/api/oauth/token': tokenRoute(),
       '/api/users/me': meRoute(false),
@@ -353,10 +363,12 @@ describe('signInWithClassic', () => {
     await expect(
       signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
     ).rejects.toMatchObject({ kind: 'parse' })
-    expect(warn).toHaveBeenCalledWith(
-      'Reflect Classic returned an unexpected body (/api/users/me/invoices)',
-      expect.anything(),
-    )
+    expect(logger.getWarnings()).toEqual([
+      {
+        message: 'Reflect Classic returned an unexpected body (/api/users/me/invoices)',
+        cause: expect.anything(),
+      },
+    ])
   })
 })
 
@@ -387,10 +399,9 @@ describe('loadClassicAccess', () => {
 
   it('ignores and logs an unreadable record', async () => {
     fakeKeychain({ [CLASSIC_ACCESS_SECRET]: '{"broken"' })
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const { fetchFn } = fakeFetch({})
     await expect(loadClassicAccess(fetchFn)).resolves.toBeNull()
-    expect(error).toHaveBeenCalledOnce()
+    expect(logger.getErrors()).toHaveLength(1)
   })
 
   it('returns a record checked within the last day without a request', async () => {
@@ -422,26 +433,24 @@ describe('loadClassicAccess', () => {
 
   it('drops a rejected token but keeps the expiry', async () => {
     const keychain = keychainWith(storedAccess())
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { fetchFn } = fakeFetch({ '/api/users/me': () => jsonResponse({}, 401) })
 
     const expected = storedAccess({ token: null })
     await expect(loadClassicAccess(fetchFn)).resolves.toEqual(expected)
     expect(JSON.parse(keychain.get(CLASSIC_ACCESS_SECRET) ?? 'null')).toEqual(expected)
-    expect(warn).toHaveBeenCalledOnce()
+    expect(logger.getWarnings()).toHaveLength(1)
   })
 
   it('keeps the record unchanged when Reflect Classic cannot be reached', async () => {
     const access = storedAccess()
     const keychain = keychainWith(access)
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { fetchFn } = fakeFetch({
       '/api/users/me': () => Promise.reject(new TypeError('offline')),
     })
 
     await expect(loadClassicAccess(fetchFn)).resolves.toEqual(access)
     expect(JSON.parse(keychain.get(CLASSIC_ACCESS_SECRET) ?? 'null')).toEqual(access)
-    expect(warn).toHaveBeenCalledOnce()
+    expect(logger.getWarnings()).toHaveLength(1)
   })
 
   it('never rechecks once the token is gone', async () => {

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defaultLogger } from '../app/logger-service.ts'
 import { echoLocalWrite } from '../indexing/local-write-echo.ts'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 import { call } from '../ipc/invoke.ts'
@@ -90,7 +91,7 @@ export function subscribeImportProgress(
     if (parsed.success) {
       handler(parsed.data)
     } else {
-      console.error('invalid import:progress payload:', parsed.error)
+      defaultLogger().error('invalid import:progress payload:', parsed.error)
     }
   })
 }

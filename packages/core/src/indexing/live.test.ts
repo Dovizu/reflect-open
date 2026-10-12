@@ -1,11 +1,21 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultLogger } from '../app/logger-service.ts'
 import { setBridge } from '../ipc/bridge.ts'
+import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import type { FileChange } from './file-changes.ts'
 import { subscribeIndexApplied } from './index-applied.ts'
 import { applyIndexChanges, subscribeIndexChanges } from './live.ts'
 
+let logger: TestLoggerService
+
+beforeEach(() => {
+  logger = createTestLoggerService()
+  setDefaultLogger(logger)
+})
+
 afterEach(() => {
   setBridge(null)
+  setDefaultLogger(null)
 })
 
 /** Bridge fake recording invokes; `listen` hands the emitter back to the test. */
@@ -309,21 +319,19 @@ describe('subscribeIndexChanges', () => {
 
   it('drops malformed payloads instead of applying them', async () => {
     const calls: string[] = []
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const { emitChanges } = fakeBridge(async (command) => {
-        calls.push(command)
-        return null
-      })
-      await subscribeIndexChanges(1)
-      emitChanges({ not: 'an array' })
-      emitChanges([{ path: 1, kind: 'upsert' }])
-      await Promise.resolve()
-      expect(calls).toEqual([])
-      expect(errorSpy).toHaveBeenCalled()
-    } finally {
-      errorSpy.mockRestore()
-    }
+    const { emitChanges } = fakeBridge(async (command) => {
+      calls.push(command)
+      return null
+    })
+    await subscribeIndexChanges(1)
+    emitChanges({ not: 'an array' })
+    emitChanges([{ path: 1, kind: 'upsert' }])
+    await Promise.resolve()
+    expect(calls).toEqual([])
+    expect(logger.getErrors().map((entry) => entry.message)).toEqual([
+      'invalid index:changed payload:',
+      'invalid index:changed payload:',
+    ])
   })
 })
 

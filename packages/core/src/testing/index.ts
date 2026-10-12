@@ -9,3 +9,4 @@ export {
   type TestHashService,
   type TestIdService,
 } from './id.ts'
+export { createTestLoggerService, type LogEntry, type TestLoggerService } from './logger.ts'

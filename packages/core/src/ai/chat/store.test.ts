@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultLogger } from '../../app/logger-service.ts'
 import { setBridge } from '../../ipc/bridge.ts'
+import { createTestLoggerService, type TestLoggerService } from '../../testing/logger.ts'
 import { loadChatMessages, saveChatMessage } from './store.ts'
 import type { ChatTurn } from './transcript.ts'
 
@@ -11,15 +13,18 @@ import type { ChatTurn } from './transcript.ts'
  */
 
 const invoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
+let logger: TestLoggerService
 
 beforeEach(() => {
   invoke.mockReset()
+  logger = createTestLoggerService()
+  setDefaultLogger(logger)
   setBridge({ invoke, listen: async () => () => {} })
 })
 
 afterEach(() => {
   setBridge(null)
-  vi.restoreAllMocks()
+  setDefaultLogger(null)
 })
 
 const turn: ChatTurn = {
@@ -99,15 +104,15 @@ describe('loadChatMessages', () => {
   })
 
   it('drops an unreadable row but keeps the rest', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     invoke.mockResolvedValue([messageRow({ id: 'turn-bad', parts: '{not json' }), messageRow()])
     const turns = await loadChatMessages('conv-1')
     expect(turns).toEqual([turn])
-    expect(error).toHaveBeenCalledOnce()
+    expect(logger.getErrors()).toEqual([
+      { message: 'dropping unreadable chat message turn-bad in conv-1', cause: undefined },
+    ])
   })
 
   it('drops a row whose parts fail validation', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
     invoke.mockResolvedValue([messageRow({ parts: JSON.stringify([{ kind: 'mystery' }]) })])
     expect(await loadChatMessages('conv-1')).toEqual([])
   })

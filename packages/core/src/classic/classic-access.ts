@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defaultIdService, type IdService } from '../app/id-service.ts'
+import { defaultLogger } from '../app/logger-service.ts'
 import { ReflectError } from '../errors.ts'
 import { deleteSecret, getSecret, setSecret } from '../secrets/keychain.ts'
 
@@ -113,21 +114,21 @@ async function readResponse<T>(
   failure: 'auth' | 'network',
 ): Promise<T> {
   if (!response.ok) {
-    console.warn(`Reflect Classic answered ${response.status} (${path})`)
+    defaultLogger().warn(`Reflect Classic answered ${response.status} (${path})`)
     throw new ReflectError(failure, `Reflect Classic answered ${response.status} (${path})`)
   }
   let json: unknown
   try {
     json = await response.json()
   } catch (error) {
-    console.warn(`Reflect Classic returned a body that is not JSON (${path})`, error)
+    defaultLogger().warn(`Reflect Classic returned a body that is not JSON (${path})`, error)
     throw new ReflectError('parse', `Reflect Classic returned a body that is not JSON (${path})`, {
       cause: error,
     })
   }
   const body = schema.safeParse(json)
   if (!body.success) {
-    console.warn(`Reflect Classic returned an unexpected body (${path})`, body.error)
+    defaultLogger().warn(`Reflect Classic returned an unexpected body (${path})`, body.error)
     throw new ReflectError('parse', `Reflect Classic returned an unexpected body (${path})`, {
       cause: body.error,
     })
@@ -188,7 +189,7 @@ export async function readClassicAccess(): Promise<ClassicAccess | null> {
   try {
     return classicAccessSchema.parse(JSON.parse(raw))
   } catch (error) {
-    console.error('Ignoring an unreadable Reflect Classic access record', error)
+    defaultLogger().error('Ignoring an unreadable Reflect Classic access record', error)
     return null
   }
 }
@@ -255,12 +256,18 @@ export async function loadClassicAccess(fetchFn: typeof fetch): Promise<ClassicA
     return next
   } catch (error: unknown) {
     if (error instanceof ReflectError && error.kind === 'auth') {
-      console.warn('Reflect Classic rejected the stored token; keeping the current expiry', error)
+      defaultLogger().warn(
+        'Reflect Classic rejected the stored token; keeping the current expiry',
+        error,
+      )
       const next = { ...stored, token: null }
       await saveAccess(next)
       return next
     }
-    console.warn('Checking the Reflect Classic subscription failed; will retry later', error)
+    defaultLogger().warn(
+      'Checking the Reflect Classic subscription failed; will retry later',
+      error,
+    )
     return stored
   }
 }
