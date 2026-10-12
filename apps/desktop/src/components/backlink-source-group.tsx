@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import type { WikilinkClickHandler } from '@meowdown/core'
 import { BacklinkSnippet } from '@/components/backlink-snippet.tsx'
 import type { BacklinkSource } from '@/lib/group-backlinks.ts'
-import type { ModClickEvent } from '@/lib/windows/open-in-new-window.ts'
+import type { ModClickEvent } from '@/hooks/use-note-link-navigation.ts'
 import { useNoteLabel } from '@/hooks/use-note-label.ts'
 
 interface BacklinkSourceGroupProps {

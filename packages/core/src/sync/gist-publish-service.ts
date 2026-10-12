@@ -25,35 +25,6 @@ export interface GistPublishResult {
 /** Publishing a note as a secret GitHub gist, and taking it down again. */
 export interface GistPublishService {
   /**
-   * Publish a note's body to a GitHub Gist (always secret), recording the gist
-   * in the note's `gist` frontmatter block, and return the gist url. A note
-   * that already carries the block republishes to the **same** gist,
-   * addressing the file by the name it was last published under, so a title
-   * change renames instead of adding a second file. A gist deleted on
-   * github.com falls back to creating a fresh one. The stored hash is of the
-   * body as published, so the indexer's `gist_stale` reflects real edits,
-   * never the frontmatter write itself.
-   *
-   * Reads and writes through `NoteDocumentService`, exactly like the
-   * pin/private toggles: a direct disk write under a dirty buffer would park
-   * a conflict caused by our own action, and a still-loading session is read
-   * from disk rather than from its empty placeholder buffer.
-   *
-   * `private: true` is the hard block: the gate runs on the content actually
-   * being published (live, not the possibly-lagging index), and it fails
-   * closed before any byte leaves the device.
-   */
-  publishNote(path: string, generation: number): Promise<string>
-  /**
-   * Delete the note's published GitHub Gist and remove the local `gist`
-   * frontmatter block. A missing local block is already unpublished, so this
-   * is a no-op. The local record is cleared before the remote delete, so a
-   * local write failure cannot leave Reflect pointing at a dead link. If
-   * GitHub rejects the delete, the local block is restored before the error
-   * is surfaced.
-   */
-  unpublishNote(path: string, generation: number): Promise<void>
-  /**
    * The publish action as every entry point runs it (Note actions button,
    * ⌘K command): publish, copy the gist link, and surface progress through
    * the operations status line. The second short-lived entry is the only
@@ -100,6 +71,25 @@ export function createGistPublishService(deps: {
     return true
   }
 
+  /**
+   * Publish a note's body to a GitHub Gist (always secret), recording the gist
+   * in the note's `gist` frontmatter block, and return the gist url. A note
+   * that already carries the block republishes to the **same** gist,
+   * addressing the file by the name it was last published under, so a title
+   * change renames instead of adding a second file. A gist deleted on
+   * github.com falls back to creating a fresh one. The stored hash is of the
+   * body as published, so the indexer's `gist_stale` reflects real edits,
+   * never the frontmatter write itself.
+   *
+   * Reads and writes through `NoteDocumentService`, exactly like the
+   * pin/private toggles: a direct disk write under a dirty buffer would park
+   * a conflict caused by our own action, and a still-loading session is read
+   * from disk rather than from its empty placeholder buffer.
+   *
+   * `private: true` is the hard block: the gate runs on the content actually
+   * being published (live, not the possibly-lagging index), and it fails
+   * closed before any byte leaves the device.
+   */
   async function publishNote(path: string, generation: number): Promise<string> {
     const source = await noteDocuments.readSource(path)
     const parsed = parseNote({ path, source })
@@ -155,6 +145,14 @@ export function createGistPublishService(deps: {
     return published.htmlUrl
   }
 
+  /**
+   * Delete the note's published GitHub Gist and remove the local `gist`
+   * frontmatter block. A missing local block is already unpublished, so this
+   * is a no-op. The local record is cleared before the remote delete, so a
+   * local write failure cannot leave Reflect pointing at a dead link. If
+   * GitHub rejects the delete, the local block is restored before the error
+   * is surfaced.
+   */
   async function unpublishNote(path: string, generation: number): Promise<void> {
     const source = await noteDocuments.readSource(path)
     const parsed = parseNote({ path, source })
@@ -185,8 +183,6 @@ export function createGistPublishService(deps: {
   }
 
   return {
-    publishNote,
-    unpublishNote,
     async publish(path, generation) {
       if (!claim(path)) {
         return null

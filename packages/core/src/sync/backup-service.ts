@@ -11,12 +11,12 @@ import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { isSyncError, type SyncEngine, type SyncEngineFactory, type SyncStatus } from './engine.ts'
-import { remoteHost, type GitHostCredentialService } from './git-host-credential-service.ts'
 import type { ChangedFile, GitRepositoryService } from './git-repository-service.ts'
 import { githubCredential, type GithubAuthService } from './github-auth-service.ts'
 import {
   githubRemoteUrl,
   parseGithubRemote,
+  remoteHost,
   type GithubRepoRef,
   type GithubRepoService,
 } from './github-repo-service.ts'
@@ -64,7 +64,6 @@ export interface BackupServiceDeps {
   syncEngines: SyncEngineFactory
   githubAuth: GithubAuthService
   githubRepos: GithubRepoService
-  gitHostCredentials: GitHostCredentialService
   fileChanges: FileChangeService
   /** Applies the notes a pull changed. */
   indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
@@ -142,7 +141,6 @@ export function createBackupService(
     syncEngines,
     githubAuth,
     githubRepos,
-    gitHostCredentials,
     fileChanges,
     indexLifecycle,
     operations,
@@ -341,23 +339,14 @@ export function createBackupService(
         await startLocalHistory(status.initialized)
         return
       }
-      // A non-GitHub HTTPS host needs a stored sign-in (SSH and path remotes
-      // need none: the agent or the filesystem answers). Fail at adoption,
-      // not at the first push: a *public* HTTPS remote would pull anonymously
-      // and only 401 on push — the other device's edits arriving while this
-      // one's silently never leave. `rejected` = acting (not retrying) is
-      // the fix.
+      // The app has no sign-in for a non-GitHub HTTPS host (SSH and path
+      // remotes need none: the agent or the filesystem answers). Fail at
+      // adoption, not at the first push: a *public* HTTPS remote would pull
+      // anonymously and only 401 on push, so the other device's edits arrive
+      // while this one's silently never leave. `rejected` = acting (not
+      // retrying) is the fix.
       const host = repo === null ? remoteHost(remoteUrl) : null
-      // A keychain the app cannot read is "no sign-in" here, as for the
-      // GitHub read above: the graph must keep its local history either way.
-      const hostCredential =
-        host === null
-          ? null
-          : await gitHostCredentials.load(host).catch((error: unknown) => {
-              logger.error('reading the host sign-in failed:', errorMessage(error))
-              return null
-            })
-      if (host !== null && hostCredential === null) {
+      if (host !== null) {
         setState({
           phase: 'connected',
           remoteUrl,
@@ -365,7 +354,7 @@ export function createBackupService(
           status: {
             state: 'error',
             errorKind: 'rejected',
-            message: `No sign-in is stored for ${host}. Add one in Settings → GitHub sync, or switch the remote to its SSH form: git remote set-url origin git@${host}:<owner>/<repo>.git`,
+            message: `Backup cannot sign in to ${host} over HTTPS. Switch the remote to its SSH form: git remote set-url origin git@${host}:<owner>/<repo>.git`,
           },
         })
         await startLocalHistory(status.initialized)
@@ -380,18 +369,15 @@ export function createBackupService(
         // The background flusher's protected local commit bypasses this
         // engine deliberately.
         canStartCycle: () => !mobile || !lifecycle.isHidden(),
-        // The managed sign-in is for github.com only; another HTTPS host gets
-        // its own stored sign-in; SSH and path remotes get none and Rust
-        // resolves them locally.
+        // The managed sign-in is for github.com only; SSH and path remotes
+        // get none and Rust resolves them locally.
         getCredential:
           repo !== null
             ? async () => {
                 const token = await githubAuth.getToken()
                 return token === null ? null : githubCredential(token)
               }
-            : host !== null
-              ? () => gitHostCredentials.load(host)
-              : async () => null,
+            : async () => null,
         onStatus: (engineStatus) => {
           setState({ phase: 'connected', remoteUrl, repo, status: engineStatus })
           if (repo !== null && isForbidden(engineStatus)) {

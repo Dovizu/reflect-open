@@ -88,10 +88,6 @@ import {
 } from '../sync/git-repository-service.ts'
 import { createGistService, type GistService } from '../sync/gist-service.ts'
 import { createGistPublishService, type GistPublishService } from '../sync/gist-publish-service.ts'
-import {
-  createGitHostCredentialService,
-  type GitHostCredentialService,
-} from '../sync/git-host-credential-service.ts'
 import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
 import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
 import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
@@ -365,7 +361,6 @@ export interface AppServices {
   readonly linkNavigation: LinkNavigationService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
-  readonly gitHostCredentials: GitHostCredentialService
   readonly githubRepos: GithubRepoService
   readonly gists: GistService
   readonly gistPublish: GistPublishService
@@ -688,6 +683,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
   })
   const opener = createOpenerService({ transport: adapters.opener, logger })
+  const navigation = createNavigationService()
   const deepLink = createDeepLinkService({
     source: adapters.deepLink ?? createNoDeepLinkSource(),
     indexQuery: indexReads.indexQuery,
@@ -715,7 +711,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   })
   const gitRepository = createGitRepositoryService({ ipc })
   const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
-  const gitHostCredentials = createGitHostCredentialService({ secretStore })
   const githubRepos = createGithubRepoService({ http: adapters.http })
   const gists = createGistService({ http: adapters.http })
   const noteRows = createNoteRowService()
@@ -834,7 +829,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexStore,
     embeddingRuntime,
     chatHistory,
-    navigation: createNavigationService(),
+    navigation,
     deepLink,
     linkNavigation: createLinkNavigationService({
       noteLinkResolver: noteServices.noteLinkResolver,
@@ -844,6 +839,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
       opener,
       deepLink,
+      navigation,
       attachments,
       operations,
       logger,
@@ -859,7 +855,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       : createUnsupportedUpdateService(),
     gitRepository,
     githubAuth,
-    gitHostCredentials,
     githubRepos,
     syncEngines,
     backups: createBackupServiceFactory({
@@ -867,7 +862,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       syncEngines,
       githubAuth,
       githubRepos,
-      gitHostCredentials,
       fileChanges,
       indexLifecycle,
       operations,
