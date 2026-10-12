@@ -10,8 +10,9 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { defaultNavigation, type NavigateOptions } from '@reflect/core'
+import type { NavigateOptions } from '@reflect/core'
 import { onNoteMoved } from '@/lib/note-moves.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import type { Route } from './route.ts'
 
 /**
@@ -94,10 +95,10 @@ export function RouterProvider({
   initialRoute = { kind: 'today' },
   children,
 }: RouterProviderProps): ReactElement {
+  const { navigation: appNavigation } = useAppServices()
   const [navigation] = useState(() => {
-    const service = defaultNavigation()
-    service.reset(initialRoute)
-    return service
+    appNavigation.reset(initialRoute)
+    return appNavigation
   })
   // React state rather than `useSyncExternalStore`: a store read through that
   // hook always updates synchronously, which would drop the transition and

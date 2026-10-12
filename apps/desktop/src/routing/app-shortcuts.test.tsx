@@ -1,76 +1,52 @@
 import {
-  setDefaultPlatform,
-  setDefaultTheme,
-  type GraphInfo,
+  isOstensiblyEmptyNoteSource,
+  type GraphSessionService,
+  type LinkNavigationService,
+  type NativeMenuService,
+  type NoteDocumentService,
   type NoteRow,
   type PinnedNote,
 } from '@reflect/core'
-import { createTestPlatformService, createTestThemeService } from '@reflect/core/testing'
+import {
+  createTestAppServices,
+  createTestPlatformService,
+  createTestThemeService,
+  type TestAppServices,
+  type TestOpenGraph,
+  type TestPlatformOptions,
+} from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import {
   FocusedDailyProvider,
   useSetFocusedDailyDate,
 } from '@/providers/focused-daily-provider.tsx'
 import { isModEvent } from '@meowdown/core'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ReactNode } from 'react'
-import { renderHook } from 'vitest-browser-react'
+import { QueryClient } from '@tanstack/react-query'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { PaletteProvider, usePalette } from '@/components/command-palette/palette-provider.tsx'
 import { listRegisteredBindings } from '@/editor/keymap.ts'
-import { registerAppCommands } from '@/lib/commands/app-commands.ts'
-import { dispatchMenuCommand } from '@/lib/native-menu/dispatch.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
 import { ThemeProvider } from '@/providers/theme-provider.tsx'
 import { MOD_KEY, NON_MOD_KEY } from '@/test-utils/mod-key.ts'
-import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useAppShortcuts } from './app-shortcuts.ts'
-import { RouterProvider, useRouter } from './router.tsx'
+import { useRouter } from './router.tsx'
 
-const nativeMenu = vi.hoisted(() => ({ installed: false }))
-const graphState = vi.hoisted((): { graph: GraphInfo | null } => ({
-  graph: { root: '/g', name: 'g', generation: 1 },
-}))
-const { commitFrontmatter: commitNoteFrontmatter } = installTestNoteDocuments({ source: '# A\n' })
+const GRAPH: TestOpenGraph = { root: '/g', name: 'g', generation: 1 }
 
 const newChat = vi.hoisted(() => vi.fn())
-const openRecent = vi.hoisted(() => vi.fn())
-const openRouteInNewWindow = vi.hoisted(() => vi.fn(async () => true))
 
 const openNoteFindForPath = vi.hoisted(() => vi.fn(() => true))
 const findNextInNote = vi.hoisted(() => vi.fn())
 const findPreviousInNote = vi.hoisted(() => vi.fn())
 
-vi.mock('@/lib/windows/open-in-new-window.ts', () => ({ openRouteInNewWindow }))
 vi.mock('@/providers/note-find-provider.tsx', () => ({
   useNoteFindActions: () => ({
     openForPath: openNoteFindForPath,
     next: findNextInNote,
     previous: findPreviousInNote,
-  }),
-}))
-
-vi.mock('@/lib/native-menu/menu.ts', () => ({
-  isNativeMenuInstalled: () => nativeMenu.installed,
-}))
-
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({
-    graph: graphState.graph,
-    recents: [
-      { root: '/g', name: 'g', openedMs: 3 },
-      { root: '/work', name: 'Work', openedMs: 2 },
-      { root: '/side', name: 'Side', openedMs: 1 },
-    ],
-    openRecent,
-  }),
-}))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({
-    settings: { editorMarkdownSyntax: 'hide', semanticSearchEnabled: false, theme: 'system' },
-    updateSettings: vi.fn(),
   }),
 }))
 vi.mock('@/providers/audio-memo-provider.tsx', () => ({
@@ -80,34 +56,50 @@ vi.mock('@/providers/chat-provider.tsx', () => ({
   useChatSession: () => ({ newChat }),
 }))
 
-registerAppCommands() // production does this in main.tsx
+// What the app's note documents answer; reset before each test.
+const commitNoteFrontmatter = vi.fn<NoteDocumentService['commitFrontmatter']>()
+
+// The platform of the next `shortcutsHook`; each `describe` sets it.
+let platform: TestPlatformOptions
+// The services of the rendered app; set by `shortcutsHook`.
+let app: TestAppServices
+let openRecent: MockInstance<GraphSessionService['openRecent']>
+let openRouteInNewWindow: MockInstance<LinkNavigationService['openRouteInNewWindow']>
+let isNativeMenuInstalled: MockInstance<NativeMenuService['isInstalled']>
 
 beforeEach(() => {
-  setDefaultTheme(createTestThemeService('light'))
-  setDefaultPlatform(
-    createTestPlatformService({
-      isNativeShell: false,
-      isMacosDesktop: false,
-      isApplePlatform: MOD_KEY.metaKey,
-      hasMacosTitleBarOverlay: false,
-    }),
-  )
-  nativeMenu.installed = false
-  graphState.graph = { root: '/g', name: 'g', generation: 1 }
-  openRecent.mockClear()
-  openRouteInNewWindow.mockClear()
+  platform = {
+    isNativeShell: false,
+    isMacosDesktop: false,
+    isApplePlatform: MOD_KEY.metaKey,
+    hasMacosTitleBarOverlay: false,
+  }
+  commitNoteFrontmatter.mockReset().mockResolvedValue(undefined)
   openNoteFindForPath.mockClear()
   findNextInNote.mockClear()
   findPreviousInNote.mockClear()
 })
 
-afterEach(() => {
-  setDefaultTheme(null)
-  setDefaultPlatform(null)
-})
-
-function shortcutsHook(client = new QueryClient()) {
-  return renderHook(
+async function shortcutsHook(client?: QueryClient) {
+  const readSource = async (): Promise<string> => '# A\n'
+  const services = createTestAppServices({
+    platform: createTestPlatformService(platform),
+    theme: createTestThemeService('light'),
+    noteDocuments: {
+      readSource,
+      readExisting: readSource,
+      commitFrontmatter: commitNoteFrontmatter,
+      commitSourceEdit: () => Promise.reject(new Error('commitSourceEdit is not stubbed')),
+      isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
+    },
+  })
+  app = services
+  openRecent = vi.spyOn(services.graphSession, 'openRecent').mockResolvedValue(true)
+  openRouteInNewWindow = vi
+    .spyOn(services.linkNavigation, 'openRouteInNewWindow')
+    .mockResolvedValue(true)
+  isNativeMenuInstalled = vi.spyOn(services.nativeMenu, 'isInstalled').mockReturnValue(false)
+  return await renderHookInApp(
     () => {
       const context = useAppShortcuts()
       return {
@@ -120,22 +112,29 @@ function shortcutsHook(client = new QueryClient()) {
       }
     },
     {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={client}>
-          <ThemeProvider>
-            <RouterProvider>
-              <PaletteProvider>
-                <ShortcutsProvider>
-                  <NoteTemplatesProvider>
-                    <SidebarProvider>
-                      <FocusedDailyProvider>{children}</FocusedDailyProvider>
-                    </SidebarProvider>
-                  </NoteTemplatesProvider>
-                </ShortcutsProvider>
-              </PaletteProvider>
-            </RouterProvider>
-          </ThemeProvider>
-        </QueryClientProvider>
+      app: services,
+      graph: GRAPH,
+      graphState: {
+        recents: [
+          { root: '/g', name: 'g', openedMs: 3 },
+          { root: '/work', name: 'Work', openedMs: 2 },
+          { root: '/side', name: 'Side', openedMs: 1 },
+        ],
+      },
+      settings: { editorMarkdownSyntax: 'hide', semanticSearchEnabled: false, theme: 'system' },
+      ...(client === undefined ? {} : { queryClient: client }),
+      wrapper: (children) => (
+        <ThemeProvider>
+          <PaletteProvider>
+            <ShortcutsProvider>
+              <NoteTemplatesProvider>
+                <SidebarProvider>
+                  <FocusedDailyProvider>{children}</FocusedDailyProvider>
+                </SidebarProvider>
+              </NoteTemplatesProvider>
+            </ShortcutsProvider>
+          </PaletteProvider>
+        </ThemeProvider>
       ),
     },
   )
@@ -226,7 +225,7 @@ describe('app shortcuts', () => {
     await act(() => result.current.router.navigate({ kind: 'settings' }))
     await act(() => press('o'))
     await act(() => result.current.context.togglePrivate())
-    graphState.graph = null
+    await act(() => app.graphSession.setGraph(null))
     await act(() => result.current.router.navigate({ kind: 'note', path: 'notes/a.md' }))
     await act(() => press('o'))
     await act(() => result.current.context.togglePrivate())
@@ -534,7 +533,7 @@ describe('app shortcuts', () => {
 
 describe('app shortcuts on macOS', () => {
   beforeEach(() => {
-    setDefaultPlatform(createTestPlatformService({ isNativeShell: false }))
+    platform = { isNativeShell: false }
   })
 
   it('keeps the macOS webview fallback until the native menu is installed', async () => {
@@ -553,8 +552,8 @@ describe('app shortcuts on macOS', () => {
   })
 
   it(String.raw`leaves ⌘\ to the native macOS menu accelerator`, async () => {
-    nativeMenu.installed = true
     const { result, act } = await shortcutsHook()
+    isNativeMenuInstalled.mockReturnValue(true)
     const event = new KeyboardEvent('keydown', {
       key: '\\',
       metaKey: true,
@@ -567,7 +566,7 @@ describe('app shortcuts on macOS', () => {
     expect(event.defaultPrevented).toBe(false)
     expect(result.current.sidebar.collapsed).toBe(false)
 
-    await act(() => dispatchMenuCommand('sidebar.toggle'))
+    await act(() => app.nativeMenu.dispatchCommand('sidebar.toggle'))
     expect(result.current.sidebar.collapsed).toBe(true)
   })
 })
