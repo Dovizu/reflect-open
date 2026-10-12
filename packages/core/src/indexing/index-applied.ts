@@ -3,7 +3,7 @@ import type { FileChange } from './file-change-service.ts'
 /**
  * The post-index "batch applied" signal (Plan 20 search/privacy closure).
  *
- * The live indexer ({@link subscribeIndexChanges}) emits here **after** a
+ * The live indexer (`LiveIndex.subscribe`) emits here **after** a
  * watcher batch has been written to the index — so a subscriber that reads the
  * index sees the batch's note rows (privacy flags, `assets` projection) already
  * settled, never a stale snapshot. The asset-description controller drives its

@@ -8,6 +8,16 @@ import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 import { installDefaultServices, resetDefaultServices } from '../app/install-default-services.ts'
 import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
+import type { AiCredentialService } from '../ai/ai-credential-service.ts'
+import type { AiPromptService } from '../ai/ai-prompt-service.ts'
+import {
+  createTestAiCredentialService,
+  createTestAiKeyValidationService,
+  createTestAiPromptService,
+  createTestLanguageModelService,
+  type TestAiKeyValidationService,
+  type TestLanguageModelService,
+} from './ai.ts'
 import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 import {
@@ -63,6 +73,10 @@ import {
   type TestIdService,
 } from './id.ts'
 import { createTestImageCodec, type TestImageCodecService } from './image-codec.ts'
+import {
+  createTestIndexLifecycleService,
+  type TestIndexLifecycleService,
+} from './index-lifecycle.ts'
 import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
@@ -171,6 +185,11 @@ export interface TestAppServices extends AppServices {
   readonly noteLinkResolver: TestNoteLinkResolverService
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
+  readonly indexLifecycle: TestIndexLifecycleService
+  readonly aiCredentials: AiCredentialService
+  readonly aiKeyValidation: TestAiKeyValidationService
+  readonly languageModel: TestLanguageModelService
+  readonly aiPrompts: AiPromptService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -186,6 +205,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
   const id = createTestIdService()
+  const secretStore = createTestSecretStoreService()
+  const settings = createTestSettingsService(
+    {},
+    { operations: overrides?.operations ?? operations },
+  )
   const indexReads = createIndexReadServices({
     database: overrides?.database ?? database,
     noteFile: overrides?.noteFile ?? noteFile,
@@ -194,12 +218,16 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
     noteFile: overrides?.noteFile ?? noteFile,
   })
+  const fileChanges = createTestFileChangeService()
+  const indexStore = createTestIndexStoreService()
+  const xArchive = createTestXArchiveService()
+  const hash = createTestHashService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
     clock,
     id,
-    hash: createTestHashService(),
+    hash,
     platform: createTestPlatformService(),
     storage: createTestStorageService(),
     http: createTestHttpService(),
@@ -209,7 +237,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     path: createTestPathService(),
     window: createTestWindowService(),
     lifecycle: createTestLifecycleService(),
-    secretStore: createTestSecretStoreService(),
+    secretStore,
     appInfo: createTestAppInfoService(),
     calendar: createTestCalendarService(),
     contacts: createTestContactsService(),
@@ -218,12 +246,12 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
-    settings: createTestSettingsService({}, { operations: overrides?.operations ?? operations }),
+    settings,
     theme: createTestThemeService(),
     persistenceFlush: createTestPersistenceFlushService(),
     database,
-    fileChanges: createTestFileChangeService(),
-    indexStore: createTestIndexStoreService(),
+    fileChanges,
+    indexStore,
     embeddingRuntime: createTestEmbeddingRuntimeService(),
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
@@ -231,7 +259,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     icloudNative: createTestICloudNativeService(),
     captureInbox: createTestCaptureInboxService(),
     webFetch: createTestWebFetchService(),
-    xArchive: createTestXArchiveService(),
+    xArchive,
     audioRecorder: createTestAudioRecorderService(),
     haptics: createTestHapticsService(),
     iap: createTestIapService(),
@@ -258,6 +286,26 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       id: overrides?.id ?? id,
     }),
     privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
+    indexLifecycle: createTestIndexLifecycleService({
+      indexStore: overrides?.indexStore ?? indexStore,
+      noteFile: overrides?.noteFile ?? noteFile,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+      database: overrides?.database ?? database,
+      xArchive: overrides?.xArchive ?? xArchive,
+      hash: overrides?.hash ?? hash,
+      clock: overrides?.clock ?? clock,
+      logger,
+      operations: overrides?.operations ?? operations,
+    }),
+    aiCredentials: createTestAiCredentialService({
+      secretStore: overrides?.secretStore ?? secretStore,
+    }),
+    aiKeyValidation: createTestAiKeyValidationService(),
+    languageModel: createTestLanguageModelService(),
+    aiPrompts: createTestAiPromptService({
+      settings: overrides?.settings ?? settings,
+      id: overrides?.id ?? id,
+    }),
   }
   return Object.assign(services, overrides)
 }

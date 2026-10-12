@@ -1,3 +1,7 @@
+import { setDefaultAiCredentials } from '../ai/ai-credential-service.ts'
+import { setDefaultAiKeyValidation } from '../ai/ai-key-validation-service.ts'
+import { setDefaultAiPrompts } from '../ai/ai-prompt-service.ts'
+import { setDefaultLanguageModel } from '../ai/language-model-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
@@ -23,6 +27,7 @@ import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
 import { setDefaultGraphStats } from '../indexing/graph-stats-service.ts'
+import { setDefaultIndexLifecycle } from '../indexing/index-lifecycle-service.ts'
 import { setDefaultIndexQuery } from '../indexing/index-query-service.ts'
 import { setDefaultNoteList } from '../indexing/note-list-service.ts'
 import { setDefaultNotePath } from '../indexing/note-path-service.ts'
@@ -125,6 +130,11 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteLinkResolver(services.noteLinkResolver)
   setDefaultNoteCreation(services.noteCreation)
   setDefaultPrivacy(services.privacy)
+  setDefaultIndexLifecycle(services.indexLifecycle)
+  setDefaultAiCredentials(services.aiCredentials)
+  setDefaultAiKeyValidation(services.aiKeyValidation)
+  setDefaultLanguageModel(services.languageModel)
+  setDefaultAiPrompts(services.aiPrompts)
   setDefaultIpc(services.ipc)
 }
 
@@ -191,5 +201,10 @@ export function resetDefaultServices(): void {
   setDefaultNoteLinkResolver(null)
   setDefaultNoteCreation(null)
   setDefaultPrivacy(null)
+  setDefaultIndexLifecycle(null)
+  setDefaultAiCredentials(null)
+  setDefaultAiKeyValidation(null)
+  setDefaultLanguageModel(null)
+  setDefaultAiPrompts(null)
   setDefaultIpc(null)
 }

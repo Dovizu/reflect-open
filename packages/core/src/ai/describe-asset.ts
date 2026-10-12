@@ -127,7 +127,7 @@ export async function describeAsset(request: DescribeAssetRequest): Promise<stri
   }
   try {
     const result = await sdk.generateText({
-      model: await languageModel(request.config, request.apiKey, request.fetchFn),
+      model: await languageModel(request.config, request.apiKey),
       messages: [{ role: 'user', content }],
       abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),
       maxRetries: 0,

@@ -1,8 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultPlatform, type EmbedStatus, setDefaultOperations } from '@reflect/core'
 import {
+  setDefaultIndexLifecycle,
+  setDefaultPlatform,
+  type EmbedStatus,
+  setDefaultOperations,
+} from '@reflect/core'
+import {
+  createTestIndexLifecycleService,
   createTestPlatformService,
   createTestOperationsService,
+  type TestIndexLifecycleService,
   type TestOperationsService,
 } from '@reflect/core/testing'
 import { notePathForRoute, type Route } from '@/routing/route.ts'
@@ -12,7 +19,6 @@ import type { CommandContext } from './types.ts'
 const TODAY = '2026-06-09'
 
 const randomNotePath = vi.hoisted(() => vi.fn())
-const rebuildIndex = vi.hoisted(() => vi.fn())
 const embedStatus = vi.hoisted(() =>
   vi.fn<() => Promise<EmbedStatus>>(async () => ({ status: 'uninitialized' })),
 )
@@ -31,7 +37,6 @@ vi.mock('@/lib/windows/open-in-new-window.ts', () => ({ openRouteInNewWindow }))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   randomNotePath,
-  rebuildIndex,
   embedStatus,
   toggleDevtools,
 }))
@@ -40,16 +45,20 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 const { APP_COMMANDS, keybindingFor } = await import('./app-commands.ts')
 
 let operations: TestOperationsService
+let indexLifecycle: TestIndexLifecycleService
 
 beforeEach(() => {
   setDefaultPlatform(createTestPlatformService())
   operations = createTestOperationsService()
   setDefaultOperations(operations)
+  indexLifecycle = createTestIndexLifecycleService({ operations })
+  setDefaultIndexLifecycle(indexLifecycle)
 })
 
 afterEach(() => {
   setDefaultPlatform(null)
   setDefaultOperations(null)
+  setDefaultIndexLifecycle(null)
 })
 
 function command(id: string) {
@@ -351,23 +360,18 @@ describe('app commands', () => {
   })
 
   it('index.rebuild runs at the open generation and reports as an operation', async () => {
-    rebuildIndex.mockResolvedValueOnce(undefined)
     const { context } = fakeContext()
     await command('index.rebuild').run(context)
-    expect(rebuildIndex).toHaveBeenCalledWith(
-      expect.objectContaining({ generation: 7, onSkippedNote: expect.any(Function) }),
-    )
+    expect(indexLifecycle.rebuilds()).toEqual([7])
     expect(operations.findByLabel('Rebuilding search index')?.status).toBe('running')
 
     // No graph open → no rebuild.
-    rebuildIndex.mockClear()
     const { context: noGraph } = fakeContext({ generation: () => null })
     await command('index.rebuild').run(noGraph)
-    expect(rebuildIndex).not.toHaveBeenCalled()
+    expect(indexLifecycle.rebuilds()).toEqual([7])
   })
 
   it('index.rebuild re-runs the embedding backfill when the model is ready', async () => {
-    rebuildIndex.mockResolvedValueOnce(undefined)
     embedStatus.mockResolvedValueOnce({ status: 'ready', model: 'all-MiniLM-L6-v2' })
     const { context } = fakeContext()
     await command('index.rebuild').run(context)

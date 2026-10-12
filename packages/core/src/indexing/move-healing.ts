@@ -1,7 +1,7 @@
-import { readNote } from '../graph/commands.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { parseNote } from '../markdown/index.ts'
+import type { IndexQueryService } from './index-query-service.ts'
 import { pairMovesById, type DetectedMove } from './move-detection.ts'
-import { getNoteIdsByPath } from './queries.ts'
 
 /**
  * External-move detection (Plan 17), shared by the open-time reconcile
@@ -20,7 +20,7 @@ import { getNoteIdsByPath } from './queries.ts'
  * `docs/readable-filenames.md`.
  */
 
-/** What {@link detectExternalMoves} found. */
+/** What {@link MoveHealing.detectExternalMoves} found. */
 export interface ExternalMoveScan {
   /** Orphan→arrival pairs whose frontmatter ids matched unambiguously. */
   moves: DetectedMove[]
@@ -31,35 +31,48 @@ export interface ExternalMoveScan {
   content: Map<string, string>
 }
 
-/**
- * Pair orphaned index rows with arrived files by frontmatter id. An
- * unreadable arrival simply can't pair (the caller's plain path retries the
- * read); an ambiguous id never pairs (see {@link pairMovesById}). An abort
- * mid-scan returns no moves — the caller is about to bail anyway.
- */
-export async function detectExternalMoves(
-  orphanPaths: string[],
-  arrivalPaths: string[],
-  options?: { signal?: AbortSignal | undefined },
-): Promise<ExternalMoveScan> {
-  const content = new Map<string, string>()
-  if (orphanPaths.length === 0 || arrivalPaths.length === 0) {
-    return { moves: [], content }
+/** Pairs vanished index rows with arrived files by frontmatter id. */
+export interface MoveHealing {
+  /**
+   * Pair orphaned index rows with arrived files by frontmatter id. An
+   * unreadable arrival simply can't pair (the caller's plain path retries the
+   * read); an ambiguous id never pairs (see {@link pairMovesById}). An abort
+   * mid-scan returns no moves: the caller is about to bail anyway.
+   */
+  detectExternalMoves(
+    orphanPaths: string[],
+    arrivalPaths: string[],
+    options?: { signal?: AbortSignal | undefined },
+  ): Promise<ExternalMoveScan>
+}
+
+export function createMoveHealing(deps: {
+  noteFile: NoteFileService
+  indexQuery: IndexQueryService
+}): MoveHealing {
+  const { noteFile, indexQuery } = deps
+  return {
+    async detectExternalMoves(orphanPaths, arrivalPaths, options) {
+      const content = new Map<string, string>()
+      if (orphanPaths.length === 0 || arrivalPaths.length === 0) {
+        return { moves: [], content }
+      }
+      const orphanIds = await indexQuery.getNoteIdsByPath(orphanPaths)
+      const arrivalIds = new Map<string, string | null>()
+      for (const path of arrivalPaths) {
+        if (options?.signal?.aborted) {
+          return { moves: [], content }
+        }
+        try {
+          const source = await noteFile.read(path)
+          content.set(path, source)
+          const parsed = parseNote({ path, source })
+          arrivalIds.set(path, parsed.frontmatter.id ?? null)
+        } catch {
+          // Unreadable arrival: it can't pair; the caller's plain path retries.
+        }
+      }
+      return { moves: pairMovesById(orphanIds, arrivalIds), content }
+    },
   }
-  const orphanIds = await getNoteIdsByPath(orphanPaths)
-  const arrivalIds = new Map<string, string | null>()
-  for (const path of arrivalPaths) {
-    if (options?.signal?.aborted) {
-      return { moves: [], content }
-    }
-    try {
-      const source = await readNote(path)
-      content.set(path, source)
-      const parsed = parseNote({ path, source })
-      arrivalIds.set(path, parsed.frontmatter.id ?? null)
-    } catch {
-      // Unreadable arrival: it can't pair; the caller's plain path retries.
-    }
-  }
-  return { moves: pairMovesById(orphanIds, arrivalIds), content }
 }

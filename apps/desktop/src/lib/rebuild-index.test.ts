@@ -1,89 +1,106 @@
-import { createTestOperationsService } from '@reflect/core/testing'
-import { setDefaultOperations } from '@reflect/core'
+import { setDefaultEmbeddingRuntime, setDefaultIndexLifecycle } from '@reflect/core'
+import {
+  createTestEmbeddingRuntimeService,
+  createTestIndexLifecycleService,
+  createTestIndexStoreService,
+  createTestOperationsService,
+  type TestIndexLifecycleService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { EmbedStatus } from '@reflect/core'
+import { queryClient, queryKeys } from '@/lib/query-client.ts'
 
-const rebuildIndex = vi.hoisted(() =>
-  vi.fn<
-    (options: {
-      generation: number
-      onSkippedNote?: (note: { path: string; message: string }) => void
-    }) => Promise<void>
-  >(async () => undefined),
-)
-const embedStatus = vi.hoisted(() =>
-  vi.fn<() => Promise<EmbedStatus>>(async () => ({ status: 'uninitialized' })),
-)
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  rebuildIndex,
-  embedStatus,
+const backfillEmbeddingsVisibly = vi.hoisted(() => vi.fn(async () => 'completed'))
+vi.mock('@/lib/semantic.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/semantic.ts')>()),
+  backfillEmbeddingsVisibly,
 }))
 
 const { rebuildIndexVisibly } = await import('./rebuild-index.ts')
 
+let operations: TestOperationsService
+let lifecycle: TestIndexLifecycleService
+
+function installLifecycle(options?: { failClear?: boolean }): void {
+  operations = createTestOperationsService()
+  lifecycle = createTestIndexLifecycleService({
+    operations,
+    indexStore: createTestIndexStoreService({
+      fail: (call) =>
+        options?.failClear === true && call.method === 'clear'
+          ? new Error('index on fire')
+          : undefined,
+    }),
+  })
+  setDefaultIndexLifecycle(lifecycle)
+}
+
 beforeEach(() => {
-  setDefaultOperations(createTestOperationsService())
-  rebuildIndex.mockClear()
+  backfillEmbeddingsVisibly.mockClear()
+  setDefaultEmbeddingRuntime(
+    createTestEmbeddingRuntimeService({ status: { status: 'uninitialized' } }),
+  )
+  installLifecycle()
 })
 
 afterEach(() => {
-  setDefaultOperations(null)
+  setDefaultIndexLifecycle(null)
+  setDefaultEmbeddingRuntime(null)
+  vi.restoreAllMocks()
 })
 
 describe('rebuildIndexVisibly', () => {
-  it('coalesces concurrent requests at the same generation onto one pass', async () => {
-    let finish: () => void = () => {}
-    rebuildIndex.mockImplementationOnce(
-      () => new Promise((resolve) => (finish = () => resolve(undefined))),
-    )
-
-    const first = rebuildIndexVisibly(7)
-    const second = rebuildIndexVisibly(7)
-
-    expect(second).toBe(first)
-    expect(rebuildIndex).toHaveBeenCalledTimes(1)
-
-    finish()
-    await first
-
-    // Once settled, the guard is released and the next request rebuilds again.
-    await rebuildIndexVisibly(7)
-    expect(rebuildIndex).toHaveBeenCalledTimes(2)
-  })
-
-  it('starts a fresh pass for a different generation', async () => {
-    let finishFirst: () => void = () => {}
-    rebuildIndex.mockImplementationOnce(
-      () => new Promise((resolve) => (finishFirst = () => resolve(undefined))),
-    )
-
-    const first = rebuildIndexVisibly(7)
-    await rebuildIndexVisibly(8)
-
-    expect(rebuildIndex).toHaveBeenCalledTimes(2)
-    expect(rebuildIndex).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ generation: 8, onSkippedNote: expect.any(Function) }),
-    )
-
-    finishFirst()
-    await first
-  })
-
-  it('does not reject when a rebuild reports skipped notes', async () => {
-    rebuildIndex.mockImplementationOnce(async (options) => {
-      options.onSkippedNote?.({ path: 'notes/bad.md', message: 'unexpected end of hex escape' })
-    })
-
-    await expect(rebuildIndexVisibly(7)).resolves.toBeUndefined()
-  })
-
-  it('absorbs a failed rebuild and releases the in-flight guard', async () => {
-    rebuildIndex.mockRejectedValueOnce(new Error('index on fire'))
-    await expect(rebuildIndexVisibly(7)).resolves.toBeUndefined()
+  it('rebuilds through the index lifecycle and refreshes the index queries', async () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
 
     await rebuildIndexVisibly(7)
-    expect(rebuildIndex).toHaveBeenCalledTimes(2)
+
+    expect(lifecycle.rebuilds()).toEqual([7])
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.index.all })
+    // Semantic search is off: nothing to re-embed.
+    expect(backfillEmbeddingsVisibly).not.toHaveBeenCalled()
+  })
+
+  it('re-runs the embedding backfill when the model is ready', async () => {
+    setDefaultEmbeddingRuntime(
+      createTestEmbeddingRuntimeService({ status: { status: 'ready', model: 'all-MiniLM-L6-v2' } }),
+    )
+
+    await rebuildIndexVisibly(7)
+    await rebuildIndexVisibly(7)
+
+    // index_clear wiped the embedding tables; each rebuild repopulates them once.
+    expect(backfillEmbeddingsVisibly.mock.calls).toEqual([
+      [{ generation: 7, modelId: 'all-MiniLM-L6-v2' }],
+      [{ generation: 7, modelId: 'all-MiniLM-L6-v2' }],
+    ])
+  })
+
+  it('coalesces a request made while the backfill is still running', async () => {
+    setDefaultEmbeddingRuntime(
+      createTestEmbeddingRuntimeService({ status: { status: 'ready', model: 'all-MiniLM-L6-v2' } }),
+    )
+    const backfill = Promise.withResolvers<string>()
+    backfillEmbeddingsVisibly.mockImplementationOnce(() => backfill.promise)
+
+    const first = rebuildIndexVisibly(7)
+    await vi.waitFor(() => expect(backfillEmbeddingsVisibly).toHaveBeenCalledTimes(1))
+    expect(rebuildIndexVisibly(7)).toBe(first)
+
+    backfill.resolve('completed')
+    await first
+    expect(lifecycle.rebuilds()).toEqual([7, 7])
+    expect(backfillEmbeddingsVisibly).toHaveBeenCalledTimes(1)
+  })
+
+  it('absorbs a failed rebuild without refreshing or re-embedding', async () => {
+    installLifecycle({ failClear: true })
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await expect(rebuildIndexVisibly(7)).resolves.toBeUndefined()
+
+    expect(operations.findByLabel('Rebuilding search index')?.status).toBe('failed')
+    expect(invalidate).not.toHaveBeenCalled()
+    expect(backfillEmbeddingsVisibly).not.toHaveBeenCalled()
   })
 })

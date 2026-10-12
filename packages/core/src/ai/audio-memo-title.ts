@@ -143,7 +143,7 @@ export async function generateAudioMemoTitle(
   try {
     const { generateText, Output } = await import('@reflect/modules/ai')
     const result = await generateText({
-      model: await languageModel(titleConfig, request.credentials.apiKey, request.fetchFn),
+      model: await languageModel(titleConfig, request.credentials.apiKey),
       output: Output.object({ schema: audioMemoTitleSchema }),
       prompt: titlePrompt(request.transcript),
       abortSignal: AbortSignal.timeout(TITLE_TIMEOUT_MS),

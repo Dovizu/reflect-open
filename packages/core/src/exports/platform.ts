@@ -475,11 +475,52 @@ export {
   type SkippedIndexedNote,
 } from '../indexing/index-store-service.ts'
 export {
+  createIndexLifecycleService,
+  defaultIndexLifecycle,
+  setDefaultIndexLifecycle,
+  type IndexAppliedEvent,
+  type IndexFileProgress,
+  type IndexLifecycleDeps,
+  type IndexLifecycleProgress,
+  type IndexLifecycleService,
+  type IndexLifecycleStage,
+  type IndexReconciledEvent,
+} from '../indexing/index-lifecycle-service.ts'
+export {
   createEmbeddingRuntimeService,
   defaultEmbeddingRuntime,
   setDefaultEmbeddingRuntime,
   type EmbeddingRuntimeService,
 } from '../embeddings/embedding-runtime-service.ts'
+export {
+  createAiCredentialService,
+  defaultAiCredentials,
+  setDefaultAiCredentials,
+  type AiCredentialService,
+  type AiKeyReader,
+} from '../ai/ai-credential-service.ts'
+export {
+  createAiKeyValidationService,
+  defaultAiKeyValidation,
+  setDefaultAiKeyValidation,
+  type AiKeyValidationService,
+} from '../ai/ai-key-validation-service.ts'
+export {
+  createAiPromptService,
+  defaultAiPrompts,
+  setDefaultAiPrompts,
+  type AiPromptDraft,
+  type AiPromptService,
+} from '../ai/ai-prompt-service.ts'
+export {
+  createLanguageModelService,
+  createLazyAiSdkLoader,
+  defaultLanguageModel,
+  setDefaultLanguageModel,
+  withAppReviewDemo,
+  type AiSdkLoader,
+  type LanguageModelService,
+} from '../ai/language-model-service.ts'
 export {
   createChatHistoryService,
   defaultChatHistory,
