@@ -1,6 +1,6 @@
 import { createDb } from '@reflect/db'
 import { toAppError } from '@reflect/core'
-import type { TestDatabaseService } from '@reflect/core/testing'
+import type { TestDatabaseQuery, TestDatabaseService } from '@reflect/core/testing'
 import { createDevIndexDb } from '@/dev/dev-index-db.ts'
 
 /**
@@ -11,8 +11,10 @@ import { createDevIndexDb } from '@/dev/dev-index-db.ts'
 export async function createWasmTestDatabaseService(): Promise<TestDatabaseService> {
   const index = await createDevIndexDb()
   let closed = false
+  const queries: TestDatabaseQuery[] = []
 
   const runQuery = async (sql: string, params: readonly unknown[]): Promise<unknown> => {
+    queries.push({ sql, params: [...params] })
     try {
       if (closed) {
         throw new Error('the test database is closed')
@@ -31,6 +33,9 @@ export async function createWasmTestDatabaseService(): Promise<TestDatabaseServi
         throw new Error('the test database is closed')
       }
       index.applyNote(note)
+    },
+    getQueries() {
+      return [...queries]
     },
     close() {
       if (!closed) {

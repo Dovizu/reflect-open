@@ -1,38 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import { listTemplates } from './template-list.ts'
-
-// A fake bridge resolves `db_query` so the test exercises the real compiled
-// SQL — the same harness the other indexing query tests use.
-const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
-
-beforeEach(() => {
-  mockInvoke.mockReset()
-  setBridge({ invoke: mockInvoke, listen: async () => () => {} })
-})
-
-afterEach(() => {
-  setBridge(null)
-})
+import { describe, expect, it } from 'vitest'
+import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
+import { createIndexQueryService } from './index-query-service.ts'
 
 describe('listTemplates', () => {
-  it('selects template-kind rows A→Z by folded title', async () => {
-    mockInvoke.mockResolvedValue([
-      { path: 'templates/journal.md', title: 'Journal', mtime: 1 },
-      { path: 'templates/person.md', title: 'Person', mtime: 2 },
+  it('lists only template-kind rows, A→Z by folded title', async () => {
+    const database = createTestDatabaseService()
+    seedNotes(database, [
+      { path: 'templates/person.md', markdown: '# person\n', mtime: 2 },
+      { path: 'templates/journal.md', markdown: '# Journal\n', mtime: 1 },
+      { path: 'notes/agenda.md', markdown: '# Agenda\n' },
+      { path: 'daily/2026-06-09.md', markdown: 'Standup\n' },
     ])
 
-    const templates = await listTemplates()
-
-    expect(templates).toEqual([
+    await expect(createIndexQueryService({ database }).listTemplates()).resolves.toEqual([
       { path: 'templates/journal.md', title: 'Journal', mtime: 1 },
-      { path: 'templates/person.md', title: 'Person', mtime: 2 },
+      { path: 'templates/person.md', title: 'person', mtime: 2 },
     ])
-    const [command, args] = mockInvoke.mock.calls[0]!
-    expect(command).toBe('db_query')
-    const sql = String(args['sql'])
-    expect(sql).toContain('"kind" = ?')
-    expect(sql).toContain('order by "title_key"')
-    expect(args['params']).toEqual(['template'])
   })
 })

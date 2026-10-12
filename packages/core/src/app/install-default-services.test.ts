@@ -17,7 +17,15 @@ import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultAssetStore } from '../graph/asset-store-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
+import { defaultBacklinks } from '../indexing/backlink-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
+import { defaultGraphStats } from '../indexing/graph-stats-service.ts'
+import { defaultIndexQuery } from '../indexing/index-query-service.ts'
+import { defaultNoteList } from '../indexing/note-list-service.ts'
+import { defaultNotePath } from '../indexing/note-path-service.ts'
+import { defaultSearch } from '../indexing/search-service.ts'
+import { defaultSuggestions } from '../indexing/suggestion-service.ts'
+import { defaultWikiResolver } from '../indexing/wiki-resolver-service.ts'
 import { defaultIndexStore } from '../indexing/index-store-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -93,6 +101,14 @@ describe('installDefaultServices', () => {
     expect(defaultWebAuth()).toBe(services.webAuth)
     expect(defaultNoteFile()).toBe(services.noteFile)
     expect(defaultAssetStore()).toBe(services.assetStore)
+    expect(defaultIndexQuery()).toBe(services.indexQuery)
+    expect(defaultWikiResolver()).toBe(services.wikiResolver)
+    expect(defaultBacklinks()).toBe(services.backlinks)
+    expect(defaultSearch()).toBe(services.search)
+    expect(defaultSuggestions()).toBe(services.suggestions)
+    expect(defaultNoteList()).toBe(services.noteList)
+    expect(defaultGraphStats()).toBe(services.graphStats)
+    expect(defaultNotePath()).toBe(services.notePath)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
@@ -137,6 +153,14 @@ describe('resetDefaultServices', () => {
     expect(defaultWebAuth()).not.toBe(services.webAuth)
     expect(defaultNoteFile()).not.toBe(services.noteFile)
     expect(defaultAssetStore()).not.toBe(services.assetStore)
+    expect(defaultIndexQuery()).not.toBe(services.indexQuery)
+    expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
+    expect(defaultBacklinks()).not.toBe(services.backlinks)
+    expect(defaultSearch()).not.toBe(services.search)
+    expect(defaultSuggestions()).not.toBe(services.suggestions)
+    expect(defaultNoteList()).not.toBe(services.noteList)
+    expect(defaultGraphStats()).not.toBe(services.graphStats)
+    expect(defaultNotePath()).not.toBe(services.notePath)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

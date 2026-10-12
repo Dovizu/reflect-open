@@ -348,6 +348,54 @@ export {
   type DatabaseService,
 } from '../indexing/database-service.ts'
 export {
+  createIndexQueryService,
+  defaultIndexQuery,
+  setDefaultIndexQuery,
+  type IndexQueryService,
+} from '../indexing/index-query-service.ts'
+export {
+  createWikiResolverService,
+  defaultWikiResolver,
+  setDefaultWikiResolver,
+  type WikiResolverService,
+} from '../indexing/wiki-resolver-service.ts'
+export {
+  createBacklinkService,
+  defaultBacklinks,
+  setDefaultBacklinks,
+  type BacklinkService,
+} from '../indexing/backlink-service.ts'
+export {
+  createSearchService,
+  defaultSearch,
+  setDefaultSearch,
+  type SearchService,
+} from '../indexing/search-service.ts'
+export {
+  createSuggestionService,
+  defaultSuggestions,
+  setDefaultSuggestions,
+  type SuggestionService,
+} from '../indexing/suggestion-service.ts'
+export {
+  createNoteListService,
+  defaultNoteList,
+  setDefaultNoteList,
+  type NoteListService,
+} from '../indexing/note-list-service.ts'
+export {
+  createGraphStatsService,
+  defaultGraphStats,
+  setDefaultGraphStats,
+  type GraphStatsService,
+} from '../indexing/graph-stats-service.ts'
+export {
+  createNotePathService,
+  defaultNotePath,
+  setDefaultNotePath,
+  type NotePathService,
+} from '../indexing/note-path-service.ts'
+export {
   createIndexStoreService,
   defaultIndexStore,
   setDefaultIndexStore,

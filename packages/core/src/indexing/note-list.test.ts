@@ -1,216 +1,118 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import { listNotes, listNoteTags, listRecentNotes } from './note-list.ts'
+import { describe, expect, it } from 'vitest'
+import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
+import { createNoteListService, type NoteListService } from './note-list-service.ts'
 
-// A fake bridge resolves `db_query` so the tests exercise the real compiled
-// SQL (snake_case columns, parameters) — the same harness queries.test uses.
-const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
+const NOTES: TestNote[] = [
+  {
+    path: 'notes/pinned.md',
+    markdown: '---\npinned: 1\n---\n# Pinned Plan\nAlways on top.\n',
+    mtime: 500,
+  },
+  { path: 'notes/first-pin.md', markdown: '---\npinned: 0\n---\n# First Pin\n', mtime: 100 },
+  { path: 'notes/bare-pin.md', markdown: '---\npinned: true\n---\n# Bare Pin\n', mtime: 3000 },
+  {
+    path: 'notes/health.md',
+    markdown: '# Health Stacked\nShop your health goals. #link #Health\n',
+    mtime: 2000,
+  },
+  { path: 'notes/older.md', markdown: '# Older\n#book\n', mtime: 1000 },
+  {
+    path: 'notes/secret.md',
+    markdown: '---\nprivate: true\n---\n# Secret\n#book\n',
+    mtime: 4000,
+  },
+  { path: 'daily/2026-06-09.md', markdown: 'Read a #Book.\n', mtime: 1500 },
+  { path: 'templates/reading.md', markdown: '# Reading\n#book\n', mtime: 5000 },
+]
 
-beforeEach(() => {
-  mockInvoke.mockReset()
-  setBridge({ invoke: mockInvoke, listen: async () => () => {} })
-})
-
-afterEach(() => {
-  setBridge(null)
-})
+function setup(notes: TestNote[] = NOTES): NoteListService {
+  const database = createTestDatabaseService()
+  seedNotes(database, notes)
+  return createNoteListService({ database })
+}
 
 describe('listNotes', () => {
-  it('lists non-daily notes pinned-first then newest with stored previews and grouped tags', async () => {
-    mockInvoke
-      .mockResolvedValueOnce([
-        {
-          path: 'notes/pinned.md',
-          title: 'Pinned Plan',
-          mtime: 500,
-          preview: 'Always on top.',
-          is_pinned: 1,
-          pinned_order: 1,
-        },
-        {
-          path: 'notes/health.md',
-          title: 'Health Stacked',
-          mtime: 2000,
-          preview: 'Shop your health goals.',
-          is_pinned: 0,
-          pinned_order: null,
-        },
-      ])
-      .mockResolvedValueOnce([
-        { note_path: 'notes/health.md', tag: 'health' },
-        { note_path: 'notes/health.md', tag: 'link' },
-      ])
+  it('lists non-daily notes pinned-first then newest with stored previews and sorted tags', async () => {
+    const entries = await setup().listNotes()
 
-    const entries = await listNotes()
-
-    expect(entries).toEqual([
-      {
-        path: 'notes/pinned.md',
-        title: 'Pinned Plan',
-        mtime: 500,
-        snippet: 'Always on top.',
-        tags: [],
-        isPinned: true,
-      },
-      {
-        path: 'notes/health.md',
-        title: 'Health Stacked',
-        mtime: 2000,
-        snippet: 'Shop your health goals.',
-        tags: ['health', 'link'],
-        isPinned: false,
-      },
+    expect(entries.map((entry) => entry.path)).toEqual([
+      'notes/first-pin.md',
+      'notes/pinned.md',
+      'notes/bare-pin.md',
+      'notes/secret.md',
+      'notes/health.md',
+      'notes/older.md',
     ])
-
-    const [command, args] = mockInvoke.mock.calls[0]!
-    expect(command).toBe('db_query')
-    const sql = String(args['sql'])
-    // The snippet is the stored projection column, not a per-query derivation.
-    expect(sql).toContain('"preview"')
-    // `kind = 'note'` excludes dailies (the stream is their home) and templates.
-    expect(sql).toContain('"notes"."kind" = ?')
-    // Pinned notes lead (explicit order first), then recency — V1's list
-    // order, via the recallOrder helper shared with filtered-search.
-    const pinnedAt = sql.indexOf('"notes"."is_pinned" desc')
-    const orderAt = sql.indexOf('"notes"."pinned_order" is null')
-    const mtimeAt = sql.indexOf('"notes"."mtime" desc')
-    expect(pinnedAt).toBeGreaterThan(-1)
-    expect(orderAt).toBeGreaterThan(pinnedAt)
-    expect(mtimeAt).toBeGreaterThan(orderAt)
-    expect(sql).not.toContain('exists')
-    // Uncapped: the screen virtualizes instead.
-    expect(sql).not.toContain('limit')
-
-    // The tag fetch joins the same note predicates — never a `note_path IN`
-    // list, whose per-row parameter would hit SQLite's bound-parameter
-    // ceiling on large graphs.
-    const [, tagArgs] = mockInvoke.mock.calls[1]!
-    const tagSql = String(tagArgs['sql'])
-    expect(tagSql).toContain('inner join "notes"')
-    expect(tagSql).toContain('"notes"."kind" = ?')
-    expect(tagSql).not.toContain(' in (')
-    expect(tagArgs['params']).toEqual(['note'])
+    expect(entries[1]).toEqual({
+      path: 'notes/pinned.md',
+      title: 'Pinned Plan',
+      mtime: 500,
+      snippet: 'Always on top.',
+      tags: [],
+      isPinned: true,
+    })
+    expect(entries[4]).toMatchObject({
+      path: 'notes/health.md',
+      tags: ['Health', 'link'],
+      isPinned: false,
+    })
   })
 
-  it('narrows both queries to one tag and includes tagged daily notes', async () => {
-    mockInvoke
-      .mockResolvedValueOnce([
-        {
-          path: 'notes/health.md',
-          title: 'Health Stacked',
-          mtime: 2000,
-          preview: '',
-          is_pinned: 0,
-          pinned_order: null,
-        },
-        {
-          path: 'daily/2026-06-09.md',
-          title: 'June 9, 2026',
-          mtime: 1500,
-          preview: 'Read a book.',
-          is_pinned: 0,
-          pinned_order: null,
-        },
-      ])
-      .mockResolvedValueOnce([{ note_path: 'daily/2026-06-09.md', tag: 'Book' }])
+  it('narrows to one tag case-insensitively and includes tagged daily notes', async () => {
+    const entries = await setup().listNotes({ tag: 'BOOK' })
 
-    const entries = await listNotes({ tag: 'Book' })
-
-    expect(entries.map((entry) => entry.path)).toEqual(['notes/health.md', 'daily/2026-06-09.md'])
+    expect(entries.map((entry) => entry.path)).toEqual([
+      'notes/secret.md',
+      'daily/2026-06-09.md',
+      'notes/older.md',
+    ])
     expect(entries[1]?.tags).toEqual(['Book'])
-
-    expect(mockInvoke).toHaveBeenCalledTimes(2)
-    const [, listArgs] = mockInvoke.mock.calls[0]!
-    const listSql = String(listArgs['sql'])
-    expect(listSql).toContain('from "tags"')
-    expect(listSql).toContain('inner join "notes"')
-    expect(listSql).toContain('"tags"."tag_key"')
-    expect(listSql).not.toContain('exists')
-    expect(listSql).not.toContain('lower(')
-    expect(listArgs['params']).toEqual(['book', 'note', 'daily'])
-
-    const [, tagArgs] = mockInvoke.mock.calls[1]!
-    const tagSql = String(tagArgs['sql'])
-    expect(tagSql).toContain('inner join "tags" as "filter_tags"')
-    expect(tagSql).toContain('"filter_tags"."tag_key"')
-    expect(tagSql).not.toContain('exists')
-    expect(tagSql).not.toContain('lower(')
-    expect(tagArgs['params']).toEqual(['book', 'note', 'daily'])
   })
 
   it('skips the tag fetch entirely when no notes match', async () => {
-    mockInvoke.mockResolvedValue([])
-    await expect(listNotes({ tag: 'nothing' })).resolves.toEqual([])
-    expect(mockInvoke).toHaveBeenCalledTimes(1)
+    const database = createTestDatabaseService()
+    seedNotes(database, NOTES)
+
+    await expect(
+      createNoteListService({ database }).listNotes({ tag: 'nothing' }),
+    ).resolves.toEqual([])
+    expect(database.getQueries()).toHaveLength(1)
   })
 })
 
 describe('listRecentNotes', () => {
   it('caps public non-daily rows, newest first, with a boolean privacy flag', async () => {
-    mockInvoke.mockResolvedValueOnce([
+    await expect(setup().listRecentNotes({ limit: 2 })).resolves.toEqual([
       {
-        path: 'notes/health.md',
-        title: 'Health Stacked',
-        preview: 'Shop your health goals.',
-        mtime: 2000,
-        is_private: 0,
+        path: 'notes/bare-pin.md',
+        title: 'Bare Pin',
+        preview: '',
+        mtime: 3000,
+        isPrivate: false,
       },
-    ])
-
-    const rows = await listRecentNotes({ limit: 5 })
-
-    expect(rows).toEqual([
       {
         path: 'notes/health.md',
         title: 'Health Stacked',
-        preview: 'Shop your health goals.',
+        preview: 'Shop your health goals. #link #Health',
         mtime: 2000,
         isPrivate: false,
       },
     ])
-    const [command, args] = mockInvoke.mock.calls[0]!
-    expect(command).toBe('db_query')
-    const sql = String(args['sql'])
-    expect(sql).toContain('"notes"."kind" = ?')
-    expect(sql).toContain('"is_private"')
-    expect(sql).toContain('order by "notes"."mtime" desc')
-    expect(sql).toContain('limit')
-    expect(args['params']).toEqual(['note', 0, 5])
   })
 
-  it('narrows to one tag via the stored folded tag_key', async () => {
-    mockInvoke.mockResolvedValueOnce([])
+  it('narrows to one tag via the stored folded tag key', async () => {
+    const rows = await setup().listRecentNotes({ limit: 5, tag: 'Book' })
 
-    await listRecentNotes({ limit: 5, tag: 'Book' })
-
-    const [, args] = mockInvoke.mock.calls[0]!
-    const sql = String(args['sql'])
-    expect(sql).toContain('from "tags"')
-    expect(sql).toContain('inner join "notes"')
-    expect(sql).toContain('"tags"."tag_key"')
-    expect(sql).not.toContain('exists')
-    expect(sql).not.toContain('lower(')
-    expect(args['params']).toEqual(['book', 'note', 0, 5])
+    expect(rows.map((row) => row.path)).toEqual(['notes/older.md'])
   })
 })
 
 describe('listNoteTags', () => {
-  it('groups tags on the stored key over non-daily notes', async () => {
-    mockInvoke.mockResolvedValue([
-      { tag: 'Book', count: 3 },
-      { tag: 'link', count: 12 },
+  it('groups tags on the stored key over non-daily notes, alphabetical', async () => {
+    await expect(setup().listNoteTags()).resolves.toEqual([
+      { tag: 'book', count: 2 },
+      { tag: 'Health', count: 1 },
+      { tag: 'link', count: 1 },
     ])
-
-    const facets = await listNoteTags()
-
-    expect(facets).toEqual([
-      { tag: 'Book', count: 3 },
-      { tag: 'link', count: 12 },
-    ])
-    const [command, args] = mockInvoke.mock.calls[0]!
-    expect(command).toBe('db_query')
-    const sql = String(args['sql'])
-    expect(sql).toContain('"notes"."kind" = ?')
-    expect(sql).toContain('group by "tags"."tag_key"')
   })
 })

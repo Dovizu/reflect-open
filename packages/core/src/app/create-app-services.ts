@@ -27,7 +27,18 @@ import {
   type EmbeddingRuntimeService,
 } from '../embeddings/embedding-runtime-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
+import { createBacklinkService, type BacklinkService } from '../indexing/backlink-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
+import { createGraphStatsService, type GraphStatsService } from '../indexing/graph-stats-service.ts'
+import { createIndexQueryService, type IndexQueryService } from '../indexing/index-query-service.ts'
+import { createNoteListService, type NoteListService } from '../indexing/note-list-service.ts'
+import { createNotePathService, type NotePathService } from '../indexing/note-path-service.ts'
+import { createSearchService, type SearchService } from '../indexing/search-service.ts'
+import { createSuggestionService, type SuggestionService } from '../indexing/suggestion-service.ts'
+import {
+  createWikiResolverService,
+  type WikiResolverService,
+} from '../indexing/wiki-resolver-service.ts'
 import { createIndexStoreService, type IndexStoreService } from '../indexing/index-store-service.ts'
 import { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
 import { createIapService, type IapService } from '../ipc/iap-plugin.ts'
@@ -132,6 +143,45 @@ export interface AppServices {
   readonly webAuth?: WebAuthService
   readonly noteFile: NoteFileService
   readonly assetStore: AssetStoreService
+  readonly indexQuery: IndexQueryService
+  readonly wikiResolver: WikiResolverService
+  readonly backlinks: BacklinkService
+  readonly search: SearchService
+  readonly suggestions: SuggestionService
+  readonly noteList: NoteListService
+  readonly graphStats: GraphStatsService
+  readonly notePath: NotePathService
+}
+
+/** The read-only services over the index, as {@link AppServices} holds them. */
+export type IndexReadServices = Pick<
+  AppServices,
+  | 'indexQuery'
+  | 'wikiResolver'
+  | 'backlinks'
+  | 'search'
+  | 'suggestions'
+  | 'noteList'
+  | 'graphStats'
+  | 'notePath'
+>
+
+export function createIndexReadServices(deps: {
+  database: DatabaseService
+  noteFile: NoteFileService
+}): IndexReadServices {
+  const { database, noteFile } = deps
+  const wikiResolver = createWikiResolverService({ database })
+  return {
+    indexQuery: createIndexQueryService({ database }),
+    wikiResolver,
+    backlinks: createBacklinkService({ database, noteFile }),
+    search: createSearchService({ database, wikiResolver }),
+    suggestions: createSuggestionService({ database }),
+    noteList: createNoteListService({ database }),
+    graphStats: createGraphStatsService({ database }),
+    notePath: createNotePathService({ database, noteFile }),
+  }
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -177,6 +227,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     { ipc, logger },
     { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
   )
+  const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   return {
     ipc,
     logger,
@@ -239,7 +290,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
         }
       : {}),
     fileChanges,
-    noteFile: createNoteFileService({ ipc, clock, fileChanges }),
+    noteFile,
     assetStore: createAssetStoreService({ ipc, clock, fileChanges }),
+    ...createIndexReadServices({ database, noteFile }),
   }
 }
