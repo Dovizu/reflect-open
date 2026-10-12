@@ -40,6 +40,11 @@ import {
   type ChatHistoryService,
 } from '../ai/chat/chat-history-service.ts'
 import {
+  createBacklinkTargetService,
+  type BacklinkTargetService,
+} from '../capture/backlink-target-service.ts'
+import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
+import {
   createCaptureInboxService,
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
@@ -161,6 +166,7 @@ import { createSettingsService, type SettingsService } from '../settings/setting
 import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
+import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
 import type { ClipboardService } from './clipboard-service.ts'
 import { createSystemClock, type ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
@@ -308,6 +314,8 @@ export interface AppServices {
   readonly assetDescriber: AssetDescriberService
   readonly transcription: TranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly backlinkTarget: BacklinkTargetService
+  readonly capture: CaptureService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -472,6 +480,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
   const captureInbox = createCaptureInboxService({ ipc })
+  const webFetch = createWebFetchService({ ipc })
+  const pageDescriber = createPageDescriberService({ languageModel })
+  const backlinkTarget = createBacklinkTargetService({
+    noteCreation: noteServices.noteCreation,
+    noteFile,
+  })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
     noteFile,
@@ -562,7 +576,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox,
-    webFetch: createWebFetchService({ ipc }),
+    webFetch,
     xArchive,
     audioRecorder: createPlatformAudioRecorder({
       platform: adapters.platform,
@@ -622,11 +636,33 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       credentials: aiCredentials,
       privacy: noteServices.privacy,
     }),
-    pageDescriber: createPageDescriberService({ languageModel }),
+    pageDescriber,
     assetDescriber: createAssetDescriberService({ languageModel }),
     transcription: withAppReviewDemoTranscription(
       createTranscriptionService({ http: adapters.http }),
     ),
     transcriptEnrichment: createTranscriptEnrichmentService({ languageModel }),
+    backlinkTarget,
+    capture: createCaptureService({
+      captureInbox,
+      noteFile,
+      assetStore,
+      openDocuments,
+      backlinkTarget,
+      xArchive,
+      webFetch,
+      pageDescriber,
+      aiProviderConfig,
+      aiCredentials,
+      privacy: noteServices.privacy,
+      hash,
+      clock,
+      reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
+      lifecycle,
+      fileChanges,
+      operations,
+      platform,
+      logger,
+    }),
   }
 }

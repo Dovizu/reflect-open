@@ -33,10 +33,13 @@ import {
 import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 import {
+  createTestBacklinkTargetService,
   createTestCaptureInboxService,
+  createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
   type TestCaptureInboxService,
+  type TestCaptureService,
   type TestWebFetchService,
   type TestXArchiveService,
 } from './capture.ts'
@@ -164,6 +167,7 @@ import {
   createTestNativeMenuService,
   type TestNativeMenuService,
 } from './commands.ts'
+import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import type { CommandService } from '../commands/command-service.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 
@@ -240,6 +244,8 @@ export interface TestAppServices extends AppServices {
   readonly assetDescriber: TestAssetDescriberService
   readonly transcription: TestTranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly backlinkTarget: BacklinkTargetService
+  readonly capture: TestCaptureService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -268,6 +274,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const noteLinkResolver = createTestNoteLinkResolverService({
     wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
     noteFile: overrides?.noteFile ?? noteFile,
+  })
+  const noteCreation = createTestNoteCreationService({
+    noteFile: overrides?.noteFile ?? noteFile,
+    noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+    id: overrides?.id ?? id,
   })
   const http = createTestHttpService()
   const fileChanges = createTestFileChangeService()
@@ -406,11 +417,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     ...indexReads,
     noteLinkResolver,
-    noteCreation: createTestNoteCreationService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
-      id: overrides?.id ?? id,
-    }),
+    noteCreation,
     privacy,
     indexLifecycle,
     graphSession,
@@ -450,6 +457,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     transcriptEnrichment: createTestTranscriptEnrichmentService({
       languageModel: overrides?.languageModel ?? languageModel,
     }),
+    backlinkTarget: createTestBacklinkTargetService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      noteCreation: overrides?.noteCreation ?? noteCreation,
+    }),
+    capture: createTestCaptureService(),
   }
   return Object.assign(services, overrides)
 }
