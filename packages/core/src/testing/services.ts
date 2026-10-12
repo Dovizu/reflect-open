@@ -1,10 +1,4 @@
 import { createIndexReadServices, type AppServices } from '../app/create-app-services.ts'
-import {
-  createGraphServices,
-  type GraphRole,
-  type GraphServices,
-} from '../app/create-graph-services.ts'
-import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
@@ -533,6 +527,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       calendar: overrides?.calendar ?? calendar,
       settings: overrides?.settings ?? settings,
       platform: overrides?.platform ?? platform,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
       logger,
     }),
     contacts,
@@ -833,42 +828,4 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
   }
   return Object.assign(services, overrides)
-}
-
-export interface TestGraphServices<
-  App extends AppServices = TestAppServices,
-> extends GraphServices {
-  readonly app: App
-}
-
-/**
- * {@link GraphServices} over `app` (fresh test doubles by default) and a
- * session at `/graphs/test` with generation 1, patched by `sessionOverrides`.
- * The role defaults to `main`.
- */
-export function createTestGraphServices(
-  app?: undefined,
-  sessionOverrides?: Partial<GraphSession>,
-  role?: GraphRole,
-): TestGraphServices
-export function createTestGraphServices<App extends AppServices>(
-  app: App,
-  sessionOverrides?: Partial<GraphSession>,
-  role?: GraphRole,
-): TestGraphServices<App>
-export function createTestGraphServices(
-  app?: AppServices,
-  sessionOverrides?: Partial<GraphSession>,
-  role?: GraphRole,
-): TestGraphServices<AppServices> {
-  const session = createGraphSession(
-    {
-      root: sessionOverrides?.root ?? '/graphs/test',
-      name: sessionOverrides?.name ?? 'test',
-      generation: sessionOverrides?.generation ?? 1,
-      indexGeneration: sessionOverrides?.indexGeneration ?? 1,
-    },
-    sessionOverrides?.signal,
-  )
-  return createGraphServices(app ?? createTestAppServices(), session, role ?? 'main')
 }

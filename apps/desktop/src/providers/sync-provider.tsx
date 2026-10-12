@@ -1,45 +1,32 @@
-import {
-  createContext,
-  use,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-  type ReactElement,
-  type ReactNode,
-} from 'react'
+import { createContext, use, useMemo, useState, type ReactElement, type ReactNode } from 'react'
 import {
   isICloudRoot,
   ReflectError,
   type BackupService,
   type BackupState,
-  type ConnectExistingResult,
-  type GithubRepoRef,
   type GraphInfo,
 } from '@reflect/core'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { BackupState, ConnectExistingResult } from '@reflect/core'
 
-interface SyncContextValue {
-  backup: BackupState
-  /** `manualCreateNeeded` = the token type can't create repos (guide instead). */
-  connectNewRepo: (name: string) => Promise<'connected' | 'manualCreateNeeded'>
-  connectExistingRepo: (
-    ref: GithubRepoRef,
-    options?: { allowPublic?: boolean },
-  ) => Promise<ConnectExistingResult>
-  /** Stop backing this graph up (other graphs and the credential stay). */
-  disconnectGraph: () => Promise<void>
-  /** Sign the machine out of GitHub (every connected graph stops syncing). */
-  signOut: () => Promise<void>
-  backUpNow: () => Promise<void>
-}
+type SyncContextValue = { backup: BackupState } & Pick<
+  BackupService,
+  'connectNewRepo' | 'connectExistingRepo' | 'disconnectGraph' | 'signOut' | 'backUpNow'
+>
 
 const SyncContext = createContext<SyncContextValue | null>(null)
 
 const LOADING: BackupState = { phase: 'loading' }
+
+/** What the surface reads before the main window's backup service exists. */
+const NO_BACKUP = {
+  subscribe: () => () => {},
+  getState: (): BackupState => LOADING,
+}
 
 interface SyncProviderProps {
   graph: GraphInfo
@@ -49,7 +36,7 @@ interface SyncProviderProps {
 /**
  * Thin React shim over core's `BackupService` lifecycle (Plan 12): one
  * service per (graph, index session), created and disposed by an effect,
- * surfaced through `useSyncExternalStore`. All sync behavior lives in the
+ * surfaced through `useServiceState`. All sync behavior lives in the
  * service — this component owns nothing but the mounting. The service comes
  * from the nearest `AppServicesProvider`'s factory.
  */
@@ -69,7 +56,7 @@ export function SyncProvider({ graph, children }: SyncProviderProps): ReactEleme
     })
     // The service is an imperative lifecycle object created per (graph, index
     // session); it must be instantiated in an effect (it subscribes and starts)
-    // and stored so useSyncExternalStore can read it.
+    // and stored so useServiceState can read it.
     setController(next)
     void next.start()
     return () => {
@@ -99,10 +86,7 @@ export function SyncProvider({ graph, children }: SyncProviderProps): ReactEleme
     }
   }, [icloudSyncs, graph, indexGeneration, metadataWatch])
 
-  const backup = useSyncExternalStore(
-    controller?.subscribe ?? (() => () => {}),
-    controller?.getState ?? (() => LOADING),
-  )
+  const backup = useServiceState(controller ?? NO_BACKUP)
 
   const value = useMemo<SyncContextValue>(() => {
     const require = (): BackupService => {

@@ -261,10 +261,12 @@ useEffect(
 ```
 
 - An event subscription is a `useEffect` that returns the unsubscribe.
-- A store is read with `useSyncExternalStore(service.subscribe, service.get)`
-  (the snapshot getter). If several components need it, a provider does this
-  once and exposes a context, as `SettingsProvider` does. The provider holds no
-  logic of its own.
+- A store is read with `useServiceState(service)` (or
+  `useServiceState(service, service.get)` for a getter with another name),
+  from `apps/desktop/src/services/use-service-state.ts`. Read an app-scoped
+  service where it is used, as `useSettings()` does. A provider is only for an
+  instance it creates (`ChatProvider`); its context value is the state spread
+  with the instance, and it holds no logic of its own.
 - Query-backed reads call the service in the `queryFn`. Put the options in
   `apps/desktop/src/lib/query-options.ts`, with the services as `ctx`.
 

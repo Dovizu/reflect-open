@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from 'react'
 import { useMobileAppServices } from '@/mobile/mobile-services.ts'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
  * Whether the user asked to see the paywall. Set from Settings and read where
@@ -7,5 +7,5 @@ import { useMobileAppServices } from '@/mobile/mobile-services.ts'
  */
 export function usePaywallRequested(): [boolean, (next: boolean) => void] {
   const { paywall } = useMobileAppServices()
-  return [useSyncExternalStore(paywall.subscribe, paywall.requested), paywall.setRequested]
+  return [useServiceState(paywall, paywall.requested), paywall.setRequested]
 }

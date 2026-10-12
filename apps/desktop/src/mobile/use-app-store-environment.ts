@@ -1,6 +1,7 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect } from 'react'
 import type { AppStoreEnvironment } from '@reflect/core'
 import { useMobileAppServices } from '@/mobile/mobile-services.ts'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { AppStoreEnvironment } from '@reflect/core'
 
@@ -12,7 +13,7 @@ export function useAppStoreEnvironment(): {
   invalidate: VoidFunction
 } {
   const { appStoreEnvironment: environment } = useMobileAppServices()
-  const state = useSyncExternalStore(environment.subscribe, environment.getState)
+  const state = useServiceState(environment)
 
   useEffect(() => {
     void environment.environment()

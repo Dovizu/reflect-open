@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { createTestAppServices, type TestAiKeyValidationService } from '@reflect/core/testing'
 import { fireEvent } from '@/test-utils/fire-event.ts'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 
 /**
  * The mobile add-provider sheet over the shared submit flow: a verified key
@@ -36,8 +36,9 @@ beforeEach(() => {
 async function renderSheet(): Promise<void> {
   const app = createTestAppServices()
   keyValidation = app.aiKeyValidation
-  await renderWithServices(<AddAiProviderDrawer open onOpenChange={onOpenChange} onAdd={onAdd} />, {
+  await renderInApp(<AddAiProviderDrawer open onOpenChange={onOpenChange} onAdd={onAdd} />, {
     app,
+    servicesOnly: true,
   })
 }
 

@@ -114,6 +114,15 @@ describe('renderInApp', () => {
       /with your own `app`/,
     )
   })
+
+  it('mounts only the services with `servicesOnly`, and registers the app commands', async () => {
+    const { result, app } = await renderHookInApp(() => useGraph({ optional: true }), {
+      servicesOnly: true,
+    })
+
+    expect(result.current).toBeNull()
+    expect(app.commands.list().map((command) => command.id)).toContain('nav.today')
+  })
 })
 
 describe('renderHookInApp', () => {

@@ -153,7 +153,7 @@ services. For a single service, construct the service directly.
 ## Testing React code
 
 Components and hooks read services with `useAppServices()`, which throws
-outside a provider. So every desktop test renders through one of three helpers
+outside a provider. So every desktop test renders through one of two helpers
 in `apps/desktop/src/test-utils/`. Each takes an optional `app` (default: a
 fresh `createTestAppServices()`) and returns it, and each registers the app
 commands in `app.commands`, as `main.tsx` does.
@@ -161,9 +161,9 @@ commands in `app.commands`, as `main.tsx` does.
 ### `renderInApp(ui, options)`
 
 `render-in-app.tsx`. Renders `ui` the way the app does: inside
-`AppServicesProvider`, a query client, and the **real** `SettingsProvider`,
-`GraphProvider`, `RouterProvider` and, on request, `SyncProvider`, all reading
-`app`. This is the default for components.
+`AppServicesProvider`, a query client, and the **real** `GraphProvider`,
+`RouterProvider` and, on request, `SyncProvider`, all reading `app`. This is
+the default for components.
 
 ```tsx
 const { app } = await renderInApp(<RebuildIndexField />, { graph: { indexGeneration: 7 } })
@@ -177,8 +177,8 @@ Options: `app`; `graph` (default: the graph `test` at `/graphs/test`, both
 generations 1; `null` is the graph chooser) and `graphState`; `settings` (the
 stored document, loaded before the first render); `mobile`; `route` (`null`
 mounts no router); `sync`; `platform` (`MOBILE_PLATFORM` renders a mobile
-surface); `queryClient`; `wrapper`. The result adds `app`, `queryClient` and
-`backup`.
+surface); `queryClient`; `wrapper`; `servicesOnly`. The result adds `app`,
+`queryClient` and `backup`.
 
 Drive and observe the app through `app`, not through mocks:
 
@@ -221,15 +221,17 @@ await act(() => {
 expect(result.current.settings.editorFullWidth).toBe(true)
 ```
 
-### `renderWithServices(ui, options)`
+### `servicesOnly`
 
-`render-with-services.tsx`. Mounts only `AppServicesProvider` and
-`GraphServicesProvider`: no settings, graph, router or query client. Use it
-for a provider under test, or a component that needs the services and nothing
-else.
+`renderInApp(ui, { servicesOnly: true })` mounts only `AppServicesProvider` and
+the query client: no graph, router or sync, and it does not wait for the
+settings load. `app` keeps its own graph session. Use it for a provider under
+test, or a component that needs the services and nothing else.
 
 ```tsx
-const view = await renderWithServices(<CaptureProvider graph={GRAPH}>child</CaptureProvider>)
+const view = await renderInApp(<CaptureProvider graph={GRAPH}>child</CaptureProvider>, {
+  servicesOnly: true,
+})
 
 expect(view.app.capture.sessions()).toEqual([
   { generation: 7, starts: 1, schedules: 0, disposed: false },

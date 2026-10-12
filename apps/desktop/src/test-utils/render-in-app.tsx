@@ -21,7 +21,6 @@ import {
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { registerAppCommands } from '@/lib/commands/app-commands.ts'
 import { GraphProvider, useGraph } from '@/providers/graph-provider.tsx'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { SyncProvider } from '@/providers/sync-provider.tsx'
 import type { Route } from '@/routing/route.ts'
 import { RouterProvider } from '@/routing/router.tsx'
@@ -62,6 +61,13 @@ export interface RenderInAppOptions {
   queryClient?: QueryClient
   /** Wraps `ui` inside every provider, for providers this helper does not mount. */
   wrapper?: (children: ReactNode) => ReactNode
+  /**
+   * Mount only `AppServicesProvider` and the query client, for a test of a
+   * provider this helper otherwise mounts, or of one that needs no graph.
+   * `app` keeps its own graph session, and the settings load is not awaited.
+   * Not with `graph`, `graphState`, `route` or `sync`.
+   */
+  servicesOnly?: boolean
 }
 
 interface InAppHandles<App extends AppServices> {
@@ -109,15 +115,27 @@ async function prepare(options: AnyOptions | undefined): Promise<
     ...(scriptedBackups === null ? {} : { backups: scriptedBackups }),
   }
   const app: AppServices = options?.app ?? (createTestAppServices(overrides) as AppServices)
+  const servicesOnly = options?.servicesOnly ?? false
+  if (
+    servicesOnly &&
+    (options?.graph !== undefined ||
+      options?.graphState !== undefined ||
+      options?.route !== undefined ||
+      options?.sync !== undefined)
+  ) {
+    throw new Error('renderInApp: `servicesOnly` mounts no graph, router or sync')
+  }
 
   const { graphSession, settings, mobileOnboarding } = app
-  if (!('setGraph' in graphSession) || !('setState' in graphSession)) {
-    throw new Error('renderInApp: `app.graphSession` must be a test graph session')
-  }
-  const session = graphSession as TestAppServices['graphSession']
-  session.setGraph(options?.graph === undefined ? {} : options.graph)
-  if (options?.graphState !== undefined) {
-    session.setState(options.graphState)
+  if (!servicesOnly) {
+    if (!('setGraph' in graphSession) || !('setState' in graphSession)) {
+      throw new Error('renderInApp: `app.graphSession` must be a test graph session')
+    }
+    const session = graphSession as TestAppServices['graphSession']
+    session.setGraph(options?.graph === undefined ? {} : options.graph)
+    if (options?.graphState !== undefined) {
+      session.setState(options.graphState)
+    }
   }
   if (options?.settings !== undefined) {
     if (!('seed' in settings)) {
@@ -131,8 +149,10 @@ async function prepare(options: AnyOptions | undefined): Promise<
     }
     ;(mobileOnboarding as TestAppServices['mobileOnboarding']).setState(options.mobile)
   }
-  // The first render already shows the stored settings, not the defaults.
-  await settings.whenLoaded()
+  if (!servicesOnly) {
+    // The first render already shows the stored settings, not the defaults.
+    await settings.whenLoaded()
+  }
 
   const queryClient =
     options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -141,23 +161,28 @@ async function prepare(options: AnyOptions | undefined): Promise<
   const route = options?.route
   const wrap = (children: ReactNode): ReactElement => {
     const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
+    if (servicesOnly) {
+      return (
+        <AppServicesProvider services={app}>
+          <QueryClientProvider client={queryClient}>{wrapped}</QueryClientProvider>
+        </AppServicesProvider>
+      )
+    }
     const synced = (options?.sync ?? false) === false ? wrapped : <GraphSync>{wrapped}</GraphSync>
     return (
       <AppServicesProvider services={app}>
         <QueryClientProvider client={queryClient}>
-          <SettingsProvider>
-            <GraphProvider platform={app.platform.appPlatform}>
-              <TooltipProvider>
-                {route === null ? (
-                  synced
-                ) : (
-                  <RouterProvider {...(route === undefined ? {} : { initialRoute: route })}>
-                    {synced}
-                  </RouterProvider>
-                )}
-              </TooltipProvider>
-            </GraphProvider>
-          </SettingsProvider>
+          <GraphProvider platform={app.platform.appPlatform}>
+            <TooltipProvider>
+              {route === null ? (
+                synced
+              ) : (
+                <RouterProvider {...(route === undefined ? {} : { initialRoute: route })}>
+                  {synced}
+                </RouterProvider>
+              )}
+            </TooltipProvider>
+          </GraphProvider>
         </QueryClientProvider>
       </AppServicesProvider>
     )
@@ -175,7 +200,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
 
 /**
  * Render `ui` the way the app does: inside `AppServicesProvider`, a query
- * client, and the real `SettingsProvider`, `GraphProvider` (which provides
+ * client, and the real `GraphProvider` (which provides
  * the graph services), `RouterProvider` and, on request, `SyncProvider`. All
  * of them read `app`, which defaults to test doubles. Tests drive and observe
  * the app through the returned `app`: `app.graphSession.setGraph()`,

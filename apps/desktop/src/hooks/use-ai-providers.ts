@@ -1,6 +1,6 @@
-import { useSyncExternalStore } from 'react'
 import type { AiProviderConfig, NewAiProvider } from '@reflect/core'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { NewAiProvider } from '@reflect/core'
 
@@ -27,8 +27,8 @@ interface UseAiProvidersValue {
 /** The configured-AI-providers surface (Plan 10), over the `AiProviderConfigService`. */
 export function useAiProviders(): UseAiProvidersValue {
   const { aiProviderConfig: service } = useAppServices()
-  const providers = useSyncExternalStore(service.subscribe, service.list)
-  const defaultProvider = useSyncExternalStore(service.subscribe, service.defaultProvider)
+  const providers = useServiceState(service, service.list)
+  const defaultProvider = useServiceState(service, service.defaultProvider)
   return {
     providers,
     defaultProvider,

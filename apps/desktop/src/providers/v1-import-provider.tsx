@@ -4,24 +4,21 @@ import {
   useEffect,
   useMemo,
   useState,
-  useSyncExternalStore,
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { createV1ImportService } from '@reflect/core'
+import { createV1ImportService, type V1ImportService } from '@reflect/core'
 import { V1ImportDialog } from '@/components/v1-import-dialog.tsx'
 import type { V1ImportState } from '@/lib/v1-import-state.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
-interface V1ImportContextValue {
-  state: V1ImportState
-  /** Kick off an import of the chosen `.zip`; ignored while one runs. */
-  startImport: (zipPath: string) => void
-  /** Ask the running import to stop (safe: nothing lands after a cancel). */
-  cancelImport: () => void
-  /** Clear a finished (done/failed) import back to idle. */
-  dismiss: () => void
-}
+type V1ImportContextValue = { state: V1ImportState } & Pick<V1ImportService, 'dismiss'> & {
+    /** `V1ImportService.start`. */
+    startImport: V1ImportService['start']
+    /** `V1ImportService.cancel`. */
+    cancelImport: V1ImportService['cancel']
+  }
 
 const V1ImportContext = createContext<V1ImportContextValue | null>(null)
 
@@ -41,18 +38,13 @@ export function V1ImportProvider({ children }: V1ImportProviderProps): ReactElem
   const [service] = useState(() =>
     createV1ImportService({ ipc, fileChanges, graphSession, clock, logger }),
   )
-  const state = useSyncExternalStore(service.subscribe, service.getState)
+  const state = useServiceState(service)
 
   // Unmounting mid-import (graph switch, app teardown) cancels the import.
   useEffect(() => service.attach(), [service])
 
-  const value = useMemo(
-    () => ({
-      state,
-      startImport: service.start,
-      cancelImport: service.cancel,
-      dismiss: service.dismiss,
-    }),
+  const value = useMemo<V1ImportContextValue>(
+    () => ({ ...service, state, startImport: service.start, cancelImport: service.cancel }),
     [state, service],
   )
 

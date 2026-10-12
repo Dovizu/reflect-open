@@ -11,8 +11,7 @@ import { registerAppKeymaps } from '@/lib/shortcuts.ts'
 import { PlatformRoot, warmPlatformRoot } from '@platform-root'
 import { EditorFullWidthEffect } from '@/providers/editor-full-width.tsx'
 import { EditorTextSizeEffect } from '@/providers/editor-text-size.tsx'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
-import { ThemeProvider } from '@/providers/theme-provider.tsx'
+import { ThemeEffect } from '@/providers/theme-provider.tsx'
 import { AppServicesProvider } from '@/services/services-provider.tsx'
 import '@/styles/index.css'
 
@@ -39,13 +38,10 @@ createRoot(rootElement, reactRootOptions).render(
   <StrictMode>
     <AppServicesProvider services={appServices}>
       <QueryClientProvider client={queryClient}>
-        <SettingsProvider>
-          <EditorFullWidthEffect />
-          <EditorTextSizeEffect />
-          <ThemeProvider>
-            <PlatformRoot />
-          </ThemeProvider>
-        </SettingsProvider>
+        <EditorFullWidthEffect />
+        <EditorTextSizeEffect />
+        <ThemeEffect />
+        <PlatformRoot />
       </QueryClientProvider>
     </AppServicesProvider>
   </StrictMode>,

@@ -174,9 +174,9 @@ The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
   `services: AppServices` field. A command that calls a service reads it from the
   context it runs with, never from an import.
 
-Providers are thin shells. `SettingsProvider`, `ThemeProvider`, `GraphProvider` and
-`SyncProvider` read their service with `useSyncExternalStore` and pass its methods
-through; the state machine is in core.
+Providers are thin shells. `GraphProvider` and `SyncProvider` read their service with
+`useServiceState` and pass its methods through; the state machine is in core.
+`useSettings()` and `useTheme()` read their service directly, with no provider.
 (`RouterProvider` uses `subscribe` + `useState`: a `useSyncExternalStore` update inside
 a transition still commits the `Suspense` fallback of a lazy screen.)
 
@@ -239,7 +239,6 @@ maps events to cache invalidation in a few small adapters:
 | `graphSession.onGraphReleased`, `onGraphDeleted` | `providers/graph-session.ts` (`bootGraphSession`) | drop what the app holds per graph |
 | `capture.onXPostsWritten` | `lib/capture-x-posts.ts` | invalidate X post queries |
 | `assetDescription.onDescriptionsIndexed` | `lib/asset-description-queries.ts` | invalidate index queries |
-| `githubAuth.subscribe` | `lib/github-auth-state.ts` | invalidate the GitHub connection query |
 | `chatSessions.onConversationsChanged` | `providers/chat-provider.tsx` | invalidate chat history queries |
 | `noteMove.onMoved` | `routing/router.tsx` | rewrite history entries to the new path |
 
@@ -280,12 +279,12 @@ shape of the data:
 - **Service-owned state** (settings, theme, the active graph and its recents, navigation
   history, backup status, operations, the chat session) → lives **in the core service**
   that owns it, exposed as a snapshot getter plus `subscribe()` and read in React with
-  `useSyncExternalStore`. It is not mirrored into TanStack Query or a store.
+  `useServiceState` (a `useSyncExternalStore` wrapper). It is not mirrored into TanStack Query or a store.
 - **Editor / document state** → owned by **meowdown/ProseMirror**; the `<Editor>` is
   uncontrolled, so this is never mirrored into a store.
 - **Shared UI state** (command palette, sidebar + AI-context toggles, the focused daily)
   → **React context + hooks by default**. The contexts over service-owned state
-  (`ThemeProvider`, `GraphProvider`, `SettingsProvider`, `SyncProvider`) are thin shells
+  (`GraphProvider`, `SyncProvider`) are thin shells
   that only forward the service. **Zustand** is in the toolbox for when
   a slice outgrows context — frequent updates that re-render too widely, or state needed far
   from where it's provided — but that's a per-slice judgement call, not a mandate. Reach for

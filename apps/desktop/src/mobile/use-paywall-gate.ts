@@ -1,9 +1,9 @@
-import { useSyncExternalStore } from 'react'
 import type { PaywallGate } from '@reflect/core'
 import { useActiveSubscription } from '@/mobile/use-active-subscription.ts'
 import { useAppStoreEnvironment } from '@/mobile/use-app-store-environment.ts'
 import { useClassicAccess } from '@/mobile/use-classic-access.ts'
 import { useMobileAppServices } from '@/mobile/mobile-services.ts'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { PaywallGate } from '@reflect/core'
 
@@ -16,5 +16,5 @@ export function usePaywallGate(): PaywallGate {
   useClassicAccess()
   useAppStoreEnvironment()
   const { paywall } = useMobileAppServices()
-  return useSyncExternalStore(paywall.subscribe, paywall.gate)
+  return useServiceState(paywall, paywall.gate)
 }

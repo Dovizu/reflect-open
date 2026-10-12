@@ -6,7 +6,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
   type ReactElement,
   type ReactNode,
 } from 'react'
@@ -22,6 +21,7 @@ import {
 } from '@/components/audio-memo/recording-reminder.ts'
 import { useSidebar } from '@/providers/sidebar-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
  * The desktop React surface for audio memos: a thin shell over the
@@ -34,31 +34,11 @@ import { useAppServices } from '@/services/services-provider.tsx'
 
 export type { AudioMemoPhase }
 
-interface AudioMemoContextValue {
-  phase: AudioMemoPhase
-  /** Live while recording. */
-  elapsedMs: number
-  /** The live input stream, for the waveform. */
-  stream: MediaStream | null
-  /** Recordings committed but not yet written to the graph. */
-  pendingCount: number
-  /** False when no OpenAI/Gemini model is configured or the platform can't record. */
-  available: boolean
-  /** Why the mic is disabled (tooltip copy), null when `available`. */
-  unavailableReason: string | null
-  /** The failure shown in the error phase. */
-  error: string | null
-  /** True when a retry can re-run the failed capture. */
-  canRetry: boolean
-  /** Idle → start recording (expanding a collapsed sidebar); recording → stop & save. */
-  toggle: () => void
-  /** Discard the in-flight recording without saving. */
-  cancel: () => void
-  /** Re-run the failed capture. */
-  retry: () => void
-  /** Drop the failed memo and let the queue continue. */
-  discard: () => void
-}
+type AudioMemoContextValue = AudioMemoSessionState &
+  Pick<AudioMemoSession, 'cancel' | 'retry' | 'discard'> & {
+    /** Idle → start recording (expanding a collapsed sidebar); recording → stop & save. */
+    toggle: () => void
+  }
 
 const AudioMemoContext = createContext<AudioMemoContextValue | null>(null)
 
@@ -75,12 +55,9 @@ const CLOSED_STATE: AudioMemoSessionState = {
   recorderState: 'idle',
 }
 
-function subscribeClosed(): () => void {
-  return () => {}
-}
-
-function getClosedState(): AudioMemoSessionState {
-  return CLOSED_STATE
+const CLOSED_SESSION = {
+  subscribe: () => () => {},
+  getState: () => CLOSED_STATE,
 }
 
 interface AudioMemoProviderProps {
@@ -121,10 +98,7 @@ export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): 
     }
   }, [audioMemo, graph.generation])
 
-  const state = useSyncExternalStore(
-    session?.subscribe ?? subscribeClosed,
-    session?.getState ?? getClosedState,
-  )
+  const state = useServiceState(session ?? CLOSED_SESSION)
 
   // The mic button (and its popover) unmount with the sidebar. The session
   // decides what a hidden surface means for a live recording or a pending
@@ -143,20 +117,7 @@ export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): 
     }),
     [session],
   )
-  const value = useMemo<AudioMemoContextValue>(
-    () => ({
-      phase: state.phase,
-      elapsedMs: state.elapsedMs,
-      stream: state.stream,
-      pendingCount: state.pendingCount,
-      available: state.available,
-      unavailableReason: state.unavailableReason,
-      error: state.error,
-      canRetry: state.canRetry,
-      ...controls,
-    }),
-    [state, controls],
-  )
+  const value = useMemo<AudioMemoContextValue>(() => ({ ...state, ...controls }), [state, controls])
 
   return <AudioMemoContext value={value}>{children}</AudioMemoContext>
 }

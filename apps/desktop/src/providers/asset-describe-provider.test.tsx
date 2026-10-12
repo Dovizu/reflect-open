@@ -6,18 +6,13 @@ import {
   createTestSettingsService,
   createTestWindowService,
 } from '@reflect/core/testing'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { AssetDescribeProvider } from './asset-describe-provider.tsx'
 
 const GRAPH: GraphInfo = { root: '/g', name: 'g', generation: 7 }
 
 function tree(graph: GraphInfo = GRAPH) {
-  return (
-    <SettingsProvider>
-      <AssetDescribeProvider graph={graph}>child</AssetDescribeProvider>
-    </SettingsProvider>
-  )
+  return <AssetDescribeProvider graph={graph}>child</AssetDescribeProvider>
 }
 
 describe('AssetDescribeProvider', () => {
@@ -25,7 +20,7 @@ describe('AssetDescribeProvider', () => {
     const app = createTestAppServices({
       settings: createTestSettingsService({ describeAssets: true }),
     })
-    const view = await renderWithServices(tree(), { app })
+    const view = await renderInApp(tree(), { app, servicesOnly: true })
 
     await expect.element(view.getByText('child')).toBeVisible()
     await expect
@@ -39,7 +34,7 @@ describe('AssetDescribeProvider', () => {
     const settings = createTestSettingsService({ describeAssets: false })
     await settings.whenLoaded()
     const app = createTestAppServices({ settings })
-    const view = await renderWithServices(tree(), { app })
+    const view = await renderInApp(tree(), { app, servicesOnly: true })
 
     await expect.element(view.getByText('child')).toBeVisible()
     expect(app.assetDescription.sessions()).toEqual([])
@@ -49,7 +44,7 @@ describe('AssetDescribeProvider', () => {
     const app = createTestAppServices({
       settings: createTestSettingsService({ describeAssets: true }),
     })
-    const view = await renderWithServices(tree(), { app })
+    const view = await renderInApp(tree(), { app, servicesOnly: true })
     await expect.poll(() => app.assetDescription.sessions()).toHaveLength(1)
 
     await view.rerender(tree({ ...GRAPH, generation: 8 }))
@@ -74,7 +69,7 @@ describe('AssetDescribeProvider', () => {
       settings,
       window: createTestWindowService({ label: 'note-1' }),
     })
-    const view = await renderWithServices(tree(), { app })
+    const view = await renderInApp(tree(), { app, servicesOnly: true })
     await settings.whenLoaded()
 
     await expect.element(view.getByText('child')).toBeVisible()

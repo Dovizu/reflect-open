@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect } from 'react'
 import { focusedEditorCommands } from '@/editor/formatting-toolbar-store.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
  * Whether the software keyboard is up, as reactive state. The tab bar hides
@@ -10,7 +11,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  */
 export function useKeyboardVisible(): boolean {
   const { keyboard } = useAppServices()
-  return useSyncExternalStore(keyboard.subscribe, keyboard.isVisible, keyboard.isVisible)
+  return useServiceState(keyboard, keyboard.isVisible)
 }
 
 /**
@@ -91,7 +92,7 @@ export function useKeyboardHeightVar(): void {
 
   // Service subscriber: touches the CSS variable only when the value changed,
   // in a layout effect so the shell resizes in the same paint.
-  const height = useSyncExternalStore(keyboard.subscribe, keyboard.getHeight, keyboard.getHeight)
+  const height = useServiceState(keyboard, keyboard.getHeight)
   useLayoutEffect(() => {
     document.documentElement.style.setProperty('--keyboard-height', `${height}px`)
     return () => {
@@ -136,7 +137,7 @@ function focusedKeyboardField(): HTMLElement | null {
  */
 export function useKeyboardFieldReveal(): void {
   const { keyboard } = useAppServices()
-  const height = useSyncExternalStore(keyboard.subscribe, keyboard.getHeight, keyboard.getHeight)
+  const height = useServiceState(keyboard, keyboard.getHeight)
 
   useEffect(() => {
     if (height <= 0) {
@@ -168,7 +169,7 @@ export function useKeyboardFieldReveal(): void {
  */
 export function useKeyboardCaretReveal(): void {
   const { keyboard } = useAppServices()
-  const height = useSyncExternalStore(keyboard.subscribe, keyboard.getHeight, keyboard.getHeight)
+  const height = useServiceState(keyboard, keyboard.getHeight)
 
   useEffect(() => {
     if (height <= 0) {

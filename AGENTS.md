@@ -205,7 +205,7 @@ The short version:
   it at call time; never cache one across a graph switch.
 - Tests construct services over the test doubles in `@reflect/core/testing`
   (`createTestAppServices()`, `createTestXxxService()`), and desktop tests render with
-  `renderInApp` / `renderWithServices`. `vi.mock` is only for stubbing a pure UI child.
+  `renderInApp` / `renderHookInApp`. `vi.mock` is only for stubbing a pure UI child.
   See [docs/contributing/testing.md](docs/contributing/testing.md).
 
 **Frontend ↔ Rust**

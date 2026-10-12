@@ -4,17 +4,12 @@ import {
   useLayoutEffect,
   useMemo,
   useState,
-  useSyncExternalStore,
   type ReactElement,
   type ReactNode,
 } from 'react'
-import type {
-  AudioMemoPhase,
-  GraphInfo,
-  MobileAudioMemoSession,
-  MobileAudioMemoSessionState,
-} from '@reflect/core'
+import type { GraphInfo, MobileAudioMemoSession, MobileAudioMemoSessionState } from '@reflect/core'
 import { useMobileAppServices } from '@/mobile/mobile-services.ts'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
  * The mobile React surface for audio memos: a thin shell over the
@@ -24,37 +19,14 @@ import { useMobileAppServices } from '@/mobile/mobile-services.ts'
  * it is a bottom drawer plus the mic action in the Daily capture menu.
  */
 
-interface MobileAudioMemoContextValue {
-  phase: AudioMemoPhase
-  /** Live while recording. */
-  elapsedMs: number
-  /** Latest input level 0…1, for the waveform. */
-  level: number
-  /** Recordings committed but not yet written to the graph. */
-  pendingCount: number
-  /** False without the native shell (the recorder is a native plugin). */
-  available: boolean
-  /** False when no OpenAI/Gemini model is configured; the drawer then guides key setup. */
-  hasTranscriptionConfig: boolean
-  /** The failure shown in the error phase. */
-  error: string | null
-  /** True when a retry can re-run the failed capture. */
-  canRetry: boolean
-  /** The recording drawer's visibility. */
-  drawerOpen: boolean
-  /** Audio action tap: idle → record (or key setup); recording → stop & save; error → show it. */
-  toggle: () => void
-  /** The drawer's stop control — commit the memo. */
-  stopAndSave: () => void
-  /** The drawer's discard control — drop the live recording. */
-  cancelRecording: () => void
-  /** Drawer dismissal: a live recording stops-and-saves, never silently drops. */
-  onDrawerOpenChange: (open: boolean) => void
-  /** Re-run the failed capture. */
-  retry: () => void
-  /** Drop the failed memo and let the queue continue. */
-  discard: () => void
-}
+type MobileAudioMemoContextValue = MobileAudioMemoSessionState &
+  Pick<
+    MobileAudioMemoSession,
+    'toggle' | 'stopAndSave' | 'cancelRecording' | 'retry' | 'discard'
+  > & {
+    /** Drawer dismissal: a live recording stops-and-saves, never silently drops. */
+    onDrawerOpenChange: (open: boolean) => void
+  }
 
 const MobileAudioMemoContext = createContext<MobileAudioMemoContextValue | null>(null)
 
@@ -71,12 +43,9 @@ const CLOSED_STATE: MobileAudioMemoSessionState = {
   drawerOpen: false,
 }
 
-function subscribeClosed(): () => void {
-  return () => {}
-}
-
-function getClosedState(): MobileAudioMemoSessionState {
-  return CLOSED_STATE
+const CLOSED_SESSION = {
+  subscribe: () => () => {},
+  getState: () => CLOSED_STATE,
 }
 
 interface MobileAudioMemoProviderProps {
@@ -102,10 +71,7 @@ export function MobileAudioMemoProvider({
     }
   }, [mobileAudioMemo, graph.generation])
 
-  const state = useSyncExternalStore(
-    session?.subscribe ?? subscribeClosed,
-    session?.getState ?? getClosedState,
-  )
+  const state = useServiceState(session ?? CLOSED_SESSION)
 
   const controls = useMemo(
     () => ({

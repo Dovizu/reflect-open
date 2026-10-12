@@ -1,30 +1,14 @@
-import {
-  createContext,
-  use,
-  useMemo,
-  useSyncExternalStore,
-  type ReactElement,
-  type ReactNode,
-} from 'react'
-import type { UpdateState } from '@reflect/core'
+import { createContext, use, useMemo, type ReactElement, type ReactNode } from 'react'
+import type { UpdateService, UpdateState } from '@reflect/core'
 import { attachUpdateToasts } from '@/components/update-toasts.ts'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
-interface UpdateContextValue {
-  state: UpdateState
-  /**
-   * False outside a desktop native shell (browser dev, iOS/Android): hide
-   * update UI entirely. Mobile ships through the app stores, and the updater
-   * plugins are only registered under `#[cfg(desktop)]`.
-   */
-  supported: boolean
-  checkNow: () => Promise<void>
-  install: () => Promise<void>
-  restart: () => Promise<void>
-  /** Retry what failed: the install after a failed install, otherwise the check. */
-  retryAction: () => Promise<void>
-}
+type UpdateContextValue = { state: UpdateState } & Pick<
+  UpdateService,
+  'supported' | 'checkNow' | 'install' | 'restart' | 'retryAction'
+>
 
 const UpdateContext = createContext<UpdateContextValue | null>(null)
 
@@ -40,7 +24,7 @@ interface UpdateProviderProps {
 
 /**
  * Thin React shim over the app's `UpdateService`, surfaced through
- * `useSyncExternalStore`. Mounted above the graph gate so update checks run
+ * `useServiceState`. Mounted above the graph gate so update checks run
  * from first launch, before any graph is open.
  */
 export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): ReactElement {
@@ -63,19 +47,9 @@ export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): Re
     }
   }, [update, supported, resolvedAutoCheck, logger])
 
-  const state = useSyncExternalStore(update.subscribe, update.getState)
+  const state = useServiceState(update)
 
-  const value = useMemo<UpdateContextValue>(
-    () => ({
-      state,
-      supported,
-      checkNow: () => update.checkNow(),
-      install: () => update.install(),
-      restart: () => update.restart(),
-      retryAction: () => update.retryAction(),
-    }),
-    [update, state, supported],
-  )
+  const value = useMemo<UpdateContextValue>(() => ({ ...update, state }), [update, state])
 
   return <UpdateContext value={value}>{children}</UpdateContext>
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   createConnectGithubWizardService,
   type ConnectAuthKind,
@@ -16,6 +16,7 @@ export type {
   ConnectGithubWizardOptions,
   ConnectWizardStep,
 } from '@reflect/core'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 export interface ConnectGithubWizard {
   step: ConnectWizardStep
@@ -89,7 +90,7 @@ export function useConnectGithubWizard({
   // The repo-existence poll only runs while the surface is mounted.
   useEffect(() => wizard.attach(), [wizard])
 
-  const state = useSyncExternalStore(wizard.subscribe, wizard.getState)
+  const state = useServiceState(wizard)
 
   return {
     step: state.step,

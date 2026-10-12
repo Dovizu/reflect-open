@@ -17,7 +17,7 @@ import {
 } from '@reflect/core/testing'
 import { queryClient, queryKeys } from '@/lib/query-client.ts'
 import { ChatProvider, useChatSession } from '@/providers/chat-provider.tsx'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 
 /**
  * The provider as a shell over the core chat session: it creates the session
@@ -72,11 +72,11 @@ async function renderProvider(options?: {
   })
   // The open graph, as the graph session service reports it.
   app.graphSession.setState({ graph: GRAPH, indexGeneration: 7 })
-  const view = await renderWithServices(
+  const view = await renderInApp(
     <ChatProvider graph={GRAPH}>
       <SessionProbe />
     </ChatProvider>,
-    { app },
+    { app, servicesOnly: true },
   )
   return { view, app, chatHistory, chatEngine }
 }

@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createTestAppServices, createTestSettingsService } from '@reflect/core/testing'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { EmbeddingsSync } from './embeddings-sync.tsx'
 
 // The sync itself is `SemanticSearchService.start`, covered in `@reflect/core`.
 
 describe('EmbeddingsSync', () => {
   it('runs the semantic search service for as long as it is mounted', async () => {
-    const view = await renderWithServices(<EmbeddingsSync />)
+    const view = await renderInApp(<EmbeddingsSync />, { servicesOnly: true })
     expect(view.app.semanticSearch.running()).toBe(1)
 
     await view.unmount()
@@ -23,7 +23,7 @@ describe('EmbeddingsSync', () => {
       indexGeneration: 7,
     })
 
-    await renderWithServices(<EmbeddingsSync />, { app })
+    await renderInApp(<EmbeddingsSync />, { app, servicesOnly: true })
 
     await vi.waitFor(() =>
       expect(app.embeddingIndex.follows()).toEqual([
@@ -33,7 +33,7 @@ describe('EmbeddingsSync', () => {
   })
 
   it('starts no embedding work while semantic search is disabled', async () => {
-    const view = await renderWithServices(<EmbeddingsSync />)
+    const view = await renderInApp(<EmbeddingsSync />, { servicesOnly: true })
     view.app.graphSession.setState({
       graph: { root: '/g', name: 'g', generation: 1 },
       indexGeneration: 7,

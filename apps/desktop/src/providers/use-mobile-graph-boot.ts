@@ -1,6 +1,7 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { MobileStorageInfo, MobileStorageKind } from '@reflect/core'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 /** The mobile-only slice of the graph context, read from `MobileOnboardingService`. */
 export interface MobileGraphBoot {
@@ -51,18 +52,18 @@ export interface MobileGraphBoot {
  */
 export function useMobileGraphBoot(): MobileGraphBoot {
   const { mobileOnboarding: service } = useAppServices()
-  const { needsOnboarding, storageInfo, resolving, kind } = useSyncExternalStore(
-    service.subscribe,
-    service.getState,
-  )
+  const state = useServiceState(service)
 
   useEffect(() => service.boot(), [service])
 
-  return {
-    needsOnboarding,
-    mobileStorageInfo: storageInfo,
-    mobileStorageResolving: resolving,
-    mobileStorageKind: kind,
-    completeOnboarding: service.completeOnboarding,
-  }
+  return useMemo(
+    () => ({
+      needsOnboarding: state.needsOnboarding,
+      mobileStorageInfo: state.storageInfo,
+      mobileStorageResolving: state.resolving,
+      mobileStorageKind: state.kind,
+      completeOnboarding: service.completeOnboarding,
+    }),
+    [state, service],
+  )
 }

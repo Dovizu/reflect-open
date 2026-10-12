@@ -52,12 +52,7 @@ export {
   type TestHttpService,
 } from './http.ts'
 export { createTestStorageService, type TestStorageService } from './storage.ts'
-export {
-  createTestAppServices,
-  createTestGraphServices,
-  type TestAppServices,
-  type TestGraphServices,
-} from './services.ts'
+export { createTestAppServices, type TestAppServices } from './services.ts'
 export {
   createTestCalendarEventsService,
   createTestCalendarService,

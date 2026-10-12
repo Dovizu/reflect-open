@@ -2,7 +2,7 @@ import { page } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { AiProviderConfig } from '@reflect/core'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 
 /** The per-provider management sheet: make-default and remove wiring. */
 
@@ -35,7 +35,7 @@ beforeEach(() => {
 })
 
 async function renderSheet(isDefault = false) {
-  return await renderWithServices(
+  return await renderInApp(
     <AiProviderActionsDrawer
       provider={PROVIDER}
       isDefault={isDefault}
@@ -45,6 +45,7 @@ async function renderSheet(isDefault = false) {
       onSetDefaultModel={onSetDefaultModel}
       onRemove={onRemove}
     />,
+    { servicesOnly: true },
   )
 }
 
