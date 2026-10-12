@@ -39,6 +39,7 @@ const SERVICE_KEYS = [
   'mobileStorage',
   'imageCodec',
   'exceptionTelemetry',
+  'fileChanges',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
@@ -101,6 +102,25 @@ describe('createAppServices', () => {
     expect(services.clock.now()).toBeGreaterThan(5)
     expect(services.id.noteId()).toMatch(/^[0-9a-z]{26}$/)
     expect(typeof services.logger.warn).toBe('function')
+  })
+
+  it('echoes own writes onto the file-change stream on mobile only', () => {
+    for (const [appPlatform, echoed] of [
+      ['desktop', 0],
+      ['ios', 1],
+    ] as const) {
+      const services = createAppServices({
+        ...requiredAdapters(),
+        logger: createTestLoggerService(),
+        platform: createTestPlatformService({ appPlatform }),
+      })
+      let batches = 0
+      services.fileChanges.subscribe(() => {
+        batches++
+      })
+      services.fileChanges.reportOwnWrite([{ path: 'notes/a.md', kind: 'upsert' }])
+      expect(batches, appPlatform).toBe(echoed)
+    }
   })
 
   it('leaves every process-wide default alone', () => {

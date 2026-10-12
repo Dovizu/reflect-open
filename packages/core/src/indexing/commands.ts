@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { noteBasenameKey } from '../graph/note-reference.ts'
 import { dateFromDailyPath, foldGraphPath, isCalendarDate } from '../graph/paths.ts'
 import { call } from '../ipc/invoke.ts'
+import { defaultFileChanges } from './file-change-service.ts'
 import type { IndexedNote } from './indexed-note.ts'
 
 /** Index commands return `()` from Rust, which serializes to `null` over IPC. */
@@ -179,12 +180,12 @@ export async function setIndexMeta(key: string, value: string, generation: numbe
   await call('index_meta_set', { key, value, generation }, voidSchema)
 }
 
-/** Start (or restart) the filesystem watcher for the active graph (Plan 04b). */
+/** `defaultFileChanges().startWatcher`. */
 export async function watchStart(): Promise<void> {
-  await call('watch_start', {}, voidSchema)
+  await defaultFileChanges().startWatcher()
 }
 
-/** Stop the filesystem watcher. */
+/** `defaultFileChanges().stopWatcher`. */
 export async function watchStop(): Promise<void> {
-  await call('watch_stop', {}, voidSchema)
+  await defaultFileChanges().stopWatcher()
 }

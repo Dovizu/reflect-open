@@ -106,3 +106,8 @@ export {
   createTestSecretStoreService,
   type TestSecretStoreService,
 } from './secrets.ts'
+export {
+  createTestFileChangeService,
+  type TestFileChangeService,
+  type TestFileChangeServiceOptions,
+} from './file-change.ts'
