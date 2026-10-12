@@ -118,7 +118,8 @@ export function setJson<T>(store: KeyValueStore, key: string, schema: ZodType<T>
   }
 }
 
-function reachWebStorage(
+/** The `window` Web storage area `name`, or `null` when there is no `window` or reaching it fails. */
+export function reachWebStorage(
   logger: LoggerService,
   name: 'localStorage' | 'sessionStorage',
 ): Storage | null {

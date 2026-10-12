@@ -4,7 +4,11 @@ import { isAppError } from '../errors.ts'
 import { createIpcBridgeService, listenNow, type IpcBridge } from './ipc-service.ts'
 
 function createLogger() {
-  return { warn: vi.fn<(message: string, cause?: unknown) => void>() }
+  return {
+    error: vi.fn<(message: string, cause?: unknown) => void>(),
+    warn: vi.fn<(message: string, cause?: unknown) => void>(),
+    info: vi.fn<(message: string, cause?: unknown) => void>(),
+  }
 }
 
 function serviceOver(transport: IpcBridge) {

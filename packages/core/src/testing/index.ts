@@ -48,6 +48,13 @@ export {
 } from './http.ts'
 export { createTestStorageService, type TestStorageService } from './storage.ts'
 export {
+  createTestAppServices,
+  createTestGraphServices,
+  installTestServices,
+  type TestAppServices,
+  type TestGraphServices,
+} from './services.ts'
+export {
   createTestCalendarService,
   type TestCalendarService,
   type TestCalendarServiceOptions,

@@ -1,5 +1,6 @@
 export {
   setBridge,
+  setDefaultIpc,
   hasBridge,
   subscribeBridgeChanges,
   defaultIpc,
@@ -191,11 +192,24 @@ export {
   createWebStorageService,
   defaultStorage,
   getJson,
+  reachWebStorage,
   setDefaultStorage,
   setJson,
   type KeyValueStore,
   type StorageService,
 } from '../app/storage-service.ts'
+export { createGraphSession, type GraphSession } from '../app/graph-session.ts'
+export {
+  createAppServices,
+  type AppAdapters,
+  type AppServices,
+} from '../app/create-app-services.ts'
+export {
+  createGraphServices,
+  type GraphRole,
+  type GraphServices,
+} from '../app/create-graph-services.ts'
+export { installDefaultServices } from '../app/install-default-services.ts'
 export {
   agentSkillStatus,
   agentSkillInstall,
