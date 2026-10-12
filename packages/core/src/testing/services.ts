@@ -62,6 +62,10 @@ import {
   type TestIdService,
 } from './id.ts'
 import { createTestImageCodec, type TestImageCodecService } from './image-codec.ts'
+import {
+  createTestIndexLifecycleService,
+  type TestIndexLifecycleService,
+} from './index-lifecycle.ts'
 import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
@@ -169,6 +173,7 @@ export interface TestAppServices extends AppServices {
   readonly noteLinkResolver: TestNoteLinkResolverService
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
+  readonly indexLifecycle: TestIndexLifecycleService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -194,12 +199,16 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   })
   const http = createTestHttpService()
   const secretStore = createTestSecretStoreService()
+  const fileChanges = createTestFileChangeService()
+  const indexStore = createTestIndexStoreService()
+  const xArchive = createTestXArchiveService()
+  const hash = createTestHashService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
     clock,
     id,
-    hash: createTestHashService(),
+    hash,
     platform: createTestPlatformService(),
     storage: createTestStorageService(),
     http,
@@ -222,8 +231,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     theme: createTestThemeService(),
     persistenceFlush: createTestPersistenceFlushService(),
     database,
-    fileChanges: createTestFileChangeService(),
-    indexStore: createTestIndexStoreService(),
+    fileChanges,
+    indexStore,
     embeddingRuntime: createTestEmbeddingRuntimeService(),
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
@@ -241,7 +250,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     icloudNative: createTestICloudNativeService(),
     captureInbox: createTestCaptureInboxService(),
     webFetch: createTestWebFetchService(),
-    xArchive: createTestXArchiveService(),
+    xArchive,
     audioRecorder: createTestAudioRecorderService(),
     haptics: createTestHapticsService(),
     iap: createTestIapService(),
@@ -262,6 +271,17 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       id: overrides?.id ?? id,
     }),
     privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
+    indexLifecycle: createTestIndexLifecycleService({
+      indexStore: overrides?.indexStore ?? indexStore,
+      noteFile: overrides?.noteFile ?? noteFile,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+      database: overrides?.database ?? database,
+      xArchive: overrides?.xArchive ?? xArchive,
+      hash: overrides?.hash ?? hash,
+      clock: overrides?.clock ?? clock,
+      logger,
+      operations: overrides?.operations ?? operations,
+    }),
   }
   return Object.assign(services, overrides)
 }

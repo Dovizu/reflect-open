@@ -35,16 +35,21 @@ Every native call funnels through two seams:
 ## Indexing: which entry point?
 
 - **`indexNote(path, { generation })`** — one note changed; parse and apply it.
-- **`reconcileIndex({ generation })`** — the graph-open path: re-index files
-  whose content hash changed, drop rows for deleted files. Cheap on an
-  already-populated index.
-- **`rebuildIndex({ generation })`** — wipe and re-index everything. For
-  explicit repair and schema bumps, not the hot path.
-- **`subscribeIndexChanges(generation)`** — live re-indexing driven by the Rust
-  file watcher; the *sole* incremental path (our own saves flow file → watcher
-  → index like any external edit).
+- **`IndexLifecycleService`** (`defaultIndexLifecycle()`) runs the open graph's
+  index and owns every whole-graph pass:
+  - **`sync(generation, isStale)`** — the graph-open path: re-index files whose
+    content hash changed and drop rows for deleted files (cheap on an
+    already-populated index), or rebuild when the stored projection version is
+    stale. Then it subscribes to live changes and starts the Rust file watcher,
+    in that order. The live subscription is the *sole* incremental path (our
+    own saves flow file → watcher → index like any external edit).
+  - **`rebuildVisibly(generation)`** — wipe and re-index everything. For
+    explicit repair, not the hot path.
+  - It reports through events (`onApplied`, `onReconciled`, `onMoved`, ...);
+    the app maps them to cache invalidation and re-embedding.
 
-**`generation`** is the index session token returned by `openIndex()`. Every
+**`generation`** is the index session token returned by
+`IndexLifecycleService.open()`. Every
 write carries it; Rust silently drops writes whose generation is stale, so a
 pass started for one graph can never corrupt a newly-opened index. If you add
 a write path, thread the generation through — never cache one across a graph

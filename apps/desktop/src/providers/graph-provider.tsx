@@ -15,7 +15,6 @@ import {
   errorMessage,
   forgetRecent,
   hasBridge,
-  icloudRequestDownloads,
   isMobilePlatform,
   createGraph,
   openGraph,
@@ -25,20 +24,13 @@ import {
   type GraphInfo,
   type RecentGraph,
 } from '@reflect/core'
-import { followHealedMove } from '@/editor/move-note.ts'
-import { reloadOpenDocuments } from '@/editor/open-documents.ts'
 import { resetNoteRowOverlays } from '@/hooks/note-row-overlay.ts'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
-import { setIndexProgress } from '@/lib/index-progress.ts'
-import {
-  dropIcloudStatusQuery,
-  dropSimilarNotesQueries,
-  throttledInvalidateIndexQueries,
-} from '@/lib/query-client.ts'
+import { dropIcloudStatusQuery, dropSimilarNotesQueries } from '@/lib/query-client.ts'
 import { ensureWelcomeNote } from '@/lib/welcome-note.ts'
 import { closeSecondaryWindows } from '@/lib/windows/close-secondary-windows.ts'
 import { isMainWindow, requireMainWindow } from '@/lib/windows/window-role.ts'
-import { createGraphIndex } from './graph-index.ts'
+import { bindGraphIndex, useGraphIndex } from './graph-index.ts'
 import { useDesktopGraphBoot } from './use-desktop-graph-boot.ts'
 import { useMobileGraphBoot, type MobileGraphBoot } from './use-mobile-graph-boot.ts'
 import { useNoteWindowBoot } from './use-note-window-boot.ts'
@@ -159,42 +151,18 @@ export function GraphProvider({
   const openChain = useRef<Promise<unknown>>(Promise.resolve())
   // The active graph's index lifecycle (open → reconcile → subscribe → watch), so
   // a graph switch can stop the prior pass before the Rust connection is swapped.
-  const indexRef = useRef(
-    createGraphIndex({
-      onError: (stage, err) => console.error(`index ${stage} failed:`, errorMessage(err)),
-      onProgress: (progress) => {
-        setIndexing(progress === 'reconciling')
-        if (progress !== 'reconciling') {
-          setIndexProgress(null) // the pass finished (or went idle) — clear the pill
-        }
-      },
-      // Applied watcher batches stream every couple of seconds during a bulk
-      // sync — the throttled variant collapses them to one refetch round per
-      // window (an isolated batch still invalidates immediately).
-      onApplied: throttledInvalidateIndexQueries,
-      // A completed reconcile read changed files into the index without
-      // per-file events; open sessions re-read so the visible note converges
-      // with the index (unchanged files are no-op reads).
-      onReconciled: reloadOpenDocuments,
-      onFileProgress: (done, total, worked) => setIndexProgress({ done, total, worked }),
-      // External renames healed by id follow through to sessions and routes,
-      // exactly as for an in-app rename (Plan 17).
-      onMoved: followHealedMove,
-      // iCloud-evicted notes whose content the index lacks (never indexed
-      // here, or remote-edited while evicted): request exactly those
-      // downloads; the materialized files index via ordinary watcher
-      // upserts. Non-iCloud graphs never list placeholders, so this never
-      // fires for them. Rust resolves against the active root itself.
-      onStalePlaceholders: (paths) => {
-        icloudRequestDownloads(paths).catch((err: unknown) => {
-          console.error('iCloud download request failed:', errorMessage(err))
-        })
-      },
-      // `visibilitychange` below performs the active teardown; this dynamic
-      // guard also closes the launch race where the first sync is scheduled
-      // after iOS has already hidden the webview.
-      shouldSuspend: () => isMobilePlatform(platform) && document.visibilityState === 'hidden',
-    }),
+  const index = useGraphIndex()
+
+  useEffect(
+    () =>
+      bindGraphIndex(index, {
+        onIndexingChange: setIndexing,
+        // `visibilitychange` below performs the active teardown; this dynamic
+        // guard also closes the launch race where the first sync is scheduled
+        // after iOS has already hidden the webview.
+        shouldSuspend: () => isMobilePlatform(platform) && document.visibilityState === 'hidden',
+      }),
+    [index, platform],
   )
 
   useEffect(() => {
@@ -202,7 +170,6 @@ export function GraphProvider({
       return
     }
 
-    const index = indexRef.current
     const onVisibilityChange = (): void => {
       if (document.visibilityState === 'hidden') {
         // Synchronous teardown prevents a locally emitted or metadata-watcher
@@ -225,7 +192,7 @@ export function GraphProvider({
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [indexGeneration, platform])
+  }, [index, indexGeneration, platform])
 
   const loadRecents = useCallback(
     // Call-time check on purpose: an imperative load reads the live bridge
@@ -272,7 +239,6 @@ export function GraphProvider({
           if (seq !== openSeq.current) {
             return false // superseded by a newer open
           }
-          const index = indexRef.current
           // Stop any prior reconcile and wait for it to fully settle before the
           // Rust index connection is swapped, so a stale pass can't write into
           // this graph's index.
@@ -340,7 +306,7 @@ export function GraphProvider({
       openChain.current = next
       return next
     },
-    [loadRecents, platform],
+    [index, loadRecents, platform],
   )
 
   // The mobile bootstrap + onboarding slice (Plans 19/21) lives in its own
@@ -425,14 +391,14 @@ export function GraphProvider({
 
   const closeActiveGraph = useCallback(async (): Promise<void> => {
     ++openSeq.current
-    await indexRef.current.close()
+    await index.close()
     resetNoteRowOverlays()
     setGraph(null)
     setIndexGeneration(null)
     setIndexing(false)
     setError(null)
     setStatus('choosing')
-  }, [])
+  }, [index])
 
   const chooseGraph = useCallback(async (): Promise<void> => {
     if (!requireMainWindow('switching graphs')) {
@@ -504,8 +470,8 @@ export function GraphProvider({
     // The index lifecycle coalesces stacked triggers (resume + poll-end +
     // watch-failed can fire together) into a single queued rerun.
     const seq = openSeq.current
-    indexRef.current.refresh(indexGeneration, () => seq !== openSeq.current)
-  }, [indexGeneration])
+    index.refresh(indexGeneration, () => seq !== openSeq.current)
+  }, [index, indexGeneration])
   // A structural vault change (folder created, renamed, or removed) cannot
   // be expressed as per-file events; the watcher asks for one full reconcile
   // instead, and `refresh` coalesces bursts into a single queued rerun.
