@@ -11,3 +11,4 @@ export {
 } from './id.ts'
 export { createTestLoggerService, type LogEntry, type TestLoggerService } from './logger.ts'
 export { createTestClockService, type TestClockService } from './clock.ts'
+export { createTestStorageService, type TestStorageService } from './storage.ts'
