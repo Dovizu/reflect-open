@@ -49,6 +49,7 @@ import {
   type TestWindowService,
 } from './shell.ts'
 import { createTestStorageService, type TestStorageService } from './storage.ts'
+import { createTestUpdateService, type TestUpdateService } from './update.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
 export interface TestAppServices extends AppServices {
@@ -76,6 +77,7 @@ export interface TestAppServices extends AppServices {
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
+  readonly update: TestUpdateService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -111,6 +113,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     exceptionTelemetry: createTestExceptionTelemetry(),
     database: createTestDatabaseService(),
     fileChanges: createTestFileChangeService(),
+    update: createTestUpdateService(),
   }
   return Object.assign(services, overrides)
 }

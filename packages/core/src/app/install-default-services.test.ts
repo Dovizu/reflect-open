@@ -24,6 +24,7 @@ import { defaultOpener } from './opener-service.ts'
 import { defaultPath } from './path-service.ts'
 import { defaultPlatform } from './platform-service.ts'
 import { defaultStorage } from './storage-service.ts'
+import { defaultUpdate } from './update-service.ts'
 import { defaultWindow } from './window-service.ts'
 
 afterEach(() => {
@@ -59,6 +60,7 @@ describe('installDefaultServices', () => {
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
+    expect(defaultUpdate()).toBe(services.update)
   })
 })
 
@@ -77,6 +79,7 @@ describe('resetDefaultServices', () => {
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
+    expect(defaultUpdate()).not.toBe(services.update)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

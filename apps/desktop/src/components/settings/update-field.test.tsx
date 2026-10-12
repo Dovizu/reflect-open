@@ -1,38 +1,45 @@
 import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { UpdateState } from '@/lib/update-controller.ts'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setDefaultUpdate, type UpdateState } from '@reflect/core'
+import { createTestUpdateService, type TestUpdateService } from '@reflect/core/testing'
+import { UpdateProvider } from '@/providers/update-provider.tsx'
 import { UpdateField } from './update-field.tsx'
 
-const update = vi.hoisted(() => ({
-  state: { phase: 'idle' } as UpdateState,
-  supported: true,
-  checkNow: vi.fn(async () => {}),
-  install: vi.fn(async () => {}),
-  restart: vi.fn(async () => {}),
-}))
-vi.mock('@/providers/update-provider.tsx', () => ({ useUpdate: () => update }))
+async function renderField(state: UpdateState): Promise<TestUpdateService> {
+  const update = createTestUpdateService(state)
+  setDefaultUpdate(update)
+  await render(
+    <UpdateProvider autoCheck={false}>
+      <UpdateField />
+    </UpdateProvider>,
+  )
+  return update
+}
 
 afterEach(() => {
-  update.checkNow.mockClear()
-  update.install.mockClear()
+  setDefaultUpdate(null)
 })
 
 describe('UpdateField', () => {
-  it('retries the install after an install failure — the found update is still there', async () => {
-    update.state = { phase: 'error', message: 'signature verification failed', during: 'install' }
-    await render(<UpdateField />)
+  it('retries the install after an install failure: the found update is still there', async () => {
+    const update = await renderField({
+      phase: 'error',
+      message: 'signature verification failed',
+      during: 'install',
+    })
     expect(page.getByRole('alert').element().textContent).toMatch(/signature verification failed/)
     await userEvent.click(page.getByRole('button', { name: 'Retry install' }))
-    expect(update.install).toHaveBeenCalledTimes(1)
-    expect(update.checkNow).not.toHaveBeenCalled()
+    expect(update.calls).toEqual(['retryAction', 'install'])
   })
 
   it('re-checks after a check failure', async () => {
-    update.state = { phase: 'error', message: 'release endpoint unreachable', during: 'check' }
-    await render(<UpdateField />)
+    const update = await renderField({
+      phase: 'error',
+      message: 'release endpoint unreachable',
+      during: 'check',
+    })
     await userEvent.click(page.getByRole('button', { name: 'Check for updates' }))
-    expect(update.checkNow).toHaveBeenCalledTimes(1)
-    expect(update.install).not.toHaveBeenCalled()
+    expect(update.calls).toEqual(['retryAction', 'checkNow'])
   })
 })

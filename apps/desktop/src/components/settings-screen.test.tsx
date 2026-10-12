@@ -3,8 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { Locator } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
-import { setBridge, type EmbedStatus, type GraphInfo, setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import {
+  setBridge,
+  type EmbedStatus,
+  type GraphInfo,
+  setDefaultPlatform,
+  setDefaultUpdate,
+} from '@reflect/core'
+import { createTestPlatformService, createTestUpdateService } from '@reflect/core/testing'
 import { formatFullDate } from '@/lib/dates.ts'
 import { resetOperations } from '@/lib/operations.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
@@ -43,15 +49,17 @@ vi.mock('@/providers/sync-provider.tsx', () => ({
     backUpNow: async () => {},
   }),
 }))
-// The update field gates on the native shell, which the test browser is not.
+// The update field gates on a supported updater, which the test browser lacks.
 beforeEach(() => {
   setDefaultPlatform(
     createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
   )
+  setDefaultUpdate(createTestUpdateService())
 })
 
 afterEach(() => {
   setDefaultPlatform(null)
+  setDefaultUpdate(null)
 })
 // The Import section only hands the picked zip to the workspace-level V1
 // import controller, which these screen tests don't mount.

@@ -43,6 +43,12 @@ import {
   type PlatformService,
 } from './platform-service.ts'
 import { createWebStorageService, type StorageService } from './storage-service.ts'
+import {
+  createUnsupportedUpdateService,
+  createUpdateService,
+  type UpdaterAdapter,
+  type UpdateService,
+} from './update-service.ts'
 import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
 
 /** The app-scoped services: one instance each for the lifetime of the webview. */
@@ -71,6 +77,7 @@ export interface AppServices {
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
+  readonly update: UpdateService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -98,19 +105,23 @@ export interface AppAdapters {
   readonly imageCodec?: ImageCodecService
   /** Defaults to telemetry that reports nothing. */
   readonly exceptionTelemetry?: ExceptionTelemetryService
+  /** The native updater; without one, updates are unsupported. */
+  readonly updater?: UpdaterAdapter
 }
 
 export function createAppServices(adapters: AppAdapters): AppServices {
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
+  const platform = createPlatformService(adapters.platform)
+  const windowService = createWindowService({ ipc, host: adapters.window, logger })
   return {
     ipc,
     logger,
     clock,
     id: adapters.id ?? createSystemIdService(),
     hash: adapters.hash ?? createWebCryptoHashService(),
-    platform: createPlatformService(adapters.platform),
+    platform,
     storage: createWebStorageService({
       logger,
       localStorage: adapters.storage.local,
@@ -121,7 +132,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     clipboard: adapters.clipboard,
     opener: createOpenerService({ transport: adapters.opener, logger }),
     path: createPathService({ transport: adapters.path }),
-    window: createWindowService({ ipc, host: adapters.window, logger }),
+    window: windowService,
     lifecycle: createLifecycleService({ ipc, dom: adapters.lifecycle, clock, logger }),
     secretStore: createSecretStoreService({ ipc }),
     appInfo: createAppInfoService({ ipc }),
@@ -136,5 +147,14 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       { ipc, logger },
       { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
     ),
+    update: adapters.updater
+      ? createUpdateService({
+          updater: adapters.updater,
+          clock,
+          logger,
+          platform,
+          window: windowService,
+        })
+      : createUnsupportedUpdateService(),
   }
 }

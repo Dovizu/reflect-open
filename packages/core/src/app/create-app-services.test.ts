@@ -8,6 +8,7 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestAppServices, installTestServices } from '../testing/services.ts'
 import { createTestClipboardService, createTestDialogService } from '../testing/shell.ts'
+import { createTestUpdaterAdapter } from '../testing/update.ts'
 import { defaultClock } from './clock-service.ts'
 import { createAppServices, type AppAdapters, type AppServices } from './create-app-services.ts'
 import { defaultLogger } from './logger-service.ts'
@@ -41,6 +42,7 @@ const SERVICE_KEYS = [
   'exceptionTelemetry',
   'database',
   'fileChanges',
+  'update',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
@@ -96,6 +98,15 @@ describe('createAppServices', () => {
     expect(services.platform.appVersion).toBe('0.0.0-test')
     await expect(services.path.homeDir()).resolves.toBe('/home/test')
     expect(services.window.isMainWindow()).toBe(true)
+  })
+
+  it('supports updates only with an updater adapter', () => {
+    expect(createAppServices(requiredAdapters()).update.supported).toBe(false)
+    const services = createAppServices({
+      ...requiredAdapters(),
+      updater: createTestUpdaterAdapter(),
+    })
+    expect(services.update.supported).toBe(true)
   })
 
   it('defaults the logger, clock, id, and hash', () => {

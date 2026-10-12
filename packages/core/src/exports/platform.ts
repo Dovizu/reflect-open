@@ -171,6 +171,18 @@ export {
   type ImageEncodeOptions,
 } from '../app/image-codec-service.ts'
 export {
+  createUnsupportedUpdateService,
+  createUpdateService,
+  defaultUpdate,
+  setDefaultUpdate,
+  type AvailableUpdate,
+  type UpdateDownloadEvent,
+  type UpdaterAdapter,
+  type UpdateService,
+  type UpdateServiceDeps,
+  type UpdateState,
+} from '../app/update-service.ts'
+export {
   createDisabledExceptionTelemetry,
   defaultExceptionTelemetry,
   setDefaultExceptionTelemetry,
