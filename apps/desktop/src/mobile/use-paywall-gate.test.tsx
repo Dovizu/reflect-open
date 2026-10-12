@@ -125,10 +125,8 @@ describe('usePaywallGate', () => {
           ...base,
           iap,
           appStore,
-          subscription,
           classicAccess,
-          appStoreEnvironment,
-          paywall,
+          mobile: { ...base.mobile, subscription, appStoreEnvironment, paywall },
         },
       }
     }
