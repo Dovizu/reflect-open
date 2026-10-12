@@ -1,4 +1,3 @@
-import { createBackgroundReconciler } from '@/lib/background-reconciler.ts'
 import { startOperation } from '@/lib/operations.ts'
 import { providerFetch } from '@/lib/provider-fetch.ts'
 import {
@@ -10,11 +9,12 @@ import {
   subscribeFileChanges,
   type AiProvidersState,
   type ReconcileStop,
+  defaultBackgroundReconcilerFactory,
 } from '@reflect/core'
 
 /**
  * The background-transcription lifecycle for one graph session. Built on
- * {@link createBackgroundReconciler} (shared with capture and asset
+ * `BackgroundReconcilerFactory` (shared with capture and asset
  * descriptions): the single-flight loop, focus/online retries, and teardown live
  * there; this adds the transcription pass, the config gate (no IO without a
  * transcription-capable model), and the `transcribing` flag the mic spinner
@@ -102,7 +102,7 @@ export function createTranscriptionReconciler(
     surfaceStop(outcome.stopped)
   }
 
-  const loop = createBackgroundReconciler({
+  const loop = defaultBackgroundReconcilerFactory().create({
     pass: reconcile,
     onSettled: () => setTranscribing(false),
   })

@@ -1,4 +1,4 @@
-import type { ChatAttachment } from '@reflect/core'
+import { defaultImageCodec, type ChatAttachment } from '@reflect/core'
 import { base64Of } from '@/lib/base64.ts'
 
 /**
@@ -44,32 +44,32 @@ export function imageFilesFrom(data: DataTransfer | null): File[] {
  * in the transcript if it can't read it either.
  */
 async function downscaledImage(file: File): Promise<{ dataUrl: string; mediaType: string } | null> {
-  if (typeof createImageBitmap !== 'function') {
-    return null
-  }
-  let bitmap: ImageBitmap
-  try {
-    bitmap = await createImageBitmap(file)
-  } catch {
+  const image = await defaultImageCodec().decode(file)
+  if (image === null) {
     return null
   }
   try {
-    const scale = Math.min(MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height, 1), 1)
+    const scale = Math.min(MAX_IMAGE_EDGE / Math.max(image.width, image.height, 1), 1)
     if (scale === 1 && PROVIDER_SAFE_TYPES.has(file.type)) {
       return null
     }
-    const canvas = document.createElement('canvas')
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-    const context = canvas.getContext('2d')
-    if (context === null) {
+    const encoded = await image.encode({
+      type: 'image/jpeg',
+      quality: JPEG_QUALITY,
+      width: Math.max(1, Math.round(image.width * scale)),
+      height: Math.max(1, Math.round(image.height * scale)),
+    })
+    if (encoded === null) {
       return null
     }
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    return { dataUrl: canvas.toDataURL('image/jpeg', JPEG_QUALITY), mediaType: 'image/jpeg' }
+    return { dataUrl: await dataUrlOf(encoded), mediaType: 'image/jpeg' }
   } finally {
-    bitmap.close()
+    image.close()
   }
+}
+
+async function dataUrlOf(blob: Blob): Promise<string> {
+  return `data:${blob.type};base64,${base64Of(await blob.arrayBuffer())}`
 }
 
 /** Read an image file into an attachment, bytes inlined as a `data:` URL. */
@@ -87,6 +87,6 @@ export async function toChatAttachment(file: File): Promise<ChatAttachment> {
     id: crypto.randomUUID(),
     name: file.name,
     mediaType: file.type,
-    dataUrl: `data:${file.type};base64,${base64Of(await file.arrayBuffer())}`,
+    dataUrl: await dataUrlOf(file),
   }
 }

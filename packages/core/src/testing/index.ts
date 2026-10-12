@@ -54,3 +54,15 @@ export {
   type TestAppServices,
   type TestGraphServices,
 } from './services.ts'
+export {
+  createTestImageCodec,
+  type TestImageCodecService,
+  type TestImageEncode,
+  type TestImageSize,
+} from './image-codec.ts'
+export {
+  createTestExceptionTelemetry,
+  type ExceptionReport,
+  type ExceptionReportSource,
+  type TestExceptionTelemetryService,
+} from './exception-telemetry.ts'
