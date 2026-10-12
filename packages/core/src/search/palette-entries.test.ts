@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { AppCommand } from '@/lib/commands/types.ts'
-import type { WikiSuggestion } from '@reflect/core'
-import { buildPaletteSections, type PaletteHit } from './entries.ts'
+import type { Command } from '../commands/command-service.ts'
+import type { WikiSuggestion } from '../indexing/suggest.ts'
+import { buildPaletteSections, type PaletteHit } from './palette-entries.ts'
 
 function suggestion(path: string, title: string, date: string | null = null): WikiSuggestion {
   return { target: title, path, title, alias: null, date }
@@ -14,16 +14,16 @@ function hit(
 ): PaletteHit {
   return { path, title, snippet, dailyDate }
 }
-const COMMANDS: AppCommand[] = [
+const COMMANDS: Command[] = [
   { id: 'nav.today', title: 'Go to today', keywords: ['daily'], run: () => {} },
   { id: 'theme.toggle', title: 'Toggle theme', keywords: ['dark'], run: () => {} },
 ]
 
 /** Defaults for the common case; tests override what they exercise. */
 function sections(
-  overrides: Partial<Parameters<typeof buildPaletteSections>[0]> & { query: string },
+  overrides: Partial<Parameters<typeof buildPaletteSections<Command>>[0]> & { query: string },
 ) {
-  return buildPaletteSections({
+  return buildPaletteSections<Command>({
     dataQuery: overrides.query,
     suggestions: [],
     hits: [],

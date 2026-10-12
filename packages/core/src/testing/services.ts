@@ -231,6 +231,7 @@ import {
 } from './assets.ts'
 import type { CommandService } from '../commands/command-service.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
+import { createTestPaletteSearchService, createTestWikiLinkSuggestionService } from './search.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
 export interface TestAppServices extends AppServices {
@@ -775,6 +776,23 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       xArchive: overrides?.xArchive ?? xArchive,
     }),
     assetDescription: createTestAssetDescriptionService(),
+    wikiLinkSuggestions: createTestWikiLinkSuggestionService({
+      suggestions: overrides?.suggestions ?? indexReads.suggestions,
+      noteCreation: overrides?.noteCreation ?? noteCreation,
+      contacts: overrides?.contacts ?? contacts,
+      personNotes: overrides?.personNotes ?? personNotes,
+      settings: overrides?.settings ?? settings,
+      clock: overrides?.clock ?? clock,
+      operations: overrides?.operations ?? operations,
+      logger,
+    }),
+    paletteSearch: createTestPaletteSearchService({
+      suggestions: overrides?.suggestions ?? indexReads.suggestions,
+      search: overrides?.search ?? indexReads.search,
+      retrieval: overrides?.retrieval ?? retrieval,
+      commands: overrides?.commands ?? commands,
+      clock: overrides?.clock ?? clock,
+    }),
     audioMemo,
     nativeAction,
     mobileAudioMemo: createTestMobileAudioMemoService({

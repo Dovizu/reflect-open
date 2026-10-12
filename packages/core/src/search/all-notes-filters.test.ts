@@ -8,7 +8,7 @@ import {
   updatedPresetFilter,
   updatedRangeFilter,
   type AllNotesFilters,
-} from './filter-state.ts'
+} from './all-notes-filters.ts'
 
 function filtersWith(overrides: Partial<AllNotesFilters>): AllNotesFilters {
   return { ...EMPTY_ALL_NOTES_FILTERS, ...overrides }

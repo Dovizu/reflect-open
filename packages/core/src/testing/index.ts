@@ -13,6 +13,12 @@ export { createTestLoggerService, type LogEntry, type TestLoggerService } from '
 export { createTestClockService, type TestClockService } from './clock.ts'
 export { createTestDailyNoteService, type TestDailyNoteServiceOptions } from './daily.ts'
 export {
+  createTestPaletteSearchService,
+  createTestWikiLinkSuggestionService,
+  type TestPaletteSearchServiceOptions,
+  type TestWikiLinkSuggestionServiceOptions,
+} from './search.ts'
+export {
   createTestIpcBridgeService,
   installTestBridge,
   type TestIpcBridgeService,

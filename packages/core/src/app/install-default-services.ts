@@ -114,6 +114,8 @@ import { setDefaultWindow } from './window-service.ts'
 import { setDefaultCommands } from '../commands/command-service.ts'
 import { setDefaultKeymap } from '../commands/keymap-service.ts'
 import { setDefaultNativeMenu } from '../commands/native-menu-service.ts'
+import { setDefaultPaletteSearch } from '../search/palette-search-service.ts'
+import { setDefaultWikiLinkSuggestions } from '../search/wiki-link-suggestion-service.ts'
 
 /** Point every process-wide `defaultXxx()` at the matching service of `services`. */
 export function installDefaultServices(services: AppServices): void {
@@ -196,6 +198,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteRows(services.noteRows)
   setDefaultDailyNotes(services.dailyNotes)
   setDefaultTemplates(services.templates)
+  setDefaultWikiLinkSuggestions(services.wikiLinkSuggestions)
+  setDefaultPaletteSearch(services.paletteSearch)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -315,6 +319,8 @@ export function resetDefaultServices(): void {
   setDefaultNoteRows(null)
   setDefaultDailyNotes(null)
   setDefaultTemplates(null)
+  setDefaultWikiLinkSuggestions(null)
+  setDefaultPaletteSearch(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)

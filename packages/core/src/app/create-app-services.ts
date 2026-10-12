@@ -298,6 +298,14 @@ import { createWindowService, type WindowHost, type WindowService } from './wind
 import { createCommandService, type CommandService } from '../commands/command-service.ts'
 import { createKeymapService, type KeymapService } from '../commands/keymap-service.ts'
 import {
+  createPaletteSearchService,
+  type PaletteSearchService,
+} from '../search/palette-search-service.ts'
+import {
+  createWikiLinkSuggestionService,
+  type WikiLinkSuggestionService,
+} from '../search/wiki-link-suggestion-service.ts'
+import {
   createNativeMenuService,
   createUnsupportedNativeMenuHost,
   type NativeMenuHost,
@@ -445,6 +453,10 @@ export interface AppServices {
   readonly mobileAudioMemo?: MobileAudioMemoService
   readonly assetPrivacy: AssetPrivacyService
   readonly assetDescription: AssetDescriptionService
+  /** The editor's `[[` and `#` menus. */
+  readonly wikiLinkSuggestions: WikiLinkSuggestionService
+  /** The command palette's data layer. */
+  readonly paletteSearch: PaletteSearchService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -1030,6 +1042,23 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       indexLifecycle,
       operations,
       logger,
+    }),
+    wikiLinkSuggestions: createWikiLinkSuggestionService({
+      suggestions: indexReads.suggestions,
+      noteCreation: noteServices.noteCreation,
+      contacts,
+      personNotes,
+      settings,
+      clock,
+      operations,
+      logger,
+    }),
+    paletteSearch: createPaletteSearchService({
+      suggestions: indexReads.suggestions,
+      search: indexReads.search,
+      retrieval,
+      commands,
+      clock,
     }),
   }
 }
