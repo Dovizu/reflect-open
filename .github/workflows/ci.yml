@@ -56,9 +56,15 @@ jobs:
         run: pnpm --filter @reflect/desktop exec playwright install chromium
 
       - name: Test
-        run: pnpm run test
+        run: |
+          ( while true; do echo "MEM $(date +%T) $(free -m | awk '/Mem:/{print "used="$3" free="$4" avail="$7}') chrome_rss_mb=$(ps -eo rss,comm | awk '/chrom|headless/{s+=$1} END{print int(s/1024)}') node_rss_mb=$(ps -eo rss,comm | awk '/node/{s+=$1} END{print int(s/1024)}')"; sleep 10; done ) &
+          pnpm run test || code=$?
+          echo "=== dmesg oom ==="
+          sudo dmesg | grep -i -E "oom|killed process|out of memory" | tail -20 || true
+          exit ${code:-0}
         env:
           REFLECT_TEST_BROWSER: chromium
+          DEBUG: pw:browser
 
   # Not part of `all-green`: a WebKit failure does not block merging.
   # Disabled on the `service` branch while the service refactor is in progress;
