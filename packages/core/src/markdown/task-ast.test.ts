@@ -1,5 +1,7 @@
 import { parseMarkdownAst } from '@meowdown/markdown'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultLogger } from '../app/logger-service.ts'
+import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { splitFrontmatter } from './frontmatter.ts'
 import {
   appendListItem,
@@ -16,8 +18,15 @@ import {
 import type { TaskLocator, TaskSnapshot } from './task-model.ts'
 import { isSameTaskPath } from './task-path.ts'
 
+let logger: TestLoggerService
+
+beforeEach(() => {
+  logger = createTestLoggerService()
+  setDefaultLogger(logger)
+})
+
 afterEach(() => {
-  vi.restoreAllMocks()
+  setDefaultLogger(null)
 })
 
 /** The locator of the `index`th task in `source`, as the index would store it. */
@@ -231,13 +240,14 @@ describe('applyTaskEdits: toggle', () => {
   })
 
   it('takes the first of several identical tasks when the path is stale, and says so', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const source = '+ [ ] same\n+ [ ] same\n'
     const stale = { ...locate(source, 1), astPath: [7] }
     expect(applyTaskEdits(source, [{ kind: 'toggle', task: stale }]).source).toBe(
       '+ [x] same\n+ [ ] same\n',
     )
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('taking the first of 2'))
+    expect(logger.getWarnings()).toEqual([
+      { message: expect.stringContaining('taking the first of 2'), cause: undefined },
+    ])
   })
 
   it('refuses a task that is gone', () => {
@@ -708,15 +718,14 @@ describe('findTaskMove', () => {
   })
 
   it('prefers the path match over identical content, else takes the first and warns', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const twins = '+ [ ] same\n+ [ ] same\n'
     const result = applyTaskEdits(twins, [{ kind: 'toggle', task: locate(twins, 1) }])
     expect(findTaskMove(result.moved, locate(twins, 1))?.to).toMatchObject({ checked: true })
-    expect(warn).not.toHaveBeenCalled()
+    expect(logger.getWarnings()).toEqual([])
     expect(
       findTaskMove(result.moved, { astPath: [5], markdown: 'same', checked: false })?.from,
     ).toMatchObject({ astPath: [0] })
-    expect(warn).toHaveBeenCalledOnce()
+    expect(logger.getWarnings()).toHaveLength(1)
   })
 })
 

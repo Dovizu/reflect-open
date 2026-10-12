@@ -1,6 +1,8 @@
 import { isNotNullish } from '@ocavue/utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultLogger } from '../app/logger-service.ts'
 import { setBridge } from '../ipc/bridge.ts'
+import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import {
   dailyDatesInRange,
   findNotesByPathKey,
@@ -21,13 +23,18 @@ import {
 // uses for the indexer.
 const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
 
+let logger: TestLoggerService
+
 beforeEach(() => {
   mockInvoke.mockReset()
+  logger = createTestLoggerService()
+  setDefaultLogger(logger)
   setBridge({ invoke: mockInvoke, listen: async () => () => {} })
 })
 
 afterEach(() => {
   setBridge(null)
+  setDefaultLogger(null)
 })
 
 describe('dailyDatesInRange', () => {
@@ -711,7 +718,6 @@ describe('getOpenTasks', () => {
   })
 
   it('skips a row whose stored path does not decode', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const row = (astPath: string) => ({
       note_path: 'notes/a.md',
       ast_path: astPath,
@@ -729,8 +735,10 @@ describe('getOpenTasks', () => {
 
     const tasks = await getOpenTasks()
     expect(tasks.map((task) => task.astPath)).toEqual([[1]])
-    expect(error).toHaveBeenCalledTimes(2)
-    error.mockRestore()
+    expect(logger.getErrors().map((entry) => entry.message)).toEqual([
+      'tasks: skipping an unreadable row in notes/a.md (not json)',
+      'tasks: skipping an unreadable row in notes/a.md ([])',
+    ])
   })
 
   it('never surfaces template checkboxes — boilerplate, not real tasks', async () => {
