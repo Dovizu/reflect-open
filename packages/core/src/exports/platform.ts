@@ -62,6 +62,7 @@ export {
 } from '../app/background-task.ts'
 export { WINDOW_NAVIGATE_EVENT, subscribeWindowNavigate } from '../app/window-events.ts'
 export { toggleDevtools } from '../app/devtools.ts'
+export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export {
   agentSkillStatus,
   agentSkillInstall,
