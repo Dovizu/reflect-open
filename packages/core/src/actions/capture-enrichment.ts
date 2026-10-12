@@ -122,7 +122,6 @@ async function generateEnrichment(input: GenerateEnrichmentInput): Promise<PageE
     return await describePage({
       config: input.config,
       apiKey: input.apiKey,
-      fetchFn: input.fetchFn,
       url: input.meta.captureUrl,
       title: input.title,
       metaTitle: input.scraped?.title ?? undefined,

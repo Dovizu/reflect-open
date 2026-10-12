@@ -88,6 +88,12 @@ const SERVICE_KEYS = [
   'keymap',
   'commands',
   'nativeMenu',
+  'aiProviderConfig',
+  'selectionTransform',
+  'pageDescriber',
+  'assetDescriber',
+  'transcription',
+  'transcriptEnrichment',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

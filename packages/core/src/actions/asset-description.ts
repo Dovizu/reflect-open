@@ -242,7 +242,6 @@ async function processAsset(assetPath: string, ctx: AssetContext): Promise<Asset
     body = await describeAsset({
       config: ctx.config,
       apiKey: ctx.apiKey,
-      fetchFn: ctx.fetchFn,
       kind: assetType.kind,
       mediaType: assetType.mediaType,
       data: assetType.kind === 'svg' ? utf8FromBase64(base64) : base64,

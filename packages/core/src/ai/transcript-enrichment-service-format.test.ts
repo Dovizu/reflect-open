@@ -1,14 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  createTestHttpService,
-  createTestLanguageModelService,
-  type TestLanguageModelService,
-} from '../testing/index.ts'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createTestLanguageModelService, type TestLanguageModelService } from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { AiProviderConfig } from '../settings/schema.ts'
-import { formatAudioMemoTranscript } from './audio-memo-format.ts'
-import { setDefaultLanguageModel } from './language-model-service.ts'
+import {
+  createTranscriptEnrichmentService,
+  type TranscriptEnrichmentService,
+} from './transcript-enrichment-service.ts'
 
 const USAGE: LanguageModelV3Usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
@@ -25,14 +23,11 @@ const CONFIG: AiProviderConfig = {
 const FALLBACK_TITLE = 'Audio memo 2026-06-11 15:30:22'
 
 let languageModelService: TestLanguageModelService
+let enrichment: TranscriptEnrichmentService
 
 beforeEach(() => {
   languageModelService = createTestLanguageModelService()
-  setDefaultLanguageModel(languageModelService)
-})
-
-afterEach(() => {
-  setDefaultLanguageModel(null)
+  enrichment = createTranscriptEnrichmentService({ languageModel: languageModelService })
 })
 
 function modelAnswering(output: { title: string; body: string }): MockLanguageModelV3 {
@@ -49,15 +44,14 @@ function modelAnswering(output: { title: string; body: string }): MockLanguageMo
 }
 
 function request(transcript: string) {
-  return formatAudioMemoTranscript({
+  return enrichment.formatTranscript({
     credentials: { config: CONFIG, apiKey: 'sk-live-key' },
-    fetchFn: createTestHttpService().fetchFn,
     transcript,
     fallbackTitle: FALLBACK_TITLE,
   })
 }
 
-describe('formatAudioMemoTranscript', () => {
+describe('TranscriptEnrichmentService.formatTranscript', () => {
   it('returns readable Markdown and a sanitized title from one small-model call', async () => {
     modelAnswering({
       title: '  Launch planning!  ',

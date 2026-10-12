@@ -291,7 +291,6 @@ export async function transcribeSessionParts(
         prompt: input.prompt,
         audio: new Blob([bytes], { type: part.memo.mimeType }),
         mimeType: part.memo.mimeType,
-        fetchFn: input.fetchFn,
         isStale: input.isStale,
       })
       result = { text }

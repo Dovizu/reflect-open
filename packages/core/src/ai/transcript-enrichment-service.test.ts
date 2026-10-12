@@ -1,14 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  createTestHttpService,
-  createTestLanguageModelService,
-  type TestLanguageModelService,
-} from '../testing/index.ts'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createTestLanguageModelService, type TestLanguageModelService } from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
-import type { LanguageModelV3Usage } from '@ai-sdk/provider'
+import type { LanguageModelV3CallOptions, LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { AiProviderConfig } from '../settings/schema.ts'
-import { generateAudioMemoTitle, pickAudioMemoEnrichmentConfig } from './audio-memo-title.ts'
-import { setDefaultLanguageModel } from './language-model-service.ts'
+import {
+  createTranscriptEnrichmentService,
+  FORMAT_MAX_CHARS,
+  pickAudioMemoEnrichmentConfig,
+  TITLE_INPUT_MAX_CHARS,
+  type TranscriptEnrichmentService,
+} from './transcript-enrichment-service.ts'
 
 const USAGE: LanguageModelV3Usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
@@ -44,14 +45,11 @@ const OPENROUTER_CONFIG: AiProviderConfig = {
 }
 
 let languageModelService: TestLanguageModelService
+let enrichment: TranscriptEnrichmentService
 
 beforeEach(() => {
   languageModelService = createTestLanguageModelService()
-  setDefaultLanguageModel(languageModelService)
-})
-
-afterEach(() => {
-  setDefaultLanguageModel(null)
+  enrichment = createTranscriptEnrichmentService({ languageModel: languageModelService })
 })
 
 function modelAnswering(text: string): void {
@@ -78,15 +76,14 @@ function modelThrowing(error: unknown): void {
 }
 
 function request(transcript = 'talked about planning the Rome trip'): Promise<string> {
-  return generateAudioMemoTitle({
+  return enrichment.generateTitle({
     credentials: { config: CONFIG, apiKey: 'sk-live-key' },
-    fetchFn: createTestHttpService().fetchFn,
     transcript,
     fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
   })
 }
 
-describe('generateAudioMemoTitle', () => {
+describe('TranscriptEnrichmentService.generateTitle', () => {
   it('returns a sanitized generated title', async () => {
     modelAnswering('  Rome itinerary!  ')
 
@@ -100,9 +97,8 @@ describe('generateAudioMemoTitle', () => {
   ])('uses the fixed small model for %s', async (config, originalModel, titleModel) => {
     modelAnswering('Planning notes')
 
-    await generateAudioMemoTitle({
+    await enrichment.generateTitle({
       credentials: { config, apiKey: 'sk-live-key' },
-      fetchFn: createTestHttpService().fetchFn,
       transcript: 'planning notes',
       fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
     })
@@ -143,8 +139,7 @@ describe('generateAudioMemoTitle', () => {
     modelAnswering('Ignored')
 
     await expect(
-      generateAudioMemoTitle({
-        fetchFn: createTestHttpService().fetchFn,
+      enrichment.generateTitle({
         transcript: 'review launch checklist',
         fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
       }),
@@ -176,5 +171,96 @@ describe('generateAudioMemoTitle', () => {
       provider: 'google',
       model: 'gemini-3.1-flash-lite',
     })
+  })
+})
+
+describe('TranscriptEnrichmentService.enrich', () => {
+  const FALLBACK_TITLE = 'Audio memo 2026-06-11 15:30:22'
+  const CREDENTIALS = { config: CONFIG, apiKey: 'sk-live-key' }
+
+  /** Install a model answering `output` as JSON; returns the captured call options. */
+  function modelAnsweringObject(output: Record<string, string>): LanguageModelV3CallOptions[] {
+    const calls: LanguageModelV3CallOptions[] = []
+    languageModelService.setModel(
+      new MockLanguageModelV3({
+        doGenerate: async (options) => {
+          calls.push(options)
+          return {
+            content: [{ type: 'text', text: JSON.stringify(output) }],
+            finishReason: { unified: 'stop' as const, raw: undefined },
+            usage: USAGE,
+            warnings: [],
+          }
+        },
+      }),
+    )
+    return calls
+  }
+
+  function promptText(call: LanguageModelV3CallOptions): string {
+    const message = call.prompt.find((candidate) => candidate.role === 'user')
+    const parts = message?.content as Array<{ type: string; text?: string }>
+    return parts.find((part) => part.type === 'text')?.text ?? ''
+  }
+
+  it('formats and names the transcript in one call when formatting is on', async () => {
+    const calls = modelAnsweringObject({ title: 'Rome trip', body: 'Talked about Rome.' })
+
+    await expect(
+      enrichment.enrich({
+        transcript: 'talked about rome',
+        enrichmentCredentials: CREDENTIALS,
+        formatTranscript: true,
+        fallbackTitle: FALLBACK_TITLE,
+      }),
+    ).resolves.toEqual({ title: 'Rome trip', body: 'Talked about Rome.' })
+    expect(calls).toHaveLength(1)
+    expect(promptText(calls[0]!)).toContain('Transcript JSON string:')
+  })
+
+  it('only names the transcript when formatting is off', async () => {
+    const calls = modelAnsweringObject({ title: 'Rome trip' })
+
+    await expect(
+      enrichment.enrich({
+        transcript: 'talked about rome',
+        enrichmentCredentials: CREDENTIALS,
+        formatTranscript: false,
+        fallbackTitle: FALLBACK_TITLE,
+      }),
+    ).resolves.toEqual({ title: 'Rome trip', body: 'talked about rome' })
+    expect(calls).toHaveLength(1)
+    expect(promptText(calls[0]!)).toContain('Name this audio memo')
+  })
+
+  it('only names a transcript that is too long to format, from its opening', async () => {
+    const calls = modelAnsweringObject({ title: 'Long meeting' })
+    const transcript = `${'a'.repeat(TITLE_INPUT_MAX_CHARS)}${'b'.repeat(FORMAT_MAX_CHARS)}`
+
+    await expect(
+      enrichment.enrich({
+        transcript,
+        enrichmentCredentials: CREDENTIALS,
+        formatTranscript: true,
+        fallbackTitle: FALLBACK_TITLE,
+      }),
+    ).resolves.toEqual({ title: 'Long meeting', body: transcript })
+    expect(calls).toHaveLength(1)
+    expect(promptText(calls[0]!)).toContain('Name this audio memo')
+    expect(promptText(calls[0]!)).not.toContain('b')
+  })
+
+  it('names the transcript locally when there are no credentials', async () => {
+    modelAnsweringObject({ title: 'Ignored' })
+
+    await expect(
+      enrichment.enrich({
+        transcript: 'review launch checklist',
+        enrichmentCredentials: null,
+        formatTranscript: true,
+        fallbackTitle: FALLBACK_TITLE,
+      }),
+    ).resolves.toEqual({ title: 'Review launch checklist', body: 'review launch checklist' })
+    expect(languageModelService.calls()).toEqual([])
   })
 })

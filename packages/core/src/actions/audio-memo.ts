@@ -13,7 +13,6 @@ import {
 } from '../ai/audio-memo-title.ts'
 import { enrichSessionTranscript } from '../ai/audio-memo-transcript.ts'
 import { AUDIO_EXTENSION_BY_MIME, baseMimeType } from '../ai/transcribe.ts'
-import { APP_REVIEW_STUB_KEY, stubTranscriptBody } from '../ai/app-review-demo.ts'
 import { bytesToBase64 } from '../lib/base64.ts'
 import {
   importAudioMemo,
@@ -544,25 +543,6 @@ export async function reconcileAudioMemos(
     }
     const memo = session.memo
     try {
-      if (apiKey === APP_REVIEW_STUB_KEY) {
-        // The App Review demo key writes a canned transcript — no provider
-        // calls, no per-segment cache.
-        if (!isSessionReady(session, nowMs)) {
-          continue
-        }
-        memosNoteTitle ??= await ensureBacklinkTarget(MEMOS_NOTE_TITLE, input.generation)
-        if (stale()) return stalled()
-        const note = transcriptionNote(
-          memo,
-          memo.title,
-          stubTranscriptBody(),
-          recordingLinks(session),
-        )
-        await writeNote(memo.notePath, note, input.generation)
-        await ensureDailyBacklink(memo, memo.title, memosNoteTitle, input.generation)
-        transcribed += 1
-        continue
-      }
       const parts = await transcribeSessionParts({
         session,
         provider: config.provider,
@@ -600,7 +580,6 @@ export async function reconcileAudioMemos(
             enrichmentCredentials,
             formatTranscript: input.formatTranscript,
             fallbackTitle: memo.title,
-            fetchFn: input.fetchFn,
           })
           title = enriched.title
           body = enriched.body
