@@ -1,3 +1,8 @@
+import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
+import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
+import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
+import { setDefaultXArchive } from '../x-archive.ts'
+import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
@@ -18,6 +23,7 @@ import { setDefaultIdService } from './id-service.ts'
 import { setDefaultImageCodec } from './image-codec-service.ts'
 import { setDefaultLifecycle } from './lifecycle-service.ts'
 import { setDefaultLogger } from './logger-service.ts'
+import { setDefaultOperations } from './operations-service.ts'
 import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
 import { setDefaultPlatform } from './platform-service.ts'
@@ -48,9 +54,15 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultMobileStorage(services.mobileStorage)
   setDefaultImageCodec(services.imageCodec)
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
+  setDefaultOperations(services.operations)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
   setDefaultUpdate(services.update)
+  setDefaultGitRepository(services.gitRepository)
+  setDefaultICloudNative(services.icloudNative)
+  setDefaultCaptureInbox(services.captureInbox)
+  setDefaultWebFetch(services.webFetch)
+  setDefaultXArchive(services.xArchive)
   setDefaultIpc(services.ipc)
 }
 
@@ -77,8 +89,14 @@ export function resetDefaultServices(): void {
   setDefaultMobileStorage(null)
   setDefaultImageCodec(null)
   setDefaultExceptionTelemetry(null)
+  setDefaultOperations(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
   setDefaultUpdate(null)
+  setDefaultGitRepository(null)
+  setDefaultICloudNative(null)
+  setDefaultCaptureInbox(null)
+  setDefaultWebFetch(null)
+  setDefaultXArchive(null)
   setDefaultIpc(null)
 }

@@ -1,6 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { gistBodyHash, setDefaultClipboard, upsertFrontmatter } from '@reflect/core'
-import { createTestClipboardService, type TestClipboardService } from '@reflect/core/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  gistBodyHash,
+  setDefaultClipboard,
+  upsertFrontmatter,
+  setDefaultOperations,
+  MIN_VISIBLE_MS,
+} from '@reflect/core'
+import {
+  createTestClipboardService,
+  type TestClipboardService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import type { NoteSession } from '@/editor/note-session.ts'
 import { getNoteRowOverlay, resetNoteRowOverlays } from '@/hooks/note-row-overlay.ts'
 
@@ -11,11 +22,6 @@ const createGist = vi.hoisted(() => vi.fn())
 const updateGist = vi.hoisted(() => vi.fn())
 const deleteGist = vi.hoisted(() => vi.fn(async () => {}))
 const openSession = vi.hoisted(() => vi.fn<(path: string) => NoteSession | null>(() => null))
-const operationDone = vi.hoisted(() => vi.fn())
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() =>
-  vi.fn(() => ({ progress: vi.fn(), done: operationDone, fail: operationFail })),
-)
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
@@ -27,7 +33,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   deleteGist,
 }))
 vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
-vi.mock('@/lib/operations.ts', () => ({ startOperation }))
 
 const { publishNoteToGist, runGistPublish, runGistUnpublish, unpublishNoteGist } =
   await import('./note-gist.ts')
@@ -45,7 +50,11 @@ const REPUBLISH_SOURCE = upsertFrontmatter(BODY, {
   },
 })
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   readNote.mockReset()
   writeNote.mockClear()
   getGithubToken.mockReset().mockResolvedValue('tok')
@@ -53,10 +62,11 @@ beforeEach(() => {
   updateGist.mockReset().mockResolvedValue(PUBLISHED)
   deleteGist.mockReset().mockResolvedValue(undefined)
   openSession.mockReset().mockReturnValue(null)
-  startOperation.mockClear()
-  operationDone.mockClear()
-  operationFail.mockClear()
   resetNoteRowOverlays()
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 function fakeSession(content: string, canCommit = true, liveContent: string | null = content) {
@@ -288,10 +298,12 @@ describe('runGistPublish', () => {
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBe(PUBLISHED.htmlUrl)
 
     expect(clipboard.writes()).toEqual([PUBLISHED.htmlUrl])
-    expect(startOperation).toHaveBeenCalledWith('Publishing gist')
-    expect(startOperation).toHaveBeenCalledWith('Gist link copied')
-    expect(operationDone).toHaveBeenCalledTimes(2)
-    expect(operationFail).not.toHaveBeenCalled()
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Publishing gist', status: 'running' },
+      { label: 'Gist link copied', status: 'running' },
+    ])
+    await operations.clock.advance(MIN_VISIBLE_MS)
+    expect(operations.getAll()).toEqual([])
   })
 
   it('records the published url in the optimistic overlay, stamped with the generation', async () => {
@@ -319,7 +331,12 @@ describe('runGistPublish', () => {
     getGithubToken.mockResolvedValue(null)
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBeNull()
 
-    expect(operationFail).toHaveBeenCalledWith(expect.stringMatching(/connect github/i))
+    expect(operations.snapshot()).toContainEqual(
+      expect.objectContaining({
+        status: 'failed',
+        message: expect.stringMatching(/connect github/i),
+      }),
+    )
     expect(clipboard.writes()).toEqual([])
   })
 
@@ -329,11 +346,19 @@ describe('runGistPublish', () => {
     // The publish landed: the url comes back so the UI flips to its published state.
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBe(PUBLISHED.htmlUrl)
 
-    expect(startOperation).toHaveBeenCalledWith('Publishing gist')
-    expect(startOperation).toHaveBeenCalledWith('Copying the gist link')
-    expect(startOperation).not.toHaveBeenCalledWith('Gist link copied')
-    expect(operationDone).toHaveBeenCalledTimes(1) // the publish itself
-    expect(operationFail).toHaveBeenCalledWith(expect.stringMatching(/not focused/i))
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Publishing gist', status: 'running' },
+      {
+        label: 'Copying the gist link',
+        status: 'failed',
+        message: expect.stringMatching(/not focused/i),
+      },
+    ])
+    // The publish itself completed; only the copy failure lingers.
+    await operations.clock.advance(MIN_VISIBLE_MS)
+    expect(operations.getAll().map((operation) => operation.label)).toEqual([
+      'Copying the gist link',
+    ])
   })
 })
 
@@ -343,8 +368,9 @@ describe('runGistUnpublish', () => {
 
     await expect(runGistUnpublish('notes/a.md', 3)).resolves.toBe(true)
 
-    expect(startOperation).toHaveBeenCalledWith('Unpublishing gist')
-    expect(operationDone).toHaveBeenCalled()
+    expect(operations.snapshot()).toMatchObject([{ label: 'Unpublishing gist', status: 'running' }])
+    await operations.clock.advance(MIN_VISIBLE_MS)
+    expect(operations.getAll()).toEqual([])
     expect(getNoteRowOverlay('notes/a.md', 3)).toMatchObject({ gistUrl: null, gistStale: false })
   })
 
@@ -354,7 +380,12 @@ describe('runGistUnpublish', () => {
 
     await expect(runGistUnpublish('notes/a.md', 3)).resolves.toBe(false)
 
-    expect(operationFail).toHaveBeenCalledWith(expect.stringMatching(/connect github/i))
+    expect(operations.snapshot()).toContainEqual(
+      expect.objectContaining({
+        status: 'failed',
+        message: expect.stringMatching(/connect github/i),
+      }),
+    )
     expect(getNoteRowOverlay('notes/a.md', 3)).toBeNull()
   })
 
@@ -373,7 +404,12 @@ describe('runGistUnpublish', () => {
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBeNull()
     expect(createGist).not.toHaveBeenCalled()
     expect(updateGist).not.toHaveBeenCalled()
-    expect(operationFail).toHaveBeenCalledWith(expect.stringMatching(/current gist operation/i))
+    expect(operations.snapshot()).toContainEqual(
+      expect.objectContaining({
+        status: 'failed',
+        message: expect.stringMatching(/current gist operation/i),
+      }),
+    )
 
     pendingDelete.resolve()
     await expect(unpublish).resolves.toBe(true)

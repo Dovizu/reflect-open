@@ -3,8 +3,14 @@ import {
   setDefaultStorage,
   upsertFrontmatter,
   type PinnedNote,
+  setDefaultOperations,
 } from '@reflect/core'
-import { createTestPlatformService, createTestStorageService } from '@reflect/core/testing'
+import {
+  createTestPlatformService,
+  createTestStorageService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import { frontmatterPatchToYaml, type FrontmatterPatch } from '@/editor/note-session.ts'
 import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
@@ -24,10 +30,6 @@ const commitNoteFrontmatter = vi.hoisted(() =>
 )
 vi.mock('@/lib/note-frontmatter.ts', () => ({ readNoteSource, commitNoteFrontmatter }))
 const deleteOpenNote = vi.hoisted(() => vi.fn(async () => {}))
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() =>
-  vi.fn(() => ({ progress: vi.fn(), done: vi.fn(), fail: operationFail })),
-)
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
@@ -35,7 +37,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   getNote,
 }))
 vi.mock('@/lib/note-delete.ts', () => ({ deleteOpenNote }))
-vi.mock('@/lib/operations.ts', () => ({ startOperation }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 7 } }),
 }))
@@ -54,7 +55,11 @@ async function renderSection(path: string, showTrash = false) {
   return { ...view, client }
 }
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   setDefaultStorage(createTestStorageService())
   getPinnedNotes.mockReset().mockResolvedValue([])
   getNote.mockReset().mockResolvedValue(noteRow('notes/a.md', false))
@@ -64,8 +69,6 @@ beforeEach(() => {
     noteSource.value = upsertFrontmatter(noteSource.value, frontmatterPatchToYaml(patch))
   })
   deleteOpenNote.mockReset().mockResolvedValue(undefined)
-  startOperation.mockClear()
-  operationFail.mockClear()
   setDefaultPlatform(
     createTestPlatformService({
       isNativeShell: false,
@@ -77,6 +80,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   setDefaultPlatform(null)
 })
 
@@ -183,8 +187,7 @@ describe('NoteActionsSection pin toggle', () => {
 
     await expect.element(view.getByText('Pin this note', { exact: true })).toBeInTheDocument()
     await vi.waitFor(() => expect(getPinnedNotes).toHaveBeenCalledTimes(2))
-    expect(startOperation).toHaveBeenCalledWith('Updating pin')
-    expect(operationFail).toHaveBeenCalled()
+    expect(operations.findByLabel('Updating pin')?.status).toBe('failed')
     await view.unmount()
   })
 })
@@ -241,8 +244,7 @@ describe('NoteActionsSection private toggle', () => {
     const view = await renderSection('notes/a.md')
     await userEvent.click(view.getByRole('button', { name: /Lock note/ }))
     await expect.element(view.getByText('Lock note', { exact: true })).toBeInTheDocument()
-    expect(startOperation).toHaveBeenCalledWith('Updating privacy')
-    expect(operationFail).toHaveBeenCalled()
+    expect(operations.findByLabel('Updating privacy')?.status).toBe('failed')
     await view.unmount()
   })
 })
@@ -268,7 +270,7 @@ describe('NoteActionsSection trash action', () => {
     const confirmButton = page.getByRole('dialog').getByRole('button', { name: 'Trash note' })
     await userEvent.click(confirmButton)
     await vi.waitFor(() => expect(deleteOpenNote).toHaveBeenCalledWith('notes/a.md', 7))
-    expect(startOperation).toHaveBeenCalledWith('Trashing note')
+    expect(operations.findByLabel('Trashing note')).toBeDefined()
     await view.unmount()
   })
 

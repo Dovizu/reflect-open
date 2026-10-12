@@ -108,6 +108,11 @@ export {
   type TestSecretStoreService,
 } from './secrets.ts'
 export {
+  createTestOperationsService,
+  type OperationSnapshot,
+  type TestOperationsService,
+} from './operations.ts'
+export {
   createTestFileChangeService,
   type TestFileChangeService,
   type TestFileChangeServiceOptions,

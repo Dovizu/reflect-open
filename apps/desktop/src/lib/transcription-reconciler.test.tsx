@@ -5,8 +5,12 @@ import type {
   ReconcileAudioMemosInput,
   ReconcileAudioMemosOutcome,
 } from '@reflect/core'
-import { setDefaultHttp } from '@reflect/core'
-import { createTestHttpService } from '@reflect/core/testing'
+import { setDefaultHttp, setDefaultOperations } from '@reflect/core'
+import {
+  createTestHttpService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import {
   createTranscriptionReconciler,
   type TranscriptionReconciler,
@@ -18,7 +22,6 @@ const reconcileAudioMemos = vi.hoisted(() =>
 const subscribeFileChanges = vi.hoisted(() =>
   vi.fn<(handler: (changes: FileChange[]) => void) => Promise<() => void>>(),
 )
-const failOperation = vi.hoisted(() => vi.fn<(message: string) => void>())
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
@@ -26,15 +29,17 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   subscribeFileChanges,
   hasBridge: () => true,
 }))
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   setDefaultHttp(createTestHttpService())
 })
 afterEach(() => {
+  setDefaultOperations(null)
   setDefaultHttp(null)
 })
-vi.mock('@/lib/operations.ts', () => ({
-  startOperation: () => ({ progress: vi.fn(), done: vi.fn(), fail: failOperation }),
-}))
 
 const PROVIDERS: AiProvidersState = {
   providers: [{ id: 'cfg-openai', provider: 'openai', model: 'gpt-5.1', keyHint: 'wxyz1' }],
@@ -246,12 +251,15 @@ describe('createTranscriptionReconciler', () => {
     })
     create().start()
     await flush()
-    expect(failOperation).toHaveBeenCalledWith('openai rejected the API key (401)')
+    expect(operations.findByLabel('Transcribing audio memo')).toMatchObject({
+      status: 'failed',
+      message: 'openai rejected the API key (401)',
+    })
 
     window.dispatchEvent(new Event('focus'))
     await flush()
     expect(reconcileAudioMemos).toHaveBeenCalledTimes(2)
-    expect(failOperation).toHaveBeenCalledTimes(1)
+    expect(operations.getAll()).toHaveLength(1)
   })
 
   it('keeps expected stops silent — offline heals on the next trigger', async () => {
@@ -265,7 +273,7 @@ describe('createTranscriptionReconciler', () => {
     await flush()
 
     expect(reconcileAudioMemos).toHaveBeenCalled()
-    expect(failOperation).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
   })
 
   it('dispose detaches every trigger and flips the pass abort gate', async () => {

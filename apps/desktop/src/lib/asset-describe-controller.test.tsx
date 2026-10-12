@@ -5,8 +5,8 @@ import type {
   ReconcileAssetDescriptionsInput,
   ReconcileAssetDescriptionsOutcome,
 } from '@reflect/core'
-import { setDefaultHttp } from '@reflect/core'
-import { createTestHttpService } from '@reflect/core/testing'
+import { setDefaultHttp, setDefaultOperations } from '@reflect/core'
+import { createTestHttpService, createTestOperationsService } from '@reflect/core/testing'
 import {
   createAssetDescribeController,
   type AssetDescribeController,
@@ -22,7 +22,6 @@ const readNote = vi.hoisted(() => vi.fn<(path: string, generation?: number) => P
 const reindexNotesReferencing = vi.hoisted(() =>
   vi.fn<(assetPaths: readonly string[], generation: number) => Promise<void>>(),
 )
-const failOperation = vi.hoisted(() => vi.fn<(message: string) => void>())
 const invalidateIndexQueries = vi.hoisted(() => vi.fn<() => void>())
 
 vi.mock('@reflect/core', async (importOriginal) => ({
@@ -34,14 +33,13 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   hasBridge: () => true,
 }))
 beforeEach(() => {
+  setDefaultOperations(createTestOperationsService())
   setDefaultHttp(createTestHttpService())
 })
 afterEach(() => {
+  setDefaultOperations(null)
   setDefaultHttp(null)
 })
-vi.mock('@/lib/operations.ts', () => ({
-  startOperation: () => ({ progress: vi.fn(), done: vi.fn(), fail: failOperation }),
-}))
 vi.mock('@/lib/query-client.ts', () => ({
   invalidateIndexQueries,
 }))

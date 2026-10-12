@@ -1,3 +1,17 @@
+import {
+  createCaptureInboxService,
+  type CaptureInboxService,
+} from '../graph/capture-inbox-service.ts'
+import {
+  createICloudNativeService,
+  type ICloudNativeService,
+} from '../ipc/icloud-native-service.ts'
+import {
+  createGitRepositoryService,
+  type GitRepositoryService,
+} from '../sync/git-repository-service.ts'
+import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
+import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
@@ -35,6 +49,7 @@ import {
   type LifecycleDomAdapter,
 } from './lifecycle-service.ts'
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
+import { createOperationsService, type OperationsService } from './operations-service.ts'
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
@@ -75,9 +90,15 @@ export interface AppServices {
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
+  readonly operations: OperationsService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
   readonly update: UpdateService
+  readonly gitRepository: GitRepositoryService
+  readonly icloudNative: ICloudNativeService
+  readonly captureInbox: CaptureInboxService
+  readonly webFetch: WebFetchService
+  readonly xArchive: XArchiveService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -142,6 +163,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
+    operations: createOperationsService({ clock }),
     database: createDatabaseService({ ipc }),
     fileChanges: createFileChangeService(
       { ipc, logger },
@@ -156,5 +178,10 @@ export function createAppServices(adapters: AppAdapters): AppServices {
           window: windowService,
         })
       : createUnsupportedUpdateService(),
+    gitRepository: createGitRepositoryService({ ipc }),
+    icloudNative: createICloudNativeService({ ipc, logger }),
+    captureInbox: createCaptureInboxService({ ipc }),
+    webFetch: createWebFetchService({ ipc }),
+    xArchive: createXArchiveService({ ipc }),
   }
 }

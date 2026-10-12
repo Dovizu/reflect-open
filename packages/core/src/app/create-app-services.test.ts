@@ -40,9 +40,15 @@ const SERVICE_KEYS = [
   'mobileStorage',
   'imageCodec',
   'exceptionTelemetry',
+  'operations',
   'database',
   'fileChanges',
   'update',
+  'gitRepository',
+  'icloudNative',
+  'captureInbox',
+  'webFetch',
+  'xArchive',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

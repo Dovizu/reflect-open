@@ -1,9 +1,15 @@
+import { createTestOperationsService } from '@reflect/core/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import { StrictMode, type ReactNode } from 'react'
-import { setBridge, type AiProviderConfig, type Settings } from '@reflect/core'
-import { resetOperations, useOperations } from '@/lib/operations.ts'
+import {
+  setBridge,
+  type AiProviderConfig,
+  type Settings,
+  setDefaultOperations,
+} from '@reflect/core'
+import { useOperations } from '@/lib/operations.ts'
 import { flushSettings } from '@/lib/settings-flush.ts'
 import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
 import { createSettingsQueryOptions } from '@/lib/query-options.ts'
@@ -93,6 +99,7 @@ async function loadSettled(): Promise<void> {
 }
 
 beforeEach(() => {
+  setDefaultOperations(createTestOperationsService())
   stored = {}
   loadCalls = 0
   queryClient = new QueryClient({
@@ -105,9 +112,9 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   setBridge(null)
   queryClient.clear()
-  resetOperations() // failed-save entries linger on a timer otherwise
 })
 
 describe('SettingsProvider', () => {

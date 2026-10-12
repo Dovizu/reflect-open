@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetOperations, startOperation } from '@/lib/operations.ts'
+import { setDefaultOperations } from '@reflect/core'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { startOperation } from '@/lib/operations.ts'
 import type { MockToastAddOptions } from '@/test-utils/toast.ts'
 import { attachOperationToasts } from './operation-toasts.ts'
 
@@ -11,9 +13,11 @@ const toast = vi.hoisted(() => ({
 vi.mock('@/components/ui/toast.tsx', () => ({ toast }))
 
 let detach: () => void = () => {}
+let operations: TestOperationsService
 
 beforeEach(() => {
-  resetOperations()
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   toast.add.mockClear()
   toast.close.mockClear()
   detach = attachOperationToasts()
@@ -21,7 +25,7 @@ beforeEach(() => {
 
 afterEach(() => {
   detach()
-  resetOperations()
+  setDefaultOperations(null)
 })
 
 describe('attachOperationToasts', () => {
@@ -39,21 +43,16 @@ describe('attachOperationToasts', () => {
     )
   })
 
-  it('surfaces failures and closes the toast when the operation clears', () => {
-    vi.useFakeTimers()
-    try {
-      const handle = startOperation('Saving settings')
-      handle.fail('disk full')
+  it('surfaces failures and closes the toast when the operation clears', async () => {
+    const handle = startOperation('Saving settings')
+    handle.fail('disk full')
 
-      expect(toast.add).toHaveBeenLastCalledWith(
-        expect.objectContaining({ id: 'operation-1', description: 'disk full', type: 'error' }),
-      )
+    expect(toast.add).toHaveBeenLastCalledWith(
+      expect.objectContaining({ id: 'operation-1', description: 'disk full', type: 'error' }),
+    )
 
-      vi.advanceTimersByTime(9_200)
-      expect(toast.close).toHaveBeenCalledWith('operation-1')
-    } finally {
-      vi.useRealTimers()
-    }
+    await operations.clock.advance(9_200)
+    expect(toast.close).toHaveBeenCalledWith('operation-1')
   })
 
   it('passes optional action metadata to the toast', () => {

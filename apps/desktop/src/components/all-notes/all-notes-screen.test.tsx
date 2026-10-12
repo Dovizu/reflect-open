@@ -1,10 +1,11 @@
+import { createTestOperationsService } from '@reflect/core/testing'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import type { ReactElement } from 'react'
-import { setBridge } from '@reflect/core'
-import { resetOperations, useOperations } from '@/lib/operations.ts'
+import { setBridge, setDefaultOperations } from '@reflect/core'
+import { useOperations } from '@/lib/operations.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
@@ -104,7 +105,7 @@ function mockManyNotes(): void {
 }
 
 beforeEach(() => {
-  resetOperations()
+  setDefaultOperations(createTestOperationsService())
   settingsState.dateFormat = 'mdy'
   openRouteInNewWindow.mockReset().mockResolvedValue(true)
   mockInvoke.mockReset()
@@ -132,6 +133,10 @@ beforeEach(() => {
     }
     return []
   })
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 function RouteProbe(): ReactElement {

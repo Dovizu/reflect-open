@@ -2,9 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
-import { setBridge, setDefaultStorage } from '@reflect/core'
-import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
-import { resetOperations } from '@/lib/operations.ts'
+import { setBridge, setDefaultStorage, setDefaultOperations } from '@reflect/core'
+import {
+  createTestStorageService,
+  type TestStorageService,
+  createTestOperationsService,
+} from '@reflect/core/testing'
 import { THEME_PREFERENCE_CACHE_KEY } from '@/lib/theme-cache.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { SettingsProvider } from './settings-provider.tsx'
@@ -113,6 +116,7 @@ let originalClassName: string
 let originalColorScheme: string
 
 beforeEach(() => {
+  setDefaultOperations(createTestOperationsService())
   originalClassName = document.documentElement.className
   originalColorScheme = document.documentElement.style.colorScheme
   stored = {}
@@ -125,12 +129,12 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   setBridge(null)
   queryClient.clear()
   setDefaultStorage(null)
   document.documentElement.className = originalClassName
   document.documentElement.style.colorScheme = originalColorScheme
-  resetOperations() // failed-load entries linger on a timer otherwise
 })
 
 describe('ThemeProvider', () => {

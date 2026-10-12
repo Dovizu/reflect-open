@@ -3,8 +3,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent, type Locator } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultStorage } from '@reflect/core'
-import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
+import { setDefaultStorage, setDefaultOperations } from '@reflect/core'
+import {
+  createTestStorageService,
+  type TestStorageService,
+  createTestOperationsService,
+} from '@reflect/core/testing'
 import type { OpenTask } from '@reflect/core'
 import type { TaskAction } from '@/lib/note-task.ts'
 import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
@@ -164,13 +168,6 @@ function writesOf(...kinds: TaskActionKind[]): unknown[][] {
   return writeTask.mock.calls.filter((call: unknown[]) => isWrite(call[1] as TaskAction[], kinds))
 }
 
-const fail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() => vi.fn(() => ({ fail })))
-vi.mock('@/lib/operations.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/operations.ts')>()),
-  startOperation,
-}))
-
 // Vaul's drag/animation is verified on-device. This passthrough honours `open` and
 // exposes the dismissal path as a button, so commit-on-dismiss is testable.
 vi.mock('@/components/ui/drawer.tsx', () => ({
@@ -262,6 +259,7 @@ async function revealSwipeActions(
 let storage: TestStorageService
 
 beforeEach(async () => {
+  setDefaultOperations(createTestOperationsService())
   await page.viewport(375, 700)
   storage = createTestStorageService()
   setDefaultStorage(storage)
@@ -280,8 +278,6 @@ beforeEach(async () => {
     created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
     moved: [],
   })
-  startOperation.mockClear()
-  fail.mockReset()
   resolveOrCreateNoteWithTitle.mockReset()
   resolveOrCreateNoteWithTitle.mockResolvedValue({
     kind: 'resolved',
@@ -293,6 +289,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  setDefaultOperations(null)
   await cleanup()
   setDefaultStorage(null)
 })

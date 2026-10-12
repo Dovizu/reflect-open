@@ -239,6 +239,18 @@ export {
   type KeyValueStore,
   type StorageService,
 } from '../app/storage-service.ts'
+export {
+  LINGER_MS,
+  MIN_VISIBLE_MS,
+  createOperationsService,
+  defaultOperations,
+  setDefaultOperations,
+  type Operation,
+  type OperationAction,
+  type OperationHandle,
+  type OperationOptions,
+  type OperationsService,
+} from '../app/operations-service.ts'
 export { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 export {
   createAppServices,

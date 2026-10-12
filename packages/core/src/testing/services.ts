@@ -9,6 +9,20 @@ import { installDefaultServices, resetDefaultServices } from '../app/install-def
 import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
+import {
+  createTestCaptureInboxService,
+  createTestWebFetchService,
+  createTestXArchiveService,
+  type TestCaptureInboxService,
+  type TestWebFetchService,
+  type TestXArchiveService,
+} from './capture.ts'
+import {
+  createTestGitRepositoryService,
+  createTestICloudNativeService,
+  type TestGitRepositoryService,
+  type TestICloudNativeService,
+} from './sync.ts'
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
@@ -29,6 +43,7 @@ import { createTestImageCodec, type TestImageCodecService } from './image-codec.
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
+import { createTestOperationsService, type TestOperationsService } from './operations.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
 import {
   createTestAppInfoService,
@@ -75,9 +90,15 @@ export interface TestAppServices extends AppServices {
   readonly mobileStorage: TestMobileStorageService
   readonly imageCodec: TestImageCodecService
   readonly exceptionTelemetry: TestExceptionTelemetryService
+  readonly operations: TestOperationsService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
   readonly update: TestUpdateService
+  readonly gitRepository: TestGitRepositoryService
+  readonly icloudNative: TestICloudNativeService
+  readonly captureInbox: TestCaptureInboxService
+  readonly webFetch: TestWebFetchService
+  readonly xArchive: TestXArchiveService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -88,10 +109,11 @@ export function createTestAppServices<Overrides extends Partial<AppServices>>(
 export function createTestAppServices(overrides?: Partial<AppServices>): AppServices {
   const testLogger = createTestLoggerService()
   const logger = overrides?.logger ?? testLogger
+  const clock = createTestClockService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
-    clock: createTestClockService(),
+    clock,
     id: createTestIdService(),
     hash: createTestHashService(),
     platform: createTestPlatformService(),
@@ -111,9 +133,15 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: createTestMobileStorageService(),
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
+    operations: createTestOperationsService(clock),
     database: createTestDatabaseService(),
     fileChanges: createTestFileChangeService(),
     update: createTestUpdateService(),
+    gitRepository: createTestGitRepositoryService(),
+    icloudNative: createTestICloudNativeService(),
+    captureInbox: createTestCaptureInboxService(),
+    webFetch: createTestWebFetchService(),
+    xArchive: createTestXArchiveService(),
   }
   return Object.assign(services, overrides)
 }

@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { setDefaultOperations } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import { useEditorAutocomplete } from './use-editor-autocomplete.ts'
 
@@ -7,8 +9,6 @@ const ensurePersonNote = vi.hoisted(() => vi.fn())
 const contactLinkSuggestions = vi.hoisted(() => vi.fn())
 const resolvePersonContact = vi.hoisted(() => vi.fn())
 const suggestWikiLinkTargets = vi.hoisted(() => vi.fn())
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() => vi.fn(() => ({ fail: operationFail })))
 const settingsState = vi.hoisted(() => ({ contactsEnabled: false }))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
@@ -37,9 +37,12 @@ vi.mock('@/providers/settings-provider.tsx', () => ({
 vi.mock('@/hooks/use-contacts-authorization.ts', () => ({
   useContactsAuthorization: () => 'authorized',
 }))
-vi.mock('@/lib/operations.ts', () => ({ startOperation }))
+
+let operations: TestOperationsService
 
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   resolveOrCreateNoteWithTitle.mockReset()
   ensurePersonNote.mockReset()
   contactLinkSuggestions.mockReset().mockResolvedValue([])
@@ -51,8 +54,10 @@ beforeEach(() => {
     claimedTargetKeys: [],
     queryReadsAsDate: false,
   })
-  operationFail.mockReset()
-  startOperation.mockClear()
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 describe('useEditorAutocomplete', () => {
@@ -82,10 +87,11 @@ describe('useEditorAutocomplete', () => {
     await vi.waitFor(() =>
       expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Business ideas', 7),
     )
-    expect(startOperation).toHaveBeenCalledWith('Creating note')
-    expect(operationFail).toHaveBeenCalledWith(
-      'Couldn’t safely choose one note matching “Business ideas”. Rename conflicting notes or wait for unavailable notes to become available, then try again.',
-    )
+    expect(operations.findByLabel('Creating note')).toMatchObject({
+      status: 'failed',
+      message:
+        'Couldn’t safely choose one note matching “Business ideas”. Rename conflicting notes or wait for unavailable notes to become available, then try again.',
+    })
   })
 
   it('reports an unavailable background create distinctly from ambiguity', async () => {
@@ -103,10 +109,11 @@ describe('useEditorAutocomplete', () => {
     await vi.waitFor(() =>
       expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Business ideas', 7),
     )
-    expect(startOperation).toHaveBeenCalledWith('Creating note')
-    expect(operationFail).toHaveBeenCalledWith(
-      'Couldn’t create “Business ideas” while a potentially matching note is unavailable. Try again when it is available on this device.',
-    )
+    expect(operations.findByLabel('Creating note')).toMatchObject({
+      status: 'failed',
+      message:
+        'Couldn’t create “Business ideas” while a potentially matching note is unavailable. Try again when it is available on this device.',
+    })
   })
 
   it('surfaces a failed background create instead of silently doing nothing', async () => {
@@ -119,8 +126,12 @@ describe('useEditorAutocomplete', () => {
       items[0]!.onSelect?.()
     })
 
-    await vi.waitFor(() => expect(operationFail).toHaveBeenCalledWith('graph changed'))
-    expect(startOperation).toHaveBeenCalledWith('Creating note')
+    await vi.waitFor(() =>
+      expect(operations.findByLabel('Creating note')).toMatchObject({
+        status: 'failed',
+        message: 'graph changed',
+      }),
+    )
     consoleError.mockRestore()
   })
 
@@ -139,8 +150,7 @@ describe('useEditorAutocomplete', () => {
     await vi.waitFor(() =>
       expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Business ideas', 7),
     )
-    expect(startOperation).not.toHaveBeenCalled()
-    expect(operationFail).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
   })
 
   it('labels a `//` note by its first segment and details only an informative alias', async () => {
@@ -312,7 +322,11 @@ describe('useEditorAutocomplete', () => {
       items[0]!.onSelect?.()
     })
 
-    await vi.waitFor(() => expect(operationFail).toHaveBeenCalledWith('graph changed'))
+    await vi.waitFor(() =>
+      expect(operations.snapshot()).toContainEqual(
+        expect.objectContaining({ status: 'failed', message: 'graph changed' }),
+      ),
+    )
     consoleError.mockRestore()
   })
 })

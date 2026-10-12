@@ -8,11 +8,15 @@ import {
   type EmbedStatus,
   type GraphInfo,
   setDefaultPlatform,
+  setDefaultOperations,
   setDefaultUpdate,
 } from '@reflect/core'
-import { createTestPlatformService, createTestUpdateService } from '@reflect/core/testing'
+import {
+  createTestOperationsService,
+  createTestPlatformService,
+  createTestUpdateService,
+} from '@reflect/core/testing'
 import { formatFullDate } from '@/lib/dates.ts'
-import { resetOperations } from '@/lib/operations.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider } from '@/providers/shortcuts-provider.tsx'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
@@ -51,6 +55,7 @@ vi.mock('@/providers/sync-provider.tsx', () => ({
 }))
 // The update field gates on a supported updater, which the test browser lacks.
 beforeEach(() => {
+  setDefaultOperations(createTestOperationsService())
   setDefaultPlatform(
     createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
   )
@@ -58,6 +63,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   setDefaultPlatform(null)
   setDefaultUpdate(null)
 })
@@ -1204,19 +1210,15 @@ describe('SettingsScreen', () => {
   })
 
   it('rebuilding the index wipes and re-applies the projection through the bridge', async () => {
-    try {
-      await renderScreen()
+    await renderScreen()
 
-      await page.getByRole('button', { name: /rebuild index/i }).click()
+    await page.getByRole('button', { name: /rebuild index/i }).click()
 
-      // The whole chain: button → rebuildIndexVisibly → wipe, then the
-      // projection-version stamp that marks a completed rebuild. (The graph is
-      // empty here, so there is no apply batch in between.)
-      await vi.waitFor(() => expect(invoked).toContain('index_clear'))
-      await vi.waitFor(() => expect(invoked).toContain('index_meta_set'))
-    } finally {
-      resetOperations()
-    }
+    // The whole chain: button → rebuildIndexVisibly → wipe, then the
+    // projection-version stamp that marks a completed rebuild. (The graph is
+    // empty here, so there is no apply batch in between.)
+    await vi.waitFor(() => expect(invoked).toContain('index_clear'))
+    await vi.waitFor(() => expect(invoked).toContain('index_meta_set'))
   })
 
   it('disables the index rebuild until a graph index is open', async () => {

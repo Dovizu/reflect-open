@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { setDefaultOperations } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const readNote = vi.hoisted(() => vi.fn())
 const writeNote = vi.hoisted(() =>
@@ -10,10 +12,6 @@ const availableTemplatePath = vi.hoisted(() => vi.fn(async () => 'templates/dail
 const templateSlugPathForTitle = vi.hoisted(() => vi.fn())
 const moveNoteCarryingSession = vi.hoisted(() => vi.fn(async () => undefined))
 const openSession = vi.hoisted(() => vi.fn(() => null))
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() =>
-  vi.fn(() => ({ progress: vi.fn(), done: vi.fn(), fail: operationFail })),
-)
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   readNote,
@@ -23,16 +21,20 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 }))
 vi.mock('@/editor/move-note.ts', () => ({ moveNoteCarryingSession }))
 vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
-vi.mock('@/lib/operations.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/operations.ts')>()),
-  startOperation,
-}))
 
 const { createTemplate, insertTemplate, renameTemplate, templateBody } =
   await import('./note-templates.ts')
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   vi.clearAllMocks()
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 function fakeEditor(): { inserted: string[]; focused: number } & Parameters<
@@ -70,20 +72,22 @@ describe('insertTemplate', () => {
     await insertTemplate('templates/journal.md', editor)
     expect(editor.inserted).toEqual(['# Journal\n\nMood:\n'])
     expect(editor.focused).toBe(1)
-    expect(startOperation).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
   })
 
   it('fails loud when there is no editor to insert into', async () => {
     await insertTemplate('templates/journal.md', null)
-    expect(startOperation).toHaveBeenCalledWith('Inserting template')
-    expect(operationFail).toHaveBeenCalledWith('No open note to insert into')
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Inserting template', status: 'failed', message: 'No open note to insert into' },
+    ])
   })
 
   it('surfaces a failed read as a failed operation, never a silent nothing', async () => {
     readNote.mockRejectedValueOnce(new Error('gone'))
     await insertTemplate('templates/journal.md', fakeEditor())
-    expect(startOperation).toHaveBeenCalledWith('Inserting template')
-    expect(operationFail).toHaveBeenCalledWith('gone')
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Inserting template', status: 'failed', message: 'gone' },
+    ])
   })
 })
 

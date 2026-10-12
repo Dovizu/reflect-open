@@ -1,36 +1,38 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { captureInboxSpool, resolveNoteTarget, textCaptureEnvelopeSchema } from '@reflect/core'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  captureInboxSpool,
+  resolveNoteTarget,
+  textCaptureEnvelopeSchema,
+  setDefaultOperations,
+  MIN_VISIBLE_MS,
+} from '@reflect/core'
 import { handleDeepLink } from '@/lib/deep-links/handle.ts'
-import { startOperation } from '@/lib/operations.ts'
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   captureInboxSpool: vi.fn(),
   resolveNoteTarget: vi.fn(),
 }))
-vi.mock('@/lib/operations.ts', () => ({
-  startOperation: vi.fn(),
-}))
 
 const spoolMock = vi.mocked(captureInboxSpool)
 const resolveMock = vi.mocked(resolveNoteTarget)
-const startOperationMock = vi.mocked(startOperation)
-const operationHandle = {
-  progress: vi.fn(),
-  done: vi.fn(),
-  warn: vi.fn(),
-  fail: vi.fn(),
-  dismiss: vi.fn(),
-}
 const navigate = vi.fn()
 
 function handle(url: string) {
   return handleDeepLink(url, { navigate, generation: 3 })
 }
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   vi.clearAllMocks()
-  startOperationMock.mockReturnValue(operationHandle)
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 describe('handleDeepLink', () => {
@@ -38,7 +40,7 @@ describe('handleDeepLink', () => {
     await handle('reflect://daily/2026-07-01')
     expect(navigate).toHaveBeenCalledWith({ kind: 'daily', date: '2026-07-01' })
     expect(resolveMock).not.toHaveBeenCalled()
-    expect(startOperationMock).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
   })
 
   it('resolves a note target and navigates to its route', async () => {
@@ -64,8 +66,9 @@ describe('handleDeepLink', () => {
     await handle('reflect://note/ghost')
 
     expect(navigate).not.toHaveBeenCalled()
-    expect(startOperationMock).toHaveBeenCalledWith('Opening link')
-    expect(operationHandle.fail).toHaveBeenCalledWith('Note not found: ghost')
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Opening link', status: 'failed', message: 'Note not found: ghost' },
+    ])
   })
 
   it('surfaces a resolution failure instead of rejecting the handler', async () => {
@@ -74,8 +77,7 @@ describe('handleDeepLink', () => {
     await expect(handle('reflect://note/Project%20X')).resolves.toBeUndefined()
 
     expect(navigate).not.toHaveBeenCalled()
-    expect(startOperationMock).toHaveBeenCalledWith('Opening link')
-    expect(operationHandle.fail).toHaveBeenCalled()
+    expect(operations.snapshot()).toMatchObject([{ label: 'Opening link', status: 'failed' }])
   })
 
   it('drops a resolution failure that arrives after the link became stale', async () => {
@@ -97,7 +99,7 @@ describe('handleDeepLink', () => {
     await pending
 
     expect(navigate).not.toHaveBeenCalled()
-    expect(startOperationMock).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
   })
 
   it('drops a resolution that finished after the graph session ended', async () => {
@@ -115,7 +117,7 @@ describe('handleDeepLink', () => {
     await pending
 
     expect(navigate).not.toHaveBeenCalled()
-    expect(startOperationMock).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
   })
 
   it('surfaces a failure on a URL the grammar rejects', async () => {
@@ -123,10 +125,13 @@ describe('handleDeepLink', () => {
 
     expect(navigate).not.toHaveBeenCalled()
     expect(spoolMock).not.toHaveBeenCalled()
-    expect(startOperationMock).toHaveBeenCalledWith('Opening link')
-    expect(operationHandle.fail).toHaveBeenCalledWith(
-      'Unrecognized link: reflect://edit-notes?content=evil',
-    )
+    expect(operations.snapshot()).toMatchObject([
+      {
+        label: 'Opening link',
+        status: 'failed',
+        message: 'Unrecognized link: reflect://edit-notes?content=evil',
+      },
+    ])
   })
 
   it('spools a valid text-capture envelope for an append link', async () => {
@@ -140,8 +145,9 @@ describe('handleDeepLink', () => {
     expect(envelope.text).toBe('call the bank')
     expect(generation).toBe(3)
     expect(navigate).not.toHaveBeenCalled()
-    expect(startOperationMock).toHaveBeenCalledWith('Added to today')
-    expect(operationHandle.done).toHaveBeenCalled()
+    expect(operations.snapshot()).toMatchObject([{ label: 'Added to today', status: 'running' }])
+    await operations.clock.advance(MIN_VISIBLE_MS)
+    expect(operations.getAll()).toEqual([])
   })
 
   it('spools a task envelope for a task link', async () => {
@@ -151,8 +157,11 @@ describe('handleDeepLink', () => {
     const envelope = textCaptureEnvelopeSchema.parse(JSON.parse(json))
     expect(envelope.kind).toBe('task')
     expect(envelope.text).toBe('buy milk')
-    expect(startOperationMock).toHaveBeenCalledWith('Task added to today')
-    expect(operationHandle.done).toHaveBeenCalled()
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Task added to today', status: 'running' },
+    ])
+    await operations.clock.advance(MIN_VISIBLE_MS)
+    expect(operations.getAll()).toEqual([])
   })
 
   it('spools a checkbox envelope for a checkbox link', async () => {
@@ -162,8 +171,11 @@ describe('handleDeepLink', () => {
     const envelope = textCaptureEnvelopeSchema.parse(JSON.parse(json))
     expect(envelope.kind).toBe('checkbox')
     expect(envelope.text).toBe('pack a bag')
-    expect(startOperationMock).toHaveBeenCalledWith('Checkbox added to today')
-    expect(operationHandle.done).toHaveBeenCalled()
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Checkbox added to today', status: 'running' },
+    ])
+    await operations.clock.advance(MIN_VISIBLE_MS)
+    expect(operations.getAll()).toEqual([])
   })
 
   it('surfaces a spool failure instead of claiming success', async () => {
@@ -171,8 +183,6 @@ describe('handleDeepLink', () => {
 
     await handle('reflect://append?text=milk')
 
-    expect(operationHandle.done).not.toHaveBeenCalled()
-    expect(startOperationMock).toHaveBeenCalledWith('Saving capture')
-    expect(operationHandle.fail).toHaveBeenCalled()
+    expect(operations.snapshot()).toMatchObject([{ label: 'Saving capture', status: 'failed' }])
   })
 })

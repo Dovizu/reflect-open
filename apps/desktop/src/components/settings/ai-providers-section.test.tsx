@@ -10,15 +10,16 @@ import {
   settingsSchema,
   type HostedAiProviderConfig,
   type Settings,
+  setDefaultOperations,
 } from '@reflect/core'
 import {
   createTestHttpService,
   createTestSecretStoreService,
   type TestHttpService,
   type TestSecretStoreService,
+  createTestOperationsService,
 } from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
-import { resetOperations } from '@/lib/operations.ts'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { AiProvidersSection } from './ai-providers-section.tsx'
 
@@ -109,6 +110,7 @@ async function openDialog(): Promise<Locator> {
 }
 
 beforeEach(() => {
+  setDefaultOperations(createTestOperationsService())
   stored = {}
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -119,11 +121,11 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   setBridge(null)
   setDefaultSecretStore(null)
   setDefaultHttp(null)
   queryClient.clear()
-  resetOperations()
 })
 
 describe('AiProvidersSection', () => {
