@@ -1,5 +1,6 @@
 import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
+import { isNotePath } from '../graph/paths.ts'
 import { getBridge, hasBridge, type IpcBridge } from '../ipc/bridge.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import {
@@ -154,6 +155,19 @@ export interface IndexLifecycleService {
    * (Plan 07): firing on raw file events instead would refetch stale rows.
    */
   onApplied: (listener: (event: IndexAppliedEvent) => void) => Unlisten
+  /**
+   * Apply `changes` to the index at `generation` now, without waiting for the
+   * live subscription: files a pull wrote must reach the index even before
+   * the watcher runs. Applying a batch the live subscription also applies is
+   * idempotent. Resolves with the number of index mutations and reports
+   * {@link IndexLifecycleService.onApplied} when there was any. `canApply` is
+   * checked before every write; a rejection is the caller's to handle.
+   */
+  applyChanges: (
+    changes: FileChange[],
+    generation: number,
+    canApply?: () => boolean,
+  ) => Promise<number>
   /**
    * Listen for every batch of file changes after the index applied it: each
    * watcher batch (notes and asset files, even when no row changed) and the
@@ -554,6 +568,16 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     },
     onProgress: (listener) => attach(progressListeners, listener),
     onApplied: (listener) => attach(appliedListeners, listener),
+    applyChanges: async (changes, generation, canApply) => {
+      const mutations = await liveIndex.apply(changes, generation, undefined, undefined, canApply)
+      if (mutations > 0) {
+        emitApplied({
+          generation,
+          paths: changes.filter((change) => isNotePath(change.path)).map((change) => change.path),
+        })
+      }
+      return mutations
+    },
     onChangesApplied: (listener) =>
       subscribeIndexApplied((changes, generation) => {
         listener({ generation, changes })

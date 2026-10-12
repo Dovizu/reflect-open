@@ -9,7 +9,7 @@ import {
   type KeyboardService,
 } from '@reflect/core'
 import { createTestKeyboardService } from '@reflect/core/testing'
-import type { BackupState } from '@/lib/backup-controller.ts'
+import type { BackupState } from '@reflect/core'
 import { SyncStatusPill } from './sync-status-pill.tsx'
 
 /**

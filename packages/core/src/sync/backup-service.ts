@@ -1,41 +1,50 @@
+import { isCaptureSpoolPath } from '../actions/capture-identity.ts'
+import { defaultLifecycle, type AppLifecycleService } from '../app/lifecycle-service.ts'
+import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
 import {
-  applyIndexChanges,
-  clearGithubAuth,
-  createGithubRepo,
-  createSyncEngine,
-  emitFileChanges,
-  errorMessage,
-  getAuthenticatedUser,
-  getGithubRepo,
-  getGithubToken,
-  githubCredential,
-  githubRemoteUrl,
-  gitDisconnect,
-  gitSetup,
-  gitStatus,
-  isCaptureSpoolPath,
-  isNotePath,
+  defaultPersistenceFlush,
+  type PersistenceFlushService,
+} from '../app/persistence-flush-service.ts'
+import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
+import { isMobilePlatform } from '../app/platform.ts'
+import { errorMessage, ReflectError } from '../errors.ts'
+import { isNotePath } from '../graph/paths.ts'
+import { defaultFileChanges, type FileChangeService } from '../indexing/file-change-service.ts'
+import {
+  defaultIndexLifecycle,
+  type IndexLifecycleService,
+} from '../indexing/index-lifecycle-service.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
+import {
+  defaultSyncEngines,
   isSyncError,
-  loadGithubAuth,
-  loadHostCredential,
-  parseGithubRemote,
-  remoteHost,
-  ReflectError,
-  subscribeFileChanges,
-  type ChangedFile,
-  type GithubRepoRef,
-  type GraphInfo,
   type SyncEngine,
+  type SyncEngineFactory,
   type SyncStatus,
-  type Unlisten,
-} from '@reflect/core'
-import { registerBackupFlusher } from '@/lib/backup-flush.ts'
-import { startOperation } from '@/lib/operations.ts'
-import { isNativeShell } from '@/lib/platform.ts'
-import { isMobileSurface } from '@/lib/platform-surface.ts'
-import { providerFetch } from '@/lib/provider-fetch.ts'
-import { throttledInvalidateIndexQueries } from '@/lib/query-client.ts'
-import { attachResumeListeners } from '@/lib/resume-listeners.ts'
+} from './engine.ts'
+import {
+  defaultGitHostCredentials,
+  remoteHost,
+  type GitHostCredentialService,
+} from './git-host-credential-service.ts'
+import {
+  defaultGitRepository,
+  type ChangedFile,
+  type GitRepositoryService,
+} from './git-repository-service.ts'
+import {
+  defaultGithubAuth,
+  githubCredential,
+  type GithubAuthService,
+} from './github-auth-service.ts'
+import {
+  defaultGithubRepos,
+  githubRemoteUrl,
+  parseGithubRemote,
+  type GithubRepoRef,
+  type GithubRepoService,
+} from './github-repo-service.ts'
 
 /**
  * Backup state as the UI sees it. `connected` means the graph has a repo and
@@ -66,10 +75,29 @@ export type ConnectExistingResult = 'connected' | 'needsPublicConfirm' | 'notFou
  */
 const MOBILE_IDLE_MS = 10_000
 
-export interface BackupControllerOptions {
-  graph: GraphInfo
+/** The (graph, index session) pair one {@link BackupService} backs up. */
+export interface BackupServiceOptions {
+  /** The open graph's generation — every git command is pinned to it. */
+  generation: number
   /** The open index session's generation — index writes are pinned to it. */
   indexGeneration: number | null
+}
+
+/** The services a {@link BackupService} runs on. */
+export interface BackupServiceDeps {
+  git: GitRepositoryService
+  syncEngines: SyncEngineFactory
+  githubAuth: GithubAuthService
+  githubRepos: GithubRepoService
+  gitHostCredentials: GitHostCredentialService
+  fileChanges: FileChangeService
+  /** Applies the notes a pull changed. */
+  indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
+  operations: OperationsService
+  lifecycle: AppLifecycleService
+  platform: PlatformFacts
+  persistenceFlush: PersistenceFlushService
+  logger: LoggerService
 }
 
 /**
@@ -78,62 +106,90 @@ export interface BackupControllerOptions {
  * seam (zombie engines on partial init, leaked listeners, resurrection after
  * teardown). Here the lifecycle is one object with one `teardown()` that
  * every path — success, partial-init failure, dispose — funnels through, and
- * the provider shrinks to a `useSyncExternalStore` shim.
+ * the provider shrinks to a `useSyncExternalStore` shim. One service serves
+ * one (graph, index session) pair; {@link BackupServiceFactory} builds them.
  *
  * Owns: the connection probe, the sync engine, the watcher subscription that
  * feeds its debounce, the resume triggers (launch, window focus, visibility →
  * visible for mobile app resume, and back-online pulls), the quit-commit
  * hook, and the connect / disconnect / sign-out / back-up-now actions.
  */
-export interface BackupController {
+export interface BackupService {
   /** Probe the graph and start the engine if fully connected. Idempotent. */
-  start(): Promise<void>
-  getState(this: void): BackupState
+  start: () => Promise<void>
+  getState: () => BackupState
   /** Subscribe to state changes; returns the unsubscribe. */
-  subscribe(this: void, listener: () => void): () => void
+  subscribe: (listener: () => void) => Unlisten
   /**
    * Create a new **private** repo for the signed-in user and connect it.
    * `manualCreateNeeded` means the token *type* can't create repositories
    * (fine-grained PATs can't call `POST /user/repos`) — the dialog falls
    * back to the prefilled github.com/new handoff and connects afterwards.
    */
-  connectNewRepo(name: string): Promise<'connected' | 'manualCreateNeeded'>
+  connectNewRepo: (name: string) => Promise<'connected' | 'manualCreateNeeded'>
   /**
    * Connect an existing repo. A public repo returns `needsPublicConfirm`
    * unless `allowPublic` — everything in the graph (including `private:
    * true` notes) would be world-readable, so that needs an explicit yes.
    */
-  connectExistingRepo(
+  connectExistingRepo: (
     ref: GithubRepoRef,
     options?: { allowPublic?: boolean },
-  ): Promise<ConnectExistingResult>
+  ) => Promise<ConnectExistingResult>
   /**
    * Stop backing **this graph** up (drops its remote; history and the
    * machine-level GitHub credential stay — other graphs keep syncing).
    */
-  disconnectGraph(): Promise<void>
+  disconnectGraph: () => Promise<void>
   /** Sign this machine out of GitHub — every connected graph stops syncing. */
-  signOut(): Promise<void>
+  signOut: () => Promise<void>
   /** Full cycle now: commit, pull/merge, push. */
-  backUpNow(): Promise<void>
-  /** Tear everything down; the controller is unusable afterwards. */
-  dispose(): void
+  backUpNow: () => Promise<void>
+  /** Tear everything down; the service is unusable afterwards. */
+  dispose: () => void
 }
 
-export function createBackupController(options: BackupControllerOptions): BackupController {
-  const generation = options.graph.generation
+/** Builds the {@link BackupService} of one (graph, index session) pair. */
+export interface BackupServiceFactory {
+  create(options: BackupServiceOptions): BackupService
+}
+
+export function createBackupServiceFactory(deps: BackupServiceDeps): BackupServiceFactory {
+  return { create: (options) => createBackupService(deps, options) }
+}
+
+export function createBackupService(
+  deps: BackupServiceDeps,
+  options: BackupServiceOptions,
+): BackupService {
+  const {
+    git,
+    syncEngines,
+    githubAuth,
+    githubRepos,
+    gitHostCredentials,
+    fileChanges,
+    indexLifecycle,
+    operations,
+    lifecycle,
+    platform,
+    persistenceFlush,
+    logger,
+  } = deps
+  const generation = options.generation
   const indexGeneration = options.indexGeneration
+  const mobile = isMobilePlatform(platform.appPlatform) || platform.surface.mobileApp
 
   let state: BackupState = { phase: 'loading' }
   const listeners = new Set<() => void>()
   let disposed = false
   let engine: SyncEngine | null = null
   let unlisten: Unlisten | null = null
-  const domDisposers: Array<() => void> = []
+  const resumeDisposers: Array<() => void> = []
   let unregisterBackupFlusher: (() => void) | null = null
   /** Serializes direct index writes without delaying synchronous file-change fanout. */
   let remoteIndexTail: Promise<void> = Promise.resolve()
-  /** Invalidates index work that was queued before a controller teardown/restart. */
+  /** Invalidates index work that was queued before a service teardown/restart. */
   let remoteIndexEpoch = 0
 
   function setState(next: BackupState): void {
@@ -153,7 +209,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
     engine = null
     unlisten?.()
     unlisten = null
-    for (const dispose of domDisposers.splice(0)) {
+    for (const dispose of resumeDisposers.splice(0)) {
       dispose()
     }
     unregisterBackupFlusher?.()
@@ -165,7 +221,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
       return
     }
     // Capture before fanout: a synchronous subscriber can tear down/restart
-    // the controller, and work from this old merge must remain invalidated.
+    // the service, and work from this old merge must remain invalidated.
     const notificationEpoch = remoteIndexEpoch
     // Pull-applied writes must not depend on the file watcher being up (the
     // launch pull can land before watch start), so consumers are notified
@@ -174,7 +230,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
     // the index and embeddings take markdown notes, the audio-memo
     // reconciler takes recordings) — and the index additionally gets a
     // direct apply (idempotent if a live watcher subscription double-applies).
-    emitFileChanges(changes, 'pull')
+    fileChanges.emit({ changes, source: 'pull' })
     const indexable = changes.filter((change) => isNotePath(change.path))
     if (indexGeneration !== null && indexable.length > 0) {
       const task = remoteIndexTail.then(async () => {
@@ -184,22 +240,17 @@ export function createBackupController(options: BackupControllerOptions): Backup
         if (disposed || notificationEpoch !== remoteIndexEpoch) {
           return
         }
-        const mutations = await applyIndexChanges(
+        await indexLifecycle.applyChanges(
           indexable,
           indexGeneration,
-          undefined,
-          undefined,
-          () => !isMobileSurface() || document.visibilityState !== 'hidden',
+          () => !mobile || !lifecycle.isHidden(),
         )
-        if (mutations > 0) {
-          throttledInvalidateIndexQueries()
-        }
       })
       // Direct index writes remain ordered across retry merges. Their handled
       // promise is what the engine joins before idle; failure is logged but
       // never prevents the already-concurrent Git push of Markdown truth.
       remoteIndexTail = task.catch((cause) => {
-        console.error('pulled-note direct index apply failed:', cause)
+        logger.error('pulled-note direct index apply failed:', cause)
       })
       return remoteIndexTail
     }
@@ -207,30 +258,22 @@ export function createBackupController(options: BackupControllerOptions): Backup
 
   /**
    * Wire an engine into the watcher (which feeds its debounce) and the
-   * quit-time flusher. Returns false when teardown or a restart won the race
-   * against the subscribe — the engine is already stopped in that case.
+   * quit-time flusher.
    */
-  async function adoptEngine(next: SyncEngine): Promise<boolean> {
+  function adoptEngine(next: SyncEngine): void {
     engine = next
     // Spooled capture envelopes (`.reflect/inbox/`) are git-ignored and
     // drained within seconds — they must not tick the commit debounce. The
     // drain's own note writes arrive as ordinary changes right after.
-    const subscription = await subscribeFileChanges((changes) => {
+    unlisten = fileChanges.subscribe(({ changes }) => {
       if (changes.some((change) => !isCaptureSpoolPath(change.path))) {
         next.noteChanged()
       }
     })
-    if (disposed || engine !== next) {
-      subscription()
-      next.stop()
-      return false
-    }
-    unlisten = subscription
     // Quit-time commit (local only — never a network push on the way out),
     // queued behind any running cycle so it can never land between a pull's
     // ref move and its checkout.
-    unregisterBackupFlusher = registerBackupFlusher(() => next.commitNow())
-    return true
+    unregisterBackupFlusher = persistenceFlush.registerFlusher('backup', () => next.commitNow())
   }
 
   /**
@@ -257,14 +300,14 @@ export function createBackupController(options: BackupControllerOptions): Backup
   async function startLocalHistory(initialized: boolean): Promise<void> {
     // Real git on a real folder — a shell capability the browser-dev bridge
     // honestly lacks, so don't start (and noisily fail) the commit loop there.
-    if (isMobileSurface() || !isNativeShell()) {
+    if (mobile || !platform.isNativeShell) {
       return
     }
     try {
       if (!initialized) {
-        await gitSetup(null, null, generation)
+        await git.setup(null, null, generation)
       }
-      const next = createSyncEngine({
+      const next = syncEngines.create({
         generation,
         localOnly: true,
         getCredential: async () => null,
@@ -272,20 +315,18 @@ export function createBackupController(options: BackupControllerOptions): Backup
           // No UI surfaces local history, so a failing commit loop (disk full,
           // corrupted repo) must at least leave a trace for diagnosis.
           if (engineStatus.state === 'error') {
-            console.error('local history commit failed:', engineStatus.message)
+            logger.error('local history commit failed:', engineStatus.message)
           }
         },
       })
-      if (!(await adoptEngine(next))) {
-        return
-      }
+      adoptEngine(next)
       void next.syncNow() // first snapshot: commit whatever is already pending
     } catch (error) {
-      // `adoptEngine` assigns the engine before its first await, so a
+      // `adoptEngine` assigns the engine before it subscribes, so a
       // half-built lifecycle takes the same teardown as every other failure.
       // No zombie engine keeps timers alive behind the caller's state.
       teardown()
-      console.error('local history failed to start:', errorMessage(error))
+      logger.error('local history failed to start:', errorMessage(error))
     }
   }
 
@@ -297,13 +338,13 @@ export function createBackupController(options: BackupControllerOptions): Backup
     setState({ phase: 'loading' })
     try {
       const [status, auth] = await Promise.all([
-        gitStatus(generation),
+        git.status(generation),
         // A keychain the app can't read is indistinguishable from a signed-out
         // one as far as backup is concerned, and must not cost the graph its
         // history: degrade to the signed-out path below rather than failing
         // the whole start into the engine-less catch.
-        loadGithubAuth().catch((error: unknown) => {
-          console.error('reading the GitHub credential failed:', errorMessage(error))
+        githubAuth.load().catch((error: unknown) => {
+          logger.error('reading the GitHub credential failed:', errorMessage(error))
           return null
         }),
       ])
@@ -337,8 +378,8 @@ export function createBackupController(options: BackupControllerOptions): Backup
       const hostCredential =
         host === null
           ? null
-          : await loadHostCredential(host).catch((error: unknown) => {
-              console.error('reading the host sign-in failed:', errorMessage(error))
+          : await gitHostCredentials.load(host).catch((error: unknown) => {
+              logger.error('reading the host sign-in failed:', errorMessage(error))
               return null
             })
       if (host !== null && hostCredential === null) {
@@ -355,26 +396,26 @@ export function createBackupController(options: BackupControllerOptions): Backup
         await startLocalHistory(status.initialized)
         return
       }
-      const next = createSyncEngine({
+      const next = syncEngines.create({
         generation,
-        ...(isMobileSurface() ? { idleMs: MOBILE_IDLE_MS } : {}),
+        ...(mobile ? { idleMs: MOBILE_IDLE_MS } : {}),
         // iOS can suspend us at any await. Do not begin a launch, online, or
         // debounced Git cycle after the document is hidden; the existing
         // visible/focus trigger below replays a full cycle on foreground.
         // The background flusher's protected local commit bypasses this
         // engine deliberately.
-        canStartCycle: () => !isMobileSurface() || document.visibilityState !== 'hidden',
+        canStartCycle: () => !mobile || !lifecycle.isHidden(),
         // The managed sign-in is for github.com only; another HTTPS host gets
         // its own stored sign-in; SSH and path remotes get none and Rust
         // resolves them locally.
         getCredential:
           repo !== null
             ? async () => {
-                const token = await getGithubToken(providerFetch)
+                const token = await githubAuth.getToken()
                 return token === null ? null : githubCredential(token)
               }
             : host !== null
-              ? () => loadHostCredential(host)
+              ? () => gitHostCredentials.load(host)
               : async () => null,
         onStatus: (engineStatus) => {
           setState({ phase: 'connected', remoteUrl, repo, status: engineStatus })
@@ -385,16 +426,14 @@ export function createBackupController(options: BackupControllerOptions): Backup
         onLargeFilesSkipped: (files) => {
           // Surface the guardrail loudly: these files are NOT in the backup.
           const names = files.map((file) => file.path).join(', ')
-          startOperation('Backing up').fail(`Too large to back up (kept local): ${names}`)
+          operations.start('Backing up').fail(`Too large to back up (kept local): ${names}`)
         },
         onRemoteChanges,
       })
       setState({ phase: 'connected', remoteUrl, repo, status: { state: 'idle' } })
-      if (!(await adoptEngine(next))) {
-        return
-      }
+      adoptEngine(next)
 
-      domDisposers.push(attachResumeListeners(() => void next.syncNow()))
+      resumeDisposers.push(lifecycle.subscribeResume(() => void next.syncNow()))
 
       void next.syncNow() // launch pull: pick up other devices' changes
     } catch (error) {
@@ -402,7 +441,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
       // keeps timers or git work running behind a disconnected UI.
       teardown()
       if (!disposed) {
-        console.error('backup start failed:', errorMessage(error))
+        logger.error('backup start failed:', errorMessage(error))
         setState({ phase: 'disconnected' })
       }
     }
@@ -422,11 +461,11 @@ export function createBackupController(options: BackupControllerOptions): Backup
   ): Promise<void> {
     let next: SyncStatus
     try {
-      const token = await getGithubToken(providerFetch)
+      const token = await githubAuth.getToken()
       if (token === null) {
         return
       }
-      await getAuthenticatedUser(token, providerFetch)
+      await githubAuth.getAuthenticatedUser(token)
       next = {
         state: 'error',
         errorKind: 'rejected',
@@ -452,7 +491,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
   }
 
   async function requireToken(): Promise<string> {
-    const token = await getGithubToken(providerFetch)
+    const token = await githubAuth.getToken()
     if (token === null) {
       throw new ReflectError('auth', 'Connect GitHub first (no credential stored)')
     }
@@ -460,7 +499,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
   }
 
   async function connectRemote(remoteUrl: string, branch: string): Promise<void> {
-    await gitSetup(remoteUrl, branch, generation)
+    await git.setup(remoteUrl, branch, generation)
     await start()
   }
 
@@ -475,7 +514,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
     },
     connectNewRepo: async (name) => {
       const token = await requireToken()
-      const repo = await createGithubRepo(token, name, { isPrivate: true, fetchFn: providerFetch })
+      const repo = await githubRepos.createRepo(token, name, { isPrivate: true })
       if (repo === null) {
         return 'manualCreateNeeded' // fine-grained PATs can't create repos
       }
@@ -490,7 +529,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
     },
     connectExistingRepo: async (ref, connectOptions = {}) => {
       const token = await requireToken()
-      const repo = await getGithubRepo(token, ref, providerFetch)
+      const repo = await githubRepos.getRepo(token, ref)
       if (repo === null) {
         return 'notFound'
       }
@@ -503,11 +542,11 @@ export function createBackupController(options: BackupControllerOptions): Backup
       return 'connected'
     },
     disconnectGraph: async () => {
-      await gitDisconnect(generation)
+      await git.disconnect(generation)
       await start()
     },
     signOut: async () => {
-      await clearGithubAuth()
+      await githubAuth.clear()
       await start()
     },
     backUpNow: async () => {
@@ -524,4 +563,41 @@ export function createBackupController(options: BackupControllerOptions): Backup
 /** An `auth` error that is really an HTTP 403 (libgit2 phrases it `status code: 403`). */
 function isForbidden(status: SyncStatus): boolean {
   return isSyncError(status) && status.errorKind === 'auth' && status.message.includes('403')
+}
+
+/** The process-wide `BackupServiceFactory`; `null` unless one was installed. */
+let installedFactory: BackupServiceFactory | null = null
+
+/**
+ * The process-wide `BackupServiceFactory`. Unless one is installed, each
+ * service it builds runs over the default services current at that moment.
+ */
+export function defaultBackups(): BackupServiceFactory {
+  return (
+    installedFactory ?? {
+      create: (options) =>
+        createBackupService(
+          {
+            git: defaultGitRepository(),
+            syncEngines: defaultSyncEngines(),
+            githubAuth: defaultGithubAuth(),
+            githubRepos: defaultGithubRepos(),
+            gitHostCredentials: defaultGitHostCredentials(),
+            fileChanges: defaultFileChanges(),
+            indexLifecycle: defaultIndexLifecycle(),
+            operations: defaultOperations(),
+            lifecycle: defaultLifecycle(),
+            platform: defaultPlatform(),
+            persistenceFlush: defaultPersistenceFlush(),
+            logger: defaultLogger(),
+          },
+          options,
+        ),
+    }
+  )
+}
+
+/** Install the process-wide `BackupServiceFactory`; `null` restores the one over the defaults. */
+export function setDefaultBackups(factory: BackupServiceFactory | null): void {
+  installedFactory = factory
 }

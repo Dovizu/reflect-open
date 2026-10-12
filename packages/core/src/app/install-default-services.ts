@@ -18,6 +18,8 @@ import { setDefaultGitHostCredentials } from '../sync/git-host-credential-servic
 import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
 import { setDefaultGithubAuth } from '../sync/github-auth-service.ts'
 import { setDefaultGithubRepos } from '../sync/github-repo-service.ts'
+import { setDefaultSyncEngines } from '../sync/engine.ts'
+import { setDefaultBackups } from '../sync/backup-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
@@ -134,6 +136,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultGithubAuth(services.githubAuth)
   setDefaultGitHostCredentials(services.gitHostCredentials)
   setDefaultGithubRepos(services.githubRepos)
+  setDefaultSyncEngines(services.syncEngines)
+  setDefaultBackups(services.backups)
   setDefaultGists(services.gists)
   setDefaultICloudNative(services.icloudNative)
   setDefaultCaptureInbox(services.captureInbox)
@@ -233,6 +237,8 @@ export function resetDefaultServices(): void {
   setDefaultGithubAuth(null)
   setDefaultGitHostCredentials(null)
   setDefaultGithubRepos(null)
+  setDefaultSyncEngines(null)
+  setDefaultBackups(null)
   setDefaultGists(null)
   setDefaultICloudNative(null)
   setDefaultCaptureInbox(null)

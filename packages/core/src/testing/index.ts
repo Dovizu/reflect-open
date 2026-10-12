@@ -127,17 +127,23 @@ export {
   type WebFetchKind,
 } from './capture.ts'
 export {
+  createTestBackupService,
+  createTestBackupServiceFactory,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
   createTestICloudNativeService,
+  createTestSyncEngineFactory,
+  type BackupCall,
   type GitRepositoryCall,
   type GitRepositoryHandler,
   type ICloudNativeCall,
+  type TestBackupService,
   type TestGitRepositoryService,
   type TestGithubAuthOptions,
+  type TestGithubAuthService,
   type TestICloudNativeService,
 } from './sync.ts'
 export {

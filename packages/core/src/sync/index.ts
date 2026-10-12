@@ -1,16 +1,9 @@
 /**
  * `@reflect/core` sync domain (Plan 12) — GitHub backup & sync over the Rust
- * git primitives: typed command bindings, the GitHub module (device flow,
- * token refresh, repo API), and the debounced sync engine.
+ * git primitives: the git schemas, the GitHub module (device flow, token
+ * refresh, repo API), and the debounced sync engine's types.
  */
 export {
-  gitStatus,
-  gitSetup,
-  gitDisconnect,
-  gitCommitAll,
-  gitFetch,
-  gitMergeRemote,
-  gitPush,
   gitStatusSchema,
   commitOutcomeSchema,
   remoteDeltaSchema,
@@ -26,7 +19,7 @@ export {
   type PushOutcome,
   type SkippedFile,
   type ChangedFile,
-} from './commands.ts'
+} from './git-repository-service.ts'
 export {
   GITHUB_APP_CLIENT_ID,
   GITHUB_APP_SLUG,
@@ -34,10 +27,6 @@ export {
   githubAppInstallUrl,
   isDeviceFlowConfigured,
   githubAuthSchema,
-  saveGithubAuth,
-  loadGithubAuth,
-  clearGithubAuth,
-  runDeviceFlow,
   getGithubToken,
   githubCredential,
   parseGithubRemote,
@@ -46,9 +35,6 @@ export {
   githubRemoteUrl,
   newRepoUrl,
   BACKUP_REPO_DESCRIPTION,
-  createGithubRepo,
-  getGithubRepo,
-  getAuthenticatedUser,
   type GithubAuth,
   type DeviceFlowStart,
   type DevicePollResult,
@@ -58,9 +44,8 @@ export {
   type GithubUser,
 } from './github.ts'
 export { createGist, updateGist, deleteGist, type PublishedGist, type GistFile } from './gists.ts'
-export { loadHostCredential, remoteHost } from './host-credentials.ts'
+export { remoteHost } from './git-host-credential-service.ts'
 export {
-  createSyncEngine,
   isSyncError,
   type SyncEngine,
   type SyncEngineOptions,

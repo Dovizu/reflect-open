@@ -18,7 +18,7 @@ import {
   type TestOpenerService,
   type TestSettingsService,
 } from '@reflect/core/testing'
-import type { BackupState } from '@/lib/backup-controller.ts'
+import type { BackupState } from '@reflect/core'
 import '@/test-utils/locator.ts'
 import { MobileSettings } from './settings.tsx'
 
