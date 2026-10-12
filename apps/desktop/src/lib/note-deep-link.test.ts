@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSession } from '@/editor/note-session.ts'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 
 const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
 const writeNote = vi.hoisted(() => vi.fn(async () => {}))
 const indexNote = vi.hoisted(() => vi.fn(async () => {}))
-const openSession = vi.hoisted(() => vi.fn<(path: string) => NoteSession | null>(() => null))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
@@ -12,7 +12,8 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   writeNote,
   indexNote,
 }))
-vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
+
+const documents = installTestOpenDocuments()
 
 const { deepLinkForNote } = await import('./note-deep-link.ts')
 
@@ -22,8 +23,6 @@ beforeEach(() => {
   readNote.mockReset()
   writeNote.mockClear()
   indexNote.mockClear()
-  openSession.mockReset()
-  openSession.mockReturnValue(null)
 })
 
 describe('deepLinkForNote', () => {
@@ -90,7 +89,7 @@ describe('deepLinkForNote', () => {
 
   it('mints through the live session when one owns the note', async () => {
     const commitFrontmatter = vi.fn(async () => true)
-    openSession.mockReturnValue({
+    documents.open({
       liveContent: () => '# A\n',
       commitFrontmatter,
     } as unknown as NoteSession)

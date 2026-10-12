@@ -163,6 +163,11 @@ export {
   type TestIndexStoreServiceOptions,
 } from './index-store.ts'
 export {
+  createTestGraphSessionService,
+  type TestGraphSessionService,
+  type TestGraphSessionServiceOptions,
+} from './graph-session.ts'
+export {
   createTestIndexLifecycleService,
   type TestIndexLifecycleService,
   type TestIndexLifecycleServiceOptions,
@@ -237,6 +242,16 @@ export {
   type TestAttachmentService,
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
+export {
+  createTestNoteSession,
+  createTestNoteSessionService,
+  createTestOpenDocumentsService,
+  type NoteSessionCall,
+  type TestNoteSession,
+  type TestNoteSessionOptions,
+  type TestNoteSessionService,
+  type TestNoteSessionServiceOptions,
+} from './documents.ts'
 export {
   createTestAppStoreEnvironmentService,
   createTestClassicAccessService,

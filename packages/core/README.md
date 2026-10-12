@@ -55,6 +55,16 @@ pass started for one graph can never corrupt a newly-opened index. If you add
 a write path, thread the generation through — never cache one across a graph
 switch.
 
+## The open graph
+
+**`GraphSessionService`** (`AppServices.graphSession`) owns the active graph of
+a webview: its status, the graph and index generations, the recents list, and
+the open, create, switch, forget and delete flows. `boot()` runs the window's
+boot path: the desktop main window reopens the most recent graph, a note
+window adopts the main window's sessions. Read it with `getState()` /
+`subscribe()`. `getState().session` is the open graph as one `GraphSession`
+object; its `signal` aborts when the graph closes or another open is requested.
+
 ## Conventions
 
 - zod-validate everything that crosses an external boundary (IPC responses,

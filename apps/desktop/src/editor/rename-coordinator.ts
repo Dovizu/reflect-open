@@ -11,6 +11,7 @@ import {
   rewritePathLinksForMove,
   slugPathForTitle,
   writeNote,
+  type ClockService,
 } from '@reflect/core'
 import { placeOldTitleAlias } from './alias-placement.ts'
 import { moveNoteCarryingSession } from './move-note.ts'
@@ -60,6 +61,8 @@ export interface RenameCoordinatorOptions {
    * content the title came from; "keep mine" re-arms, "load theirs" cancels).
    */
   canFire: () => boolean
+  /** Runs the title tracker's quiet timer. Defaults to the process-wide clock. */
+  clock?: ClockService | undefined
 }
 
 export interface RenameCoordinator {
@@ -231,6 +234,7 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
     path: options.path,
     onRename: runRename,
     canFire,
+    clock: options.clock,
   })
 
   return {

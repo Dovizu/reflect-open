@@ -1,7 +1,16 @@
-import { applyTaskEdits, projectTasks, TaskStaleError, type TaskLocator } from '@reflect/core'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createNoteSession, type NoteSessionSnapshot } from './note-session.ts'
-import type { RoundTripFidelity } from './roundtrip.ts'
+import type { RoundTripFidelity } from '@meowdown/markdown'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import { applyTaskEdits, projectTasks, TaskStaleError } from '../markdown/task-ast.ts'
+import type { TaskLocator } from '../markdown/task-model.ts'
+import { createTestClockService, type TestClockService } from '../testing/clock.ts'
+import { createTestNoteFileService } from '../testing/graph.ts'
+import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
+import {
+  createNoteSessionService,
+  type NoteSession,
+  type NoteSessionSnapshot,
+} from './note-session.ts'
 
 /** The first task's locator as the index records it. */
 function firstTask(source: string): TaskLocator {
@@ -17,9 +26,19 @@ function toggleTransform(task: TaskLocator): (source: string) => string {
 /**
  * Direct tests of the document state machine, no React. The full pipeline
  * (load, debounce, echo detection, conflict parking, protection) is covered
- * end-to-end through the hook in `use-note-document.test.tsx`; these pin the
+ * end-to-end through the desktop hook in `use-note-document.test.tsx`; these pin the
  * session-level contracts the hook can't observe directly.
  */
+
+const PATH = 'notes/a.md'
+
+let clock: TestClockService
+let logger: TestLoggerService
+
+beforeEach(() => {
+  clock = createTestClockService()
+  logger = createTestLoggerService()
+})
 
 interface Harness {
   snapshots: NoteSessionSnapshot[]
@@ -27,11 +46,11 @@ interface Harness {
   writes: Array<{ path: string; contents: string }>
   applied: string[]
   contents: Array<{ content: string; origin: string }>
-  /** `null` deletes the file: subsequent reads throw the notFound AppError. */
+  /** `null` deletes the file: subsequent reads reject with `notFound`. */
   setDisk: (contents: string | null) => void
   /** While set, writes reject with this message (the save-failure seam). */
   failWrites: (message: string | null) => void
-  session: ReturnType<typeof createNoteSession>
+  session: NoteSession
 }
 
 function harness(options?: {
@@ -40,7 +59,7 @@ function harness(options?: {
   beforeWrite?: () => Promise<void>
   write?: false
   classify?: (markdown: string) => RoundTripFidelity
-  /** `null` simulates a missing file: reads throw the notFound AppError. */
+  /** `null` simulates a missing file: reads reject with `notFound`. */
   disk?: string | null
   createIfMissing?: boolean
   missingSeed?: string
@@ -51,33 +70,31 @@ function harness(options?: {
   const writes: Array<{ path: string; contents: string }> = []
   const applied: string[] = []
   const contents: Array<{ content: string; origin: string }> = []
-  let disk = options?.disk === undefined ? '# Hello\n' : options.disk
+  const disk = options?.disk === undefined ? '# Hello\n' : options.disk
   let writeFailure: string | null = null
-  const session = createNoteSession({
-    path: 'notes/a.md',
-    io: {
-      read: async () => {
-        await options?.beforeRead?.()
-        if (disk === null) {
-          throw { kind: 'notFound', message: 'missing' } // AppError shape
-        }
-        return disk
-      },
-      write:
-        options?.write === false
-          ? null
-          : async (path, contents, expected) => {
-              expectedContents.push(expected)
-              await options?.beforeWrite?.()
-              if (writeFailure !== null) {
-                throw new Error(writeFailure)
-              }
-              if (expected !== undefined && expected !== disk)
-                throw { kind: 'io', message: 'Note changed on disk; reload before retrying' }
-              writes.push({ path, contents })
-              disk = contents
-            },
+  // One file, whatever path the session asks for: a retargeted session finds
+  // its document at the new path, as it does after a real file move.
+  const files = createTestNoteFileService(disk === null ? {} : { files: { [PATH]: disk } })
+  const noteFile: NoteFileService = {
+    ...files,
+    read: async () => {
+      await options?.beforeRead?.()
+      return await files.read(PATH)
     },
+    write: async (path, contents, generation, expected) => {
+      expectedContents.push(expected)
+      await options?.beforeWrite?.()
+      if (writeFailure !== null) {
+        throw new Error(writeFailure)
+      }
+      const modifiedMs = await files.write(PATH, contents, generation, expected)
+      writes.push({ path, contents })
+      return modifiedMs
+    },
+  }
+  const session = createNoteSessionService({ noteFile, clock, logger }).create({
+    path: PATH,
+    generation: options?.write === false ? null : () => 1,
     classify: options?.classify ?? (() => 'exact'),
     onSnapshot: (snapshot) => {
       snapshots.push(snapshot)
@@ -99,8 +116,12 @@ function harness(options?: {
     writes,
     applied,
     contents,
-    setDisk: (contents) => {
-      disk = contents
+    setDisk: (next) => {
+      if (next === null) {
+        void files.delete(PATH, 1)
+      } else {
+        files.set(PATH, next)
+      }
     },
     failWrites: (message) => {
       writeFailure = message
@@ -109,16 +130,8 @@ function harness(options?: {
   }
 }
 
-beforeEach(() => {
-  vi.useFakeTimers()
-})
-
-afterEach(() => {
-  vi.useRealTimers()
-})
-
 async function settled(): Promise<void> {
-  await vi.advanceTimersByTimeAsync(50)
+  await clock.advance(50)
 }
 
 describe('createNoteSession', () => {
@@ -150,7 +163,7 @@ describe('createNoteSession', () => {
   })
 
   it('reconciles pending editor input before a flush snapshots the buffer', async () => {
-    let target: ReturnType<typeof createNoteSession> | null = null
+    let target: NoteSession | null = null
     const reconcilePendingEditorInput = vi.fn(() => {
       target?.editorChanged('# 🧠 Business ideas\n')
     })
@@ -203,7 +216,7 @@ describe('createNoteSession', () => {
   it('does not re-emit identical snapshots', async () => {
     const { session, snapshots } = harness()
     session.load()
-    await vi.advanceTimersByTimeAsync(0)
+    await clock.advance(0)
 
     const afterLoad = snapshots.length
     session.editorChanged('# Same edit\n')
@@ -260,7 +273,7 @@ describe('frontmatter ownership (Plan 07b)', () => {
       classify: (markdown) => (markdown.includes('---') ? 'lossy' : 'exact'),
     })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     const ready = h.snapshots.at(-1)
     expect(ready?.status).toBe('ready')
     expect(ready?.protected).toBe(false)
@@ -273,7 +286,7 @@ describe('frontmatter ownership (Plan 07b)', () => {
       classify: (markdown) => (markdown.includes('+ [ ]') ? 'lossy' : 'exact'),
     })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     const ready = h.snapshots.at(-1)
     expect(ready?.protected).toBe(true)
     // The read-only view's job is honest display of a file we refuse to
@@ -284,9 +297,9 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('saves rejoin the exact header bytes around the edited body', async () => {
     const h = harness({ disk: `${FM}# Hello\n` })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.editorChanged('# Hello edited\n')
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.writes.at(-1)?.contents).toBe(`${FM}# Hello edited\n`)
     expect(h.snapshots.at(-1)?.dirty).toBe(false)
   })
@@ -294,9 +307,9 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('updateFrontmatter patches the header and saves without touching the editor', async () => {
     const h = harness({ disk: '# Hello\n' })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.updateFrontmatter({ aliases: ['Old Title'] })
-    await vi.runAllTimersAsync()
+    await settled()
     const written = h.writes.at(-1)?.contents ?? ''
     expect(written).toContain('aliases:')
     expect(written).toContain('Old Title')
@@ -307,13 +320,13 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('pinning writes the flag; unpinning removes the key, not `pinned: false`', async () => {
     const h = harness({ disk: '# Hello\n' })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.updateFrontmatter({ pinned: true })
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.writes.at(-1)?.contents).toBe('---\npinned: true\n---\n\n# Hello\n')
 
     h.session.updateFrontmatter({ pinned: false })
-    await vi.runAllTimersAsync()
+    await settled()
     // The only metadata was the pin — the note returns to no frontmatter at all.
     expect(h.writes.at(-1)?.contents).toBe('# Hello\n')
     expect(h.applied).toEqual([]) // the editor was never reloaded
@@ -322,13 +335,13 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('marking private writes the flag; un-marking removes the key, not `private: false`', async () => {
     const h = harness({ disk: '# Hello\n' })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.updateFrontmatter({ private: true })
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.writes.at(-1)?.contents).toBe('---\nprivate: true\n---\n\n# Hello\n')
 
     h.session.updateFrontmatter({ private: false })
-    await vi.runAllTimersAsync()
+    await settled()
     // Same contract as the pin: not-private is the absence of the flag.
     expect(h.writes.at(-1)?.contents).toBe('# Hello\n')
     expect(h.applied).toEqual([]) // the editor was never reloaded
@@ -337,14 +350,14 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('an external frontmatter-only change adopts cleanly without a conflict', async () => {
     const h = harness({ disk: `${FM}# Hello\n` })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.setDisk(`---\naliases:\n  - Newer\n---\n# Hello\n`)
     h.session.externalChanged()
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.snapshots.at(-1)?.conflict).toBeNull()
     // Next save preserves the adopted header.
     h.session.editorChanged('# Hello!\n')
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.writes.at(-1)?.contents).toBe('---\naliases:\n  - Newer\n---\n\n# Hello!\n')
   })
 
@@ -356,19 +369,19 @@ describe('frontmatter ownership (Plan 07b)', () => {
     // consequences — a disk write here would clobber the protected "theirs".
     const h = harness()
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.editorChanged('# Mine\n') // dirty
     h.setDisk('# Theirs\n')
     h.session.externalChanged()
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.snapshots.at(-1)?.conflict).toBe('# Theirs\n')
 
     expect(h.session.updateFrontmatter({ aliases: ['Old Title'] })).toBe(true)
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.writes).toEqual([]) // paused, not written under the conflict
 
     h.session.keepMine()
-    await vi.runAllTimersAsync()
+    await settled()
     const written = h.writes.at(-1)?.contents ?? ''
     expect(written).toContain('Old Title') // the alias survived the conflict
     expect(written).toContain('# Mine')
@@ -377,16 +390,16 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('a later external change refreshes a parked conflict snapshot', async () => {
     const h = harness()
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.editorChanged('# Mine\n')
     h.setDisk('# Theirs\n')
     h.session.externalChanged()
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.snapshots.at(-1)?.conflict).toBe('# Theirs\n')
 
     h.setDisk('---\npinned: true\n---\n# Theirs\n')
     h.session.externalChanged()
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.snapshots.at(-1)?.conflict).toBe('---\npinned: true\n---\n# Theirs\n')
 
     h.session.loadTheirs()
@@ -396,7 +409,7 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('commitFrontmatter lands the patch immediately on a clean session', async () => {
     const h = harness({ disk: '# Hello\n' })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     await expect(h.session.commitFrontmatter({ pinned: true })).resolves.toBe(true)
     // Flushed, not riding the save debounce.
     expect(h.writes.at(-1)?.contents).toBe('---\npinned: true\n---\n\n# Hello\n')
@@ -404,7 +417,6 @@ describe('frontmatter ownership (Plan 07b)', () => {
   })
 
   it('commitFrontmatter rejects a failed save without dropping newer body edits', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const writeStarted = Promise.withResolvers<void>()
     const writeFinished = Promise.withResolvers<void>()
     const h = harness({
@@ -432,12 +444,10 @@ describe('frontmatter ownership (Plan 07b)', () => {
       expect(h.writes.at(-1)?.contents).toBe('# Typed during pin\n')
     } finally {
       h.session.discard()
-      consoleError.mockRestore()
     }
   })
 
   it('a no-op frontmatter commit does not report an earlier save error', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const h = harness()
     try {
       h.session.load()
@@ -450,7 +460,6 @@ describe('frontmatter ownership (Plan 07b)', () => {
       expect(h.writes).toEqual([])
     } finally {
       h.session.discard()
-      consoleError.mockRestore()
     }
   })
 
@@ -477,7 +486,7 @@ describe('frontmatter ownership (Plan 07b)', () => {
     // skip their disk fallback and treat an unwritten flag as persisted.
     const h = harness({ disk: '# Hello\n', write: false })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
 
     await expect(h.session.commitFrontmatter({ pinned: true })).resolves.toBe(false)
     expect(h.writes).toEqual([])
@@ -486,11 +495,11 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('commitFrontmatter under a parked conflict writes through and refreshes the park', async () => {
     const h = harness()
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.editorChanged('# Mine\n')
     h.setDisk('# Theirs\n')
     h.session.externalChanged()
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.snapshots.at(-1)?.conflict).toBe('# Theirs\n')
 
     await expect(h.session.commitFrontmatter({ pinned: true })).resolves.toBe(true)
@@ -505,27 +514,27 @@ describe('frontmatter ownership (Plan 07b)', () => {
   it('commitFrontmatter under a conflict keeps the patch through "keep mine" too', async () => {
     const h = harness()
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.editorChanged('# Mine\n')
     h.setDisk('# Theirs\n')
     h.session.externalChanged()
-    await vi.runAllTimersAsync()
+    await settled()
 
     await h.session.commitFrontmatter({ pinned: true })
     h.session.keepMine()
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.writes.at(-1)?.contents).toBe('---\npinned: true\n---\n\n# Mine\n')
   })
 
   it('onContent reports full joined content with the right origins', async () => {
     const h = harness({ disk: `${FM}# Hello\n` })
     h.session.load()
-    await vi.runAllTimersAsync()
+    await settled()
     h.session.editorChanged('# Renamed\n')
-    await vi.runAllTimersAsync()
+    await settled()
     h.setDisk(`${FM}# External\n`)
     h.session.externalChanged()
-    await vi.runAllTimersAsync()
+    await settled()
     expect(h.contents.map((c) => c.origin)).toEqual(['load', 'saved', 'external'])
     expect(h.contents[1]!.content).toBe(`${FM}# Renamed\n`)
   })
@@ -716,55 +725,46 @@ describe('missing-note seed (new ordinary notes)', () => {
   })
 
   it('a failed save surfaces the error and a later save clears it', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const h = harness()
-      h.session.load()
-      await settled()
+    const h = harness()
+    h.session.load()
+    await settled()
 
-      h.failWrites('disk full')
-      h.session.editorChanged('# Edited\n')
-      await settled()
+    h.failWrites('disk full')
+    h.session.editorChanged('# Edited\n')
+    await settled()
 
-      const failed = h.snapshots.at(-1)
-      expect(failed?.error).toBe('disk full')
-      expect(failed?.dirty).toBe(true) // the edit is kept, not lost
-      expect(h.writes).toEqual([])
+    const failed = h.snapshots.at(-1)
+    expect(failed?.error).toBe('disk full')
+    expect(logger.getErrors().map((entry) => entry.message)).toEqual(['failed to save note:'])
+    expect(failed?.dirty).toBe(true) // the edit is kept, not lost
+    expect(h.writes).toEqual([])
 
-      // The disk recovers; the next edit re-enters the pipeline and the
-      // landed save resolves the surfaced error.
-      h.failWrites(null)
-      h.session.editorChanged('# Edited more\n')
-      await settled()
+    // The disk recovers; the next edit re-enters the pipeline and the
+    // landed save resolves the surfaced error.
+    h.failWrites(null)
+    h.session.editorChanged('# Edited more\n')
+    await settled()
 
-      const recovered = h.snapshots.at(-1)
-      expect(recovered?.error).toBeNull()
-      expect(recovered?.dirty).toBe(false)
-      expect(h.writes).toEqual([{ path: 'notes/a.md', contents: '# Edited more\n' }])
-    } finally {
-      consoleError.mockRestore()
-    }
+    const recovered = h.snapshots.at(-1)
+    expect(recovered?.error).toBeNull()
+    expect(recovered?.dirty).toBe(false)
+    expect(h.writes).toEqual([{ path: 'notes/a.md', contents: '# Edited more\n' }])
   })
 
   it('flush after a failed save retries the same buffer', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const h = harness()
-      h.session.load()
-      await settled()
+    const h = harness()
+    h.session.load()
+    await settled()
 
-      h.failWrites('disk full')
-      h.session.editorChanged('# Edited\n')
-      await settled()
-      expect(h.snapshots.at(-1)?.error).toBe('disk full')
+    h.failWrites('disk full')
+    h.session.editorChanged('# Edited\n')
+    await settled()
+    expect(h.snapshots.at(-1)?.error).toBe('disk full')
 
-      h.failWrites(null)
-      await h.session.flush() // a settle point (blur/quit) retries without a new edit
-      expect(h.writes).toEqual([{ path: 'notes/a.md', contents: '# Edited\n' }])
-      expect(h.snapshots.at(-1)?.error).toBeNull()
-    } finally {
-      consoleError.mockRestore()
-    }
+    h.failWrites(null)
+    await h.session.flush() // a settle point (blur/quit) retries without a new edit
+    expect(h.writes).toEqual([{ path: 'notes/a.md', contents: '# Edited\n' }])
+    expect(h.snapshots.at(-1)?.error).toBeNull()
   })
 })
 
@@ -1021,7 +1021,6 @@ it.each([null, '# Hello\n'])(
 )
 
 it('parks an external revision when a checked autosave fails', async () => {
-  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
   const h = harness()
   try {
     h.session.load()
@@ -1040,12 +1039,10 @@ it('parks an external revision when a checked autosave fails', async () => {
     expect(h.writes.at(-1)?.contents).toBe('# My unsaved text\n')
   } finally {
     h.session.discard()
-    log.mockRestore()
   }
 })
 
 it('a rejected source edit preserves typing made while its write was pending', async () => {
-  const log = vi.spyOn(console, 'error').mockImplementation(() => {})
   const started = Promise.withResolvers<void>()
   const finished = Promise.withResolvers<void>()
   const h = harness({
@@ -1071,7 +1068,6 @@ it('a rejected source edit preserves typing made while its write was pending', a
     expect(h.writes).toEqual([])
   } finally {
     h.session.discard()
-    log.mockRestore()
   }
 })
 

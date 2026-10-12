@@ -20,28 +20,13 @@ export function useGraphIndex(): IndexLifecycleService {
   return useOptionalAppServices()?.indexLifecycle ?? defaultIndexLifecycle()
 }
 
-export interface GraphIndexBindings {
-  /** Called as the sync pass starts and stops reconciling. */
-  onIndexingChange: (indexing: boolean) => void
-  /**
-   * Dynamic guard for platforms that must not start index work while the app
-   * is suspended (see `IndexLifecycleService.setSuspendGuard`).
-   */
-  shouldSuspend: () => boolean
-}
-
 /**
  * Connect the app to `index`'s events until the returned function is called:
  * query-cache invalidation, open-document reloads, healed moves, and iCloud
  * download requests.
  */
-export function bindGraphIndex(
-  index: IndexLifecycleService,
-  bindings: GraphIndexBindings,
-): Unlisten {
-  index.setSuspendGuard(bindings.shouldSuspend)
+export function bindGraphIndex(index: IndexLifecycleService): Unlisten {
   const unlisteners = [
-    index.onProgress((progress) => bindings.onIndexingChange(progress === 'reconciling')),
     // Applied watcher batches stream every couple of seconds during a bulk
     // sync — the throttled variant collapses them to one refetch round per
     // window (an isolated batch still invalidates immediately).
@@ -72,6 +57,5 @@ export function bindGraphIndex(
     for (const unlisten of unlisteners) {
       unlisten()
     }
-    index.setSuspendGuard(null)
   }
 }

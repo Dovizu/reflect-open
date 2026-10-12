@@ -1,9 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  createNoteSession,
+  createNoteSessionService,
+  setDefaultOpenDocuments,
+  type NoteFileService,
   type NoteSession,
   type NoteSessionSnapshot,
-} from '@/editor/note-session.ts'
+  type OpenDocumentsService,
+} from '@reflect/core'
+import {
+  createTestClockService,
+  createTestLoggerService,
+  createTestNoteFileService,
+  createTestNoteSession,
+  createTestOpenDocumentsService,
+} from '@reflect/core/testing'
 import { deleteOpenNote } from './note-delete.ts'
 
 /**
@@ -15,38 +25,47 @@ import { deleteOpenNote } from './note-delete.ts'
 
 const deleteNoteMock = vi.fn<(path: string, generation: number) => Promise<void>>()
 const isDailyMock = vi.fn<(path: string) => boolean>()
-const discard = vi.fn()
-const openSessionMock = vi.fn<(path: string) => NoteSession | null>()
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   deleteNote: (path: string, generation: number) => deleteNoteMock(path, generation),
   isDaily: (path: string) => isDailyMock(path),
 }))
-vi.mock('@/editor/open-documents.ts', () => ({
-  openSession: (path: string) => openSessionMock(path),
-}))
 
-afterEach(() => {
-  deleteNoteMock.mockReset()
-  isDailyMock.mockReset().mockReturnValue(false)
-  discard.mockReset()
-  openSessionMock.mockReset()
+let openDocuments: OpenDocumentsService
+
+beforeEach(() => {
+  openDocuments = createTestOpenDocumentsService()
+  setDefaultOpenDocuments(openDocuments)
 })
 
-function lazySession(write: (path: string, contents: string) => Promise<void>): {
+afterEach(() => {
+  setDefaultOpenDocuments(null)
+  deleteNoteMock.mockReset()
+  isDailyMock.mockReset().mockReturnValue(false)
+})
+
+/** A session of a note with no file yet; `beforeWrite` runs before each write lands. */
+function lazySession(beforeWrite: () => Promise<void>): {
   readonly session: NoteSession
   readonly snapshots: NoteSessionSnapshot[]
 } {
   const snapshots: NoteSessionSnapshot[] = []
-  const session = createNoteSession({
-    path: 'notes/new.md',
-    io: {
-      read: async () => {
-        throw { kind: 'notFound', message: 'missing' }
-      },
-      write,
+  const files = createTestNoteFileService()
+  const noteFile: NoteFileService = {
+    ...files,
+    write: async (...args) => {
+      await beforeWrite()
+      return await files.write(...args)
     },
+  }
+  const session = createNoteSessionService({
+    noteFile,
+    clock: createTestClockService(),
+    logger: createTestLoggerService(),
+  }).create({
+    path: 'notes/new.md',
+    generation: () => 3,
     classify: () => 'exact',
     onSnapshot: (snapshot) => {
       snapshots.push(snapshot)
@@ -56,6 +75,7 @@ function lazySession(write: (path: string, contents: string) => Promise<void>): 
     missingSeed: '#\n',
     saveDebounceMs: 10,
   })
+  openDocuments.register({ session })
   return { session, snapshots }
 }
 
@@ -63,7 +83,6 @@ describe('deleteOpenNote', () => {
   it('waits for a new note to load, then discards it without deleting a missing file', async () => {
     const { session } = lazySession(async () => {})
     const discardSpy = vi.spyOn(session, 'discard')
-    openSessionMock.mockReturnValue(session)
     session.load()
 
     await deleteOpenNote('notes/new.md', 3)
@@ -81,7 +100,6 @@ describe('deleteOpenNote', () => {
       await allowWrite.promise
       fileExists = true
     })
-    openSessionMock.mockReturnValue(session)
     deleteNoteMock.mockImplementation(async () => {
       if (!fileExists) {
         throw new Error('no such file or directory')
@@ -107,42 +125,38 @@ describe('deleteOpenNote', () => {
 
   it('discards the open session after a successful delete', async () => {
     deleteNoteMock.mockResolvedValue()
-    openSessionMock.mockReturnValue({
-      prepareDelete: async () => false,
-      discard,
-    } as unknown as NoteSession)
+    const session = createTestNoteSession({ path: 'notes/gone.md' })
+    openDocuments.register({ session })
 
     await deleteOpenNote('notes/gone.md', 3)
 
     expect(deleteNoteMock).toHaveBeenCalledWith('notes/gone.md', 3)
-    expect(discard).toHaveBeenCalledOnce()
+    expect(session.getCalls('discard')).toHaveLength(1)
   })
 
   it('leaves the session intact when the delete fails', async () => {
     deleteNoteMock.mockRejectedValue(new Error('disk full'))
-    const cancelDelete = vi.fn()
-    openSessionMock.mockReturnValue({
-      prepareDelete: async () => false,
-      cancelDelete,
-      discard,
-    } as unknown as NoteSession)
+    const session = createTestNoteSession({ path: 'notes/gone.md' })
+    openDocuments.register({ session })
+    const sessionFor = vi.spyOn(openDocuments, 'sessionFor')
 
     await expect(deleteOpenNote('notes/gone.md', 3)).rejects.toThrow('disk full')
 
     // The session was never discarded — the screen stays editable.
-    expect(discard).not.toHaveBeenCalled()
-    expect(cancelDelete).toHaveBeenCalledOnce()
-    expect(openSessionMock).toHaveBeenCalledOnce()
+    expect(session.getCalls('discard')).toEqual([])
+    expect(session.getCalls('cancelDelete')).toHaveLength(1)
+    expect(sessionFor).toHaveBeenCalledOnce()
   })
 
   it('rejects daily notes without touching disk', async () => {
     isDailyMock.mockReturnValue(true)
+    const sessionFor = vi.spyOn(openDocuments, 'sessionFor')
 
     await expect(deleteOpenNote('daily/2026-06-10.md', 3)).rejects.toThrow(
       'Daily notes cannot be deleted',
     )
 
     expect(deleteNoteMock).not.toHaveBeenCalled()
-    expect(openSessionMock).not.toHaveBeenCalled()
+    expect(sessionFor).not.toHaveBeenCalled()
   })
 })

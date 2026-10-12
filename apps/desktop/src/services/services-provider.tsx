@@ -14,11 +14,12 @@ export function AppServicesProvider({
   return <AppServicesContext value={services}>{children}</AppServicesContext>
 }
 
+/** Provides the open graph's services; `null` while no graph session is open. */
 export function GraphServicesProvider({
   services,
   children,
 }: {
-  services: GraphServices
+  services: GraphServices | null
   children: ReactNode
 }): ReactElement {
   return <GraphServicesContext value={services}>{children}</GraphServicesContext>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
+import { render, renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
@@ -14,13 +14,15 @@ import {
   setDefaultSettings,
 } from '@reflect/core'
 import {
+  createTestAppServices,
   createTestDialogService,
   createTestPlatformService,
+  type TestAppServices,
   type TestDialogService,
 } from '@reflect/core/testing'
+import { AppServicesProvider, useGraphServices } from '@/services/services-provider.tsx'
 import { GraphProvider, useGraph } from './graph-provider.tsx'
 import { SettingsProvider } from './settings-provider.tsx'
-import { queryClient as appQueryClient, queryKeys } from '@/lib/query-client.ts'
 
 beforeEach(() => {
   setDefaultPlatform(
@@ -33,9 +35,9 @@ afterEach(() => {
 })
 
 /**
- * Exercises the provider's open-ordering guards: overlapping opens are
- * serialized against the backend and only the most recently requested one may
- * commit UI state.
+ * The graph session itself is covered in `@reflect/core`. These cover the
+ * provider as its React shell, and the mobile bootstrap hook that still lives
+ * beside it.
  */
 
 let invokeLog: string[]
@@ -197,120 +199,11 @@ afterEach(() => {
   setDefaultSettings(null)
 })
 
-describe('GraphProvider open sequencing', () => {
+describe('GraphProvider over the process-wide services', () => {
   it('starts at the chooser when there are no recents', async () => {
     const { result } = await renderHook(() => useGraph(), { wrapper })
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
     expect(result.current.graph).toBeNull()
-  })
-
-  it('serializes overlapping opens and commits only the last requested graph', async () => {
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
-    await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
-
-    let firstOpen: Promise<boolean>
-    let secondOpen: Promise<boolean>
-    await act(() => {
-      firstOpen = result.current.openRecent('/a')
-      secondOpen = result.current.openRecent('/b')
-    })
-
-    // The second backend open must wait for the first (Rust GraphState is
-    // last-write-wins; running in request order keeps it on the last graph).
-    await vi.waitFor(() => expect(invokeLog).toContain('graph_open:/a'))
-    expect(invokeLog).not.toContain('graph_open:/b')
-
-    await act(async () => {
-      resolveOpen('/a')
-      await vi.waitFor(() => expect(invokeLog).toContain('graph_open:/b'))
-      resolveOpen('/b')
-      await firstOpen
-      await secondOpen
-    })
-
-    await vi.waitFor(() => expect(result.current.status).toBe('ready'))
-    // The superseded first open must not have committed its graph.
-    expect(result.current.graph?.root).toBe('/b')
-  })
-
-  it('closes note windows BEFORE the backend open bumps the session', async () => {
-    // Note windows adopted the outgoing session; their close-requested
-    // flushes must land against its still-valid generation, so the close
-    // command precedes graph_open (bump-first would reject the saves).
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
-    await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
-
-    let opened: Promise<boolean>
-    await act(() => {
-      opened = result.current.openRecent('/a')
-    })
-    await vi.waitFor(() => expect(invokeLog).toContain('graph_open:/a'))
-    expect(invokeLog.indexOf('close_note_windows')).toBeGreaterThanOrEqual(0)
-    expect(invokeLog.indexOf('close_note_windows')).toBeLessThan(invokeLog.indexOf('graph_open:/a'))
-    await act(async () => {
-      resolveOpen('/a')
-      await opened
-    })
-  })
-
-  it('surfaces an open failure and returns to the chooser', async () => {
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
-    await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
-
-    failOpens = true
-    await act(async () => {
-      await result.current.openRecent('/broken')
-    })
-
-    expect(result.current.status).toBe('choosing')
-    expect(result.current.error).toMatch(/cannot open graph/)
-  })
-
-  it('forgets the open graph and returns to the chooser', async () => {
-    storedRecents = [{ root: '/known', name: 'known', openedMs: 1 }]
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
-
-    await act(async () => {
-      await vi.waitFor(() => expect(pendingOpens.has('/known')).toBe(true))
-      resolveOpen('/known')
-    })
-    await vi.waitFor(() => expect(result.current.status).toBe('ready'))
-
-    await act(async () => {
-      await result.current.forget('/known')
-    })
-
-    expect(result.current.status).toBe('choosing')
-    expect(result.current.graph).toBeNull()
-    expect(result.current.indexGeneration).toBeNull()
-    expect(result.current.recents).toEqual([])
-  })
-
-  it('drops the cached iCloud listing when the graph is deleted', async () => {
-    storedRecents = [{ root: '/known', name: 'known', openedMs: 1 }]
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
-
-    await act(async () => {
-      await vi.waitFor(() => expect(pendingOpens.has('/known')).toBe(true))
-      resolveOpen('/known')
-    })
-    await vi.waitFor(() => expect(result.current.status).toBe('ready'))
-
-    // The chooser's listing was cached before the delete; without the drop it
-    // would keep showing the deleted graph (queries never go stale on their own).
-    appQueryClient.setQueryData(queryKeys.icloud.status, {
-      available: true,
-      documentsRoot: '/icloud/Documents',
-      existingGraphRoots: ['/known'],
-    })
-
-    await act(async () => {
-      await result.current.deleteGraph()
-    })
-
-    expect(invokeLog).toContain('graph_delete')
-    expect(result.current.status).toBe('choosing')
-    expect(appQueryClient.getQueryData(queryKeys.icloud.status)).toBeUndefined()
   })
 
   it('returns to the graph chooser without opening the folder picker', async () => {
@@ -333,10 +226,8 @@ describe('GraphProvider open sequencing', () => {
     expect(dialog.calls()).toEqual([])
     expect(result.current.recents).toEqual(storedRecents)
   })
-})
 
-describe('GraphProvider welcome seeding', () => {
-  it('seeds an empty unmarked graph and stamps the welcomeSeeded marker', async () => {
+  it('opens a picked folder and seeds the empty graph', async () => {
     dialog.setFolder('/fresh')
     const { result, act } = await renderHook(() => useGraph(), { wrapper })
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
@@ -352,35 +243,76 @@ describe('GraphProvider welcome seeding', () => {
     expect(invokeLog).toContain('note_write')
     expect(metaStore['welcomeSeeded']).toBe('true')
   })
+})
 
-  it('never seeds a marked graph, even when it is empty (deleted notes stay deleted)', async () => {
-    storedRecents = [{ root: '/known', name: 'known', openedMs: 1 }]
-    metaStore['welcomeSeeded'] = 'true'
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
+describe('GraphProvider inside an AppServicesProvider', () => {
+  function servicesWrapper(app: TestAppServices) {
+    return function Wrapper({ children }: { children: ReactNode }) {
+      return (
+        <AppServicesProvider services={app}>
+          <QueryClientProvider client={queryClient}>
+            <SettingsProvider>
+              <GraphProvider>{children}</GraphProvider>
+            </SettingsProvider>
+          </QueryClientProvider>
+        </AppServicesProvider>
+      )
+    }
+  }
+
+  it('boots the app’s graph session and passes its actions through', async () => {
+    const app = createTestAppServices()
+    const { result, act } = await renderHook(() => useGraph(), { wrapper: servicesWrapper(app) })
+    await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
     await act(async () => {
-      await vi.waitFor(() => expect(pendingOpens.has('/known')).toBe(true))
-      resolveOpen('/known')
+      await result.current.openRecent('/a')
     })
-    await vi.waitFor(() => expect(result.current.status).toBe('ready'))
 
-    expect(invokeLog).not.toContain('note_write')
+    expect(result.current.status).toBe('ready')
+    expect(result.current.graph).toEqual({ root: '/a', name: 'a', generation: 1 })
+    expect(result.current.indexGeneration).toBe(1)
+    expect(app.graphSession.getState().graph?.root).toBe('/a')
+    // The session lives in the service, not in the provider: no bridge call.
+    expect(invokeLog).toEqual([])
   })
 
-  it('marks an unmarked graph with existing notes without writing into it', async () => {
-    storedRecents = [{ root: '/existing', name: 'existing', openedMs: 1 }]
-    storedFiles = [{ path: 'daily/2026-06-12.md', size: 10, modifiedMs: 0 }]
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
+  it('provides the open session’s graph services', async () => {
+    function SessionRoot() {
+      const { session, role } = useGraphServices()
+      return (
+        <p>
+          {role} {session.root}
+        </p>
+      )
+    }
+    function Probe() {
+      const { status, openRecent } = useGraph()
+      if (status === 'ready') {
+        return <SessionRoot />
+      }
+      return (
+        <button
+          type="button"
+          disabled={status !== 'choosing'}
+          onClick={() => void openRecent('/a')}
+        >
+          Open
+        </button>
+      )
+    }
+    const app = createTestAppServices()
+    const Wrapper = servicesWrapper(app)
+    const screen = await render(
+      <Wrapper>
+        <Probe />
+      </Wrapper>,
+    )
 
-    await act(async () => {
-      await vi.waitFor(() => expect(pendingOpens.has('/existing')).toBe(true))
-      resolveOpen('/existing')
-    })
-    await vi.waitFor(() => expect(result.current.status).toBe('ready'))
+    await screen.getByRole('button', { name: 'Open' }).click()
 
-    expect(invokeLog).not.toContain('note_write')
-    // Onboarding was considered: emptying this graph later won't re-seed.
-    expect(metaStore['welcomeSeeded']).toBe('true')
+    await expect.element(screen.getByText('main /a')).toBeVisible()
+    expect(app.graphSession.getState().session?.signal.aborted).toBe(false)
   })
 })
 
@@ -453,34 +385,6 @@ describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
       // Resume performs a full sync, which catches files and local events the
       // intentionally absent live subscription could not observe while hidden.
       await vi.waitFor(() => expect(invokeLog).toContain('index_clear'))
-    } finally {
-      visibility.mockRestore()
-    }
-  })
-
-  it('clears suspension when mobile foregrounds before its index session opens', async () => {
-    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
-    try {
-      const { result, act } = await renderHook(() => useGraph(), { wrapper: mobileWrapper })
-      await vi.waitFor(() => expect(result.current.needsOnboarding).toBe(true))
-      expect(result.current.indexGeneration).toBeNull()
-
-      // The app foregrounds while onboarding still has no graph/index. This
-      // must clear the sticky suspension even though there is nothing to sync.
-      visibility.mockReturnValue('visible')
-      await act(() => {
-        document.dispatchEvent(new Event('visibilitychange'))
-      })
-
-      await act(async () => {
-        const done = result.current.completeOnboarding('local')
-        await vi.waitFor(() => expect(pendingOpens.has(MOBILE_ROOT)).toBe(true))
-        resolveOpen(MOBILE_ROOT)
-        await done
-      })
-
-      await vi.waitFor(() => expect(invokeLog).toContain('index_clear'))
-      expect(result.current.status).toBe('ready')
     } finally {
       visibility.mockRestore()
     }
