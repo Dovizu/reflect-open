@@ -121,6 +121,15 @@ import {
   createEmbeddingRuntimeService,
   type EmbeddingRuntimeService,
 } from '../embeddings/embedding-runtime-service.ts'
+import {
+  createEmbeddingIndexService,
+  type EmbeddingIndexService,
+} from '../embeddings/embedding-index-service.ts'
+import { createRetrievalService, type RetrievalService } from '../embeddings/retrieval-service.ts'
+import {
+  createSemanticSearchService,
+  type SemanticSearchService,
+} from '../embeddings/semantic-search-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createBacklinkService, type BacklinkService } from '../indexing/backlink-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
@@ -307,6 +316,9 @@ export interface AppServices {
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
+  readonly retrieval: RetrievalService
+  readonly embeddingIndex: EmbeddingIndexService
+  readonly semanticSearch: SemanticSearchService
   readonly mobileOnboarding: MobileOnboardingService
   readonly keyboard: KeyboardService
   readonly share: ShareService
@@ -517,6 +529,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage,
     logger,
   })
+  const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
+  const retrieval = createRetrievalService({
+    database,
+    search: indexReads.search,
+    embeddingRuntime,
+    logger,
+  })
+  const embeddingIndex = createEmbeddingIndexService({
+    ipc,
+    embeddingRuntime,
+    noteFile,
+    database,
+    indexLifecycle,
+    logger,
+  })
   return {
     ipc,
     logger,
@@ -552,7 +579,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     database,
     indexStore,
-    embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
+    embeddingRuntime,
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     navigation: createNavigationService(),
     deepLink: createDeepLinkService({
@@ -635,6 +662,19 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     ...noteServices,
     indexLifecycle,
     graphSession,
+    retrieval,
+    embeddingIndex,
+    semanticSearch: createSemanticSearchService({
+      embeddingRuntime,
+      embeddingIndex,
+      retrieval,
+      settings,
+      storage,
+      window: windowService,
+      indexLifecycle,
+      graphSession,
+      logger,
+    }),
     mobileOnboarding: createMobileOnboardingService({
       mobileStorage,
       settings,

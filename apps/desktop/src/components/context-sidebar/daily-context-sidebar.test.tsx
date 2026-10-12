@@ -2,8 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultStorage } from '@reflect/core'
-import { createTestStorageService } from '@reflect/core/testing'
+import { setDefaultRetrieval, setDefaultStorage } from '@reflect/core'
+import { createTestRetrievalService, createTestStorageService } from '@reflect/core/testing'
 import { act, type ReactNode } from 'react'
 import type { NoteRow } from '@reflect/core'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
@@ -24,7 +24,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   dailyDatesInRange,
-  relatedNotes,
 }))
 vi.mock('@/hooks/use-note-row.ts', () => ({ useNoteRow }))
 vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
@@ -83,6 +82,7 @@ beforeEach(() => {
   dailyDatesInRange.mockReset().mockResolvedValue([])
   noteFile.read().mockResolvedValue('- daily entry\n')
   relatedNotes.mockReset().mockResolvedValue([])
+  setDefaultRetrieval(createTestRetrievalService({ relatedNotes }))
   useNoteRow.mockReset().mockReturnValue(null)
   openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
@@ -90,6 +90,7 @@ beforeEach(() => {
 afterEach(async () => {
   await cleanup()
   setDefaultStorage(null)
+  setDefaultRetrieval(null)
 })
 
 describe('DailyContextSidebar calendar header', () => {

@@ -7,7 +7,7 @@ import {
 } from '@reflect/core'
 import { followHealedMove } from '@/editor/move-note.ts'
 import { reloadOpenDocuments } from '@/editor/open-documents.ts'
-import { throttledInvalidateIndexQueries } from '@/lib/query-client.ts'
+import { invalidateIndexQueries, throttledInvalidateIndexQueries } from '@/lib/query-client.ts'
 import { useOptionalAppServices } from '@/services/services-provider.tsx'
 
 /**
@@ -37,6 +37,12 @@ export function bindGraphIndex(index: IndexLifecycleService): Unlisten {
     index.onReconciled((event) => {
       if (event.source === 'sync') {
         reloadOpenDocuments()
+      } else {
+        // A manual rebuild bypasses the watcher pipeline (whose onApplied
+        // refreshes the caches), so cached note lists, backlinks, and tags
+        // would otherwise show pre-rebuild rows until some unrelated change
+        // invalidated them.
+        invalidateIndexQueries()
       }
     }),
     // External renames healed by id follow through to sessions and routes,
