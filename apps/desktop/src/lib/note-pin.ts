@@ -1,14 +1,11 @@
 import {
-  errorMessage,
-  isPinned,
-  parseNote,
+  defaultNoteActions,
+  getNextPinOrder,
   type FilteredSearchHit,
   type NoteListEntry,
   type NoteRow,
   type PinnedNote,
 } from '@reflect/core'
-import { commitNoteFrontmatter, readNoteSource } from '@/lib/note-frontmatter.ts'
-import { startOperation } from '@/lib/operations.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import {
   insertPinnedNote,
@@ -16,7 +13,6 @@ import {
   pinnedNoteFor,
   updatePinnedNotesCache,
 } from './notes/pinned-notes-cache.ts'
-import { getNextPinOrder, isValidPinOrder } from './notes/pin-order.ts'
 import type { NoteActionInput } from './notes/types.ts'
 
 /** Toggle pin with shared optimistic feedback and save-error reporting. Markdown owns the final state. */
@@ -28,8 +24,6 @@ export async function toggleNotePinned(input: NoteActionInput): Promise<void> {
 export async function unpinNote(input: NoteActionInput): Promise<void> {
   await updatePin(input, 'unpin')
 }
-
-const pendingPins = new Set<string>()
 
 function applyPinnedState(input: NoteActionInput, note: PinnedNote, isPinned: boolean): void {
   const { queryClient, root, path } = input
@@ -51,12 +45,9 @@ function applyPinnedState(input: NoteActionInput, note: PinnedNote, isPinned: bo
 
 async function updatePin(input: NoteActionInput, kind: 'toggle' | 'unpin'): Promise<void> {
   const { queryClient, root, generation, path } = input
-  const key = JSON.stringify([root, generation, path])
-  if (pendingPins.has(key)) {
-    return
-  }
-  pendingPins.add(key)
-  try {
+  let feedback = null as { preview: PinnedNote; predicted: boolean } | null
+  // Runs once the service accepts the call, so a duplicate press changes nothing.
+  const prepare = async (): Promise<number | null> => {
     await Promise.all([
       queryClient.cancelQueries({ queryKey: queryKeys.index.pinnedNotes(root) }),
       queryClient.cancelQueries({ queryKey: queryKeys.index.allNotes(root) }),
@@ -65,31 +56,32 @@ async function updatePin(input: NoteActionInput, kind: 'toggle' | 'unpin'): Prom
     const shelf = queryClient.getQueryData<PinnedNote[]>(queryKeys.index.pinnedNotes(root))
     const previous = shelf?.find((note) => note.path === path)
     const row = queryClient.getQueryData<NoteRow | null>(queryKeys.index.note(root, path))
-    // A shelf that has never loaded can't say what the next order is. `true`
-    // still pins; the note sorts last until a reorder numbers it.
-    const pin = shelf === undefined ? true : getNextPinOrder(shelf)
-    const preview = previous ?? {
-      ...pinnedNoteFor(path, row ?? null),
-      pinnedOrder: pin === true ? null : pin,
-    }
+    // A shelf that has never loaded can't say what the next order is. A bare
+    // `pinned: true` still pins; the note sorts last until a reorder numbers it.
+    const order = shelf === undefined ? null : getNextPinOrder(shelf)
+    const preview = previous ?? { ...pinnedNoteFor(path, row ?? null), pinnedOrder: order }
     const predicted = kind === 'unpin' ? false : previous === undefined
+    feedback = { preview, predicted }
     applyPinnedState(input, preview, predicted)
-
-    const actual =
-      kind === 'unpin'
-        ? false
-        : !isPinned(parseNote({ path, source: await readNoteSource(path) }).frontmatter)
-    await commitNoteFrontmatter(path, { pinned: actual ? pin : false }, generation)
-    if (actual !== predicted) {
-      applyPinnedState(input, preview, actual)
-    }
-  } catch (cause) {
+    return order
+  }
+  const actions = defaultNoteActions()
+  const outcome =
+    kind === 'unpin'
+      ? await actions.unpin(path, generation, {
+          prepare: async () => {
+            await prepare()
+          },
+        })
+      : await actions.togglePinned(path, generation, { prepare })
+  if (outcome.status === 'failed') {
     invalidatePinnedNotesCache(queryClient, root)
     void queryClient.invalidateQueries({ queryKey: queryKeys.index.allNotes(root) })
     void queryClient.invalidateQueries({ queryKey: queryKeys.index.mobileAllNotes(root) })
-    startOperation('Updating pin').fail(errorMessage(cause))
-  } finally {
-    pendingPins.delete(key)
+    return
+  }
+  if (outcome.status === 'done' && feedback !== null && outcome.pinned !== feedback.predicted) {
+    applyPinnedState(input, feedback.preview, outcome.pinned)
   }
 }
 
@@ -97,12 +89,5 @@ export async function reorderPinnedNotes(
   notes: readonly PinnedNote[],
   generation: number,
 ): Promise<void> {
-  await Promise.all(
-    notes.map(async (note) => {
-      const order = note.pinnedOrder
-      if (isValidPinOrder(order)) {
-        await commitNoteFrontmatter(note.path, { pinned: order }, generation)
-      }
-    }),
-  )
+  await defaultNoteActions().reorderPinned(notes, generation)
 }

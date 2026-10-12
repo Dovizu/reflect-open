@@ -1,5 +1,18 @@
+import type { ClipboardService } from '../app/clipboard-service.ts'
 import type { ClockService } from '../app/clock-service.ts'
+import type { IdService } from '../app/id-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { PathService } from '../app/path-service.ts'
+import {
+  createNoteActionsService,
+  type NoteActionsService,
+} from '../documents/note-actions-service.ts'
+import {
+  createNoteMoveService,
+  type NoteMoveService,
+  type NoteMoveServiceDeps,
+} from '../documents/note-move-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -14,12 +27,28 @@ import {
   createOpenDocumentsService,
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
+import {
+  createTitleRenameService,
+  type RenameCoordinator,
+  type TitleRenameService,
+  type TitleRenameServiceDeps,
+} from '../documents/title-rename-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
+import { createBacklinkService } from '../indexing/backlink-service.ts'
+import { createNotePathService } from '../indexing/note-path-service.ts'
+import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { appendBlock } from '../markdown/append-section.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { createTestClockService } from './clock.ts'
+import { createTestDatabaseService } from './database.ts'
 import { createTestNoteFileService } from './graph.ts'
+import { createTestIdService } from './id.ts'
 import { createTestLoggerService } from './logger.ts'
+import { createTestOperationsService } from './operations.ts'
+import { createTestClipboardService, createTestPathService } from './shell.ts'
+import { createTestIndexStoreService } from './index-store.ts'
+import { createTestIpcBridgeService } from './ipc.ts'
 
 export interface TestNoteSessionOptions {
   /** Graph-relative path of the note. */
@@ -191,6 +220,82 @@ export function createTestOpenDocumentsService(options?: {
   return service
 }
 
+export interface TestNoteMoveService extends NoteMoveService {
+  /** Every move announced to the subscribers, in order. */
+  moved(): ReadonlyArray<readonly [from: string, to: string]>
+}
+
+/**
+ * The real {@link NoteMoveService} over `ipc`, `indexStore`, `openDocuments`
+ * and `logger` (fresh test doubles by default).
+ */
+export function createTestNoteMoveService(
+  options?: Partial<NoteMoveServiceDeps>,
+): TestNoteMoveService {
+  const service = createNoteMoveService({
+    ipc: options?.ipc ?? createTestIpcBridgeService(),
+    indexStore: options?.indexStore ?? createTestIndexStoreService(),
+    openDocuments: options?.openDocuments ?? createTestOpenDocumentsService(),
+    logger: options?.logger ?? createTestLoggerService(),
+  })
+  const moves: Array<readonly [string, string]> = []
+  service.onMoved((from, to) => {
+    moves.push([from, to])
+  })
+  return {
+    ...service,
+    moved: () => [...moves],
+  }
+}
+
+export interface TestTitleRenameServiceOptions extends Partial<
+  Omit<TitleRenameServiceDeps, 'noteFile' | 'openDocuments' | 'operations' | 'logger'>
+> {
+  noteFile?: NoteFileService
+  openDocuments?: OpenDocumentsService
+  operations?: OperationsService
+  logger?: LoggerService
+}
+
+export interface TestTitleRenameService extends TitleRenameService {
+  /** Every coordinator created so far, in order. */
+  coordinators(): readonly RenameCoordinator[]
+}
+
+/**
+ * The real {@link TitleRenameService} over its dependencies (fresh test
+ * doubles by default; the index reads run over a new test database, which
+ * opens on the first rename).
+ */
+export function createTestTitleRenameService(
+  options?: TestTitleRenameServiceOptions,
+): TestTitleRenameService {
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  const openDocuments = options?.openDocuments ?? createTestOpenDocumentsService()
+  const logger = options?.logger ?? createTestLoggerService()
+  const database = createTestDatabaseService()
+  const service = createTitleRenameService({
+    noteFile,
+    wikiResolver: options?.wikiResolver ?? createWikiResolverService({ database }),
+    backlinks: options?.backlinks ?? createBacklinkService({ database, noteFile }),
+    notePath: options?.notePath ?? createNotePathService({ database, noteFile }),
+    noteMove: options?.noteMove ?? createTestNoteMoveService({ openDocuments, logger }),
+    openDocuments,
+    operations: options?.operations ?? createTestOperationsService(),
+    clock: options?.clock ?? createTestClockService(),
+    logger,
+  })
+  const created: RenameCoordinator[] = []
+  return {
+    createCoordinator(coordinatorOptions) {
+      const coordinator = service.createCoordinator(coordinatorOptions)
+      created.push(coordinator)
+      return coordinator
+    },
+    coordinators: () => [...created],
+  }
+}
+
 export interface TestNoteDocumentServiceOptions {
   /** Defaults to an empty {@link createTestOpenDocumentsService}. */
   openDocuments?: OpenDocumentsService
@@ -209,4 +314,51 @@ export function createTestNoteDocumentService(
     openDocuments: options?.openDocuments ?? createTestOpenDocumentsService(),
     noteFile: options?.noteFile ?? createTestNoteFileService(),
   })
+}
+
+export interface TestNoteActionsServiceOptions {
+  /** Defaults to an empty {@link createTestNoteFileService}. */
+  noteFile?: NoteFileService
+  /** Defaults to an empty {@link createTestOpenDocumentsService}. */
+  openDocuments?: OpenDocumentsService
+  /** Defaults to the real service over `openDocuments` and `noteFile`. */
+  noteDocuments?: NoteDocumentService
+  /** Defaults to an indexer that only records its calls. */
+  indexLifecycle?: Pick<IndexLifecycleService, 'indexNote'>
+  operations?: OperationsService
+  clipboard?: ClipboardService
+  path?: PathService
+  id?: IdService
+}
+
+export interface TestNoteActionsService extends NoteActionsService {
+  /** Every note handed to the default indexer for an immediate reindex, in order. */
+  indexed(): ReadonlyArray<{ path: string; generation: number }>
+}
+
+/**
+ * The real {@link NoteActionsService} over test doubles (fresh ones by
+ * default). The default indexer writes nothing.
+ */
+export function createTestNoteActionsService(
+  options?: TestNoteActionsServiceOptions,
+): TestNoteActionsService {
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  const openDocuments = options?.openDocuments ?? createTestOpenDocumentsService()
+  const indexLog: { path: string; generation: number }[] = []
+  const service = createNoteActionsService({
+    noteDocuments: options?.noteDocuments ?? createNoteDocumentService({ openDocuments, noteFile }),
+    noteFile,
+    openDocuments,
+    indexLifecycle: options?.indexLifecycle ?? {
+      indexNote: async (path, indexOptions) => {
+        indexLog.push({ path, generation: indexOptions.generation })
+      },
+    },
+    operations: options?.operations ?? createTestOperationsService(),
+    clipboard: options?.clipboard ?? createTestClipboardService(),
+    path: options?.path ?? createTestPathService(),
+    id: options?.id ?? createTestIdService(),
+  })
+  return { ...service, indexed: () => [...indexLog] }
 }

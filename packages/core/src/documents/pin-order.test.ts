@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { PinnedNote } from '@reflect/core'
+import type { PinnedNote } from '../indexing/index-query-service.ts'
 import { getNextPinOrder, isValidPinOrder, updatePinOrder, renumberPinOrder } from './pin-order.ts'
 
 const HI = 2 ** 31 - 1

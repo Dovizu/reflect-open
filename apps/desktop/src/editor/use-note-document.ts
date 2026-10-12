@@ -5,15 +5,15 @@ import {
   type DocumentBinding,
   type FileChange,
   type NoteSessionSnapshot,
+  type RenameCoordinator,
 } from '@reflect/core'
 import { useFileChanges } from '@/lib/use-file-changes.ts'
 import {
-  useClockService,
   useNoteSessionService,
   useOpenDocumentsService,
+  useTitleRenameService,
 } from '@/services/use-document-services.ts'
 import type { NoteEditorHandle } from './note-editor.tsx'
-import { createRenameCoordinator, type RenameCoordinator } from './rename-coordinator.ts'
 import { checkRoundTrip } from './roundtrip.ts'
 
 /**
@@ -87,7 +87,7 @@ export function useNoteDocument(
   /** The pane's lifecycle policy object — one per hook instance. */
   const noteSessions = useNoteSessionService()
   const openDocuments = useOpenDocumentsService()
-  const clock = useClockService()
+  const titleRename = useTitleRenameService()
   const [binding] = useState<DocumentBinding<RenameCoordinator>>(() =>
     createDocumentBinding({ openDocuments }),
   )
@@ -118,11 +118,10 @@ export function useNoteDocument(
       // the tracker, the rewrite chain, alias placement, and the file move.
       coordinator: () =>
         trackRenames
-          ? createRenameCoordinator({
+          ? titleRename.createCoordinator({
               path,
               generation: () => generationRef.current,
               canFire: () => conflictRef.current === null,
-              clock,
             })
           : null,
       session: (coordinator) =>
@@ -151,7 +150,16 @@ export function useNoteDocument(
       session.load()
     }
     return () => binding.unbind(path)
-  }, [binding, noteSessions, clock, path, canWrite, createIfMissing, trackRenames, missingSeed])
+  }, [
+    binding,
+    noteSessions,
+    titleRename,
+    path,
+    canWrite,
+    createIfMissing,
+    trackRenames,
+    missingSeed,
+  ])
 
   // External-change reconciliation via the watcher (Plan 04b events). The
   // comparison reads the session's CURRENT path, not the route prop: a rename

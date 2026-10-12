@@ -378,12 +378,60 @@ export {
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export {
+  canTrashNote,
+  createNoteActionsService,
+  defaultNoteActions,
+  setDefaultNoteActions,
+  type NoteActionOptions,
+  type NoteActionOutcome,
+  type NoteActionsService,
+  type NotePinOrderWrite,
+  type NotePinResult,
+  type NotePinToggleOptions,
+  type NoteTrashFailure,
+  type NoteTrashManyOptions,
+  type NoteTrashResult,
+} from '../documents/note-actions-service.ts'
+export {
+  applyNoteRowOverlay,
+  createNoteRowService,
+  defaultNoteRows,
+  setDefaultNoteRows,
+  type NoteRowOverlay,
+  type NoteRowOverlayPatch,
+  type NoteRowService,
+} from '../documents/note-row-service.ts'
+export {
+  getNextPinOrder,
+  isValidPinOrder,
+  renumberPinOrder,
+  updatePinOrder,
+} from '../documents/pin-order.ts'
+export {
   createOpenDocumentsService,
   defaultOpenDocuments,
   setDefaultOpenDocuments,
   type OpenDocument,
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
+export {
+  createNoteMoveService,
+  defaultNoteMove,
+  setDefaultNoteMove,
+  NOTE_MOVED_EVENT,
+  type NoteMovedListener,
+  type NoteMoveService,
+  type NoteMoveServiceDeps,
+} from '../documents/note-move-service.ts'
+export {
+  createTitleRenameService,
+  defaultTitleRename,
+  setDefaultTitleRename,
+  type RenameCoordinator,
+  type RenameCoordinatorOptions,
+  type TitleRenameService,
+  type TitleRenameServiceDeps,
+} from '../documents/title-rename-service.ts'
 export {
   createDocumentBinding,
   type BindFactories,

@@ -94,6 +94,16 @@ import {
 import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
+import {
+  createTitleRenameService,
+  type TitleRenameService,
+} from '../documents/title-rename-service.ts'
+import {
+  createNoteActionsService,
+  type NoteActionsService,
+} from '../documents/note-actions-service.ts'
+import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -278,8 +288,12 @@ export interface AppServices {
   readonly attachments: AttachmentService
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
+  readonly noteMove: NoteMoveService
+  readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
   readonly tasks: TaskService
+  readonly noteActions: NoteActionsService
+  readonly noteRows: NoteRowService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -454,7 +468,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
   const openDocuments = createOpenDocumentsService()
-  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
   const indexReads = createIndexReadServices({ database, noteFile })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
@@ -474,6 +487,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
+  const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const captureInbox = createCaptureInboxService({ ipc })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
@@ -589,10 +604,33 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
+    noteMove,
+    titleRename: createTitleRenameService({
+      noteFile,
+      wikiResolver: indexReads.wikiResolver,
+      backlinks: indexReads.backlinks,
+      notePath: indexReads.notePath,
+      noteMove,
+      openDocuments,
+      operations,
+      clock,
+      logger,
+    }),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
     noteDocuments,
     tasks: createTaskService({ database, noteDocuments, operations, clock, logger }),
+    noteActions: createNoteActionsService({
+      noteDocuments,
+      noteFile,
+      openDocuments,
+      indexLifecycle,
+      operations,
+      clipboard: adapters.clipboard,
+      path,
+      id,
+    }),
+    noteRows: createNoteRowService(),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

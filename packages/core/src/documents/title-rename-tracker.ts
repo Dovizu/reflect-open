@@ -1,11 +1,6 @@
-import {
-  defaultClock,
-  foldKey,
-  hasAuthoredTitle,
-  parseNote,
-  type ClockService,
-  type TimerHandle,
-} from '@reflect/core'
+import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import { hasAuthoredTitle, parseNote } from '../markdown/extract.ts'
+import { foldKey } from '../markdown/keys.ts'
 
 /**
  * Settled-title detection for the auto-rename flow. A title change triggers a
@@ -58,8 +53,8 @@ export interface TitleRenameTrackerOptions {
    */
   canFire?: (() => boolean) | undefined
   quietMs?: number
-  /** Runs the quiet timer. Defaults to the process-wide clock. */
-  clock?: ClockService | undefined
+  /** Runs the quiet timer. */
+  clock: ClockService
 }
 
 export interface TitleRenameTracker {
@@ -75,9 +70,8 @@ export interface TitleRenameTracker {
 const DEFAULT_QUIET_MS = 5000
 
 export function createTitleRenameTracker(options: TitleRenameTrackerOptions): TitleRenameTracker {
-  const { path, onRename, canFire } = options
+  const { path, onRename, canFire, clock } = options
   const quietMs = options.quietMs ?? DEFAULT_QUIET_MS
-  const clock = options.clock ?? defaultClock()
 
   let baselineTitle: string | null = null
   let pending: string | null = null

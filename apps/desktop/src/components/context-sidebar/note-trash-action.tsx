@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react'
-import { errorMessage, isDaily } from '@reflect/core'
+import { canTrashNote, errorMessage } from '@reflect/core'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import {
@@ -32,7 +32,7 @@ export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | 
   const [isTrashing, setIsTrashing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (isDaily(path)) {
+  if (!canTrashNote(path)) {
     return null
   }
 

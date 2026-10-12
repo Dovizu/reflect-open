@@ -262,16 +262,24 @@ export {
 } from './attachments.ts'
 export { createTestTaskService, makeOpenTask, type TestTaskServiceOptions } from './tasks.ts'
 export {
+  createTestNoteActionsService,
   createTestNoteDocumentService,
   createTestNoteSession,
   createTestNoteSessionService,
   createTestOpenDocumentsService,
   type NoteSessionCall,
+  type TestNoteActionsService,
+  type TestNoteActionsServiceOptions,
   type TestNoteDocumentServiceOptions,
   type TestNoteSession,
   type TestNoteSessionOptions,
   type TestNoteSessionService,
   type TestNoteSessionServiceOptions,
+  createTestNoteMoveService,
+  createTestTitleRenameService,
+  type TestNoteMoveService,
+  type TestTitleRenameService,
+  type TestTitleRenameServiceOptions,
 } from './documents.ts'
 export {
   createTestAppStoreEnvironmentService,

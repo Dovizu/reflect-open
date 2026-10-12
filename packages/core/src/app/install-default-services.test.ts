@@ -32,9 +32,11 @@ import { defaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { defaultPrivacy } from '../privacy/privacy-service.ts'
 import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultNoteSessions } from '../documents/note-session.ts'
+import { defaultNoteMove } from '../documents/note-move-service.ts'
 import { defaultNoteDocuments } from '../documents/note-document-service.ts'
 import { defaultTasks } from '../tasks/task-service.ts'
 import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
+import { defaultTitleRename } from '../documents/title-rename-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultBacklinks } from '../indexing/backlink-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
@@ -137,6 +139,8 @@ describe('installDefaultServices', () => {
     expect(defaultAttachments()).toBe(services.attachments)
     expect(defaultNoteSessions()).toBe(services.noteSessions)
     expect(defaultOpenDocuments()).toBe(services.openDocuments)
+    expect(defaultNoteMove()).toBe(services.noteMove)
+    expect(defaultTitleRename()).toBe(services.titleRename)
     expect(defaultNoteDocuments()).toBe(services.noteDocuments)
     expect(defaultTasks()).toBe(services.tasks)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
@@ -223,6 +227,8 @@ describe('resetDefaultServices', () => {
     expect(defaultAttachments()).not.toBe(services.attachments)
     expect(defaultNoteSessions()).not.toBe(services.noteSessions)
     expect(defaultOpenDocuments()).not.toBe(services.openDocuments)
+    expect(defaultNoteMove()).not.toBe(services.noteMove)
+    expect(defaultTitleRename()).not.toBe(services.titleRename)
     expect(defaultNoteDocuments()).not.toBe(services.noteDocuments)
     expect(defaultTasks()).not.toBe(services.tasks)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
