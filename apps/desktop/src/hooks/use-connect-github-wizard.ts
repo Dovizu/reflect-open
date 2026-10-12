@@ -3,12 +3,12 @@ import {
   githubAppInstallUrl,
   loadGithubAuth,
   newRepoUrl,
+  parseRepoInput,
   type GithubRepoRef,
   type GithubUser,
 } from '@reflect/core'
 import { useAsyncAction } from '@/hooks/use-async-action.ts'
 import { usePoll } from '@/hooks/use-poll.ts'
-import { parseRepoInput } from '@/lib/github-repos.ts'
 import { openUrl } from '@/lib/open-url.ts'
 import { useSync } from '@/providers/sync-provider.tsx'
 

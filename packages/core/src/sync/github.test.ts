@@ -1,46 +1,37 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTestHttpService } from '../testing/index.ts'
-import { setBridge } from '../ipc/bridge.ts'
+import { describe, expect, it, vi } from 'vitest'
 import {
-  createGithubRepo,
-  deviceFlowPoll,
-  getAuthenticatedUser,
-  getGithubRepo,
-  getGithubToken,
-  githubAppInstallUrl,
+  createTestClockService,
+  createTestHttpService,
+  createTestSecretStoreService,
+  type TestHttpReply,
+} from '../testing/index.ts'
+import { createGithubAuthService, githubAppInstallUrl } from './github-auth-service.ts'
+import {
+  createGithubRepoService,
   githubRemoteUrl,
-  loadGithubAuth,
   newRepoUrl,
   parseGithubRemote,
-  runDeviceFlow,
-} from './github.ts'
+  parseRepoInput,
+  suggestRepoName,
+} from './github-repo-service.ts'
 
-afterEach(() => {
-  setBridge(null)
-})
+const DEVICE_CODE_URL = 'https://github.com/login/device/code'
+const TOKEN_URL = 'https://github.com/login/oauth/access_token'
+const USER_URL = 'https://api.github.com/user'
 
-/** Keychain fake over the bridge: one in-memory secret store. */
-function fakeKeychain(initial: Record<string, string> = {}) {
-  const store = new Map(Object.entries(initial))
-  setBridge({
-    invoke: async (command, args) => {
-      const name = args['name'] as string
-      if (command === 'secret_get') {
-        return store.get(name) ?? null
-      }
-      if (command === 'secret_set') {
-        store.set(name, args['value'] as string)
-        return null
-      }
-      if (command === 'secret_delete') {
-        store.delete(name)
-        return null
-      }
-      throw new Error(`unexpected command ${command}`)
-    },
-    listen: async () => () => {},
-  })
-  return store
+/** A `GithubAuthService` over an in-memory keychain, an HTTP fake and a test clock. */
+function setup(options: { secrets?: Record<string, string>; now?: number } = {}) {
+  const secretStore = createTestSecretStoreService(options.secrets)
+  const http = createTestHttpService()
+  const clock = createTestClockService({ now: options.now ?? 0 })
+  const auth = createGithubAuthService({ secretStore, http, clock })
+  return { secretStore, http, clock, auth }
+}
+
+/** A `GithubRepoService` whose every request gets `reply`. */
+function repos(reply: TestHttpReply) {
+  const http = createTestHttpService([{ method: '*', url: () => true, reply }])
+  return { http, service: createGithubRepoService({ http }) }
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -75,7 +66,42 @@ describe('parseGithubRemote', () => {
   })
 })
 
-describe('deviceFlowPoll', () => {
+describe('parseRepoInput', () => {
+  it('accepts owner/name and full GitHub URLs', () => {
+    expect(parseRepoInput('alex/notes')).toEqual({ owner: 'alex', name: 'notes' })
+    expect(parseRepoInput('  alex/notes  ')).toEqual({ owner: 'alex', name: 'notes' })
+    expect(parseRepoInput('https://github.com/alex/notes.git')).toEqual({
+      owner: 'alex',
+      name: 'notes',
+    })
+    expect(parseRepoInput('my-org/notes.backup')).toEqual({
+      owner: 'my-org',
+      name: 'notes.backup',
+    })
+  })
+
+  it('rejects anything that is neither', () => {
+    expect(parseRepoInput('')).toBeNull()
+    expect(parseRepoInput('just-a-name')).toBeNull()
+    expect(parseRepoInput('a/b/c')).toBeNull()
+    expect(parseRepoInput('git@github.com:alex/notes.git')).toBeNull()
+    expect(parseRepoInput('https://gitlab.com/alex/notes')).toBeNull()
+  })
+})
+
+describe('suggestRepoName', () => {
+  it('slugs the graph name and appends -backup', () => {
+    expect(suggestRepoName('Alex Notes')).toBe('alex-notes-backup')
+    expect(suggestRepoName('  Déjà vu!  ')).toBe('d-j-vu-backup')
+  })
+
+  it('falls back when the name has no sluggable characters', () => {
+    expect(suggestRepoName(undefined)).toBe('reflect-backup')
+    expect(suggestRepoName('***')).toBe('reflect-backup')
+  })
+})
+
+describe('GithubAuthService.deviceFlowPoll', () => {
   it('maps the GitHub pending/slow_down/denied/expired responses', async () => {
     const cases: Array<[unknown, string]> = [
       [{ error: 'authorization_pending' }, 'pending'],
@@ -84,21 +110,25 @@ describe('deviceFlowPoll', () => {
       [{ error: 'access_denied' }, 'denied'],
     ]
     for (const [body, status] of cases) {
-      const fetchFn = vi.fn(async () => jsonResponse(body))
-      const result = await deviceFlowPoll('device-code', fetchFn)
+      const { auth, http } = setup()
+      http.on('POST', TOKEN_URL, jsonResponse(body))
+      const result = await auth.deviceFlowPoll('device-code')
       expect(result.status).toBe(status)
     }
   })
 
   it('returns an app credential with refresh pair and absolute expiry', async () => {
-    const fetchFn = vi.fn(async () =>
+    const { auth, http } = setup({ now: 1_000_000 })
+    http.on(
+      'POST',
+      TOKEN_URL,
       jsonResponse({
         access_token: 'ghu_token',
         refresh_token: 'ghr_refresh',
         expires_in: 28800,
       }),
     )
-    const result = await deviceFlowPoll('device-code', fetchFn, () => 1_000_000)
+    const result = await auth.deviceFlowPoll('device-code')
     expect(result).toEqual({
       status: 'authorized',
       auth: {
@@ -111,8 +141,9 @@ describe('deviceFlowPoll', () => {
   })
 
   it('treats a non-expiring token as a plain credential', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse({ access_token: 'ghu_token' }))
-    const result = await deviceFlowPoll('device-code', fetchFn)
+    const { auth, http } = setup()
+    http.on('POST', TOKEN_URL, jsonResponse({ access_token: 'ghu_token' }))
+    const result = await auth.deviceFlowPoll('device-code')
     expect(result).toEqual({
       status: 'authorized',
       auth: { kind: 'pat', token: 'ghu_token' },
@@ -120,28 +151,31 @@ describe('deviceFlowPoll', () => {
   })
 
   it('maps a non-OK status to a retryable network error', async () => {
-    const fetchFn = vi.fn(async () => new Response('Bad Gateway', { status: 502 }))
-    await expect(deviceFlowPoll('device-code', fetchFn)).rejects.toMatchObject({
+    const { auth, http } = setup()
+    http.on('POST', TOKEN_URL, new Response('Bad Gateway', { status: 502 }))
+    await expect(auth.deviceFlowPoll('device-code')).rejects.toMatchObject({
       kind: 'network',
     })
   })
 
   it('maps a 200 with a non-JSON body (proxy error page) to a network error', async () => {
-    const fetchFn = vi.fn(async () => new Response('<html>oops</html>', { status: 200 }))
-    await expect(deviceFlowPoll('device-code', fetchFn)).rejects.toMatchObject({
+    const { auth, http } = setup()
+    http.on('POST', TOKEN_URL, new Response('<html>oops</html>', { status: 200 }))
+    await expect(auth.deviceFlowPoll('device-code')).rejects.toMatchObject({
       kind: 'network',
     })
   })
 
   it('maps an unexpected OAuth error to an auth error', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse({ error: 'incorrect_device_code' }))
-    await expect(deviceFlowPoll('device-code', fetchFn)).rejects.toMatchObject({
+    const { auth, http } = setup()
+    http.on('POST', TOKEN_URL, jsonResponse({ error: 'incorrect_device_code' }))
+    await expect(auth.deviceFlowPoll('device-code')).rejects.toMatchObject({
       kind: 'auth',
     })
   })
 })
 
-describe('createGithubRepo', () => {
+describe('GithubRepoService.createRepo', () => {
   const REPO_RESPONSE = {
     full_name: 'alex/notes-backup',
     private: true,
@@ -150,13 +184,12 @@ describe('createGithubRepo', () => {
   }
 
   it('creates a private repo and normalizes the response', async () => {
-    const bodies: Array<Record<string, unknown>> = []
-    const fetchFn = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
-      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
-      return jsonResponse(REPO_RESPONSE, 201)
+    const { http, service } = repos(jsonResponse(REPO_RESPONSE, 201))
+    const repo = await service.createRepo('tok', 'notes-backup')
+    expect(JSON.parse(http.requests()[0]?.body ?? '')).toMatchObject({
+      name: 'notes-backup',
+      private: true,
     })
-    const repo = await createGithubRepo('tok', 'notes-backup', { fetchFn })
-    expect(bodies[0]).toMatchObject({ name: 'notes-backup', private: true })
     expect(repo).toEqual({
       fullName: 'alex/notes-backup',
       isPrivate: true,
@@ -166,170 +199,268 @@ describe('createGithubRepo', () => {
   })
 
   it('maps a rejected token to an auth error', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse({ message: 'Bad credentials' }, 401))
-    await expect(createGithubRepo('tok', 'notes-backup', { fetchFn })).rejects.toMatchObject({
+    const { service } = repos(jsonResponse({ message: 'Bad credentials' }, 401))
+    await expect(service.createRepo('tok', 'notes-backup')).rejects.toMatchObject({
+      kind: 'auth',
+    })
+  })
+
+  it('returns null when the token type cannot create repos (fine-grained 403)', async () => {
+    const { service } = repos(
+      jsonResponse({ message: 'Resource not accessible by personal access token' }, 403),
+    )
+    expect(await service.createRepo('github_pat_x', 'backup')).toBeNull()
+  })
+
+  it('still throws auth for a genuinely rejected token', async () => {
+    const { service } = repos(jsonResponse({ message: 'Bad credentials' }, 401))
+    await expect(service.createRepo('ghp_bad', 'backup')).rejects.toMatchObject({
       kind: 'auth',
     })
   })
 })
 
-describe('getGithubRepo', () => {
+describe('GithubRepoService.getRepo', () => {
   const REF = { owner: 'alex', name: 'notes-backup' }
 
   it('returns null for a missing repo (the connect dialog explains, not throws)', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse({ message: 'Not Found' }, 404))
-    expect(await getGithubRepo('tok', REF, fetchFn)).toBeNull()
+    const { service } = repos(jsonResponse({ message: 'Not Found' }, 404))
+    expect(await service.getRepo('tok', REF)).toBeNull()
   })
 
   it('maps a rejected token to an auth error', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse({ message: 'Bad credentials' }, 403))
-    await expect(getGithubRepo('tok', REF, fetchFn)).rejects.toMatchObject({ kind: 'auth' })
+    const { service } = repos(jsonResponse({ message: 'Bad credentials' }, 403))
+    await expect(service.getRepo('tok', REF)).rejects.toMatchObject({ kind: 'auth' })
   })
 })
 
-describe('getGithubToken', () => {
+describe('GithubAuthService.getToken', () => {
   it('returns null when nothing is connected', async () => {
-    fakeKeychain()
-    expect(await getGithubToken(createTestHttpService().fetchFn)).toBeNull()
+    const { auth } = setup()
+    expect(await auth.getToken()).toBeNull()
   })
 
   it('returns a stored PAT without any network call', async () => {
-    fakeKeychain({ 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_abc' }) })
-    const fetchFn = vi.fn()
-    expect(await getGithubToken(fetchFn)).toBe('ghp_abc')
-    expect(fetchFn).not.toHaveBeenCalled()
+    const { auth, http } = setup({
+      secrets: { 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_abc' }) },
+    })
+    expect(await auth.getToken()).toBe('ghp_abc')
+    expect(http.requests()).toHaveLength(0)
   })
 
   it('returns a fresh app token without refreshing', async () => {
-    fakeKeychain({
-      'github-auth': JSON.stringify({
-        kind: 'app',
-        accessToken: 'ghu_live',
-        refreshToken: 'ghr_r',
-        expiresAt: 10_000_000,
-      }),
+    const { auth, http } = setup({
+      now: 1_000,
+      secrets: {
+        'github-auth': JSON.stringify({
+          kind: 'app',
+          accessToken: 'ghu_live',
+          refreshToken: 'ghr_r',
+          expiresAt: 10_000_000,
+        }),
+      },
     })
-    const fetchFn = vi.fn()
-    expect(await getGithubToken(fetchFn, () => 1_000)).toBe('ghu_live')
-    expect(fetchFn).not.toHaveBeenCalled()
+    expect(await auth.getToken()).toBe('ghu_live')
+    expect(http.requests()).toHaveLength(0)
   })
 
   it('silently refreshes a near-expiry app token and persists the new pair', async () => {
-    const store = fakeKeychain({
-      'github-auth': JSON.stringify({
-        kind: 'app',
-        accessToken: 'ghu_old',
-        refreshToken: 'ghr_old',
-        expiresAt: 1_000,
-      }),
+    const { auth, http, secretStore } = setup({
+      now: 2_000,
+      secrets: {
+        'github-auth': JSON.stringify({
+          kind: 'app',
+          accessToken: 'ghu_old',
+          refreshToken: 'ghr_old',
+          expiresAt: 1_000,
+        }),
+      },
     })
-    const fetchFn = vi.fn(async () =>
+    http.on(
+      'POST',
+      TOKEN_URL,
       jsonResponse({
         access_token: 'ghu_new',
         refresh_token: 'ghr_new',
         expires_in: 28800,
       }),
     )
-    expect(await getGithubToken(fetchFn, () => 2_000)).toBe('ghu_new')
-    const saved = JSON.parse(store.get('github-auth') ?? '{}') as { refreshToken?: string }
+    const listener = vi.fn()
+    auth.subscribe(listener)
+    expect(await auth.getToken()).toBe('ghu_new')
+    const saved = JSON.parse(secretStore.snapshot()['github-auth'] ?? '{}') as {
+      refreshToken?: string
+    }
     expect(saved.refreshToken).toBe('ghr_new')
+    expect(listener).not.toHaveBeenCalled()
   })
 
   it('returns null when the refresh token has lapsed (re-auth required)', async () => {
-    fakeKeychain({
-      'github-auth': JSON.stringify({
-        kind: 'app',
-        accessToken: 'ghu_old',
-        refreshToken: 'ghr_dead',
-        expiresAt: 1_000,
-      }),
+    const { auth, http } = setup({
+      now: 2_000,
+      secrets: {
+        'github-auth': JSON.stringify({
+          kind: 'app',
+          accessToken: 'ghu_old',
+          refreshToken: 'ghr_dead',
+          expiresAt: 1_000,
+        }),
+      },
     })
-    const fetchFn = vi.fn(async () => jsonResponse({ error: 'bad_refresh_token' }))
-    expect(await getGithubToken(fetchFn, () => 2_000)).toBeNull()
+    http.on('POST', TOKEN_URL, jsonResponse({ error: 'bad_refresh_token' }))
+    expect(await auth.getToken()).toBeNull()
   })
 
   it('refreshes with the client id that obtained the token', async () => {
-    fakeKeychain({
-      'github-auth': JSON.stringify({
-        kind: 'app',
-        accessToken: 'ghu_old',
-        refreshToken: 'ghr_live',
-        expiresAt: 1_000,
-        clientId: 'fork-app',
-      }),
+    const { auth, http } = setup({
+      now: 2_000,
+      secrets: {
+        'github-auth': JSON.stringify({
+          kind: 'app',
+          accessToken: 'ghu_old',
+          refreshToken: 'ghr_live',
+          expiresAt: 1_000,
+          clientId: 'fork-app',
+        }),
+      },
     })
-    const bodies: Array<Record<string, unknown>> = []
-    const fetchFn = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
-      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
-      return jsonResponse({ access_token: 'ghu_new', refresh_token: 'ghr_new', expires_in: 28800 })
-    })
-    await getGithubToken(fetchFn, () => 2_000)
-    expect(bodies[0]!['client_id']).toBe('fork-app')
+    http.on(
+      'POST',
+      TOKEN_URL,
+      jsonResponse({ access_token: 'ghu_new', refresh_token: 'ghr_new', expires_in: 28800 }),
+    )
+    await auth.getToken()
+    const body = JSON.parse(http.requests()[0]?.body ?? '{}') as Record<string, unknown>
+    expect(body['client_id']).toBe('fork-app')
   })
 
   it('surfaces a transient refresh failure as retryable, not as disconnected', async () => {
-    fakeKeychain({
-      'github-auth': JSON.stringify({
-        kind: 'app',
-        accessToken: 'ghu_old',
-        refreshToken: 'ghr_live',
-        expiresAt: 1_000,
-      }),
+    const { auth, http } = setup({
+      now: 2_000,
+      secrets: {
+        'github-auth': JSON.stringify({
+          kind: 'app',
+          accessToken: 'ghu_old',
+          refreshToken: 'ghr_live',
+          expiresAt: 1_000,
+        }),
+      },
     })
     // A 5xx/throttle must throw (the engine maps it to a retryable state) —
     // never read as "account disconnected", which would force a re-auth.
-    const fetchFn = vi.fn(async () => jsonResponse({ message: 'oops' }, 503))
-    await expect(getGithubToken(fetchFn, () => 2_000)).rejects.toMatchObject({
+    http.on('POST', TOKEN_URL, jsonResponse({ message: 'oops' }, 503))
+    await expect(auth.getToken()).rejects.toMatchObject({
       kind: 'network',
     })
   })
 
   it('surfaces an unexpected OAuth error without dropping the stored credential', async () => {
-    const store = fakeKeychain({
-      'github-auth': JSON.stringify({
-        kind: 'app',
-        accessToken: 'ghu_old',
-        refreshToken: 'ghr_live',
-        expiresAt: 1_000,
-      }),
+    const { auth, http, secretStore } = setup({
+      now: 2_000,
+      secrets: {
+        'github-auth': JSON.stringify({
+          kind: 'app',
+          accessToken: 'ghu_old',
+          refreshToken: 'ghr_live',
+          expiresAt: 1_000,
+        }),
+      },
     })
-    const fetchFn = vi.fn(async () => jsonResponse({ error: 'incorrect_client_credentials' }))
-    await expect(getGithubToken(fetchFn, () => 2_000)).rejects.toMatchObject({
+    http.on('POST', TOKEN_URL, jsonResponse({ error: 'incorrect_client_credentials' }))
+    await expect(auth.getToken()).rejects.toMatchObject({
       kind: 'auth',
     })
-    expect(store.has('github-auth')).toBe(true)
+    expect(secretStore.snapshot()).toHaveProperty('github-auth')
   })
 })
 
-describe('getAuthenticatedUser', () => {
+describe('GithubAuthService.getAuthenticatedUser', () => {
   it('returns the login (instant token validation + owner for the wizard)', async () => {
-    const fetchFn = vi.fn(async () =>
+    const { auth, http } = setup()
+    http.on(
+      'GET',
+      USER_URL,
       jsonResponse({ login: 'alex', avatar_url: 'https://a.example/alex.png' }),
     )
-    expect(await getAuthenticatedUser('ghp_x', fetchFn)).toEqual({
+    expect(await auth.getAuthenticatedUser('ghp_x')).toEqual({
       login: 'alex',
       avatarUrl: 'https://a.example/alex.png',
     })
   })
 
   it('maps a rejected token to an auth error at entry time', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse({ message: 'Bad credentials' }, 401))
-    await expect(getAuthenticatedUser('ghp_bad', fetchFn)).rejects.toMatchObject({ kind: 'auth' })
+    const { auth, http } = setup()
+    http.on('GET', USER_URL, jsonResponse({ message: 'Bad credentials' }, 401))
+    await expect(auth.getAuthenticatedUser('ghp_bad')).rejects.toMatchObject({ kind: 'auth' })
   })
 
   it('still treats a 403 that names bad credentials as an auth failure', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse({ message: 'Bad credentials' }, 403))
-    await expect(getAuthenticatedUser('ghp_bad', fetchFn)).rejects.toMatchObject({ kind: 'auth' })
+    const { auth, http } = setup()
+    http.on('GET', USER_URL, jsonResponse({ message: 'Bad credentials' }, 403))
+    await expect(auth.getAuthenticatedUser('ghp_bad')).rejects.toMatchObject({ kind: 'auth' })
   })
 
   it('classifies a rate-limit 403 as network, never auth', async () => {
-    // The desktop clears the stored credential on `auth` — a throttled but
-    // valid token landing there would delete it from the keychain.
-    const fetchFn = vi.fn(async () =>
+    // `getSignedInUser` clears the stored credential on `auth` — a throttled
+    // but valid token landing there would delete it from the keychain.
+    const { auth, http } = setup()
+    http.on(
+      'GET',
+      USER_URL,
       jsonResponse({ message: 'API rate limit exceeded for user ID 1.' }, 403),
     )
-    await expect(getAuthenticatedUser('ghp_x', fetchFn)).rejects.toMatchObject({
+    await expect(auth.getAuthenticatedUser('ghp_x')).rejects.toMatchObject({
       kind: 'network',
+    })
+  })
+})
+
+describe('GithubAuthService.getSignedInUser', () => {
+  it('resolves the stored credential to the signed-in identity', async () => {
+    const { auth, http } = setup({
+      secrets: { 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_abc' }) },
+    })
+    http.on('GET', USER_URL, jsonResponse({ login: 'alex' }))
+
+    expect(await auth.getSignedInUser()).toEqual({ login: 'alex', avatarUrl: null })
+  })
+
+  it('returns null without network when nothing is stored', async () => {
+    const { auth, http } = setup()
+
+    expect(await auth.getSignedInUser()).toBeNull()
+    expect(http.requests()).toHaveLength(0)
+  })
+
+  it('clears a credential GitHub rejects before rethrowing', async () => {
+    const { auth, http, secretStore } = setup({
+      secrets: { 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_dead' }) },
+    })
+    http.on('GET', USER_URL, jsonResponse({ message: 'Bad credentials' }, 401))
+    const listener = vi.fn()
+    auth.subscribe(listener)
+
+    await expect(auth.getSignedInUser()).rejects.toMatchObject({ kind: 'auth' })
+    expect(secretStore.snapshot()).not.toHaveProperty('github-auth')
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a newer credential saved while a stale lookup was in flight', async () => {
+    // The auth step probes the stored credential on mount; if the user saves
+    // a fresh token before that probe's rejection lands, clearing must not
+    // wipe the new credential — only the token GitHub actually rejected.
+    const { auth, http, secretStore } = setup({
+      secrets: { 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_old' }) },
+    })
+    http.on('GET', USER_URL, () => {
+      void secretStore.set('github-auth', JSON.stringify({ kind: 'pat', token: 'ghp_new' }))
+      return jsonResponse({ message: 'Bad credentials' }, 401)
+    })
+
+    await expect(auth.getSignedInUser()).rejects.toMatchObject({ kind: 'auth' })
+    expect(JSON.parse(secretStore.snapshot()['github-auth'] ?? '{}')).toEqual({
+      kind: 'pat',
+      token: 'ghp_new',
     })
   })
 })
@@ -352,30 +483,35 @@ describe('githubAppInstallUrl', () => {
   })
 })
 
-describe('createGithubRepo', () => {
-  it('returns null when the token type cannot create repos (fine-grained 403)', async () => {
-    const fetchFn = vi.fn(async () =>
-      jsonResponse({ message: 'Resource not accessible by personal access token' }, 403),
-    )
-    expect(await createGithubRepo('github_pat_x', 'backup', { fetchFn })).toBeNull()
-  })
-
-  it('still throws auth for a genuinely rejected token', async () => {
-    const fetchFn = vi.fn(async () => jsonResponse({ message: 'Bad credentials' }, 401))
-    await expect(createGithubRepo('ghp_bad', 'backup', { fetchFn })).rejects.toMatchObject({
-      kind: 'auth',
-    })
-  })
-})
-
-describe('loadGithubAuth', () => {
+describe('GithubAuthService.load', () => {
   it('returns null (not a crash) for unreadable stored credentials', async () => {
-    fakeKeychain({ 'github-auth': 'not json' })
-    expect(await loadGithubAuth()).toBeNull()
+    const { auth } = setup({ secrets: { 'github-auth': 'not json' } })
+    expect(await auth.load()).toBeNull()
+    expect(await auth.isConnected()).toBe(false)
   })
 })
 
-describe('runDeviceFlow', () => {
+describe('GithubAuthService change notification', () => {
+  it('notifies subscribers when the credential is saved or cleared', async () => {
+    const { auth } = setup()
+    const listener = vi.fn()
+    const unsubscribe = auth.subscribe(listener)
+
+    await auth.save({ kind: 'pat', token: 'ghp_abc' })
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(await auth.isConnected()).toBe(true)
+
+    await auth.clear()
+    expect(listener).toHaveBeenCalledTimes(2)
+    expect(await auth.isConnected()).toBe(false)
+
+    unsubscribe()
+    await auth.save({ kind: 'pat', token: 'ghp_abc' })
+    expect(listener).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('GithubAuthService.runDeviceFlow', () => {
   const START_RESPONSE = {
     device_code: 'dev-1',
     user_code: 'ABCD-1234',
@@ -384,105 +520,114 @@ describe('runDeviceFlow', () => {
     interval: 5,
   }
 
-  /** Scripted fetch: first call = flow start, later calls pop poll responses. */
-  function scriptedFetch(polls: unknown[]) {
-    let calls = 0
-    return vi.fn(async () => {
-      calls += 1
-      if (calls === 1) {
-        return jsonResponse(START_RESPONSE)
-      }
-      return jsonResponse(polls.shift() ?? { error: 'authorization_pending' })
-    })
+  /** Scripted GitHub: the flow start answers once, each poll pops the next response. */
+  function scripted(polls: unknown[]) {
+    const context = setup()
+    context.http.on('POST', DEVICE_CODE_URL, jsonResponse(START_RESPONSE))
+    context.http.on('POST', TOKEN_URL, () =>
+      jsonResponse(polls.shift() ?? { error: 'authorization_pending' }),
+    )
+    /** Resolves once the flow waits for its next poll. */
+    const sleeping = async (): Promise<void> => {
+      await vi.waitFor(() => {
+        expect(context.clock.pendingTimers()).toBe(1)
+      })
+    }
+    const pollCount = (): number =>
+      context.http.requests().filter((request) => request.url === TOKEN_URL).length
+    return { ...context, sleeping, pollCount }
   }
 
   it('surfaces the code, honors slow_down, and persists the credential', async () => {
-    const store = fakeKeychain()
-    const sleeps: number[] = []
+    const { auth, clock, secretStore, sleeping, pollCount } = scripted([
+      { error: 'authorization_pending' },
+      { error: 'slow_down', interval: 12 },
+      { access_token: 'ghp_done' },
+    ])
     const codes: string[] = []
-    const auth = await runDeviceFlow({
+    const listener = vi.fn()
+    auth.subscribe(listener)
+    const flow = auth.runDeviceFlow({
       clientId: 'test-app',
-      fetchFn: scriptedFetch([
-        { error: 'authorization_pending' },
-        { error: 'slow_down', interval: 12 },
-        { access_token: 'ghp_done' },
-      ]),
       onCode: (code) => {
         codes.push(code.userCode)
       },
-      sleep: async (ms) => {
-        sleeps.push(ms)
-      },
-      now: () => 0,
     })
 
+    await sleeping()
     expect(codes).toEqual(['ABCD-1234'])
-    expect(auth).toEqual({ kind: 'pat', token: 'ghp_done' })
-    expect(sleeps).toEqual([5000, 5000, 12000])
-    expect(JSON.parse(store.get('github-auth') ?? '{}')).toEqual({
+    await clock.advance(4_999)
+    expect(clock.pendingTimers()).toBe(1)
+    await clock.advance(1)
+    await sleeping()
+    expect(pollCount()).toBe(1)
+    await clock.advance(5_000)
+    await sleeping()
+    expect(pollCount()).toBe(2)
+    await clock.advance(11_999)
+    expect(clock.pendingTimers()).toBe(1)
+    await clock.advance(1)
+
+    expect(await flow).toEqual({ kind: 'pat', token: 'ghp_done' })
+    expect(pollCount()).toBe(3)
+    expect(JSON.parse(secretStore.snapshot()['github-auth'] ?? '{}')).toEqual({
       kind: 'pat',
       token: 'ghp_done',
     })
+    expect(listener).toHaveBeenCalledTimes(1)
   })
 
   it('persists a non-default client id with app credentials', async () => {
-    const store = fakeKeychain()
-    await runDeviceFlow({
-      clientId: 'test-app',
-      fetchFn: scriptedFetch([
-        { access_token: 'ghu_t', refresh_token: 'ghr_r', expires_in: 28800 },
-      ]),
-      onCode: () => {},
-      sleep: async () => {},
-      now: () => 0,
-    })
-    const saved = JSON.parse(store.get('github-auth') ?? '{}') as { clientId?: string }
+    const { auth, clock, secretStore, sleeping } = scripted([
+      { access_token: 'ghu_t', refresh_token: 'ghr_r', expires_in: 28800 },
+    ])
+    const flow = auth.runDeviceFlow({ clientId: 'test-app', onCode: () => {} })
+    await sleeping()
+    await clock.advance(5_000)
+    await flow
+    const saved = JSON.parse(secretStore.snapshot()['github-auth'] ?? '{}') as {
+      clientId?: string
+    }
     expect(saved.clientId).toBe('test-app')
   })
 
   it('throws an auth error when the user denies', async () => {
-    fakeKeychain()
-    await expect(
-      runDeviceFlow({
-        clientId: 'test-app',
-        fetchFn: scriptedFetch([{ error: 'access_denied' }]),
-        onCode: () => {},
-        sleep: async () => {},
-        now: () => 0,
-      }),
-    ).rejects.toMatchObject({ kind: 'auth' })
+    const { auth, clock, sleeping } = scripted([{ error: 'access_denied' }])
+    const flow = auth.runDeviceFlow({ clientId: 'test-app', onCode: () => {} })
+    const rejection = expect(flow).rejects.toMatchObject({ kind: 'auth' })
+    await sleeping()
+    await clock.advance(5_000)
+    await rejection
   })
 
   it('throws an auth error when the code expires while still pending', async () => {
-    fakeKeychain()
-    let clock = 0
-    await expect(
-      runDeviceFlow({
-        clientId: 'test-app',
-        fetchFn: scriptedFetch([]),
-        onCode: () => {},
-        sleep: async () => {
-          clock += 600_000 // two sleeps blow past the 900s deadline
-        },
-        now: () => clock,
-      }),
-    ).rejects.toMatchObject({ kind: 'auth' })
+    const { auth, clock, sleeping } = scripted([])
+    const flow = auth.runDeviceFlow({ clientId: 'test-app', onCode: () => {} })
+    const rejection = expect(flow).rejects.toMatchObject({ kind: 'auth' })
+    // Two jumps blow past the 900s deadline.
+    while (clock.now() < 900_000) {
+      await sleeping()
+      await clock.advance(600_000)
+    }
+    await rejection
   })
 
   it('resolves null when aborted (dialog closed) and stores nothing', async () => {
-    const store = fakeKeychain()
+    const { auth, clock, secretStore, sleeping, pollCount } = scripted([
+      { access_token: 'ghp_never' },
+    ])
     const abort = new AbortController()
-    const auth = await runDeviceFlow({
+    const flow = auth.runDeviceFlow({
       clientId: 'test-app',
-      fetchFn: scriptedFetch([{ access_token: 'ghp_never' }]),
       onCode: () => {},
       signal: abort.signal,
-      sleep: async () => {
-        abort.abort()
-      },
-      now: () => 0,
     })
-    expect(auth).toBeNull()
-    expect(store.has('github-auth')).toBe(false)
+    await sleeping()
+    abort.abort()
+    await clock.advance(5_000)
+
+    expect(await flow).toBeNull()
+    expect(pollCount()).toBe(0)
+    expect(secretStore.snapshot()).not.toHaveProperty('github-auth')
   })
 })

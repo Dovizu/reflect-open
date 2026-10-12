@@ -1,39 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import {
-  clearHostCredential,
-  loadHostCredential,
-  remoteHost,
-  saveHostCredential,
-} from './host-credentials.ts'
-
-afterEach(() => {
-  setBridge(null)
-})
-
-/** A keychain fake keyed by secret name. */
-function fakeKeychain(): Map<string, string> {
-  const store = new Map<string, string>()
-  setBridge({
-    invoke: async (command, args) => {
-      const name = String(args['name'])
-      switch (command) {
-        case 'secret_set':
-          store.set(name, String(args['value']))
-          return null
-        case 'secret_get':
-          return store.get(name) ?? null
-        case 'secret_delete':
-          store.delete(name)
-          return null
-        default:
-          return null
-      }
-    },
-    listen: async () => () => {},
-  })
-  return store
-}
+import { describe, expect, it } from 'vitest'
+import { createTestSecretStoreService } from '../testing/index.ts'
+import { createGitHostCredentialService, remoteHost } from './git-host-credential-service.ts'
 
 describe('remoteHost', () => {
   it('names the host of an HTTPS remote, lowercase, with its port', () => {
@@ -49,19 +16,19 @@ describe('remoteHost', () => {
   })
 })
 
-describe('host credentials', () => {
-  it('round-trips one entry per host and clears it', async () => {
-    const store = fakeKeychain()
-    await saveHostCredential('GitLab.com', { username: 'alex', secret: 'glpat' })
-    expect([...store.keys()]).toEqual(['git-host:gitlab.com'])
-    expect(await loadHostCredential('gitlab.com')).toEqual({ username: 'alex', secret: 'glpat' })
-    await clearHostCredential('gitlab.com')
-    expect(await loadHostCredential('gitlab.com')).toBeNull()
+describe('GitHostCredentialService', () => {
+  it('loads the entry of a host, whatever the case of its name', async () => {
+    const secretStore = createTestSecretStoreService({
+      'git-host:gitlab.com': JSON.stringify({ username: 'alex', secret: 'glpat' }),
+    })
+    const credentials = createGitHostCredentialService({ secretStore })
+    expect(await credentials.load('GitLab.com')).toEqual({ username: 'alex', secret: 'glpat' })
+    expect(await credentials.load('gitea.local')).toBeNull()
   })
 
   it('treats an unreadable entry as absent', async () => {
-    const store = fakeKeychain()
-    store.set('git-host:gitea.local', 'not json')
-    expect(await loadHostCredential('gitea.local')).toBeNull()
+    const secretStore = createTestSecretStoreService({ 'git-host:gitea.local': 'not json' })
+    const credentials = createGitHostCredentialService({ secretStore })
+    expect(await credentials.load('gitea.local')).toBeNull()
   })
 })

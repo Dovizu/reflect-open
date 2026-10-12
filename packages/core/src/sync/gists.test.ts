@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTestHttpService, type TestHttpReply } from '../testing/index.ts'
-import { createGist, deleteGist, updateGist } from './gists.ts'
+import { createGistService } from './gist-service.ts'
 
 const GIST = { id: 'g1', html_url: 'https://gist.github.com/alex/g1' }
 
@@ -8,10 +8,13 @@ function github(reply: TestHttpReply) {
   return createTestHttpService([{ method: '*', url: () => true, reply }])
 }
 
-describe('createGist', () => {
+describe('GistService.create', () => {
   it('posts a secret single-file gist and returns its id and url', async () => {
     const http = github({ status: 201, json: GIST })
-    const published = await createGist('tok', { name: 'A.md', content: '# A\n' }, http.fetchFn)
+    const published = await createGistService({ http }).create('tok', {
+      name: 'A.md',
+      content: '# A\n',
+    })
 
     expect(published).toEqual({ id: 'g1', htmlUrl: 'https://gist.github.com/alex/g1' })
     const [request] = http.requests()
@@ -27,7 +30,7 @@ describe('createGist', () => {
   it('maps 404 to a reconnect-and-grant auth error (missing gist permission)', async () => {
     const http = github({ status: 404, json: { message: 'Not Found' } })
     await expect(
-      createGist('tok', { name: 'A.md', content: 'x' }, http.fetchFn),
+      createGistService({ http }).create('tok', { name: 'A.md', content: 'x' }),
     ).rejects.toMatchObject({
       kind: 'auth',
       message: expect.stringMatching(/reconnect/i),
@@ -37,14 +40,14 @@ describe('createGist', () => {
   it('maps 401 to a rejected-token auth error', async () => {
     const http = github({ status: 401, json: { message: 'Bad credentials' } })
     await expect(
-      createGist('tok', { name: 'A.md', content: 'x' }, http.fetchFn),
+      createGistService({ http }).create('tok', { name: 'A.md', content: 'x' }),
     ).rejects.toMatchObject({ kind: 'auth' })
   })
 
   it('surfaces other failures with the response body', async () => {
     const http = github(new Response('Validation Failed', { status: 422 }))
     await expect(
-      createGist('tok', { name: 'A.md', content: 'x' }, http.fetchFn),
+      createGistService({ http }).create('tok', { name: 'A.md', content: 'x' }),
     ).rejects.toMatchObject({
       kind: 'io',
       message: expect.stringContaining('422'),
@@ -52,16 +55,13 @@ describe('createGist', () => {
   })
 })
 
-describe('updateGist', () => {
+describe('GistService.update', () => {
   it('patches the file under its previous name, renaming to the current one', async () => {
     const http = github({ status: 200, json: GIST })
-    const published = await updateGist(
-      'tok',
-      'g1',
-      'Old Title.md',
-      { name: 'New Title.md', content: 'body' },
-      http.fetchFn,
-    )
+    const published = await createGistService({ http }).update('tok', 'g1', 'Old Title.md', {
+      name: 'New Title.md',
+      content: 'body',
+    })
 
     expect(published).toEqual({ id: 'g1', htmlUrl: 'https://gist.github.com/alex/g1' })
     const [request] = http.requests()
@@ -75,22 +75,22 @@ describe('updateGist', () => {
   it('returns null on 404 — the gist is gone and the caller re-creates', async () => {
     const http = github({ status: 404, json: { message: 'Not Found' } })
     await expect(
-      updateGist('tok', 'g1', 'A.md', { name: 'A.md', content: 'x' }, http.fetchFn),
+      createGistService({ http }).update('tok', 'g1', 'A.md', { name: 'A.md', content: 'x' }),
     ).resolves.toBeNull()
   })
 
   it('maps 403 to an auth error', async () => {
     const http = github({ status: 403, json: { message: 'Forbidden' } })
     await expect(
-      updateGist('tok', 'g1', 'A.md', { name: 'A.md', content: 'x' }, http.fetchFn),
+      createGistService({ http }).update('tok', 'g1', 'A.md', { name: 'A.md', content: 'x' }),
     ).rejects.toMatchObject({ kind: 'auth' })
   })
 })
 
-describe('deleteGist', () => {
+describe('GistService.delete', () => {
   it('issues the DELETE and resolves on success', async () => {
     const http = github({ status: 204 })
-    await expect(deleteGist('tok', 'g1', http.fetchFn)).resolves.toBeUndefined()
+    await expect(createGistService({ http }).delete('tok', 'g1')).resolves.toBeUndefined()
     const [request] = http.requests()
     expect(request?.url).toBe('https://api.github.com/gists/g1')
     expect(request?.method).toBe('DELETE')
@@ -98,11 +98,13 @@ describe('deleteGist', () => {
 
   it('treats 404 as success — already gone is the goal state', async () => {
     const http = github({ status: 404, json: { message: 'Not Found' } })
-    await expect(deleteGist('tok', 'g1', http.fetchFn)).resolves.toBeUndefined()
+    await expect(createGistService({ http }).delete('tok', 'g1')).resolves.toBeUndefined()
   })
 
   it('maps 401/403 to auth errors', async () => {
     const http = github({ status: 403, json: { message: 'Forbidden' } })
-    await expect(deleteGist('tok', 'g1', http.fetchFn)).rejects.toMatchObject({ kind: 'auth' })
+    await expect(createGistService({ http }).delete('tok', 'g1')).rejects.toMatchObject({
+      kind: 'auth',
+    })
   })
 })

@@ -30,7 +30,6 @@ import {
   type Unlisten,
 } from '@reflect/core'
 import { registerBackupFlusher } from '@/lib/backup-flush.ts'
-import { invalidateGithubAuth } from '@/lib/github-auth-state.ts'
 import { startOperation } from '@/lib/operations.ts'
 import { isNativeShell } from '@/lib/platform.ts'
 import { isMobileSurface } from '@/lib/platform-surface.ts'
@@ -509,7 +508,6 @@ export function createBackupController(options: BackupControllerOptions): Backup
     },
     signOut: async () => {
       await clearGithubAuth()
-      invalidateGithubAuth()
       await start()
     },
     backUpNow: async () => {

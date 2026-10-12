@@ -89,6 +89,30 @@ export {
   setDefaultGitRepository,
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
+export {
+  createGithubAuthService,
+  defaultGithubAuth,
+  setDefaultGithubAuth,
+  type GithubAuthService,
+} from '../sync/github-auth-service.ts'
+export {
+  createGitHostCredentialService,
+  defaultGitHostCredentials,
+  setDefaultGitHostCredentials,
+  type GitHostCredentialService,
+} from '../sync/git-host-credential-service.ts'
+export {
+  createGithubRepoService,
+  defaultGithubRepos,
+  setDefaultGithubRepos,
+  type GithubRepoService,
+} from '../sync/github-repo-service.ts'
+export {
+  createGistService,
+  defaultGists,
+  setDefaultGists,
+  type GistService,
+} from '../sync/gist-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
 export {
   createSystemClock,
