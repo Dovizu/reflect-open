@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { parseSearchQuery } from '../indexing/filter-query.ts'
 import { defaultIpc } from '../ipc/bridge.ts'
 import { createTestClockService } from '../testing/clock.ts'
+import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
 import { createTestHttpService } from '../testing/http.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
@@ -57,6 +59,14 @@ const SERVICE_KEYS = [
   'audioRecorder',
   'noteFile',
   'assetStore',
+  'indexQuery',
+  'wikiResolver',
+  'backlinks',
+  'search',
+  'suggestions',
+  'noteList',
+  'graphStats',
+  'notePath',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
@@ -188,6 +198,19 @@ describe('createAppServices', () => {
     expect(written).toEqual(['notes/a.md', 'assets/a.png'])
   })
 
+  it('builds the index reads over the composed database', async () => {
+    const ipc = createTestIpcBridgeService({
+      commands: { db_query: () => [{ path: 'notes/a.md' }] },
+    })
+    const services = createAppServices({
+      ...requiredAdapters(),
+      ipc: ipc.transport,
+      logger: createTestLoggerService(),
+    })
+    await expect(services.indexQuery.randomNotePath()).resolves.toBe('notes/a.md')
+    expect(ipc.calls().map((call) => call.command)).toEqual(['db_query'])
+  })
+
   it('leaves every process-wide default alone', () => {
     const installed = createTestAppServices()
     restore = installTestServices(installed)
@@ -196,5 +219,29 @@ describe('createAppServices', () => {
     expect(defaultClock()).toBe(installed.clock)
     expect(defaultPlatform()).toBe(installed.platform)
     expect(defaultIpc()).toBe(installed.ipc)
+  })
+})
+
+describe('createTestAppServices', () => {
+  it('builds the index reads over the test database and note files', async () => {
+    const services = createTestAppServices()
+    seedNotes(services.database, [{ path: 'notes/plan.md', markdown: '# Plan\n' }])
+    await services.noteFile.write('notes/plan-2.md', '# Plan\n', 1)
+
+    await expect(services.indexQuery.resolveNoteTarget('plan')).resolves.toBe('notes/plan.md')
+    await expect(
+      services.search.searchWithFilters(parseSearchQuery('plan')),
+    ).resolves.toMatchObject([{ path: 'notes/plan.md' }])
+    await expect(services.notePath.slugPathForTitle('notes/new.md', 'Plan')).resolves.toBe(
+      'notes/plan-3.md',
+    )
+  })
+
+  it('builds the index reads over an overriding database', async () => {
+    const database = createTestDatabaseService()
+    seedNotes(database, [{ path: 'notes/other.md', markdown: '# Other\n' }])
+    const services = createTestAppServices({ database })
+
+    await expect(services.indexQuery.resolveNoteTarget('other')).resolves.toBe('notes/other.md')
   })
 })

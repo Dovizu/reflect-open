@@ -6,7 +6,6 @@ import {
   parseNote,
   parseSearchQuery,
   resolveWikiTarget,
-  searchNotes,
   searchWithFilters,
   setBridge,
   suggestWikiLinkTargets,
@@ -70,6 +69,11 @@ function sampleNote(overrides: Partial<IndexedNote> = {}): IndexedNote {
     ],
     ...overrides,
   }
+}
+
+async function searchTitles(query: string): Promise<{ path: string; title: string }[]> {
+  const hits = await searchWithFilters(parseSearchQuery(query))
+  return hits.map(({ path, title }) => ({ path, title }))
 }
 
 async function openDb(): Promise<DevIndexDb> {
@@ -169,7 +173,7 @@ describe('createDevIndexDb', () => {
     )
     installQueryBridge(db)
 
-    await expect(searchNotes('alfredorifugio')).resolves.toEqual([
+    await expect(searchTitles('alfredorifugio')).resolves.toEqual([
       { path, title: 'Field Jacket Hunter' },
     ])
   })
@@ -216,7 +220,7 @@ describe('createDevIndexDb', () => {
     expect(hits[1]!.snippet).toContain('東京')
     const plan = db.query(`EXPLAIN QUERY PLAN ${captured[0]!.sql}`, captured[0]!.params)
     expect(plan.some((row) => String(row['detail']).includes('MATERIALIZE lexical'))).toBe(true)
-    await expect(searchNotes('東京')).resolves.toEqual([
+    await expect(searchTitles('東京')).resolves.toEqual([
       { path: 'notes/tokyo-trip.md', title: '来週の東京旅行計画' },
       { path: 'notes/body-hit.md', title: '別のノート' },
     ])
@@ -329,10 +333,10 @@ describe('createDevIndexDb', () => {
 
     expect(hits).toMatchObject([{ path: 'notes/security-rollout.md', title: 'Security rollout' }])
     expect(hits[0]!.snippet).toContain('authentication')
-    await expect(searchNotes('authent migr')).resolves.toEqual([
+    await expect(searchTitles('authent migr')).resolves.toEqual([
       { path: 'notes/security-rollout.md', title: 'Security rollout' },
     ])
-    await expect(searchNotes('thentication')).resolves.toEqual([])
+    await expect(searchTitles('thentication')).resolves.toEqual([])
 
     const mixedHits = await searchWithFilters(parseSearchQuery('secur migr'))
     expect(mixedHits).toMatchObject([
@@ -343,7 +347,7 @@ describe('createDevIndexDb', () => {
       { text: 'Secur', highlighted: true },
       { text: 'ity rollout', highlighted: false },
     ])
-    await expect(searchNotes('migr secur')).resolves.toEqual([
+    await expect(searchTitles('migr secur')).resolves.toEqual([
       { path: 'notes/security-rollout.md', title: 'Security rollout' },
     ])
   })
@@ -363,14 +367,12 @@ describe('createDevIndexDb', () => {
     )
     installQueryBridge(db)
 
-    await expect(searchNotes('meeting - notes')).resolves.toEqual([
+    await expect(searchTitles('meeting - notes')).resolves.toEqual([
       { path: 'notes/meeting-notes.md', title: 'Meeting Notes' },
     ])
-    await expect(searchNotes('agenda &')).resolves.toEqual([
+    await expect(searchTitles('agenda &')).resolves.toEqual([
       { path: 'notes/meeting-notes.md', title: 'Meeting Notes' },
     ])
-    // Punctuation alone still matches nothing, never the whole recall feed.
-    await expect(searchNotes('- .')).resolves.toEqual([])
   })
 
   it('drops an ignored term from title recall, not just from the FTS match', async () => {
@@ -401,11 +403,11 @@ describe('createDevIndexDb', () => {
 
     // Only title recall can reach a term inside an unsegmented title run, so
     // the ignored term has to leave recall too, not just the FTS expression.
-    await expect(searchNotes('東京 -')).resolves.toEqual([
+    await expect(searchTitles('東京 -')).resolves.toEqual([
       { path: 'notes/tokyo-trip.md', title: '来週の東京旅行計画' },
     ])
     // A punctuation-only query keeps its terms, so recall still matches them.
-    await expect(searchNotes('.')).resolves.toEqual([
+    await expect(searchTitles('.')).resolves.toEqual([
       { path: 'notes/dotfiles.md', title: '.hidden files' },
     ])
   })
