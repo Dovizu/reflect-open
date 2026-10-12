@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createTestContactsService } from '../testing/contacts.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { lookupContactsByEmail } from './commands.ts'
+import { lookupContactsByName } from './commands.ts'
 import { createContactsService, defaultContacts, setDefaultContacts } from './contacts-service.ts'
 
 const ADA = {
@@ -60,6 +60,6 @@ describe('defaultContacts', () => {
 
   it('backs the free functions', async () => {
     setDefaultContacts(createTestContactsService({ contacts: [ADA] }))
-    await expect(lookupContactsByEmail('ADA@example.com')).resolves.toEqual([ADA])
+    await expect(lookupContactsByName('ada')).resolves.toEqual([ADA])
   })
 })

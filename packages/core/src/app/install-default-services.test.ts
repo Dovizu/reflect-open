@@ -32,8 +32,12 @@ import { defaultClassicAccess } from '../classic/classic-access-service.ts'
 import { defaultAppStoreEnvironment } from '../monetization/app-store-environment-service.ts'
 import { defaultPaywall } from '../monetization/paywall-service.ts'
 import { defaultSubscription } from '../monetization/subscription-service.ts'
+import { defaultCalendarEvents } from '../calendar/calendar-events-service.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
+import { defaultContactSuggestions } from '../contacts/contact-suggestion-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
+import { defaultMeetings } from '../contacts/meeting-service.ts'
+import { defaultPersonNotes } from '../contacts/person-note-service.ts'
 import { defaultAssetStore } from '../graph/asset-store-service.ts'
 import { defaultNoteCreation } from '../graph/note-creation-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
@@ -112,6 +116,10 @@ describe('installDefaultServices', () => {
     expect(defaultAppInfo()).toBe(services.appInfo)
     expect(defaultCalendar()).toBe(services.calendar)
     expect(defaultContacts()).toBe(services.contacts)
+    expect(defaultCalendarEvents()).toBe(services.calendarEvents)
+    expect(defaultContactSuggestions()).toBe(services.contactSuggestions)
+    expect(defaultPersonNotes()).toBe(services.personNotes)
+    expect(defaultMeetings()).toBe(services.meetings)
     expect(defaultAgentSkill()).toBe(services.agentSkill)
     expect(defaultMobileStorage()).toBe(services.mobileStorage)
     expect(defaultImageCodec()).toBe(services.imageCodec)
@@ -261,6 +269,10 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteDocuments()).not.toBe(services.noteDocuments)
     expect(defaultNotePreview()).not.toBe(services.notePreview)
     expect(defaultTasks()).not.toBe(services.tasks)
+    expect(defaultCalendarEvents()).not.toBe(services.calendarEvents)
+    expect(defaultContactSuggestions()).not.toBe(services.contactSuggestions)
+    expect(defaultPersonNotes()).not.toBe(services.personNotes)
+    expect(defaultMeetings()).not.toBe(services.meetings)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
     expect(defaultBacklinks()).not.toBe(services.backlinks)

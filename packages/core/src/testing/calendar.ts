@@ -1,9 +1,19 @@
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformService } from '../app/platform-service.ts'
+import {
+  createCalendarEventsService,
+  type CalendarEventsService,
+} from '../calendar/calendar-events-service.ts'
 import type {
   CalendarAuthorizationStatus,
   CalendarEvent,
   CalendarInfo,
   CalendarService,
 } from '../calendar/calendar-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
+import { createTestLoggerService } from './logger.ts'
+import { createTestPlatformService } from './platform.ts'
+import { createTestSettingsService } from './settings.ts'
 
 export interface TestCalendarServiceOptions {
   /** The permission state. Defaults to `fullAccess`. */
@@ -82,4 +92,27 @@ export function createTestCalendarService(
     },
     accessRequests: () => requests,
   }
+}
+
+export interface TestCalendarEventsServiceOptions {
+  /** Defaults to a fresh {@link createTestCalendarService}. */
+  calendar?: CalendarService
+  /** Defaults to a fresh {@link createTestSettingsService}. */
+  settings?: SettingsService
+  /** Defaults to a fresh {@link createTestPlatformService}. */
+  platform?: PlatformService
+  /** Defaults to a fresh {@link createTestLoggerService}. */
+  logger?: LoggerService
+}
+
+/** The real {@link CalendarEventsService} over fresh test doubles by default. */
+export function createTestCalendarEventsService(
+  options?: TestCalendarEventsServiceOptions,
+): CalendarEventsService {
+  return createCalendarEventsService({
+    calendar: options?.calendar ?? createTestCalendarService(),
+    settings: options?.settings ?? createTestSettingsService(),
+    platform: options?.platform ?? createTestPlatformService(),
+    logger: options?.logger ?? createTestLoggerService(),
+  })
 }

@@ -31,6 +31,8 @@ Every native call funnels through two seams:
 | `indexing/` | The SQLite projection pipeline (Plan 04): build/apply note projections, full rebuild and hash-based reconcile, the live watcher subscription, and the Kysely read getters. |
 | `daily/` | The date questions about notes: `DailyNoteService` (today, which days have a daily note, the wake onto a new day) and the pure day-window, week-window and month-grid arithmetic of the daily surfaces. |
 | `tasks/` | Round-checkbox tasks across notes (Plan 18): `TaskService` (open and completed reads, session-aware writes through `NoteDocumentService.commitSourceEdit`, the session's recently-completed set) and the pure Tasks-view model (grouping, visibility, cache transforms). |
+| `calendar/` | The read-only Apple Calendar integration: `CalendarService` (live EventKit reads), `CalendarEventsService` (the day's events, the settings switch and calendar choice), and the pure display policy of the events panel. |
+| `contacts/` | The Apple Contacts integration: `ContactsService` (live lookups), `PersonNoteService` (email identities to `#person` notes), `MeetingService` (a calendar event into its daily note), `ContactSuggestionService` (the suggested-contact card), and the pure matching and Markdown rules. |
 | `ipc/` | The bridge, `IpcBridgeService`, and `call` seam described above. |
 | `errors.ts` | The `AppError` discriminated union shared with Rust. |
 

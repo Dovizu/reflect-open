@@ -127,8 +127,18 @@ import {
   createSubscriptionService,
   type SubscriptionService,
 } from '../monetization/subscription-service.ts'
+import {
+  createCalendarEventsService,
+  type CalendarEventsService,
+} from '../calendar/calendar-events-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
+import {
+  createContactSuggestionService,
+  type ContactSuggestionService,
+} from '../contacts/contact-suggestion-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import { createMeetingService, type MeetingService } from '../contacts/meeting-service.ts'
+import { createPersonNoteService, type PersonNoteService } from '../contacts/person-note-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
 import {
   createNoteCreationService,
@@ -311,7 +321,11 @@ export interface AppServices {
   readonly secretStore: SecretStoreService
   readonly appInfo: AppInfoService
   readonly calendar: CalendarService
+  readonly calendarEvents: CalendarEventsService
   readonly contacts: ContactsService
+  readonly contactSuggestions: ContactSuggestionService
+  readonly personNotes: PersonNoteService
+  readonly meetings: MeetingService
   readonly agentSkill: AgentSkillService
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
@@ -588,6 +602,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     id,
   })
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
+  const calendar = createCalendarService({ ipc, logger })
+  const contacts = createContactsService({ ipc })
+  const personNotes = createPersonNoteService({
+    database,
+    wikiResolver: indexReads.wikiResolver,
+    noteCreation: noteServices.noteCreation,
+  })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
   const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
@@ -715,8 +736,27 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     lifecycle,
     secretStore,
     appInfo: createAppInfoService({ ipc }),
-    calendar: createCalendarService({ ipc, logger }),
-    contacts: createContactsService({ ipc }),
+    calendar,
+    calendarEvents: createCalendarEventsService({ calendar, settings, platform, logger }),
+    contacts,
+    contactSuggestions: createContactSuggestionService({
+      contacts,
+      noteDocuments,
+      openDocuments,
+      noteFile,
+      settings,
+    }),
+    personNotes,
+    meetings: createMeetingService({
+      noteFile,
+      noteCreation: noteServices.noteCreation,
+      wikiResolver: indexReads.wikiResolver,
+      suggestions: indexReads.suggestions,
+      personNotes,
+      contacts,
+      settings,
+      logger,
+    }),
     agentSkill: createAgentSkillService({ ipc }),
     mobileStorage,
     imageCodec,

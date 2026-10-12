@@ -8,7 +8,6 @@ import {
   setDefaultCalendar,
   type CalendarEvent,
 } from './calendar-service.ts'
-import { listCalendarEvents, subscribeCalendarChanged } from './commands.ts'
 
 function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
   return {
@@ -109,23 +108,5 @@ describe('defaultCalendar', () => {
 
     setDefaultCalendar(null)
     expect(defaultCalendar()).not.toBe(fake)
-  })
-
-  it('backs the free functions', async () => {
-    const fake = createTestCalendarService({
-      events: [event(), event({ id: 'evt-2', calendarId: 'cal-2' })],
-    })
-    setDefaultCalendar(fake)
-
-    await expect(listCalendarEvents(0, 5_000, ['cal-1'])).resolves.toEqual([event()])
-
-    let changed = 0
-    const unlisten = await subscribeCalendarChanged(() => {
-      changed++
-    })
-    fake.emitChanged()
-    unlisten()
-    fake.emitChanged()
-    expect(changed).toBe(1)
   })
 })

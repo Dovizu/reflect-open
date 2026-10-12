@@ -2,12 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createTestContactsService } from '../testing/contacts.ts'
 import type { ContactMatch } from './commands.ts'
 import { setDefaultContacts } from './contacts-service.ts'
-import {
-  contactLinkSuggestions,
-  contactNamesEqual,
-  matchContactForTitle,
-  suggestContactForTitle,
-} from './match.ts'
+import { contactLinkSuggestions, contactNamesEqual, matchContactForTitle } from './match.ts'
 
 function contact(overrides: Partial<ContactMatch>): ContactMatch {
   return {
@@ -138,34 +133,5 @@ describe('contactLinkSuggestions', () => {
       'Person 3',
       'Person 4',
     ])
-  })
-})
-
-describe('suggestContactForTitle', () => {
-  it('short-circuits blank titles without a lookup', async () => {
-    const contacts = createTestContactsService()
-    setDefaultContacts(contacts)
-    await expect(suggestContactForTitle('  ')).resolves.toBeNull()
-    expect(contacts.lookups()).toEqual([])
-  })
-
-  it('looks up the trimmed title and applies the exact-match rule', async () => {
-    const contacts = createTestContactsService({
-      contacts: [
-        {
-          fullName: 'Ada Lovelace',
-          givenName: 'Ada',
-          familyName: 'Lovelace',
-          emails: ['ada@example.com'],
-          phones: [],
-        },
-        { fullName: 'Ada Byron', givenName: 'Ada', familyName: 'Byron', emails: [], phones: [] },
-      ],
-    })
-    setDefaultContacts(contacts)
-
-    const match = await suggestContactForTitle(' Ada Lovelace ')
-    expect(match?.emails).toEqual(['ada@example.com'])
-    expect(contacts.lookups()).toEqual([{ kind: 'name', name: 'Ada Lovelace' }])
   })
 })

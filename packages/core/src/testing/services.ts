@@ -62,10 +62,20 @@ import {
   type TestGithubAuthService,
   type TestICloudNativeService,
 } from './sync.ts'
-import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
+import {
+  createTestCalendarEventsService,
+  createTestCalendarService,
+  type TestCalendarService,
+} from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestDailyNoteService } from './daily.ts'
-import { createTestContactsService, type TestContactsService } from './contacts.ts'
+import {
+  createTestContactSuggestionService,
+  createTestContactsService,
+  createTestMeetingService,
+  createTestPersonNoteService,
+  type TestContactsService,
+} from './contacts.ts'
 import {
   createTestChatEngineService,
   createTestChatGraphContextService,
@@ -339,6 +349,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
     id: overrides?.id ?? id,
   })
+  const calendar = createTestCalendarService()
+  const contacts = createTestContactsService()
+  const personNotes = createTestPersonNoteService({
+    database: overrides?.database ?? database,
+    wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+    noteCreation: overrides?.noteCreation ?? noteCreation,
+  })
   const http = createTestHttpService()
   const fileChanges = createTestFileChangeService()
   const indexStore = createTestIndexStoreService()
@@ -465,8 +482,32 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     lifecycle,
     secretStore,
     appInfo: createTestAppInfoService(),
-    calendar: createTestCalendarService(),
-    contacts: createTestContactsService(),
+    calendar,
+    calendarEvents: createTestCalendarEventsService({
+      calendar: overrides?.calendar ?? calendar,
+      settings: overrides?.settings ?? settings,
+      platform: overrides?.platform ?? platform,
+      logger,
+    }),
+    contacts,
+    contactSuggestions: createTestContactSuggestionService({
+      contacts: overrides?.contacts ?? contacts,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      noteFile: overrides?.noteFile ?? noteFile,
+      settings: overrides?.settings ?? settings,
+    }),
+    personNotes,
+    meetings: createTestMeetingService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      noteCreation: overrides?.noteCreation ?? noteCreation,
+      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+      suggestions: overrides?.suggestions ?? indexReads.suggestions,
+      personNotes: overrides?.personNotes ?? personNotes,
+      contacts: overrides?.contacts ?? contacts,
+      settings: overrides?.settings ?? settings,
+      logger,
+    }),
     agentSkill: createTestAgentSkillService(),
     mobileStorage,
     imageCodec,

@@ -1,31 +1,27 @@
 import { useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  calendarAuthorizationStatus,
-  dayRange,
   displayEvents,
-  listCalendarEvents,
-  listCalendars,
-  subscribeCalendarChanged,
+  showsDayEvents,
   type CalendarEvent,
   type CalendarInfo,
   type CalendarAuthorizationStatus,
-  type Unlisten,
 } from '@reflect/core'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
-import { isMacosDesktop } from '@/lib/platform.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
+import { useCalendarEventsService } from '@/services/use-contacts-services.ts'
 
 /**
- * TanStack Query hooks over the calendar bindings
+ * TanStack Query hooks over `CalendarEventsService`
  * (docs/porting/calendar-meetings-integration.md). Events are fetched live —
  * nothing is cached beyond the query layer, and nothing is indexed.
  */
 
 /** Whether calendar queries can run at all in this environment. */
 function useCalendarAvailable(): boolean {
-  return useBridgeReady() && isMacosDesktop()
+  const calendarEvents = useCalendarEventsService()
+  return useBridgeReady() && calendarEvents.isAvailable()
 }
 
 /**
@@ -38,10 +34,11 @@ function useCalendarAvailable(): boolean {
 export function useCalendarAuthorization(
   enabled: boolean,
 ): CalendarAuthorizationStatus | undefined {
+  const calendarEvents = useCalendarEventsService()
   const available = useCalendarAvailable()
   const query = useQuery({
     queryKey: queryKeys.calendar.authorization,
-    queryFn: calendarAuthorizationStatus,
+    queryFn: () => calendarEvents.authorizationStatus(),
     enabled: enabled && available,
     staleTime: 0,
     refetchOnWindowFocus: 'always',
@@ -60,10 +57,11 @@ export interface CalendarsResult {
 
 /** Every calendar on the Mac, for the Settings section's checkbox list. */
 export function useCalendars(enabled: boolean): CalendarsResult {
+  const calendarEvents = useCalendarEventsService()
   const available = useCalendarAvailable()
   const query = useQuery({
     queryKey: queryKeys.calendar.calendars,
-    queryFn: listCalendars,
+    queryFn: () => calendarEvents.listCalendars(),
     enabled: enabled && available,
   })
   return useMemo(
@@ -80,14 +78,12 @@ export function useCalendars(enabled: boolean): CalendarsResult {
  */
 export function useDayEvents(date: string): CalendarEvent[] {
   const { settings } = useSettings()
+  const calendarEvents = useCalendarEventsService()
   const available = useCalendarAvailable()
-  const enabled = settings.calendarEnabled && settings.calendarIds.length > 0 && available
+  const enabled = showsDayEvents(settings) && available
   const query = useQuery({
     queryKey: queryKeys.calendar.events(date, settings.calendarIds),
-    queryFn: () => {
-      const range = dayRange(date)
-      return listCalendarEvents(range.start, range.end, settings.calendarIds)
-    },
+    queryFn: () => calendarEvents.listDayEvents(date, settings.calendarIds),
     enabled,
     staleTime: 60_000,
   })
@@ -104,25 +100,14 @@ export function useDayEvents(date: string): CalendarEvent[] {
  */
 export function useCalendarChangeInvalidation(enabled: boolean): void {
   const queryClient = useQueryClient()
+  const calendarEvents = useCalendarEventsService()
   const available = useCalendarAvailable()
   useEffect(() => {
     if (!enabled || !available) {
       return
     }
-    let unlisten: Unlisten | null = null
-    let disposed = false
-    void subscribeCalendarChanged(() => {
+    return calendarEvents.subscribeChanged(() => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.calendar.all })
-    }).then((stop) => {
-      if (disposed) {
-        stop()
-      } else {
-        unlisten = stop
-      }
     })
-    return () => {
-      disposed = true
-      unlisten?.()
-    }
-  }, [available, enabled, queryClient])
+  }, [available, calendarEvents, enabled, queryClient])
 }
