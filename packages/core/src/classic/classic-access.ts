@@ -1,5 +1,5 @@
-import pkceChallenge from 'pkce-challenge'
 import { z } from 'zod'
+import { defaultIdService, type IdService } from '../app/id-service.ts'
 import { ReflectError } from '../errors.ts'
 import { deleteSecret, getSecret, setSecret } from '../secrets/keychain.ts'
 
@@ -198,9 +198,11 @@ export async function signInWithClassic(options: {
   ephemeral: boolean
   fetchFn: typeof fetch
   startWebAuth: StartWebAuth
+  id?: IdService
 }): Promise<ClassicSignInResult> {
-  const { code_verifier: verifier, code_challenge: challenge } = await pkceChallenge()
-  const state = crypto.randomUUID()
+  const id = options.id ?? defaultIdService()
+  const { code_verifier: verifier, code_challenge: challenge } = await id.pkceChallenge()
+  const state = id.uuid()
   const params = new URLSearchParams({
     client_id: CLASSIC_OAUTH_CLIENT_ID,
     redirect_uri: REDIRECT_URI,

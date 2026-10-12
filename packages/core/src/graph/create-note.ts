@@ -1,4 +1,4 @@
-import { ulid } from 'ulidx'
+import { defaultIdService } from '../app/id-service.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { slugForTitle } from '../markdown/slug.ts'
 import { createNoteIfAbsent } from './commands.ts'
@@ -19,7 +19,7 @@ import {
 
 /** A fresh frontmatter `id` (lowercase ULID, matching the filename convention). */
 export function newNoteId(): string {
-  return ulid().toLowerCase()
+  return defaultIdService().noteId()
 }
 
 /**

@@ -62,6 +62,8 @@ export {
 } from '../app/background-task.ts'
 export { WINDOW_NAVIGATE_EVENT, subscribeWindowNavigate } from '../app/window-events.ts'
 export { toggleDevtools } from '../app/devtools.ts'
+export { createSystemIdService, type IdService, type PkcePair } from '../app/id-service.ts'
+export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
 export {
   agentSkillStatus,
   agentSkillInstall,

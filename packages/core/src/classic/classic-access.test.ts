@@ -1,6 +1,7 @@
 import { verifyChallenge } from 'pkce-challenge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setBridge } from '../ipc/bridge.ts'
+import { createTestIdService } from '../testing/index.ts'
 import {
   CLASSIC_ACCESS_SECRET,
   classicAccessUntil,
@@ -213,6 +214,36 @@ describe('signInWithClassic', () => {
       kind: 'signed-in',
       access: { expiresAt: Date.parse(JULY_END) + YEAR_MS },
     })
+  })
+
+  it('takes the PKCE pair and `state` from the injected `IdService`', async () => {
+    fakeKeychain()
+    const id = createTestIdService()
+    let authorizeUrl = new URL('https://invalid')
+    let verifier = ''
+    const { fetchFn } = fakeFetch({
+      '/api/oauth/token': (init) => {
+        const body = JSON.parse(String(init?.body)) as Record<string, string>
+        verifier = body['code_verifier'] ?? ''
+        return tokenRoute()(init)
+      },
+      '/api/users/me': meRoute(true),
+    })
+
+    await signInWithClassic({
+      ephemeral: false,
+      fetchFn,
+      id,
+      startWebAuth: async (options) => {
+        authorizeUrl = new URL(options.url)
+        return await approve(options)
+      },
+    })
+
+    const pair = await id.pkceChallenge()
+    expect(authorizeUrl.searchParams.get('state')).toBe(id.issued()[0])
+    expect(authorizeUrl.searchParams.get('code_challenge')).toBe(pair.code_challenge)
+    expect(verifier).toBe(pair.code_verifier)
   })
 
   it('reports an account that never paid without storing anything', async () => {
