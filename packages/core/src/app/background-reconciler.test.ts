@@ -1,14 +1,33 @@
-import { describe, expect, it, vi } from 'vitest'
-import { setDefaultLifecycle } from '@reflect/core'
-import { createTestLifecycleService } from '@reflect/core/testing'
-import { createBackgroundReconciler } from './background-reconciler.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createTestLifecycleService } from '../testing/shell.ts'
+import {
+  createBackgroundReconcilerFactory,
+  defaultBackgroundReconcilerFactory,
+  setDefaultBackgroundReconcilerFactory,
+  type BackgroundReconciler,
+  type BackgroundReconcilerOptions,
+} from './background-reconciler.ts'
+import { setDefaultLifecycle } from './lifecycle-service.ts'
 
-/** Drain the microtask/macrotask queue so the loop's awaits settle. */
-function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+/** Let the loop's awaits settle. */
+async function tick(): Promise<void> {
+  for (let turn = 0; turn < 10; turn++) {
+    await Promise.resolve()
+  }
 }
 
-describe('createBackgroundReconciler', () => {
+function createBackgroundReconciler(options: BackgroundReconcilerOptions): BackgroundReconciler {
+  return createBackgroundReconcilerFactory({ lifecycle: createTestLifecycleService() }).create(
+    options,
+  )
+}
+
+afterEach(() => {
+  setDefaultLifecycle(null)
+  setDefaultBackgroundReconcilerFactory(null)
+})
+
+describe('createBackgroundReconcilerFactory', () => {
   it('coalesces triggers landing mid-pass into exactly one follow-up', async () => {
     const gates: Array<{ promise: Promise<void>; resolve: (value: void) => void }> = []
     let calls = 0
@@ -105,9 +124,8 @@ describe('createBackgroundReconciler', () => {
 
   it('retries on wake and stops listening on dispose', async () => {
     const lifecycle = createTestLifecycleService()
-    setDefaultLifecycle(lifecycle)
     let calls = 0
-    const reconciler = createBackgroundReconciler({
+    const reconciler = createBackgroundReconcilerFactory({ lifecycle }).create({
       pass: async () => {
         calls += 1
       },
@@ -139,5 +157,29 @@ describe('createBackgroundReconciler', () => {
 
     reconciler.onDispose(after) // registered after dispose → runs immediately
     expect(after).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('defaultBackgroundReconcilerFactory', () => {
+  it('follows the lifecycle installed when a loop is created', async () => {
+    const lifecycle = createTestLifecycleService()
+    setDefaultLifecycle(lifecycle)
+    let calls = 0
+    const reconciler = defaultBackgroundReconcilerFactory().create({
+      pass: async () => {
+        calls += 1
+      },
+    })
+    reconciler.retryOnWake()
+
+    lifecycle.emitWake()
+    await tick()
+    expect(calls).toBe(1)
+  })
+
+  it('returns the installed factory', () => {
+    const factory = createBackgroundReconcilerFactory({ lifecycle: createTestLifecycleService() })
+    setDefaultBackgroundReconcilerFactory(factory)
+    expect(defaultBackgroundReconcilerFactory()).toBe(factory)
   })
 })

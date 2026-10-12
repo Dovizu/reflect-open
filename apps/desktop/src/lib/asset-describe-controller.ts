@@ -10,14 +10,14 @@ import {
   subscribeIndexApplied,
   type AiProvidersState,
   type ReconcileStop,
+  defaultBackgroundReconcilerFactory,
 } from '@reflect/core'
-import { createBackgroundReconciler } from '@/lib/background-reconciler.ts'
 import { providerFetch } from '@/lib/provider-fetch.ts'
 import { invalidateIndexQueries } from '@/lib/query-client.ts'
 
 /**
  * The asset-description lifecycle for one graph session (Plan 20). Built on
- * {@link createBackgroundReconciler} (shared with capture and transcription):
+ * `BackgroundReconcilerFactory` (shared with capture and transcription):
  * the single-flight loop, focus/online retries, and teardown live there; this
  * supplies the asset-specific pass and triggers.
  *
@@ -130,7 +130,7 @@ export function createAssetDescribeController(
     }
   }
 
-  const loop = createBackgroundReconciler({ pass: reconcile })
+  const loop = defaultBackgroundReconcilerFactory().create({ pass: reconcile })
 
   function markDirty(paths: readonly string[]): void {
     let added = false

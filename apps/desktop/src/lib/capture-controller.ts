@@ -9,16 +9,16 @@ import {
   toAppError,
   type AiProvidersState,
   type ReconcileStop,
+  defaultBackgroundReconcilerFactory,
 } from '@reflect/core'
 import { commitXPost } from '@/lib/bookmark-capture.ts'
-import { createBackgroundReconciler } from '@/lib/background-reconciler.ts'
 import { startOperation } from '@/lib/operations.ts'
 import { providerFetch } from '@/lib/provider-fetch.ts'
 import { invalidateXPostQueries } from '@/lib/query-client.ts'
 
 /**
  * The link-capture lifecycle for one graph session. Built on
- * {@link createBackgroundReconciler} (shared with transcription and asset
+ * `BackgroundReconcilerFactory` (shared with transcription and asset
  * descriptions): the single-flight loop, focus/online retries, and teardown live
  * there; this supplies the capture-specific pass and triggers.
  *
@@ -118,7 +118,7 @@ export function createCaptureController(options: CaptureControllerOptions): Capt
     surfaceStop('Enriching link capture', enriched.stopped)
   }
 
-  const loop = createBackgroundReconciler({ pass: reconcile })
+  const loop = defaultBackgroundReconcilerFactory().create({ pass: reconcile })
 
   function start(): void {
     if (loop.isStale()) {

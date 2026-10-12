@@ -47,3 +47,15 @@ export {
   type TestHttpService,
 } from './http.ts'
 export { createTestStorageService, type TestStorageService } from './storage.ts'
+export {
+  createTestImageCodec,
+  type TestImageCodecService,
+  type TestImageEncode,
+  type TestImageSize,
+} from './image-codec.ts'
+export {
+  createTestExceptionTelemetry,
+  type ExceptionReport,
+  type ExceptionReportSource,
+  type TestExceptionTelemetryService,
+} from './exception-telemetry.ts'
