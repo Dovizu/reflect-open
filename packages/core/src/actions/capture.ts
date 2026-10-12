@@ -13,14 +13,3 @@ export {
   type CaptureIdentity,
 } from './capture-identity.ts'
 export { captureNoteMeta, type CaptureNoteMeta, type CaptureStatus } from './capture-note.ts'
-export {
-  drainCaptureInbox,
-  type DrainCaptureInboxInput,
-  type DrainCaptureInboxOutcome,
-} from './capture-drain.ts'
-export {
-  listPendingCaptures,
-  reconcileCaptureEnrichment,
-  type ReconcileCaptureEnrichmentInput,
-  type ReconcileCaptureEnrichmentOutcome,
-} from './capture-enrichment.ts'

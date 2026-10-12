@@ -1,15 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import type { WebFetchService } from '../app/web-fetch-service.ts'
 import { ReflectError } from '../errors.ts'
-import { captureMetaFetch, captureOEmbedFetch } from '../graph/commands.ts'
-import { scrapePageMeta } from './meta-scrape.ts'
+import type { CloudSafe } from '../privacy/cloud-safe.ts'
+import { createTestWebFetchService } from '../testing/index.ts'
+import { createPageMetaService, type PageMetaService } from './page-meta-service.ts'
 
-vi.mock('../graph/commands', () => ({
-  captureMetaFetch: vi.fn(),
-  captureOEmbedFetch: vi.fn(),
-}))
+let oembedFetchMock: MockInstance<WebFetchService['fetchOembed']>
+let metaFetchMock: MockInstance<WebFetchService['fetchMeta']>
+let pageMeta: PageMetaService
 
-const oembedFetchMock = vi.mocked(captureOEmbedFetch)
-const metaFetchMock = vi.mocked(captureMetaFetch)
+/** The tests stand in for a caller that already passed the privacy gate. */
+function scrape(url: string) {
+  return pageMeta.scrape(url as CloudSafe<string>)
+}
 
 const VIDEO_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
 const REQUEST_URL =
@@ -22,14 +25,17 @@ const OEMBED_ANSWER = JSON.stringify({
 })
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  const webFetch = createTestWebFetchService()
+  oembedFetchMock = vi.spyOn(webFetch, 'fetchOembed')
+  metaFetchMock = vi.spyOn(webFetch, 'fetchMeta')
+  pageMeta = createPageMetaService({ webFetch })
 })
 
-describe('scrapePageMeta', () => {
+describe('PageMetaService', () => {
   it('resolves a claimed URL through oEmbed without touching the HTML fetch', async () => {
     oembedFetchMock.mockResolvedValue(OEMBED_ANSWER)
 
-    const meta = await scrapePageMeta(VIDEO_URL)
+    const meta = await scrape(VIDEO_URL)
 
     expect(meta).toEqual({
       title: 'Rick Astley - Never Gonna Give You Up (Official Video) (4K Remaster)',
@@ -44,7 +50,7 @@ describe('scrapePageMeta', () => {
     oembedFetchMock.mockRejectedValue(new ReflectError('io', 'answered 400'))
     metaFetchMock.mockRejectedValue(new ReflectError('parse', 'fallback reached'))
 
-    await expect(scrapePageMeta(VIDEO_URL)).rejects.toMatchObject({
+    await expect(scrape(VIDEO_URL)).rejects.toMatchObject({
       message: 'fallback reached',
     })
   })
@@ -53,7 +59,7 @@ describe('scrapePageMeta', () => {
     oembedFetchMock.mockResolvedValue('not json')
     metaFetchMock.mockRejectedValue(new ReflectError('parse', 'fallback reached'))
 
-    await expect(scrapePageMeta(VIDEO_URL)).rejects.toMatchObject({
+    await expect(scrape(VIDEO_URL)).rejects.toMatchObject({
       message: 'fallback reached',
     })
   })
@@ -62,7 +68,7 @@ describe('scrapePageMeta', () => {
     oembedFetchMock.mockResolvedValue('{"title":"   "}')
     metaFetchMock.mockRejectedValue(new ReflectError('parse', 'fallback reached'))
 
-    await expect(scrapePageMeta(VIDEO_URL)).rejects.toMatchObject({
+    await expect(scrape(VIDEO_URL)).rejects.toMatchObject({
       message: 'fallback reached',
     })
   })
@@ -70,14 +76,14 @@ describe('scrapePageMeta', () => {
   it('propagates a transient oEmbed failure for retry', async () => {
     oembedFetchMock.mockRejectedValue(new ReflectError('network', 'offline'))
 
-    await expect(scrapePageMeta(VIDEO_URL)).rejects.toMatchObject({ kind: 'network' })
+    await expect(scrape(VIDEO_URL)).rejects.toMatchObject({ kind: 'network' })
     expect(metaFetchMock).not.toHaveBeenCalled()
   })
 
   it('sends unclaimed URLs straight to the HTML fetch', async () => {
     metaFetchMock.mockRejectedValue(new ReflectError('parse', 'fallback reached'))
 
-    await expect(scrapePageMeta('https://example.com/article')).rejects.toMatchObject({
+    await expect(scrape('https://example.com/article')).rejects.toMatchObject({
       message: 'fallback reached',
     })
     expect(oembedFetchMock).not.toHaveBeenCalled()

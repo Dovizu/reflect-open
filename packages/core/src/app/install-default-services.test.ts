@@ -7,6 +7,8 @@ import { defaultAppStore } from '../ipc/app-store-plugin.ts'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
 import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { defaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
+import { defaultBacklinkTarget } from '../capture/backlink-target-service.ts'
+import { defaultCapture } from '../capture/capture-service.ts'
 import { defaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { defaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { defaultGists } from '../sync/gist-service.ts'
@@ -122,6 +124,8 @@ describe('installDefaultServices', () => {
     expect(defaultGists()).toBe(services.gists)
     expect(defaultICloudNative()).toBe(services.icloudNative)
     expect(defaultCaptureInbox()).toBe(services.captureInbox)
+    expect(defaultBacklinkTarget()).toBe(services.backlinkTarget)
+    expect(defaultCapture()).toBe(services.capture)
     expect(defaultWebFetch()).toBe(services.webFetch)
     expect(defaultXArchive()).toBe(services.xArchive)
     expect(defaultAudioRecorder()).toBe(services.audioRecorder)
@@ -209,6 +213,8 @@ describe('resetDefaultServices', () => {
     expect(defaultGists()).not.toBe(services.gists)
     expect(defaultICloudNative()).not.toBe(services.icloudNative)
     expect(defaultCaptureInbox()).not.toBe(services.captureInbox)
+    expect(defaultBacklinkTarget()).not.toBe(services.backlinkTarget)
+    expect(defaultCapture()).not.toBe(services.capture)
     expect(defaultWebFetch()).not.toBe(services.webFetch)
     expect(defaultXArchive()).not.toBe(services.xArchive)
     expect(defaultAudioRecorder()).not.toBe(services.audioRecorder)

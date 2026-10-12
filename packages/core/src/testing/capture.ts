@@ -1,8 +1,16 @@
 import type { XPost } from '@post-embed/types'
 import type { LinkPreviewHtml, WebFetchService } from '../app/web-fetch-service.ts'
+import {
+  createBacklinkTargetService,
+  type BacklinkTargetService,
+} from '../capture/backlink-target-service.ts'
+import type { CaptureService, CaptureSession } from '../capture/capture-service.ts'
 import { ReflectError } from '../errors.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
+import type { NoteCreationService } from '../graph/note-creation-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { ArchivedXPost, ResolvedArchivedPost, XArchiveService } from '../x-archive.ts'
+import { createTestNoteCreationService, createTestNoteFileService } from './graph.ts'
 
 const INBOX_DIR = '.reflect/inbox'
 
@@ -220,5 +228,83 @@ export function createTestXArchiveService(options?: {
     resolves: () => [...resolveLog],
     writes: () => [...writeLog],
     syndicationRequests: () => [...syndicationLog],
+  }
+}
+
+export interface TestBacklinkTargetServiceOptions {
+  /** The notes the targets live in; defaults to an empty test note file service. */
+  noteFile?: NoteFileService
+  /** Resolves or creates the targets; defaults to a test note creation service over `noteFile`. */
+  noteCreation?: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
+}
+
+/** The real {@link BacklinkTargetService} over test note files and note creation. */
+export function createTestBacklinkTargetService(
+  options?: TestBacklinkTargetServiceOptions,
+): BacklinkTargetService {
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  return createBacklinkTargetService({
+    noteFile,
+    noteCreation: options?.noteCreation ?? createTestNoteCreationService({ noteFile }),
+  })
+}
+
+/** What happened to one session a {@link TestCaptureService} opened. */
+export interface TestCaptureSessionState {
+  generation: number
+  /** How many times `start()` ran. */
+  starts: number
+  /** How many times `schedule()` ran. */
+  schedules: number
+  disposed: boolean
+}
+
+export interface TestCaptureService extends CaptureService {
+  /** Every session opened, in order. */
+  sessions(): readonly TestCaptureSessionState[]
+  /** Notify every `onXPostsWritten` listener. */
+  emitXPostsWritten(): void
+}
+
+/** A {@link CaptureService} whose sessions only record their calls: no pass ever runs. */
+export function createTestCaptureService(): TestCaptureService {
+  const states: TestCaptureSessionState[] = []
+  const listeners = new Set<() => void>()
+  return {
+    openSession({ generation }): CaptureSession {
+      const state: TestCaptureSessionState = {
+        generation,
+        starts: 0,
+        schedules: 0,
+        disposed: false,
+      }
+      states.push(state)
+      return {
+        start() {
+          state.starts += 1
+        },
+        schedule() {
+          state.schedules += 1
+        },
+        dispose() {
+          state.disposed = true
+        },
+      }
+    },
+    onXPostsWritten(listener) {
+      const deliver = (): void => {
+        listener()
+      }
+      listeners.add(deliver)
+      return () => {
+        listeners.delete(deliver)
+      }
+    },
+    sessions: () => states.map((state) => ({ ...state })),
+    emitXPostsWritten() {
+      for (const listener of listeners) {
+        listener()
+      }
+    },
   }
 }

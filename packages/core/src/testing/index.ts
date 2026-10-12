@@ -113,10 +113,15 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestBacklinkTargetService,
   createTestCaptureInboxService,
+  createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
+  type TestBacklinkTargetServiceOptions,
   type TestCaptureInboxService,
+  type TestCaptureService,
+  type TestCaptureSessionState,
   type TestWebFetchService,
   type TestXArchiveService,
   type WebFetchKind,

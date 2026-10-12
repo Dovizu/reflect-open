@@ -1,79 +1,35 @@
-vi.mock('../x-archive', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../x-archive.ts')>()),
-  saveArchivedPost: vi.fn(async () => {}),
-}))
-import { drainCaptureInbox } from './capture-drain.ts'
-import fixtures from './bookmark-envelope.fixtures.json' with { type: 'json' }
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import fixtures from '../actions/bookmark-envelope.fixtures.json' with { type: 'json' }
+import type { TextCaptureEnvelope } from '../actions/capture-envelope.ts'
 import {
-  addSpool,
   CAPTURED_AT,
+  createCaptureTestKit,
   DAILY,
-  describeMock,
-  drain,
   envelope,
-  files,
   IDENTITY,
-  inboxRemoveMock,
-  promoteMock,
-  rejected,
-  scrapeMock,
-  spool,
-  wireCaptureMocks,
-  writeNoteMock,
-} from './capture-harness.ts'
-import type { TextCaptureEnvelope } from './capture-envelope.ts'
+  type CaptureTestKit,
+} from './capture-test-kit.ts'
 
-const ensureBacklinkTargetMock = vi.hoisted(() => vi.fn())
-
-vi.mock('../graph/commands', () => ({
-  captureInboxList: vi.fn(),
-  captureInboxRead: vi.fn(),
-  captureInboxReject: vi.fn(),
-  captureInboxRemove: vi.fn(),
-  captureLinkPreview: vi.fn(),
-  listFiles: vi.fn(),
-  promoteCaptureScreenshot: vi.fn(),
-  readAsset: vi.fn(),
-  readNote: vi.fn(),
-  writeAsset: vi.fn(),
-  writeNote: vi.fn(),
-}))
-vi.mock('./meta-scrape', () => ({
-  scrapePageMeta: vi.fn(),
-}))
-vi.mock('../ai/describe-page', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../ai/describe-page.ts')>()),
-  describePage: vi.fn(),
-}))
-vi.mock('./backlink-target', () => ({
-  ensureBacklinkTarget: ensureBacklinkTargetMock,
-}))
+let kit: CaptureTestKit
 
 beforeEach(() => {
-  wireCaptureMocks()
-  ensureBacklinkTargetMock.mockResolvedValue('Links')
+  kit = createCaptureTestKit()
 })
 
-afterEach(() => {
-  setDefaultSecretStore(null)
-})
-
-describe('drainCaptureInbox', () => {
+describe('CaptureDrainService', () => {
   it('writes the capture note, daily entry, and asset — then removes the spool', async () => {
-    addSpool(envelope({ selection: 'quoted text', note: 'check later' }))
+    kit.addSpool(envelope({ selection: 'quoted text', note: 'check later' }))
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 0, invalid: 0, stopped: null })
-    expect(promoteMock).toHaveBeenCalledWith(
+    expect(kit.promoteMock).toHaveBeenCalledWith(
       '7c9e6679-7425-40de-944b-e07fc1f90ae7.jpg',
       IDENTITY.assetPath,
       1600,
       3,
     )
-    const note = files.get(IDENTITY.notePath)
+    const note = kit.noteFile.files().get(IDENTITY.notePath)
     expect(note).toContain('captureUrl: https://example.com/article')
     expect(note).toContain('captureStatus: pending')
     expect(note).toContain('captureScreenshot: assets/capture-2026-06-11-153022-845-7c9e.jpg')
@@ -85,36 +41,39 @@ describe('drainCaptureInbox', () => {
     expect(note).toContain('## Selection\n\nquoted text')
     expect(note).toContain(`## Screenshot\n\n![An article](${IDENTITY.assetPath})`)
 
-    const daily = files.get(DAILY)
+    const daily = kit.noteFile.files().get(DAILY)
     expect(daily).toContain('## [[Links]]')
     expect(daily).toContain('- [[capture-2026-06-11-153022-845-7c9e|An article]]')
-    expect(ensureBacklinkTargetMock).toHaveBeenCalledWith('Links', 3)
-    expect(spool.size).toBe(0)
+    expect(kit.ensureBacklinkTargetMock).toHaveBeenCalledWith('Links', 3)
+    expect(kit.captureInbox.files().size).toBe(0)
   })
 
   it('writes extracted page text into the capture note', async () => {
-    addSpool(envelope({ contentText: 'First paragraph.\n\nSecond paragraph.' }), {
+    kit.addSpool(envelope({ contentText: 'First paragraph.\n\nSecond paragraph.' }), {
       screenshot: false,
     })
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 0, invalid: 0, stopped: null })
-    const note = files.get(IDENTITY.notePath)
+    const note = kit.noteFile.files().get(IDENTITY.notePath)
     expect(note).toContain(
       '## Page Text\n\n<!-- reflect-capture-page-text:start -->\nFirst paragraph.\n\nSecond paragraph.\n<!-- reflect-capture-page-text:end -->',
     )
   })
 
   it('writes an iOS share capture with its in-page description into the raw save', async () => {
-    addSpool(envelope({ source: 'ios-share', metaDescription: '  A page\nabout examples.  ' }), {
-      screenshot: false,
-    })
+    kit.addSpool(
+      envelope({ source: 'ios-share', metaDescription: '  A page\nabout examples.  ' }),
+      {
+        screenshot: false,
+      },
+    )
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 0, invalid: 0, stopped: null })
-    const note = files.get(IDENTITY.notePath)
+    const note = kit.noteFile.files().get(IDENTITY.notePath)
     expect(note).toContain('captureSource: ios-share')
     // Whitespace-folded onto the one metadata line, right where enrichment
     // will replace it in place.
@@ -123,18 +82,18 @@ describe('drainCaptureInbox', () => {
   })
 
   it('removes the spool only after the note and daily entry are written', async () => {
-    addSpool(envelope())
-    await drain()
-    const lastWrite = Math.max(...writeNoteMock.mock.invocationCallOrder)
-    const firstRemove = Math.min(...inboxRemoveMock.mock.invocationCallOrder)
+    kit.addSpool(envelope())
+    await kit.drain()
+    const lastWrite = Math.max(...kit.writeNoteMock.mock.invocationCallOrder)
+    const firstRemove = Math.min(...kit.inboxRemoveMock.mock.invocationCallOrder)
     expect(firstRemove).toBeGreaterThan(lastWrite)
   })
 
   it('drains a batch that arrived while the app was closed, oldest first', async () => {
-    addSpool(envelope({ id: '00000000-0000-4000-8000-000000000002', url: 'https://b.com' }), {
+    kit.addSpool(envelope({ id: '00000000-0000-4000-8000-000000000002', url: 'https://b.com' }), {
       modifiedMs: 200,
     })
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         url: 'https://a.com',
@@ -143,23 +102,23 @@ describe('drainCaptureInbox', () => {
       { modifiedMs: 100 },
     )
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome.drained).toBe(2)
-    const daily = files.get(DAILY) ?? ''
+    const daily = kit.noteFile.files().get(DAILY) ?? ''
     expect(daily.indexOf('capture-2026-06-11-090000-000')).toBeLessThan(
       daily.indexOf('capture-2026-06-11-153022-845'),
     )
-    expect(spool.size).toBe(0)
+    expect(kit.captureInbox.files().size).toBe(0)
   })
 
   it('upgrades the existing plain Links section without duplicating it', async () => {
-    files.set(DAILY, '# plans\n\n## Links\n\n[[capture-2026-06-11-090000-000-0000|Old]]\n')
-    addSpool(envelope())
+    kit.noteFile.set(DAILY, '# plans\n\n## Links\n\n[[capture-2026-06-11-090000-000-0000|Old]]\n')
+    kit.addSpool(envelope())
 
-    await drain()
+    await kit.drain()
 
-    const daily = files.get(DAILY) ?? ''
+    const daily = kit.noteFile.files().get(DAILY) ?? ''
     expect(daily.match(/## \[\[Links\]\]/g)).toHaveLength(1)
     expect(daily).not.toContain('## Links\n')
     expect(daily).toContain('[[capture-2026-06-11-090000-000-0000|Old]]')
@@ -169,353 +128,374 @@ describe('drainCaptureInbox', () => {
   })
 
   it('extends only the leading Links list, before later daily-note prose', async () => {
-    files.set(DAILY, '## [[Links]]\n\n- [[Old]]\n- [[Older]]\n\nScratchpad for later.\n')
-    addSpool(envelope())
+    kit.noteFile.set(DAILY, '## [[Links]]\n\n- [[Old]]\n- [[Older]]\n\nScratchpad for later.\n')
+    kit.addSpool(envelope())
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toBe(
+    expect(kit.noteFile.files().get(DAILY)).toBe(
       '## [[Links]]\n\n- [[Old]]\n- [[Older]]\n- [[capture-2026-06-11-153022-845-7c9e|An article]]\n\nScratchpad for later.\n',
     )
   })
 
   it('reuses an existing linked Links section for same-day dedup', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
+    await kit.drain()
 
-    addSpool(envelope())
-    const outcome = await drain()
+    kit.addSpool(envelope())
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(1)
-    const daily = files.get(DAILY) ?? ''
+    const daily = kit.noteFile.files().get(DAILY) ?? ''
     expect(daily.match(/## \[\[Links\]\]/g)).toHaveLength(1)
     expect(daily.match(/capture-2026-06-11-093000-000-0000/g)).toHaveLength(1)
   })
 
   it('does not treat a nested Links heading as the daily capture section', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
-    files.set(DAILY, '> ## [[Links]]\n>\n> - [[capture-2026-06-11-093000-000-0000|An article]]\n')
+    await kit.drain()
+    kit.noteFile.set(
+      DAILY,
+      '> ## [[Links]]\n>\n> - [[capture-2026-06-11-093000-000-0000|An article]]\n',
+    )
 
-    addSpool(envelope())
-    const outcome = await drain()
+    kit.addSpool(envelope())
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(0)
-    expect(files.has(IDENTITY.notePath)).toBe(true)
-    expect(files.get(DAILY)).toContain(
+    expect(kit.noteFile.files().has(IDENTITY.notePath)).toBe(true)
+    expect(kit.noteFile.files().get(DAILY)).toContain(
       '\n## [[Links]]\n\n- [[capture-2026-06-11-153022-845-7c9e|An article]]\n',
     )
   })
 
   it('upgrades a legacy heading even when a same-day recapture is deduplicated', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
-    files.set(DAILY, (files.get(DAILY) ?? '').replace('## [[Links]]', '## Links'))
+    await kit.drain()
+    kit.noteFile.set(
+      DAILY,
+      (kit.noteFile.files().get(DAILY) ?? '').replace('## [[Links]]', '## Links'),
+    )
 
-    addSpool(envelope())
-    const outcome = await drain()
+    kit.addSpool(envelope())
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(1)
-    expect(files.get(DAILY)).toContain('## [[Links]]')
-    expect(files.get(DAILY)).not.toContain('## Links\n')
+    expect(kit.noteFile.files().get(DAILY)).toContain('## [[Links]]')
+    expect(kit.noteFile.files().get(DAILY)).not.toContain('## Links\n')
   })
 
   it('deduplicates under an H1 or formatted Links heading, as insertion files there', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
-    files.set(DAILY, (files.get(DAILY) ?? '').replace('## [[Links]]', '# **Links**'))
+    await kit.drain()
+    kit.noteFile.set(
+      DAILY,
+      (kit.noteFile.files().get(DAILY) ?? '').replace('## [[Links]]', '# **Links**'),
+    )
 
-    addSpool(envelope())
-    const outcome = await drain()
+    kit.addSpool(envelope())
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(1)
-    expect(files.has(IDENTITY.notePath)).toBe(false)
+    expect(kit.noteFile.files().has(IDENTITY.notePath)).toBe(false)
   })
 
   it('deduplicates across every matching Links section', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
-    files.set(DAILY, `## Links\n\n- [[Old]]\n\n${files.get(DAILY) ?? ''}`)
+    await kit.drain()
+    kit.noteFile.set(DAILY, `## Links\n\n- [[Old]]\n\n${kit.noteFile.files().get(DAILY) ?? ''}`)
 
-    addSpool(envelope())
-    const outcome = await drain()
+    kit.addSpool(envelope())
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(1)
-    expect(files.has(IDENTITY.notePath)).toBe(false)
+    expect(kit.noteFile.files().has(IDENTITY.notePath)).toBe(false)
   })
 
   it('keeps the spool retryable when the Links note cannot be ensured', async () => {
-    addSpool(envelope())
-    ensureBacklinkTargetMock.mockRejectedValue({ kind: 'io', message: 'disk full' })
+    kit.addSpool(envelope())
+    kit.ensureBacklinkTargetMock.mockRejectedValue({ kind: 'io', message: 'disk full' })
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome.stopped).toEqual({ reason: 'io', message: 'disk full' })
-    expect(files.size).toBe(0)
-    expect(spool.size).toBe(2)
+    expect(kit.noteFile.files().size).toBe(0)
+    expect(kit.captureInbox.files().size).toBe(2)
   })
 
   it('uses the current title when the Links note was renamed', async () => {
-    ensureBacklinkTargetMock.mockResolvedValue('Bookmarks')
-    addSpool(envelope())
+    kit.ensureBacklinkTargetMock.mockResolvedValue('Bookmarks')
+    kit.addSpool(envelope())
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toContain('## [[Bookmarks]]')
-    expect(files.get(DAILY)).not.toContain('## [[Links]]')
-    expect(ensureBacklinkTargetMock).toHaveBeenCalledWith('Links', 3)
+    expect(kit.noteFile.files().get(DAILY)).toContain('## [[Bookmarks]]')
+    expect(kit.noteFile.files().get(DAILY)).not.toContain('## [[Links]]')
+    expect(kit.ensureBacklinkTargetMock).toHaveBeenCalledWith('Links', 3)
   })
 
   it('deduplicates captures under a renamed Links heading', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
-    files.set(DAILY, (files.get(DAILY) ?? '').replace('[[Links]]', '[[Bookmarks]]'))
-    ensureBacklinkTargetMock.mockResolvedValue('Bookmarks')
+    await kit.drain()
+    kit.noteFile.set(
+      DAILY,
+      (kit.noteFile.files().get(DAILY) ?? '').replace('[[Links]]', '[[Bookmarks]]'),
+    )
+    kit.ensureBacklinkTargetMock.mockResolvedValue('Bookmarks')
 
-    addSpool(envelope())
-    const outcome = await drain()
+    kit.addSpool(envelope())
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(1)
-    expect(files.has(IDENTITY.notePath)).toBe(false)
-    expect(files.get(DAILY)).toContain('## [[Bookmarks]]')
+    expect(kit.noteFile.files().has(IDENTITY.notePath)).toBe(false)
+    expect(kit.noteFile.files().get(DAILY)).toContain('## [[Bookmarks]]')
   })
 
   it('saves a private-day capture raw, marked skipped', async () => {
-    files.set(DAILY, '---\nprivate: true\n---\n\nsecret plans\n')
-    addSpool(envelope())
+    kit.noteFile.set(DAILY, '---\nprivate: true\n---\n\nsecret plans\n')
+    kit.addSpool(envelope())
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome.drained).toBe(1)
-    expect(files.get(IDENTITY.notePath)).toContain('captureStatus: skipped')
-    expect(files.get(DAILY)).toContain('- [[capture-2026-06-11-153022-845-7c9e|An article]]')
+    expect(kit.noteFile.files().get(IDENTITY.notePath)).toContain('captureStatus: skipped')
+    expect(kit.noteFile.files().get(DAILY)).toContain(
+      '- [[capture-2026-06-11-153022-845-7c9e|An article]]',
+    )
   })
 
   it('refreshes a same-day same-URL same-selection re-capture in place', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
+    await kit.drain()
     const originalNotePath = 'notes/capture-2026-06-11-093000-000-0000.md'
-    expect(files.has(originalNotePath)).toBe(true)
+    expect(kit.noteFile.files().has(originalNotePath)).toBe(true)
 
-    addSpool(envelope()) // same URL, no selection, same day, 15:30
-    const outcome = await drain()
+    kit.addSpool(envelope()) // same URL, no selection, same day, 15:30
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 1, invalid: 0, stopped: null })
     // The existing identity is reused — no orphan note under the new stamp.
-    expect(files.has(IDENTITY.notePath)).toBe(false)
-    expect(files.get(originalNotePath)).toContain('captureStatus: pending')
-    expect(promoteMock).toHaveBeenLastCalledWith(
+    expect(kit.noteFile.files().has(IDENTITY.notePath)).toBe(false)
+    expect(kit.noteFile.files().get(originalNotePath)).toContain('captureStatus: pending')
+    expect(kit.promoteMock).toHaveBeenLastCalledWith(
       '7c9e6679-7425-40de-944b-e07fc1f90ae7.jpg',
       'assets/capture-2026-06-11-093000-000-0000.jpg',
       1600,
       3,
     )
-    const daily = files.get(DAILY) ?? ''
+    const daily = kit.noteFile.files().get(DAILY) ?? ''
     expect(daily.match(/capture-2026-06-11-093000-000-0000/g)).toHaveLength(1)
     expect(daily).not.toContain('capture-2026-06-11-153022-845')
   })
 
   it('a dedup refresh re-syncs the daily link text with the fresh tab title', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
+    await kit.drain()
     // Simulate a completed enrichment: H1 and daily link text carry the AI title.
     const notePath = 'notes/capture-2026-06-11-093000-000-0000.md'
-    files.set(notePath, (files.get(notePath) ?? '').replace('# An article', '# AI Title'))
-    files.set(DAILY, (files.get(DAILY) ?? '').replace('|An article]]', '|AI Title]]'))
+    kit.noteFile.set(
+      notePath,
+      (kit.noteFile.files().get(notePath) ?? '').replace('# An article', '# AI Title'),
+    )
+    kit.noteFile.set(
+      DAILY,
+      (kit.noteFile.files().get(DAILY) ?? '').replace('|An article]]', '|AI Title]]'),
+    )
 
-    addSpool(envelope()) // same URL re-capture, 15:30
-    const outcome = await drain()
+    kit.addSpool(envelope()) // same URL re-capture, 15:30
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(1)
-    expect(files.get(notePath)).toContain('# An article')
-    const daily = files.get(DAILY) ?? ''
+    expect(kit.noteFile.files().get(notePath)).toContain('# An article')
+    const daily = kit.noteFile.files().get(DAILY) ?? ''
     expect(daily).toContain('|An article]]')
     expect(daily).not.toContain('|AI Title]]')
   })
 
   it('a dedup refresh leaves a user-edited daily link text alone', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
-    files.set(DAILY, (files.get(DAILY) ?? '').replace('|An article]]', '|my own link text]]'))
+    await kit.drain()
+    kit.noteFile.set(
+      DAILY,
+      (kit.noteFile.files().get(DAILY) ?? '').replace('|An article]]', '|my own link text]]'),
+    )
 
-    addSpool(envelope({ title: 'An article - Example News' }))
-    const outcome = await drain()
+    kit.addSpool(envelope({ title: 'An article - Example News' }))
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(1)
-    expect(files.get('notes/capture-2026-06-11-093000-000-0000.md')).toContain(
+    expect(kit.noteFile.files().get('notes/capture-2026-06-11-093000-000-0000.md')).toContain(
       '# An article - Example News',
     )
-    expect(files.get(DAILY)).toContain('|my own link text]]')
+    expect(kit.noteFile.files().get(DAILY)).toContain('|my own link text]]')
   })
 
   it('a different selection creates a new entry instead of refreshing', async () => {
-    addSpool(
+    kit.addSpool(
       envelope({
         id: '00000000-0000-4000-8000-000000000001',
         capturedAt: new Date(2026, 5, 11, 9, 30, 0, 0).toISOString(),
       }),
     )
-    await drain()
+    await kit.drain()
 
-    addSpool(envelope({ selection: 'a fresh highlight' }))
-    const outcome = await drain()
+    kit.addSpool(envelope({ selection: 'a fresh highlight' }))
+    const outcome = await kit.drain()
 
     expect(outcome.deduped).toBe(0)
-    expect(files.has(IDENTITY.notePath)).toBe(true)
-    const daily = files.get(DAILY) ?? ''
+    expect(kit.noteFile.files().has(IDENTITY.notePath)).toBe(true)
+    const daily = kit.noteFile.files().get(DAILY) ?? ''
     expect(daily).toContain('capture-2026-06-11-093000-000')
     expect(daily).toContain('capture-2026-06-11-153022-845')
   })
 
   it('re-drains idempotently after a crash between note write and spool removal', async () => {
-    addSpool(envelope())
-    await drain()
+    kit.addSpool(envelope())
+    await kit.drain()
     // Simulate the crashed pass: the spool files are back (never removed).
-    addSpool(envelope())
+    kit.addSpool(envelope())
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 1, invalid: 0, stopped: null })
-    const daily = files.get(DAILY) ?? ''
+    const daily = kit.noteFile.files().get(DAILY) ?? ''
     expect(daily.match(/capture-2026-06-11-153022-845/g)).toHaveLength(1)
   })
 
   it('quarantines an unparseable spool file instead of wedging the queue or deleting it', async () => {
-    spool.set('garbage.json', { contents: 'not json', modifiedMs: 0 })
-    addSpool(envelope({ id: '00000000-0000-4000-8000-000000000001' }))
+    kit.captureInbox.add('garbage.json', 'not json', { modifiedMs: 0 })
+    kit.addSpool(envelope({ id: '00000000-0000-4000-8000-000000000001' }))
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome.invalid).toBe(1)
     expect(outcome.drained).toBe(1)
-    expect(spool.has('garbage.json')).toBe(false)
+    expect(kit.captureInbox.files().has('garbage.json')).toBe(false)
     // Moved, never deleted — a newer extension's envelope must survive an
     // older app that can't parse it yet.
-    expect(rejected.get('garbage.json')).toBe('not json')
-    expect(inboxRemoveMock).not.toHaveBeenCalledWith('garbage.json', 3)
-    expect(writeNoteMock).toHaveBeenCalled()
+    expect(kit.captureInbox.rejected()).toContain('garbage.json')
+    expect(kit.inboxRemoveMock).not.toHaveBeenCalledWith('garbage.json', 3)
+    expect(kit.writeNoteMock).toHaveBeenCalled()
   })
 
   it('drains two same-millisecond captures of different pages into distinct notes', async () => {
-    addSpool(envelope({ id: '00000000-0000-4000-8000-000000000001', url: 'https://a.com' }), {
+    kit.addSpool(envelope({ id: '00000000-0000-4000-8000-000000000001', url: 'https://a.com' }), {
       screenshot: false,
     })
-    addSpool(envelope({ id: 'ffff0000-0000-4000-8000-000000000002', url: 'https://b.com' }), {
+    kit.addSpool(envelope({ id: 'ffff0000-0000-4000-8000-000000000002', url: 'https://b.com' }), {
       screenshot: false,
     })
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome.drained).toBe(2)
-    expect(files.has('notes/capture-2026-06-11-153022-845-0000.md')).toBe(true)
-    expect(files.has('notes/capture-2026-06-11-153022-845-ffff.md')).toBe(true)
+    expect(kit.noteFile.files().has('notes/capture-2026-06-11-153022-845-0000.md')).toBe(true)
+    expect(kit.noteFile.files().has('notes/capture-2026-06-11-153022-845-ffff.md')).toBe(true)
   })
 
   it('saves a capture whose screenshot cannot decode, without wedging the pass', async () => {
-    addSpool(envelope())
-    promoteMock.mockRejectedValue({ kind: 'parse', message: 'screenshot does not decode' })
+    kit.addSpool(envelope())
+    kit.promoteMock.mockRejectedValue({ kind: 'parse', message: 'screenshot does not decode' })
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     // Retrying identical bytes can't help — the capture lands without its
     // image instead of permanently blocking every capture behind it.
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 0, invalid: 0, stopped: null })
-    const note = files.get(IDENTITY.notePath) ?? ''
+    const note = kit.noteFile.files().get(IDENTITY.notePath) ?? ''
     expect(note).not.toContain('![')
     expect(note).not.toContain('captureScreenshot')
-    expect(spool.size).toBe(0)
+    expect(kit.captureInbox.files().size).toBe(0)
   })
 
   it('saves a capture whose screenshot sibling never landed, without the image', async () => {
-    addSpool(envelope())
-    spool.delete('7c9e6679-7425-40de-944b-e07fc1f90ae7.jpg')
+    kit.addSpool(envelope())
+    await kit.captureInbox.remove('7c9e6679-7425-40de-944b-e07fc1f90ae7.jpg', 3)
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome.drained).toBe(1)
-    const note = files.get(IDENTITY.notePath) ?? ''
+    const note = kit.noteFile.files().get(IDENTITY.notePath) ?? ''
     expect(note).not.toContain('![')
     expect(note).not.toContain('captureScreenshot')
   })
 
   it('sweeps old orphan screenshots but never young ones', async () => {
-    spool.set('11111111-1111-4111-8111-111111111111.jpg', { contents: 'x', modifiedMs: 0 })
-    spool.set('22222222-2222-4222-8222-222222222222.jpg', {
-      contents: 'x',
-      modifiedMs: 9_000_000,
-    })
+    kit.captureInbox.add('11111111-1111-4111-8111-111111111111.jpg', 'x', { modifiedMs: 0 })
+    kit.captureInbox.add('22222222-2222-4222-8222-222222222222.jpg', 'x', { modifiedMs: 9_000_000 })
 
-    await drain({ now: () => 10_000_000 }) // first is ~2.8h old, second ~17min
+    kit.clock.setNow(10_000_000) // first is ~2.8h old, second ~17min
+    await kit.drain()
 
-    expect(spool.has('11111111-1111-4111-8111-111111111111.jpg')).toBe(false)
-    expect(spool.has('22222222-2222-4222-8222-222222222222.jpg')).toBe(true)
+    expect(kit.captureInbox.files().has('11111111-1111-4111-8111-111111111111.jpg')).toBe(false)
+    expect(kit.captureInbox.files().has('22222222-2222-4222-8222-222222222222.jpg')).toBe(true)
   })
 
   it('stops before any work when the session is stale', async () => {
-    addSpool(envelope())
-    const outcome = await drain({ isStale: () => true })
+    kit.addSpool(envelope())
+    const outcome = await kit.drain({ isStale: () => true })
     expect(outcome.stopped?.reason).toBe('stale')
-    expect(writeNoteMock).not.toHaveBeenCalled()
-    expect(spool.size).toBe(2)
+    expect(kit.writeNoteMock).not.toHaveBeenCalled()
+    expect(kit.captureInbox.files().size).toBe(2)
   })
 
   it('a write failure stops the pass with the error kind', async () => {
-    addSpool(envelope())
-    writeNoteMock.mockRejectedValue({ kind: 'io', message: 'disk full' })
+    kit.addSpool(envelope())
+    kit.writeNoteMock.mockRejectedValue({ kind: 'io', message: 'disk full' })
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome.stopped).toEqual({ reason: 'io', message: 'disk full' })
-    expect(spool.size).toBe(2) // nothing removed — the capture is retryable
+    expect(kit.captureInbox.files().size).toBe(2) // nothing removed — the capture is retryable
   })
 })
 
-describe('drainCaptureInbox (text captures)', () => {
+describe('CaptureDrainService (text captures)', () => {
   function textEnvelope(overrides: Partial<TextCaptureEnvelope> = {}): TextCaptureEnvelope {
     return {
       version: 1,
@@ -529,149 +509,152 @@ describe('drainCaptureInbox (text captures)', () => {
   }
 
   function addTextSpool(capture: TextCaptureEnvelope): void {
-    spool.set(`${capture.id}.json`, { contents: JSON.stringify(capture), modifiedMs: 0 })
+    kit.captureInbox.add(`${capture.id}.json`, JSON.stringify(capture), { modifiedMs: 0 })
   }
 
   it('appends a bullet to the capture-day daily and removes the spool', async () => {
     addTextSpool(textEnvelope())
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 0, invalid: 0, stopped: null })
-    expect(files.get(DAILY)).toBe('- call the bank\n')
-    expect(spool.size).toBe(0)
+    expect(kit.noteFile.files().get(DAILY)).toBe('- call the bank\n')
+    expect(kit.captureInbox.files().size).toBe(0)
   })
 
   it('puts a task envelope in a new Tasks section as a round (+) task', async () => {
     addTextSpool(textEnvelope({ kind: 'task', text: 'buy milk' }))
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toBe('## Tasks\n\n+ [ ] buy milk\n')
+    expect(kit.noteFile.files().get(DAILY)).toBe('## Tasks\n\n+ [ ] buy milk\n')
   })
 
   it('places a task capture in the existing Tasks section without creating a note', async () => {
-    files.set(DAILY, '## Tasks\n\n+ [ ] old\n\n## Later\n\nprose\n')
+    kit.noteFile.set(DAILY, '## Tasks\n\n+ [ ] old\n\n## Later\n\nprose\n')
     addTextSpool(textEnvelope({ kind: 'task', text: 'buy milk' }))
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toBe('## Tasks\n\n+ [ ] old\n+ [ ] buy milk\n\n## Later\n\nprose\n')
-    expect([...files.keys()].filter((path) => path !== DAILY)).toEqual([])
+    expect(kit.noteFile.files().get(DAILY)).toBe(
+      '## Tasks\n\n+ [ ] old\n+ [ ] buy milk\n\n## Later\n\nprose\n',
+    )
+    expect([...kit.noteFile.files().keys()].filter((path) => path !== DAILY)).toEqual([])
   })
 
   it('appends a checkbox envelope as a square GFM checkbox', async () => {
     addTextSpool(textEnvelope({ kind: 'checkbox', text: 'pack a bag' }))
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toBe('- [ ] pack a bag\n')
+    expect(kit.noteFile.files().get(DAILY)).toBe('- [ ] pack a bag\n')
   })
 
   it('joins the daily note’s trailing bullet list instead of opening a new block', async () => {
-    files.set(DAILY, '- morning standup\n')
+    kit.noteFile.set(DAILY, '- morning standup\n')
     addTextSpool(textEnvelope())
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toBe('- morning standup\n- call the bank\n')
+    expect(kit.noteFile.files().get(DAILY)).toBe('- morning standup\n- call the bank\n')
   })
 
   it('two same-day captures grow one list', async () => {
     addTextSpool(textEnvelope())
-    spool.set('a1b2c3d4-0000-4000-8000-000000000002.json', {
-      contents: JSON.stringify(
+    kit.captureInbox.add(
+      'a1b2c3d4-0000-4000-8000-000000000002.json',
+      JSON.stringify(
         textEnvelope({ id: 'a1b2c3d4-0000-4000-8000-000000000002', text: 'buy milk' }),
       ),
-      modifiedMs: 1,
-    })
+      { modifiedMs: 1 },
+    )
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 2, drained: 2, deduped: 0, invalid: 0, stopped: null })
-    expect(files.get(DAILY)).toBe('- call the bank\n- buy milk\n')
+    expect(kit.noteFile.files().get(DAILY)).toBe('- call the bank\n- buy milk\n')
   })
 
   it('starts a fresh list after a prose tail', async () => {
-    files.set(DAILY, 'Wrote some prose.\n')
+    kit.noteFile.set(DAILY, 'Wrote some prose.\n')
     addTextSpool(textEnvelope())
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toBe('Wrote some prose.\n\n- call the bank\n')
+    expect(kit.noteFile.files().get(DAILY)).toBe('Wrote some prose.\n\n- call the bank\n')
   })
 
   it('appends a duplicate line — identical text twice is two entries', async () => {
-    files.set(DAILY, '- call the bank\n')
+    kit.noteFile.set(DAILY, '- call the bank\n')
     addTextSpool(textEnvelope())
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 0, invalid: 0, stopped: null })
-    expect(files.get(DAILY)).toBe('- call the bank\n- call the bank\n')
-    expect(spool.size).toBe(0)
+    expect(kit.noteFile.files().get(DAILY)).toBe('- call the bank\n- call the bank\n')
+    expect(kit.captureInbox.files().size).toBe(0)
   })
 
   it('drains an ios-intent envelope like any other text source', async () => {
     addTextSpool(textEnvelope({ source: 'ios-intent' }))
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome).toEqual({ pending: 1, drained: 1, deduped: 0, invalid: 0, stopped: null })
-    expect(files.get(DAILY)).toBe('- call the bank\n')
+    expect(kit.noteFile.files().get(DAILY)).toBe('- call the bank\n')
   })
 
   it('a checkbox never joins a task list — the + marker stays a task', async () => {
-    files.set(DAILY, '+ [ ] buy milk\n')
+    kit.noteFile.set(DAILY, '+ [ ] buy milk\n')
     addTextSpool(textEnvelope({ kind: 'checkbox', text: 'pack a bag' }))
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toBe('+ [ ] buy milk\n- [ ] pack a bag\n')
+    expect(kit.noteFile.files().get(DAILY)).toBe('+ [ ] buy milk\n- [ ] pack a bag\n')
   })
 
   it('still appends to a private daily — the write is entirely local', async () => {
-    files.set(DAILY, '---\nprivate: true\n---\n\n- secret plans\n')
+    kit.noteFile.set(DAILY, '---\nprivate: true\n---\n\n- secret plans\n')
     addTextSpool(textEnvelope())
 
-    await drain()
+    await kit.drain()
 
-    expect(files.get(DAILY)).toContain('- call the bank')
-    expect(scrapeMock).not.toHaveBeenCalled()
-    expect(describeMock).not.toHaveBeenCalled()
+    expect(kit.noteFile.files().get(DAILY)).toContain('- call the bank')
+    expect(kit.scrapeMock).not.toHaveBeenCalled()
+    expect(kit.describeMock).not.toHaveBeenCalled()
   })
 
   it('quarantines a text envelope that fails validation', async () => {
     addTextSpool(textEnvelope({ text: 'line one\nline two' }))
 
-    const outcome = await drain()
+    const outcome = await kit.drain()
 
     expect(outcome.invalid).toBe(1)
-    expect(rejected.has('a1b2c3d4-0000-4000-8000-000000000001.json')).toBe(true)
-    expect(files.has(DAILY)).toBe(false)
+    expect(kit.captureInbox.rejected()).toContain('a1b2c3d4-0000-4000-8000-000000000001.json')
+    expect(kit.noteFile.files().has(DAILY)).toBe(false)
   })
 
   it('never writes a capture note for a text envelope', async () => {
     addTextSpool(textEnvelope())
 
-    await drain()
+    await kit.drain()
 
-    expect([...files.keys()]).toEqual([DAILY])
+    expect([...kit.noteFile.files().keys()]).toEqual([DAILY])
   })
 })
 
 it('isolates a failed bookmark write from later page captures', async () => {
   const bookmark = { ...fixtures.spooled[0]!, id: '00000000-0000-4000-8000-000000000001' }
   const name = `${bookmark.id}.json`
-  spool.set(name, { contents: JSON.stringify(bookmark), modifiedMs: -1 })
-  addSpool(envelope())
+  kit.captureInbox.add(name, JSON.stringify(bookmark), { modifiedMs: -1 })
+  kit.addSpool(envelope())
   const writeXPost = vi.fn(async () => {
     throw new Error('Daily note busy')
   })
-  const outcome = await drainCaptureInbox({ generation: 3, writeXPost })
+  const outcome = await kit.drain({ writeXPost })
   expect(outcome.drained).toBe(1)
   expect(outcome.invalid).toBe(0)
-  expect(spool.has(name)).toBe(true)
+  expect(kit.captureInbox.files().has(name)).toBe(true)
   expect(writeXPost).toHaveBeenCalledTimes(1)
   expect(outcome.stopped?.message).toBe('Daily note busy')
 })

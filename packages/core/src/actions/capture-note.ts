@@ -1,7 +1,7 @@
 import { z } from 'zod'
+import type { HashService } from '../app/hash-service.ts'
 import { isAppError } from '../errors.ts'
-import { readNote } from '../graph/commands.ts'
-import { hashContent } from '../indexing/hash.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { wikiLinkSafe } from '../markdown/edit.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import type { Frontmatter } from '../markdown/model.ts'
@@ -116,6 +116,7 @@ function firstSectionStart(body: string): number {
 }
 
 export async function captureNoteSource(
+  hash: HashService,
   envelope: CaptureEnvelope,
   identity: CaptureIdentity,
   options: { hasScreenshot: boolean; status: CaptureStatus; selectionHash?: string | undefined },
@@ -127,16 +128,20 @@ export async function captureNoteSource(
     capturedAt: envelope.capturedAt,
     captureSource: envelope.source,
     captureStatus: options.status,
-    captureHash: await hashContent(body),
+    captureHash: await hash.sha256Hex(body),
     captureSelectionHash: options.selectionHash,
     captureScreenshot: options.hasScreenshot ? identity.assetPath : undefined,
   })
 }
 
 /** A note's source at `generation`, where "no note yet" reads as empty. */
-export async function noteSource(path: string, generation: number): Promise<string> {
+export async function noteSource(
+  noteFile: Pick<NoteFileService, 'read'>,
+  path: string,
+  generation: number,
+): Promise<string> {
   try {
-    return await readNote(path, generation)
+    return await noteFile.read(path, generation)
   } catch (cause) {
     if (isAppError(cause) && cause.kind === 'notFound') {
       return ''

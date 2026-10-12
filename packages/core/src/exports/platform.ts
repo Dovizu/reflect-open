@@ -824,15 +824,6 @@ export {
   listAttachments,
   vaultScanStats,
   type VaultScanStats,
-  captureHostRegister,
-  captureInboxList,
-  captureInboxRead,
-  captureInboxSpool,
-  captureInboxReject,
-  captureInboxRemove,
-  captureMetaFetch,
-  captureSharedInboxRelay,
-  promoteCaptureScreenshot,
 } from '../graph/commands.ts'
 export { fetchYouTubeVideo } from '../youtube-video.ts'
 export { createAsset, importAsset } from '../graph/assets.ts'
