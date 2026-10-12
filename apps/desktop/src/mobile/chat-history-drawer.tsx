@@ -6,6 +6,7 @@ import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer.tsx'
 import { createChatConversationsQueryOptions } from '@/lib/query-options.ts'
 import { useChatSession } from '@/providers/chat-provider.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface ChatHistoryDrawerProps {
   open: boolean
@@ -21,13 +22,14 @@ interface ChatHistoryDrawerProps {
  */
 export function ChatHistoryDrawer({ open, onOpenChange }: ChatHistoryDrawerProps): ReactElement {
   const { graph, indexGeneration } = useGraph()
+  const { chatHistory } = useAppServices()
   const { activeConversationId, openConversation, deleteConversation } = useChatSession()
 
   const enabled = indexGeneration !== null
   const { data: conversations } = useQuery({
     // The graph root is part of the key: conversations belong to one graph,
     // and a graph switch must never serve the previous graph's cached list.
-    ...createChatConversationsQueryOptions(graph?.root),
+    ...createChatConversationsQueryOptions({ chatHistory }, graph?.root),
     enabled: enabled && open,
   })
 

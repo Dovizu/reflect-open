@@ -51,14 +51,14 @@ function githubRepoBrowserUrl(
 export function BackupSettingsField(): ReactElement {
   const { backup, disconnectGraph, signOut, backUpNow } = useSync()
   const { graph } = useGraph()
-  const { opener } = useAppServices()
+  const { indexQuery, opener } = useAppServices()
   const githubConnected = useGithubConnected()
   const [connectOpen, setConnectOpen] = useState(false)
   const openRepoAttempt = useRef(0)
   const action = useAsyncAction()
 
   const conflicted = useQuery({
-    ...createConflictedNotesQueryOptions(graph?.root),
+    ...createConflictedNotesQueryOptions({ indexQuery }, graph?.root),
     enabled: graph !== null,
   })
   const conflictedNotes = conflicted.data ?? []
@@ -68,7 +68,7 @@ export function BackupSettingsField(): ReactElement {
   // note retitled differently on two devices. Surfaced for review beside the
   // marker conflicts; repair is the user's call, never automatic.
   const duplicateIds = useQuery({
-    ...createDuplicateNoteIdsQueryOptions(graph?.root),
+    ...createDuplicateNoteIdsQueryOptions({ indexQuery }, graph?.root),
     enabled: graph !== null,
   })
   const forkGroups = duplicateIds.data ?? []

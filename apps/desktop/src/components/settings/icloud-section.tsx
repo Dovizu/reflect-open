@@ -70,7 +70,7 @@ function reviewLine(conflictCount: number, forkCount: number): string {
 export function IcloudSettingsField(): ReactElement | null {
   const { graph, openRecent } = useGraph()
   const { backup, disconnectGraph } = useSync()
-  const { icloudMigration: migration, icloudNative, platform } = useAppServices()
+  const { icloudMigration: migration, icloudNative, indexQuery, platform } = useAppServices()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -92,11 +92,11 @@ export function IcloudSettingsField(): ReactElement | null {
     },
   })
   const conflicted = useQuery({
-    ...createConflictedNotesQueryOptions(graph?.root),
+    ...createConflictedNotesQueryOptions({ indexQuery }, graph?.root),
     enabled: hosted,
   })
   const duplicateIds = useQuery({
-    ...createDuplicateNoteIdsQueryOptions(graph?.root),
+    ...createDuplicateNoteIdsQueryOptions({ indexQuery }, graph?.root),
     enabled: hosted,
   })
 

@@ -1,8 +1,8 @@
-import { defaultAppServices, type AppServices } from '@reflect/core'
+import type { AppServices } from '@reflect/core'
 
 /** Flush dirty state every time the app is backgrounded; returns the teardown. */
 export function installBackgroundFlush(
-  ctx: Pick<AppServices, 'persistenceFlush' | 'openDocuments'> = defaultAppServices(),
+  ctx: Pick<AppServices, 'persistenceFlush' | 'openDocuments'>,
 ): () => void {
   const { persistenceFlush, openDocuments } = ctx
   const unregister = persistenceFlush.registerFlusher('documents', () => openDocuments.flushAll())

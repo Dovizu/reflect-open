@@ -31,6 +31,7 @@ import { useScrollRestoration } from '@/lib/use-scroll-restoration.ts'
 import { useToday } from '@/lib/use-today.ts'
 import type { ModClickEvent } from '@/lib/windows/open-in-new-window.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { routeForPath } from '@/routing/route.ts'
 import { TaskFiltersMenu } from './task-filters-menu.tsx'
 import { TaskGroupSection } from './task-group-section.tsx'
@@ -72,6 +73,7 @@ function focusedSelectedKey(
  */
 export function TasksScreen(): ReactElement {
   const { graph } = useGraph()
+  const { tasks: taskService } = useAppServices()
   const navigateNoteLink = useNoteLinkNavigation()
   const today = useToday()
   const { filters, toggle } = useTaskFilters()
@@ -83,11 +85,11 @@ export function TasksScreen(): ReactElement {
   const enabled = graph !== null
 
   const { data: open, isError: openFailed } = useQuery({
-    ...createOpenTasksQueryOptions(graph?.root),
+    ...createOpenTasksQueryOptions({ tasks: taskService }, graph?.root),
     enabled,
   })
   const { data: completed, isError: completedFailed } = useQuery({
-    ...createCompletedTasksQueryOptions(graph?.root),
+    ...createCompletedTasksQueryOptions({ tasks: taskService }, graph?.root),
     enabled: enabled && filters.archived,
   })
 

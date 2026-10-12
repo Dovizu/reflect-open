@@ -30,12 +30,13 @@ import { isModEvent } from '@meowdown/core'
  */
 export function TemplatesSection(): ReactElement {
   const { graph } = useGraph()
+  const { indexQuery } = useAppServices()
   const navigateNoteLink = useNoteLinkNavigation()
   const { openTemplateCreate } = useNoteTemplates()
   const [renaming, setRenaming] = useState<TemplateEntry | null>(null)
   const [deleting, setDeleting] = useState<TemplateEntry | null>(null)
   const { data: templates } = useQuery({
-    ...createTemplatesQueryOptions(graph?.root),
+    ...createTemplatesQueryOptions({ indexQuery }, graph?.root),
     enabled: graph !== null,
   })
 
@@ -179,7 +180,7 @@ function TemplateRenameDialog({ template, onClose }: TemplateDialogProps): React
 /** Delete = move the file to the trash (recoverable), confirmed first. */
 function TemplateDeleteDialog({ template, onClose }: TemplateDialogProps): ReactElement {
   const { graph } = useGraph()
-  const { operations } = useAppServices()
+  const { noteActions, operations } = useAppServices()
   const [error, setError] = useState<string | null>(null)
 
   const trash = async (): Promise<void> => {
@@ -190,7 +191,7 @@ function TemplateDeleteDialog({ template, onClose }: TemplateDialogProps): React
     const operation = operations.start('Trashing template')
     setError(null)
     try {
-      await deleteOpenNote(template.path, generation)
+      await deleteOpenNote({ noteActions }, template.path, generation)
       operation.done()
       onClose()
     } catch (cause) {

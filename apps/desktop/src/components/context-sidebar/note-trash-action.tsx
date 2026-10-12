@@ -28,7 +28,7 @@ interface NoteTrashActionProps {
 export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | null {
   const { graph } = useGraph()
   const { navigate } = useRouter()
-  const { operations } = useAppServices()
+  const { noteActions, operations } = useAppServices()
   const [confirmingTrash, setConfirmingTrash] = useState(false)
   const [isTrashing, setIsTrashing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,7 +46,7 @@ export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | 
     setIsTrashing(true)
     setError(null)
     try {
-      await deleteOpenNote(path, generation)
+      await deleteOpenNote({ noteActions }, path, generation)
       operation.done()
       setConfirmingTrash(false)
       navigate({ kind: 'today' })
