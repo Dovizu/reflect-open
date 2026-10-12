@@ -2,8 +2,7 @@
 //
 //   pnpm release:macos [flags]
 //
-//   --target=<triple>       Default: the host triple. `universal-apple-darwin` builds one
-//                           app for Apple Silicon and Intel
+//   --target=<triple>       Default: the host triple
 //   --artifact-dir=<path>   Copy the release assets there after the build
 //   --no-notarize           Signed-only build, for local runs without Apple credentials
 //   --no-sign               Unsigned app only, to check that it compiles and bundles
@@ -350,7 +349,6 @@ async function verifySidecarsLaunch(bundle: Bundle): Promise<void> {
   if (bundle.target === 'aarch64-apple-darwin' && process.arch !== 'arm64') {
     return
   }
-  // A universal sidecar must start in both slices. `arch` selects the slice.
   const slices =
     bundle.target === UNIVERSAL_TARGET && process.arch === 'arm64' ? ['-arm64', '-x86_64'] : [null]
   for (const sidecar of bundle.sidecars) {

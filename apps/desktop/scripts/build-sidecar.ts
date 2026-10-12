@@ -22,8 +22,6 @@ async function main(): Promise<void> {
 
   // Tauri exports the target triple to its before-commands.
   const target = process.env.TAURI_ENV_TARGET_TRIPLE ?? (await getHostTriple())
-  // A universal build compiles the app once per architecture, and tauri-build
-  // needs the sidecars of that architecture each time.
   const triples = target === UNIVERSAL_TARGET ? UNIVERSAL_TRIPLES : [target]
   // The explicit --target keeps the artifacts out of target/release/, where
   // tauri-build copies the de-suffixed sidecars.
@@ -41,7 +39,6 @@ async function main(): Promise<void> {
       log(`staged ${staged}`)
       return staged
     })
-    // The bundler copies this file as it is, so it must hold both architectures.
     if (target === UNIVERSAL_TARGET) {
       const staged = join(binariesDir, `${binary}-${target}`)
       await exec('lipo', ['-create', '-output', staged, ...slices], INHERIT)
