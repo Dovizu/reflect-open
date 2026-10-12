@@ -1,67 +1,50 @@
-import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultRetrieval, setDefaultStorage } from '@reflect/core'
-import { createTestRetrievalService, createTestStorageService } from '@reflect/core/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { RetrievalService } from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestNoteFileService,
+  createTestRetrievalService,
+  createTestWindowService,
+} from '@reflect/core/testing'
 import type { ReactNode } from 'react'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
-import { SimilarNotesSection } from './similar-notes-section.tsx'
-import { installTestNoteFile } from '@/test-utils/note-file.ts'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+import { useRouter } from '@/routing/router.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
+import { SimilarNotesSection } from './similar-notes-section.tsx'
 
-const { openNoteWindow } = installTestLinkNavigation()
-
-const relatedNotes = vi.hoisted(() => vi.fn())
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-}))
-vi.mock('@/lib/use-embed-status.ts', () => ({
-  useEmbedStatus: () => ({ status: 'ready', model: 'all-MiniLM-L6-v2' }),
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
-}))
-const semanticSetting = vi.hoisted(() => ({ enabled: true }))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({
-    settings: { semanticSearchEnabled: semanticSetting.enabled },
-    updateSettings: () => {},
-  }),
-}))
+const relatedNotes = vi.fn<RetrievalService['relatedNotes']>()
+const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
+let semanticSearchEnabled: boolean
 
 function RouteProbe(): ReactNode {
   const { route } = useRouter()
   return <output data-testid="route">{JSON.stringify(route)}</output>
 }
 
-function renderSimilar(path: string, probe: boolean = true) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <RouterProvider>
-        <SimilarNotesSection path={path} />
-        {probe ? <RouteProbe /> : null}
-      </RouterProvider>
-    </QueryClientProvider>,
+async function renderSimilar(path: string, probe: boolean = true) {
+  const app = createTestAppServices({
+    noteFile: createTestNoteFileService({ files: { 'daily/2026-06-09.md': '- daily entry\n' } }),
+    retrieval: createTestRetrievalService({ relatedNotes }),
+    window: createTestWindowService({ openNoteWindow }),
+  })
+  return await renderInApp(
+    <>
+      <SimilarNotesSection path={path} />
+      {probe ? <RouteProbe /> : null}
+    </>,
+    {
+      app,
+      graph: { root: '/g', name: 'g' },
+      settings: { semanticSearchEnabled },
+    },
   )
 }
 
-const noteFile = installTestNoteFile()
-
 beforeEach(() => {
-  setDefaultStorage(createTestStorageService())
-  semanticSetting.enabled = true
-  noteFile.read().mockResolvedValue('- daily entry\n')
+  semanticSearchEnabled = true
   relatedNotes.mockReset().mockResolvedValue([])
-  setDefaultRetrieval(createTestRetrievalService({ relatedNotes }))
-})
-
-afterEach(() => {
-  setDefaultStorage(null)
-  setDefaultRetrieval(null)
+  openNoteWindow.mockReset().mockResolvedValue(true)
 })
 
 describe('SimilarNotesSection', () => {
@@ -69,11 +52,10 @@ describe('SimilarNotesSection', () => {
     const view = await renderSimilar('daily/2026-06-09.md', false)
     await vi.waitFor(() => expect(relatedNotes).toHaveBeenCalledWith('daily/2026-06-09.md', 6))
     expect(view.container.firstChild).toBeNull()
-    await view.unmount()
   })
 
   it('neither queries nor renders while semantic search is disabled', async () => {
-    semanticSetting.enabled = false
+    semanticSearchEnabled = false
     relatedNotes.mockResolvedValue([
       {
         path: 'notes/rust.md',
@@ -89,7 +71,6 @@ describe('SimilarNotesSection', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(relatedNotes).not.toHaveBeenCalled()
     expect(view.container.firstChild).toBeNull()
-    await view.unmount()
   })
 
   it('renders the Similar notes section with one title-only row per neighbor', async () => {
@@ -121,7 +102,6 @@ describe('SimilarNotesSection', () => {
     // V1 rows are bare titles — snippets never render here.
     expect(view.getByText('borrow checker notes').query()).toBeNull()
     expect(view.getByText('comptime experiments').query()).toBeNull()
-    await view.unmount()
   })
 
   it('shows no more than six neighbors', async () => {
@@ -139,7 +119,6 @@ describe('SimilarNotesSection', () => {
     await expect.element(view.getByText('Note 6')).toBeInTheDocument()
     expect(view.getByText('Note 7').query()).toBeNull()
     expect(relatedNotes).toHaveBeenCalledWith('notes/languages.md', 6)
-    await view.unmount()
   })
 
   it('navigates to the clicked neighbor', async () => {
@@ -157,7 +136,6 @@ describe('SimilarNotesSection', () => {
     await userEvent.click(view.getByText('Gardening'))
     await expect.element(view.getByTestId('route')).toMatchTextContent('"kind":"note"')
     await expect.element(view.getByTestId('route')).toMatchTextContent('notes/gardening.md')
-    await view.unmount()
   })
 
   it('opens a ⌘-clicked neighbor in a new window', async () => {
@@ -184,6 +162,5 @@ describe('SimilarNotesSection', () => {
       ),
     )
     await expect.element(view.getByTestId('route')).toMatchTextContent('"kind":"today"')
-    await view.unmount()
   })
 })

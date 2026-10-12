@@ -1,14 +1,12 @@
 import { useEffect, useState, type MouseEvent, type ReactElement } from 'react'
 import { Check, Copy, RefreshCw } from 'lucide-react'
-import { defaultClipboard, errorMessage } from '@reflect/core'
+import { errorMessage } from '@reflect/core'
 import { Button } from '@/components/ui/button.tsx'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx'
 import { useNoteRow } from '@/hooks/use-note-row.ts'
-import { runGistPublish } from '@/lib/note-gist.ts'
-import { openUrlSync } from '@/lib/open-url.ts'
-import { startOperation } from '@/lib/operations.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { SidebarSection } from './sidebar-section.tsx'
 
 interface PublishedUrlSectionProps {
@@ -26,6 +24,7 @@ const COPY_RESET_MS = 1400
  */
 export function PublishedUrlSection({ path }: PublishedUrlSectionProps): ReactElement | null {
   const { graph } = useGraph()
+  const { clipboard, gistPublish, opener, operations } = useAppServices()
   const row = useNoteRow(path)
   const url = row?.gistUrl ?? null
   const [copyState, setCopyState] = useState<CopyState>('idle')
@@ -52,18 +51,18 @@ export function PublishedUrlSection({ path }: PublishedUrlSectionProps): ReactEl
 
   const copyUrl = async (): Promise<void> => {
     try {
-      await defaultClipboard().writeText(url)
+      await clipboard.writeText(url)
       setCopyState('copied')
-      startOperation('Published URL copied').done()
+      operations.start('Published URL copied').done()
     } catch (cause) {
-      startOperation('Copying the published URL').fail(errorMessage(cause))
+      operations.start('Copying the published URL').fail(errorMessage(cause))
     }
   }
 
   const openPublishedUrl = (event: MouseEvent<HTMLAnchorElement>): void => {
     event.preventDefault()
     if (url.startsWith('https://') || url.startsWith('http://')) {
-      openUrlSync(url)
+      opener.openUrlSync(url)
     }
   }
 
@@ -74,7 +73,7 @@ export function PublishedUrlSection({ path }: PublishedUrlSectionProps): ReactEl
     }
     setIsUpdating(true)
     try {
-      await runGistPublish(path, generation)
+      await gistPublish.publish(path, generation)
     } finally {
       setIsUpdating(false)
     }

@@ -1,20 +1,12 @@
 import { useEffect, useState, type ReactElement } from 'react'
-import {
-  canPromptForContacts,
-  contactsAccessNotice,
-  defaultOpener,
-  isContactsAvailable,
-} from '@reflect/core'
+import { canPromptForContacts, contactsAccessNotice, isContactsAvailable } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import {
   useContactsAuthorization,
   useRefreshContactsAuthorization,
 } from '@/hooks/use-contacts-authorization.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import {
-  useCalendarEventsService,
-  useContactSuggestionService,
-} from '@/services/use-contacts-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { CalendarIntegrationField } from './calendar-integration-field.tsx'
 import { SettingsSection } from './section.tsx'
 import { SettingsSwitchField } from './switch-field.tsx'
@@ -31,8 +23,7 @@ import { SettingsSwitchField } from './switch-field.tsx'
  */
 export function IntegrationsSection(): ReactElement | null {
   const { settings } = useSettings()
-  const contactSuggestions = useContactSuggestionService()
-  const calendarEvents = useCalendarEventsService()
+  const { calendarEvents, contactSuggestions, opener } = useAppServices()
   const authorization = useContactsAuthorization()
   const refreshAuthorization = useRefreshContactsAuthorization()
   const [isPrompting, setIsPrompting] = useState(false)
@@ -112,7 +103,7 @@ export function IntegrationsSection(): ReactElement | null {
                     // A rejection here is a capability-scope bug (the ACL must
                     // allow x-apple.systempreferences:*) — surface it, don't
                     // swallow it into a dead link.
-                    defaultOpener().openSystemSettings('contacts')
+                    opener.openSystemSettings('contacts')
                   }}
                 >
                   Open System Settings

@@ -16,12 +16,11 @@ import {
   buildAutocompleteEntries,
   type AutocompleteEntry,
 } from '@/editor/wiki-autocomplete-entries.ts'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useContactsAuthorization } from '@/hooks/use-contacts-authorization.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useMeetingService } from '@/services/use-contacts-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 const SUGGESTION_LIMIT = 6
 
@@ -73,7 +72,7 @@ function entryAttendee(entry: AutocompleteEntry): MeetingAttendee {
 export function AttendeeCombobox({ attendees, onAdd }: AttendeeComboboxProps): ReactElement {
   const { graph } = useGraph()
   const { settings } = useSettings()
-  const meetings = useMeetingService()
+  const { meetings } = useAppServices()
   const authorization = useContactsAuthorization()
   const contactsInMenu =
     settings.contactsEnabled && authorization !== null && isContactsReadable(authorization)
@@ -84,7 +83,6 @@ export function AttendeeCombobox({ attendees, onAdd }: AttendeeComboboxProps): R
   const anchorRef = useRef<HTMLInputElement>(null)
   const deferredQuery = useDeferredValue(query)
   const searchTerm = deferredQuery.trim()
-  const bridgeReady = useBridgeReady()
 
   const {
     data: fetched,
@@ -109,7 +107,7 @@ export function AttendeeCombobox({ attendees, onAdd }: AttendeeComboboxProps): R
         })),
       })
     },
-    enabled: bridgeReady && graph !== null && searchTerm !== '',
+    enabled: graph !== null && searchTerm !== '',
     // Typing re-keys the query as the deferred value settles; holding the
     // previous rows avoids the list flashing closed between keystrokes.
     placeholderData: keepPreviousData,
