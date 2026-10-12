@@ -1,3 +1,4 @@
+import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { NoteSession } from './note-session-types.ts'
 
@@ -26,6 +27,9 @@ export interface OpenDocument {
  *   open (possibly *reopened* in a new pane) and routes through the live
  *   session's frontmatter channel instead of racing the disk under a dirty
  *   buffer.
+ * - **External changes**: while any document is open, the service listens to
+ *   the file-change stream and calls `externalChanged()` on every session
+ *   whose current path has an upsert in the batch.
  */
 export interface OpenDocumentsService {
   /**
@@ -74,13 +78,40 @@ export interface OpenDocumentsService {
   flushAll(): Promise<void>
 }
 
-export function createOpenDocumentsService(): OpenDocumentsService {
+export interface OpenDocumentsServiceDeps {
+  fileChanges: Pick<FileChangeService, 'subscribe'>
+}
+
+export function createOpenDocumentsService(deps: OpenDocumentsServiceDeps): OpenDocumentsService {
+  const { fileChanges } = deps
   const documents = new Map<string, OpenDocument>()
+  // Every registration, including one a same-path registration hides from `documents`.
+  const registrations = new Set<OpenDocument>()
+  let stopFileChanges: Unlisten | null = null
+
+  function onFileChanges(changes: readonly FileChange[]): void {
+    for (const document of registrations) {
+      // The session's current path, not the one it registered under: a rename
+      // retargets the session before its pane re-renders.
+      const { session } = document
+      if (changes.some((change) => change.path === session.path && change.kind === 'upsert')) {
+        session.externalChanged()
+      }
+    }
+  }
 
   return {
     register(document) {
       documents.set(document.session.path, document)
+      registrations.add(document)
+      stopFileChanges ??= fileChanges.subscribe(({ changes }) => {
+        onFileChanges(changes)
+      })
       return () => {
+        if (registrations.delete(document) && registrations.size === 0) {
+          stopFileChanges?.()
+          stopFileChanges = null
+        }
         for (const [key, registered] of documents) {
           if (registered === document) {
             documents.delete(key)
