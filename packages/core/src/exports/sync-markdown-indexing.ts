@@ -153,7 +153,6 @@ export {
   subscribeFileChanges,
   subscribeReconcileRequests,
   emitFileChanges,
-  setLocalWriteEcho,
   subscribeOwnWrites,
   subscribeIcloudConflicts,
   subscribeIcloudWatchFailed,

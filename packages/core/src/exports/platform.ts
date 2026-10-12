@@ -223,6 +223,13 @@ export {
   type CalendarService,
 } from '../calendar/calendar-service.ts'
 export {
+  createFileChangeService,
+  defaultFileChanges,
+  setDefaultFileChanges,
+  type FileChangeBatch,
+  type FileChangeService,
+} from '../indexing/file-change-service.ts'
+export {
   createContactsService,
   defaultContacts,
   setDefaultContacts,

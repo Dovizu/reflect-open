@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { setDefaultLogger } from '../app/logger-service.ts'
 import { setBridge } from '../ipc/bridge.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
-import type { FileChange } from './file-changes.ts'
+import type { FileChange } from './file-change-service.ts'
 import { subscribeIndexApplied } from './index-applied.ts'
 import { applyIndexChanges, subscribeIndexChanges } from './live.ts'
 
