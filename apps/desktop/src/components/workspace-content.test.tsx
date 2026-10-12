@@ -1,8 +1,8 @@
-import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GraphInfo } from '@reflect/core'
 import type { ContextSidebarTarget } from '@/components/context-sidebar/sidebar-route.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 
 interface WorkspaceState {
   collapsed: boolean
@@ -42,19 +42,19 @@ vi.mock('@/providers/focused-daily-provider.tsx', () => ({
 vi.mock('@/providers/sidebar-provider.tsx', () => ({
   useSidebar: () => ({ collapsed: workspaceState.collapsed, toggleSidebar: vi.fn() }),
 }))
-// The AppShell asides mount resize handles, which read the persisted widths.
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({
-    settings: { sidebarWidth: 260, contextSidebarWidth: 320 },
-    updateSettings: vi.fn(),
-    updateSettingsWith: vi.fn(),
-  }),
-}))
 vi.mock('@/routing/app-shortcuts.ts', () => ({ useAppShortcuts: () => ({}) }))
 
 const { WorkspaceContent } = await import('./workspace-content.tsx')
 
 const GRAPH: GraphInfo = { root: '/notes', name: 'Notes', generation: 1 }
+
+function renderWorkspace() {
+  return renderInApp(<WorkspaceContent graph={GRAPH} />, {
+    graph: GRAPH,
+    // The AppShell asides mount resize handles, which read the persisted widths.
+    settings: { sidebarWidth: 260, contextSidebarWidth: 320 },
+  })
+}
 
 beforeEach(async () => {
   workspaceState.collapsed = false
@@ -70,7 +70,7 @@ afterEach(async () => {
 
 describe('WorkspaceContent', () => {
   it('hides and restores the workspace and daily context sidebars together', async () => {
-    const view = await render(<WorkspaceContent graph={GRAPH} />)
+    const view = await renderWorkspace()
 
     await expect.element(view.getByRole('complementary', { name: 'Workspace' })).toBeInTheDocument()
     await expect.element(view.getByRole('complementary', { name: 'Context' })).toBeInTheDocument()
@@ -89,7 +89,7 @@ describe('WorkspaceContent', () => {
 
   it('applies the same collapsed state to ordinary note context', async () => {
     workspaceState.target = { kind: 'note', path: 'notes/project.md' }
-    const view = await render(<WorkspaceContent graph={GRAPH} />)
+    const view = await renderWorkspace()
     expect(view.getByTestId('note-context').element().textContent).toBe('notes/project.md')
 
     workspaceState.collapsed = true
