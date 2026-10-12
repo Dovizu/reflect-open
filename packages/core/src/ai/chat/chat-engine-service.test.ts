@@ -1,41 +1,55 @@
 import type { LanguageModel, ModelMessage } from '@reflect/modules/ai'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { convertArrayToReadableStream, MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type {
   LanguageModelV3StreamPart,
   LanguageModelV3StreamResult,
   LanguageModelV3Usage,
 } from '@ai-sdk/provider'
-import type { RetrievalHit } from '../../embeddings/retrieve.ts'
-import { cloudSafeGraphContext } from '../../privacy/checkers.ts'
+import type { RetrievalHit } from '../../embeddings/retrieval-service.ts'
+import { cloudSafeGraphContext } from '../../privacy/privacy-service.ts'
 import {
   createTestLanguageModelService,
+  createTestNoteToolsService,
   type TestLanguageModelService,
 } from '../../testing/index.ts'
-import { setDefaultLanguageModel } from '../language-model-service.ts'
-import { fitToContextWindow } from './context-window.ts'
-import { MAX_STEPS, streamChat, streamChatTurn, type ChatStreamEvent } from './stream-chat.ts'
-
-vi.mock('./context-window', async (importOriginal) => {
-  const original = await importOriginal<typeof import('./context-window.ts')>()
-  return {
-    ...original,
-    fitToContextWindow: vi.fn(original.fitToContextWindow),
-  }
-})
-
-const fitToContextWindowMock = vi.mocked(fitToContextWindow)
+import {
+  createChatEngineService,
+  MAX_STEPS,
+  streamChatTurn,
+  type ChatEngineService,
+  type ChatStreamEvent,
+} from './chat-engine-service.ts'
+import { fitToContextWindow, type ContextWindowOptions } from './context-window.ts'
+import type { NoteTools } from './note-tools-service.ts'
 
 let languageModelService: TestLanguageModelService
+let fitCalls: [ModelMessage[], ContextWindowOptions][]
+let engine: ChatEngineService
 
 beforeEach(() => {
   languageModelService = createTestLanguageModelService()
-  setDefaultLanguageModel(languageModelService)
+  fitCalls = []
+  engine = createChatEngineService({
+    languageModel: languageModelService,
+    noteTools: createTestNoteToolsService(),
+    fitToContextWindow: (messages, options) => {
+      fitCalls.push([messages, options])
+      return fitToContextWindow(messages, options)
+    },
+  })
 })
 
-afterEach(() => {
-  setDefaultLanguageModel(null)
-})
+/** The tool set over scripted retrieval and note reads; an empty graph by default. */
+function tools(effects?: {
+  retrieveFn?: () => Promise<RetrievalHit[]>
+  readNoteFn?: (path: string) => Promise<string>
+}): NoteTools {
+  return createTestNoteToolsService({
+    ...(effects?.retrieveFn === undefined ? {} : { retrieval: { retrieve: effects.retrieveFn } }),
+    ...(effects?.readNoteFn === undefined ? {} : { noteFile: { read: effects.readNoteFn } }),
+  }).build({ semanticSearchEnabled: true })
+}
 
 const USAGE: LanguageModelV3Usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
@@ -123,17 +137,16 @@ const PRIVATE_HIT: RetrievalHit = {
   isPrivate: true,
 }
 
-describe('streamChat', () => {
+describe('ChatEngineService.streamTurn', () => {
   it('does not start a provider request when stopped while the model loads', async () => {
     const controller = new AbortController()
     const loading = Promise.withResolvers<LanguageModel>()
     const model = new MockLanguageModelV3({ doStream: sequence([textTurn('never')]) })
     languageModelService.setModel(() => loading.promise)
     const events = collect(
-      streamChat({
+      engine.streamTurn({
         config: { id: 'cfg', provider: 'openai', model: 'gpt-5.5', keyHint: 'test' },
         apiKey: 'sk-test',
-        fetchFn: globalThis.fetch,
         messages: [{ role: 'user', content: 'hello' }],
         today: '2026-09-04',
         semanticSearchEnabled: false,
@@ -153,7 +166,6 @@ describe('streamChat', () => {
     const options = {
       config: { id: 'cfg', provider: 'openai' as const, model: 'gpt-5.5', keyHint: 'test' },
       apiKey: 'sk-test',
-      fetchFn: globalThis.fetch,
       messages: [{ role: 'user' as const, content: 'hello' }],
       today: '2026-09-04',
       semanticSearchEnabled: false,
@@ -161,13 +173,13 @@ describe('streamChat', () => {
       context: null,
     }
     languageModelService.setModel(() => Promise.reject(new Error('model chunk unavailable')))
-    expect(await collect(streamChat(options))).toEqual([
+    expect(await collect(engine.streamTurn(options))).toEqual([
       { type: 'error', message: 'model chunk unavailable', messages: [] },
     ])
 
     const model = new MockLanguageModelV3({ doStream: sequence([textTurn('loaded')]) })
     languageModelService.setModel(model)
-    const events = await collect(streamChat(options))
+    const events = await collect(engine.streamTurn(options))
     expect(events[0]).toEqual({ type: 'text-delta', text: 'loaded' })
     expect(events.at(-1)?.type).toBe('complete')
   })
@@ -179,7 +191,7 @@ describe('streamChat', () => {
     languageModelService.setModel(model)
 
     await collect(
-      streamChat({
+      engine.streamTurn({
         config: {
           id: 'cfg-openai',
           provider: 'openai',
@@ -187,7 +199,6 @@ describe('streamChat', () => {
           keyHint: 'wxyz1',
         },
         apiKey: 'sk-live-key',
-        fetchFn: globalThis.fetch,
         messages,
         today: '2026-06-11',
         semanticSearchEnabled: true,
@@ -196,7 +207,7 @@ describe('streamChat', () => {
       }),
     )
 
-    const fitCall = fitToContextWindowMock.mock.calls.at(-1)
+    const fitCall = fitCalls.at(-1)
     if (fitCall === undefined) {
       expect.unreachable('expected context-window fitting')
     }
@@ -220,10 +231,10 @@ describe('streamChatTurn', () => {
         semanticSearchEnabled: true,
         customSystemPrompt: '',
         context: null,
-        toolDeps: {
+        tools: tools({
           retrieveFn: async () => [PUBLIC_HIT, PRIVATE_HIT],
           readNoteFn: async () => 'launch plan\n',
-        },
+        }),
       }),
     )
 
@@ -263,10 +274,10 @@ describe('streamChatTurn', () => {
         semanticSearchEnabled: true,
         customSystemPrompt: '',
         context: null,
-        toolDeps: {
+        tools: tools({
           retrieveFn: async () => [PUBLIC_HIT, PRIVATE_HIT],
           readNoteFn: async () => 'launch plan\n',
-        },
+        }),
       }),
     )
 
@@ -296,6 +307,7 @@ describe('streamChatTurn', () => {
           tags: [{ tag: 'book', count: 2 }],
           tagsTruncated: false,
         }),
+        tools: tools(),
       }),
     )
 
@@ -322,6 +334,7 @@ describe('streamChatTurn', () => {
         semanticSearchEnabled: true,
         customSystemPrompt: '',
         context: null,
+        tools: tools(),
       }),
     )
     expect(events.at(-1)).toEqual({ type: 'error', message: 'rate limited', messages: [] })
@@ -347,7 +360,10 @@ describe('streamChatTurn', () => {
         semanticSearchEnabled: true,
         customSystemPrompt: '',
         context: null,
-        toolDeps: { retrieveFn: async () => [PUBLIC_HIT], readNoteFn: async () => 'launch plan\n' },
+        tools: tools({
+          retrieveFn: async () => [PUBLIC_HIT],
+          readNoteFn: async () => 'launch plan\n',
+        }),
       }),
     )
 
@@ -386,7 +402,10 @@ describe('streamChatTurn', () => {
         semanticSearchEnabled: true,
         customSystemPrompt: '',
         context: null,
-        toolDeps: { retrieveFn: async () => [PUBLIC_HIT], readNoteFn: async () => 'launch plan\n' },
+        tools: tools({
+          retrieveFn: async () => [PUBLIC_HIT],
+          readNoteFn: async () => 'launch plan\n',
+        }),
       }),
     )
 
@@ -423,7 +442,7 @@ describe('streamChatTurn', () => {
         semanticSearchEnabled: true,
         customSystemPrompt: '',
         context: null,
-        toolDeps: { retrieveFn: async () => [PUBLIC_HIT], readNoteFn: async () => 'body\n' },
+        tools: tools({ retrieveFn: async () => [PUBLIC_HIT], readNoteFn: async () => 'body\n' }),
       }),
     )
 

@@ -1,3 +1,4 @@
+import { watchAssetDescriptions } from '@/lib/asset-description-queries.ts'
 import { watchCaptureXPosts } from '@/lib/capture-x-posts.ts'
 import { watchGithubAuth } from '@/lib/github-auth-state.ts'
 import { createDesktopAdapters } from '@/services/create-desktop-services.ts'
@@ -28,3 +29,4 @@ installDefaultServices(appServices)
 appServices.exceptionTelemetry.install()
 watchGithubAuth(appServices.githubAuth)
 watchCaptureXPosts(appServices.capture)
+watchAssetDescriptions(appServices.assetDescription)

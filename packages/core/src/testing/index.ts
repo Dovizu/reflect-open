@@ -90,10 +90,20 @@ export {
   type TestSemanticSearchServiceOptions,
 } from './embeddings.ts'
 export {
+  createTestChatEngineService,
+  createTestChatGraphContextService,
   createTestChatHistoryService,
+  createTestChatSessionService,
+  createTestNoteToolsService,
   type TestChatConversation,
+  type TestChatEngineService,
+  type TestChatGraphContextService,
+  type TestChatGraphContextSource,
   type TestChatHistoryService,
   type TestChatHistoryServiceOptions,
+  type TestChatSessionServiceOptions,
+  type TestChatTurnScript,
+  type TestNoteToolsServiceOptions,
 } from './chat.ts'
 export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 export {
@@ -113,6 +123,15 @@ export {
   type ExceptionReportSource,
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
+export {
+  createTestAssetDescriptionService,
+  createTestAssetPrivacyService,
+  createTestAssetReferences,
+  type TestAssetDescriptionService,
+  type TestAssetDescriptionSessionState,
+  type TestAssetPrivacyServiceOptions,
+  type TestAssetReferences,
+} from './assets.ts'
 export {
   createTestBacklinkTargetService,
   createTestCaptureInboxService,
