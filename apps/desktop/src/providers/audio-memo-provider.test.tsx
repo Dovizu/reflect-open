@@ -9,8 +9,12 @@ import type {
   GraphInfo,
   Settings,
 } from '@reflect/core'
-import { setDefaultHttp } from '@reflect/core'
-import { createTestHttpService } from '@reflect/core/testing'
+import { setDefaultHttp, setDefaultOperations } from '@reflect/core'
+import {
+  createTestHttpService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import type { UseAudioRecorderOptions } from '@/hooks/use-audio-recorder.ts'
 
 const captureAudioMemoPart = vi.hoisted(() =>
@@ -19,7 +23,6 @@ const captureAudioMemoPart = vi.hoisted(() =>
 const deleteAudioMemo = vi.hoisted(() =>
   vi.fn<(path: string, generation: number) => Promise<void>>(async () => {}),
 )
-const failOperation = vi.hoisted(() => vi.fn<(message: string) => void>())
 const toast = vi.hoisted(() => ({ add: vi.fn(), close: vi.fn() }))
 const toggleSidebar = vi.hoisted(() => vi.fn())
 
@@ -147,15 +150,17 @@ vi.mock('@/providers/settings-provider.tsx', () => ({
 vi.mock('@/providers/sidebar-provider.tsx', () => ({
   useSidebar: () => ({ collapsed: sidebarState.collapsed, toggleSidebar }),
 }))
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   setDefaultHttp(createTestHttpService())
 })
 afterEach(() => {
+  setDefaultOperations(null)
   setDefaultHttp(null)
 })
-vi.mock('@/lib/operations.ts', () => ({
-  startOperation: () => ({ progress: vi.fn(), done: vi.fn(), fail: failOperation }),
-}))
 
 vi.mock('@/components/ui/toast.tsx', () => ({ toast }))
 
@@ -612,7 +617,12 @@ describe('AudioMemoProvider', () => {
     sidebarState.collapsed = true
     await rerender()
 
-    await vi.waitFor(() => expect(failOperation).toHaveBeenCalledWith('disk full'))
+    await vi.waitFor(() =>
+      expect(operations.findByLabel('Saving audio memo')).toMatchObject({
+        status: 'failed',
+        message: 'disk full',
+      }),
+    )
   })
 
   it('a parked error never invisibly blocks recording: toggle surfaces, then clears it', async () => {

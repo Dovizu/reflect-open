@@ -3,8 +3,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent, type Locator } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultStorage } from '@reflect/core'
-import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
+import { setDefaultStorage, setDefaultOperations, setDefaultHaptics } from '@reflect/core'
+import {
+  createTestStorageService,
+  type TestStorageService,
+  createTestOperationsService,
+  createTestHapticsService,
+  type TestHapticsService,
+} from '@reflect/core/testing'
 import type { OpenTask } from '@reflect/core'
 import type { TaskAction } from '@/lib/note-task.ts'
 import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
@@ -13,6 +19,17 @@ import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import '@/test-utils/locator.ts'
 import { swipe, translateX } from '@/test-utils/swipe.ts'
 import { MobileTasks } from './tasks.tsx'
+
+let haptics: TestHapticsService
+
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
 
 /**
  * The mobile Tasks tab (V1 mobile's third tab over Plan 18 data): desktop's
@@ -27,7 +44,6 @@ import { MobileTasks } from './tasks.tsx'
 const getOpenTasks = vi.hoisted(() => vi.fn())
 const getCompletedTasks = vi.hoisted(() => vi.fn())
 const resolveOrCreateNoteWithTitle = vi.hoisted(() => vi.fn())
-const hapticImpactLight = vi.hoisted(() => vi.fn())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
@@ -64,9 +80,6 @@ vi.mock('@/editor/use-editor-autocomplete.ts', () => ({
     onWikilinkSearch: async () => [],
     onTagSearch: async () => [],
   }),
-}))
-vi.mock('@/mobile/haptics.ts', () => ({
-  hapticImpactLight,
 }))
 // Instant settle, so row transforms can be asserted synchronously.
 vi.mock('@/mobile/use-reduced-motion.ts', () => ({ usePrefersReducedMotion: () => true }))
@@ -164,13 +177,6 @@ function writesOf(...kinds: TaskActionKind[]): unknown[][] {
   return writeTask.mock.calls.filter((call: unknown[]) => isWrite(call[1] as TaskAction[], kinds))
 }
 
-const fail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() => vi.fn(() => ({ fail })))
-vi.mock('@/lib/operations.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/operations.ts')>()),
-  startOperation,
-}))
-
 // Vaul's drag/animation is verified on-device. This passthrough honours `open` and
 // exposes the dismissal path as a button, so commit-on-dismiss is testable.
 vi.mock('@/components/ui/drawer.tsx', () => ({
@@ -262,6 +268,7 @@ async function revealSwipeActions(
 let storage: TestStorageService
 
 beforeEach(async () => {
+  setDefaultOperations(createTestOperationsService())
   await page.viewport(375, 700)
   storage = createTestStorageService()
   setDefaultStorage(storage)
@@ -280,19 +287,17 @@ beforeEach(async () => {
     created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
     moved: [],
   })
-  startOperation.mockClear()
-  fail.mockReset()
   resolveOrCreateNoteWithTitle.mockReset()
   resolveOrCreateNoteWithTitle.mockResolvedValue({
     kind: 'resolved',
     path: 'notes/other.md',
   })
-  hapticImpactLight.mockClear()
   editorProbe.focusCalls = 0
   resetRecentlyCompleted()
 })
 
 afterEach(async () => {
+  setDefaultOperations(null)
   await cleanup()
   setDefaultStorage(null)
 })
@@ -387,14 +392,14 @@ describe('MobileTasks', () => {
 
     await user.click(await view.findByRole('button', { name: 'Complete: buy milk' }))
 
-    expect(hapticImpactLight).toHaveBeenCalledTimes(1)
+    expect(haptics.impacts()).toBe(1)
     expect(writesOf('toggle')).toHaveLength(1)
     // V1's middle state: the completed row stays visible, struck, reopenable.
     await view.findByRole('button', { name: 'Reopen: buy milk' })
 
     // Archive hides this session's completed rows.
     await user.click(view.getByRole('button', { name: 'Archive 1 completed' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(2)
+    expect(haptics.impacts()).toBe(2)
     await waitFor(() => expect(view.queryByText('buy milk')).toBeNull())
     await view.unmount()
   })
@@ -405,18 +410,18 @@ describe('MobileTasks', () => {
     const view = await renderScreen()
 
     await user.click(await view.findByRole('button', { name: 'Edit: buy milk' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(1)
+    expect(haptics.impacts()).toBe(1)
 
     await user.click(view.getByRole('button', { name: 'dismiss-drawer' }))
     await user.click(view.getByRole('button', { name: 'Task filters' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(2)
+    expect(haptics.impacts()).toBe(2)
 
     await user.click(view.getByRole('checkbox', { name: 'Current' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(3)
+    expect(haptics.impacts()).toBe(3)
 
     await user.click(view.getByRole('button', { name: 'dismiss-drawer' }))
     await user.click(view.getByRole('button', { name: 'New task' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(4)
+    expect(haptics.impacts()).toBe(4)
     await view.unmount()
   })
 
@@ -496,19 +501,19 @@ describe('MobileTasks', () => {
     const view = await renderScreen()
 
     await user.click(await view.findByRole('button', { name: 'Edit: buy milk' }))
-    hapticImpactLight.mockClear()
+    haptics.reset()
 
     await user.click(view.getByRole('button', { name: 'Pick date' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(1)
+    expect(haptics.impacts()).toBe(1)
 
     await user.click(view.getByRole('button', { name: 'Tomorrow' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(2)
+    expect(haptics.impacts()).toBe(2)
 
     await user.click(view.getByRole('button', { name: 'Clear' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(3)
+    expect(haptics.impacts()).toBe(3)
 
     await user.click(view.getByRole('button', { name: 'Convert to bullet' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(4)
+    expect(haptics.impacts()).toBe(4)
     await waitFor(() => expect(writesOf('toBullet')).toHaveLength(1))
     await view.unmount()
   })

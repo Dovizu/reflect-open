@@ -1,18 +1,15 @@
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { setDefaultOperations } from '@reflect/core'
 import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SnippetTask } from '@reflect/core'
 import { RouterProvider } from '@/routing/router.tsx'
 import { BacklinkSnippet } from './backlink-snippet.tsx'
 
 const writeTask = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/note-task.ts', () => ({ writeTask }))
-
-const operationFail = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/operations.ts', () => ({
-  startOperation: () => ({ fail: operationFail }),
-}))
 
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 7 } }),
@@ -63,10 +60,17 @@ function renderSnippet(tasks: SnippetTask[] = anchors()) {
   )
 }
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   writeTask.mockReset()
   writeTask.mockResolvedValue(undefined)
-  operationFail.mockReset()
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 describe('BacklinkSnippet task checkboxes', () => {
@@ -103,7 +107,7 @@ describe('BacklinkSnippet task checkboxes', () => {
     expect((boxes[1] as HTMLInputElement).checked).toBe(true)
     await userEvent.click(boxes[1]!, { force: true })
     expect(writeTask).not.toHaveBeenCalled()
-    expect(operationFail).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
     await view.unmount()
   })
 
@@ -115,7 +119,7 @@ describe('BacklinkSnippet task checkboxes', () => {
     const boxes = view.container.querySelectorAll('input[type="checkbox"]')
     await userEvent.click(boxes[0]!)
     expect(writeTask).not.toHaveBeenCalled()
-    await vi.waitFor(() => expect(operationFail).toHaveBeenCalled())
+    await vi.waitFor(() => expect(operations.findByLabel('Updating task')?.status).toBe('failed'))
     await view.unmount()
   })
 

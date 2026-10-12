@@ -1,11 +1,8 @@
 import { z } from 'zod'
-import { defaultIpc } from './bridge.ts'
-import {
-  definePluginCommand,
-  definePluginEvent,
-  ignoredResult,
-  type PluginSubscription,
-} from './plugin.ts'
+import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import { currentIpc } from './bridge.ts'
+import type { IpcBridgeService, Unlisten } from './ipc-service.ts'
+import { definePluginCommand, definePluginEvent, ignoredResult } from './plugin.ts'
 
 /**
  * Typed bindings for `tauri-plugin-iap` — the StoreKit In-App Purchase
@@ -60,46 +57,6 @@ const getProductStatusCommand = definePluginCommand<
 >('iap', 'get_product_status', z.object({ isOwned: z.boolean() }))
 
 /**
- * The store's localized offers for `productIds` (get_products:
- * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/guest-js/index.ts#L214
- * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/ios/Sources/IapPlugin.swift#L63).
- */
-export async function iapGetProducts(productIds: string[]): Promise<IapProduct[]> {
-  const { products } = await getProductsCommand(defaultIpc(), {
-    payload: { productIds, productType: 'subs' },
-  })
-  return products
-}
-
-/**
- * Run the StoreKit purchase sheet for one product (purchase:
- * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/guest-js/index.ts#L258
- * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/ios/Sources/IapPlugin.swift#L137).
- * The Purchase response
- * (https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/src/models.rs#L98)
- * is ignored; callers refetch entitlements after the command resolves. Do
- * not wait for purchaseUpdated instead: the plugin never emits it for an
- * in-app purchase (see subscribeIapPurchaseUpdated).
- */
-export async function iapPurchase(productId: string): Promise<void> {
-  await purchaseCommand(defaultIpc(), { payload: { productId, productType: 'subs' } })
-}
-
-/**
- * Whether the device currently owns `productId` (get_product_status:
- * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/guest-js/index.ts#L393
- * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/ios/Sources/IapPlugin.swift#L280).
- * Only `productId` and `isOwned` are always present (ProductStatus:
- * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/src/models.rs#L200).
- */
-export async function iapIsOwned(productId: string): Promise<boolean> {
-  const { isOwned } = await getProductStatusCommand(defaultIpc(), {
-    payload: { productId, productType: 'subs' },
-  })
-  return isOwned
-}
-
-/**
  * Fires on purchases, renewals, and offer-code redemptions finished outside
  * the purchase sheet (`Transaction.updates`:
  * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/ios/Sources/IapPlugin.swift#L350).
@@ -107,8 +64,98 @@ export async function iapIsOwned(productId: string): Promise<boolean> {
  * event as a refetch signal, so it stays unparsed.
  */
 const purchaseUpdatedEvent = definePluginEvent('iap', 'purchaseUpdated', z.unknown())
-export function subscribeIapPurchaseUpdated(
-  handler: (payload: unknown) => void,
-): PluginSubscription {
-  return purchaseUpdatedEvent(defaultIpc(), handler)
+
+/** StoreKit subscriptions. */
+export interface IapService {
+  /**
+   * The store's localized offers for `productIds` (get_products:
+   * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/guest-js/index.ts#L214
+   * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/ios/Sources/IapPlugin.swift#L63).
+   */
+  getProducts(productIds: string[]): Promise<IapProduct[]>
+  /**
+   * Run the StoreKit purchase sheet for one product (purchase:
+   * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/guest-js/index.ts#L258
+   * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/ios/Sources/IapPlugin.swift#L137).
+   * The Purchase response
+   * (https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/src/models.rs#L98)
+   * is ignored; refetch entitlements after this resolves. Do not wait for
+   * `purchaseUpdated` instead: the plugin never emits it for an in-app
+   * purchase.
+   */
+  purchase(productId: string): Promise<void>
+  /**
+   * Whether the device currently owns `productId` (get_product_status:
+   * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/guest-js/index.ts#L393
+   * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/ios/Sources/IapPlugin.swift#L280).
+   * Only `productId` and `isOwned` are always present (ProductStatus:
+   * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/src/models.rs#L200).
+   */
+  isOwned(productId: string): Promise<boolean>
+  /**
+   * Calls `listener` on every purchase, renewal, or offer-code redemption
+   * finished outside the purchase sheet. A failed registration is logged.
+   */
+  subscribePurchaseUpdated(listener: () => void): Unlisten
+}
+
+export function createIapService(deps: {
+  ipc: IpcBridgeService
+  logger: LoggerService
+}): IapService {
+  const { ipc, logger } = deps
+  return {
+    async getProducts(productIds) {
+      const { products } = await getProductsCommand(ipc, {
+        payload: { productIds, productType: 'subs' },
+      })
+      return products
+    },
+    async purchase(productId) {
+      await purchaseCommand(ipc, { payload: { productId, productType: 'subs' } })
+    },
+    async isOwned(productId) {
+      const { isOwned } = await getProductStatusCommand(ipc, {
+        payload: { productId, productType: 'subs' },
+      })
+      return isOwned
+    },
+    subscribePurchaseUpdated(listener) {
+      const subscription = purchaseUpdatedEvent(ipc, () => {
+        listener()
+      })
+      subscription.ready.catch((error: unknown) => {
+        logger.error('subscribing to purchaseUpdated failed', error)
+      })
+      return subscription.unlisten
+    },
+  }
+}
+
+let defaultService: IapService | null = null
+
+/** The process-wide `IapService`; one over the installed bridge unless replaced. */
+export function defaultIap(): IapService {
+  defaultService ??= createIapService({ ipc: currentIpc(), logger: defaultLogger() })
+  return defaultService
+}
+
+/** Install the process-wide `IapService`; `null` restores the bridge-backed one. */
+export function setDefaultIap(service: IapService | null): void {
+  defaultService = service
+}
+
+/** {@link IapService.getProducts} on the process-wide service. */
+export async function iapGetProducts(productIds: string[]): Promise<IapProduct[]> {
+  return await defaultIap().getProducts(productIds)
+}
+
+/** {@link IapService.purchase} on the process-wide service. */
+export async function iapPurchase(productId: string): Promise<void> {
+  await defaultIap().purchase(productId)
+}
+
+/** {@link IapService.isOwned} on the process-wide service. */
+export async function iapIsOwned(productId: string): Promise<boolean> {
+  return await defaultIap().isOwned(productId)
 }

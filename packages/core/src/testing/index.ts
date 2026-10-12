@@ -119,7 +119,37 @@ export {
   type TestSecretStoreService,
 } from './secrets.ts'
 export {
+  createTestOperationsService,
+  type OperationSnapshot,
+  type TestOperationsService,
+} from './operations.ts'
+export {
   createTestFileChangeService,
   type TestFileChangeService,
   type TestFileChangeServiceOptions,
 } from './file-change.ts'
+export {
+  createTestUpdateService,
+  createTestUpdaterAdapter,
+  type TestUpdateCall,
+  type TestUpdaterAdapter,
+  type TestUpdaterCall,
+  type TestUpdaterOptions,
+  type TestUpdateService,
+} from './update.ts'
+export {
+  createTestAppStoreService,
+  createTestHapticsService,
+  createTestIapService,
+  createTestWebAuthService,
+  type AppStoreCall,
+  type TestAppStoreService,
+  type TestHapticsService,
+  type TestIapService,
+  type TestWebAuthService,
+} from './plugins.ts'
+export {
+  createTestAudioRecorderService,
+  type AudioRecorderCall,
+  type TestAudioRecorderService,
+} from './audio-recorder.ts'

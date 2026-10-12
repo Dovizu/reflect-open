@@ -23,6 +23,7 @@ import { createTauriDialogService } from '@/services/tauri-dialog.ts'
 import { createTauriHttpService } from '@/services/tauri-http.ts'
 import { createTauriOpenerTransport } from '@/services/tauri-opener.ts'
 import { createTauriPathTransport } from '@/services/tauri-path.ts'
+import { createTauriUpdaterAdapter } from '@/services/tauri-updater.ts'
 import { createTauriWindowHost } from '@/services/tauri-window.ts'
 
 /**
@@ -57,6 +58,7 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): App
       opener: createTauriOpenerTransport(),
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
+      updater: createTauriUpdaterAdapter(),
     }
   }
   return {

@@ -46,41 +46,42 @@ export type StagedRecordingFile = z.infer<typeof stagedFileSchema>
 const listStagedSchema = z.object({ files: z.array(stagedFileSchema) })
 
 // Command args mirror the serde request models (`StartRequest`,
-// `StagedPathRequest`) under the command's `request` parameter.
-const startRecordingCommand = definePluginCommand<
+// `StagedPathRequest`) under the command's `request` parameter. The commands
+// and events below take the bridge explicitly; the free functions run them on
+// the installed bridge.
+export const startRecordingCommand = definePluginCommand<
   { request: StartRecordingOptions },
   RecordingSessionStart
 >('recording', 'start_recording', startResponseSchema)
-const stopRecordingCommand = definePluginCommand<Record<string, never>, RecordingStopResponse>(
-  'recording',
-  'stop_recording',
-  stopResponseSchema,
-)
-const cancelRecordingCommand = definePluginCommand<Record<string, never>, unknown>(
+export const stopRecordingCommand = definePluginCommand<
+  Record<string, never>,
+  RecordingStopResponse
+>('recording', 'stop_recording', stopResponseSchema)
+export const cancelRecordingCommand = definePluginCommand<Record<string, never>, unknown>(
   'recording',
   'cancel_recording',
   ignoredResult,
 )
-const recordingStatusCommand = definePluginCommand<Record<string, never>, RecordingStatus>(
+export const recordingStatusCommand = definePluginCommand<Record<string, never>, RecordingStatus>(
   'recording',
   'recording_status',
   recordingStatusSchema,
 )
-const actionsReadyCommand = definePluginCommand<Record<string, never>, unknown>(
+export const actionsReadyCommand = definePluginCommand<Record<string, never>, unknown>(
   'recording',
   'actions_ready',
   ignoredResult,
 )
-const actionPerformedCommand = definePluginCommand<Record<string, never>, unknown>(
+export const actionPerformedCommand = definePluginCommand<Record<string, never>, unknown>(
   'recording',
   'action_performed',
   ignoredResult,
 )
-const listStagedCommand = definePluginCommand<
+export const listStagedCommand = definePluginCommand<
   Record<string, never>,
   { files: StagedRecordingFile[] }
 >('recording', 'list_staged', listStagedSchema)
-const deleteStagedCommand = definePluginCommand<{ request: { path: string } }, unknown>(
+export const deleteStagedCommand = definePluginCommand<{ request: { path: string } }, unknown>(
   'recording',
   'delete_staged',
   ignoredResult,
@@ -169,25 +170,37 @@ export type RecordingStoppedEvent = z.infer<typeof stoppedEventSchema>
 const nativeActionSchema = z.object({ action: z.string() })
 export type RecordingNativeActionEvent = z.infer<typeof nativeActionSchema>
 
-const recordingLevelEvent = definePluginEvent('recording', 'recordingLevel', levelEventSchema)
+export const recordingLevelEvent = definePluginEvent(
+  'recording',
+  'recordingLevel',
+  levelEventSchema,
+)
 export function subscribeRecordingLevel(
   handler: (payload: RecordingLevelEvent) => void,
 ): PluginSubscription {
   return recordingLevelEvent(defaultIpc(), handler)
 }
-const recordingSegmentEvent = definePluginEvent('recording', 'recordingSegment', segmentEventSchema)
+export const recordingSegmentEvent = definePluginEvent(
+  'recording',
+  'recordingSegment',
+  segmentEventSchema,
+)
 export function subscribeRecordingSegment(
   handler: (payload: RecordingSegmentEvent) => void,
 ): PluginSubscription {
   return recordingSegmentEvent(defaultIpc(), handler)
 }
-const recordingStoppedEvent = definePluginEvent('recording', 'recordingStopped', stoppedEventSchema)
+export const recordingStoppedEvent = definePluginEvent(
+  'recording',
+  'recordingStopped',
+  stoppedEventSchema,
+)
 export function subscribeRecordingStopped(
   handler: (payload: RecordingStoppedEvent) => void,
 ): PluginSubscription {
   return recordingStoppedEvent(defaultIpc(), handler)
 }
-const recordingNativeActionEvent = definePluginEvent(
+export const recordingNativeActionEvent = definePluginEvent(
   'recording',
   'nativeAction',
   nativeActionSchema,

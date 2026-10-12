@@ -1,5 +1,6 @@
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { upsertFrontmatter } from '@reflect/core'
+import { upsertFrontmatter, setDefaultOperations, MIN_VISIBLE_MS } from '@reflect/core'
 import { onNoteMoved } from '@/lib/note-moves.ts'
 import type { NoteSession } from './note-session.ts'
 import { openSession, registerOpenDocument, retargetOpenDocument } from './open-documents.ts'
@@ -44,23 +45,19 @@ interface RecordedOperation {
   outcome: 'running' | 'done' | 'failed'
   message: string | null
 }
-const operationLog = vi.hoisted(() => ({ records: [] as RecordedOperation[] }))
-vi.mock('@/lib/operations.ts', () => ({
-  startOperation: (label: string) => {
-    const record: RecordedOperation = { label, outcome: 'running', message: null }
-    operationLog.records.push(record)
-    return {
-      progress: () => {},
-      done: () => {
-        record.outcome = 'done'
-      },
-      fail: (message: string) => {
-        record.outcome = 'failed'
-        record.message = message
-      },
-    }
-  },
-}))
+let operations: TestOperationsService
+
+/** The operations shown so far, each with its outcome once the minimum visible time has passed. */
+async function operationOutcomes(): Promise<RecordedOperation[]> {
+  const shown = operations.getAll()
+  await operations.clock.advance(MIN_VISIBLE_MS)
+  const remaining = new Set(operations.getAll().map((operation) => operation.id))
+  return shown.map(({ id, label, status, message }) => ({
+    label,
+    outcome: status === 'failed' ? 'failed' : remaining.has(id) ? 'running' : 'done',
+    message,
+  }))
+}
 
 const { createRenameCoordinator } = await import('./rename-coordinator.ts')
 
@@ -129,6 +126,8 @@ function fakeSession(content: string): NoteSession & {
 }
 
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   io.rewriteLinksForTitleChange.mockReset()
   io.rewriteLinksForTitleChange.mockResolvedValue({
     rewritten: ['notes/source.md'],
@@ -149,10 +148,10 @@ beforeEach(() => {
   io.slugPathForTitle.mockImplementation(async (path: string) => path)
   io.moveNoteIndexed.mockReset()
   io.moveNoteIndexed.mockResolvedValue(undefined)
-  operationLog.records.length = 0
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   vi.restoreAllMocks()
 })
 
@@ -182,7 +181,8 @@ describe('rename coordinator', () => {
     // No live session → the alias lands via a direct disk write.
     const expected = upsertFrontmatter(content, { aliases: ['Old Title'] })
     expect(io.writeNote).toHaveBeenCalledWith(PATH, expected, 4)
-    expect(operationLog.records).toEqual([
+    const records = await operationOutcomes()
+    expect(records).toEqual([
       { label: 'Renaming "Old Title" → "New Title"', outcome: 'done', message: null },
     ])
   })
@@ -232,7 +232,8 @@ describe('rename coordinator', () => {
 
     expect(io.readNote).not.toHaveBeenCalled()
     expect(io.writeNote).not.toHaveBeenCalled()
-    expect(operationLog.records[0]!.outcome).toBe('done')
+    const records = await operationOutcomes()
+    expect(records[0]!.outcome).toBe('done')
   })
 
   it('a blocked destination skips the rewrite but still places the old-title alias', async () => {
@@ -252,7 +253,8 @@ describe('rename coordinator', () => {
 
     const expected = upsertFrontmatter('# New Title\n', { aliases: ['Old Title'] })
     expect(io.writeNote).toHaveBeenCalledWith(PATH, expected, 7)
-    expect(operationLog.records[0]!.outcome).toBe('done')
+    const records = await operationOutcomes()
+    expect(records[0]!.outcome).toBe('done')
   })
 
   it('a failed rewrite still places the alias (the safety net) and says so', async () => {
@@ -264,9 +266,10 @@ describe('rename coordinator', () => {
 
     const expected = upsertFrontmatter('# New Title\n', { aliases: ['Old Title'] })
     expect(io.writeNote).toHaveBeenCalledWith(PATH, expected, 7)
-    expect(operationLog.records[0]!.outcome).toBe('failed')
-    expect(operationLog.records[0]!.message).toContain('index unavailable')
-    expect(operationLog.records[0]!.message).toContain('kept as an alias')
+    const records = await operationOutcomes()
+    expect(records[0]!.outcome).toBe('failed')
+    expect(records[0]!.message).toContain('index unavailable')
+    expect(records[0]!.message).toContain('kept as an alias')
   })
 
   it('a failed alias after a clean rewrite reports exactly that', async () => {
@@ -275,9 +278,10 @@ describe('rename coordinator', () => {
     const coordinator = makeCoordinator()
     await renameOnce(coordinator, 'Old Title', 'New Title')
 
-    expect(operationLog.records[0]!.outcome).toBe('failed')
-    expect(operationLog.records[0]!.message).toContain('links were rewritten')
-    expect(operationLog.records[0]!.message).toContain('read denied')
+    const records = await operationOutcomes()
+    expect(records[0]!.outcome).toBe('failed')
+    expect(records[0]!.message).toContain('links were rewritten')
+    expect(records[0]!.message).toContain('read denied')
   })
 
   it('both phases failing reports both, flagging links that may not resolve', async () => {
@@ -287,7 +291,8 @@ describe('rename coordinator', () => {
     const coordinator = makeCoordinator()
     await renameOnce(coordinator, 'Old Title', 'New Title')
 
-    const { message } = operationLog.records[0]!
+    const records = await operationOutcomes()
+    const { message } = records[0]!
     expect(message).toContain('index unavailable')
     expect(message).toContain('read denied')
     expect(message).toContain('may no longer resolve')
@@ -299,7 +304,8 @@ describe('rename coordinator', () => {
     await renameOnce(coordinator, 'Old Title', 'New Title')
 
     expect(io.rewriteLinksForTitleChange).not.toHaveBeenCalled()
-    expect(operationLog.records).toEqual([]) // nothing to show: no work started
+    const records = await operationOutcomes()
+    expect(records).toEqual([]) // nothing to show: no work started
     expect(consoleError).toHaveBeenCalledWith(expect.stringContaining('rename dropped'))
   })
 
@@ -347,7 +353,8 @@ describe('rename coordinator', () => {
       expect(openSession('notes/new-title.md')).toBe(session)
       expect(openSession(PATH)).toBeNull()
       expect(moves).toEqual([[PATH, 'notes/new-title.md']])
-      expect(operationLog.records[0]!.outcome).toBe('done')
+      const records = await operationOutcomes()
+      expect(records[0]!.outcome).toBe('done')
     } finally {
       unsubscribe()
       retargetOpenDocument('notes/new-title.md', PATH, session) // restore for other tests
@@ -366,9 +373,8 @@ describe('rename coordinator', () => {
     expect(io.rewriteLinksForTitleChange).not.toHaveBeenCalled()
     expect(io.writeNote).not.toHaveBeenCalled() // no alias for a birth
     expect(io.moveNoteIndexed).toHaveBeenCalledWith(PATH, 'notes/fresh-note.md', 7)
-    expect(operationLog.records).toEqual([
-      { label: 'Naming "Fresh Note"', outcome: 'done', message: null },
-    ])
+    const records = await operationOutcomes()
+    expect(records).toEqual([{ label: 'Naming "Fresh Note"', outcome: 'done', message: null }])
   })
 
   it('a failed move retargets the session back and reports filename drift', async () => {
@@ -386,9 +392,10 @@ describe('rename coordinator', () => {
       expect(session.retarget).toHaveBeenNthCalledWith(1, 'notes/new-title.md')
       expect(session.retarget).toHaveBeenNthCalledWith(2, PATH)
       expect(openSession(PATH)).toBe(session)
-      expect(operationLog.records[0]!.outcome).toBe('failed')
-      expect(operationLog.records[0]!.message).toContain('keeps its old name')
-      expect(operationLog.records[0]!.message).toContain('disk full')
+      const records = await operationOutcomes()
+      expect(records[0]!.outcome).toBe('failed')
+      expect(records[0]!.message).toContain('keeps its old name')
+      expect(records[0]!.message).toContain('disk full')
     } finally {
       unregister()
     }
@@ -474,7 +481,8 @@ describe('rename coordinator', () => {
       upsertFrontmatter('# New Title\n', { aliases: ['Old Title'] }),
       7,
     )
-    expect(operationLog.records).toEqual([
+    const records = await operationOutcomes()
+    expect(records).toEqual([
       { label: 'Renaming "Old Title" → "New Title"', outcome: 'done', message: null },
     ])
   })
@@ -543,6 +551,7 @@ describe('rename coordinator', () => {
     expect(io.rewriteLinksForTitleChange).not.toHaveBeenCalled()
     expect(io.slugPathForTitle).not.toHaveBeenCalled()
     expect(io.moveNoteIndexed).not.toHaveBeenCalled()
-    expect(operationLog.records).toEqual([])
+    const records = await operationOutcomes()
+    expect(records).toEqual([])
   })
 })

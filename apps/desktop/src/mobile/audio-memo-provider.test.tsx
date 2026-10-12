@@ -1,8 +1,21 @@
 import { act, useState, type ReactElement, type ReactNode } from 'react'
 import { cleanup, renderHook } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { audioMemoIdentity, audioMemoPartPath, setBridge, setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import {
+  audioMemoIdentity,
+  audioMemoPartPath,
+  setBridge,
+  setDefaultPlatform,
+  setDefaultOperations,
+  setDefaultHaptics,
+} from '@reflect/core'
+import {
+  createTestPlatformService,
+  createTestOperationsService,
+  type TestOperationsService,
+  createTestHapticsService,
+  type TestHapticsService,
+} from '@reflect/core/testing'
 import type {
   AiProvidersState,
   AudioMemoIdentity,
@@ -13,13 +26,23 @@ import type {
 } from '@reflect/core'
 import type { NativeRecordingPart } from '@/mobile/use-native-audio-recorder.ts'
 
+let haptics: TestHapticsService
+
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
+
 const captureAudioMemoPart = vi.hoisted(() =>
   vi.fn<(input: CaptureAudioMemoPartInput) => Promise<CaptureAudioMemoOutcome>>(),
 )
 const deleteAudioMemo = vi.hoisted(() =>
   vi.fn<(path: string, generation: number) => Promise<void>>(async () => {}),
 )
-const failOperation = vi.hoisted(() => vi.fn<(message: string) => void>())
 const invoke = vi.fn<(command: string, args?: unknown) => Promise<unknown>>()
 
 /** Captured plugin-event handlers, keyed by event name, dispatchable per test. */
@@ -86,30 +109,23 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   deleteAudioMemo,
 }))
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   setDefaultPlatform(
     createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
   )
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   setDefaultPlatform(null)
 })
 
 vi.mock('@/lib/transcription-reconciler.ts', () => ({
   createTranscriptionReconciler,
-}))
-
-vi.mock('@/lib/operations.ts', () => ({
-  startOperation: () => ({
-    progress: vi.fn(),
-    done: vi.fn(),
-    fail: failOperation,
-  }),
-}))
-
-vi.mock('@/mobile/haptics.ts', () => ({
-  hapticImpactLight: vi.fn(),
 }))
 
 vi.mock('@/mobile/use-native-audio-recorder.ts', () => ({
@@ -388,7 +404,10 @@ describe('MobileAudioMemoProvider', () => {
     expect(result.current.canRetry).toBe(true)
     expect(stagedControls.deleteStaged).not.toHaveBeenCalled()
     // The drawer closed on stop — the failure also surfaces as an operation.
-    expect(failOperation).toHaveBeenCalledWith('disk full')
+    expect(operations.findByLabel('Saving audio memo')).toMatchObject({
+      status: 'failed',
+      message: 'disk full',
+    })
 
     await act(async () => {
       result.current.discard()

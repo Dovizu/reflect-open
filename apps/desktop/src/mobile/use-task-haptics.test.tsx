@@ -1,11 +1,19 @@
 import { renderHook } from 'vitest-browser-react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { hapticImpactLight } from '@/mobile/haptics.ts'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultHaptics } from '@reflect/core'
+import { createTestHapticsService, type TestHapticsService } from '@reflect/core/testing'
 import { useTaskCheckboxHaptics } from './use-task-haptics.ts'
 
-vi.mock('@/mobile/haptics.ts', () => ({
-  hapticImpactLight: vi.fn(),
-}))
+let haptics: TestHapticsService
+
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
 
 /** The DOM shape meowdown/prosemirror-flat-list renders for list markers. */
 function installList(kind: 'task' | 'toggle', editable = true): HTMLInputElement {
@@ -29,10 +37,6 @@ function press(element: Element): void {
   element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
 }
 
-beforeEach(() => {
-  vi.mocked(hapticImpactLight).mockClear()
-})
-
 afterEach(() => {
   document.body.innerHTML = ''
 })
@@ -42,7 +46,7 @@ describe('useTaskCheckboxHaptics', () => {
     const checkbox = installList('task')
     const view = await renderHook(() => useTaskCheckboxHaptics())
     press(checkbox)
-    expect(hapticImpactLight).toHaveBeenCalledOnce()
+    expect(haptics.impacts()).toBe(1)
     await view.unmount()
   })
 
@@ -50,7 +54,7 @@ describe('useTaskCheckboxHaptics', () => {
     const checkbox = installList('toggle')
     const view = await renderHook(() => useTaskCheckboxHaptics())
     press(checkbox)
-    expect(hapticImpactLight).not.toHaveBeenCalled()
+    expect(haptics.impacts()).toBe(0)
     await view.unmount()
   })
 
@@ -58,14 +62,14 @@ describe('useTaskCheckboxHaptics', () => {
     const checkbox = installList('task', false)
     const view = await renderHook(() => useTaskCheckboxHaptics())
     press(checkbox)
-    expect(hapticImpactLight).not.toHaveBeenCalled()
+    expect(haptics.impacts()).toBe(0)
     await view.unmount()
   })
 
   it('stays silent for presses outside any list marker', async () => {
     const view = await renderHook(() => useTaskCheckboxHaptics())
     press(document.body)
-    expect(hapticImpactLight).not.toHaveBeenCalled()
+    expect(haptics.impacts()).toBe(0)
     await view.unmount()
   })
 
@@ -74,6 +78,6 @@ describe('useTaskCheckboxHaptics', () => {
     const view = await renderHook(() => useTaskCheckboxHaptics())
     await view.unmount()
     press(checkbox)
-    expect(hapticImpactLight).not.toHaveBeenCalled()
+    expect(haptics.impacts()).toBe(0)
   })
 })

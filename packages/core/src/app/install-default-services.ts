@@ -1,11 +1,21 @@
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
+import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
+import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
+import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
+import { setDefaultXArchive } from '../x-archive.ts'
+import { setDefaultWebFetch } from './web-fetch-service.ts'
+import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
+import { setDefaultAppStore } from '../ipc/app-store-plugin.ts'
 import { setDefaultIpc } from '../ipc/bridge.ts'
+import { setDefaultIap } from '../ipc/iap-plugin.ts'
+import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
+import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import { setDefaultAgentSkill } from './agent-skill-service.ts'
 import { setDefaultAppInfo } from './app-info-service.ts'
@@ -20,10 +30,12 @@ import { setDefaultIdService } from './id-service.ts'
 import { setDefaultImageCodec } from './image-codec-service.ts'
 import { setDefaultLifecycle } from './lifecycle-service.ts'
 import { setDefaultLogger } from './logger-service.ts'
+import { setDefaultOperations } from './operations-service.ts'
 import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
 import { setDefaultPlatform } from './platform-service.ts'
 import { setDefaultStorage } from './storage-service.ts'
+import { setDefaultUpdate } from './update-service.ts'
 import { setDefaultWindow } from './window-service.ts'
 
 /** Point every process-wide `defaultXxx()` at the matching service of `services`. */
@@ -49,10 +61,22 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultMobileStorage(services.mobileStorage)
   setDefaultImageCodec(services.imageCodec)
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
+  setDefaultOperations(services.operations)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
   setDefaultEmbeddingRuntime(services.embeddingRuntime)
   setDefaultChatHistory(services.chatHistory)
+  setDefaultUpdate(services.update)
+  setDefaultGitRepository(services.gitRepository)
+  setDefaultICloudNative(services.icloudNative)
+  setDefaultCaptureInbox(services.captureInbox)
+  setDefaultWebFetch(services.webFetch)
+  setDefaultXArchive(services.xArchive)
+  setDefaultAudioRecorder(services.audioRecorder)
+  setDefaultHaptics(services.haptics ?? null)
+  setDefaultIap(services.iap ?? null)
+  setDefaultAppStore(services.appStore ?? null)
+  setDefaultWebAuth(services.webAuth ?? null)
   setDefaultIpc(services.ipc)
 }
 
@@ -79,9 +103,21 @@ export function resetDefaultServices(): void {
   setDefaultMobileStorage(null)
   setDefaultImageCodec(null)
   setDefaultExceptionTelemetry(null)
+  setDefaultOperations(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
   setDefaultEmbeddingRuntime(null)
   setDefaultChatHistory(null)
+  setDefaultUpdate(null)
+  setDefaultGitRepository(null)
+  setDefaultICloudNative(null)
+  setDefaultCaptureInbox(null)
+  setDefaultWebFetch(null)
+  setDefaultXArchive(null)
+  setDefaultAudioRecorder(null)
+  setDefaultHaptics(null)
+  setDefaultIap(null)
+  setDefaultAppStore(null)
+  setDefaultWebAuth(null)
   setDefaultIpc(null)
 }

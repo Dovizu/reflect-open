@@ -1,9 +1,9 @@
+import { createTestOperationsService } from '@reflect/core/testing'
 import { act, createElement, type ReactNode } from 'react'
 import { renderHook } from 'vitest-browser-react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
-import { resetOperations } from '@/lib/operations.ts'
+import { setBridge, setDefaultOperations } from '@reflect/core'
 import { useNoteTrash } from './use-note-trash.ts'
 
 interface GraphValue {
@@ -20,6 +20,7 @@ function wrapper({ children }: { children: ReactNode }): ReactNode {
 }
 
 beforeEach(() => {
+  setDefaultOperations(createTestOperationsService())
   graphValue = { graph: { root: '/g', name: 'g', generation: 1 } }
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   setBridge({ invoke: mockInvoke, listen: async () => () => {} })
@@ -28,8 +29,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   setBridge(null) // don't leak the mock transport into other suites in this worker
-  resetOperations() // drop the operations a failed run leaves lingering
 })
 
 describe('useNoteTrash', () => {
