@@ -14,7 +14,7 @@ import type {
   MobileAudioMemoSession,
   MobileAudioMemoSessionState,
 } from '@reflect/core'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 /**
  * The mobile React surface for audio memos: a thin shell over the

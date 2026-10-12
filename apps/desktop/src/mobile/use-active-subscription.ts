@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { focusManager } from '@tanstack/react-query'
 import type { ActiveSubscription } from '@reflect/core'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 /**
  * The live or startup-seeded active subscription. Mounting looks it up unless

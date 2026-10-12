@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import type { AppStoreEnvironment } from '@reflect/core'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 export type { AppStoreEnvironment } from '@reflect/core'
 

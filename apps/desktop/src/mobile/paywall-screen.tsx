@@ -15,7 +15,7 @@ import {
   useClassicAccess,
   useClassicSignIn,
 } from '@/mobile/use-classic-access.ts'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 type PurchasePlan = 'monthly' | 'yearly'
 

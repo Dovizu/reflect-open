@@ -4,7 +4,7 @@ import { Drawer, DrawerBody, DrawerContent, DrawerTitle } from '@/components/ui/
 import type { TaskFilters } from '@/lib/tasks/task-filters.ts'
 import { cn } from '@/lib/utils.ts'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 interface TaskFiltersDrawerProps {
   open: boolean

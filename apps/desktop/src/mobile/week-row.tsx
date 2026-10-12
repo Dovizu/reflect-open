@@ -3,7 +3,7 @@ import { format } from 'date-fns'
 import { addDaysIso, formatDayLabel, parseIsoDate } from '@/lib/dates.ts'
 import { cn } from '@/lib/utils.ts'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 import { useDateFormat } from '@/hooks/use-date-format.ts'
 
 interface WeekRowProps {

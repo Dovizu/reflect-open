@@ -49,7 +49,7 @@ import {
 } from '@/mobile/use-classic-access.ts'
 import { useMobileSyncStatus } from '@/mobile/use-sync-status.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 import { formatFullDate } from '@/lib/dates.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useSyncContext } from '@/providers/sync-provider.tsx'

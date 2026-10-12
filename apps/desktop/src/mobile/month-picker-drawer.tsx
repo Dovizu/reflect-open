@@ -5,7 +5,7 @@ import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer.tsx'
 import { monthLabel, monthShortLabel } from '@/lib/month-grid.ts'
 import { cn } from '@/lib/utils.ts'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 interface MonthPickerDrawerProps {
   open: boolean

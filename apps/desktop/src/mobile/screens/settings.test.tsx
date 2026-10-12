@@ -250,9 +250,9 @@ describe('MobileSettings', () => {
     const view = await mount()
     await user.click(page.getByRole('button', { name: /System prompt.*Default/ }))
 
-    await act(() =>
-      view.app.settings.update({ chatSystemPrompt: 'Persisted instructions loaded from disk.' }),
-    )
+    act(() => {
+      view.app.settings.update({ chatSystemPrompt: 'Persisted instructions loaded from disk.' })
+    })
     view.updateSettings.mockClear()
 
     const textarea = page.getByRole('textbox', { name: 'System prompt instructions' })

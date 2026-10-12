@@ -1,4 +1,4 @@
-import type { MobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import type { MobileAppServices } from '@/mobile/mobile-services.ts'
 
 /**
  * Fire a light impact haptic: V1 parity for calendar-strip date taps and

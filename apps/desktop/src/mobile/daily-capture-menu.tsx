@@ -7,7 +7,7 @@ import { Spinner } from '@/components/ui/spinner.tsx'
 import { cn } from '@/lib/utils.ts'
 import { useMobileAudioMemo } from '@/mobile/audio-memo-provider.tsx'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 import { useRouter } from '@/routing/router.tsx'
 
 const ACTIONS_ID = 'daily-capture-actions'

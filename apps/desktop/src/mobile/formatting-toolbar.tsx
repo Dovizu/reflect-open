@@ -15,7 +15,7 @@ import {
 import { useFormattingToolbar } from '@/editor/formatting-toolbar-store.ts'
 import { pickFiles } from '@/lib/pick-files.ts'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 /**
  * The webview-drawn formatting toolbar (Plan 19, decision 8 — V1's native

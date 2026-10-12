@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
-import { useMobileAppServices } from '@/mobile/use-mobile-app-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 /**
  * A light haptic tick when a task checkbox is toggled in the editor (V1 mobile
