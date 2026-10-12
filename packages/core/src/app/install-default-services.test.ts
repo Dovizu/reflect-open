@@ -67,6 +67,7 @@ import { defaultPersistenceFlush } from './persistence-flush-service.ts'
 import { defaultPlatform } from './platform-service.ts'
 import { defaultStorage } from './storage-service.ts'
 import { defaultUpdate } from './update-service.ts'
+import { defaultNavigation } from '../navigation/navigation-service.ts'
 import { defaultWindow } from './window-service.ts'
 
 afterEach(() => {
@@ -109,6 +110,7 @@ describe('installDefaultServices', () => {
     expect(defaultEmbeddingRuntime()).toBe(services.embeddingRuntime)
     expect(defaultChatHistory()).toBe(services.chatHistory)
     expect(defaultUpdate()).toBe(services.update)
+    expect(defaultNavigation()).toBe(services.navigation)
     expect(defaultGitRepository()).toBe(services.gitRepository)
     expect(defaultGithubAuth()).toBe(services.githubAuth)
     expect(defaultGitHostCredentials()).toBe(services.gitHostCredentials)
@@ -191,6 +193,7 @@ describe('resetDefaultServices', () => {
     expect(defaultEmbeddingRuntime()).not.toBe(services.embeddingRuntime)
     expect(defaultChatHistory()).not.toBe(services.chatHistory)
     expect(defaultUpdate()).not.toBe(services.update)
+    expect(defaultNavigation()).not.toBe(services.navigation)
     expect(defaultGitRepository()).not.toBe(services.gitRepository)
     expect(defaultGithubAuth()).not.toBe(services.githubAuth)
     expect(defaultGitHostCredentials()).not.toBe(services.gitHostCredentials)
