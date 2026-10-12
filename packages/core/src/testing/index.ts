@@ -62,9 +62,13 @@ export {
 } from './calendar.ts'
 export {
   createTestContactsService,
+  createTestMeetingService,
+  createTestPersonNoteService,
   type ContactsLookup,
   type TestContactsService,
   type TestContactsServiceOptions,
+  type TestMeetingServiceOptions,
+  type TestPersonNoteServiceOptions,
 } from './contacts.ts'
 export {
   createTestDatabaseService,

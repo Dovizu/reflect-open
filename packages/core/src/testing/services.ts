@@ -59,7 +59,12 @@ import {
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestDailyNoteService } from './daily.ts'
-import { createTestContactsService, type TestContactsService } from './contacts.ts'
+import {
+  createTestContactsService,
+  createTestMeetingService,
+  createTestPersonNoteService,
+  type TestContactsService,
+} from './contacts.ts'
 import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
 import {
@@ -306,6 +311,12 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
     id: overrides?.id ?? id,
   })
+  const contacts = createTestContactsService()
+  const personNotes = createTestPersonNoteService({
+    database: overrides?.database ?? database,
+    wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+    noteCreation: overrides?.noteCreation ?? noteCreation,
+  })
   const http = createTestHttpService()
   const fileChanges = createTestFileChangeService()
   const indexStore = createTestIndexStoreService()
@@ -415,7 +426,18 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     secretStore,
     appInfo: createTestAppInfoService(),
     calendar: createTestCalendarService(),
-    contacts: createTestContactsService(),
+    contacts,
+    personNotes,
+    meetings: createTestMeetingService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      noteCreation: overrides?.noteCreation ?? noteCreation,
+      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+      suggestions: overrides?.suggestions ?? indexReads.suggestions,
+      personNotes: overrides?.personNotes ?? personNotes,
+      contacts: overrides?.contacts ?? contacts,
+      settings: overrides?.settings ?? settings,
+      logger,
+    }),
     agentSkill: createTestAgentSkillService(),
     mobileStorage,
     imageCodec: createTestImageCodec(),

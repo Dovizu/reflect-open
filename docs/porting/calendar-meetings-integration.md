@@ -8,7 +8,7 @@ changes completely is how calendars are reached.
 Landed as: the `calendar` Rust module
 (`apps/desktop/src-tauri/src/calendar.rs`), typed bindings + display policy
 in `packages/core/src/calendar/`, the `addMeetingToDaily` action
-(`packages/core/src/actions/add-meeting.ts`), the Settings **Calendar**
+(`packages/core/src/contacts/meeting-service.ts`), the Settings **Calendar**
 section, and the Events section in the daily context sidebar with its
 add-meeting dialog. iOS still inherits the EventKit approach later (its
 Info.plist/entitlements live in the generated Xcode project, not this

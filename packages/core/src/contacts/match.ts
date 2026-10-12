@@ -90,7 +90,18 @@ export async function contactLinkSuggestions(query: string, limit = 4): Promise<
   if (trimmed.length < 2) {
     return []
   }
-  const candidates = await lookupContactsByName(trimmed)
+  return pickContactLinkSuggestions(await lookupContactsByName(trimmed), limit)
+}
+
+/**
+ * The {@link contactLinkSuggestions} filter over name-lookup `candidates`:
+ * one row per name, contacts without a name or any details dropped, at most
+ * `limit` rows.
+ */
+export function pickContactLinkSuggestions(
+  candidates: readonly ContactMatch[],
+  limit: number,
+): ContactMatch[] {
   const seen = new Set<string>()
   const suggestions: ContactMatch[] = []
   for (const candidate of candidates) {

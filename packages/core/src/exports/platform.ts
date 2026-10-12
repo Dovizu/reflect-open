@@ -612,6 +612,21 @@ export {
   type ContactsService,
 } from '../contacts/contacts-service.ts'
 export {
+  createPersonNoteService,
+  defaultPersonNotes,
+  setDefaultPersonNotes,
+  type PersonNoteService,
+} from '../contacts/person-note-service.ts'
+export {
+  createMeetingService,
+  defaultMeetings,
+  mergeAttendeeUpgrades,
+  setDefaultMeetings,
+  withAttendee,
+  type AttendeeSuggestions,
+  type MeetingService,
+} from '../contacts/meeting-service.ts'
+export {
   createDatabaseService,
   defaultDatabase,
   setDefaultDatabase,
@@ -1071,10 +1086,9 @@ export {
   appendContactDetails,
   noteHasContactDetails,
 } from '../contacts/markdown.ts'
-export { pickContactForEmail, resolveAttendeeContact } from '../contacts/resolve.ts'
+export { pickContactForEmail } from '../contacts/resolve.ts'
 export {
   ensurePersonNote,
-  resolvePerson,
   resolvePersonContact,
   type BlockedPersonResolution,
   type BlockedPersonContactResolution,

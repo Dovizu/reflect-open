@@ -84,6 +84,8 @@ import {
 } from '../monetization/subscription-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import { createMeetingService, type MeetingService } from '../contacts/meeting-service.ts'
+import { createPersonNoteService, type PersonNoteService } from '../contacts/person-note-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
 import {
   createNoteCreationService,
@@ -259,6 +261,8 @@ export interface AppServices {
   readonly appInfo: AppInfoService
   readonly calendar: CalendarService
   readonly contacts: ContactsService
+  readonly personNotes: PersonNoteService
+  readonly meetings: MeetingService
   readonly agentSkill: AgentSkillService
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
@@ -515,6 +519,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     id,
   })
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
+  const contacts = createContactsService({ ipc })
+  const personNotes = createPersonNoteService({
+    database,
+    wikiResolver: indexReads.wikiResolver,
+    noteCreation: noteServices.noteCreation,
+  })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
   const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
@@ -598,7 +608,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     secretStore,
     appInfo: createAppInfoService({ ipc }),
     calendar: createCalendarService({ ipc, logger }),
-    contacts: createContactsService({ ipc }),
+    contacts,
+    personNotes,
+    meetings: createMeetingService({
+      noteFile,
+      noteCreation: noteServices.noteCreation,
+      wikiResolver: indexReads.wikiResolver,
+      suggestions: indexReads.suggestions,
+      personNotes,
+      contacts,
+      settings,
+      logger,
+    }),
     agentSkill: createAgentSkillService({ ipc }),
     mobileStorage,
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),

@@ -38,6 +38,8 @@ const SERVICE_KEYS = [
   'appInfo',
   'calendar',
   'contacts',
+  'personNotes',
+  'meetings',
   'agentSkill',
   'mobileOnboarding',
   'mobileStorage',
