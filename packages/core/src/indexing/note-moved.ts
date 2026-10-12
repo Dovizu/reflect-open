@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defaultLogger } from '../app/logger-service.ts'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 
 /**
@@ -24,7 +25,7 @@ export function subscribeNoteMoved(handler: (from: string, to: string) => void):
     } else {
       // Contract drift between Rust and TS must be loud — a silently dropped
       // move leaves an open editor writing to a dead path.
-      console.error('invalid note:moved payload:', parsed.error)
+      defaultLogger().error('invalid note:moved payload:', parsed.error)
     }
   })
 }

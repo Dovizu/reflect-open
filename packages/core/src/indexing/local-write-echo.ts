@@ -1,3 +1,4 @@
+import { defaultLogger } from '../app/logger-service.ts'
 import { emitFileChanges, type FileChange } from './file-changes.ts'
 
 /**
@@ -54,7 +55,7 @@ export function echoLocalWrite(change: FileChange): void {
       handler(change.path)
     } catch (err) {
       // One misbehaving observer must not break the write echo for everyone.
-      console.error('own-write observer failed:', err)
+      defaultLogger().error('own-write observer failed:', err)
     }
   }
   if (echoEnabled) {

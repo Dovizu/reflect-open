@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defaultLogger } from '../app/logger-service.ts'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 
 /** The Rust iCloud watch's conflict event (Plan 21 Phase 2). */
@@ -21,7 +22,7 @@ export function subscribeIcloudConflicts(handler: (paths: string[]) => void): Pr
     } else {
       // Contract drift between the Rust event and this schema — loud beats
       // silently never sweeping.
-      console.error('invalid icloud:conflicts payload:', parsed.error)
+      defaultLogger().error('invalid icloud:conflicts payload:', parsed.error)
     }
   })
 }

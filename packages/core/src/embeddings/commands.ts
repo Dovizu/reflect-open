@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defaultLogger } from '../app/logger-service.ts'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 import { call } from '../ipc/invoke.ts'
 
@@ -74,7 +75,7 @@ export function subscribeEmbedStatus(handler: (status: EmbedStatus) => void): Pr
     if (parsed.success) {
       handler(parsed.data)
     } else {
-      console.error('invalid embed:status payload:', parsed.error)
+      defaultLogger().error('invalid embed:status payload:', parsed.error)
     }
   })
 }

@@ -1,4 +1,5 @@
 import { z, type ZodType } from 'zod'
+import { defaultLogger } from '../app/logger-service.ts'
 import type { AppError } from '../errors.ts'
 import { getBridge, type IpcBridge, type Unlisten } from './bridge.ts'
 import { call } from './invoke.ts'
@@ -90,7 +91,7 @@ async function registerSharedListener<Payload>(
     await bridge.listenPlugin(plugin, event, (raw) => {
       const parsed = schema.safeParse(raw)
       if (!parsed.success) {
-        console.warn(`dropping a malformed "${plugin}:${event}" payload:`, parsed.error)
+        defaultLogger().warn(`dropping a malformed "${plugin}:${event}" payload:`, parsed.error)
         return
       }
       for (const handler of handlers) {
@@ -137,7 +138,7 @@ function getOrCreateSharedListener<Payload>(
  * registration per bridge, created on the first subscribe and kept alive
  * afterwards; a failed registration is dropped from the registry so the next
  * subscriber retries instead of inheriting a dead event for the whole
- * session. Payloads that fail validation are dropped with a `console.warn`
+ * session. Payloads that fail validation are dropped with a logged warning
  * (native emitters are trusted; a mismatch means contract drift, not user
  * error).
  */

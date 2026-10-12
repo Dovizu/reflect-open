@@ -1,3 +1,4 @@
+import { defaultLogger } from '../app/logger-service.ts'
 import { errorMessage, isAppError } from '../errors.ts'
 import { listFiles, readNote } from '../graph/commands.ts'
 import { parseNote } from '../markdown/index.ts'
@@ -399,7 +400,7 @@ export async function syncIndex(options: IndexPassOptions): Promise<void> {
   // graph. Seeing this on *every* open means the stamp (or the whole index
   // file) isn't persisting between launches — a pathology that would
   // otherwise be indistinguishable from a slow reconcile.
-  console.warn(
+  defaultLogger().warn(
     `index: stored projection version ${stamped === null ? 'none' : `"${stamped}"`} ≠ ${PROJECTION_VERSION} — full rebuild`,
   )
   return await rebuildIndex(options)
@@ -469,7 +470,7 @@ export async function reconcileIndex(options: IndexPassOptions): Promise<void> {
       } catch (err) {
         // A refused/failed move (e.g. a row appeared at the destination in a
         // race) degrades to today's delete+create.
-        console.error(`id-based move failed (${move.from} → ${move.to}):`, err)
+        defaultLogger().error(`id-based move failed (${move.from} → ${move.to}):`, err)
         continue
       }
       // The moved row carries the old path's facts: the main pass re-indexes
@@ -483,7 +484,7 @@ export async function reconcileIndex(options: IndexPassOptions): Promise<void> {
     }
   } catch (err) {
     // A failed detection (e.g. the id lookup) must not cost the reconcile.
-    console.error('id-based move healing failed; reconciling plainly:', err)
+    defaultLogger().error('id-based move healing failed; reconciling plainly:', err)
   }
   if (signal?.aborted) {
     return

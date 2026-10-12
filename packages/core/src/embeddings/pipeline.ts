@@ -1,3 +1,4 @@
+import { defaultLogger } from '../app/logger-service.ts'
 import { readNoteLocal } from '../graph/commands.ts'
 import { isTemplatePath } from '../graph/paths.ts'
 import { gatherAssetDescriptionBodies } from '../indexing/asset-description-text.ts'
@@ -145,7 +146,7 @@ export async function backfillEmbeddings(options: {
     try {
       await embedNote({ path: row.path, generation, modelId })
     } catch (cause) {
-      console.error(`embedding backfill failed for ${row.path}:`, cause)
+      defaultLogger().error(`embedding backfill failed for ${row.path}:`, cause)
     }
     done += 1
     onProgress?.(done, rows.length)

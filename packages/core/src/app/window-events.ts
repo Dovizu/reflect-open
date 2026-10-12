@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
+import { defaultLogger } from './logger-service.ts'
 
 /**
  * Events the shell targets at one specific window (`emit_to`), as opposed to
@@ -20,7 +21,7 @@ export function subscribeWindowNavigate(handler: (url: string) => void): Promise
     if (parsed.success) {
       handler(parsed.data)
     } else {
-      console.error('invalid window:navigate payload:', parsed.error)
+      defaultLogger().error('invalid window:navigate payload:', parsed.error)
     }
   })
 }
