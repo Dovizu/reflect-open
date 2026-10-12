@@ -14,6 +14,7 @@ import {
 } from '@reflect/core/testing'
 import type { NoteSession } from '@/editor/note-session.ts'
 import { getNoteRowOverlay, resetNoteRowOverlays } from '@/hooks/note-row-overlay.ts'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 
 const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
 const writeNote = vi.hoisted(() => vi.fn(async () => {}))
@@ -21,7 +22,6 @@ const getGithubToken = vi.hoisted(() => vi.fn(async (): Promise<string | null> =
 const createGist = vi.hoisted(() => vi.fn())
 const updateGist = vi.hoisted(() => vi.fn())
 const deleteGist = vi.hoisted(() => vi.fn(async () => {}))
-const openSession = vi.hoisted(() => vi.fn<(path: string) => NoteSession | null>(() => null))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
@@ -32,7 +32,8 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   updateGist,
   deleteGist,
 }))
-vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
+
+const documents = installTestOpenDocuments()
 
 const { publishNoteToGist, runGistPublish, runGistUnpublish, unpublishNoteGist } =
   await import('./note-gist.ts')
@@ -61,7 +62,6 @@ beforeEach(() => {
   createGist.mockReset().mockResolvedValue(PUBLISHED)
   updateGist.mockReset().mockResolvedValue(PUBLISHED)
   deleteGist.mockReset().mockResolvedValue(undefined)
-  openSession.mockReset().mockReturnValue(null)
   resetNoteRowOverlays()
 })
 
@@ -119,7 +119,7 @@ describe('publishNoteToGist', () => {
 
   it('routes the frontmatter write through the live session when the note is open', async () => {
     const { session, commitFrontmatter } = fakeSession(BODY)
-    openSession.mockReturnValue(session)
+    documents.open(session)
     await publishNoteToGist('notes/a.md', 3)
 
     expect(commitFrontmatter).toHaveBeenCalledWith({
@@ -130,7 +130,7 @@ describe('publishNoteToGist', () => {
 
   it('falls back to disk when the session cannot take the patch', async () => {
     const { session } = fakeSession(BODY, false)
-    openSession.mockReturnValue(session)
+    documents.open(session)
     readNote.mockResolvedValue(BODY)
     await publishNoteToGist('notes/a.md', 3)
     expect(writeNote).toHaveBeenCalled()
@@ -140,7 +140,7 @@ describe('publishNoteToGist', () => {
     // liveContent === null means the buffer isn't the truth yet: publish must
     // read the real body from disk, not publish an empty gist.
     const { session } = fakeSession('', false, null)
-    openSession.mockReturnValue(session)
+    documents.open(session)
     readNote.mockResolvedValue(BODY)
 
     await publishNoteToGist('notes/a.md', 3)
@@ -256,7 +256,7 @@ describe('unpublishNoteGist', () => {
 
   it('routes the gist removal through the live session when the note is open', async () => {
     const { session, commitFrontmatter } = fakeSession(REPUBLISH_SOURCE)
-    openSession.mockReturnValue(session)
+    documents.open(session)
 
     await unpublishNoteGist('notes/a.md', 3)
 

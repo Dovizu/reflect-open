@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ContactMatch } from '@reflect/core'
 import type { NoteSession } from '@/editor/note-session.ts'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 
 const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
 const writeNote = vi.hoisted(() => vi.fn(async () => {}))
-const openSession = vi.hoisted(() => vi.fn<(path: string) => NoteSession | null>(() => null))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   readNote,
   writeNote,
 }))
-vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
+
+const documents = installTestOpenDocuments()
 
 const { addContactToNote, ignoreContactSuggestion } = await import('./note-contact.ts')
 
@@ -28,8 +29,6 @@ const ADA_BLOCK = '- Type: #person\n- Email: ada@example.com\n- Phone: +1 555 01
 beforeEach(() => {
   readNote.mockReset()
   writeNote.mockClear()
-  openSession.mockReset()
-  openSession.mockReturnValue(null)
 })
 
 function fakeSession(content: string, { canAppend = true, canCommit = true } = {}) {
@@ -47,7 +46,7 @@ function fakeSession(content: string, { canAppend = true, canCommit = true } = {
 describe('addContactToNote', () => {
   it('appends the details block through the live session — a single write', async () => {
     const { session, commitBodyAppend, commitFrontmatter } = fakeSession('# Ada Lovelace\n')
-    openSession.mockReturnValue(session)
+    documents.open(session, 'notes/Ada Lovelace.md')
 
     await addContactToNote('notes/Ada Lovelace.md', ADA, 3)
 
@@ -59,7 +58,7 @@ describe('addContactToNote', () => {
 
   it('refuses rather than clobber when the open session cannot take the append', async () => {
     const { session } = fakeSession('# Ada Lovelace\n', { canAppend: false })
-    openSession.mockReturnValue(session)
+    documents.open(session, 'notes/Ada Lovelace.md')
 
     await expect(addContactToNote('notes/Ada Lovelace.md', ADA, 3)).rejects.toThrow(
       /can’t be updated right now/,
@@ -82,7 +81,7 @@ describe('addContactToNote', () => {
 
   it('refuses when the title no longer matches the contact (stale card)', async () => {
     const { session, commitBodyAppend } = fakeSession('# Grace Hopper\n')
-    openSession.mockReturnValue(session)
+    documents.open(session, 'notes/Ada Lovelace.md')
 
     await expect(addContactToNote('notes/Ada Lovelace.md', ADA, 3)).rejects.toThrow(
       /no longer matches/,
@@ -93,7 +92,7 @@ describe('addContactToNote', () => {
 
   it('appends only the details to an already-typed person note (meeting flow, link menu)', async () => {
     const { session, commitBodyAppend } = fakeSession('# Ada Lovelace\n\n- Type: #person\n')
-    openSession.mockReturnValue(session)
+    documents.open(session, 'notes/Ada Lovelace.md')
 
     await addContactToNote('notes/Ada Lovelace.md', ADA, 3)
 
@@ -112,7 +111,7 @@ describe('addContactToNote', () => {
     // The card would have been suppressed had its query refetched; Add must
     // apply the same content gate rather than stack a second block.
     const { session, commitBodyAppend } = fakeSession('# Ada Lovelace\n\nWork mail ada@work.com\n')
-    openSession.mockReturnValue(session)
+    documents.open(session, 'notes/Ada Lovelace.md')
 
     await addContactToNote('notes/Ada Lovelace.md', ADA, 3)
 
@@ -133,7 +132,7 @@ describe('addContactToNote', () => {
 describe('ignoreContactSuggestion', () => {
   it('records the contact name in ignoredContacts through the live session', async () => {
     const { session, commitBodyAppend, commitFrontmatter } = fakeSession('# Ada Lovelace\n')
-    openSession.mockReturnValue(session)
+    documents.open(session, 'notes/Ada Lovelace.md')
 
     await ignoreContactSuggestion('notes/Ada Lovelace.md', ADA, 3)
 
@@ -165,7 +164,7 @@ describe('ignoreContactSuggestion', () => {
     // The user wanted the stale card gone; the new title must stay eligible
     // for its own suggestion, so nothing is written.
     const { session, commitFrontmatter } = fakeSession('# Grace Hopper\n')
-    openSession.mockReturnValue(session)
+    documents.open(session, 'notes/Ada Lovelace.md')
 
     await ignoreContactSuggestion('notes/Ada Lovelace.md', ADA, 3)
 

@@ -4,17 +4,18 @@ import { QueryClient } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSession } from '@/editor/note-session.ts'
 import { queryKeys } from '@/lib/query-client.ts'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 
 const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
 const writeNote = vi.hoisted(() => vi.fn(async () => {}))
-const openSession = vi.hoisted(() => vi.fn<(path: string) => NoteSession | null>(() => null))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   readNote,
   writeNote,
 }))
-vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
+
+const documents = installTestOpenDocuments()
 
 const { reorderPinnedNotes, toggleNotePinned, unpinNote } = await import('./note-pin.ts')
 
@@ -32,8 +33,6 @@ beforeEach(() => {
   client = new QueryClient()
   readNote.mockReset()
   writeNote.mockClear()
-  openSession.mockReset()
-  openSession.mockReturnValue(null)
 })
 
 afterEach(() => {
@@ -84,7 +83,7 @@ describe('toggleNotePinned', () => {
 
   it('routes through the live session, which owns landing the patch', async () => {
     const { session, commitFrontmatter } = fakeSession('# A\n')
-    openSession.mockReturnValue(session)
+    documents.open(session)
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: true })
     expect(readNote).not.toHaveBeenCalled()
@@ -93,14 +92,14 @@ describe('toggleNotePinned', () => {
 
   it('toggles off through the session when the open note is pinned', async () => {
     const { session, commitFrontmatter } = fakeSession('---\npinned: 2\n---\n# A\n')
-    openSession.mockReturnValue(session)
+    documents.open(session)
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: false })
   })
 
   it('falls back to disk when the session cannot take the patch', async () => {
     const { session } = fakeSession('# A\n', false)
-    openSession.mockReturnValue(session)
+    documents.open(session)
     readNote.mockResolvedValue('# A\n')
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
     expect(writeNote).toHaveBeenCalledWith('notes/a.md', '---\npinned: true\n---\n\n# A\n', 3)
@@ -112,14 +111,13 @@ describe('toggleNotePinned', () => {
     // session can't take the patch, and the file doesn't exist — a missing
     // note reads as empty, and the pin write is what creates it.
     const { session } = fakeSession('', false, null)
-    openSession.mockReturnValue(session)
+    documents.open(session, 'daily/2026-06-10.md')
     readNote.mockRejectedValue({ kind: 'notFound', message: 'no such note' })
     await expect(toggleNotePinned(input('daily/2026-06-10.md'))).resolves.toBeUndefined()
     expect(writeNote).toHaveBeenCalledWith('daily/2026-06-10.md', '---\npinned: true\n---\n\n', 3)
   })
 
   it('reports non-notFound read failures through operations', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockRejectedValue({ kind: 'io', message: 'disk on fire' })
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
     expect(writeNote).not.toHaveBeenCalled()
@@ -140,7 +138,7 @@ describe('unpinNote', () => {
 
   it('routes direct unpin through the live session', async () => {
     const { session, commitFrontmatter } = fakeSession('---\npinned: 2\n---\n# A\n')
-    openSession.mockReturnValue(session)
+    documents.open(session)
 
     await unpinNote(input())
 
@@ -167,7 +165,7 @@ describe('reorderPinnedNotes', () => {
 
   it('routes open notes through their sessions', async () => {
     const { session, commitFrontmatter } = fakeSession('# A\n')
-    openSession.mockReturnValue(session)
+    documents.open(session)
 
     await reorderPinnedNotes(
       [{ path: 'notes/a.md', title: 'A', dailyDate: null, pinnedOrder: 1024 }],

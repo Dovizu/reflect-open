@@ -313,6 +313,34 @@ export {
   type WikiEmbedDisplay,
 } from '../documents/attachment-service.ts'
 export {
+  INITIAL_NOTE_SNAPSHOT,
+  createNoteSessionService,
+  defaultNoteSessions,
+  frontmatterPatchToYaml,
+  setDefaultNoteSessions,
+  type FrontmatterPatch,
+  type NoteContentOrigin,
+  type NoteSession,
+  type NoteSessionOptions,
+  type NoteSessionService,
+  type NoteSessionSnapshot,
+  type NoteSessionStatus,
+} from '../documents/note-session.ts'
+export {
+  createOpenDocumentsService,
+  defaultOpenDocuments,
+  setDefaultOpenDocuments,
+  type OpenDocument,
+  type OpenDocumentsService,
+} from '../documents/open-documents-service.ts'
+export {
+  createDocumentBinding,
+  type BindFactories,
+  type BoundDocument,
+  type DocumentBinding,
+  type DocumentCoordinator,
+} from '../documents/document-binding.ts'
+export {
   createXArchiveService,
   defaultXArchive,
   setDefaultXArchive,
@@ -614,7 +642,6 @@ export {
   type WindowBootstrap,
 } from '../graph/schemas.ts'
 export {
-  openGraph,
   windowBootstrap,
   createGraph,
   importReflectV1Zip,
@@ -639,9 +666,6 @@ export {
   listAttachments,
   vaultScanStats,
   type VaultScanStats,
-  recentGraphs,
-  forgetRecent,
-  deleteGraph,
   captureHostRegister,
   captureInboxList,
   captureInboxRead,
@@ -667,6 +691,21 @@ export {
   type ResolveOrCreateNoteResult,
 } from '../graph/create-note.ts'
 export { ensureWelcomeNote, type EnsureWelcomeNoteOptions } from '../graph/onboarding.ts'
+export {
+  createGraphSessionService,
+  type GraphBootHooks,
+  type GraphReleaseReason,
+  type GraphSessionService,
+  type GraphSessionServiceDeps,
+  type GraphSessionState,
+  type GraphStatus,
+} from '../graph/graph-session-service.ts'
+export {
+  cleanGraphName,
+  graphNameFromRoot,
+  graphRootForName,
+  isGraphNameTaken,
+} from '../graph/graph-names.ts'
 export {
   resolveExistingMarkdownTarget,
   resolveExistingWikiTarget,

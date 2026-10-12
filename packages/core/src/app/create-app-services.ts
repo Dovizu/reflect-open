@@ -58,7 +58,16 @@ import {
   type NoteCreationService,
 } from '../graph/note-creation-service.ts'
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
+import {
+  createGraphSessionService,
+  type GraphSessionService,
+} from '../graph/graph-session-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
+import {
+  createOpenDocumentsService,
+  type OpenDocumentsService,
+} from '../documents/open-documents-service.ts'
 import {
   createNoteLinkResolverService,
   type NoteLinkResolverService,
@@ -217,6 +226,8 @@ export interface AppServices {
   readonly noteFile: NoteFileService
   readonly assetStore: AssetStoreService
   readonly attachments: AttachmentService
+  readonly noteSessions: NoteSessionService
+  readonly openDocuments: OpenDocumentsService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -229,6 +240,7 @@ export interface AppServices {
   readonly noteCreation: NoteCreationService
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
+  readonly graphSession: GraphSessionService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
@@ -383,6 +395,20 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const indexStore = createIndexStoreService({ ipc, database })
   const xArchive = createXArchiveService({ ipc })
   const commands = createCommandService({ platform, logger })
+  const path = createPathService({ transport: adapters.path })
+  const mobileStorage = createMobileStorageService({ ipc })
+  const indexLifecycle = createIndexLifecycleService({
+    indexStore,
+    noteFile,
+    fileChanges,
+    indexQuery: indexReads.indexQuery,
+    database,
+    xArchive,
+    hash,
+    clock,
+    logger,
+    operations,
+  })
   return {
     ipc,
     logger,
@@ -395,7 +421,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     dialog: adapters.dialog,
     clipboard: adapters.clipboard,
     opener: createOpenerService({ transport: adapters.opener, logger }),
-    path: createPathService({ transport: adapters.path }),
+    path,
     window: windowService,
     lifecycle,
     secretStore,
@@ -403,7 +429,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     calendar: createCalendarService({ ipc, logger }),
     contacts: createContactsService({ ipc }),
     agentSkill: createAgentSkillService({ ipc }),
-    mobileStorage: createMobileStorageService({ ipc }),
+    mobileStorage,
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
@@ -458,19 +484,25 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clock,
       platform,
     }),
+    noteSessions: createNoteSessionService({ noteFile, clock, logger }),
+    openDocuments: createOpenDocumentsService(),
     ...indexReads,
     ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
-    indexLifecycle: createIndexLifecycleService({
+    indexLifecycle,
+    graphSession: createGraphSessionService({
+      ipc,
+      indexLifecycle,
       indexStore,
       noteFile,
+      id,
       fileChanges,
-      indexQuery: indexReads.indexQuery,
-      database,
-      xArchive,
-      hash,
-      clock,
+      window: windowService,
+      dialog: adapters.dialog,
+      path,
+      platform,
+      lifecycle,
+      mobileStorage,
       logger,
-      operations,
     }),
     aiCredentials: createAiCredentialService({ secretStore }),
     aiKeyValidation: createAiKeyValidationService({ http: adapters.http }),

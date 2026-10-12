@@ -13,13 +13,11 @@ import {
   graphImportProgressSchema,
   graphImportSummarySchema,
   graphInfoSchema,
-  recentGraphSchema,
   type FileMeta,
   type GraphImportProgress,
   type GraphImportSummary,
   type GraphInfo,
   type NoteCreateOutcome,
-  type RecentGraph,
   type WindowBootstrap,
 } from './schemas.ts'
 
@@ -27,11 +25,6 @@ export type { LocalNoteRead, VaultScanStats } from './note-file-service.ts'
 
 /** Commands that return `()` from Rust serialize as `null` over IPC. */
 const voidSchema = z.null()
-
-/** Open an existing graph at `path` (ensures the standard layout exists). */
-export async function openGraph(path: string): Promise<GraphInfo> {
-  return await call('graph_open', { path }, graphInfoSchema)
-}
 
 /**
  * Adopt the already-open graph for a secondary note window: a pure read of
@@ -322,23 +315,4 @@ export async function captureMetaFetch(url: string): Promise<string> {
  */
 export async function captureOEmbedFetch(url: string): Promise<string> {
   return await defaultWebFetch().fetchOembed(url as CloudSafe<string>)
-}
-
-/** The recently-opened graphs, newest first. */
-export async function recentGraphs(): Promise<RecentGraph[]> {
-  return await call('recent_graphs', {}, z.array(recentGraphSchema))
-}
-
-/** Drop a graph from the recents list (by root path). */
-export async function forgetRecent(root: string): Promise<void> {
-  await call('forget_recent', { root }, voidSchema)
-}
-
-/**
- * Move the open graph's whole directory to the OS trash (recoverable) and
- * drop it from recents. Pinned to `generation` so a delete can never race a
- * graph switch and trash the newly opened graph. Desktop-only.
- */
-export async function deleteGraph(generation: number): Promise<void> {
-  await call('graph_delete', { generation }, voidSchema)
 }

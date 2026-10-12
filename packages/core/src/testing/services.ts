@@ -54,6 +54,11 @@ import {
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
+  createTestNoteSessionService,
+  createTestOpenDocumentsService,
+  type TestNoteSessionService,
+} from './documents.ts'
+import {
   createTestAssetStoreService,
   createTestNoteCreationService,
   createTestNoteFileService,
@@ -63,6 +68,7 @@ import {
   type TestNoteFileService,
   type TestNoteLinkResolverService,
 } from './graph.ts'
+import { createTestGraphSessionService, type TestGraphSessionService } from './graph-session.ts'
 import { createTestPrivacyService, type TestPrivacyService } from './privacy.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
@@ -188,10 +194,12 @@ export interface TestAppServices extends AppServices {
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
+  readonly noteSessions: TestNoteSessionService
   readonly noteLinkResolver: TestNoteLinkResolverService
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
+  readonly graphSession: TestGraphSessionService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
@@ -233,10 +241,25 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const xArchive = createTestXArchiveService()
   const hash = createTestHashService()
   const platform = createTestPlatformService()
-  const windowService = createTestWindowService()
   const commands = createTestCommandService({
     platform: overrides?.platform ?? platform,
     logger,
+  })
+  const dialog = createTestDialogService()
+  const path = createTestPathService()
+  const windowService = createTestWindowService()
+  const lifecycle = createTestLifecycleService()
+  const mobileStorage = createTestMobileStorageService()
+  const indexLifecycle = createTestIndexLifecycleService({
+    indexStore: overrides?.indexStore ?? indexStore,
+    noteFile: overrides?.noteFile ?? noteFile,
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+    database: overrides?.database ?? database,
+    xArchive: overrides?.xArchive ?? xArchive,
+    hash: overrides?.hash ?? hash,
+    clock: overrides?.clock ?? clock,
+    logger,
+    operations: overrides?.operations ?? operations,
   })
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
@@ -247,18 +270,18 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     platform,
     storage: createTestStorageService(),
     http,
-    dialog: createTestDialogService(),
+    dialog,
     clipboard: createTestClipboardService(),
     opener: createTestOpenerService({ logger }),
-    path: createTestPathService(),
+    path,
     window: windowService,
-    lifecycle: createTestLifecycleService(),
+    lifecycle,
     secretStore,
     appInfo: createTestAppInfoService(),
     calendar: createTestCalendarService(),
     contacts: createTestContactsService(),
     agentSkill: createTestAgentSkillService(),
-    mobileStorage: createTestMobileStorageService(),
+    mobileStorage,
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
@@ -298,6 +321,12 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     noteFile,
     assetStore: createTestAssetStoreService(),
     attachments: createTestAttachmentService(),
+    noteSessions: createTestNoteSessionService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    openDocuments: createTestOpenDocumentsService(),
     ...indexReads,
     noteLinkResolver,
     noteCreation: createTestNoteCreationService({
@@ -306,16 +335,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       id: overrides?.id ?? id,
     }),
     privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
-    indexLifecycle: createTestIndexLifecycleService({
+    indexLifecycle,
+    graphSession: createTestGraphSessionService({
+      ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
       indexStore: overrides?.indexStore ?? indexStore,
       noteFile: overrides?.noteFile ?? noteFile,
+      id: overrides?.id ?? id,
       fileChanges: overrides?.fileChanges ?? fileChanges,
-      database: overrides?.database ?? database,
-      xArchive: overrides?.xArchive ?? xArchive,
-      hash: overrides?.hash ?? hash,
-      clock: overrides?.clock ?? clock,
+      window: overrides?.window ?? windowService,
+      dialog: overrides?.dialog ?? dialog,
+      path: overrides?.path ?? path,
+      platform: overrides?.platform ?? platform,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      mobileStorage: overrides?.mobileStorage ?? mobileStorage,
       logger,
-      operations: overrides?.operations ?? operations,
     }),
     aiCredentials: createTestAiCredentialService({
       secretStore: overrides?.secretStore ?? secretStore,

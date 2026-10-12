@@ -1,27 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readNote } from '@reflect/core'
-import { openSession } from '@/editor/open-documents.ts'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 import { readExistingNoteSource } from './read-existing-note-source.ts'
 
-vi.mock('@reflect/core', () => ({
+vi.mock('@reflect/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@reflect/core')>()),
   readNote: vi.fn(),
 }))
 
-vi.mock('@/editor/open-documents.ts', () => ({
-  openSession: vi.fn(),
-}))
-
 const readNoteMock = vi.mocked(readNote)
-const openSessionMock = vi.mocked(openSession)
+const documents = installTestOpenDocuments()
 
 describe('readExistingNoteSource', () => {
   beforeEach(() => {
     readNoteMock.mockReset()
-    openSessionMock.mockReset().mockReturnValue(null)
   })
 
   it('reads the live buffer of an open, ready session', async () => {
-    openSessionMock.mockReturnValue({ liveContent: () => '# Live' } as never)
+    documents.open({ liveContent: () => '# Live' })
     readNoteMock.mockResolvedValue('# On disk')
 
     await expect(readExistingNoteSource('notes/a.md', 7)).resolves.toBe('# Live')
@@ -29,7 +25,7 @@ describe('readExistingNoteSource', () => {
   })
 
   it('preserves an authoritative empty live buffer', async () => {
-    openSessionMock.mockReturnValue({ liveContent: () => '' } as never)
+    documents.open({ liveContent: () => '' })
     readNoteMock.mockResolvedValue('# On disk')
 
     await expect(readExistingNoteSource('notes/a.md', 7)).resolves.toBe('')
@@ -37,7 +33,7 @@ describe('readExistingNoteSource', () => {
   })
 
   it('refuses a stale live buffer when its generation-pinned file is gone', async () => {
-    openSessionMock.mockReturnValue({ liveContent: () => '# Stale' } as never)
+    documents.open({ liveContent: () => '# Stale' })
     readNoteMock.mockRejectedValue({ kind: 'notFound', message: 'removed' })
 
     await expect(readExistingNoteSource('notes/a.md', 7)).rejects.toMatchObject({
@@ -46,7 +42,7 @@ describe('readExistingNoteSource', () => {
   })
 
   it('falls back to a generation-pinned disk read while the session is loading', async () => {
-    openSessionMock.mockReturnValue({ liveContent: () => null } as never)
+    documents.open({ liveContent: () => null })
     readNoteMock.mockResolvedValue('# On disk')
 
     await expect(readExistingNoteSource('notes/a.md', 7)).resolves.toBe('# On disk')

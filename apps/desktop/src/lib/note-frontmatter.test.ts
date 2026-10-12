@@ -1,16 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSession } from '@/editor/note-session.ts'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 
 const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
 const writeNote = vi.hoisted(() => vi.fn(async () => {}))
-const openSession = vi.hoisted(() => vi.fn<(path: string) => NoteSession | null>(() => null))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   readNote,
   writeNote,
 }))
-vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
+
+const documents = installTestOpenDocuments()
 
 const { commitNoteFrontmatter, readNoteSource } = await import('./note-frontmatter.ts')
 
@@ -26,18 +27,17 @@ function fakeSession(options: { live?: string | null; canCommit?: boolean }) {
 beforeEach(() => {
   readNote.mockReset()
   writeNote.mockClear()
-  openSession.mockReset().mockReturnValue(null)
 })
 
 describe('readNoteSource', () => {
   it("reads the open session's loaded buffer, not disk", async () => {
-    openSession.mockReturnValue(fakeSession({ live: '# live\n' }).session)
+    documents.open(fakeSession({ live: '# live\n' }).session)
     await expect(readNoteSource('notes/a.md')).resolves.toBe('# live\n')
     expect(readNote).not.toHaveBeenCalled()
   })
 
   it('falls back to disk while the session is still loading (liveContent null)', async () => {
-    openSession.mockReturnValue(fakeSession({ live: null }).session)
+    documents.open(fakeSession({ live: null }).session)
     readNote.mockResolvedValue('# disk\n')
     await expect(readNoteSource('notes/a.md')).resolves.toBe('# disk\n')
   })
@@ -51,7 +51,7 @@ describe('readNoteSource', () => {
 describe('commitNoteFrontmatter', () => {
   it('lands the patch through the live session when it can take it', async () => {
     const { session, commitFrontmatter } = fakeSession({ live: '# A\n', canCommit: true })
-    openSession.mockReturnValue(session)
+    documents.open(session)
 
     await commitNoteFrontmatter('notes/a.md', { pinned: true }, 3)
 
@@ -60,7 +60,7 @@ describe('commitNoteFrontmatter', () => {
   })
 
   it('falls back to a disk patch when the session declines the patch', async () => {
-    openSession.mockReturnValue(fakeSession({ live: '# A\n', canCommit: false }).session)
+    documents.open(fakeSession({ live: '# A\n', canCommit: false }).session)
     readNote.mockResolvedValue('# A\n')
 
     await commitNoteFrontmatter('notes/a.md', { pinned: true }, 3)

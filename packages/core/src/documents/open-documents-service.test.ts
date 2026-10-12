@@ -1,63 +1,56 @@
-import { describe, expect, it, vi } from 'vitest'
-import { createNoteSession, type NoteSession, type NoteSessionSnapshot } from './note-session.ts'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestClockService } from '../testing/clock.ts'
+import { createTestNoteSession } from '../testing/documents.ts'
+import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
+import { createTestLoggerService } from '../testing/logger.ts'
 import {
-  flushOpenDocuments,
-  openSession,
-  registerOpenDocument,
-  reloadOpenDocuments,
-} from './open-documents.ts'
+  createNoteSessionService,
+  type NoteSession,
+  type NoteSessionSnapshot,
+} from './note-session.ts'
+import { createOpenDocumentsService, type OpenDocumentsService } from './open-documents-service.ts'
 
+/** A session that logs the calls the registry makes. */
 function fakeSession(path: string, log: string[]): NoteSession {
   return {
-    path,
-    retarget: () => {},
-    load: () => {},
-    editorChanged: () => {},
+    ...createTestNoteSession({ path }),
     externalChanged: () => {
       log.push(`externalChanged:${path}`)
     },
     flush: async () => {
       log.push(`flush:${path}`)
     },
-    keepMine: () => {},
-    isDirty: () => false,
-    isUnpersisted: () => false,
-    prepareDelete: async () => false,
-    cancelDelete: () => {},
-    loadTheirs: () => {},
-    commitFrontmatter: async () => true,
-    content: () => '',
-    liveContent: () => '',
-    updateFrontmatter: () => true,
-    commitBodyAppend: async () => false,
-    commitSourceEdit: async () => false,
-    dispose: () => {},
-    discard: () => {},
   }
 }
+
+let openDocuments: OpenDocumentsService
+
+beforeEach(() => {
+  openDocuments = createOpenDocumentsService()
+})
 
 describe('open documents', () => {
   it('looks up the live session by path and forgets it on unregister', () => {
     const session = fakeSession('notes/a.md', [])
-    const unregister = registerOpenDocument({ session })
-    expect(openSession('notes/a.md')).toBe(session)
+    const unregister = openDocuments.register({ session })
+    expect(openDocuments.sessionFor('notes/a.md')).toBe(session)
     unregister()
-    expect(openSession('notes/a.md')).toBeNull()
+    expect(openDocuments.sessionFor('notes/a.md')).toBeNull()
   })
 
   it('a reopened path replaces the entry; the old unregister cannot evict it', () => {
     const first = fakeSession('notes/a.md', [])
     const second = fakeSession('notes/a.md', [])
-    const unregisterFirst = registerOpenDocument({ session: first })
-    const unregisterSecond = registerOpenDocument({ session: second })
+    const unregisterFirst = openDocuments.register({ session: first })
+    const unregisterSecond = openDocuments.register({ session: second })
     unregisterFirst() // stale unregister after the reopen — must be a no-op
-    expect(openSession('notes/a.md')).toBe(second)
+    expect(openDocuments.sessionFor('notes/a.md')).toBe(second)
     unregisterSecond()
   })
 
-  it('flushOpenDocuments flushes, then settles, then awaits the settle work', async () => {
+  it('flushAll flushes, then settles, then awaits the settle work', async () => {
     const log: string[] = []
-    const unregister = registerOpenDocument({
+    const unregister = openDocuments.register({
       session: fakeSession('notes/a.md', log),
       settle: () => {
         log.push('settle')
@@ -68,19 +61,19 @@ describe('open documents', () => {
       },
     })
     try {
-      await flushOpenDocuments()
+      await openDocuments.flushAll()
       expect(log).toEqual(['flush:notes/a.md', 'settle', 'settled'])
     } finally {
       unregister()
     }
   })
 
-  it('reloadOpenDocuments asks every open session to reconcile against disk', () => {
+  it('reloadAll asks every open session to reconcile against disk', () => {
     const log: string[] = []
-    const unregisterA = registerOpenDocument({ session: fakeSession('notes/a.md', log) })
-    const unregisterB = registerOpenDocument({ session: fakeSession('notes/b.md', log) })
+    const unregisterA = openDocuments.register({ session: fakeSession('notes/a.md', log) })
+    const unregisterB = openDocuments.register({ session: fakeSession('notes/b.md', log) })
     try {
-      reloadOpenDocuments()
+      openDocuments.reloadAll()
       expect(log).toEqual(['externalChanged:notes/a.md', 'externalChanged:notes/b.md'])
     } finally {
       unregisterA()
@@ -94,10 +87,10 @@ describe('open documents', () => {
     failing.flush = async () => {
       throw new Error('disk full')
     }
-    const unregisterBad = registerOpenDocument({ session: failing })
-    const unregisterGood = registerOpenDocument({ session: fakeSession('notes/good.md', log) })
+    const unregisterBad = openDocuments.register({ session: failing })
+    const unregisterGood = openDocuments.register({ session: fakeSession('notes/good.md', log) })
     try {
-      await expect(flushOpenDocuments()).resolves.toBeUndefined()
+      await expect(openDocuments.flushAll()).resolves.toBeUndefined()
       expect(log).toContain('flush:notes/good.md')
     } finally {
       unregisterBad()
@@ -106,59 +99,66 @@ describe('open documents', () => {
   })
 })
 
-describe('retargetOpenDocument (Plan 17)', () => {
+describe('retarget (Plan 17)', () => {
   it('re-keys the entry; the original unregister still finds it by identity', async () => {
-    const { retargetOpenDocument } = await import('./open-documents.ts')
     const session = fakeSession('notes/a.md', [])
-    const unregister = registerOpenDocument({ session })
+    const unregister = openDocuments.register({ session })
 
-    retargetOpenDocument('notes/a.md', 'notes/renamed.md', session)
-    expect(openSession('notes/a.md')).toBeNull()
-    expect(openSession('notes/renamed.md')).toBe(session)
+    openDocuments.retarget('notes/a.md', 'notes/renamed.md', session)
+    expect(openDocuments.sessionFor('notes/a.md')).toBeNull()
+    expect(openDocuments.sessionFor('notes/renamed.md')).toBe(session)
 
     unregister() // registered under a.md, re-keyed since — must still evict
-    expect(openSession('notes/renamed.md')).toBeNull()
+    expect(openDocuments.sessionFor('notes/renamed.md')).toBeNull()
   })
 
   it('re-keying a path with no entry is a no-op', async () => {
-    const { retargetOpenDocument } = await import('./open-documents.ts')
-    retargetOpenDocument('notes/ghost.md', 'notes/elsewhere.md', fakeSession('notes/ghost.md', []))
-    expect(openSession('notes/elsewhere.md')).toBeNull()
+    openDocuments.retarget(
+      'notes/ghost.md',
+      'notes/elsewhere.md',
+      fakeSession('notes/ghost.md', []),
+    )
+    expect(openDocuments.sessionFor('notes/elsewhere.md')).toBeNull()
   })
 
   it("never re-keys a different pane's document at the same path", async () => {
     // The failed-move compensation re-keys (to → from); when the entry at
     // `to` belongs to another pane, it must stay exactly where it is.
-    const { retargetOpenDocument } = await import('./open-documents.ts')
     const foreign = fakeSession('notes/taken.md', [])
-    const unregister = registerOpenDocument({ session: foreign })
+    const unregister = openDocuments.register({ session: foreign })
     try {
-      retargetOpenDocument('notes/taken.md', 'notes/old.md', fakeSession('notes/taken.md', []))
-      expect(openSession('notes/taken.md')).toBe(foreign)
-      expect(openSession('notes/old.md')).toBeNull()
+      openDocuments.retarget('notes/taken.md', 'notes/old.md', fakeSession('notes/taken.md', []))
+      expect(openDocuments.sessionFor('notes/taken.md')).toBe(foreign)
+      expect(openDocuments.sessionFor('notes/old.md')).toBeNull()
     } finally {
       unregister()
     }
   })
 })
 
-describe('reloadOpenDocuments with live sessions', () => {
+describe('reloadAll with live sessions', () => {
   // The iOS resume bug: the index reconcile re-reads a remotely edited note
   // into the index but emits no `index:changed`, so nothing ever told the open
   // session and it kept showing stale content until the app was relaunched.
   // These pin the whole path with real sessions: content changes on disk, no
   // file event fires, the reload converges the editor.
 
+  const PATH = 'notes/stale.md'
+
   function liveSession(
-    read: () => string,
+    noteFile: TestNoteFileService,
     applied: string[],
     snapshots: NoteSessionSnapshot[],
   ): NoteSession {
-    return createNoteSession({
-      path: 'notes/stale.md',
-      // No writer: the session tracks dirtiness but never writes, so a dirty
-      // buffer can't race a debounced save into the assertions.
-      io: { read: async () => read(), write: null },
+    return createNoteSessionService({
+      noteFile,
+      clock: createTestClockService(),
+      logger: createTestLoggerService(),
+    }).create({
+      path: PATH,
+      // No generation: the session tracks dirtiness but never writes, so a
+      // dirty buffer can't race a debounced save into the assertions.
+      generation: null,
       classify: () => 'exact',
       onSnapshot: (snapshot) => {
         snapshots.push(snapshot)
@@ -170,17 +170,17 @@ describe('reloadOpenDocuments with live sessions', () => {
   }
 
   it('a clean open note adopts the new disk content silently', async () => {
-    let disk = '# Old\n'
+    const noteFile = createTestNoteFileService({ files: { [PATH]: '# Old\n' } })
     const applied: string[] = []
     const snapshots: NoteSessionSnapshot[] = []
-    const session = liveSession(() => disk, applied, snapshots)
-    const unregister = registerOpenDocument({ session })
+    const session = liveSession(noteFile, applied, snapshots)
+    const unregister = openDocuments.register({ session })
     try {
       session.load()
       await vi.waitFor(() => expect(snapshots.at(-1)?.status).toBe('ready'))
 
-      disk = '# New from the Mac\n' // the reconcile saw this; no index:changed fired
-      reloadOpenDocuments()
+      noteFile.set(PATH, '# New from the Mac\n') // the reconcile saw this; no index:changed fired
+      openDocuments.reloadAll()
 
       await vi.waitFor(() => expect(applied).toContain('# New from the Mac\n'))
       expect(snapshots.at(-1)?.conflict).toBeNull()
@@ -191,17 +191,17 @@ describe('reloadOpenDocuments with live sessions', () => {
   })
 
   it('a dirty open note parks the conflict banner instead of losing edits', async () => {
-    let disk = '# Old\n'
+    const noteFile = createTestNoteFileService({ files: { [PATH]: '# Old\n' } })
     const snapshots: NoteSessionSnapshot[] = []
-    const session = liveSession(() => disk, [], snapshots)
-    const unregister = registerOpenDocument({ session })
+    const session = liveSession(noteFile, [], snapshots)
+    const unregister = openDocuments.register({ session })
     try {
       session.load()
       await vi.waitFor(() => expect(snapshots.at(-1)?.status).toBe('ready'))
       session.editorChanged('# Old\nmy unsaved line\n')
 
-      disk = '# New from the Mac\n'
-      reloadOpenDocuments()
+      noteFile.set(PATH, '# New from the Mac\n')
+      openDocuments.reloadAll()
 
       await vi.waitFor(() => expect(snapshots.at(-1)?.conflict).toBe('# New from the Mac\n'))
       expect(snapshots.at(-1)?.dirty).toBe(true)
@@ -214,14 +214,15 @@ describe('reloadOpenDocuments with live sessions', () => {
   it('an unchanged file is a no-op read: no editor push, no conflict', async () => {
     const applied: string[] = []
     const snapshots: NoteSessionSnapshot[] = []
-    const session = liveSession(() => '# Old\n', applied, snapshots)
-    const unregister = registerOpenDocument({ session })
+    const noteFile = createTestNoteFileService({ files: { [PATH]: '# Old\n' } })
+    const session = liveSession(noteFile, applied, snapshots)
+    const unregister = openDocuments.register({ session })
     try {
       session.load()
       await vi.waitFor(() => expect(snapshots.at(-1)?.status).toBe('ready'))
       const settled = snapshots.length
 
-      reloadOpenDocuments()
+      openDocuments.reloadAll()
       await new Promise((resolve) => setTimeout(resolve, 0)) // drain the reconcile read
 
       expect(applied).toEqual([])

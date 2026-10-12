@@ -1,5 +1,5 @@
 import type { FrontmatterPatch } from './note-session-frontmatter.ts'
-import type { RoundTripFidelity } from './roundtrip.ts'
+import type { RoundTripFidelity } from '@meowdown/markdown'
 
 export type NoteSessionStatus = 'loading' | 'ready' | 'error'
 
@@ -42,27 +42,19 @@ export const INITIAL_NOTE_SNAPSHOT: NoteSessionSnapshot = {
   error: null,
 }
 
-/** File access injected by the host (the hook binds `@reflect/core` commands). */
-export interface NoteSessionIo {
-  read: (path: string) => Promise<string>
-  /**
-   * Atomic write, with the graph generation pre-bound by the host. `null` when
-   * no generation is available — the session then tracks dirtiness but never
-   * writes.
-   */
-  write:
-    | ((path: string, contents: string, expectedContents?: string | null) => Promise<void>)
-    | null
-}
-
 /** Why {@link NoteSessionOptions.onContent} fired. */
 export type NoteContentOrigin = 'load' | 'external' | 'saved'
 
 export interface NoteSessionOptions {
   /** Graph-relative path of the note this session owns. */
   path: string
-  io: NoteSessionIo
-  /** Round-trip fidelity check gating editability (see `roundtrip.ts`). */
+  /**
+   * The graph generation every write is pinned to, read at write time. `null`
+   * when no generation is available — the session then tracks dirtiness but
+   * never writes.
+   */
+  generation: (() => number | null) | null
+  /** Round-trip fidelity check gating editability (meowdown's `checkRoundTrip`). */
   classify: (markdown: string) => RoundTripFidelity
   /** Receives every state change. Not called after `dispose()`. */
   onSnapshot: (snapshot: NoteSessionSnapshot) => void
@@ -106,7 +98,7 @@ export interface NoteSessionOptions {
   missingSeed?: string | undefined
   saveDebounceMs?: number
 }
-/** One open note's document lifecycle. Create via {@link createNoteSession}. */
+/** One open note's document lifecycle. Create via {@link NoteSessionService.create}. */
 export interface NoteSession {
   /** The graph-relative path this session is bound to (mutable via {@link NoteSession.retarget}). */
   readonly path: string
@@ -220,4 +212,13 @@ export interface NoteSession {
    * is a no-op. Pending saves are cancelled.
    */
   discard: () => void
+}
+
+/** Creates the document session of each open note. */
+export interface NoteSessionService {
+  /**
+   * The save pipeline + external-change reconciliation for one open note
+   * (Plan 05 steps 4-5), as a pure state machine.
+   */
+  create(options: NoteSessionOptions): NoteSession
 }

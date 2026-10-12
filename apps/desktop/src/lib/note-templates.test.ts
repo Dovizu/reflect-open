@@ -11,7 +11,6 @@ const writeNote = vi.hoisted(() =>
 const availableTemplatePath = vi.hoisted(() => vi.fn(async () => 'templates/daily-review.md'))
 const templateSlugPathForTitle = vi.hoisted(() => vi.fn())
 const moveNoteCarryingSession = vi.hoisted(() => vi.fn(async () => undefined))
-const openSession = vi.hoisted(() => vi.fn(() => null))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   readNote,
@@ -20,7 +19,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   templateSlugPathForTitle,
 }))
 vi.mock('@/editor/move-note.ts', () => ({ moveNoteCarryingSession }))
-vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
 
 const { createTemplate, insertTemplate, renameTemplate, templateBody } =
   await import('./note-templates.ts')
