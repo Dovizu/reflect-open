@@ -31,6 +31,14 @@ const SERVICE_KEYS = [
   'path',
   'window',
   'lifecycle',
+  'secretStore',
+  'appInfo',
+  'calendar',
+  'contacts',
+  'agentSkill',
+  'mobileStorage',
+  'imageCodec',
+  'exceptionTelemetry',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

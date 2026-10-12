@@ -7,7 +7,15 @@ import {
 import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 import { installDefaultServices, resetDefaultServices } from '../app/install-default-services.ts'
 import type { PathService } from '../app/path-service.ts'
+import type { AppInfoService } from '../app/app-info-service.ts'
+import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
+import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
+import { createTestContactsService, type TestContactsService } from './contacts.ts'
+import {
+  createTestExceptionTelemetry,
+  type TestExceptionTelemetryService,
+} from './exception-telemetry.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
   createTestHashService,
@@ -15,9 +23,16 @@ import {
   type TestHashService,
   type TestIdService,
 } from './id.ts'
+import { createTestImageCodec, type TestImageCodecService } from './image-codec.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
+import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
+import {
+  createTestAppInfoService,
+  createTestSecretStoreService,
+  type TestSecretStoreService,
+} from './secrets.ts'
 import {
   createTestClipboardService,
   createTestDialogService,
@@ -49,6 +64,14 @@ export interface TestAppServices extends AppServices {
   readonly path: PathService
   readonly window: TestWindowService
   readonly lifecycle: TestLifecycleService
+  readonly secretStore: TestSecretStoreService
+  readonly appInfo: AppInfoService
+  readonly calendar: TestCalendarService
+  readonly contacts: TestContactsService
+  readonly agentSkill: TestAgentSkillService
+  readonly mobileStorage: TestMobileStorageService
+  readonly imageCodec: TestImageCodecService
+  readonly exceptionTelemetry: TestExceptionTelemetryService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -74,6 +97,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     path: createTestPathService(),
     window: createTestWindowService(),
     lifecycle: createTestLifecycleService(),
+    secretStore: createTestSecretStoreService(),
+    appInfo: createTestAppInfoService(),
+    calendar: createTestCalendarService(),
+    contacts: createTestContactsService(),
+    agentSkill: createTestAgentSkillService(),
+    mobileStorage: createTestMobileStorageService(),
+    imageCodec: createTestImageCodec(),
+    exceptionTelemetry: createTestExceptionTelemetry(),
   }
   return Object.assign(services, overrides)
 }

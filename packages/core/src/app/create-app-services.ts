@@ -1,14 +1,31 @@
+import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
+import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import {
   createIpcBridgeService,
   type IpcBridge,
   type IpcBridgeService,
 } from '../ipc/ipc-service.ts'
+import {
+  createMobileStorageService,
+  type MobileStorageService,
+} from '../ipc/mobile-storage-service.ts'
+import {
+  createSecretStoreService,
+  type SecretStoreService,
+} from '../secrets/secret-store-service.ts'
+import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
+import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import type { ClipboardService } from './clipboard-service.ts'
 import { createSystemClock, type ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
+import {
+  createDisabledExceptionTelemetry,
+  type ExceptionTelemetryService,
+} from './exception-telemetry-service.ts'
 import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
+import { createUnavailableImageCodec, type ImageCodecService } from './image-codec-service.ts'
 import {
   createLifecycleService,
   type AppLifecycleService,
@@ -41,6 +58,14 @@ export interface AppServices {
   readonly path: PathService
   readonly window: WindowService
   readonly lifecycle: AppLifecycleService
+  readonly secretStore: SecretStoreService
+  readonly appInfo: AppInfoService
+  readonly calendar: CalendarService
+  readonly contacts: ContactsService
+  readonly agentSkill: AgentSkillService
+  readonly mobileStorage: MobileStorageService
+  readonly imageCodec: ImageCodecService
+  readonly exceptionTelemetry: ExceptionTelemetryService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -64,6 +89,10 @@ export interface AppAdapters {
   readonly id?: IdService
   /** Defaults to Web Crypto. */
   readonly hash?: HashService
+  /** Defaults to a codec that cannot decode. */
+  readonly imageCodec?: ImageCodecService
+  /** Defaults to telemetry that reports nothing. */
+  readonly exceptionTelemetry?: ExceptionTelemetryService
 }
 
 export function createAppServices(adapters: AppAdapters): AppServices {
@@ -89,5 +118,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     path: createPathService({ transport: adapters.path }),
     window: createWindowService({ ipc, host: adapters.window, logger }),
     lifecycle: createLifecycleService({ ipc, dom: adapters.lifecycle, clock, logger }),
+    secretStore: createSecretStoreService({ ipc }),
+    appInfo: createAppInfoService({ ipc }),
+    calendar: createCalendarService({ ipc, logger }),
+    contacts: createContactsService({ ipc }),
+    agentSkill: createAgentSkillService({ ipc }),
+    mobileStorage: createMobileStorageService({ ipc }),
+    imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
+    exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
   }
 }

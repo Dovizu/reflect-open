@@ -9,9 +9,15 @@ import {
   type IpcBridge,
   type PlatformFacts,
 } from '@reflect/core'
+import {
+  buildExceptionTelemetryDsn,
+  createExceptionTelemetry,
+  sentryExceptionTelemetrySdk,
+} from '@/lib/exception-telemetry.ts'
 import { createNavigatorClipboardService } from '@/services/browser-clipboard.ts'
 import { createBrowserDialogService } from '@/services/browser-dialog.ts'
 import { createBrowserOpenerTransport } from '@/services/browser-opener.ts'
+import { createBrowserImageCodec } from '@/services/browser-image-codec.ts'
 import { createDomLifecycleAdapter } from '@/services/dom-lifecycle.ts'
 import { createTauriDialogService } from '@/services/tauri-dialog.ts'
 import { createTauriHttpService } from '@/services/tauri-http.ts'
@@ -35,6 +41,13 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): App
     },
     clipboard: createNavigatorClipboardService(),
     lifecycle: createDomLifecycleAdapter(),
+    imageCodec: createBrowserImageCodec(),
+    exceptionTelemetry: createExceptionTelemetry({
+      dsn: buildExceptionTelemetryDsn(),
+      release: `reflect@${facts.appVersion}`,
+      sdk: sentryExceptionTelemetrySdk,
+      logger,
+    }),
   }
   if (facts.isNativeShell) {
     return {

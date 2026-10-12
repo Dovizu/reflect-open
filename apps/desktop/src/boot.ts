@@ -1,19 +1,8 @@
-import {
-  buildExceptionTelemetryDsn,
-  createExceptionTelemetry,
-  sentryExceptionTelemetrySdk,
-} from '@/lib/exception-telemetry.ts'
-import { createBrowserImageCodec } from '@/services/browser-image-codec.ts'
 import { createDesktopAdapters } from '@/services/create-desktop-services.ts'
 import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
-import {
-  createAppServices,
-  installDefaultServices,
-  setDefaultExceptionTelemetry,
-  setDefaultImageCodec,
-} from '@reflect/core'
+import { createAppServices, installDefaultServices } from '@reflect/core'
 import { isTauri } from '@tauri-apps/api/core'
 
 const facts = detectPlatformFacts(isTauri())
@@ -34,13 +23,4 @@ export const appServices = createAppServices(
 // Runs before every module imported after this one, so the services and
 // exception telemetry exist while the rest of the app's modules evaluate.
 installDefaultServices(appServices)
-const exceptionTelemetry = createExceptionTelemetry({
-  dsn: buildExceptionTelemetryDsn(),
-  release: `reflect@${__REFLECT_VERSION__}`,
-  sdk: sentryExceptionTelemetrySdk,
-  logger: appServices.logger,
-})
-setDefaultExceptionTelemetry(exceptionTelemetry)
-exceptionTelemetry.install()
-
-setDefaultImageCodec(createBrowserImageCodec())
+appServices.exceptionTelemetry.install()
