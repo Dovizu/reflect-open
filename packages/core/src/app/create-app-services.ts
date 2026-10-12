@@ -147,6 +147,12 @@ import {
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
 import {
+  createDeepLinkService,
+  createNoDeepLinkSource,
+  type DeepLinkService,
+  type DeepLinkSource,
+} from '../navigation/deep-link-service.ts'
+import {
   createNavigationService,
   type NavigationService,
 } from '../navigation/navigation-service.ts'
@@ -239,6 +245,8 @@ export interface AppServices {
   readonly update: UpdateService
   /** The webview's navigation history; a note window has its own webview, hence its own. */
   readonly navigation: NavigationService
+  /** The `reflect://` intake of this webview and the handler behind it. */
+  readonly deepLink: DeepLinkService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -381,6 +389,8 @@ export interface AppAdapters {
   readonly nativeMenu?: NativeMenuHost
   /** Defaults to the URL shape of Apple webviews. */
   readonly convertFileSrc?: FileSrcConverter
+  /** The system's `reflect://` delivery; without one, no URL arrives. */
+  readonly deepLink?: DeepLinkSource
 }
 
 export function createAppServices(adapters: AppAdapters): AppServices {
@@ -461,6 +471,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const captureInbox = createCaptureInboxService({ ipc })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
     noteFile,
@@ -526,6 +537,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     navigation: createNavigationService(),
+    deepLink: createDeepLinkService({
+      source: adapters.deepLink ?? createNoDeepLinkSource(),
+      indexQuery: indexReads.indexQuery,
+      captureInbox,
+      operations,
+      id,
+      clock,
+      logger,
+    }),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,
@@ -541,7 +561,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     githubRepos: createGithubRepoService({ http: adapters.http }),
     gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
-    captureInbox: createCaptureInboxService({ ipc }),
+    captureInbox,
     webFetch: createWebFetchService({ ipc }),
     xArchive,
     audioRecorder: createPlatformAudioRecorder({

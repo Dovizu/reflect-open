@@ -144,7 +144,12 @@ import {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
-import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
+import {
+  createTestDeepLinkService,
+  createTestNavigationService,
+  type TestDeepLinkService,
+  type TestNavigationService,
+} from './navigation.ts'
 import { createTestSettingsService, type TestSettingsService } from './settings.ts'
 import {
   createTestPersistenceFlushService,
@@ -197,6 +202,7 @@ export interface TestAppServices extends AppServices {
   readonly chatHistory: TestChatHistoryService
   readonly update: TestUpdateService
   readonly navigation: TestNavigationService
+  readonly deepLink: TestDeepLinkService
   readonly gitRepository: TestGitRepositoryService
   readonly icloudNative: TestICloudNativeService
   readonly captureInbox: TestCaptureInboxService
@@ -288,6 +294,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const dialog = createTestDialogService()
   const path = createTestPathService()
   const windowService = createTestWindowService()
+  const captureInbox = createTestCaptureInboxService()
   const lifecycle = createTestLifecycleService()
   const mobileStorage = createTestMobileStorageService()
   const indexLifecycle = createTestIndexLifecycleService({
@@ -350,6 +357,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
+    deepLink: createTestDeepLinkService({
+      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
+      captureInbox: overrides?.captureInbox ?? captureInbox,
+      operations: overrides?.operations ?? operations,
+      id: overrides?.id ?? id,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
     gitRepository: createTestGitRepositoryService(),
     githubAuth: createTestGithubAuthService({
       secretStore: overrides?.secretStore ?? secretStore,
@@ -362,7 +377,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     githubRepos: createTestGithubRepoService({ http: overrides?.http ?? http }),
     gists: createTestGistService({ http: overrides?.http ?? http }),
     icloudNative: createTestICloudNativeService(),
-    captureInbox: createTestCaptureInboxService(),
+    captureInbox,
     webFetch: createTestWebFetchService(),
     xArchive,
     audioRecorder: createTestAudioRecorderService(),

@@ -294,6 +294,28 @@ export {
   type PrivacyService,
 } from '../privacy/privacy-service.ts'
 export {
+  DEEP_LINK_SCHEME,
+  DEEP_LINK_TEXT_MAX_LENGTH,
+  type DeepLink,
+} from '../navigation/deep-link.ts'
+export { dailyDeepLink, deepLinkForRoute, noteDeepLink } from '../navigation/deep-link-format.ts'
+export {
+  initialRouteForDeepLink,
+  isDeepLinkUrl,
+  parseDeepLink,
+} from '../navigation/deep-link-parse.ts'
+export {
+  createDeepLinkService,
+  createNoDeepLinkSource,
+  defaultDeepLink,
+  setDefaultDeepLink,
+  type DeepLinkIo,
+  type DeepLinkService,
+  type DeepLinkServiceDeps,
+  type DeepLinkSession,
+  type DeepLinkSource,
+} from '../navigation/deep-link-service.ts'
+export {
   createNavigationService,
   defaultNavigation,
   setDefaultNavigation,

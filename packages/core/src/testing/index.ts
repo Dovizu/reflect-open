@@ -243,7 +243,12 @@ export {
   type TestPrivacyServiceOptions,
 } from './privacy.ts'
 export {
+  createTestDeepLinkService,
+  createTestDeepLinkSource,
   createTestNavigationService,
+  type TestDeepLinkService,
+  type TestDeepLinkServiceOptions,
+  type TestDeepLinkSource,
   type TestNavigateCall,
   type TestNavigationService,
   type TestNavigationServiceOptions,
