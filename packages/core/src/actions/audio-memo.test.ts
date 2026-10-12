@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestHttpService } from '../testing/index.ts'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import {
+  createTestHttpService,
+  createTestSecretStoreService,
+  type TestSecretStoreService,
+} from '../testing/index.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import type { GenerateAudioMemoTitleRequest } from '../ai/audio-memo-title.ts'
 import type {
@@ -31,7 +35,7 @@ import {
 } from '../graph/commands.ts'
 import { transcribeAudio } from '../ai/transcribe.ts'
 import { TranscriptionRejectedError } from '../ai/transcribe-http.ts'
-import { getSecret } from '../secrets/keychain.ts'
+import { setDefaultSecretStore, type SecretStoreService } from '../secrets/secret-store-service.ts'
 
 const generateAudioMemoTitleMock = vi.hoisted(() =>
   vi.fn<(request: GenerateAudioMemoTitleRequest) => Promise<string>>(),
@@ -67,9 +71,6 @@ vi.mock('../ai/audio-memo-format', () => ({
 vi.mock('./backlink-target', () => ({
   ensureBacklinkTarget: ensureBacklinkTargetMock,
 }))
-vi.mock('../secrets/keychain', () => ({
-  getSecret: vi.fn(),
-}))
 
 const listDirMock = vi.mocked(listDir)
 const listFilesMock = vi.mocked(listFiles)
@@ -81,7 +82,11 @@ const readTranscriptCacheMock = vi.mocked(readTranscriptCache)
 const writeTranscriptCacheMock = vi.mocked(writeTranscriptCache)
 const writeNoteMock = vi.mocked(writeNote)
 const transcribeMock = vi.mocked(transcribeAudio)
-const getSecretMock = vi.mocked(getSecret)
+const OPENAI_KEY = 'ai-api-key:cfg-openai'
+const ANTHROPIC_KEY = 'ai-api-key:cfg-anthropic'
+
+let secrets: TestSecretStoreService
+let getSecretMock: MockInstance<SecretStoreService['get']>
 
 const PROVIDERS: AiProvidersState = {
   providers: [{ id: 'cfg-openai', provider: 'openai', model: 'gpt-5.1', keyHint: 'wxyz1' }],
@@ -125,7 +130,12 @@ beforeEach(() => {
   readTranscriptCacheMock.mockRejectedValue({ kind: 'notFound', message: 'no cached transcript' })
   writeTranscriptCacheMock.mockResolvedValue(undefined)
   writeNoteMock.mockResolvedValue(undefined)
-  getSecretMock.mockResolvedValue('sk-live-key')
+  secrets = createTestSecretStoreService({
+    [OPENAI_KEY]: 'sk-live-key',
+    [ANTHROPIC_KEY]: 'sk-live-key',
+  })
+  getSecretMock = vi.spyOn(secrets, 'get')
+  setDefaultSecretStore(secrets)
   transcribeMock.mockResolvedValue('memo transcript')
   generateAudioMemoTitleMock.mockResolvedValue('Memo Transcript')
   formatAudioMemoTranscriptMock.mockResolvedValue({
@@ -133,6 +143,10 @@ beforeEach(() => {
     body: 'We reviewed the launch.\n\n## Next steps\n\n- Invite beta users',
   })
   ensureBacklinkTargetMock.mockResolvedValue('Audio memos')
+})
+
+afterEach(() => {
+  setDefaultSecretStore(null)
 })
 
 describe('audioMemoIdentity', () => {
@@ -335,9 +349,7 @@ describe('reconcileAudioMemos', () => {
 
   it('uses the default Anthropic Haiku entry to name a memo when configured', async () => {
     listDirMock.mockResolvedValue([fileMeta(MEMO.audioPath)])
-    getSecretMock.mockImplementation(async (name) =>
-      name === 'ai-api-key:cfg-anthropic' ? 'sk-ant-live-key' : 'sk-live-key',
-    )
+    await secrets.set(ANTHROPIC_KEY, 'sk-ant-live-key')
 
     await reconcile({
       providers: {
@@ -361,9 +373,7 @@ describe('reconcileAudioMemos', () => {
 
   it('uses the working transcription key when the preferred enrichment key is missing', async () => {
     listDirMock.mockResolvedValue([fileMeta(MEMO.audioPath)])
-    getSecretMock.mockImplementation(async (name) =>
-      name === 'ai-api-key:cfg-anthropic' ? null : 'sk-live-key',
-    )
+    await secrets.delete(ANTHROPIC_KEY)
 
     await reconcile({
       providers: {
@@ -633,7 +643,8 @@ describe('reconcileAudioMemos', () => {
 
   it('the App Review demo key writes a canned transcript without any provider call', async () => {
     listDirMock.mockResolvedValue([fileMeta(MEMO.audioPath)])
-    getSecretMock.mockResolvedValue(APP_REVIEW_STUB_KEY)
+    await secrets.set(OPENAI_KEY, APP_REVIEW_STUB_KEY)
+    await secrets.set(ANTHROPIC_KEY, APP_REVIEW_STUB_KEY)
 
     const outcome = await reconcile({ formatTranscript: true })
 
@@ -670,7 +681,8 @@ describe('reconcileAudioMemos', () => {
 
   it('reports a missing keychain entry as config', async () => {
     listDirMock.mockResolvedValue([fileMeta(MEMO.audioPath)])
-    getSecretMock.mockResolvedValue(null)
+    await secrets.delete(OPENAI_KEY)
+    await secrets.delete(ANTHROPIC_KEY)
 
     const outcome = await reconcile()
 

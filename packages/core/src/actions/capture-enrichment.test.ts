@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import { DescriptionRejectedError } from '../ai/describe-page.ts'
 import { ReflectError } from '../errors.ts'
 import {
@@ -9,7 +10,9 @@ import {
   drain,
   envelope,
   files,
-  getSecretMock,
+  API_KEY_SECRET,
+  installFailingSecrets,
+  installSecrets,
   IDENTITY,
   linkPreviewMock,
   NO_PROVIDERS,
@@ -45,9 +48,6 @@ vi.mock('../ai/describe-page', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ai/describe-page.ts')>()),
   describePage: vi.fn(),
 }))
-vi.mock('../secrets/keychain', () => ({
-  getSecret: vi.fn(),
-}))
 vi.mock('./backlink-target', () => ({
   ensureBacklinkTarget: ensureBacklinkTargetMock,
 }))
@@ -55,6 +55,10 @@ vi.mock('./backlink-target', () => ({
 beforeEach(() => {
   wireCaptureMocks()
   ensureBacklinkTargetMock.mockResolvedValue('Links')
+})
+
+afterEach(() => {
+  setDefaultSecretStore(null)
 })
 
 describe('reconcileCaptureEnrichment', () => {
@@ -148,7 +152,7 @@ describe('reconcileCaptureEnrichment', () => {
     expect((await drain()).stopped).toBeNull()
     writeNoteMock.mockClear()
     linkPreviewMock.mockResolvedValue(btoa('preview-jpeg'))
-    getSecretMock.mockResolvedValue(null)
+    installSecrets()
 
     const waiting = await reconcile()
 
@@ -156,7 +160,7 @@ describe('reconcileCaptureEnrichment', () => {
     expect(files.get(IDENTITY.notePath)).toContain('captureMetadataStatus: done')
     expect(linkPreviewMock).toHaveBeenCalledTimes(1)
 
-    getSecretMock.mockResolvedValue('sk-live-key')
+    installSecrets({ [API_KEY_SECRET]: 'sk-live-key' })
     const retry = await reconcile()
 
     expect(retry.enriched).toBe(1)
@@ -265,6 +269,8 @@ describe('reconcileCaptureEnrichment', () => {
       siteName: null,
     })
 
+    const getSecret = vi.spyOn(installSecrets({ [API_KEY_SECRET]: 'sk-live-key' }), 'get')
+
     const outcome = await reconcile({ providers: NO_PROVIDERS })
 
     expect(outcome.enriched).toBe(1)
@@ -273,7 +279,7 @@ describe('reconcileCaptureEnrichment', () => {
     expect(note).toContain('captureStatus: done')
     expect(note).not.toContain('captureProvider')
     expect(describeMock).not.toHaveBeenCalled()
-    expect(getSecretMock).not.toHaveBeenCalled()
+    expect(getSecret).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -396,7 +402,7 @@ describe('reconcileCaptureEnrichment', () => {
       description: 'An Instagram reel about furniture and decor.',
       siteName: 'Instagram',
     })
-    getSecretMock.mockResolvedValue(null)
+    installSecrets()
 
     const outcome = await reconcile()
 
@@ -422,7 +428,7 @@ describe('reconcileCaptureEnrichment', () => {
     expect(scrapeMock).not.toHaveBeenCalled()
     expect(describeMock).not.toHaveBeenCalled()
 
-    getSecretMock.mockResolvedValue('sk-live-key')
+    installSecrets({ [API_KEY_SECRET]: 'sk-live-key' })
     const retry = await reconcile()
 
     expect(retry).toEqual({ pending: 1, enriched: 1, skipped: 0, stopped: null })
@@ -448,7 +454,7 @@ describe('reconcileCaptureEnrichment', () => {
       description: 'A description available without the keychain.',
       siteName: null,
     })
-    getSecretMock.mockRejectedValue(new ReflectError('io', 'keychain is unavailable'))
+    installFailingSecrets(new ReflectError('io', 'keychain is unavailable'))
 
     const outcome = await reconcile()
 
@@ -648,7 +654,7 @@ describe('reconcileCaptureEnrichment', () => {
       }
       return { title: 'An article', description: 'A scraped description.', siteName: null }
     })
-    getSecretMock.mockRejectedValue(new ReflectError('io', 'keychain is unavailable'))
+    installFailingSecrets(new ReflectError('io', 'keychain is unavailable'))
 
     const outcome = await reconcile()
 
@@ -917,7 +923,7 @@ describe('reconcileCaptureEnrichment', () => {
     expect(files.get(IDENTITY.notePath)).toContain('captureFinalizeStatus: pending')
 
     scrapeMock.mockClear()
-    getSecretMock.mockResolvedValue(null)
+    installSecrets()
     const waiting = await reconcile()
 
     expect(waiting).toEqual({
@@ -932,7 +938,7 @@ describe('reconcileCaptureEnrichment', () => {
     expect(files.get(IDENTITY.notePath)).toContain('captureStatus: pending')
     expect(files.get(IDENTITY.notePath)).not.toContain('captureFinalizeStatus')
 
-    getSecretMock.mockResolvedValue('sk-live-key')
+    installSecrets({ [API_KEY_SECRET]: 'sk-live-key' })
     describeMock.mockResolvedValue({
       title: 'A title from AI',
       description: 'An AI description.',

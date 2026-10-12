@@ -47,3 +47,8 @@ export {
   type TestHttpService,
 } from './http.ts'
 export { createTestStorageService, type TestStorageService } from './storage.ts'
+export {
+  createTestAppInfoService,
+  createTestSecretStoreService,
+  type TestSecretStoreService,
+} from './secrets.ts'
