@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { isAppError } from '../errors.ts'
+import { createTestLoggerService } from '../testing/logger.ts'
 import { createIpcBridgeService, type IpcBridge } from './ipc-service.ts'
 import { definePluginCommand, definePluginEvent, ignoredResult } from './plugin.ts'
 
@@ -16,7 +17,7 @@ const fireAndForget = definePluginCommand<Record<string, never>, unknown>(
 )
 
 function serviceOver(transport: IpcBridge) {
-  return createIpcBridgeService(transport, { logger: { warn: vi.fn() } })
+  return createIpcBridgeService(transport, { logger: createTestLoggerService() })
 }
 
 describe('definePluginCommand', () => {

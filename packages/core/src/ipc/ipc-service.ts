@@ -1,4 +1,5 @@
 import type { ZodType } from 'zod'
+import type { LoggerService } from '../app/logger-service.ts'
 import { toAppError, type AppError } from '../errors.ts'
 
 /** Tears down a subscription created by {@link IpcBridge.listen}. */
@@ -101,6 +102,8 @@ export interface IpcBridgeService {
     schema: ZodType<Payload, unknown>,
     handler: (payload: Payload) => void,
   ): PluginSubscription
+  /** The raw transport this service wraps. */
+  readonly transport: IpcBridge
   /** True when the transport can carry raw binary bodies. */
   readonly hasBinaryTransport: boolean
   /** True when the transport can deliver plugin events. */
@@ -114,7 +117,7 @@ interface SharedListener<Payload> {
 
 export function createIpcBridgeService(
   transport: IpcBridge,
-  deps: { logger: { warn(message: string, cause?: unknown): void } },
+  deps: { logger: LoggerService },
 ): IpcBridgeService {
   const { logger } = deps
 
@@ -244,6 +247,7 @@ export function createIpcBridgeService(
       }
     },
 
+    transport,
     hasBinaryTransport: transport.invokeBinary !== undefined,
     hasPluginEvents: transport.listenPlugin !== undefined,
   }

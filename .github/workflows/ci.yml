@@ -10,7 +10,7 @@ on:
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 # Least-privilege default: CI only needs to read the repo.

@@ -34,9 +34,19 @@ const changeListeners = new Set<() => void>()
  * after it, which is why UI gates must subscribe rather than sample once.
  */
 export function setBridge(bridge: IpcBridge | null): void {
-  activeBridge = bridge
-  activeService =
-    bridge === null ? null : createIpcBridgeService(bridge, { logger: defaultLogger() })
+  setDefaultIpc(
+    bridge === null ? null : createIpcBridgeService(bridge, { logger: defaultLogger() }),
+  )
+}
+
+/**
+ * Install `service` as the process-wide {@link defaultIpc} and its transport
+ * as the bridge (or remove both with `null`), then notify
+ * {@link subscribeBridgeChanges} subscribers.
+ */
+export function setDefaultIpc(service: IpcBridgeService | null): void {
+  activeBridge = service === null ? null : service.transport
+  activeService = service
   for (const listener of changeListeners) {
     listener()
   }
@@ -114,6 +124,9 @@ export function currentIpc(): IpcBridgeService {
     },
     subscribePlugin: (plugin, event, schema, handler) =>
       defaultIpc().subscribePlugin(plugin, event, schema, handler),
+    get transport() {
+      return getBridge()
+    },
     get hasBinaryTransport() {
       return hasBinaryIpc()
     },

@@ -1,5 +1,6 @@
 export {
   setBridge,
+  setDefaultIpc,
   hasBridge,
   subscribeBridgeChanges,
   defaultIpc,
@@ -66,8 +67,6 @@ export {
   icloudStatus,
   icloudAdoptGraph,
   icloudConflictsScan,
-  mergeText,
-  type MergeTextOutcome,
   icloudWatchStart,
   icloudWatchStop,
   type IcloudDownloadScope,
@@ -78,6 +77,18 @@ export {
   type MobileStorageInfo,
   type MobileStorageKind,
 } from '../ipc/commands.ts'
+export {
+  createICloudNativeService,
+  defaultICloudNative,
+  setDefaultICloudNative,
+  type ICloudNativeService,
+} from '../ipc/icloud-native-service.ts'
+export {
+  createGitRepositoryService,
+  defaultGitRepository,
+  setDefaultGitRepository,
+  type GitRepositoryService,
+} from '../sync/git-repository-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
 export {
   createSystemClock,
@@ -197,6 +208,25 @@ export {
   type HttpService,
 } from '../app/http-service.ts'
 export {
+  createWebFetchService,
+  defaultWebFetch,
+  setDefaultWebFetch,
+  type WebFetchService,
+} from '../app/web-fetch-service.ts'
+export {
+  createCaptureInboxService,
+  defaultCaptureInbox,
+  setDefaultCaptureInbox,
+  type CaptureInboxService,
+} from '../graph/capture-inbox-service.ts'
+export {
+  createXArchiveService,
+  defaultXArchive,
+  setDefaultXArchive,
+  type ResolvedArchivedPost,
+  type XArchiveService,
+} from '../x-archive.ts'
+export {
   createAppInfoService,
   defaultAppInfo,
   marketingVersion,
@@ -213,11 +243,24 @@ export {
   createWebStorageService,
   defaultStorage,
   getJson,
+  reachWebStorage,
   setDefaultStorage,
   setJson,
   type KeyValueStore,
   type StorageService,
 } from '../app/storage-service.ts'
+export { createGraphSession, type GraphSession } from '../app/graph-session.ts'
+export {
+  createAppServices,
+  type AppAdapters,
+  type AppServices,
+} from '../app/create-app-services.ts'
+export {
+  createGraphServices,
+  type GraphRole,
+  type GraphServices,
+} from '../app/create-graph-services.ts'
+export { installDefaultServices } from '../app/install-default-services.ts'
 export {
   agentSkillStatus,
   agentSkillInstall,
@@ -245,11 +288,24 @@ export {
   type CalendarService,
 } from '../calendar/calendar-service.ts'
 export {
+  createFileChangeService,
+  defaultFileChanges,
+  setDefaultFileChanges,
+  type FileChangeBatch,
+  type FileChangeService,
+} from '../indexing/file-change-service.ts'
+export {
   createContactsService,
   defaultContacts,
   setDefaultContacts,
   type ContactsService,
 } from '../contacts/contacts-service.ts'
+export {
+  createDatabaseService,
+  defaultDatabase,
+  setDefaultDatabase,
+  type DatabaseService,
+} from '../indexing/database-service.ts'
 export { chunkNote, type NoteChunk } from '../embeddings/chunk.ts'
 export {
   embedStatus,
