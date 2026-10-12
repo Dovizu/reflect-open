@@ -1,25 +1,15 @@
 import { useEffect, useState, type ReactElement } from 'react'
-import { requestContactsAccess } from '@reflect/core'
+import { defaultOpener, requestContactsAccess } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import {
   useContactsAuthorization,
   useRefreshContactsAuthorization,
 } from '@/hooks/use-contacts-authorization.ts'
-import { openUrlSync } from '@/lib/open-url.ts'
 import { isMacosDesktop } from '@/lib/platform.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { CalendarIntegrationField } from './calendar-integration-field.tsx'
 import { SettingsSection } from './section.tsx'
 import { SettingsSwitchField } from './switch-field.tsx'
-
-/**
- * macOS System Settings, opened straight to the Contacts privacy pane. This
- * scheme is macOS-only, which holds today: this section lives in the desktop
- * settings surface (mobile has its own settings drawer, which doesn't offer
- * the integration yet). An iOS settings surface would use `app-settings:`.
- */
-const CONTACTS_PRIVACY_PANE =
-  'x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts'
 
 /**
  * The Integrations section: Apple Contacts and Calendar live together here
@@ -113,7 +103,7 @@ export function IntegrationsSection(): ReactElement | null {
                     // A rejection here is a capability-scope bug (the ACL must
                     // allow x-apple.systempreferences:*) — surface it, don't
                     // swallow it into a dead link.
-                    openUrlSync(CONTACTS_PRIVACY_PANE)
+                    defaultOpener().openSystemSettings('contacts')
                   }}
                 >
                   Open System Settings

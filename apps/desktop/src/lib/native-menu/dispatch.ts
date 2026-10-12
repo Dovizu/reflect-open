@@ -1,5 +1,4 @@
-import { emitTo, type UnlistenFn } from '@tauri-apps/api/event'
-import { getAllWebviewWindows, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { defaultWindow, MAIN_WINDOW_LABEL, type Unlisten } from '@reflect/core'
 import { z } from 'zod'
 import { isNativeShell } from '@/lib/platform.ts'
 
@@ -31,21 +30,10 @@ export function setMenuCommandDispatch(dispatch: MenuCommandDispatch | null): vo
 }
 
 async function dispatchToFocusedWindow(commandId: FocusedNoteMenuCommand): Promise<void> {
+  const windows = defaultWindow()
   let focusedLabel: string | null = null
   try {
-    const windows = await getAllWebviewWindows()
-    const focusedWindows = await Promise.all(
-      windows.map(async (window) => {
-        try {
-          return (await window.isFocused()) ? window : null
-        } catch {
-          // A window can close between enumeration and the focus check.
-          return null
-        }
-      }),
-    )
-    const focusedWindow = focusedWindows.find((window) => window !== null)
-    focusedLabel = focusedWindow?.label ?? null
+    focusedLabel = await windows.focusedWindowLabel()
   } catch (cause) {
     console.error('focused window lookup failed:', cause)
     return
@@ -58,13 +46,9 @@ async function dispatchToFocusedWindow(commandId: FocusedNoteMenuCommand): Promi
     return
   }
 
-  if (focusedLabel !== 'main') {
+  if (focusedLabel !== MAIN_WINDOW_LABEL) {
     try {
-      await emitTo(
-        { kind: 'WebviewWindow', label: focusedLabel },
-        FOCUSED_NOTE_MENU_EVENT,
-        commandId,
-      )
+      await windows.emitTo(focusedLabel, FOCUSED_NOTE_MENU_EVENT, commandId)
     } catch (cause) {
       // Never fall through to the main note: the command belongs to the
       // focused detached window, even if its event channel just disappeared.
@@ -89,13 +73,10 @@ export function dispatchMenuCommand(commandId: string): void {
 }
 
 /** Listen for native Find menu commands routed to this focused note window. */
-export async function listenForFocusedNoteMenuCommands(
+export function listenForFocusedNoteMenuCommands(
   dispatch: (commandId: FocusedNoteMenuCommand) => void,
-): Promise<UnlistenFn> {
-  if (!isNativeShell()) {
-    return () => {}
-  }
-  return await getCurrentWebviewWindow().listen<unknown>(FOCUSED_NOTE_MENU_EVENT, ({ payload }) => {
+): Unlisten {
+  return defaultWindow().subscribeWindowEvent(FOCUSED_NOTE_MENU_EVENT, (payload) => {
     const command = FocusedNoteMenuCommandSchema.safeParse(payload)
     if (command.success) {
       dispatch(command.data)

@@ -1,22 +1,42 @@
-import { describe, expect, it, vi } from 'vitest'
-import { openUrl } from '@tauri-apps/plugin-opener'
-import { openUrlSync } from './open-url.ts'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultOpener } from '@reflect/core'
+import {
+  createTestLoggerService,
+  createTestOpenerService,
+  type TestLoggerService,
+  type TestOpenerService,
+} from '@reflect/core/testing'
+import { openUrl, openUrlSync } from './open-url.ts'
 
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn(async () => {}) }))
+let logger: TestLoggerService
+let opener: TestOpenerService
+
+beforeEach(() => {
+  logger = createTestLoggerService()
+  opener = createTestOpenerService({ logger })
+  setDefaultOpener(opener)
+})
+
+describe('openUrl', () => {
+  it('forwards the url to the opener', async () => {
+    await openUrl('https://example.com')
+    expect(opener.openedUrls()).toEqual(['https://example.com'])
+  })
+})
 
 describe('openUrlSync', () => {
-  it('forwards the url to the opener', () => {
+  it('forwards the url to the opener', async () => {
     openUrlSync('https://example.com')
-    expect(openUrl).toHaveBeenCalledWith('https://example.com')
+    await vi.waitFor(() => expect(opener.openedUrls()).toEqual(['https://example.com']))
   })
 
   it('logs instead of throwing when the opener rejects', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.mocked(openUrl).mockRejectedValueOnce(new Error('no handler'))
+    opener.failWith(new Error('no handler'))
     expect(() => openUrlSync('https://example.com')).not.toThrow()
     await vi.waitFor(() => {
-      expect(consoleError).toHaveBeenCalledWith('failed to open https://example.com:', 'no handler')
+      expect(logger.getErrors()).toEqual([
+        { message: 'failed to open https://example.com:', cause: 'no handler' },
+      ])
     })
-    consoleError.mockRestore()
   })
 })

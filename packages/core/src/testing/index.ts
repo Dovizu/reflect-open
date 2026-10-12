@@ -18,6 +18,21 @@ export {
   type TestIpcBridgeServiceOptions,
 } from './ipc.ts'
 export {
+  createTestClipboardService,
+  createTestDialogService,
+  createTestLifecycleService,
+  createTestOpenerService,
+  createTestPathService,
+  createTestWindowService,
+  installTestShellServices,
+  type DialogCall,
+  type TestClipboardService,
+  type TestDialogService,
+  type TestLifecycleService,
+  type TestOpenerService,
+  type TestWindowService,
+} from './shell.ts'
+export {
   createTestPlatformService,
   type TestPlatformOptions,
   type TestPlatformService,

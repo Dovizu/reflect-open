@@ -3,10 +3,11 @@ export {
   hasBridge,
   subscribeBridgeChanges,
   defaultIpc,
+  currentIpc,
   type IpcBridge,
   type Unlisten,
 } from '../ipc/bridge.ts'
-export { createIpcBridgeService, type IpcBridgeService } from '../ipc/ipc-service.ts'
+export { createIpcBridgeService, listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
 export { call, callBinary } from '../ipc/invoke.ts'
 export { type PluginSubscription } from '../ipc/plugin.ts'
 export {
@@ -83,6 +84,56 @@ export {
 } from '../app/background-task.ts'
 export { WINDOW_NAVIGATE_EVENT, subscribeWindowNavigate } from '../app/window-events.ts'
 export { toggleDevtools } from '../app/devtools.ts'
+export {
+  defaultDialog,
+  setDefaultDialog,
+  type DialogFilter,
+  type DialogService,
+  type PickFilesOptions,
+  type PickFolderOptions,
+} from '../app/dialog-service.ts'
+export {
+  defaultClipboard,
+  setDefaultClipboard,
+  type ClipboardService,
+} from '../app/clipboard-service.ts'
+export {
+  createOpenerService,
+  defaultOpener,
+  setDefaultOpener,
+  type OpenerService,
+  type OpenerTransport,
+  type SystemSettingsPane,
+} from '../app/opener-service.ts'
+export {
+  createPathService,
+  createPosixPathTransport,
+  defaultPath,
+  setDefaultPath,
+  type PathService,
+  type PathTransport,
+} from '../app/path-service.ts'
+export {
+  MAIN_WINDOW_LABEL,
+  createSingleWindowHost,
+  createWindowService,
+  defaultWindow,
+  setDefaultWindow,
+  type CloseRequestedEvent,
+  type CloseRequestedHandler,
+  type WindowHost,
+  type WindowService,
+} from '../app/window-service.ts'
+export {
+  RESUME_THROTTLE_MS,
+  createDetachedLifecycleDom,
+  createLifecycleService,
+  defaultLifecycle,
+  setDefaultLifecycle,
+  type AppLifecycleService,
+  type LifecycleDomAdapter,
+  type LifecyclePageEvent,
+} from '../app/lifecycle-service.ts'
 export { createSystemIdService, type IdService, type PkcePair } from '../app/id-service.ts'
 export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
@@ -199,9 +250,7 @@ export {
 } from '../graph/schemas.ts'
 export {
   openGraph,
-  openNoteWindow,
   windowBootstrap,
-  closeNoteWindows,
   createGraph,
   importReflectV1Zip,
   subscribeImportProgress,

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   githubAppInstallUrl,
   loadGithubAuth,
@@ -10,6 +9,7 @@ import {
 import { useAsyncAction } from '@/hooks/use-async-action.ts'
 import { usePoll } from '@/hooks/use-poll.ts'
 import { parseRepoInput } from '@/lib/github-repos.ts'
+import { openUrl } from '@/lib/open-url.ts'
 import { useSync } from '@/providers/sync-provider.tsx'
 
 export type ConnectWizardStep = 'repo' | 'auth' | 'finish'

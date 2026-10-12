@@ -62,12 +62,12 @@ export function useNoteWindowBoot({ platform, onAdopted, onFailed }: NoteWindowB
         } else if (boot.initialDeepLink !== null) {
           dispatchDeepLink(boot.initialDeepLink)
         }
-        await subscriptions.add(subscribeIndexWritten(throttledInvalidateIndexQueries))
+        subscriptions.track(subscribeIndexWritten(throttledInvalidateIndexQueries))
         // (Rename follow-through lives in desktop-root — every window needs
         // it, not just this one.)
         // Re-⌘-clicking this window's target focuses it AND re-navigates it
         // there (it may have navigated elsewhere since it opened).
-        await subscriptions.add(subscribeWindowNavigate(dispatchDeepLink))
+        subscriptions.track(subscribeWindowNavigate(dispatchDeepLink))
         if (!active) {
           return
         }

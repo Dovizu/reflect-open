@@ -1,15 +1,15 @@
 import { render } from 'vitest-browser-react'
 import { page, type Locator } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultDialog } from '@reflect/core'
+import { createTestDialogService, type TestDialogService } from '@reflect/core/testing'
 import type { V1ImportState } from '@/lib/v1-import-state.ts'
 
-const open = vi.hoisted(() => vi.fn<() => Promise<string | null>>())
 const startImport = vi.hoisted(() => vi.fn())
 const importState = vi.hoisted((): { state: V1ImportState } => ({
   state: { phase: 'idle' },
 }))
 
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open }))
 vi.mock('@/providers/v1-import-provider.tsx', () => ({
   useV1Import: () => ({
     state: importState.state,
@@ -21,8 +21,11 @@ vi.mock('@/providers/v1-import-provider.tsx', () => ({
 
 const { ImportSection } = await import('./import-section.tsx')
 
+let dialog: TestDialogService
+
 beforeEach(() => {
-  open.mockResolvedValue('/Users/alex/Downloads/reflect-v1.zip')
+  dialog = createTestDialogService({ files: ['/Users/alex/Downloads/reflect-v1.zip'] })
+  setDefaultDialog(dialog)
   importState.state = { phase: 'idle' }
 })
 
@@ -41,12 +44,16 @@ describe('ImportSection', () => {
     await importButton().click()
 
     await vi.waitFor(() =>
-      expect(open).toHaveBeenCalledWith({
-        multiple: false,
-        directory: false,
-        title: 'Import Reflect V1 export',
-        filters: [{ name: 'Zip archives', extensions: ['zip'] }],
-      }),
+      expect(dialog.calls()).toEqual([
+        {
+          kind: 'files',
+          options: {
+            multiple: false,
+            title: 'Import Reflect V1 export',
+            filters: [{ name: 'Zip archives', extensions: ['zip'] }],
+          },
+        },
+      ]),
     )
     await vi.waitFor(() =>
       expect(startImport).toHaveBeenCalledWith('/Users/alex/Downloads/reflect-v1.zip'),
@@ -54,12 +61,12 @@ describe('ImportSection', () => {
   })
 
   it('does nothing when the picker is cancelled', async () => {
-    open.mockResolvedValueOnce(null)
+    dialog.setFiles(null)
     await render(<ImportSection />)
 
     await importButton().click()
 
-    await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(dialog.calls()).toHaveLength(1))
     expect(startImport).not.toHaveBeenCalled()
   })
 

@@ -1,6 +1,7 @@
 import { initializeExceptionTelemetry } from '@/lib/exception-telemetry.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
 import { createTauriHttpService } from '@/services/tauri-http.ts'
+import { installShellServices } from '@/services/shell-services.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
 import {
   createBrowserHttpService,
@@ -30,3 +31,6 @@ if (defaultPlatform().isNativeShell) {
 setDefaultHttp(
   defaultPlatform().isNativeShell ? createTauriHttpService() : createBrowserHttpService(),
 )
+
+// The dialog, clipboard, opener, path, window, and lifecycle services.
+installShellServices({ nativeShell: defaultPlatform().isNativeShell })

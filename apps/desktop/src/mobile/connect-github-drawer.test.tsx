@@ -39,7 +39,6 @@ afterEach(() => {
   setDefaultPlatform(null)
   setDefaultHttp(null)
 })
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }))
 
 beforeEach(() => {
   // A stored PAT + GitHub accepting it ("alex") makes the auth step skip

@@ -1,5 +1,4 @@
-import { join } from '@tauri-apps/api/path'
-import { errorMessage } from '@reflect/core'
+import { defaultClipboard, defaultPath, errorMessage } from '@reflect/core'
 import { startOperation } from '@/lib/operations.ts'
 
 /**
@@ -7,7 +6,7 @@ import { startOperation } from '@/lib/operations.ts'
  * resolve the graph-relative `path` to an absolute filesystem path for use in
  * tools outside Reflect (agent chats, editors, terminals), put it on the
  * clipboard, and report through the operations status line. Joining through
- * Tauri preserves the host platform's path syntax.
+ * the host preserves the host platform's path syntax.
  */
 export async function runCopyNotePath(root: string | null, path: string): Promise<void> {
   if (root === null) {
@@ -15,8 +14,8 @@ export async function runCopyNotePath(root: string | null, path: string): Promis
     return
   }
   try {
-    const absolutePath = await join(root, path)
-    await navigator.clipboard.writeText(absolutePath)
+    const absolutePath = await defaultPath().join(root, path)
+    await defaultClipboard().writeText(absolutePath)
     startOperation('Note path copied').done()
   } catch (cause) {
     startOperation('Copying note path').fail(errorMessage(cause))

@@ -62,7 +62,7 @@ export function installQuitFlush(): () => void {
     }),
   )
 
-  void subscriptions.add(
+  subscriptions.track(
     subscribeQuitRequested(() => {
       void Promise.allSettled([flushOpenDocuments(), flushSettings()])
         .then(() => flushBackup())

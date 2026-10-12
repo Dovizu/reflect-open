@@ -18,6 +18,7 @@ export default defineDesktopProject({
     setupFiles: [
       './src/test-utils/setup-console.ts',
       './src/test-utils/setup-platform.ts',
+      './src/test-utils/setup-services.ts',
       './src/test-utils/setup-browser.ts',
     ],
     // Real keyboard focus is a per-page global; parallel test files

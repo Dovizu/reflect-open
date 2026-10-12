@@ -27,7 +27,11 @@ export function defineDesktopProject(project: {
       globals: false,
       maxConcurrency: 1,
       retry: process.env.CI ? 3 : 0,
-      setupFiles: ['./src/test-utils/setup-console.ts', './src/test-utils/setup-platform.ts'],
+      setupFiles: [
+        './src/test-utils/setup-console.ts',
+        './src/test-utils/setup-platform.ts',
+        './src/test-utils/setup-services.ts',
+      ],
       slowTestThreshold: 10_000,
       ...project.test,
     },

@@ -1,6 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react'
-import type { GraphInfo } from '@reflect/core'
-import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { defaultOpener, type GraphInfo } from '@reflect/core'
 import { FolderOpen, GraduationCap, LocateFixed, PanelsTopLeft, Settings } from 'lucide-react'
 import { GraphSwatch } from '@/components/graph-swatch.tsx'
 import { ReflectAppsDialog } from '@/components/reflect-apps-dialog.tsx'
@@ -137,9 +136,11 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
           {recents.length > 0 ? <DropdownMenuSeparator /> : null}
           <DropdownMenuItem
             onClick={() => {
-              void revealItemInDir(graph.root).catch((cause: unknown) => {
-                console.error('open graph folder failed:', cause)
-              })
+              void defaultOpener()
+                .revealInFileManager(graph.root)
+                .catch((cause: unknown) => {
+                  console.error('open graph folder failed:', cause)
+                })
             }}
             className={MENU_ITEM_CLASS}
           >

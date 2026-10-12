@@ -1,6 +1,6 @@
 import { useEffect, useState, type MouseEvent, type ReactElement } from 'react'
 import { Check, Copy, RefreshCw } from 'lucide-react'
-import { errorMessage } from '@reflect/core'
+import { defaultClipboard, errorMessage } from '@reflect/core'
 import { Button } from '@/components/ui/button.tsx'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx'
 import { useNoteRow } from '@/hooks/use-note-row.ts'
@@ -52,7 +52,7 @@ export function PublishedUrlSection({ path }: PublishedUrlSectionProps): ReactEl
 
   const copyUrl = async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(url)
+      await defaultClipboard().writeText(url)
       setCopyState('copied')
       startOperation('Published URL copied').done()
     } catch (cause) {

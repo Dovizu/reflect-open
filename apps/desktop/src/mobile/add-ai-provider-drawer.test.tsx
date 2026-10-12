@@ -27,7 +27,6 @@ beforeEach(() => {
 afterEach(() => {
   setDefaultHttp(null)
 })
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn(() => Promise.resolve()) }))
 
 // Keep the sheet content inline so this suite exercises its state flow
 // without depending on the drawer's drag and animation behavior.
