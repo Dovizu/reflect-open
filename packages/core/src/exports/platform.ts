@@ -561,7 +561,6 @@ export {
   type WindowBootstrap,
 } from '../graph/schemas.ts'
 export {
-  openGraph,
   windowBootstrap,
   createGraph,
   importReflectV1Zip,
@@ -586,9 +585,6 @@ export {
   listAttachments,
   vaultScanStats,
   type VaultScanStats,
-  recentGraphs,
-  forgetRecent,
-  deleteGraph,
   captureHostRegister,
   captureInboxList,
   captureInboxRead,
@@ -614,6 +610,21 @@ export {
   type ResolveOrCreateNoteResult,
 } from '../graph/create-note.ts'
 export { ensureWelcomeNote, type EnsureWelcomeNoteOptions } from '../graph/onboarding.ts'
+export {
+  createGraphSessionService,
+  type GraphBootHooks,
+  type GraphReleaseReason,
+  type GraphSessionService,
+  type GraphSessionServiceDeps,
+  type GraphSessionState,
+  type GraphStatus,
+} from '../graph/graph-session-service.ts'
+export {
+  cleanGraphName,
+  graphNameFromRoot,
+  graphRootForName,
+  isGraphNameTaken,
+} from '../graph/graph-names.ts'
 export {
   resolveExistingMarkdownTarget,
   resolveExistingWikiTarget,

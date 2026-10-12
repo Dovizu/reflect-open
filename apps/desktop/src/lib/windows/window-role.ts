@@ -14,17 +14,3 @@ import { defaultWindow } from '@reflect/core'
 export function isMainWindow(): boolean {
   return defaultWindow().isMainWindow()
 }
-
-/**
- * Guard for graph-session mutations only the main window may run — opening,
- * switching, or deleting a graph re-roots the shared Rust `GraphState` under
- * every window at once. True in the main window; elsewhere warns and returns
- * false so call sites bail.
- */
-export function requireMainWindow(action: string): boolean {
-  if (isMainWindow()) {
-    return true
-  }
-  console.warn(`${action} is only available from the main window`)
-  return false
-}

@@ -131,6 +131,11 @@ export {
   type TestIndexStoreServiceOptions,
 } from './index-store.ts'
 export {
+  createTestGraphSessionService,
+  type TestGraphSessionService,
+  type TestGraphSessionServiceOptions,
+} from './graph-session.ts'
+export {
   createTestIndexLifecycleService,
   type TestIndexLifecycleService,
   type TestIndexLifecycleServiceOptions,
