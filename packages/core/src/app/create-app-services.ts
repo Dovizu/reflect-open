@@ -82,6 +82,10 @@ import { createOperationsService, type OperationsService } from './operations-se
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
+  createPersistenceFlushService,
+  type PersistenceFlushService,
+} from './persistence-flush-service.ts'
+import {
   createPlatformService,
   type PlatformFacts,
   type PlatformService,
@@ -121,6 +125,7 @@ export interface AppServices {
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly operations: OperationsService
   readonly settings: SettingsService
+  readonly persistenceFlush: PersistenceFlushService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
   readonly indexStore: IndexStoreService
@@ -223,6 +228,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const mobile =
     isMobilePlatform(adapters.platform.appPlatform) || adapters.platform.surface.mobileApp
   const operations = createOperationsService({ clock })
+  const lifecycle = createLifecycleService({ ipc, dom: adapters.lifecycle, clock, logger })
+  const settings = createSettingsService({ ipc, operations })
   const fileChanges = createFileChangeService(
     { ipc, logger },
     { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
@@ -246,7 +253,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     opener: createOpenerService({ transport: adapters.opener, logger }),
     path: createPathService({ transport: adapters.path }),
     window: windowService,
-    lifecycle: createLifecycleService({ ipc, dom: adapters.lifecycle, clock, logger }),
+    lifecycle,
     secretStore: createSecretStoreService({ ipc }),
     appInfo: createAppInfoService({ ipc }),
     calendar: createCalendarService({ ipc, logger }),
@@ -256,7 +263,14 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
-    settings: createSettingsService({ ipc, operations }),
+    settings,
+    persistenceFlush: createPersistenceFlushService({
+      lifecycle,
+      window: windowService,
+      platform,
+      settings,
+      logger,
+    }),
     database,
     indexStore: createIndexStoreService({ ipc, database }),
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),

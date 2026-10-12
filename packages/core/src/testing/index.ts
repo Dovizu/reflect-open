@@ -137,6 +137,10 @@ export {
 } from './operations.ts'
 export { createTestSettingsService, type TestSettingsService } from './settings.ts'
 export {
+  createTestPersistenceFlushService,
+  type TestPersistenceFlushService,
+} from './persistence-flush.ts'
+export {
   createTestFileChangeService,
   type TestFileChangeService,
   type TestFileChangeServiceOptions,

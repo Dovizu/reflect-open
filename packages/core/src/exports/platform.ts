@@ -168,6 +168,14 @@ export {
   type LifecyclePageEvent,
 } from '../app/lifecycle-service.ts'
 export {
+  createPersistenceFlushService,
+  defaultPersistenceFlush,
+  setDefaultPersistenceFlush,
+  type PersistenceFlusher,
+  type PersistenceFlusherKind,
+  type PersistenceFlushService,
+} from '../app/persistence-flush-service.ts'
+export {
   createSystemIdService,
   defaultIdService,
   type IdService,
