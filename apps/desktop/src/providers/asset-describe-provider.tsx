@@ -1,15 +1,16 @@
-import { useEffect, useRef, type ReactElement, type ReactNode } from 'react'
-import type { AiProvidersState, GraphInfo } from '@reflect/core'
-import { createAssetDescribeController } from '@/lib/asset-describe-controller.ts'
+import type { ReactElement, ReactNode } from 'react'
+import { defaultAssetDescription, type GraphInfo } from '@reflect/core'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
- * Mounts the asset-description lifecycle for the open graph (Plan 20): runs the
- * {@link createAssetDescribeController} loop that describes new eligible
- * images/PDFs into managed `.reflect.md` descriptions. No UI — the only surface is
- * the Settings backfill button; this provider only handles the automatic path
- * for newly added assets, and only when `describeAssets` is on.
+ * Mounts the asset-description lifecycle for the open graph (Plan 20): has the
+ * app-lifetime `AssetDescriptionService` open a session for this graph, whose
+ * loop describes new eligible images/PDFs into managed `.reflect.md`
+ * descriptions. No UI — the only surface is the Settings backfill button; this
+ * provider only handles the automatic path for newly added assets, and only
+ * when `describeAssets` is on.
  */
 
 interface AssetDescribeProviderProps {
@@ -21,36 +22,23 @@ export function AssetDescribeProvider({
   graph,
   children,
 }: AssetDescribeProviderProps): ReactElement {
+  const assetDescription = useAppServices({ optional: true })?.assetDescription
   const { settings } = useSettings()
   const describeAssets = settings.describeAssets
-
-  // Read lazily at the start of every pass — a key added in Settings
-  // mid-session must be seen without rebuilding the controller.
-  const providersRef = useRef<AiProvidersState>({
-    providers: settings.aiProviders,
-    defaultProviderId: settings.defaultAiProviderId,
-  })
-  useEffect(() => {
-    providersRef.current = {
-      providers: settings.aiProviders,
-      defaultProviderId: settings.defaultAiProviderId,
-    }
-  })
 
   // Main window only — two describers would double-bill the same assets.
   useMainWindowEffect(() => {
     if (!describeAssets) {
       return
     }
-    const controller = createAssetDescribeController({
+    const session = (assetDescription ?? defaultAssetDescription()).openSession({
       generation: graph.generation,
-      getProviders: () => providersRef.current,
     })
-    controller.start()
+    session.start()
     return () => {
-      controller.dispose()
+      session.dispose()
     }
-  }, [graph.generation, describeAssets])
+  }, [assetDescription, graph.generation, describeAssets])
 
   return <>{children}</>
 }

@@ -35,15 +35,36 @@ import {
   withAppReviewDemo,
   type LanguageModelService,
 } from '../ai/language-model-service.ts'
+import { createChatEngineService, type ChatEngineService } from '../ai/chat/chat-engine-service.ts'
+import {
+  createChatGraphContextService,
+  type ChatGraphContextService,
+} from '../ai/chat/chat-graph-context-service.ts'
 import {
   createChatHistoryService,
   type ChatHistoryService,
 } from '../ai/chat/chat-history-service.ts'
 import {
+  createChatSessionService,
+  type ChatSessionService,
+} from '../ai/chat/chat-session-service.ts'
+import { fitToContextWindow } from '../ai/chat/context-window.ts'
+import { createNoteToolsService, type NoteToolsService } from '../ai/chat/note-tools-service.ts'
+import { createAssetReferences } from '../indexing/asset-refs.ts'
+import { listDailyNotes } from '../indexing/queries.ts'
+import {
   createBacklinkTargetService,
   type BacklinkTargetService,
 } from '../capture/backlink-target-service.ts'
 import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
+import {
+  createAssetDescriptionService,
+  type AssetDescriptionService,
+} from '../assets/asset-description-service.ts'
+import {
+  createAssetPrivacyService,
+  type AssetPrivacyService,
+} from '../assets/asset-privacy-service.ts'
 import {
   createCaptureInboxService,
   type CaptureInboxService,
@@ -65,6 +86,23 @@ import { createGithubAuthService, type GithubAuthService } from '../sync/github-
 import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
 import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
 import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
+import {
+  createConflictResolutionService,
+  type ConflictResolutionService,
+} from '../sync/conflict-resolution-service.ts'
+import {
+  createICloudDownloadServiceFactory,
+  type ICloudDownloadServiceFactory,
+} from '../sync/icloud-download-service.ts'
+import {
+  createICloudMigrationService,
+  type ICloudMigrationService,
+} from '../sync/icloud-migration-service.ts'
+import {
+  createICloudSyncServiceFactory,
+  type ICloudSyncServiceFactory,
+} from '../sync/icloud-sync-service.ts'
+import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
@@ -127,6 +165,10 @@ import {
   createNoteDocumentService,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
+import {
+  createNotePreviewService,
+  type NotePreviewService,
+} from '../documents/note-preview-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
   createOpenDocumentsService,
@@ -190,6 +232,10 @@ import {
   type DeepLinkService,
   type DeepLinkSource,
 } from '../navigation/deep-link-service.ts'
+import {
+  createLinkNavigationService,
+  type LinkNavigationService,
+} from '../navigation/link-navigation-service.ts'
 import {
   createNavigationService,
   type NavigationService,
@@ -291,6 +337,8 @@ export interface AppServices {
   readonly navigation: NavigationService
   /** The `reflect://` intake of this webview and the handler behind it. */
   readonly deepLink: DeepLinkService
+  /** Turns an activated link into a navigation, a new window, or a refusal. */
+  readonly linkNavigation: LinkNavigationService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -301,6 +349,13 @@ export interface AppServices {
   /** Builds the backup lifecycle of one (graph, index session) pair. */
   readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
+  /** Builds the iCloud conflict lifecycle of one (graph, index session) pair. */
+  readonly icloudSyncs: ICloudSyncServiceFactory
+  /** Builds the download refresh of one open iCloud graph (mobile). */
+  readonly icloudDownloads: ICloudDownloadServiceFactory
+  readonly icloudMigration: ICloudMigrationService
+  readonly conflictResolution: ConflictResolutionService
+  readonly syncStatus: SyncStatusService
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
   readonly xArchive: XArchiveService
@@ -328,6 +383,7 @@ export interface AppServices {
   readonly noteMove: NoteMoveService
   readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
+  readonly notePreview: NotePreviewService
   readonly tasks: TaskService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
@@ -366,8 +422,15 @@ export interface AppServices {
   readonly assetDescriber: AssetDescriberService
   readonly transcription: TranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly noteTools: NoteToolsService
+  readonly chatEngine: ChatEngineService
+  readonly chatGraphContext: ChatGraphContextService
+  /** Creates the chat session of an open graph; the workspace owns the session. */
+  readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: CaptureService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescription: AssetDescriptionService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -543,6 +606,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const captureInbox = createCaptureInboxService({ ipc })
   const webFetch = createWebFetchService({ ipc })
   const pageDescriber = createPageDescriberService({ languageModel })
+  const reconcilers = createBackgroundReconcilerFactory({ lifecycle })
+  const assetPrivacy = createAssetPrivacyService({
+    noteFile,
+    xArchive,
+    assetReferences: createAssetReferences({ database, xArchive }),
+  })
+  const assetDescriber = createAssetDescriberService({ languageModel })
   const backlinkTarget = createBacklinkTargetService({
     noteCreation: noteServices.noteCreation,
     noteFile,
@@ -574,6 +644,25 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage,
     logger,
   })
+  const opener = createOpenerService({ transport: adapters.opener, logger })
+  const deepLink = createDeepLinkService({
+    source: adapters.deepLink ?? createNoDeepLinkSource(),
+    indexQuery: indexReads.indexQuery,
+    captureInbox,
+    operations,
+    id,
+    clock,
+    logger,
+  })
+  const attachments = createAttachmentService({
+    assetStore,
+    noteFile,
+    fileChanges,
+    dialog: adapters.dialog,
+    operations,
+    clock,
+    platform,
+  })
   const persistenceFlush = createPersistenceFlushService({
     lifecycle,
     window: windowService,
@@ -586,6 +675,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const gitHostCredentials = createGitHostCredentialService({ secretStore })
   const githubRepos = createGithubRepoService({ http: adapters.http })
   const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
+  const icloudNative = createICloudNativeService({ ipc, logger })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
   const retrieval = createRetrievalService({
     database,
@@ -601,6 +691,22 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexLifecycle,
     logger,
   })
+  const chatHistory = createChatHistoryService({ ipc, database, logger })
+  const noteTools = createNoteToolsService({
+    retrieval,
+    noteFile,
+    noteList: indexReads.noteList,
+    dailyNotes: { listDailyNotes },
+    assetReferences: createAssetReferences({ database, xArchive }),
+    xArchive,
+    privacy: noteServices.privacy,
+  })
+  const chatEngine = createChatEngineService({ languageModel, noteTools, fitToContextWindow })
+  const chatGraphContext = createChatGraphContextService({
+    graphStats: indexReads.graphStats,
+    privacy: noteServices.privacy,
+  })
+  const imageCodec = adapters.imageCodec ?? createUnavailableImageCodec()
   return {
     ipc,
     logger,
@@ -612,7 +718,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     http: adapters.http,
     dialog: adapters.dialog,
     clipboard: adapters.clipboard,
-    opener: createOpenerService({ transport: adapters.opener, logger }),
+    opener,
     path,
     window: windowService,
     lifecycle,
@@ -641,7 +747,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     agentSkill: createAgentSkillService({ ipc }),
     mobileStorage,
-    imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
+    imageCodec,
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
     settings,
@@ -650,15 +756,19 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     database,
     indexStore,
     embeddingRuntime,
-    chatHistory: createChatHistoryService({ ipc, database, logger }),
+    chatHistory,
     navigation: createNavigationService(),
-    deepLink: createDeepLinkService({
-      source: adapters.deepLink ?? createNoDeepLinkSource(),
-      indexQuery: indexReads.indexQuery,
-      captureInbox,
+    deepLink,
+    linkNavigation: createLinkNavigationService({
+      noteLinkResolver: noteServices.noteLinkResolver,
+      noteCreation: noteServices.noteCreation,
+      wikiResolver: indexReads.wikiResolver,
+      window: windowService,
+      platform,
+      opener,
+      deepLink,
+      attachments,
       operations,
-      id,
-      clock,
       logger,
     }),
     update: adapters.updater
@@ -690,7 +800,20 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       logger,
     }),
     gists: createGistService({ http: adapters.http }),
-    icloudNative: createICloudNativeService({ ipc, logger }),
+    icloudNative,
+    icloudSyncs: createICloudSyncServiceFactory({
+      icloudNative,
+      fileChanges,
+      indexLifecycle,
+      openDocuments,
+      lifecycle,
+      clock,
+      logger,
+    }),
+    icloudDownloads: createICloudDownloadServiceFactory({ icloudNative, lifecycle, clock, logger }),
+    icloudMigration: createICloudMigrationService({ icloudNative }),
+    conflictResolution: createConflictResolutionService({ noteFile, indexLifecycle, fileChanges }),
+    syncStatus: createSyncStatusService(),
     captureInbox,
     webFetch,
     xArchive,
@@ -705,15 +828,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     fileChanges,
     noteFile,
     assetStore,
-    attachments: createAttachmentService({
-      assetStore,
-      noteFile,
-      fileChanges,
-      dialog: adapters.dialog,
-      operations,
-      clock,
-      platform,
-    }),
+    attachments,
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
     noteMove,
@@ -731,6 +846,11 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
     noteDocuments,
+    notePreview: createNotePreviewService({
+      noteLinkResolver: noteServices.noteLinkResolver,
+      noteDocuments,
+      attachments,
+    }),
     tasks: createTaskService({ database, noteDocuments, operations, clock, logger }),
     noteActions: createNoteActionsService({
       noteDocuments,
@@ -799,11 +919,28 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       privacy: noteServices.privacy,
     }),
     pageDescriber,
-    assetDescriber: createAssetDescriberService({ languageModel }),
+    assetDescriber,
     transcription: withAppReviewDemoTranscription(
       createTranscriptionService({ http: adapters.http }),
     ),
     transcriptEnrichment: createTranscriptEnrichmentService({ languageModel }),
+    noteTools,
+    chatEngine,
+    chatGraphContext,
+    chatSessions: createChatSessionService({
+      chatEngine,
+      chatHistory,
+      chatGraphContext,
+      providerConfig: aiProviderConfig,
+      credentials: aiCredentials,
+      embeddingRuntime,
+      settings,
+      graphSession,
+      clock,
+      id,
+      imageCodec,
+      logger,
+    }),
     backlinkTarget,
     capture: createCaptureService({
       captureInbox,
@@ -819,11 +956,26 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       privacy: noteServices.privacy,
       hash,
       clock,
-      reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
+      reconcilers,
       lifecycle,
       fileChanges,
       operations,
       platform,
+      logger,
+    }),
+    assetPrivacy,
+    assetDescription: createAssetDescriptionService({
+      assetStore,
+      noteFile,
+      assetPrivacy,
+      assetDescriber,
+      aiProviderConfig,
+      aiCredentials,
+      hash,
+      clock,
+      reconcilers,
+      indexLifecycle,
+      operations,
       logger,
     }),
   }

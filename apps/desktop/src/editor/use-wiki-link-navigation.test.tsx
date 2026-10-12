@@ -1,25 +1,26 @@
-import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import {
+  createTestLoggerService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import { setDefaultOperations } from '@reflect/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
 import { useWikiLinkNavigation } from './use-wiki-link-navigation.ts'
 
-const resolveWikiTarget = vi.hoisted(() => vi.fn())
-const resolveExistingWikiTarget = vi.hoisted(() => vi.fn())
-const resolveOrCreateNoteWithTitle = vi.hoisted(() => vi.fn())
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  resolveWikiTarget,
-  resolveExistingWikiTarget,
-  resolveOrCreateNoteWithTitle,
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
-}))
+const resolveWikiTarget = vi.fn()
+const resolveExistingWikiTarget = vi.fn()
+const resolveOrCreateNoteWithTitle = vi.fn()
+const logger = createTestLoggerService()
+const { openNoteWindow } = installTestLinkNavigation({
+  wikiResolver: { resolveWikiTarget },
+  noteLinkResolver: { resolveWikiTarget: resolveExistingWikiTarget, resolveMarkdownHref: vi.fn() },
+  noteCreation: { resolveOrCreateNoteWithTitle },
+  logger,
+})
 
 let lastHandler: ((options: { target: string; openInNewWindow: boolean }) => void) | null = null
 let navigate: ReturnType<typeof useRouter>['navigate'] | null = null
@@ -60,8 +61,6 @@ beforeEach(() => {
   resolveWikiTarget.mockReset()
   resolveExistingWikiTarget.mockReset()
   resolveOrCreateNoteWithTitle.mockReset()
-  openRouteInNewWindow.mockReset()
-  openRouteInNewWindow.mockResolvedValue(true)
   lastHandler = null
   navigate = null
 })
@@ -228,7 +227,7 @@ describe('useWikiLinkNavigation', () => {
     const view = await renderHost()
     lastHandler?.({ target: 'Target', openInNewWindow: true })
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({ kind: 'note', path: 'notes/target.md' }),
+      expect(openNoteWindow).toHaveBeenCalledWith('reflect://note/notes%2Ftarget.md'),
     )
     expect(currentRoute(view)).toContain('"today"') // this window stays put
     await view.unmount()
@@ -242,7 +241,7 @@ describe('useWikiLinkNavigation', () => {
     const view = await renderHost(7)
     lastHandler?.({ target: 'Brand New', openInNewWindow: true })
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({ kind: 'note', path: 'notes/created.md' }),
+      expect(openNoteWindow).toHaveBeenCalledWith('reflect://note/notes%2Fcreated.md'),
     )
     expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Brand New', 7)
     expect(currentRoute(view)).toContain('"today"')
@@ -290,8 +289,8 @@ describe('useWikiLinkNavigation', () => {
   })
 
   it('surfaces a resolution failure instead of silently doing nothing', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    resolveOrCreateNoteWithTitle.mockRejectedValue(new Error('index unavailable'))
+    const failure = new Error('index unavailable')
+    resolveOrCreateNoteWithTitle.mockRejectedValue(failure)
     const view = await renderHost()
 
     lastHandler?.({ target: 'Business ideas', openInNewWindow: false })
@@ -303,7 +302,10 @@ describe('useWikiLinkNavigation', () => {
       }),
     )
     expect(currentRoute(view)).toContain('"today"')
-    consoleError.mockRestore()
+    expect(logger.getErrors()).toContainEqual({
+      message: 'wiki-link resolution failed:',
+      cause: failure,
+    })
     await view.unmount()
   })
 
@@ -312,7 +314,7 @@ describe('useWikiLinkNavigation', () => {
       kind: 'resolved',
       path: 'notes/target.md',
     })
-    openRouteInNewWindow.mockResolvedValue(false)
+    openNoteWindow.mockResolvedValue(false)
     const view = await renderHost()
     lastHandler?.({ target: 'Target', openInNewWindow: true })
     await vi.waitFor(() => expect(currentRoute(view)).toContain('notes/target.md'))

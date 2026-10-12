@@ -8,8 +8,8 @@ import { createTestHashService } from '../testing/id.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import type { FileChange } from './file-change-service.ts'
-import { subscribeIndexApplied } from './index-applied.ts'
 import { createIndexQueryService } from './index-query-service.ts'
+import type { ChangesAppliedEmitter } from './indexer.ts'
 import { createLiveIndex } from './live.ts'
 
 const databases: { close(): void }[] = []
@@ -37,7 +37,20 @@ function setup(options?: {
   const fileChanges = createTestFileChangeService()
   const logger = createTestLoggerService()
   const reads: string[] = []
+  const appliedListeners = new Set<ChangesAppliedEmitter>()
+  /** Listen for the batches the live index reports as applied. */
+  function subscribeIndexApplied(listener: ChangesAppliedEmitter): () => void {
+    appliedListeners.add(listener)
+    return () => {
+      appliedListeners.delete(listener)
+    }
+  }
   const liveIndex = createLiveIndex({
+    emitChangesApplied: (changes, generation) => {
+      for (const listener of appliedListeners) {
+        listener(changes, generation)
+      }
+    },
     indexStore: store,
     noteFile: {
       ...files,
@@ -70,7 +83,7 @@ function setup(options?: {
   function emit(changes: FileChange[]): void {
     fileChanges.emit({ changes, source: 'external' })
   }
-  return { liveIndex, store, files, logger, reads, writes, emit }
+  return { liveIndex, store, files, logger, reads, writes, emit, subscribeIndexApplied }
 }
 
 describe('LiveIndex.apply', () => {
@@ -230,7 +243,9 @@ describe('LiveIndex.subscribe', () => {
 
   it('emits index-applied to subscribers after the batch is written — notes settle first', async () => {
     const order: string[] = []
-    const { liveIndex, writes, emit } = setup({ files: { 'notes/a.md': '# content' } })
+    const { liveIndex, writes, emit, subscribeIndexApplied } = setup({
+      files: { 'notes/a.md': '# content' },
+    })
     const unsubscribe = subscribeIndexApplied((changes) => {
       order.push(
         `applied:${changes.map((change) => change.path).join(',')} after ${writes().join(',')}`,
@@ -255,7 +270,7 @@ describe('LiveIndex.subscribe', () => {
 
   it('does not emit index-applied for a recordings-only batch', async () => {
     const seen: string[] = []
-    const { liveIndex, emit } = setup()
+    const { liveIndex, emit, subscribeIndexApplied } = setup()
     const unsubscribe = subscribeIndexApplied((changes) => {
       seen.push(changes.map((change) => change.path).join(','))
     })

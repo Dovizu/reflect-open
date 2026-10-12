@@ -45,13 +45,18 @@ import {
 } from './capture.ts'
 import {
   createTestBackupServiceFactory,
+  createTestConflictResolutionService,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
+  createTestICloudDownloadServiceFactory,
+  createTestICloudMigrationService,
   createTestICloudNativeService,
+  createTestICloudSyncServiceFactory,
   createTestSyncEngineFactory,
+  createTestSyncStatusService,
   type TestGitRepositoryService,
   type TestGithubAuthService,
   type TestICloudNativeService,
@@ -70,7 +75,18 @@ import {
   createTestPersonNoteService,
   type TestContactsService,
 } from './contacts.ts'
-import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
+import {
+  createTestChatEngineService,
+  createTestChatGraphContextService,
+  createTestChatHistoryService,
+  createTestChatSessionService,
+  createTestNoteToolsService,
+  type TestChatEngineService,
+  type TestChatGraphContextService,
+  type TestChatHistoryService,
+} from './chat.ts'
+import type { ChatSessionService } from '../ai/chat/chat-session-service.ts'
+import type { NoteToolsService } from '../ai/chat/note-tools-service.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
 import {
   createTestEmbeddingIndexService,
@@ -95,6 +111,7 @@ import {
   createTestNoteMoveService,
   createTestNoteSessionService,
   createTestNoteDocumentService,
+  createTestNotePreviewService,
   createTestOpenDocumentsService,
   createTestTitleRenameService,
   type TestNoteActionsService,
@@ -178,6 +195,7 @@ import {
 } from './shell.ts'
 import {
   createTestDeepLinkService,
+  createTestLinkNavigationService,
   createTestNavigationService,
   type TestDeepLinkService,
   type TestNavigationService,
@@ -197,6 +215,12 @@ import {
   type TestNativeMenuService,
 } from './commands.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
+import type { AssetPrivacyService } from '../assets/asset-privacy-service.ts'
+import {
+  createTestAssetDescriptionService,
+  createTestAssetPrivacyService,
+  type TestAssetDescriptionService,
+} from './assets.ts'
 import type { CommandService } from '../commands/command-service.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 
@@ -280,8 +304,14 @@ export interface TestAppServices extends AppServices {
   readonly assetDescriber: TestAssetDescriberService
   readonly transcription: TestTranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly noteTools: NoteToolsService
+  readonly chatEngine: TestChatEngineService
+  readonly chatGraphContext: TestChatGraphContextService
+  readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: TestCaptureService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescription: TestAssetDescriptionService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -389,6 +419,16 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: overrides?.mobileStorage ?? mobileStorage,
     logger,
   })
+  const opener = createTestOpenerService({ logger })
+  const deepLink = createTestDeepLinkService({
+    indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
+    captureInbox: overrides?.captureInbox ?? captureInbox,
+    operations: overrides?.operations ?? operations,
+    id: overrides?.id ?? id,
+    clock: overrides?.clock ?? clock,
+    logger,
+  })
+  const attachments = createTestAttachmentService()
   const persistenceFlush = createTestPersistenceFlushService()
   const gitRepository = createTestGitRepositoryService()
   const githubAuth = createTestGithubAuthService({
@@ -400,6 +440,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     secretStore: overrides?.secretStore ?? secretStore,
   })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
+  const icloudNative = createTestICloudNativeService()
   const syncEngines = createTestSyncEngineFactory({
     git: overrides?.gitRepository ?? gitRepository,
     clock: overrides?.clock ?? clock,
@@ -414,6 +455,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const storage = createTestStorageService()
+  const chatHistory = createTestChatHistoryService()
+  const chatEngine = createTestChatEngineService()
+  const chatGraphContext = createTestChatGraphContextService()
+  const imageCodec = createTestImageCodec()
   const services: TestAppServices = {
     ipc,
     logger: testLogger,
@@ -425,7 +470,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     http,
     dialog,
     clipboard,
-    opener: createTestOpenerService({ logger }),
+    opener,
     path,
     window: windowService,
     lifecycle,
@@ -459,7 +504,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     agentSkill: createTestAgentSkillService(),
     mobileStorage,
-    imageCodec: createTestImageCodec(),
+    imageCodec,
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
     settings,
@@ -469,15 +514,20 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     fileChanges,
     indexStore,
     embeddingRuntime,
-    chatHistory: createTestChatHistoryService(),
+    chatHistory,
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
-    deepLink: createTestDeepLinkService({
-      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
-      captureInbox: overrides?.captureInbox ?? captureInbox,
+    deepLink,
+    linkNavigation: createTestLinkNavigationService({
+      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+      noteCreation: overrides?.noteCreation ?? noteCreation,
+      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+      window: overrides?.window ?? windowService,
+      platform: overrides?.platform ?? platform,
+      opener: overrides?.opener ?? opener,
+      deepLink: overrides?.deepLink ?? deepLink,
+      attachments: overrides?.attachments ?? attachments,
       operations: overrides?.operations ?? operations,
-      id: overrides?.id ?? id,
-      clock: overrides?.clock ?? clock,
       logger,
     }),
     gitRepository,
@@ -500,7 +550,31 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       logger,
     }),
     gists: createTestGistService({ http: overrides?.http ?? http }),
-    icloudNative: createTestICloudNativeService(),
+    icloudNative,
+    icloudSyncs: createTestICloudSyncServiceFactory({
+      icloudNative: overrides?.icloudNative ?? icloudNative,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    icloudDownloads: createTestICloudDownloadServiceFactory({
+      icloudNative: overrides?.icloudNative ?? icloudNative,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    icloudMigration: createTestICloudMigrationService({
+      icloudNative: overrides?.icloudNative ?? icloudNative,
+    }),
+    conflictResolution: createTestConflictResolutionService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+    }),
+    syncStatus: createTestSyncStatusService(),
     captureInbox,
     webFetch: createTestWebFetchService(),
     xArchive,
@@ -515,7 +589,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     paywall: createTestPaywallService(),
     noteFile,
     assetStore: createTestAssetStoreService(),
-    attachments: createTestAttachmentService(),
+    attachments,
     noteSessions: createTestNoteSessionService({
       noteFile: overrides?.noteFile ?? noteFile,
       clock: overrides?.clock ?? clock,
@@ -537,6 +611,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     keyboard: createTestKeyboardService(),
     share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
     noteDocuments,
+    notePreview: createTestNotePreviewService({
+      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      attachments: overrides?.attachments ?? attachments,
+    }),
     tasks: createTestTaskService({
       database: overrides?.database ?? database,
       noteDocuments: overrides?.noteDocuments ?? noteDocuments,
@@ -622,11 +701,39 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     transcriptEnrichment: createTestTranscriptEnrichmentService({
       languageModel: overrides?.languageModel ?? languageModel,
     }),
+    noteTools: createTestNoteToolsService({
+      retrieval: overrides?.retrieval ?? retrieval,
+      noteFile: overrides?.noteFile ?? noteFile,
+      noteList: overrides?.noteList ?? indexReads.noteList,
+      xArchive: overrides?.xArchive ?? xArchive,
+      privacy: overrides?.privacy ?? privacy,
+    }),
+    chatEngine,
+    chatGraphContext,
+    chatSessions: createTestChatSessionService({
+      chatEngine: overrides?.chatEngine ?? chatEngine,
+      chatHistory: overrides?.chatHistory ?? chatHistory,
+      chatGraphContext: overrides?.chatGraphContext ?? chatGraphContext,
+      settings: overrides?.settings ?? settings,
+      credentials: overrides?.aiCredentials ?? aiCredentials,
+      providerConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
+      embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
+      graphSession: overrides?.graphSession ?? graphSession,
+      clock: overrides?.clock ?? clock,
+      id: overrides?.id ?? id,
+      imageCodec: overrides?.imageCodec ?? imageCodec,
+      logger,
+    }),
     backlinkTarget: createTestBacklinkTargetService({
       noteFile: overrides?.noteFile ?? noteFile,
       noteCreation: overrides?.noteCreation ?? noteCreation,
     }),
     capture: createTestCaptureService(),
+    assetPrivacy: createTestAssetPrivacyService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      xArchive: overrides?.xArchive ?? xArchive,
+    }),
+    assetDescription: createTestAssetDescriptionService(),
   }
   return Object.assign(services, overrides)
 }

@@ -11,6 +11,8 @@ import { setDefaultTranscription } from '../ai/transcription-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultBacklinkTarget } from '../capture/backlink-target-service.ts'
 import { setDefaultCapture } from '../capture/capture-service.ts'
+import { setDefaultAssetDescription } from '../assets/asset-description-service.ts'
+import { setDefaultAssetPrivacy } from '../assets/asset-privacy-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { setDefaultGists } from '../sync/gist-service.ts'
@@ -20,6 +22,11 @@ import { setDefaultGithubAuth } from '../sync/github-auth-service.ts'
 import { setDefaultGithubRepos } from '../sync/github-repo-service.ts'
 import { setDefaultSyncEngines } from '../sync/engine.ts'
 import { setDefaultBackups } from '../sync/backup-service.ts'
+import { setDefaultConflictResolution } from '../sync/conflict-resolution-service.ts'
+import { setDefaultICloudDownloads } from '../sync/icloud-download-service.ts'
+import { setDefaultICloudMigration } from '../sync/icloud-migration-service.ts'
+import { setDefaultICloudSyncs } from '../sync/icloud-sync-service.ts'
+import { setDefaultSyncStatus } from '../sync/sync-status-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
@@ -41,6 +48,7 @@ import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
 import { setDefaultNoteActions } from '../documents/note-actions-service.ts'
 import { setDefaultNoteDocuments } from '../documents/note-document-service.ts'
+import { setDefaultNotePreview } from '../documents/note-preview-service.ts'
 import { setDefaultNoteRows } from '../documents/note-row-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
 import { setDefaultNoteMove } from '../documents/note-move-service.ts'
@@ -72,6 +80,7 @@ import { setDefaultKeyboard } from '../mobile/keyboard-service.ts'
 import { setDefaultShare } from '../mobile/share-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultDeepLink } from '../navigation/deep-link-service.ts'
+import { setDefaultLinkNavigation } from '../navigation/link-navigation-service.ts'
 import { setDefaultNavigation } from '../navigation/navigation-service.ts'
 import { setDefaultPrivacy } from '../privacy/privacy-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -142,6 +151,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultUpdate(services.update)
   setDefaultNavigation(services.navigation)
   setDefaultDeepLink(services.deepLink)
+  setDefaultLinkNavigation(services.linkNavigation)
   setDefaultGitRepository(services.gitRepository)
   setDefaultGithubAuth(services.githubAuth)
   setDefaultGitHostCredentials(services.gitHostCredentials)
@@ -150,6 +160,11 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultBackups(services.backups)
   setDefaultGists(services.gists)
   setDefaultICloudNative(services.icloudNative)
+  setDefaultICloudSyncs(services.icloudSyncs)
+  setDefaultICloudDownloads(services.icloudDownloads)
+  setDefaultICloudMigration(services.icloudMigration)
+  setDefaultConflictResolution(services.conflictResolution)
+  setDefaultSyncStatus(services.syncStatus)
   setDefaultCaptureInbox(services.captureInbox)
   setDefaultWebFetch(services.webFetch)
   setDefaultXArchive(services.xArchive)
@@ -172,6 +187,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultKeyboard(services.keyboard)
   setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
+  setDefaultNotePreview(services.notePreview)
   setDefaultTasks(services.tasks)
   setDefaultNoteActions(services.noteActions)
   setDefaultNoteRows(services.noteRows)
@@ -207,6 +223,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultTranscriptEnrichment(services.transcriptEnrichment)
   setDefaultBacklinkTarget(services.backlinkTarget)
   setDefaultCapture(services.capture)
+  setDefaultAssetPrivacy(services.assetPrivacy)
+  setDefaultAssetDescription(services.assetDescription)
   setDefaultIpc(services.ipc)
 }
 
@@ -249,6 +267,7 @@ export function resetDefaultServices(): void {
   setDefaultUpdate(null)
   setDefaultNavigation(null)
   setDefaultDeepLink(null)
+  setDefaultLinkNavigation(null)
   setDefaultGitRepository(null)
   setDefaultGithubAuth(null)
   setDefaultGitHostCredentials(null)
@@ -257,6 +276,11 @@ export function resetDefaultServices(): void {
   setDefaultBackups(null)
   setDefaultGists(null)
   setDefaultICloudNative(null)
+  setDefaultICloudSyncs(null)
+  setDefaultICloudDownloads(null)
+  setDefaultICloudMigration(null)
+  setDefaultConflictResolution(null)
+  setDefaultSyncStatus(null)
   setDefaultCaptureInbox(null)
   setDefaultWebFetch(null)
   setDefaultXArchive(null)
@@ -279,6 +303,7 @@ export function resetDefaultServices(): void {
   setDefaultKeyboard(null)
   setDefaultShare(null)
   setDefaultNoteDocuments(null)
+  setDefaultNotePreview(null)
   setDefaultTasks(null)
   setDefaultNoteActions(null)
   setDefaultNoteRows(null)
@@ -314,5 +339,7 @@ export function resetDefaultServices(): void {
   setDefaultTranscriptEnrichment(null)
   setDefaultBacklinkTarget(null)
   setDefaultCapture(null)
+  setDefaultAssetPrivacy(null)
+  setDefaultAssetDescription(null)
   setDefaultIpc(null)
 }

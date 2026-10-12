@@ -98,10 +98,20 @@ export {
   type TestSemanticSearchServiceOptions,
 } from './embeddings.ts'
 export {
+  createTestChatEngineService,
+  createTestChatGraphContextService,
   createTestChatHistoryService,
+  createTestChatSessionService,
+  createTestNoteToolsService,
   type TestChatConversation,
+  type TestChatEngineService,
+  type TestChatGraphContextService,
+  type TestChatGraphContextSource,
   type TestChatHistoryService,
   type TestChatHistoryServiceOptions,
+  type TestChatSessionServiceOptions,
+  type TestChatTurnScript,
+  type TestNoteToolsServiceOptions,
 } from './chat.ts'
 export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 export {
@@ -122,6 +132,15 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestAssetDescriptionService,
+  createTestAssetPrivacyService,
+  createTestAssetReferences,
+  type TestAssetDescriptionService,
+  type TestAssetDescriptionSessionState,
+  type TestAssetPrivacyServiceOptions,
+  type TestAssetReferences,
+} from './assets.ts'
+export {
   createTestBacklinkTargetService,
   createTestCaptureInboxService,
   createTestCaptureService,
@@ -138,13 +157,19 @@ export {
 export {
   createTestBackupService,
   createTestBackupServiceFactory,
+  createTestConflictResolutionService,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
+  createTestICloudDownloadServiceFactory,
+  createTestICloudMigrationService,
   createTestICloudNativeService,
+  createTestICloudSyncService,
+  createTestICloudSyncServiceFactory,
   createTestSyncEngineFactory,
+  createTestSyncStatusService,
   type BackupCall,
   type GitRepositoryCall,
   type GitRepositoryHandler,
@@ -154,6 +179,7 @@ export {
   type TestGithubAuthOptions,
   type TestGithubAuthService,
   type TestICloudNativeService,
+  type TestICloudSyncService,
 } from './sync.ts'
 export {
   createTestAiCredentialService,
@@ -275,11 +301,13 @@ export {
 } from './privacy.ts'
 export {
   createTestDeepLinkService,
+  createTestLinkNavigationService,
   createTestDeepLinkSource,
   createTestNavigationService,
   type TestDeepLinkService,
   type TestDeepLinkServiceOptions,
   type TestDeepLinkSource,
+  type TestLinkNavigationServiceOptions,
   type TestNavigateCall,
   type TestNavigationService,
   type TestNavigationServiceOptions,
@@ -295,6 +323,7 @@ export { createTestTaskService, makeOpenTask, type TestTaskServiceOptions } from
 export {
   createTestNoteActionsService,
   createTestNoteDocumentService,
+  createTestNotePreviewService,
   createTestNoteSession,
   createTestNoteSessionService,
   createTestOpenDocumentsService,
@@ -303,6 +332,7 @@ export {
   type TestNoteActionsService,
   type TestNoteActionsServiceOptions,
   type TestNoteDocumentServiceOptions,
+  type TestNotePreviewServiceOptions,
   type TestNoteSession,
   type TestNoteSessionOptions,
   type TestNoteSessionService,

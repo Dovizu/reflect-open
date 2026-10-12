@@ -5,17 +5,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { TemplatesSection } from './templates-section.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+
+const { openNoteWindow } = installTestLinkNavigation()
 
 const listTemplates = vi.hoisted(() => vi.fn())
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   listTemplates,
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
@@ -48,7 +47,6 @@ beforeEach(() => {
   listTemplates
     .mockReset()
     .mockResolvedValue([{ path: 'templates/weekly-review.md', title: 'Weekly review', mtime: 1 }])
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
 
 describe('TemplatesSection note links', () => {
@@ -60,7 +58,7 @@ describe('TemplatesSection note links', () => {
     await expect
       .element(page.getByTestId('route'))
       .toMatchTextContent('note:templates/weekly-review.md')
-    expect(openRouteInNewWindow).not.toHaveBeenCalled()
+    expect(openNoteWindow).not.toHaveBeenCalled()
   })
 
   it('opens a ⌘-clicked template in a new window with its explicit note route', async () => {
@@ -69,10 +67,12 @@ describe('TemplatesSection note links', () => {
     await page.getByText('templates/weekly-review.md').click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'templates/weekly-review.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'templates/weekly-review.md',
+        }),
+      ),
     )
     expect(page.getByTestId('route').element().textContent).toBe('settings')
   })

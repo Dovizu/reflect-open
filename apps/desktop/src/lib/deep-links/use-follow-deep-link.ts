@@ -1,7 +1,5 @@
 import { useCallback } from 'react'
-import { dispatchDeepLink } from '@/lib/deep-links/intake.ts'
-import { parseDeepLink } from '@/lib/deep-links/parse.ts'
-import { openDeepLinkInNewWindow } from '@/lib/windows/open-in-new-window.ts'
+import { useLinkNavigationService } from '@/hooks/use-link-navigation-service.ts'
 import { useLinkIntentGuard } from '@/lib/windows/use-link-intent-guard.ts'
 
 /** Follow one in-app `reflect://` link. */
@@ -14,37 +12,13 @@ export type FollowDeepLink = (options: { href: string; openInNewWindow: boolean 
  * ({@link useLinkIntentGuard}) is still current.
  */
 export function useFollowDeepLink(): FollowDeepLink {
-  const beginLinkIntent = useLinkIntentGuard()
+  const linkNavigation = useLinkNavigationService()
+  const beginIntent = useLinkIntentGuard()
 
   return useCallback(
-    ({ href, openInNewWindow }) => {
-      const link = parseDeepLink(href)
-      // A capture or rejected URL still dispatches so the graph-scoped handler
-      // can write it or surface the error, but it cannot supersede navigation.
-      if (link === null || link.kind === 'capture') {
-        dispatchDeepLink(href)
-        return
-      }
-
-      const isStale = beginLinkIntent()
-      if (!openInNewWindow) {
-        dispatchDeepLink(href)
-        return
-      }
-
-      void (async () => {
-        let opened = false
-        try {
-          opened = await openDeepLinkInNewWindow(href)
-        } catch {
-          // Treat a native open failure like a declined open and fall back below.
-        }
-        if (opened || isStale()) {
-          return
-        }
-        dispatchDeepLink(href)
-      })()
+    (options) => {
+      linkNavigation.followDeepLink(options, { beginIntent })
     },
-    [beginLinkIntent],
+    [beginIntent, linkNavigation],
   )
 }

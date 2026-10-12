@@ -18,6 +18,11 @@ import { defaultGithubAuth } from '../sync/github-auth-service.ts'
 import { defaultGithubRepos } from '../sync/github-repo-service.ts'
 import { defaultSyncEngines } from '../sync/engine.ts'
 import { defaultBackups } from '../sync/backup-service.ts'
+import { defaultConflictResolution } from '../sync/conflict-resolution-service.ts'
+import { defaultICloudDownloads } from '../sync/icloud-download-service.ts'
+import { defaultICloudMigration } from '../sync/icloud-migration-service.ts'
+import { defaultICloudSyncs } from '../sync/icloud-sync-service.ts'
+import { defaultSyncStatus } from '../sync/sync-status-service.ts'
 import { defaultXArchive } from '../x-archive.ts'
 import { defaultWebFetch } from './web-fetch-service.ts'
 import { defaultIap } from '../ipc/iap-plugin.ts'
@@ -42,6 +47,7 @@ import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultNoteSessions } from '../documents/note-session.ts'
 import { defaultNoteMove } from '../documents/note-move-service.ts'
 import { defaultNoteDocuments } from '../documents/note-document-service.ts'
+import { defaultNotePreview } from '../documents/note-preview-service.ts'
 import { defaultTasks } from '../tasks/task-service.ts'
 import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { defaultTitleRename } from '../documents/title-rename-service.ts'
@@ -136,6 +142,11 @@ describe('installDefaultServices', () => {
     expect(defaultSyncEngines()).toBe(services.syncEngines)
     expect(defaultBackups()).toBe(services.backups)
     expect(defaultICloudNative()).toBe(services.icloudNative)
+    expect(defaultICloudSyncs()).toBe(services.icloudSyncs)
+    expect(defaultICloudDownloads()).toBe(services.icloudDownloads)
+    expect(defaultICloudMigration()).toBe(services.icloudMigration)
+    expect(defaultConflictResolution()).toBe(services.conflictResolution)
+    expect(defaultSyncStatus()).toBe(services.syncStatus)
     expect(defaultCaptureInbox()).toBe(services.captureInbox)
     expect(defaultBacklinkTarget()).toBe(services.backlinkTarget)
     expect(defaultCapture()).toBe(services.capture)
@@ -158,6 +169,7 @@ describe('installDefaultServices', () => {
     expect(defaultNoteMove()).toBe(services.noteMove)
     expect(defaultTitleRename()).toBe(services.titleRename)
     expect(defaultNoteDocuments()).toBe(services.noteDocuments)
+    expect(defaultNotePreview()).toBe(services.notePreview)
     expect(defaultTasks()).toBe(services.tasks)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
@@ -228,6 +240,11 @@ describe('resetDefaultServices', () => {
     expect(defaultSyncEngines()).not.toBe(services.syncEngines)
     expect(defaultBackups()).not.toBe(services.backups)
     expect(defaultICloudNative()).not.toBe(services.icloudNative)
+    expect(defaultICloudSyncs()).not.toBe(services.icloudSyncs)
+    expect(defaultICloudDownloads()).not.toBe(services.icloudDownloads)
+    expect(defaultICloudMigration()).not.toBe(services.icloudMigration)
+    expect(defaultConflictResolution()).not.toBe(services.conflictResolution)
+    expect(defaultSyncStatus()).not.toBe(services.syncStatus)
     expect(defaultCaptureInbox()).not.toBe(services.captureInbox)
     expect(defaultBacklinkTarget()).not.toBe(services.backlinkTarget)
     expect(defaultCapture()).not.toBe(services.capture)
@@ -250,6 +267,7 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteMove()).not.toBe(services.noteMove)
     expect(defaultTitleRename()).not.toBe(services.titleRename)
     expect(defaultNoteDocuments()).not.toBe(services.noteDocuments)
+    expect(defaultNotePreview()).not.toBe(services.notePreview)
     expect(defaultTasks()).not.toBe(services.tasks)
     expect(defaultCalendarEvents()).not.toBe(services.calendarEvents)
     expect(defaultContactSuggestions()).not.toBe(services.contactSuggestions)

@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import {
-  beginLinkNavigationIntent,
-  isCurrentLinkNavigationIntent,
-} from '@/lib/windows/link-navigation-intent.ts'
+import { useLinkNavigationService } from '@/hooks/use-link-navigation-service.ts'
 import { useNavigationRevision } from '@/routing/router.tsx'
 
 /** Start one link activation; the returned probe answers "did it go stale?". */
@@ -28,6 +25,7 @@ export type BeginLinkIntent = () => () => boolean
  * full router, where the unmount and intent-token legs still guard correctly.
  */
 export function useLinkIntentGuard(): BeginLinkIntent {
+  const linkNavigation = useLinkNavigationService()
   const navigationRevision = useNavigationRevision()
 
   const unmountedRef = useRef(false)
@@ -39,11 +37,11 @@ export function useLinkIntentGuard(): BeginLinkIntent {
   }, [])
 
   return useCallback(() => {
-    const intent = beginLinkNavigationIntent()
+    const intent = linkNavigation.beginIntent()
     const startedAtRevision = navigationRevision?.() ?? null
     return () =>
       unmountedRef.current ||
-      !isCurrentLinkNavigationIntent(intent) ||
+      !linkNavigation.isCurrentIntent(intent) ||
       (navigationRevision !== null && navigationRevision() !== startedAtRevision)
-  }, [navigationRevision])
+  }, [linkNavigation, navigationRevision])
 }

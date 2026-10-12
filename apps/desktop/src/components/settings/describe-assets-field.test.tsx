@@ -1,22 +1,22 @@
 import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS, type Settings } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { DEFAULT_SETTINGS, setDefaultAssetDescription, type Settings } from '@reflect/core'
+import {
+  createTestAssetDescriptionService,
+  type TestAssetDescriptionService,
+} from '@reflect/core/testing'
 import { DescribeAssetsField } from './describe-assets-field.tsx'
 
 const settingsRef = vi.hoisted(() => ({ current: {} as Settings }))
 const updateSettings = vi.hoisted(() => vi.fn())
 const graphRef = vi.hoisted(() => ({ current: { generation: 5 } as { generation: number } | null }))
-const backfill = vi.hoisted(() => vi.fn(async () => undefined))
 
 vi.mock('@/providers/settings-provider.tsx', () => ({
   useSettings: () => ({ settings: settingsRef.current, updateSettings }),
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: graphRef.current }),
-}))
-vi.mock('@/lib/asset-backfill.ts', () => ({
-  backfillAssetDescriptionsVisibly: backfill,
 }))
 
 const PROVIDER = {
@@ -26,8 +26,12 @@ const PROVIDER = {
   keyHint: 'wxyz1',
 }
 
+let assetDescription: TestAssetDescriptionService
+
 beforeEach(() => {
   vi.clearAllMocks()
+  assetDescription = createTestAssetDescriptionService()
+  setDefaultAssetDescription(assetDescription)
   graphRef.current = { generation: 5 }
   settingsRef.current = {
     ...DEFAULT_SETTINGS,
@@ -35,6 +39,10 @@ beforeEach(() => {
     aiProviders: [PROVIDER],
     defaultAiProviderId: 'cfg',
   }
+})
+
+afterEach(() => {
+  setDefaultAssetDescription(null)
 })
 
 describe('DescribeAssetsField', () => {
@@ -59,19 +67,16 @@ describe('DescribeAssetsField', () => {
 
     // The cost warning appears; nothing is sent until the user confirms.
     await expect.element(page.getByText(/backfill assets\?/i)).toBeInTheDocument()
-    expect(backfill).not.toHaveBeenCalled()
+    expect(assetDescription.backfills()).toEqual([])
 
     await page.getByRole('button', { name: /^backfill assets$/i }).click()
-    expect(backfill).toHaveBeenCalledWith(5, {
-      providers: [PROVIDER],
-      defaultProviderId: 'cfg',
-    })
+    expect(assetDescription.backfills()).toEqual([5])
   })
 
   it('cancels without sending anything', async () => {
     await render(<DescribeAssetsField />)
     await page.getByRole('button', { name: /backfill assets/i }).click()
     await page.getByRole('button', { name: /cancel/i }).click()
-    expect(backfill).not.toHaveBeenCalled()
+    expect(assetDescription.backfills()).toEqual([])
   })
 })
