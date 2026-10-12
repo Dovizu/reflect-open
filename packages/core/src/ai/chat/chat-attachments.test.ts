@@ -1,11 +1,12 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { setDefaultImageCodec } from '@reflect/core'
+import { describe, expect, it } from 'vitest'
 import {
+  createTestIdService,
   createTestImageCodec,
   type TestImageCodecService,
   type TestImageSize,
-} from '@reflect/core/testing'
-import { toChatAttachment } from '@/lib/chat-attachments.ts'
+} from '../../testing/index.ts'
+import type { ChatAttachment } from './transcript.ts'
+import { readChatAttachment } from './chat-attachments.ts'
 
 /**
  * The downscale gate: oversized or non-provider-safe images re-encode to a
@@ -13,21 +14,22 @@ import { toChatAttachment } from '@/lib/chat-attachments.ts'
  * file falls back to its original bytes.
  */
 
+let imageCodec: TestImageCodecService
+
 function installCodec(size: TestImageSize | null): TestImageCodecService {
-  const codec = createTestImageCodec({ size: () => size })
-  setDefaultImageCodec(codec)
-  return codec
+  imageCodec = createTestImageCodec({ size: () => size })
+  return imageCodec
+}
+
+async function toChatAttachment(file: File): Promise<ChatAttachment> {
+  return await readChatAttachment({ imageCodec, id: createTestIdService() }, file)
 }
 
 function imageFile(type: string): File {
   return new File([new Uint8Array([0x89, 0x50])], 'photo', { type })
 }
 
-afterEach(() => {
-  setDefaultImageCodec(null)
-})
-
-describe('toChatAttachment', () => {
+describe('readChatAttachment', () => {
   it('re-encodes an oversized image to a JPEG within the long-edge cap', async () => {
     const codec = installCodec({ width: 4000, height: 2000 })
 

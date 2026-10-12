@@ -107,6 +107,10 @@ const SERVICE_KEYS = [
   'assetDescriber',
   'transcription',
   'transcriptEnrichment',
+  'noteTools',
+  'chatEngine',
+  'chatGraphContext',
+  'chatSessions',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

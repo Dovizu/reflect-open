@@ -1,5 +1,11 @@
 import { createContext, use } from 'react'
-import type { AiProviderConfig, ChatModelOption, ChatModelSelection, ChatTurn } from '@reflect/core'
+import type {
+  AiProviderConfig,
+  ChatModelOption,
+  ChatModelSelection,
+  ChatStatus,
+  ChatTurn,
+} from '@reflect/core'
 import type { ChatAttachment } from '@/lib/chat-attachments.ts'
 
 /**
@@ -9,7 +15,7 @@ import type { ChatAttachment } from '@/lib/chat-attachments.ts'
  * its own; the session semantics live with the provider.
  */
 
-export type ChatStatus = 'idle' | 'streaming'
+export type { ChatStatus } from '@reflect/core'
 
 export interface ChatContextValue {
   turns: ChatTurn[]

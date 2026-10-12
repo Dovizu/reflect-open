@@ -1,25 +1,21 @@
 import type { Tool, TypedToolCall, TypedToolResult } from '@reflect/modules/ai'
 import { z } from 'zod'
-import { readNote } from '../../graph/commands.ts'
-import { retrieve, type RetrievalHit, type RetrieveOptions } from '../../embeddings/retrieve.ts'
-import { assetReferencingNotePaths } from '../../indexing/asset-refs.ts'
-import { listDailyNotes, type DailyNoteRow, type DailyNotesRange } from '../../indexing/queries.ts'
-import {
-  listRecentNotes,
-  type RecentNoteRow,
-  type RecentNotesOptions,
-} from '../../indexing/note-list.ts'
+import type { RetrievalService, RetrieveOptions } from '../../embeddings/retrieval-service.ts'
+import type { NoteFileService } from '../../graph/note-file-service.ts'
+import type { AssetReferences } from '../../indexing/asset-refs.ts'
+import type { NoteListService, RecentNoteRow } from '../../indexing/note-list-service.ts'
+import type { DailyNoteRow, DailyNotesRange } from '../../indexing/queries.ts'
 import { isTagName } from '../../markdown/extract.ts'
+import type {
+  CloudNoteListing,
+  CloudSafe,
+  CloudSearchHit,
+  CloudSendable,
+  PrivacyService,
+} from '../../privacy/privacy-service.ts'
+import type { XArchiveService } from '../../x-archive.ts'
 import { buildReadOneAsset, readAssetsInput, type ReadAssetsOutput } from './read-assets.ts'
 import { buildReadOneNote, readNotesInput, type ReadNotesOutput } from './read-notes.ts'
-import {
-  createPrivacyService,
-  defaultPrivacy,
-  type CloudNoteListing,
-  type CloudSafe,
-  type CloudSearchHit,
-  type CloudSendable,
-} from '../../privacy/privacy-service.ts'
 
 /**
  * The read-only note tools the chat model can call (Plan 10, first wave),
@@ -31,8 +27,8 @@ import {
  * nothing else switches on tool names.
  *
  * Note content enters tool outputs only as {@link CloudSafe} values, minted
- * by the privacy gate in `../../privacy/privacy-service` — search drops private hits entirely,
- * and reads re-check the live frontmatter before any content is minted.
+ * by the injected `PrivacyService` — search drops private hits entirely, and
+ * reads re-check the live frontmatter before any content is minted.
  */
 
 /** Default and ceiling for search hits per call (token budget, not recall). */
@@ -46,21 +42,13 @@ const MAX_RECENT_LIMIT = 20
 /** Most days one daily-range call returns; past it the model narrows the range. */
 export const MAX_DAILY_NOTE_DAYS = 31
 
-/** Injectable effects so tests can drive the tools without a live bridge. */
-export interface NoteToolDeps {
-  retrieveFn?: (query: string, options?: RetrieveOptions) => Promise<RetrievalHit[]>
-  readNoteFn?: (path: string) => Promise<string>
-  listRecentNotesFn?: (options: RecentNotesOptions) => Promise<RecentNoteRow[]>
-  listDailyNotesFn?: (range: DailyNotesRange) => Promise<DailyNoteRow[]>
-  assetReferencingNotePathsFn?: (assetPath: string, owners?: readonly string[]) => Promise<string[]>
-}
-
-export interface BuildNoteToolsOptions extends NoteToolDeps {
+/** What {@link NoteToolsService.build} takes. */
+export interface BuildNoteToolsOptions {
   /**
    * Whether note search can use embeddings for meaning-based recall. When
    * false, `search_notes` stays lexical so disabled semantic search is honored.
    */
-  semanticSearchEnabled?: boolean
+  semanticSearchEnabled: boolean
 }
 
 export interface SearchNotesOutput {
@@ -136,110 +124,128 @@ function listingCandidate(
   }
 }
 
-/**
- * Build the chat tool set. Optional effect overrides are a test seam;
- * production callers omit them and the tools run over the shared retrieval
- * layer and the live filesystem.
- */
-export function buildNoteTools(options: BuildNoteToolsOptions = {}): NoteTools {
-  const retrieveFn = options.retrieveFn ?? retrieve
-  const readNoteFn = options.readNoteFn ?? readNote
-  const listRecentNotesFn = options.listRecentNotesFn ?? listRecentNotes
-  const listDailyNotesFn = options.listDailyNotesFn ?? listDailyNotes
-  const assetRefsFn = options.assetReferencingNotePathsFn ?? assetReferencingNotePaths
-  const searchMode: RetrieveOptions['mode'] =
-    options.semanticSearchEnabled === false ? 'lexical' : 'hybrid'
+/** The read-only tools the chat model can call, with the privacy gate inside. */
+export interface NoteToolsService {
+  /** Build the tool set of one chat turn. */
+  build: (options: BuildNoteToolsOptions) => NoteTools
+}
 
-  const privacy =
-    options.readNoteFn === undefined
-      ? defaultPrivacy()
-      : createPrivacyService({ noteFile: { read: options.readNoteFn } })
+/** The daily-note range query, as `indexing/queries.ts` has it today. */
+export interface DailyNoteQueries {
+  listDailyNotes: (range: DailyNotesRange) => Promise<DailyNoteRow[]>
+}
 
-  const readOneNote = buildReadOneNote({ readNoteFn })
+export function createNoteToolsService(deps: {
+  retrieval: Pick<RetrievalService, 'retrieve'>
+  noteFile: Pick<NoteFileService, 'read'>
+  noteList: Pick<NoteListService, 'listRecentNotes'>
+  dailyNotes: DailyNoteQueries
+  assetReferences: Pick<AssetReferences, 'notePaths'>
+  xArchive: Pick<XArchiveService, 'owners'>
+  privacy: Pick<
+    PrivacyService,
+    | 'cloudSafeSearchHits'
+    | 'cloudSafeNoteListings'
+    | 'cloudSafeNoteContent'
+    | 'cloudSafeAssetDescription'
+  >
+}): NoteToolsService {
+  const { retrieval, noteFile, noteList, dailyNotes, assetReferences, xArchive, privacy } = deps
 
-  const readOneAsset = buildReadOneAsset({
-    readNoteFn,
-    assetReferencingNotePathsFn: assetRefsFn,
-  })
+  const readNote = async (path: string): Promise<string> => await noteFile.read(path)
 
-  return {
-    search_notes: {
-      description: searchNotesDescription(options.semanticSearchEnabled !== false),
-      inputSchema: searchNotesInput,
-      execute: async ({ query, limit }): Promise<SearchNotesOutput> => {
-        const hits = await retrieveFn(query, {
-          limit: limit ?? DEFAULT_SEARCH_LIMIT,
-          mode: searchMode,
-          excludePrivateContent: true,
-        })
-        return { hits: await privacy.cloudSafeSearchHits(hits) }
+  const readOneNote = buildReadOneNote({ readNote, privacy })
+
+  const readOneAsset = buildReadOneAsset({ readNote, assetReferences, xArchive, privacy })
+
+  function buildNoteTools(options: BuildNoteToolsOptions): NoteTools {
+    const searchMode: RetrieveOptions['mode'] = options.semanticSearchEnabled ? 'hybrid' : 'lexical'
+
+    return {
+      search_notes: {
+        description: searchNotesDescription(options.semanticSearchEnabled),
+        inputSchema: searchNotesInput,
+        execute: async ({ query, limit }): Promise<SearchNotesOutput> => {
+          const hits = await retrieval.retrieve(query, {
+            limit: limit ?? DEFAULT_SEARCH_LIMIT,
+            mode: searchMode,
+            excludePrivateContent: true,
+          })
+          return { hits: await privacy.cloudSafeSearchHits(hits) }
+        },
       },
-    },
 
-    list_recent_notes: {
-      description:
-        'List the most recently edited notes, newest first — call it with no tag to see ' +
-        'what the user wrote or worked on lately. Pass a tag only to narrow to notes ' +
-        'carrying it. Daily notes are not included — use list_daily_notes for those. ' +
-        'Private notes are excluded.',
-      inputSchema: listRecentNotesInput,
-      execute: async ({ limit, tag }): Promise<ListRecentNotesOutput> => {
-        if (tag != null && !isTagName(tag)) {
-          return { ok: false, tag, error: INVALID_TAG_ERROR }
-        }
-        const rows = await listRecentNotesFn({
-          limit: limit ?? DEFAULT_RECENT_LIMIT,
-          tag: tag ?? null,
-        })
-        return {
-          ok: true,
-          notes: await privacy.cloudSafeNoteListings(rows.map(listingCandidate)),
-        }
+      list_recent_notes: {
+        description:
+          'List the most recently edited notes, newest first — call it with no tag to see ' +
+          'what the user wrote or worked on lately. Pass a tag only to narrow to notes ' +
+          'carrying it. Daily notes are not included — use list_daily_notes for those. ' +
+          'Private notes are excluded.',
+        inputSchema: listRecentNotesInput,
+        execute: async ({ limit, tag }): Promise<ListRecentNotesOutput> => {
+          if (tag != null && !isTagName(tag)) {
+            return { ok: false, tag, error: INVALID_TAG_ERROR }
+          }
+          const rows = await noteList.listRecentNotes({
+            limit: limit ?? DEFAULT_RECENT_LIMIT,
+            tag: tag ?? null,
+          })
+          return {
+            ok: true,
+            notes: await privacy.cloudSafeNoteListings(rows.map(listingCandidate)),
+          }
+        },
       },
-    },
 
-    list_daily_notes: {
-      description:
-        'List the daily notes (the user’s journal, one note per day) in an inclusive date ' +
-        'range, most recent first. Only days the user wrote on appear. Returns at most ' +
-        `${MAX_DAILY_NOTE_DAYS} days — when truncated, narrow the range. ` +
-        'Private notes are excluded.',
-      inputSchema: listDailyNotesInput,
-      execute: async ({ start, end }): Promise<ListDailyNotesOutput> => {
-        const rows = await listDailyNotesFn({ start, end, limit: MAX_DAILY_NOTE_DAYS + 1 })
-        const truncated = rows.length > MAX_DAILY_NOTE_DAYS
-        const kept = truncated ? rows.slice(0, MAX_DAILY_NOTE_DAYS) : rows
-        return {
-          days: await privacy.cloudSafeNoteListings(kept.map(listingCandidate)),
-          truncated,
-        }
+      list_daily_notes: {
+        description:
+          'List the daily notes (the user’s journal, one note per day) in an inclusive date ' +
+          'range, most recent first. Only days the user wrote on appear. Returns at most ' +
+          `${MAX_DAILY_NOTE_DAYS} days — when truncated, narrow the range. ` +
+          'Private notes are excluded.',
+        inputSchema: listDailyNotesInput,
+        execute: async ({ start, end }): Promise<ListDailyNotesOutput> => {
+          const rows = await dailyNotes.listDailyNotes({
+            start,
+            end,
+            limit: MAX_DAILY_NOTE_DAYS + 1,
+          })
+          const truncated = rows.length > MAX_DAILY_NOTE_DAYS
+          const kept = truncated ? rows.slice(0, MAX_DAILY_NOTE_DAYS) : rows
+          return {
+            days: await privacy.cloudSafeNoteListings(kept.map(listingCandidate)),
+            truncated,
+          }
+        },
       },
-    },
 
-    read_notes: {
-      description:
-        'Read the full markdown content of one or more notes by their graph-relative ' +
-        'paths (from search_notes results). Pass every note you need in a single call ' +
-        'rather than reading them one at a time. Private notes cannot be read.',
-      inputSchema: readNotesInput,
-      execute: async ({ paths }): Promise<ReadNotesOutput> => {
-        return { notes: await Promise.all(paths.map(readOneNote)) }
+      read_notes: {
+        description:
+          'Read the full markdown content of one or more notes by their graph-relative ' +
+          'paths (from search_notes results). Pass every note you need in a single call ' +
+          'rather than reading them one at a time. Private notes cannot be read.',
+        inputSchema: readNotesInput,
+        execute: async ({ paths }): Promise<ReadNotesOutput> => {
+          return { notes: await Promise.all(paths.map(readOneNote)) }
+        },
       },
-    },
 
-    read_assets: {
-      description:
-        'Read the stored text description and OCR transcription of image or PDF ' +
-        'attachments that notes embed as assets/… markdown links, e.g. ' +
-        '![sketch](assets/sketch.png). Returns descriptive text about each file, not ' +
-        'the file itself. Pass every attachment you need in a single call. ' +
-        'Attachments of private notes cannot be read.',
-      inputSchema: readAssetsInput,
-      execute: async ({ paths }): Promise<ReadAssetsOutput> => {
-        return { assets: await Promise.all(paths.map(readOneAsset)) }
+      read_assets: {
+        description:
+          'Read the stored text description and OCR transcription of image or PDF ' +
+          'attachments that notes embed as assets/… markdown links, e.g. ' +
+          '![sketch](assets/sketch.png). Returns descriptive text about each file, not ' +
+          'the file itself. Pass every attachment you need in a single call. ' +
+          'Attachments of private notes cannot be read.',
+        inputSchema: readAssetsInput,
+        execute: async ({ paths }): Promise<ReadAssetsOutput> => {
+          return { assets: await Promise.all(paths.map(readOneAsset)) }
+        },
       },
-    },
+    }
   }
+
+  return { build: buildNoteTools }
 }
 
 /** Tool description for the active search mode. */
