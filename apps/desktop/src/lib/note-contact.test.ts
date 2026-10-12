@@ -1,20 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ContactMatch } from '@reflect/core'
 import type { NoteSession } from '@/editor/note-session.ts'
 import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
-
-const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
-const writeNote = vi.hoisted(() => vi.fn(async () => {}))
-
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  readNote,
-  writeNote,
-}))
+import { installTestNoteFile } from '@/test-utils/note-file.ts'
+import { addContactToNote, ignoreContactSuggestion } from './note-contact.ts'
 
 const documents = installTestOpenDocuments()
-
-const { addContactToNote, ignoreContactSuggestion } = await import('./note-contact.ts')
+const noteFile = installTestNoteFile()
 
 const ADA: ContactMatch = {
   fullName: 'Ada Lovelace',
@@ -25,11 +17,6 @@ const ADA: ContactMatch = {
 }
 
 const ADA_BLOCK = '- Type: #person\n- Email: ada@example.com\n- Phone: +1 555 0100'
-
-beforeEach(() => {
-  readNote.mockReset()
-  writeNote.mockClear()
-})
 
 function fakeSession(content: string, { canAppend = true, canCommit = true } = {}) {
   const commitBodyAppend = vi.fn(async () => canAppend)
@@ -53,7 +40,7 @@ describe('addContactToNote', () => {
     expect(commitBodyAppend).toHaveBeenCalledWith(ADA_BLOCK)
     // No frontmatter mark: the appended details suppress the card by content.
     expect(commitFrontmatter).not.toHaveBeenCalled()
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('refuses rather than clobber when the open session cannot take the append', async () => {
@@ -63,20 +50,21 @@ describe('addContactToNote', () => {
     await expect(addContactToNote('notes/Ada Lovelace.md', ADA, 3)).rejects.toThrow(
       /can’t be updated right now/,
     )
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('patches a closed note on disk in one write', async () => {
-    readNote.mockResolvedValue('# Ada Lovelace\n')
+    noteFile.read().mockResolvedValue('# Ada Lovelace\n')
 
     await addContactToNote('notes/Ada Lovelace.md', ADA, 3)
 
-    expect(writeNote).toHaveBeenCalledTimes(1)
-    expect(writeNote).toHaveBeenCalledWith(
-      'notes/Ada Lovelace.md',
-      `# Ada Lovelace\n\n${ADA_BLOCK}\n`,
-      3,
-    )
+    expect(noteFile.service().writes()).toEqual([
+      {
+        path: 'notes/Ada Lovelace.md',
+        contents: `# Ada Lovelace\n\n${ADA_BLOCK}\n`,
+        generation: 3,
+      },
+    ])
   })
 
   it('refuses when the title no longer matches the contact (stale card)', async () => {
@@ -87,7 +75,7 @@ describe('addContactToNote', () => {
       /no longer matches/,
     )
     expect(commitBodyAppend).not.toHaveBeenCalled()
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('appends only the details to an already-typed person note (meeting flow, link menu)', async () => {
@@ -100,11 +88,11 @@ describe('addContactToNote', () => {
   })
 
   it('is retry-idempotent: a body already carrying the block writes nothing', async () => {
-    readNote.mockResolvedValue(`# Ada Lovelace\n\n${ADA_BLOCK}\n`)
+    noteFile.read().mockResolvedValue(`# Ada Lovelace\n\n${ADA_BLOCK}\n`)
 
     await addContactToNote('notes/Ada Lovelace.md', ADA, 3)
 
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('skips when the body already has hand-typed details (stale card)', async () => {
@@ -116,16 +104,16 @@ describe('addContactToNote', () => {
     await addContactToNote('notes/Ada Lovelace.md', ADA, 3)
 
     expect(commitBodyAppend).not.toHaveBeenCalled()
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('writes nothing for a contact with no details', async () => {
     const bare: ContactMatch = { ...ADA, emails: [], phones: [] }
-    readNote.mockResolvedValue('# Ada Lovelace\n')
+    noteFile.read().mockResolvedValue('# Ada Lovelace\n')
 
     await addContactToNote('notes/Ada Lovelace.md', bare, 3)
 
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 })
 
@@ -141,11 +129,13 @@ describe('ignoreContactSuggestion', () => {
   })
 
   it('appends to an existing dismissal list on disk', async () => {
-    readNote.mockResolvedValue('---\nignoredContacts:\n  - Grace Hopper\n---\n# Ada Lovelace\n')
+    noteFile
+      .read()
+      .mockResolvedValue('---\nignoredContacts:\n  - Grace Hopper\n---\n# Ada Lovelace\n')
 
     await ignoreContactSuggestion('notes/Ada Lovelace.md', ADA, 3)
 
-    expect(writeNote).toHaveBeenCalledWith(
+    expect(noteFile.write()).toHaveBeenCalledWith(
       'notes/Ada Lovelace.md',
       '---\nignoredContacts:\n  - Grace Hopper\n  - Ada Lovelace\n---\n\n# Ada Lovelace\n',
       3,
@@ -153,11 +143,13 @@ describe('ignoreContactSuggestion', () => {
   })
 
   it('is idempotent: an already-dismissed contact writes nothing', async () => {
-    readNote.mockResolvedValue('---\nignoredContacts:\n  - ada lovelace\n---\n# Ada Lovelace\n')
+    noteFile
+      .read()
+      .mockResolvedValue('---\nignoredContacts:\n  - ada lovelace\n---\n# Ada Lovelace\n')
 
     await ignoreContactSuggestion('notes/Ada Lovelace.md', ADA, 3)
 
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('skips the write when the title no longer matches (stale card)', async () => {
@@ -169,6 +161,6 @@ describe('ignoreContactSuggestion', () => {
     await ignoreContactSuggestion('notes/Ada Lovelace.md', ADA, 3)
 
     expect(commitFrontmatter).not.toHaveBeenCalled()
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 })

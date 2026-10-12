@@ -1,11 +1,6 @@
-import { splitFrontmatter } from '@reflect/core'
+import { defaultNoteDocuments } from '@reflect/core'
 
-/**
- * Whether a note's visible markdown body has no authored content. Frontmatter
- * is metadata and does not count; a bare unordered-list marker is also empty
- * because daily notes can open on a starter bullet before the user types.
- */
+/** Whether a note's visible markdown body has no authored content: `NoteDocumentService.isOstensiblyEmpty`. */
 export function isOstensiblyEmptyNoteSource(source: string): boolean {
-  const { body } = splitFrontmatter(source)
-  return body.replaceAll(/[-+*#>[\]\s]/g, '') === ''
+  return defaultNoteDocuments().isOstensiblyEmpty(source)
 }

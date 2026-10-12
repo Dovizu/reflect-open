@@ -327,6 +327,13 @@ export {
   type NoteSessionStatus,
 } from '../documents/note-session.ts'
 export {
+  createNoteDocumentService,
+  defaultNoteDocuments,
+  isOstensiblyEmptyNoteSource,
+  setDefaultNoteDocuments,
+  type NoteDocumentService,
+} from '../documents/note-document-service.ts'
+export {
   createOpenDocumentsService,
   defaultOpenDocuments,
   setDefaultOpenDocuments,
