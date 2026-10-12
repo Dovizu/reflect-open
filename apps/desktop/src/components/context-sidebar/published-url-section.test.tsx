@@ -6,6 +6,8 @@ import {
   setDefaultOpener,
   setDefaultStorage,
   type NoteRow,
+  setDefaultOperations,
+  MIN_VISIBLE_MS,
 } from '@reflect/core'
 import {
   createTestClipboardService,
@@ -13,16 +15,13 @@ import {
   createTestStorageService,
   type TestClipboardService,
   type TestOpenerService,
+  createTestOperationsService,
+  type TestOperationsService,
 } from '@reflect/core/testing'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { PublishedUrlSection } from './published-url-section.tsx'
 
 const useNoteRow = vi.hoisted(() => vi.fn<(path: string) => NoteRow | null>(() => null))
-const operationDone = vi.hoisted(() => vi.fn())
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() =>
-  vi.fn(() => ({ progress: vi.fn(), done: operationDone, fail: operationFail })),
-)
 const runGistPublish = vi.hoisted(() =>
   vi.fn<(path: string, generation: number) => Promise<string | null>>(
     async () => 'https://gist.github.com/alex/g1',
@@ -31,7 +30,6 @@ const runGistPublish = vi.hoisted(() =>
 
 vi.mock('@/hooks/use-note-row.ts', () => ({ useNoteRow }))
 vi.mock('@/lib/note-gist.ts', () => ({ runGistPublish }))
-vi.mock('@/lib/operations.ts', () => ({ startOperation }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 7 } }),
 }))
@@ -60,20 +58,22 @@ function renderSection(path = 'notes/a.md') {
 let clipboard: TestClipboardService
 let opener: TestOpenerService
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   setDefaultStorage(createTestStorageService())
   useNoteRow.mockReset().mockReturnValue(null)
   clipboard = createTestClipboardService()
   setDefaultClipboard(clipboard)
   opener = createTestOpenerService()
   setDefaultOpener(opener)
-  startOperation.mockClear()
   runGistPublish.mockReset().mockResolvedValue('https://gist.github.com/alex/g1')
-  operationDone.mockClear()
-  operationFail.mockClear()
 })
 
 afterEach(() => {
+  setDefaultOperations(null)
   setDefaultStorage(null)
 })
 
@@ -109,8 +109,9 @@ describe('PublishedUrlSection', () => {
     await userEvent.click(view.getByRole('button', { name: 'Copy published URL' }))
 
     await vi.waitFor(() => expect(clipboard.writes()).toEqual([url]))
-    await vi.waitFor(() => expect(startOperation).toHaveBeenCalledWith('Published URL copied'))
-    expect(operationDone).toHaveBeenCalled()
+    await vi.waitFor(() => expect(operations.findByLabel('Published URL copied')).toBeDefined())
+    await operations.clock.advance(MIN_VISIBLE_MS)
+    expect(operations.getAll()).toEqual([])
   })
 
   it('updates the published gist from the URL section icon', async () => {
@@ -147,7 +148,8 @@ describe('PublishedUrlSection', () => {
     const view = await renderSection()
     await userEvent.click(view.getByRole('button', { name: 'Copy published URL' }))
 
-    await vi.waitFor(() => expect(startOperation).toHaveBeenCalledWith('Copying the published URL'))
-    expect(operationFail).toHaveBeenCalled()
+    await vi.waitFor(() =>
+      expect(operations.findByLabel('Copying the published URL')?.status).toBe('failed'),
+    )
   })
 })

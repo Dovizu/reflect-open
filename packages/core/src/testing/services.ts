@@ -8,7 +8,22 @@ import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 import { installDefaultServices, resetDefaultServices } from '../app/install-default-services.ts'
 import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
+import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
+import {
+  createTestCaptureInboxService,
+  createTestWebFetchService,
+  createTestXArchiveService,
+  type TestCaptureInboxService,
+  type TestWebFetchService,
+  type TestXArchiveService,
+} from './capture.ts'
+import {
+  createTestGitRepositoryService,
+  createTestICloudNativeService,
+  type TestGitRepositoryService,
+  type TestICloudNativeService,
+} from './sync.ts'
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
@@ -30,7 +45,18 @@ import { createTestIndexStoreService, type TestIndexStoreService } from './index
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
+import { createTestOperationsService, type TestOperationsService } from './operations.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
+import {
+  createTestAppStoreService,
+  createTestHapticsService,
+  createTestIapService,
+  createTestWebAuthService,
+  type TestAppStoreService,
+  type TestHapticsService,
+  type TestIapService,
+  type TestWebAuthService,
+} from './plugins.ts'
 import {
   createTestAppInfoService,
   createTestSecretStoreService,
@@ -50,6 +76,7 @@ import {
   type TestWindowService,
 } from './shell.ts'
 import { createTestStorageService, type TestStorageService } from './storage.ts'
+import { createTestUpdateService, type TestUpdateService } from './update.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
 export interface TestAppServices extends AppServices {
@@ -75,9 +102,21 @@ export interface TestAppServices extends AppServices {
   readonly mobileStorage: TestMobileStorageService
   readonly imageCodec: TestImageCodecService
   readonly exceptionTelemetry: TestExceptionTelemetryService
+  readonly operations: TestOperationsService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
   readonly indexStore: TestIndexStoreService
+  readonly update: TestUpdateService
+  readonly gitRepository: TestGitRepositoryService
+  readonly icloudNative: TestICloudNativeService
+  readonly captureInbox: TestCaptureInboxService
+  readonly webFetch: TestWebFetchService
+  readonly xArchive: TestXArchiveService
+  readonly audioRecorder: TestAudioRecorderService
+  readonly haptics: TestHapticsService
+  readonly iap: TestIapService
+  readonly appStore: TestAppStoreService
+  readonly webAuth: TestWebAuthService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -88,10 +127,11 @@ export function createTestAppServices<Overrides extends Partial<AppServices>>(
 export function createTestAppServices(overrides?: Partial<AppServices>): AppServices {
   const testLogger = createTestLoggerService()
   const logger = overrides?.logger ?? testLogger
+  const clock = createTestClockService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
-    clock: createTestClockService(),
+    clock,
     id: createTestIdService(),
     hash: createTestHashService(),
     platform: createTestPlatformService(),
@@ -111,9 +151,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: createTestMobileStorageService(),
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
+    operations: createTestOperationsService(clock),
     database: createTestDatabaseService(),
     fileChanges: createTestFileChangeService(),
     indexStore: createTestIndexStoreService(),
+    update: createTestUpdateService(),
+    gitRepository: createTestGitRepositoryService(),
+    icloudNative: createTestICloudNativeService(),
+    captureInbox: createTestCaptureInboxService(),
+    webFetch: createTestWebFetchService(),
+    xArchive: createTestXArchiveService(),
+    audioRecorder: createTestAudioRecorderService(),
+    haptics: createTestHapticsService(),
+    iap: createTestIapService(),
+    appStore: createTestAppStoreService(),
+    webAuth: createTestWebAuthService(null),
   }
   return Object.assign(services, overrides)
 }

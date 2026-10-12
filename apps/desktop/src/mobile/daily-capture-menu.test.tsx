@@ -1,9 +1,21 @@
 import { render, type RenderResult } from 'vitest-browser-react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultHaptics } from '@reflect/core'
+import { createTestHapticsService, type TestHapticsService } from '@reflect/core/testing'
 import { DailyCaptureMenu } from './daily-capture-menu.tsx'
 
+let haptics: TestHapticsService
+
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
+
 const navigate = vi.hoisted(() => vi.fn())
-const hapticImpactLight = vi.hoisted(() => vi.fn())
 const memo = vi.hoisted(() => ({
   phase: 'idle' as 'idle' | 'requesting' | 'recording' | 'transcribing' | 'error',
   elapsedMs: 0,
@@ -28,10 +40,6 @@ vi.mock('@/routing/router.tsx', () => ({
 
 vi.mock('@/mobile/audio-memo-provider.tsx', () => ({
   useMobileAudioMemo: () => ({ ...memo }),
-}))
-
-vi.mock('@/mobile/haptics.ts', () => ({
-  hapticImpactLight,
 }))
 
 function renderMenu(): Promise<RenderResult> {
@@ -69,7 +77,7 @@ describe('DailyCaptureMenu', () => {
     const view = await renderMenu()
 
     await view.getByRole('button', { name: 'Show capture actions' }).click()
-    expect(hapticImpactLight).toHaveBeenCalledTimes(1)
+    expect(haptics.impacts()).toBe(1)
 
     await expect
       .element(view.getByRole('button', { name: 'Hide capture actions' }))
@@ -80,7 +88,7 @@ describe('DailyCaptureMenu', () => {
       .toBeInTheDocument()
 
     await view.getByRole('button', { name: 'Hide capture actions' }).click()
-    expect(hapticImpactLight).toHaveBeenCalledTimes(2)
+    expect(haptics.impacts()).toBe(2)
 
     await expect
       .element(view.getByRole('button', { name: 'Show capture actions' }))

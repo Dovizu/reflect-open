@@ -8,6 +8,7 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestAppServices, installTestServices } from '../testing/services.ts'
 import { createTestClipboardService, createTestDialogService } from '../testing/shell.ts'
+import { createTestUpdaterAdapter } from '../testing/update.ts'
 import { defaultClock } from './clock-service.ts'
 import { createAppServices, type AppAdapters, type AppServices } from './create-app-services.ts'
 import { defaultLogger } from './logger-service.ts'
@@ -39,9 +40,17 @@ const SERVICE_KEYS = [
   'mobileStorage',
   'imageCodec',
   'exceptionTelemetry',
+  'operations',
   'database',
   'fileChanges',
   'indexStore',
+  'update',
+  'gitRepository',
+  'icloudNative',
+  'captureInbox',
+  'webFetch',
+  'xArchive',
+  'audioRecorder',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
@@ -99,11 +108,40 @@ describe('createAppServices', () => {
     expect(services.window.isMainWindow()).toBe(true)
   })
 
+  it('supports updates only with an updater adapter', () => {
+    expect(createAppServices(requiredAdapters()).update.supported).toBe(false)
+    const services = createAppServices({
+      ...requiredAdapters(),
+      updater: createTestUpdaterAdapter(),
+    })
+    expect(services.update.supported).toBe(true)
+  })
+
   it('defaults the logger, clock, id, and hash', () => {
     const services = createAppServices(requiredAdapters())
     expect(services.clock.now()).toBeGreaterThan(5)
     expect(services.id.noteId()).toMatch(/^[0-9a-z]{26}$/)
     expect(typeof services.logger.warn).toBe('function')
+  })
+
+  it('composes the plugin services and the native recorder on mobile only', () => {
+    const desktop = createAppServices({ ...requiredAdapters(), logger: createTestLoggerService() })
+    expect(desktop.haptics).toBeUndefined()
+    expect(desktop.iap).toBeUndefined()
+    expect(desktop.appStore).toBeUndefined()
+    expect(desktop.webAuth).toBeUndefined()
+
+    const mobile = createAppServices({
+      ...requiredAdapters(),
+      logger: createTestLoggerService(),
+      platform: createTestPlatformService({ appPlatform: 'ios' }),
+    })
+    expect(mobile.haptics).toBeDefined()
+    expect(mobile.iap).toBeDefined()
+    expect(mobile.appStore).toBeDefined()
+    expect(mobile.webAuth).toBeDefined()
+    // Only the native recorder is supported without `MediaRecorder`.
+    expect(mobile.audioRecorder.isSupported()).toBe(true)
   })
 
   it('echoes own writes onto the file-change stream on mobile only', () => {

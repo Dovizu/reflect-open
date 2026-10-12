@@ -2,25 +2,18 @@ import {
   createContext,
   use,
   useMemo,
-  useState,
   useSyncExternalStore,
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { defaultPlatform } from '@reflect/core'
+import { defaultPlatform, defaultUpdate, type UpdateState } from '@reflect/core'
 import { attachUpdateToasts } from '@/components/update-toasts.ts'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
-import { isNativeShell } from '@/lib/platform.ts'
-import {
-  createUpdateController,
-  type UpdateController,
-  type UpdateState,
-} from '@/lib/update-controller.ts'
 
 interface UpdateContextValue {
   state: UpdateState
   /**
-   * False outside a desktop native shell (browser dev, iOS/Android) — hide
+   * False outside a desktop native shell (browser dev, iOS/Android): hide
    * update UI entirely. Mobile ships through the app stores, and the updater
    * plugins are only registered under `#[cfg(desktop)]`.
    */
@@ -28,66 +21,59 @@ interface UpdateContextValue {
   checkNow: () => Promise<void>
   install: () => Promise<void>
   restart: () => Promise<void>
+  /** Retry what failed: the install after a failed install, otherwise the check. */
+  retryAction: () => Promise<void>
 }
 
 const UpdateContext = createContext<UpdateContextValue | null>(null)
-
-const IDLE: UpdateState = { phase: 'idle' }
 
 interface UpdateProviderProps {
   children: ReactNode
   /**
    * Override the launch + periodic check. Defaults to on in the packaged app
-   * and off in dev (and wherever no native shell exists) — `tauri dev` builds
-   * would otherwise prompt to "update" to the released version.
+   * and off in dev: `tauri dev` builds would otherwise prompt to "update" to
+   * the released version.
    */
   autoCheck?: boolean
 }
 
 /**
- * Thin React shim over {@link createUpdateController} (Plan 15): one
- * controller for the app's lifetime, surfaced through `useSyncExternalStore`.
- * Mounted above the graph gate so update checks run from first launch, before
- * any graph is open.
+ * Thin React shim over the app's `UpdateService`, surfaced through
+ * `useSyncExternalStore`. Mounted above the graph gate so update checks run
+ * from first launch, before any graph is open.
  */
 export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): ReactElement {
-  const supported = isNativeShell()
-  const resolvedAutoCheck = autoCheck ?? (supported && !defaultPlatform().isDev)
-  const [controller, setController] = useState<UpdateController | null>(null)
+  const update = defaultUpdate()
+  const supported = update.supported
+  const resolvedAutoCheck = autoCheck ?? !defaultPlatform().isDev
 
   // One checker per app: secondary note windows never poll for updates.
   useMainWindowEffect(() => {
     if (!supported) {
       return
     }
-    const next = createUpdateController({ autoCheck: resolvedAutoCheck })
-    // The controller is an imperative lifecycle object created for the app's
-    // lifetime; it must be instantiated in an effect (it subscribes and starts)
-    // and stored so useSyncExternalStore can read it.
-    setController(next)
-    const detachToasts = attachUpdateToasts(next)
-    next.start()
+    const detachToasts = attachUpdateToasts(update)
+    if (resolvedAutoCheck) {
+      update.start()
+    }
     return () => {
       detachToasts()
-      next.dispose()
-      setController((current) => (current === next ? null : current))
+      update.dispose()
     }
-  }, [supported, resolvedAutoCheck])
+  }, [update, supported, resolvedAutoCheck])
 
-  const state = useSyncExternalStore(
-    controller?.subscribe ?? (() => () => {}),
-    controller?.getState ?? (() => IDLE),
-  )
+  const state = useSyncExternalStore(update.subscribe, update.getState)
 
   const value = useMemo<UpdateContextValue>(
     () => ({
       state,
       supported,
-      checkNow: () => controller?.checkNow() ?? Promise.resolve(),
-      install: () => controller?.install() ?? Promise.resolve(),
-      restart: () => controller?.restart() ?? Promise.resolve(),
+      checkNow: () => update.checkNow(),
+      install: () => update.install(),
+      restart: () => update.restart(),
+      retryAction: () => update.retryAction(),
     }),
-    [controller, state, supported],
+    [update, state, supported],
   )
 
   return <UpdateContext value={value}>{children}</UpdateContext>

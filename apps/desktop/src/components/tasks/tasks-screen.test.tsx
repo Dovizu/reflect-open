@@ -2,8 +2,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { userEvent, type Locator } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultStorage } from '@reflect/core'
-import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
+import { setDefaultStorage, setDefaultOperations } from '@reflect/core'
+import {
+  createTestStorageService,
+  type TestStorageService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import type { OpenTask } from '@reflect/core'
 import type { TaskAction } from '@/lib/note-task.ts'
 import { act, useEffect, useState, type MutableRefObject, type ReactNode } from 'react'
@@ -195,13 +200,6 @@ vi.mock('./task-editor', () => ({
   },
 }))
 
-const fail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() => vi.fn(() => ({ fail })))
-vi.mock('@/lib/operations.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/operations.ts')>()),
-  startOperation,
-}))
-
 function RouteProbe(): ReactNode {
   const { route } = useRouter()
   return <output data-testid="route">{JSON.stringify(route)}</output>
@@ -254,7 +252,11 @@ const waitFor = vi.waitFor
 
 let storage: TestStorageService
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   storage = createTestStorageService()
   setDefaultStorage(storage)
   getOpenTasks.mockReset()
@@ -273,12 +275,11 @@ beforeEach(() => {
     created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
     moved: [],
   })
-  startOperation.mockClear()
-  fail.mockReset()
   resetRecentlyCompleted()
 })
 
 afterEach(async () => {
+  setDefaultOperations(null)
   await cleanup()
   setDefaultStorage(null)
 })
@@ -1180,7 +1181,9 @@ describe('TasksScreen', () => {
     )
     expect(insertTask).not.toHaveBeenCalled()
     expect(await view.findByRole('button', { name: 'edited content' })).toBeDefined()
-    expect(fail).toHaveBeenCalledWith('This note is open.')
+    expect(operations.snapshot()).toContainEqual(
+      expect.objectContaining({ status: 'failed', message: 'This note is open.' }),
+    )
     await view.unmount()
   })
 
@@ -1902,8 +1905,15 @@ describe('TasksScreen', () => {
     await view.findByTestId('task-editor')
     await userEvent.click(view.getByRole('button', { name: 'Reopen: project task' }))
 
-    await waitFor(() => expect(fail).toHaveBeenCalledWith('stale index'))
-    expect(startOperation).toHaveBeenCalledWith('Reopening task')
+    await waitFor(() =>
+      expect(operations.snapshot()).toContainEqual(
+        expect.objectContaining({
+          label: 'Reopening task',
+          status: 'failed',
+          message: 'stale index',
+        }),
+      ),
+    )
     await view.findByRole('button', { name: 'Reopen: project task' })
     await view.unmount()
   })
@@ -1995,8 +2005,15 @@ describe('TasksScreen', () => {
     await userEvent.click(view.getByRole('button', { name: 'stage-checkbox-edit' }))
     await userEvent.click(view.getByRole('button', { name: 'Reopen: project task' }))
 
-    await waitFor(() => expect(fail).toHaveBeenCalledWith('disk full'))
-    expect(startOperation).toHaveBeenCalledWith('Reopening task')
+    await waitFor(() =>
+      expect(operations.snapshot()).toContainEqual(
+        expect.objectContaining({
+          label: 'Reopening task',
+          status: 'failed',
+          message: 'disk full',
+        }),
+      ),
+    )
     await view.findByRole('button', { name: 'Reopen: project task' })
     expect(view.queryByText('edited content')).toBeNull()
     await view.unmount()
@@ -2102,8 +2119,15 @@ describe('TasksScreen', () => {
     const view = await renderScreen()
 
     await userEvent.click(await view.findByRole('button', { name: 'Complete: project task' }))
-    await waitFor(() => expect(fail).toHaveBeenCalledWith('stale index'))
-    expect(startOperation).toHaveBeenCalledWith('Completing task')
+    await waitFor(() =>
+      expect(operations.snapshot()).toContainEqual(
+        expect.objectContaining({
+          label: 'Completing task',
+          status: 'failed',
+          message: 'stale index',
+        }),
+      ),
+    )
     // Rolled back: the row returns after the failed write.
     await view.findByText('project task')
     await view.unmount()
@@ -2132,7 +2156,11 @@ describe('TasksScreen', () => {
     await view.findByRole('button', { name: 'first' })
     await userEvent.keyboard('{ControlOrMeta>}a{/ControlOrMeta}')
     await userEvent.keyboard('{ControlOrMeta>}{Enter}{/ControlOrMeta}')
-    await waitFor(() => expect(fail).toHaveBeenCalledWith('stale index'))
+    await waitFor(() =>
+      expect(operations.snapshot()).toContainEqual(
+        expect.objectContaining({ status: 'failed', message: 'stale index' }),
+      ),
+    )
     // A batch failure reconciles by refetching the index, not by restoring the
     // pre-batch snapshot (which would un-do any write that already landed).
     await waitFor(() => expect(getOpenTasks.mock.calls.length).toBeGreaterThan(1))

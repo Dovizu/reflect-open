@@ -1,16 +1,24 @@
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultHaptics } from '@reflect/core'
+import { createTestHapticsService, type TestHapticsService } from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
 import { WeekRow } from './week-row.tsx'
 
-const hapticImpactLight = vi.hoisted(() => vi.fn())
+let haptics: TestHapticsService
 
-vi.mock('@/mobile/haptics.ts', () => ({ hapticImpactLight }))
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
 
 afterEach(async () => {
   await cleanup()
-  hapticImpactLight.mockReset()
 })
 
 describe('WeekRow', () => {
@@ -35,7 +43,7 @@ describe('WeekRow', () => {
     await expect.element(page.getByTestId('note-dot-2026-07-14')).not.toBeInTheDocument()
 
     await userEvent.click(selected)
-    expect(hapticImpactLight).toHaveBeenCalledOnce()
+    expect(haptics.impacts()).toBe(1)
     expect(onSelect).toHaveBeenCalledWith('2026-07-16')
   })
 })

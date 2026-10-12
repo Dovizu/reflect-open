@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from './bridge.ts'
-import { startWebAuth } from './web-auth-plugin.ts'
+import { describe, expect, it } from 'vitest'
+import { createTestIpcBridgeService } from '../testing/ipc.ts'
+import { createWebAuthService } from './web-auth-plugin.ts'
 
 const options = {
   url: 'https://example.com/oauth?state=1',
@@ -8,27 +8,26 @@ const options = {
   ephemeral: false,
 }
 
-afterEach(() => {
-  setBridge(null)
-})
+function serviceAnswering(response: unknown) {
+  const ipc = createTestIpcBridgeService()
+  ipc.onCommand('plugin:web-auth|start', () => response)
+  return { ipc, webAuth: createWebAuthService({ ipc }) }
+}
 
-describe('web-auth plugin bindings', () => {
+describe('WebAuthService', () => {
   it('start sends the options as the payload and returns the callback URL', async () => {
-    const invoke = vi.fn().mockResolvedValue({ url: 'example://callback?code=abc' })
-    setBridge({ invoke, listen: async () => () => {} })
-    await expect(startWebAuth(options)).resolves.toBe('example://callback?code=abc')
-    expect(invoke).toHaveBeenCalledWith('plugin:web-auth|start', { payload: options })
+    const { ipc, webAuth } = serviceAnswering({ url: 'example://callback?code=abc' })
+    await expect(webAuth.start(options)).resolves.toBe('example://callback?code=abc')
+    expect(ipc.calls()).toEqual([{ command: 'plugin:web-auth|start', args: { payload: options } }])
   })
 
   it('start maps a missing URL to null', async () => {
-    const invoke = vi.fn().mockResolvedValue({})
-    setBridge({ invoke, listen: async () => () => {} })
-    await expect(startWebAuth(options)).resolves.toBeNull()
+    const { webAuth } = serviceAnswering({})
+    await expect(webAuth.start(options)).resolves.toBeNull()
   })
 
   it('start maps a null URL to null', async () => {
-    const invoke = vi.fn().mockResolvedValue({ url: null })
-    setBridge({ invoke, listen: async () => () => {} })
-    await expect(startWebAuth(options)).resolves.toBeNull()
+    const { webAuth } = serviceAnswering({ url: null })
+    await expect(webAuth.start(options)).resolves.toBeNull()
   })
 })

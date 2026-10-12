@@ -1,5 +1,7 @@
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { setDefaultOperations } from '@reflect/core'
 import { QueryClient } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSession } from '@/editor/note-session.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 
@@ -17,20 +19,25 @@ vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
 const { reorderPinnedNotes, toggleNotePinned, unpinNote } = await import('./note-pin.ts')
 
 let client: QueryClient
-const operationFail = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/operations.ts', () => ({ startOperation: () => ({ fail: operationFail }) }))
 
 function input(path = 'notes/a.md') {
   return { queryClient: client, root: '/g', generation: 3, path }
 }
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   client = new QueryClient()
-  operationFail.mockClear()
   readNote.mockReset()
   writeNote.mockClear()
   openSession.mockReset()
   openSession.mockReturnValue(null)
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 function fakeSession(content: string, canCommit = true, liveContent: string | null = content) {
@@ -116,7 +123,9 @@ describe('toggleNotePinned', () => {
     readNote.mockRejectedValue({ kind: 'io', message: 'disk on fire' })
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
     expect(writeNote).not.toHaveBeenCalled()
-    expect(operationFail).toHaveBeenCalledExactlyOnceWith('disk on fire')
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Updating pin', status: 'failed', message: 'disk on fire' },
+    ])
   })
 })
 

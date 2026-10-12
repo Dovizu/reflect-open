@@ -1,5 +1,5 @@
+import type { UpdateService, UpdateState } from '@reflect/core'
 import { toast } from '@/components/ui/toast.tsx'
-import type { UpdateController, UpdateState } from '@/lib/update-controller.ts'
 
 const UPDATE_TOAST_ID = 'reflect-update'
 // `timeout: 0` disables Base UI's auto-dismiss; the dismissible flag hides the
@@ -16,7 +16,7 @@ function runToastAction(action: () => Promise<void>): void {
   })
 }
 
-function showUpdateToast(state: UpdateState, controller: UpdateController): void {
+function showUpdateToast(state: UpdateState, update: UpdateService): void {
   switch (state.phase) {
     case 'available':
       toast.add({
@@ -29,7 +29,7 @@ function showUpdateToast(state: UpdateState, controller: UpdateController): void
         ...NON_DISMISSIBLE_UPDATE_OPTIONS,
         actionProps: {
           children: 'Install',
-          onClick: () => runToastAction(controller.install),
+          onClick: () => runToastAction(update.install),
         },
       })
       break
@@ -56,7 +56,7 @@ function showUpdateToast(state: UpdateState, controller: UpdateController): void
         ...NON_DISMISSIBLE_UPDATE_OPTIONS,
         actionProps: {
           children: 'Restart',
-          onClick: () => runToastAction(controller.restart),
+          onClick: () => runToastAction(update.restart),
         },
       })
       break
@@ -70,7 +70,7 @@ function showUpdateToast(state: UpdateState, controller: UpdateController): void
           ...NON_DISMISSIBLE_UPDATE_OPTIONS,
           actionProps: {
             children: 'Retry install',
-            onClick: () => runToastAction(controller.install),
+            onClick: () => runToastAction(update.retryAction),
           },
         })
       } else {
@@ -85,12 +85,12 @@ function showUpdateToast(state: UpdateState, controller: UpdateController): void
 
 /**
  * Mirrors the auto-update lifecycle into the global toast surface (Plan 15).
- * A plain controller subscriber: the toast calls run inside the controller's
- * own transitions (check results, download progress callbacks), not in a React
+ * A plain service subscriber: the toast calls run inside the service's own
+ * transitions (check results, download progress callbacks), not in a React
  * render cycle. Returns a detach.
  */
-export function attachUpdateToasts(controller: UpdateController): () => void {
-  const sync = (): void => showUpdateToast(controller.getState(), controller)
+export function attachUpdateToasts(update: UpdateService): () => void {
+  const sync = (): void => showUpdateToast(update.getState(), update)
   sync()
-  return controller.subscribe(sync)
+  return update.subscribe(sync)
 }

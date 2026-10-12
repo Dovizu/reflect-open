@@ -1,20 +1,27 @@
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { setDefaultOperations } from '@reflect/core'
 import { QueryClient } from '@tanstack/react-query'
 import type { FilteredSearchHit, NoteListEntry, PinnedNote } from '@reflect/core'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '@/lib/query-client.ts'
 import { toggleNotePinned, unpinNote } from '@/lib/note-pin.ts'
 
 const readNoteSource = vi.hoisted(() => vi.fn(async () => '# A\n'))
 const commitNoteFrontmatter = vi.hoisted(() => vi.fn<() => Promise<void>>())
-const fail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() => vi.fn(() => ({ fail })))
 vi.mock('@/lib/note-frontmatter.ts', () => ({ readNoteSource, commitNoteFrontmatter }))
-vi.mock('@/lib/operations.ts', () => ({ startOperation }))
+
+let operations: TestOperationsService
 
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   vi.clearAllMocks()
   readNoteSource.mockReset().mockResolvedValue('# A\n')
   commitNoteFrontmatter.mockReset().mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 function setup() {
@@ -118,8 +125,9 @@ describe('pin feedback', () => {
     for (const key of [shelfKey, desktopKey, mobileKey]) {
       expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true)
     }
-    expect(startOperation).toHaveBeenCalledExactlyOnceWith('Updating pin')
-    expect(fail).toHaveBeenCalledExactlyOnceWith('disk full')
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Updating pin', status: 'failed', message: 'disk full' },
+    ])
     await toggleNotePinned(input)
     expect(commitNoteFrontmatter).toHaveBeenCalledTimes(2)
   })
