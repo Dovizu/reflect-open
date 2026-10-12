@@ -109,17 +109,20 @@ export function MobileAudioMemoProvider({
     session?.getState ?? getClosedState,
   )
 
-  const value = useMemo<MobileAudioMemoContextValue>(
+  const controls = useMemo(
     () => ({
-      ...state,
       toggle: () => session?.toggle(),
       stopAndSave: () => session?.stopAndSave(),
       cancelRecording: () => session?.cancelRecording(),
-      onDrawerOpenChange: (open) => session?.setDrawerOpen(open),
+      onDrawerOpenChange: (open: boolean) => session?.setDrawerOpen(open),
       retry: () => session?.retry(),
       discard: () => session?.discard(),
     }),
-    [state, session],
+    [session],
+  )
+  const value = useMemo<MobileAudioMemoContextValue>(
+    () => ({ ...state, ...controls }),
+    [state, controls],
   )
 
   return <MobileAudioMemoContext value={value}>{children}</MobileAudioMemoContext>

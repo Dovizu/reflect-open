@@ -311,7 +311,7 @@ export function createAudioMemoService(deps: {
     operations,
     clock,
     platform,
-    window,
+    window: windowService,
     logger,
   } = deps
 
@@ -388,7 +388,7 @@ export function createAudioMemoService(deps: {
 
     // One lifecycle per graph session. It owns the launch pass and all retry
     // triggers; the pump only schedules. Main window only.
-    let reconciler: AudioMemoTranscriptionSession | null = window.isMainWindow()
+    let reconciler: AudioMemoTranscriptionSession | null = windowService.isMainWindow()
       ? transcriptions.openSession({ generation })
       : null
 

@@ -135,6 +135,15 @@ export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): 
     session?.setSurfaceHidden(collapsed)
   }, [session, collapsed, recorderState])
 
+  const controls = useMemo(
+    () => ({
+      toggle: () => session?.toggle(),
+      cancel: () => session?.cancel(),
+      retry: () => session?.retry(),
+      discard: () => session?.discard(),
+    }),
+    [session],
+  )
   const value = useMemo<AudioMemoContextValue>(
     () => ({
       phase: state.phase,
@@ -145,12 +154,9 @@ export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): 
       unavailableReason: state.unavailableReason,
       error: state.error,
       canRetry: state.canRetry,
-      toggle: () => session?.toggle(),
-      cancel: () => session?.cancel(),
-      retry: () => session?.retry(),
-      discard: () => session?.discard(),
+      ...controls,
     }),
-    [state, session],
+    [state, controls],
   )
 
   return <AudioMemoContext value={value}>{children}</AudioMemoContext>
