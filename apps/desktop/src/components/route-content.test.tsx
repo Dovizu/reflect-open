@@ -83,13 +83,11 @@ const indexFns = vi.hoisted(() => ({
     nextCursor: null,
     indexedLinkCount: 0,
   })),
-  relatedNotes: vi.fn(async () => []),
 }))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   getBacklinksWithContext: indexFns.getBacklinksWithContext,
-  relatedNotes: indexFns.relatedNotes,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({
