@@ -5,19 +5,16 @@ import type { FilteredSearchHit, NoteListEntry, PinnedNote } from '@reflect/core
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { queryKeys } from '@/lib/query-client.ts'
 import { toggleNotePinned, unpinNote } from '@/lib/note-pin.ts'
+import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
 
-const readNoteSource = vi.hoisted(() => vi.fn(async () => '# A\n'))
-const commitNoteFrontmatter = vi.hoisted(() => vi.fn<() => Promise<void>>())
-vi.mock('@/lib/note-frontmatter.ts', () => ({ readNoteSource, commitNoteFrontmatter }))
+const { readSource: readNoteSource, commitFrontmatter: commitNoteFrontmatter } =
+  installTestNoteDocuments({ source: '# A\n' })
 
 let operations: TestOperationsService
 
 beforeEach(() => {
   operations = createTestOperationsService()
   setDefaultOperations(operations)
-  vi.clearAllMocks()
-  readNoteSource.mockReset().mockResolvedValue('# A\n')
-  commitNoteFrontmatter.mockReset().mockResolvedValue(undefined)
 })
 
 afterEach(() => {

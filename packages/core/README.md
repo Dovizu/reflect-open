@@ -29,6 +29,7 @@ Every native call funnels through two seams:
 | `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, and the typed file commands (`readNote`, `writeNote`, `listFiles`, recents). |
 | `markdown/` | The document model (Plan 03): frontmatter parsing, the canonical Lezer grammar with the `[[wiki link]]` extension, extraction (`parseNote`), source-level edits, and pure wiki-link resolution policy. |
 | `indexing/` | The SQLite projection pipeline (Plan 04): build/apply note projections, full rebuild and hash-based reconcile, the live watcher subscription, and the Kysely read getters. |
+| `tasks/` | Round-checkbox tasks across notes (Plan 18): `TaskService` (open and completed reads, session-aware writes through `NoteDocumentService.commitSourceEdit`, the session's recently-completed set) and the pure Tasks-view model (grouping, visibility, cache transforms). |
 | `ipc/` | The bridge, `IpcBridgeService`, and `call` seam described above. |
 | `errors.ts` | The `AppError` discriminated union shared with Rust. |
 
@@ -45,8 +46,9 @@ Every native call funnels through two seams:
     own saves flow file → watcher → index like any external edit).
   - **`rebuildVisibly(generation)`** — wipe and re-index everything. For
     explicit repair, not the hot path.
-  - It reports through events (`onApplied`, `onReconciled`, `onMoved`, ...);
-    the app maps them to cache invalidation and re-embedding.
+  - It reports through events (`onApplied`, `onChangesApplied`,
+    `onReconciled`, `onMoved`, ...); the app maps them to cache invalidation,
+    and the embedding services follow them to re-embed.
 
 **`generation`** is the index session token returned by
 `IndexLifecycleService.open()`. Every
@@ -54,6 +56,21 @@ write carries it; Rust silently drops writes whose generation is stale, so a
 pass started for one graph can never corrupt a newly-opened index. If you add
 a write path, thread the generation through — never cache one across a graph
 switch.
+
+## Embeddings
+
+Optional local semantic search (Plan 09), three services in `embeddings/`:
+
+- **`EmbeddingIndexService`** keeps each note's chunk vectors current:
+  `embedNote`, `removeNote`, a full `backfill`, and `follow`, which backfills
+  once and then re-embeds the notes of every applied index batch on one
+  serial queue.
+- **`RetrievalService`** is the one retrieval contract for search and AI:
+  `retrieve` (lexical, semantic, or hybrid) and `relatedNotes`.
+- **`SemanticSearchService`** is the user-facing side: `start()` loads the
+  model while the `semanticSearchEnabled` setting is on, follows the open
+  graph while the model is ready, and the service re-embeds after each
+  requested index rebuild.
 
 ## The open graph
 

@@ -1,5 +1,4 @@
 import { reorderPinnedNotes } from '@/lib/note-pin.ts'
-import { updatePinOrder } from '@/lib/notes/pin-order.ts'
 import {
   invalidatePinnedNotesCache,
   updatePinnedNotesCache,
@@ -7,7 +6,7 @@ import {
 import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { arrayMove } from '@dnd-kit/sortable'
-import type { PinnedNote } from '@reflect/core'
+import { updatePinOrder, type PinnedNote } from '@reflect/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 

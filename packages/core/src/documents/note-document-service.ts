@@ -42,8 +42,49 @@ export interface NoteDocumentService {
    * patches disk directly. A patch that changes nothing is a no-op.
    */
   commitFrontmatter(path: string, patch: FrontmatterPatch, generation: number): Promise<void>
+  /**
+   * Apply a synchronous full-source `transform` to the note and persist it,
+   * routing the same way every time: when the note is **open**, through its
+   * live session, which transforms its in-memory buffer synchronously, so
+   * unsaved edits survive and there's no read-then-write gap for a concurrent
+   * keystroke. The session declines (and we refuse rather than clobber via
+   * disk) only when it can't persist now (failed to load, protected/read-only,
+   * or a parked conflict); a session still loading waits for its load instead.
+   * A decline is surfaced as {@link NoteBusyError}. When the note is **not**
+   * open, disk is the source of truth: read, transform, write.
+   *
+   * Edits to one path are serialized: the next only reads after the previous
+   * has written, whether that one resolved or rejected. An error thrown by
+   * `transform` propagates untouched and nothing is written.
+   */
+  commitSourceEdit(
+    path: string,
+    transform: (source: string) => string,
+    options: CommitSourceEditOptions,
+  ): Promise<void>
   /** {@link isOstensiblyEmptyNoteSource}. */
   isOstensiblyEmpty(source: string): boolean
+}
+
+export interface CommitSourceEditOptions {
+  /** The index generation the disk write carries. */
+  readonly generation: number
+  /** Treat a missing note as empty: the edit creates it (today's daily). */
+  readonly createIfMissing?: boolean
+}
+
+/**
+ * A note couldn't be written because it is open with unsaved edits that
+ * the session can't persist right now — it's read-only/protected, or a sync
+ * conflict is parked. Distinct from `TaskStaleError` (a stale index): the
+ * recovery is "save or resolve the note", not "reindex". We refuse rather than
+ * write to disk, which would clobber the live buffer.
+ */
+export class NoteBusyError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'NoteBusyError'
+  }
 }
 
 /**
@@ -81,6 +122,47 @@ export function createNoteDocumentService(deps: {
     }
   }
 
+  /**
+   * One pending-write chain per note path. Source edits read-modify-write a
+   * note, so two firing at once on the same note (two checkbox clicks, a bulk
+   * delete racing a checkbox) could each read the pre-write source and clobber.
+   * Routing every edit through the path's chain serializes them — the next only
+   * reads after the previous has written. (The open-note path is already
+   * serialized by the session's save chain; this closes the disk path and any
+   * open↔closed gap.)
+   */
+  const writeChains = new Map<string, Promise<unknown>>()
+
+  function serializeByPath<T>(path: string, op: () => Promise<T>): Promise<T> {
+    const previous = writeChains.get(path) ?? Promise.resolve()
+    // Run `op` whether the previous write resolved or rejected — one failure must
+    // not wedge the chain for the note.
+    const result = previous.then(op, op)
+    const settled = result.then(
+      () => {},
+      () => {},
+    )
+    writeChains.set(path, settled)
+    void settled.then(() => {
+      // Drop the entry once the chain goes idle, so the map can't grow unbounded.
+      if (writeChains.get(path) === settled) {
+        writeChains.delete(path)
+      }
+    })
+    return result
+  }
+
+  async function readForEdit(path: string, createIfMissing: boolean): Promise<string> {
+    try {
+      return await noteFile.read(path)
+    } catch (cause) {
+      if (createIfMissing && isAppError(cause) && cause.kind === 'notFound') {
+        return ''
+      }
+      throw cause
+    }
+  }
+
   return {
     async readSource(path) {
       return openDocuments.sessionFor(path)?.liveContent() ?? (await readOrEmpty(path))
@@ -110,6 +192,22 @@ export function createNoteDocumentService(deps: {
       if (patched !== onDisk) {
         await noteFile.write(path, patched, generation)
       }
+    },
+    commitSourceEdit(path, transform, options) {
+      // Serialize per note: a concurrent change to the same note must not read the
+      // pre-write source and clobber this one.
+      return serializeByPath(path, async (): Promise<void> => {
+        const owner = openDocuments.sessionFor(path)
+        if (owner !== null) {
+          const applied = await owner.commitSourceEdit(transform)
+          if (!applied) {
+            throw new NoteBusyError('This note can’t be updated right now — try again in a moment.')
+          }
+          return
+        }
+        const source = await readForEdit(path, options.createIfMissing === true)
+        await noteFile.write(path, transform(source), options.generation)
+      })
     },
     isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
   }

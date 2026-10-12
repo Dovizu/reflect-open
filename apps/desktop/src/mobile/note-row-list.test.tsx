@@ -4,15 +4,12 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { useState, type ReactElement } from 'react'
 import { render } from 'vitest-browser-react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
 import { pointer, swipe, translateX } from '@/test-utils/swipe.ts'
 import { NoteRowList } from './note-row-list.tsx'
 import { SwipeableNoteRow, type NoteRowModel } from './swipeable-note-row.tsx'
 
-const commitNoteFrontmatter = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('@/lib/note-frontmatter.ts', () => ({
-  commitNoteFrontmatter,
-  readNoteSource: async () => '# A\n',
-}))
+const { commitFrontmatter: commitNoteFrontmatter } = installTestNoteDocuments({ source: '# A\n' })
 
 vi.mock('@/providers/settings-provider.tsx', () => ({
   useSettings: () => ({ settings: { dateFormat: 'mdy', timeFormat: '12h' } }),
@@ -74,7 +71,6 @@ function CachedNoteList(): ReactElement {
 }
 
 beforeEach(() => {
-  commitNoteFrontmatter.mockReset().mockResolvedValue(undefined)
   onOpen.mockReset()
   onTogglePin.mockReset()
   onDelete.mockReset()

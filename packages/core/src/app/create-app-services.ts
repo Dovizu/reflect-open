@@ -40,6 +40,11 @@ import {
   type ChatHistoryService,
 } from '../ai/chat/chat-history-service.ts'
 import {
+  createBacklinkTargetService,
+  type BacklinkTargetService,
+} from '../capture/backlink-target-service.ts'
+import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
+import {
   createCaptureInboxService,
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
@@ -100,6 +105,11 @@ import {
   type TitleRenameService,
 } from '../documents/title-rename-service.ts'
 import {
+  createNoteActionsService,
+  type NoteActionsService,
+} from '../documents/note-actions-service.ts'
+import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
+import {
   createNoteDocumentService,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
@@ -120,6 +130,15 @@ import {
   createEmbeddingRuntimeService,
   type EmbeddingRuntimeService,
 } from '../embeddings/embedding-runtime-service.ts'
+import {
+  createEmbeddingIndexService,
+  type EmbeddingIndexService,
+} from '../embeddings/embedding-index-service.ts'
+import { createRetrievalService, type RetrievalService } from '../embeddings/retrieval-service.ts'
+import {
+  createSemanticSearchService,
+  type SemanticSearchService,
+} from '../embeddings/semantic-search-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createBacklinkService, type BacklinkService } from '../indexing/backlink-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
@@ -174,6 +193,7 @@ import { createSettingsService, type SettingsService } from '../settings/setting
 import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
+import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
 import type { ClipboardService } from './clipboard-service.ts'
 import { createSystemClock, type ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
@@ -193,6 +213,7 @@ import {
 } from './lifecycle-service.ts'
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
 import { createOperationsService, type OperationsService } from './operations-service.ts'
+import { createTaskService, type TaskService } from '../tasks/task-service.ts'
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
@@ -296,6 +317,9 @@ export interface AppServices {
   readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
   readonly notePreview: NotePreviewService
+  readonly tasks: TaskService
+  readonly noteActions: NoteActionsService
+  readonly noteRows: NoteRowService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -309,6 +333,9 @@ export interface AppServices {
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
+  readonly retrieval: RetrievalService
+  readonly embeddingIndex: EmbeddingIndexService
+  readonly semanticSearch: SemanticSearchService
   readonly mobileOnboarding: MobileOnboardingService
   readonly keyboard: KeyboardService
   readonly share: ShareService
@@ -326,6 +353,8 @@ export interface AppServices {
   readonly assetDescriber: AssetDescriberService
   readonly transcription: TranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly backlinkTarget: BacklinkTargetService
+  readonly capture: CaptureService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -489,8 +518,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
   const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const captureInbox = createCaptureInboxService({ ipc })
+  const webFetch = createWebFetchService({ ipc })
+  const pageDescriber = createPageDescriberService({ languageModel })
+  const backlinkTarget = createBacklinkTargetService({
+    noteCreation: noteServices.noteCreation,
+    noteFile,
+  })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
     noteFile,
@@ -537,7 +573,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     clock,
     platform,
   })
-  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
+  const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
+  const retrieval = createRetrievalService({
+    database,
+    search: indexReads.search,
+    embeddingRuntime,
+    logger,
+  })
+  const embeddingIndex = createEmbeddingIndexService({
+    ipc,
+    embeddingRuntime,
+    noteFile,
+    database,
+    indexLifecycle,
+    logger,
+  })
   return {
     ipc,
     logger,
@@ -573,7 +623,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     database,
     indexStore,
-    embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
+    embeddingRuntime,
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     navigation: createNavigationService(),
     deepLink,
@@ -605,7 +655,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox,
-    webFetch: createWebFetchService({ ipc }),
+    webFetch,
     xArchive,
     audioRecorder: createPlatformAudioRecorder({
       platform: adapters.platform,
@@ -641,10 +691,35 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       noteDocuments,
       attachments,
     }),
+    tasks: createTaskService({ database, noteDocuments, operations, clock, logger }),
+    noteActions: createNoteActionsService({
+      noteDocuments,
+      noteFile,
+      openDocuments,
+      indexLifecycle,
+      operations,
+      clipboard: adapters.clipboard,
+      path,
+      id,
+    }),
+    noteRows: createNoteRowService(),
     ...indexReads,
     ...noteServices,
     indexLifecycle,
     graphSession,
+    retrieval,
+    embeddingIndex,
+    semanticSearch: createSemanticSearchService({
+      embeddingRuntime,
+      embeddingIndex,
+      retrieval,
+      settings,
+      storage,
+      window: windowService,
+      indexLifecycle,
+      graphSession,
+      logger,
+    }),
     mobileOnboarding: createMobileOnboardingService({
       mobileStorage,
       settings,
@@ -674,11 +749,33 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       credentials: aiCredentials,
       privacy: noteServices.privacy,
     }),
-    pageDescriber: createPageDescriberService({ languageModel }),
+    pageDescriber,
     assetDescriber: createAssetDescriberService({ languageModel }),
     transcription: withAppReviewDemoTranscription(
       createTranscriptionService({ http: adapters.http }),
     ),
     transcriptEnrichment: createTranscriptEnrichmentService({ languageModel }),
+    backlinkTarget,
+    capture: createCaptureService({
+      captureInbox,
+      noteFile,
+      assetStore,
+      openDocuments,
+      backlinkTarget,
+      xArchive,
+      webFetch,
+      pageDescriber,
+      aiProviderConfig,
+      aiCredentials,
+      privacy: noteServices.privacy,
+      hash,
+      clock,
+      reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
+      lifecycle,
+      fileChanges,
+      operations,
+      platform,
+      logger,
+    }),
   }
 }

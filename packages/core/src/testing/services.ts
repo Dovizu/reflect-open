@@ -33,10 +33,13 @@ import {
 import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 import {
+  createTestBacklinkTargetService,
   createTestCaptureInboxService,
+  createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
   type TestCaptureInboxService,
+  type TestCaptureService,
   type TestWebFetchService,
   type TestXArchiveService,
 } from './capture.ts'
@@ -56,22 +59,31 @@ import { createTestContactsService, type TestContactsService } from './contacts.
 import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
 import {
+  createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
+  createTestRetrievalService,
+  createTestSemanticSearchService,
+  type TestEmbeddingIndexService,
   type TestEmbeddingRuntimeService,
+  type TestRetrievalService,
+  type TestSemanticSearchService,
 } from './embeddings.ts'
 import {
   createTestExceptionTelemetry,
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
+import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
+  createTestNoteActionsService,
   createTestNoteMoveService,
   createTestNoteSessionService,
   createTestNoteDocumentService,
   createTestNotePreviewService,
   createTestOpenDocumentsService,
   createTestTitleRenameService,
+  type TestNoteActionsService,
   type TestNoteMoveService,
   type TestNoteSessionService,
   type TestTitleRenameService,
@@ -110,6 +122,7 @@ import {
 } from './mobile-onboarding.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
+import { createTestTaskService } from './tasks.ts'
 import {
   createTestAppStoreEnvironmentService,
   createTestClassicAccessService,
@@ -170,6 +183,7 @@ import {
   createTestNativeMenuService,
   type TestNativeMenuService,
 } from './commands.ts'
+import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import type { CommandService } from '../commands/command-service.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 
@@ -226,6 +240,7 @@ export interface TestAppServices extends AppServices {
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
+  readonly noteActions: TestNoteActionsService
   readonly noteSessions: TestNoteSessionService
   readonly noteMove: TestNoteMoveService
   readonly titleRename: TestTitleRenameService
@@ -234,6 +249,9 @@ export interface TestAppServices extends AppServices {
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
   readonly graphSession: TestGraphSessionService
+  readonly retrieval: TestRetrievalService
+  readonly embeddingIndex: TestEmbeddingIndexService
+  readonly semanticSearch: TestSemanticSearchService
   readonly mobileOnboarding: TestMobileOnboardingService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: TestAiKeyValidationService
@@ -248,6 +266,8 @@ export interface TestAppServices extends AppServices {
   readonly assetDescriber: TestAssetDescriberService
   readonly transcription: TestTranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly backlinkTarget: BacklinkTargetService
+  readonly capture: TestCaptureService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -276,6 +296,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const noteLinkResolver = createTestNoteLinkResolverService({
     wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
     noteFile: overrides?.noteFile ?? noteFile,
+  })
+  const noteCreation = createTestNoteCreationService({
+    noteFile: overrides?.noteFile ?? noteFile,
+    noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+    id: overrides?.id ?? id,
   })
   const http = createTestHttpService()
   const fileChanges = createTestFileChangeService()
@@ -316,6 +341,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
     operations: overrides?.operations ?? operations,
   })
+  const clipboard = createTestClipboardService()
+  const noteDocuments = createTestNoteDocumentService({
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
   const ipc = createTestIpcBridgeService({ logger })
   const noteMove = createTestNoteMoveService({
     ipc: overrides?.ipc ?? ipc,
@@ -348,15 +378,16 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const attachments = createTestAttachmentService()
-  const noteCreation = createTestNoteCreationService({
+  const embeddingRuntime = createTestEmbeddingRuntimeService()
+  const retrieval = createTestRetrievalService()
+  const embeddingIndex = createTestEmbeddingIndexService({
+    embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
     noteFile: overrides?.noteFile ?? noteFile,
-    noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
-    id: overrides?.id ?? id,
+    database: overrides?.database ?? database,
+    indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+    logger,
   })
-  const noteDocuments = createTestNoteDocumentService({
-    openDocuments: overrides?.openDocuments ?? openDocuments,
-    noteFile: overrides?.noteFile ?? noteFile,
-  })
+  const storage = createTestStorageService()
   const services: TestAppServices = {
     ipc,
     logger: testLogger,
@@ -364,10 +395,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     id,
     hash,
     platform,
-    storage: createTestStorageService(),
+    storage,
     http,
     dialog,
-    clipboard: createTestClipboardService(),
+    clipboard,
     opener,
     path,
     window: windowService,
@@ -387,7 +418,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     database,
     fileChanges,
     indexStore,
-    embeddingRuntime: createTestEmbeddingRuntimeService(),
+    embeddingRuntime,
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
@@ -457,12 +488,42 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       noteDocuments: overrides?.noteDocuments ?? noteDocuments,
       attachments: overrides?.attachments ?? attachments,
     }),
+    tasks: createTestTaskService({
+      database: overrides?.database ?? database,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      operations: overrides?.operations ?? operations,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    noteActions: createTestNoteActionsService({
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      noteFile: overrides?.noteFile ?? noteFile,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      operations: overrides?.operations ?? operations,
+      clipboard: overrides?.clipboard ?? clipboard,
+      path: overrides?.path ?? path,
+      id: overrides?.id ?? id,
+    }),
+    noteRows: createNoteRowService(),
     ...indexReads,
     noteLinkResolver,
     noteCreation,
     privacy,
     indexLifecycle,
     graphSession,
+    retrieval,
+    embeddingIndex,
+    semanticSearch: createTestSemanticSearchService({
+      embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
+      embeddingIndex: overrides?.embeddingIndex ?? embeddingIndex,
+      retrieval: overrides?.retrieval ?? retrieval,
+      settings: overrides?.settings ?? settings,
+      storage: overrides?.storage ?? storage,
+      window: overrides?.window ?? windowService,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      graphSession: overrides?.graphSession ?? graphSession,
+      logger,
+    }),
     mobileOnboarding: createTestMobileOnboardingService({
       mobileStorage: overrides?.mobileStorage ?? mobileStorage,
       settings: overrides?.settings ?? settings,
@@ -499,6 +560,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     transcriptEnrichment: createTestTranscriptEnrichmentService({
       languageModel: overrides?.languageModel ?? languageModel,
     }),
+    backlinkTarget: createTestBacklinkTargetService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      noteCreation: overrides?.noteCreation ?? noteCreation,
+    }),
+    capture: createTestCaptureService(),
   }
   return Object.assign(services, overrides)
 }

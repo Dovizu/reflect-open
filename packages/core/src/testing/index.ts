@@ -73,9 +73,20 @@ export {
   type TestNote,
 } from './database.ts'
 export {
+  createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
+  createTestRetrievalService,
+  createTestSemanticSearchService,
+  type TestEmbeddingApply,
+  type TestEmbeddingIndexService,
+  type TestEmbeddingIndexServiceOptions,
+  type TestEmbeddingRemove,
   type TestEmbeddingRuntimeService,
   type TestEmbeddingRuntimeServiceOptions,
+  type TestRetrievalService,
+  type TestRetrievalServiceOptions,
+  type TestSemanticSearchService,
+  type TestSemanticSearchServiceOptions,
 } from './embeddings.ts'
 export {
   createTestChatHistoryService,
@@ -102,10 +113,15 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestBacklinkTargetService,
   createTestCaptureInboxService,
+  createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
+  type TestBacklinkTargetServiceOptions,
   type TestCaptureInboxService,
+  type TestCaptureService,
+  type TestCaptureSessionState,
   type TestWebFetchService,
   type TestXArchiveService,
   type WebFetchKind,
@@ -262,13 +278,17 @@ export {
   type TestAttachmentService,
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
+export { createTestTaskService, makeOpenTask, type TestTaskServiceOptions } from './tasks.ts'
 export {
+  createTestNoteActionsService,
   createTestNoteDocumentService,
   createTestNotePreviewService,
   createTestNoteSession,
   createTestNoteSessionService,
   createTestOpenDocumentsService,
   type NoteSessionCall,
+  type TestNoteActionsService,
+  type TestNoteActionsServiceOptions,
   type TestNoteDocumentServiceOptions,
   type TestNotePreviewServiceOptions,
   type TestNoteSession,

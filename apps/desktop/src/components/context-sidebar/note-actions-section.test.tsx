@@ -11,7 +11,8 @@ import {
   createTestOperationsService,
   type TestOperationsService,
 } from '@reflect/core/testing'
-import { frontmatterPatchToYaml, type FrontmatterPatch } from '@/editor/note-session.ts'
+import { frontmatterPatchToYaml } from '@/editor/note-session.ts'
+import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
 import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -24,11 +25,8 @@ import { NoteActionsSection } from './note-actions-section.tsx'
 const getPinnedNotes = vi.hoisted(() => vi.fn())
 const getNote = vi.hoisted(() => vi.fn())
 const noteSource = vi.hoisted(() => ({ value: '# A\n' }))
-const readNoteSource = vi.hoisted(() => vi.fn(async () => noteSource.value))
-const commitNoteFrontmatter = vi.hoisted(() =>
-  vi.fn<(path: string, patch: FrontmatterPatch, generation: number) => Promise<void>>(),
-)
-vi.mock('@/lib/note-frontmatter.ts', () => ({ readNoteSource, commitNoteFrontmatter }))
+const { readSource: readNoteSource, commitFrontmatter: commitNoteFrontmatter } =
+  installTestNoteDocuments()
 const deleteOpenNote = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),

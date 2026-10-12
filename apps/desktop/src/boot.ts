@@ -1,3 +1,4 @@
+import { watchCaptureXPosts } from '@/lib/capture-x-posts.ts'
 import { watchGithubAuth } from '@/lib/github-auth-state.ts'
 import { createDesktopAdapters } from '@/services/create-desktop-services.ts'
 import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
@@ -26,3 +27,4 @@ export const appServices = createAppServices(
 installDefaultServices(appServices)
 appServices.exceptionTelemetry.install()
 watchGithubAuth(appServices.githubAuth)
+watchCaptureXPosts(appServices.capture)

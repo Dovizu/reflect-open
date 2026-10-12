@@ -3,6 +3,7 @@ import {
   buildIndexedNote,
   parseNote,
   setDefaultDatabase,
+  setDefaultEmbeddingIndex,
   setDefaultEmbeddingRuntime,
   setDefaultIndexLifecycle,
   setDefaultOperations,
@@ -11,12 +12,14 @@ import {
 } from '@reflect/core'
 import {
   createTestDatabaseService,
+  createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
   createTestIndexLifecycleService,
   createTestOperationsService,
   createTestPlatformService,
   createTestWindowService,
   type TestDatabaseService,
+  type TestEmbeddingIndexService,
   type TestEmbeddingRuntimeService,
   type TestIndexLifecycleService,
   type TestOperationsService,
@@ -29,13 +32,8 @@ import type { CommandContext } from './types.ts'
 
 const TODAY = '2026-06-09'
 
-const backfillEmbeddingsVisibly = vi.hoisted(() => vi.fn(async () => 'completed'))
 const runCopyDeepLink = vi.hoisted(() => vi.fn(async () => undefined))
 const runCopyNotePath = vi.hoisted(() => vi.fn(async () => undefined))
-vi.mock('@/lib/semantic.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/semantic.ts')>()),
-  backfillEmbeddingsVisibly,
-}))
 vi.mock('@/lib/note-deep-link.ts', () => ({ runCopyDeepLink }))
 vi.mock('@/lib/note-copy-path.ts', () => ({ runCopyNotePath }))
 
@@ -46,6 +44,7 @@ let indexLifecycle: TestIndexLifecycleService
 let windows: TestWindowService
 let database: TestDatabaseService
 let embeddingRuntime: TestEmbeddingRuntimeService
+let embeddingIndex: TestEmbeddingIndexService
 
 beforeEach(() => {
   setDefaultPlatform(createTestPlatformService())
@@ -59,6 +58,8 @@ beforeEach(() => {
   setDefaultDatabase(database)
   embeddingRuntime = createTestEmbeddingRuntimeService({ status: { status: 'uninitialized' } })
   setDefaultEmbeddingRuntime(embeddingRuntime)
+  embeddingIndex = createTestEmbeddingIndexService({ backfill: async () => 'completed' })
+  setDefaultEmbeddingIndex(embeddingIndex)
 })
 
 afterEach(() => {
@@ -69,6 +70,7 @@ afterEach(() => {
   setDefaultWindow(null)
   setDefaultDatabase(null)
   setDefaultEmbeddingRuntime(null)
+  setDefaultEmbeddingIndex(null)
 })
 
 function command(id: string) {
@@ -389,9 +391,6 @@ describe('app commands', () => {
     const { context } = fakeContext()
     await command('index.rebuild').run(context)
     // index_clear wiped the embedding tables; rebuild must repopulate them.
-    expect(backfillEmbeddingsVisibly).toHaveBeenCalledWith({
-      generation: 7,
-      modelId: 'all-MiniLM-L6-v2',
-    })
+    expect(embeddingIndex.backfills()).toEqual([{ generation: 7, modelId: 'all-MiniLM-L6-v2' }])
   })
 })

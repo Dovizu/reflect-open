@@ -9,6 +9,8 @@ import { setDefaultSelectionTransform } from '../ai/selection-transform-service.
 import { setDefaultTranscriptEnrichment } from '../ai/transcript-enrichment-service.ts'
 import { setDefaultTranscription } from '../ai/transcription-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
+import { setDefaultBacklinkTarget } from '../capture/backlink-target-service.ts'
+import { setDefaultCapture } from '../capture/capture-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { setDefaultGists } from '../sync/gist-service.ts'
@@ -30,13 +32,18 @@ import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
+import { setDefaultNoteActions } from '../documents/note-actions-service.ts'
 import { setDefaultNoteDocuments } from '../documents/note-document-service.ts'
 import { setDefaultNotePreview } from '../documents/note-preview-service.ts'
+import { setDefaultNoteRows } from '../documents/note-row-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
 import { setDefaultNoteMove } from '../documents/note-move-service.ts'
 import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { setDefaultTitleRename } from '../documents/title-rename-service.ts'
+import { setDefaultEmbeddingIndex } from '../embeddings/embedding-index-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
+import { setDefaultRetrieval } from '../embeddings/retrieval-service.ts'
+import { setDefaultSemanticSearch } from '../embeddings/semantic-search-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
@@ -78,6 +85,7 @@ import { setDefaultImageCodec } from './image-codec-service.ts'
 import { setDefaultLifecycle } from './lifecycle-service.ts'
 import { setDefaultLogger } from './logger-service.ts'
 import { setDefaultOperations } from './operations-service.ts'
+import { setDefaultTasks } from '../tasks/task-service.ts'
 import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
 import { setDefaultPersistenceFlush } from './persistence-flush-service.ts'
@@ -154,6 +162,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
   setDefaultNotePreview(services.notePreview)
+  setDefaultTasks(services.tasks)
+  setDefaultNoteActions(services.noteActions)
+  setDefaultNoteRows(services.noteRows)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -166,6 +177,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteCreation(services.noteCreation)
   setDefaultPrivacy(services.privacy)
   setDefaultIndexLifecycle(services.indexLifecycle)
+  setDefaultRetrieval(services.retrieval)
+  setDefaultEmbeddingIndex(services.embeddingIndex)
+  setDefaultSemanticSearch(services.semanticSearch)
   setDefaultAiCredentials(services.aiCredentials)
   setDefaultAiKeyValidation(services.aiKeyValidation)
   setDefaultLanguageModel(services.languageModel)
@@ -179,6 +193,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAssetDescriber(services.assetDescriber)
   setDefaultTranscription(services.transcription)
   setDefaultTranscriptEnrichment(services.transcriptEnrichment)
+  setDefaultBacklinkTarget(services.backlinkTarget)
+  setDefaultCapture(services.capture)
   setDefaultIpc(services.ipc)
 }
 
@@ -247,6 +263,9 @@ export function resetDefaultServices(): void {
   setDefaultShare(null)
   setDefaultNoteDocuments(null)
   setDefaultNotePreview(null)
+  setDefaultTasks(null)
+  setDefaultNoteActions(null)
+  setDefaultNoteRows(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)
@@ -259,6 +278,9 @@ export function resetDefaultServices(): void {
   setDefaultNoteCreation(null)
   setDefaultPrivacy(null)
   setDefaultIndexLifecycle(null)
+  setDefaultRetrieval(null)
+  setDefaultEmbeddingIndex(null)
+  setDefaultSemanticSearch(null)
   setDefaultAiCredentials(null)
   setDefaultAiKeyValidation(null)
   setDefaultLanguageModel(null)
@@ -272,5 +294,7 @@ export function resetDefaultServices(): void {
   setDefaultAssetDescriber(null)
   setDefaultTranscription(null)
   setDefaultTranscriptEnrichment(null)
+  setDefaultBacklinkTarget(null)
+  setDefaultCapture(null)
   setDefaultIpc(null)
 }

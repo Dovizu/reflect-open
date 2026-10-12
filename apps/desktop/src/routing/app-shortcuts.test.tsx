@@ -25,18 +25,15 @@ import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
 import { ThemeProvider } from '@/providers/theme-provider.tsx'
 import { MOD_KEY, NON_MOD_KEY } from '@/test-utils/mod-key.ts'
+import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
 import { useAppShortcuts } from './app-shortcuts.ts'
 import { RouterProvider, useRouter } from './router.tsx'
 
 const nativeMenu = vi.hoisted(() => ({ installed: false }))
-const commitNoteFrontmatter = vi.hoisted(() => vi.fn(async () => {}))
 const graphState = vi.hoisted((): { graph: GraphInfo | null } => ({
   graph: { root: '/g', name: 'g', generation: 1 },
 }))
-vi.mock('@/lib/note-frontmatter.ts', () => ({
-  commitNoteFrontmatter,
-  readNoteSource: async () => '# A\n',
-}))
+const { commitFrontmatter: commitNoteFrontmatter } = installTestNoteDocuments({ source: '# A\n' })
 
 const newChat = vi.hoisted(() => vi.fn())
 const openRecent = vi.hoisted(() => vi.fn())
@@ -97,7 +94,6 @@ beforeEach(() => {
   )
   nativeMenu.installed = false
   graphState.graph = { root: '/g', name: 'g', generation: 1 }
-  commitNoteFrontmatter.mockReset().mockResolvedValue(undefined)
   openRecent.mockClear()
   openRouteInNewWindow.mockClear()
   openNoteFindForPath.mockClear()
