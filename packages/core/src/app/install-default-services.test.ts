@@ -47,6 +47,7 @@ import { defaultLogger } from './logger-service.ts'
 import { defaultOperations } from './operations-service.ts'
 import { defaultOpener } from './opener-service.ts'
 import { defaultPath } from './path-service.ts'
+import { defaultPersistenceFlush } from './persistence-flush-service.ts'
 import { defaultPlatform } from './platform-service.ts'
 import { defaultStorage } from './storage-service.ts'
 import { defaultUpdate } from './update-service.ts'
@@ -85,6 +86,7 @@ describe('installDefaultServices', () => {
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultOperations()).toBe(services.operations)
     expect(defaultTheme()).toBe(services.theme)
+    expect(defaultPersistenceFlush()).toBe(services.persistenceFlush)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
     expect(defaultIndexStore()).toBe(services.indexStore)
@@ -138,6 +140,7 @@ describe('resetDefaultServices', () => {
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultOperations()).not.toBe(services.operations)
     expect(defaultTheme()).not.toBe(services.theme)
+    expect(defaultPersistenceFlush()).not.toBe(services.persistenceFlush)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
     expect(defaultIndexStore()).not.toBe(services.indexStore)

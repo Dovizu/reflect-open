@@ -138,6 +138,10 @@ export {
 export { createTestSettingsService, type TestSettingsService } from './settings.ts'
 export { createTestThemeService, type TestThemeService } from './theme.ts'
 export {
+  createTestPersistenceFlushService,
+  type TestPersistenceFlushService,
+} from './persistence-flush.ts'
+export {
   createTestFileChangeService,
   type TestFileChangeService,
   type TestFileChangeServiceOptions,

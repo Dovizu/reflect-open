@@ -46,6 +46,7 @@ import { setDefaultLogger } from './logger-service.ts'
 import { setDefaultOperations } from './operations-service.ts'
 import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
+import { setDefaultPersistenceFlush } from './persistence-flush-service.ts'
 import { setDefaultPlatform } from './platform-service.ts'
 import { setDefaultStorage } from './storage-service.ts'
 import { setDefaultUpdate } from './update-service.ts'
@@ -77,6 +78,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultOperations(services.operations)
   setDefaultSettings(services.settings)
   setDefaultTheme(services.theme)
+  setDefaultPersistenceFlush(services.persistenceFlush)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
   setDefaultIndexStore(services.indexStore)
@@ -132,6 +134,7 @@ export function resetDefaultServices(): void {
   setDefaultOperations(null)
   setDefaultSettings(null)
   setDefaultTheme(null)
+  setDefaultPersistenceFlush(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
   setDefaultIndexStore(null)

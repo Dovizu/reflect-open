@@ -87,6 +87,10 @@ import {
   type TestWindowService,
 } from './shell.ts'
 import { createTestSettingsService, type TestSettingsService } from './settings.ts'
+import {
+  createTestPersistenceFlushService,
+  type TestPersistenceFlushService,
+} from './persistence-flush.ts'
 import { createTestStorageService, type TestStorageService } from './storage.ts'
 import { createTestThemeService, type TestThemeService } from './theme.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
@@ -118,6 +122,7 @@ export interface TestAppServices extends AppServices {
   readonly operations: TestOperationsService
   readonly settings: TestSettingsService
   readonly theme: TestThemeService
+  readonly persistenceFlush: TestPersistenceFlushService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
   readonly indexStore: TestIndexStoreService
@@ -176,6 +181,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     operations,
     settings: createTestSettingsService({}, { operations: overrides?.operations ?? operations }),
     theme: createTestThemeService(),
+    persistenceFlush: createTestPersistenceFlushService(),
     database,
     fileChanges: createTestFileChangeService(),
     indexStore: createTestIndexStoreService(),

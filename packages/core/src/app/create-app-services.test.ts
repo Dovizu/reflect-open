@@ -45,6 +45,7 @@ const SERVICE_KEYS = [
   'operations',
   'settings',
   'theme',
+  'persistenceFlush',
   'database',
   'fileChanges',
   'indexStore',
