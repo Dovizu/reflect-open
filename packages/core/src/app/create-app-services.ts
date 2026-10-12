@@ -58,6 +58,7 @@ import {
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
 import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
+import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import type { ClipboardService } from './clipboard-service.ts'
@@ -121,6 +122,7 @@ export interface AppServices {
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly operations: OperationsService
   readonly settings: SettingsService
+  readonly theme: ThemeService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
   readonly indexStore: IndexStoreService
@@ -223,6 +225,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const mobile =
     isMobilePlatform(adapters.platform.appPlatform) || adapters.platform.surface.mobileApp
   const operations = createOperationsService({ clock })
+  const settings = createSettingsService({ ipc, operations })
+  const storage = createWebStorageService({
+    logger,
+    localStorage: adapters.storage.local,
+    sessionStorage: adapters.storage.session,
+  })
   const fileChanges = createFileChangeService(
     { ipc, logger },
     { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
@@ -235,11 +243,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     id: adapters.id ?? createSystemIdService(),
     hash: adapters.hash ?? createWebCryptoHashService(),
     platform,
-    storage: createWebStorageService({
-      logger,
-      localStorage: adapters.storage.local,
-      sessionStorage: adapters.storage.session,
-    }),
+    storage,
     http: adapters.http,
     dialog: adapters.dialog,
     clipboard: adapters.clipboard,
@@ -256,7 +260,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
-    settings: createSettingsService({ ipc, operations }),
+    settings,
+    theme: createThemeService({ settings, storage, platform }),
     database,
     indexStore: createIndexStoreService({ ipc, database }),
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),

@@ -29,6 +29,7 @@ import { defaultWikiResolver } from '../indexing/wiki-resolver-service.ts'
 import { defaultIndexStore } from '../indexing/index-store-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
+import { defaultTheme } from '../settings/theme-service.ts'
 import { createTestAppServices } from '../testing/services.ts'
 import { defaultAgentSkill } from './agent-skill-service.ts'
 import { defaultAppInfo } from './app-info-service.ts'
@@ -83,6 +84,7 @@ describe('installDefaultServices', () => {
     expect(defaultImageCodec()).toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultOperations()).toBe(services.operations)
+    expect(defaultTheme()).toBe(services.theme)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
     expect(defaultIndexStore()).toBe(services.indexStore)
@@ -135,6 +137,7 @@ describe('resetDefaultServices', () => {
     expect(defaultImageCodec()).not.toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultOperations()).not.toBe(services.operations)
+    expect(defaultTheme()).not.toBe(services.theme)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
     expect(defaultIndexStore()).not.toBe(services.indexStore)

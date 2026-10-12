@@ -88,6 +88,7 @@ import {
 } from './shell.ts'
 import { createTestSettingsService, type TestSettingsService } from './settings.ts'
 import { createTestStorageService, type TestStorageService } from './storage.ts'
+import { createTestThemeService, type TestThemeService } from './theme.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
@@ -116,6 +117,7 @@ export interface TestAppServices extends AppServices {
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly operations: TestOperationsService
   readonly settings: TestSettingsService
+  readonly theme: TestThemeService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
   readonly indexStore: TestIndexStoreService
@@ -173,6 +175,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
     settings: createTestSettingsService({}, { operations: overrides?.operations ?? operations }),
+    theme: createTestThemeService(),
     database,
     fileChanges: createTestFileChangeService(),
     indexStore: createTestIndexStoreService(),

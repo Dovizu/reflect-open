@@ -44,6 +44,7 @@ const SERVICE_KEYS = [
   'exceptionTelemetry',
   'operations',
   'settings',
+  'theme',
   'database',
   'fileChanges',
   'indexStore',
