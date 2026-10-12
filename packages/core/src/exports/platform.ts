@@ -45,8 +45,6 @@ export {
   icloudStatus,
   icloudAdoptGraph,
   icloudConflictsScan,
-  mergeText,
-  type MergeTextOutcome,
   icloudWatchStart,
   icloudWatchStop,
   type IcloudDownloadScope,
@@ -57,6 +55,18 @@ export {
   type MobileStorageInfo,
   type MobileStorageKind,
 } from '../ipc/commands.ts'
+export {
+  createICloudNativeService,
+  defaultICloudNative,
+  setDefaultICloudNative,
+  type ICloudNativeService,
+} from '../ipc/icloud-native-service.ts'
+export {
+  createGitRepositoryService,
+  defaultGitRepository,
+  setDefaultGitRepository,
+  type GitRepositoryService,
+} from '../sync/git-repository-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
 export {
   createSystemClock,

@@ -93,6 +93,15 @@ export {
   type WebFetchKind,
 } from './capture.ts'
 export {
+  createTestGitRepositoryService,
+  createTestICloudNativeService,
+  type GitRepositoryCall,
+  type GitRepositoryHandler,
+  type ICloudNativeCall,
+  type TestGitRepositoryService,
+  type TestICloudNativeService,
+} from './sync.ts'
+export {
   createTestAppInfoService,
   createTestSecretStoreService,
   type TestSecretStoreService,
