@@ -38,6 +38,7 @@ import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultNoteSessions } from '../documents/note-session.ts'
 import { defaultNoteMove } from '../documents/note-move-service.ts'
 import { defaultNoteDocuments } from '../documents/note-document-service.ts'
+import { defaultNotePreview } from '../documents/note-preview-service.ts'
 import { defaultTasks } from '../tasks/task-service.ts'
 import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { defaultTitleRename } from '../documents/title-rename-service.ts'
@@ -150,6 +151,7 @@ describe('installDefaultServices', () => {
     expect(defaultNoteMove()).toBe(services.noteMove)
     expect(defaultTitleRename()).toBe(services.titleRename)
     expect(defaultNoteDocuments()).toBe(services.noteDocuments)
+    expect(defaultNotePreview()).toBe(services.notePreview)
     expect(defaultTasks()).toBe(services.tasks)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
@@ -242,6 +244,7 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteMove()).not.toBe(services.noteMove)
     expect(defaultTitleRename()).not.toBe(services.titleRename)
     expect(defaultNoteDocuments()).not.toBe(services.noteDocuments)
+    expect(defaultNotePreview()).not.toBe(services.notePreview)
     expect(defaultTasks()).not.toBe(services.tasks)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)

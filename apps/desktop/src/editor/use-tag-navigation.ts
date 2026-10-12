@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { routeForTag } from '@reflect/core'
 import { useRouter } from '@/routing/router.tsx'
 
 /**
@@ -14,7 +15,7 @@ export function useTagNavigation(): (tag: string) => void {
 
   return useCallback(
     (tag: string) => {
-      navigate({ kind: 'allNotes', tag })
+      navigate(routeForTag(tag))
     },
     [navigate],
   )

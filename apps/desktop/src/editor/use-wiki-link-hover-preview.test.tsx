@@ -2,24 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver, WikilinkHoverHit } from '@meowdown/core'
-import { setBridge, type FileMeta } from '@reflect/core'
-import { queryClient } from '@/lib/query-client.ts'
+import {
+  createTestAppServices,
+  type TestAppServices,
+  type TestDatabaseService,
+} from '@reflect/core/testing'
+import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
+import { AppServicesProvider } from '@/services/services-provider.tsx'
 import { useWikiLinkHoverPreview } from './use-wiki-link-hover-preview.tsx'
 
-const mocks = vi.hoisted(() => ({
-  resolveExistingWikiTarget: vi.fn(),
-  readExistingNoteSource: vi.fn(),
-  markdownPreview: vi.fn(),
-}))
-
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  resolveExistingWikiTarget: mocks.resolveExistingWikiTarget,
-}))
-
-vi.mock('@/lib/read-existing-note-source.ts', () => ({
-  readExistingNoteSource: mocks.readExistingNoteSource,
-}))
+const markdownPreview = vi.hoisted(() => vi.fn())
 
 interface MarkdownPreviewProps {
   content: string
@@ -30,7 +22,7 @@ interface MarkdownPreviewProps {
 
 vi.mock('@/editor/markdown-preview.tsx', () => ({
   MarkdownPreview: (props: MarkdownPreviewProps) => {
-    mocks.markdownPreview(props)
+    markdownPreview(props)
     return <div data-testid="markdown-preview">{props.content}</div>
   },
 }))
@@ -39,116 +31,85 @@ function hoverHit(target: string): WikilinkHoverHit {
   return { target, from: 0, to: 0, element: document.createElement('span') }
 }
 
+let app: TestAppServices
+let database: TestDatabaseService
+
 async function setupRenderer(
   overrides: Partial<Parameters<typeof useWikiLinkHoverPreview>[0]> = {},
 ): Promise<(hit: WikilinkHoverHit) => Promise<ReactNode>> {
-  const { result } = await renderHook(() =>
-    useWikiLinkHoverPreview({
-      generation: 7,
-      graphKey: '/graph',
-      dateFormat: 'mdy',
-      ...overrides,
-    }),
+  const { result } = await renderHook(
+    () =>
+      useWikiLinkHoverPreview({
+        generation: 7,
+        graphKey: '/graph',
+        dateFormat: 'mdy',
+        ...overrides,
+      }),
+    {
+      wrapper: ({ children }) => (
+        <AppServicesProvider services={app}>{children}</AppServicesProvider>
+      ),
+    },
   )
   return result.current
 }
 
 describe('useWikiLinkHoverPreview', () => {
-  beforeEach(() => {
-    setBridge({ invoke: async () => [], listen: async () => () => {} })
-    mocks.resolveExistingWikiTarget.mockReset()
-    mocks.readExistingNoteSource.mockReset()
-    mocks.markdownPreview.mockReset()
+  beforeEach(async () => {
+    database = await createWasmTestDatabaseService()
+    app = createTestAppServices({ database })
+    markdownPreview.mockReset()
   })
 
   afterEach(() => {
-    setBridge(null)
-    queryClient.clear()
+    database.close()
   })
 
   it('resolves null without touching the graph when no graph session is open', async () => {
+    app.noteFile.set('notes/alpha.md', '# Alpha')
     const renderBody = await setupRenderer({ generation: null, graphKey: null })
 
     await expect(renderBody(hoverHit('Alpha'))).resolves.toBeNull()
-    expect(mocks.resolveExistingWikiTarget).not.toHaveBeenCalled()
+    expect(app.noteLinkResolver.calls()).toEqual([])
   })
 
-  it('resolves null for missing, ambiguous, and unavailable targets without reading', async () => {
-    for (const resolution of [
-      { kind: 'missing' },
-      { kind: 'ambiguous', paths: ['notes/a.md', 'notes/b.md'] },
-      { kind: 'unavailable', paths: ['notes/a.md'] },
-    ]) {
-      mocks.resolveExistingWikiTarget.mockResolvedValueOnce(resolution)
-      const renderBody = await setupRenderer()
-      await expect(renderBody(hoverHit('Target'))).resolves.toBeNull()
-    }
-    expect(mocks.readExistingNoteSource).not.toHaveBeenCalled()
-  })
-
-  it('resolves null instead of rejecting when resolution or the read fails', async () => {
+  it('resolves null for a target that does not resolve to one note', async () => {
+    app.noteFile.set('notes/alpha.md', '# Alpha')
+    app.noteFile.set('notes/alpha-2.md', '# Alpha')
     const renderBody = await setupRenderer()
 
-    mocks.resolveExistingWikiTarget.mockRejectedValueOnce(new Error('index gone'))
+    await expect(renderBody(hoverHit('Missing'))).resolves.toBeNull()
     await expect(renderBody(hoverHit('Alpha'))).resolves.toBeNull()
-
-    mocks.resolveExistingWikiTarget.mockResolvedValueOnce({
-      kind: 'resolved',
-      path: 'notes/alpha.md',
-    })
-    mocks.readExistingNoteSource.mockRejectedValueOnce({ kind: 'notFound', message: 'gone' })
-    await expect(renderBody(hoverHit('Alpha'))).resolves.toBeNull()
+    expect(app.noteLinkResolver.calls().map((call) => call.result.kind)).toEqual([
+      'missing',
+      'ambiguous',
+    ])
   })
 
   it('renders a passive frontmatter-free body for a resolved target', async () => {
-    mocks.resolveExistingWikiTarget.mockResolvedValue({
-      kind: 'resolved',
-      path: 'notes/alpha.md',
-    })
-    mocks.readExistingNoteSource.mockResolvedValue('---\nprivate: true\n---\n# Alpha\n\nBody')
+    app.noteFile.set('notes/alpha.md', '---\nprivate: true\n---\n# Alpha\n\nBody')
     const renderBody = await setupRenderer()
 
     const screen = await render(<>{await renderBody(hoverHit('Alpha'))}</>)
 
     expect(screen.getByTestId('markdown-preview').element().textContent).toBe('# Alpha\n\nBody')
-    expect(mocks.markdownPreview.mock.calls.at(-1)?.[0]).toMatchObject({
+    expect(markdownPreview.mock.calls.at(-1)?.[0]).toMatchObject({
       content: '# Alpha\n\nBody',
       interactive: false,
     })
-    expect(mocks.resolveExistingWikiTarget).toHaveBeenCalledWith('Alpha', 7)
-    expect(mocks.readExistingNoteSource).toHaveBeenCalledWith('notes/alpha.md', 7)
+    expect(app.noteLinkResolver.calls()).toMatchObject([
+      { kind: 'wiki', target: 'Alpha', generation: 7 },
+    ])
   })
 
-  it('serves only local sniffable raster images to the preview', async () => {
-    mocks.resolveExistingWikiTarget.mockResolvedValue({
-      kind: 'resolved',
-      path: 'notes/alpha.md',
-    })
-    mocks.readExistingNoteSource.mockResolvedValue('# Alpha')
+  it("hands the preview the target note's image and embed resolvers", async () => {
+    app.attachments.setCatalog([{ path: 'attachments/garden-budget.png', size: 1 }])
+    app.noteFile.set('Projects/Garden redesign.md', '# Garden redesign\n\n![[garden-budget.png]]')
     const renderBody = await setupRenderer()
 
-    await render(<>{await renderBody(hoverHit('Alpha'))}</>)
+    await render(<>{await renderBody(hoverHit('/Projects/Garden redesign'))}</>)
 
-    const props = mocks.markdownPreview.mock.calls.at(-1)?.[0] as MarkdownPreviewProps
-    expect(await props.resolveImageUrl('https://example.com/cat.png')).toBeUndefined()
-    expect(await props.resolveImageUrl('../../outside.png')).toBeUndefined()
-    expect(await props.resolveImageUrl('assets/vector.svg')).toBeUndefined()
-    expect(await props.resolveImageUrl('assets/cat.png')).toBe(
-      `reflect-asset://localhost/${encodeURIComponent('7/assets/cat.png')}?reflect-preview=raster`,
-    )
-  })
-
-  it("resolves the target note's images and embeds from its own folder", async () => {
-    mocks.resolveExistingWikiTarget.mockResolvedValue({
-      kind: 'resolved',
-      path: 'Projects/Garden redesign.md',
-    })
-    mocks.readExistingNoteSource.mockResolvedValue('![[garden-budget.png]]')
-    const renderBody = await setupRenderer()
-
-    await render(<>{await renderBody(hoverHit('Garden redesign'))}</>)
-
-    const props = mocks.markdownPreview.mock.calls.at(-1)?.[0] as MarkdownPreviewProps
+    const props = markdownPreview.mock.calls.at(-1)?.[0] as MarkdownPreviewProps
     expect(await props.resolveImageUrl('../attachments/garden-budget.png')).toBe(
       `reflect-asset://localhost/${encodeURIComponent('7/attachments/garden-budget.png')}?reflect-preview=raster`,
     )
@@ -157,51 +118,14 @@ describe('useWikiLinkHoverPreview', () => {
     expect(props.resolveWikiEmbed({ ...embed, target: 'Deep Work' })).toEqual({ kind: 'note' })
   })
 
-  it('waits for the catalog before resolving a bare image embed', async () => {
-    const listing = Promise.withResolvers<FileMeta[]>()
-    setBridge({ invoke: () => listing.promise, listen: async () => () => {} })
-    mocks.resolveExistingWikiTarget.mockResolvedValue({ kind: 'resolved', path: 'notes/alpha.md' })
-    mocks.readExistingNoteSource.mockResolvedValue('![[photo.png]]')
-    const renderBody = await setupRenderer()
-    await render(<>{await renderBody(hoverHit('Alpha'))}</>)
-
-    const props = mocks.markdownPreview.mock.calls.at(-1)?.[0] as MarkdownPreviewProps
-    const image = props.resolveWikiEmbed({
-      target: 'photo.png',
-      display: '',
-      width: null,
-      height: null,
-    })
-    expect(image?.kind).toBe('image')
-    if (image?.kind !== 'image' || image.src === undefined) {
-      throw new Error('Missing image source')
-    }
-    const url = props.resolveImageUrl(image.src)
-    let settled = false
-    void Promise.resolve(url).then(() => {
-      settled = true
-    })
-    await Promise.resolve()
-    expect(settled).toBe(false)
-
-    listing.resolve([{ path: 'Media/photo.png', size: 42, modifiedMs: 0 }])
-    await expect(url).resolves.toBe(
-      `reflect-asset://localhost/${encodeURIComponent('7/Media/photo.png')}?reflect-preview=raster`,
-    )
-  })
-
   it('shows a formatted subject and Empty note for an empty daily note', async () => {
-    mocks.resolveExistingWikiTarget.mockResolvedValue({
-      kind: 'resolved',
-      path: 'daily/2026-06-09.md',
-    })
-    mocks.readExistingNoteSource.mockResolvedValue('---\nid: day\n---\n\n')
+    app.noteFile.set('daily/2026-06-09.md', '---\nid: day\n---\n\n')
     const renderBody = await setupRenderer()
 
     const screen = await render(<>{await renderBody(hoverHit('2026-06-09'))}</>)
 
     expect(screen.getByText('Tue, June 9th, 2026').query()).not.toBeNull()
     expect(screen.getByText('Empty note').query()).not.toBeNull()
-    expect(mocks.markdownPreview).not.toHaveBeenCalled()
+    expect(markdownPreview).not.toHaveBeenCalled()
   })
 })

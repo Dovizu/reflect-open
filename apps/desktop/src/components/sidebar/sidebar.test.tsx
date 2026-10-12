@@ -18,15 +18,18 @@ import {
   type TestOperationsService,
 } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import type { NoteRoute, Route } from '@/routing/route.ts'
+import type { Route } from '@/routing/route.ts'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
 import { RouterProvider } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+
+const { openNoteWindow } = installTestLinkNavigation()
 
 const getPinnedNotes = vi.hoisted(() => vi.fn<() => Promise<PinnedNote[]>>(async () => []))
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<(route: NoteRoute) => Promise<boolean>>())
 const openRecent = vi.hoisted(() => vi.fn())
 const pickAndOpen = vi.hoisted(() => vi.fn())
 const chooseGraph = vi.hoisted(() => vi.fn())
@@ -55,10 +58,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   getPinnedNotes,
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 vi.mock('@/lib/native-menu/context-menu.ts', () => ({ openNativeContextMenu }))
 
@@ -132,7 +131,6 @@ beforeEach(() => {
   audioMemo.toggle.mockReset()
   opener = createTestOpenerService()
   setDefaultOpener(opener)
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
   openRecent.mockClear()
   pickAndOpen.mockClear()
   chooseGraph.mockClear()
@@ -311,12 +309,14 @@ describe('Sidebar', () => {
     await roadmap.click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/roadmap.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/roadmap.md',
+        }),
+      ),
     )
-    expect(openRouteInNewWindow).toHaveBeenCalledTimes(1)
+    expect(openNoteWindow).toHaveBeenCalledTimes(1)
     await expect.element(roadmap).not.toHaveAttribute('aria-current')
   })
 
