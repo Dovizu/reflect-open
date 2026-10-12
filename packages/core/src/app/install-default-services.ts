@@ -22,6 +22,7 @@ import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
 import { setDefaultPlatform } from './platform-service.ts'
 import { setDefaultStorage } from './storage-service.ts'
+import { setDefaultUpdate } from './update-service.ts'
 import { setDefaultWindow } from './window-service.ts'
 
 /** Point every process-wide `defaultXxx()` at the matching service of `services`. */
@@ -49,6 +50,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
+  setDefaultUpdate(services.update)
   setDefaultIpc(services.ipc)
 }
 
@@ -77,5 +79,6 @@ export function resetDefaultServices(): void {
   setDefaultExceptionTelemetry(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
+  setDefaultUpdate(null)
   setDefaultIpc(null)
 }

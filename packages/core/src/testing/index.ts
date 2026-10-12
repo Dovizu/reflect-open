@@ -112,3 +112,12 @@ export {
   type TestFileChangeService,
   type TestFileChangeServiceOptions,
 } from './file-change.ts'
+export {
+  createTestUpdateService,
+  createTestUpdaterAdapter,
+  type TestUpdateCall,
+  type TestUpdaterAdapter,
+  type TestUpdaterCall,
+  type TestUpdaterOptions,
+  type TestUpdateService,
+} from './update.ts'
