@@ -12,7 +12,6 @@ import { Archive, CalendarClock, List, Search } from 'lucide-react'
 import type { OpenTask, TaskGroup } from '@reflect/core'
 import { Button } from '@/components/ui/button.tsx'
 import { Input } from '@/components/ui/input.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
 import { useRecentlyCompleted } from '@/lib/tasks/recently-completed.ts'
 import { isSameTask, getTaskKey } from '@/lib/tasks/task-identity.ts'
@@ -81,8 +80,7 @@ export function TasksScreen(): ReactElement {
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
-  const bridgeReady = useBridgeReady()
-  const enabled = bridgeReady && graph !== null
+  const enabled = graph !== null
 
   const { data: open, isError: openFailed } = useQuery({
     ...createOpenTasksQueryOptions(graph?.root),

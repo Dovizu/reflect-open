@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { keybindingFor, newNoteRoute } from '@/lib/commands/app-commands.ts'
-import { formatBindingLabel } from '@/lib/keybindings.ts'
 import { useRouter } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 const NEW_NOTE_BINDING = keybindingFor('note.new')
 
@@ -11,6 +11,7 @@ const NEW_NOTE_BINDING = keybindingFor('note.new')
  */
 export function NewNoteButton(): ReactElement {
   const { navigate } = useRouter()
+  const { keymap } = useAppServices()
   return (
     <button
       type="button"
@@ -20,7 +21,7 @@ export function NewNoteButton(): ReactElement {
       New note
       {NEW_NOTE_BINDING !== null ? (
         <span aria-hidden className="rounded bg-white/20 px-1 py-px text-[11px] font-medium">
-          {formatBindingLabel(NEW_NOTE_BINDING)}
+          {keymap.formatLabel(NEW_NOTE_BINDING)}
         </span>
       ) : null}
     </button>

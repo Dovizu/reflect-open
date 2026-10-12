@@ -1,12 +1,11 @@
 import { useDeferredValue, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { parseSearchQuery } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useEmbedStatus } from '@/lib/use-embed-status.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { usePaletteSearchService } from '@/services/use-search-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import type { PaletteSections } from './entries.ts'
 
 /**
@@ -27,7 +26,7 @@ export interface PaletteResults {
 
 export function usePaletteResults(open: boolean, query: string): PaletteResults {
   const { graph } = useGraph()
-  const paletteSearch = usePaletteSearchService()
+  const { paletteSearch } = useAppServices()
   // Hybrid needs both halves of the opt-in: the setting on *and* the model
   // ready. The setting gate makes disabling immediate — the model stays loaded
   // for the session, but its results must not. Plain-text queries blend
@@ -44,8 +43,7 @@ export function usePaletteResults(open: boolean, query: string): PaletteResults 
   // switch the search into constrained mode (Plan 08b); plain text is the same
   // query with empty filters — one search path.
   const parsed = useMemo(() => parseSearchQuery(trimmed), [trimmed])
-  const bridgeReady = useBridgeReady()
-  const searching = open && bridgeReady && graph !== null && !trimmed.startsWith('>')
+  const searching = open && graph !== null && !trimmed.startsWith('>')
   // The generated date suggestions are relative to today, so the calendar day is
   // part of the cache identity — without it a palette cached before midnight
   // would serve a stale "Tomorrow" afterwards. Computed once so the key and the

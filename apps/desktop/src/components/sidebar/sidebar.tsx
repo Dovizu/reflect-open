@@ -9,10 +9,10 @@ import { keybindingFor } from '@/lib/commands/app-commands.ts'
 import { runCommand } from '@/lib/commands/registry.ts'
 import { useToday } from '@/lib/use-today.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import { hasMacosTitleBarOverlay } from '@/lib/window-chrome.ts'
 import { cn } from '@/lib/utils.ts'
 import { notePathForRoute } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { GraphFooter } from './graph-footer.tsx'
 import { NavigateArrows } from './navigate-arrows.tsx'
 import { SidebarItem } from './sidebar-item.tsx'
@@ -35,6 +35,7 @@ interface SidebarProps {
  * `Mod-\` via the command registry.)
  */
 export function Sidebar({ graph, context }: SidebarProps): ReactElement {
+  const { platform } = useAppServices()
   const { route } = useRouter()
   const today = useToday()
   const pinned = usePinnedNotes()
@@ -52,7 +53,7 @@ export function Sidebar({ graph, context }: SidebarProps): ReactElement {
         'flex h-full min-h-0 flex-col',
         // With the overlaid macOS title bar, the traffic lights and the
         // WindowDragRegion strip own the top 28px — start content below them.
-        hasMacosTitleBarOverlay() ? 'pt-2' : 'pt-2.5',
+        platform.hasMacosTitleBarOverlay ? 'pt-2' : 'pt-2.5',
       )}
     >
       <div className="flex flex-none items-center justify-end px-2 pt-1">
