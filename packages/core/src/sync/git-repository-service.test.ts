@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { setBridge } from '../ipc/bridge.ts'
 import { createTestIpcBridgeService, installTestBridge } from '../testing/ipc.ts'
 import { createTestGitRepositoryService } from '../testing/sync.ts'
-import { gitPush } from './commands.ts'
 import {
   createGitRepositoryService,
   defaultGitRepository,
@@ -78,12 +77,14 @@ describe('defaultGitRepository', () => {
     await expect(service.status(1)).resolves.toEqual(STATUS)
   })
 
-  it('backs the free functions and can be replaced', async () => {
+  it('can be replaced', async () => {
     const git = createTestGitRepositoryService()
     git.onPush(() => ({ pushed: false, nonFastForward: true, rejectionMessage: 'fetch first' }))
     setDefaultGitRepository(git)
 
-    await expect(gitPush(CRED, 2)).resolves.toMatchObject({ nonFastForward: true })
+    await expect(defaultGitRepository().push(CRED, 2)).resolves.toMatchObject({
+      nonFastForward: true,
+    })
     expect(git.calls()).toEqual([{ method: 'push', args: [CRED, 2] }])
   })
 })

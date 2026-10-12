@@ -72,6 +72,8 @@ import {
 } from '../sync/git-host-credential-service.ts'
 import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
 import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
+import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
+import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
@@ -287,6 +289,10 @@ export interface AppServices {
   readonly gitHostCredentials: GitHostCredentialService
   readonly githubRepos: GithubRepoService
   readonly gists: GistService
+  /** Builds the sync engine of one graph session. */
+  readonly syncEngines: SyncEngineFactory
+  /** Builds the backup lifecycle of one (graph, index session) pair. */
+  readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
@@ -561,6 +567,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage,
     logger,
   })
+  const persistenceFlush = createPersistenceFlushService({
+    lifecycle,
+    window: windowService,
+    platform,
+    settings,
+    logger,
+  })
+  const gitRepository = createGitRepositoryService({ ipc })
+  const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
+  const gitHostCredentials = createGitHostCredentialService({ secretStore })
+  const githubRepos = createGithubRepoService({ http: adapters.http })
+  const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
   const retrieval = createRetrievalService({
     database,
@@ -602,13 +620,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     operations,
     settings,
     theme: createThemeService({ settings, storage, platform }),
-    persistenceFlush: createPersistenceFlushService({
-      lifecycle,
-      window: windowService,
-      platform,
-      settings,
-      logger,
-    }),
+    persistenceFlush,
     database,
     indexStore,
     embeddingRuntime,
@@ -632,10 +644,25 @@ export function createAppServices(adapters: AppAdapters): AppServices {
           window: windowService,
         })
       : createUnsupportedUpdateService(),
-    gitRepository: createGitRepositoryService({ ipc }),
-    githubAuth: createGithubAuthService({ secretStore, http: adapters.http, clock }),
-    gitHostCredentials: createGitHostCredentialService({ secretStore }),
-    githubRepos: createGithubRepoService({ http: adapters.http }),
+    gitRepository,
+    githubAuth,
+    gitHostCredentials,
+    githubRepos,
+    syncEngines,
+    backups: createBackupServiceFactory({
+      git: gitRepository,
+      syncEngines,
+      githubAuth,
+      githubRepos,
+      gitHostCredentials,
+      fileChanges,
+      indexLifecycle,
+      operations,
+      lifecycle,
+      platform,
+      persistenceFlush,
+      logger,
+    }),
     gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox,
