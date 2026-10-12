@@ -20,6 +20,7 @@ import { createBrowserDialogService } from '@/services/browser-dialog.ts'
 import { createBrowserOpenerTransport } from '@/services/browser-opener.ts'
 import { createBrowserImageCodec } from '@/services/browser-image-codec.ts'
 import { createDomLifecycleAdapter } from '@/services/dom-lifecycle.ts'
+import { createTauriDeepLinkSource } from '@/services/tauri-deep-link.ts'
 import { createTauriDialogService } from '@/services/tauri-dialog.ts'
 import { createTauriHttpService } from '@/services/tauri-http.ts'
 import { createTauriOpenerTransport } from '@/services/tauri-opener.ts'
@@ -60,6 +61,7 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): App
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
       updater: createTauriUpdaterAdapter(),
+      deepLink: createTauriDeepLinkSource(),
       convertFileSrc,
     }
   }
