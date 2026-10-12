@@ -195,7 +195,10 @@ describe('createFileChangeService', () => {
   it('tears down the native listener after the last unsubscribe and re-registers on the next', async () => {
     const { ipc, fileChanges } = setup()
     const listen = vi.spyOn(ipc, 'listen')
-    const listener = vi.fn()
+    const paths: string[] = []
+    const listener = (batch: FileChangeBatch): void => {
+      paths.push(...batch.changes.map((change) => change.path))
+    }
     const unlistenFirst = fileChanges.subscribe(listener)
     const unlistenSecond = fileChanges.subscribe(listener)
     await settle()
@@ -209,10 +212,7 @@ describe('createFileChangeService', () => {
     ipc.emit('index:changed', [{ path: 'notes/c.md', kind: 'upsert' }])
 
     expect(listen).toHaveBeenCalledTimes(2)
-    expect(listener.mock.calls.map(([batch]) => batch.changes[0]!.path)).toEqual([
-      'notes/a.md',
-      'notes/c.md',
-    ])
+    expect(paths).toEqual(['notes/a.md', 'notes/c.md'])
     unlistenThird()
   })
 
