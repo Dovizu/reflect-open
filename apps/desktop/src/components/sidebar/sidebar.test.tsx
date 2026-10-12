@@ -23,6 +23,7 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
 import { RouterProvider } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
+import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
 
 const getPinnedNotes = vi.hoisted(() => vi.fn<() => Promise<PinnedNote[]>>(async () => []))
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<(route: NoteRoute) => Promise<boolean>>())
@@ -43,11 +44,9 @@ const openNativeContextMenu = vi.hoisted(() =>
     options.items[0]?.action()
   }),
 )
-const commitNoteFrontmatter = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('@/lib/note-frontmatter.ts', () => ({
-  commitNoteFrontmatter,
-  readNoteSource: async () => '# Rust\n',
-}))
+const { commitFrontmatter: commitNoteFrontmatter } = installTestNoteDocuments({
+  source: '# Rust\n',
+})
 const updateSettingsWith = vi.hoisted(() =>
   vi.fn<(updater: (current: Settings) => Partial<Settings>) => void>(),
 )
@@ -139,7 +138,6 @@ beforeEach(() => {
   chooseGraph.mockClear()
   updateSettingsWith.mockClear()
   openNativeContextMenu.mockClear()
-  commitNoteFrontmatter.mockClear()
 })
 
 afterEach(() => {

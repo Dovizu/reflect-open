@@ -73,9 +73,20 @@ export {
   type TestNote,
 } from './database.ts'
 export {
+  createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
+  createTestRetrievalService,
+  createTestSemanticSearchService,
+  type TestEmbeddingApply,
+  type TestEmbeddingIndexService,
+  type TestEmbeddingIndexServiceOptions,
+  type TestEmbeddingRemove,
   type TestEmbeddingRuntimeService,
   type TestEmbeddingRuntimeServiceOptions,
+  type TestRetrievalService,
+  type TestRetrievalServiceOptions,
+  type TestSemanticSearchService,
+  type TestSemanticSearchServiceOptions,
 } from './embeddings.ts'
 export {
   createTestChatHistoryService,
@@ -266,16 +277,24 @@ export {
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
 export {
+  createTestNoteActionsService,
   createTestNoteDocumentService,
   createTestNoteSession,
   createTestNoteSessionService,
   createTestOpenDocumentsService,
   type NoteSessionCall,
+  type TestNoteActionsService,
+  type TestNoteActionsServiceOptions,
   type TestNoteDocumentServiceOptions,
   type TestNoteSession,
   type TestNoteSessionOptions,
   type TestNoteSessionService,
   type TestNoteSessionServiceOptions,
+  createTestNoteMoveService,
+  createTestTitleRenameService,
+  type TestNoteMoveService,
+  type TestTitleRenameService,
+  type TestTitleRenameServiceOptions,
 } from './documents.ts'
 export {
   createTestAppStoreEnvironmentService,

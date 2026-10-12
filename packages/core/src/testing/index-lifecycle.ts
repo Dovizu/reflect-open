@@ -4,7 +4,8 @@ import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
-import type { FileChangeService } from '../indexing/file-change-service.ts'
+import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
+import { emitIndexApplied } from '../indexing/index-applied.ts'
 import {
   createIndexLifecycleService,
   type IndexFileProgress,
@@ -42,6 +43,11 @@ export interface TestIndexLifecycleService extends IndexLifecycleService {
   setFileProgress: (progress: IndexFileProgress | null) => void
   /** The generation of every `rebuildVisibly` request, in order. */
   rebuilds: () => readonly number[]
+  /**
+   * Report `changes` as applied at `generation`, as an applied watcher batch
+   * does. The signal is process-wide: every lifecycle's listeners receive it.
+   */
+  emitChangesApplied: (changes: readonly FileChange[], generation: number) => void
 }
 
 /** The real {@link IndexLifecycleService} over test doubles, plus seeding and a rebuild log. */
@@ -90,5 +96,6 @@ export function createTestIndexLifecycleService(
       }
     },
     rebuilds: () => [...rebuildLog],
+    emitChangesApplied: emitIndexApplied,
   }
 }

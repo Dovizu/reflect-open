@@ -2,7 +2,12 @@ import { defaultOperations, type OperationsService } from '../app/operations-ser
 import { errorMessage } from '../errors.ts'
 import { getBridge, hasBridge, type IpcBridge } from '../ipc/bridge.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultFileChanges, type FileChangeService } from './file-change-service.ts'
+import {
+  defaultFileChanges,
+  type FileChange,
+  type FileChangeService,
+} from './file-change-service.ts'
+import { subscribeIndexApplied } from './index-applied.ts'
 import { createNoteIndexer, defaultIndexingDeps, type IndexingDeps } from './indexer.ts'
 import { createLiveIndex } from './live.ts'
 
@@ -35,6 +40,14 @@ export interface IndexAppliedEvent {
    * commits: the pass reports no per-file list, so any row may have changed.
    */
   readonly paths: readonly string[] | null
+}
+
+/** One batch of file changes was applied to the index at `generation`. */
+export interface IndexChangesAppliedEvent {
+  /** The index generation the batch was applied at. */
+  readonly generation: number
+  /** The full batch: note changes and asset-file changes, each with its kind. */
+  readonly changes: readonly FileChange[]
 }
 
 /** A whole-graph pass ran to completion at `generation`. */
@@ -142,6 +155,15 @@ export interface IndexLifecycleService {
    */
   onApplied: (listener: (event: IndexAppliedEvent) => void) => Unlisten
   /**
+   * Listen for every batch of file changes after the index applied it: each
+   * watcher batch (notes and asset files, even when no row changed) and the
+   * notes that an asset description write re-indexed. A sync pass reports no
+   * batch. The event carries each change's kind, so a follower can tell a
+   * removed note from a changed one; it must drop events of a `generation`
+   * other than its own.
+   */
+  onChangesApplied: (listener: (event: IndexChangesAppliedEvent) => void) => Unlisten
+  /**
    * Listen for whole-graph passes that ran to completion. A sync pass reports
    * right after its {@link IndexLifecycleService.onApplied}; one that was
    * aborted, superseded, or suspended never reports. The pass reads changed
@@ -198,6 +220,14 @@ export interface IndexLifecycleService {
    * generation gate drops the superseded pass's writes anyway.
    */
   rebuildVisibly: (generation: number) => Promise<void>
+  /**
+   * Read, parse, and index one note now, without waiting for the watcher. For
+   * an in-app write whose row must be readable at once.
+   */
+  indexNote: (
+    path: string,
+    options: { generation: number; content?: string | undefined; mtime?: number | undefined },
+  ) => Promise<void>
 }
 
 /** The services an {@link IndexLifecycleService} runs on. */
@@ -524,6 +554,10 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     },
     onProgress: (listener) => attach(progressListeners, listener),
     onApplied: (listener) => attach(appliedListeners, listener),
+    onChangesApplied: (listener) =>
+      subscribeIndexApplied((changes, generation) => {
+        listener({ generation, changes })
+      }),
     onReconciled: (listener) => attach(reconciledListeners, listener),
     onMoved: (listener) => attach(movedListeners, listener),
     onFileProgress: (listener) => attach(fileProgressListeners, listener),
@@ -531,6 +565,9 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     fileProgress: () => currentFileProgress,
     subscribeFileProgress: (listener) => attach(fileProgressStoreListeners, listener),
     rebuildVisibly,
+    indexNote: async (path, options) => {
+      await indexer.indexNote(path, options)
+    },
   }
 }
 

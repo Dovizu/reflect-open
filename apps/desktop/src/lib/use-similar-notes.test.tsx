@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
-import type { EmbedStatus, RetrievalHit } from '@reflect/core'
+import { setDefaultRetrieval, type EmbedStatus, type RetrievalHit } from '@reflect/core'
+import { createTestRetrievalService } from '@reflect/core/testing'
 import { queryKeys } from './query-client.ts'
 import { useSimilarNotes } from './use-similar-notes.ts'
 import { installTestNoteFile } from '@/test-utils/note-file.ts'
@@ -11,7 +12,6 @@ const relatedNotes = vi.hoisted(() => vi.fn())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-  relatedNotes,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
@@ -43,6 +43,11 @@ beforeEach(() => {
   embedState.status = { status: 'uninitialized' }
   noteFile.read().mockResolvedValue('- real entry\n')
   relatedNotes.mockReset().mockResolvedValue([hit('notes/a.md'), hit('notes/b.md')])
+  setDefaultRetrieval(createTestRetrievalService({ relatedNotes }))
+})
+
+afterEach(() => {
+  setDefaultRetrieval(null)
 })
 
 describe('useSimilarNotes', () => {

@@ -1,0 +1,189 @@
+import { z } from 'zod'
+import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import { defaultIndexStore, type IndexStoreService } from '../indexing/index-store-service.ts'
+import { currentIpc } from '../ipc/bridge.ts'
+import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
+import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
+
+/** Event name the Rust move commands emit after their rows commit. */
+export const NOTE_MOVED_EVENT = 'note:moved'
+
+const noteMovedSchema = z.object({ from: z.string(), to: z.string() })
+
+/** Hears a landed note move (graph-relative `from` → `to` paths). */
+export type NoteMovedListener = (from: string, to: string) => void
+
+/**
+ * Note file moves (`docs/readable-filenames.md`): the move itself, and the
+ * fan-out that tells the rest of the app a note now lives somewhere else. The
+ * rename pipeline and the id-healing path announce here after a move lands;
+ * the router rewrites its history entries so the current route (and
+ * back/forward) follow the file, and the owning pane adopts its retargeted
+ * session instead of reloading. App-global, like the open-documents service,
+ * because a move can settle from teardown or quit paths where no pane is
+ * mounted.
+ */
+export interface NoteMoveService {
+  /**
+   * Move a note's file + projection, carrying any live editor session along
+   * (Plan 17). Ordering is the mechanism: flush, retarget the session (so any
+   * later save writes the *new* path), re-key the open-documents registry, then
+   * move file + index rows in one Rust transaction. A failure — including an
+   * occupied destination, which Rust always refuses — undoes exactly what was
+   * done: the session retargets back only if one was carried, and the registry
+   * re-key is identity-guarded so it can never grab a different pane's
+   * document; then it rethrows. On success every subscriber (the router's
+   * history rewrite, adopting panes) hears about it. Shared by the rename
+   * pipeline and the 17c migration.
+   *
+   * Retarget-before-move is deliberate. A save can only land mid-move if the
+   * user edits inside the single IPC round-trip that follows a flush behind a
+   * 5s save-quiet gate (the debounce alone is 800ms — orders of magnitude
+   * wider than the window). If that ever happens, the write lands at the
+   * destination — where the note is about to live — and the refused move
+   * leaves at worst an orphan copy the duplicate-id surface flags. The
+   * alternative order (retarget after) fails worse: the same race would
+   * resurrect the *old* path holding the newest bytes while the index points
+   * at the new one. See the plan's risk log (decided 2026-06-11).
+   */
+  moveNote(from: string, to: string, generation: number): Promise<void>
+  /**
+   * Follow a move the index healed by id (Plan 17): an external rename —
+   * Finder, Obsidian, a sync pull — already relocated the file, and the
+   * reconcile/watcher just moved the rows to match. Carry any live session to
+   * the new path and announce, so the route, history, and open pane follow the
+   * file exactly as for an in-app rename. No flush and no compensation: the
+   * move already happened; this only updates what points at it — and without
+   * it, an open pane's next save would resurrect the dead path.
+   */
+  followHealedMove(this: void, from: string, to: string): void
+  /** Subscribe to landed note moves; returns the unsubscribe. */
+  onMoved(listener: NoteMovedListener): Unlisten
+  /**
+   * Follow the Rust-side "note rows moved" broadcast (`note:moved`), emitted
+   * after a rename lands (`note_move_indexed`) or an external move is healed
+   * by id (`index_move`), with {@link NoteMoveService.followHealedMove}. The
+   * cross-window sibling of the in-process hook: a secondary note window with
+   * the note open must retarget its session too, or its next save would
+   * resurrect the dead file at the old path. The origin window also followed
+   * in-process; the echo is idempotent.
+   */
+  followNativeMoves(): Promise<Unlisten>
+}
+
+export interface NoteMoveServiceDeps {
+  ipc: Pick<IpcBridgeService, 'listen'>
+  indexStore: Pick<IndexStoreService, 'moveIndexed'>
+  openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
+  logger: Pick<LoggerService, 'error'>
+}
+
+export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveService {
+  const { ipc, indexStore, openDocuments, logger } = deps
+  const listeners = new Set<NoteMovedListener>()
+
+  /**
+   * Announce a landed move to every subscriber. Listeners are isolated: the
+   * emit runs inside the rename pipeline's success path, and a throwing
+   * subscriber must not get reported as a failed move (the move already
+   * landed).
+   */
+  function emitMoved(from: string, to: string): void {
+    for (const listener of listeners) {
+      try {
+        listener(from, to)
+      } catch (cause) {
+        logger.error('note-moved listener failed:', cause)
+      }
+    }
+  }
+
+  function followHealedMove(from: string, to: string): void {
+    const owner = openDocuments.sessionFor(from)
+    if (owner !== null) {
+      owner.retarget(to)
+      openDocuments.retarget(from, to, owner)
+    }
+    emitMoved(from, to)
+  }
+
+  return {
+    async moveNote(from, to, generation) {
+      const owner = openDocuments.sessionFor(from)
+      if (owner !== null) {
+        await owner.flush()
+        owner.retarget(to)
+        openDocuments.retarget(from, to, owner)
+      }
+      try {
+        await indexStore.moveIndexed(from, to, generation)
+      } catch (cause) {
+        if (owner !== null) {
+          owner.retarget(from)
+          openDocuments.retarget(to, from, owner)
+        }
+        throw cause
+      }
+      emitMoved(from, to)
+    },
+    followHealedMove,
+    onMoved(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    followNativeMoves() {
+      return ipc.listen(NOTE_MOVED_EVENT, (payload) => {
+        const parsed = noteMovedSchema.safeParse(payload)
+        if (parsed.success) {
+          followHealedMove(parsed.data.from, parsed.data.to)
+        } else {
+          // Contract drift between Rust and TS must be loud — a silently dropped
+          // move leaves an open editor writing to a dead path.
+          logger.error('invalid note:moved payload:', parsed.error)
+        }
+      })
+    },
+  }
+}
+
+let installedService: NoteMoveService | null = null
+let fallback: NoteMoveService | null = null
+
+/**
+ * The process-wide `NoteMoveService`. Unless {@link setDefaultNoteMove}
+ * installed another, it is one lazily created service that reads the default
+ * IPC bridge, index store, open documents and logger at call time, so its
+ * subscribers survive a replaced default.
+ */
+export function defaultNoteMove(): NoteMoveService {
+  if (installedService !== null) {
+    return installedService
+  }
+  fallback ??= createNoteMoveService({
+    ipc: currentIpc(),
+    indexStore: {
+      moveIndexed: async (from, to, fileGeneration) => {
+        await defaultIndexStore().moveIndexed(from, to, fileGeneration)
+      },
+    },
+    openDocuments: {
+      sessionFor: (path) => defaultOpenDocuments().sessionFor(path),
+      retarget: (from, to, session) => {
+        defaultOpenDocuments().retarget(from, to, session)
+      },
+    },
+    logger: {
+      error: (message, cause) => {
+        defaultLogger().error(message, cause)
+      },
+    },
+  })
+  return fallback
+}
+
+/** Install the process-wide `NoteMoveService`; `null` restores the lazily created one. */
+export function setDefaultNoteMove(service: NoteMoveService | null): void {
+  installedService = service
+}
