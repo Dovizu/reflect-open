@@ -1,34 +1,40 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import {
-  getAppStoreEnvironment,
-  presentOfferCodeRedeemSheet,
-  syncAppStore,
-} from './app-store-plugin.ts'
-import { setBridge } from './bridge.ts'
+import { describe, expect, it } from 'vitest'
+import { createTestIpcBridgeService } from '../testing/ipc.ts'
+import { createAppStoreService } from './app-store-plugin.ts'
 
-afterEach(() => {
-  setBridge(null)
-})
+describe('AppStoreService', () => {
+  it('environment unwraps the environment field', async () => {
+    const ipc = createTestIpcBridgeService()
+    ipc.onCommand('plugin:app-store|get_environment', () => ({ environment: 'Sandbox' }))
+    await expect(createAppStoreService({ ipc }).environment()).resolves.toBe('Sandbox')
+    expect(ipc.calls()).toEqual([{ command: 'plugin:app-store|get_environment', args: {} }])
+  })
 
-describe('app-store plugin bindings', () => {
-  it('get_environment unwraps the environment field', async () => {
-    const invoke = vi.fn().mockResolvedValue({ environment: 'Sandbox' })
-    setBridge({ invoke, listen: async () => () => {} })
-    await expect(getAppStoreEnvironment()).resolves.toBe('Sandbox')
-    expect(invoke).toHaveBeenCalledWith('plugin:app-store|get_environment', {})
+  it('environment rejects when the probe cannot answer', async () => {
+    const ipc = createTestIpcBridgeService()
+    ipc.onCommand('plugin:app-store|get_environment', () => {
+      throw new Error('no app transaction')
+    })
+    await expect(createAppStoreService({ ipc }).environment()).rejects.toMatchObject({
+      kind: 'unknown',
+    })
   })
 
   it('sync invokes the command with no arguments', async () => {
-    const invoke = vi.fn().mockResolvedValue(null)
-    setBridge({ invoke, listen: async () => () => {} })
-    await expect(syncAppStore()).resolves.toBeUndefined()
-    expect(invoke).toHaveBeenCalledWith('plugin:app-store|sync', {})
+    const ipc = createTestIpcBridgeService()
+    ipc.onCommand('plugin:app-store|sync', () => null)
+    await expect(createAppStoreService({ ipc }).sync()).resolves.toBeUndefined()
+    expect(ipc.calls()).toEqual([{ command: 'plugin:app-store|sync', args: {} }])
   })
 
-  it('present_offer_code_redeem_sheet invokes the command with no arguments', async () => {
-    const invoke = vi.fn().mockResolvedValue(null)
-    setBridge({ invoke, listen: async () => () => {} })
-    await expect(presentOfferCodeRedeemSheet()).resolves.toBeUndefined()
-    expect(invoke).toHaveBeenCalledWith('plugin:app-store|present_offer_code_redeem_sheet', {})
+  it('presentOfferCodeRedeemSheet invokes the command with no arguments', async () => {
+    const ipc = createTestIpcBridgeService()
+    ipc.onCommand('plugin:app-store|present_offer_code_redeem_sheet', () => null)
+    await expect(
+      createAppStoreService({ ipc }).presentOfferCodeRedeemSheet(),
+    ).resolves.toBeUndefined()
+    expect(ipc.calls()).toEqual([
+      { command: 'plugin:app-store|present_offer_code_redeem_sheet', args: {} },
+    ])
   })
 })

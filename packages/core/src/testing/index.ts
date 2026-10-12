@@ -81,3 +81,19 @@ export {
   createTestSecretStoreService,
   type TestSecretStoreService,
 } from './secrets.ts'
+export {
+  createTestAppStoreService,
+  createTestHapticsService,
+  createTestIapService,
+  createTestWebAuthService,
+  type AppStoreCall,
+  type TestAppStoreService,
+  type TestHapticsService,
+  type TestIapService,
+  type TestWebAuthService,
+} from './plugins.ts'
+export {
+  createTestAudioRecorderService,
+  type AudioRecorderCall,
+  type TestAudioRecorderService,
+} from './audio-recorder.ts'

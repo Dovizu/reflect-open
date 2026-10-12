@@ -1,7 +1,9 @@
 import { act } from 'react'
 import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultHaptics } from '@reflect/core'
+import { createTestHapticsService, type TestHapticsService } from '@reflect/core/testing'
 import {
   clearFormattingToolbar,
   publishFormattingToolbar,
@@ -11,7 +13,17 @@ import { pickFiles } from '@/lib/pick-files.ts'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { MobileFormattingToolbar } from './formatting-toolbar.tsx'
 
-vi.mock('@/mobile/haptics.ts', () => ({ hapticImpactLight: vi.fn() }))
+let haptics: TestHapticsService
+
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
+
 vi.mock('@/lib/pick-files.ts', () => ({ pickFiles: vi.fn(async () => []) }))
 
 function makeToolbar(

@@ -1,8 +1,18 @@
 import { act, useState, type ReactElement, type ReactNode } from 'react'
 import { cleanup, renderHook } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { audioMemoIdentity, audioMemoPartPath, setBridge, setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import {
+  audioMemoIdentity,
+  audioMemoPartPath,
+  setBridge,
+  setDefaultPlatform,
+  setDefaultHaptics,
+} from '@reflect/core'
+import {
+  createTestPlatformService,
+  createTestHapticsService,
+  type TestHapticsService,
+} from '@reflect/core/testing'
 import type {
   AiProvidersState,
   AudioMemoIdentity,
@@ -12,6 +22,17 @@ import type {
   Settings,
 } from '@reflect/core'
 import type { NativeRecordingPart } from '@/mobile/use-native-audio-recorder.ts'
+
+let haptics: TestHapticsService
+
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
 
 const captureAudioMemoPart = vi.hoisted(() =>
   vi.fn<(input: CaptureAudioMemoPartInput) => Promise<CaptureAudioMemoOutcome>>(),
@@ -106,10 +127,6 @@ vi.mock('@/lib/operations.ts', () => ({
     done: vi.fn(),
     fail: failOperation,
   }),
-}))
-
-vi.mock('@/mobile/haptics.ts', () => ({
-  hapticImpactLight: vi.fn(),
 }))
 
 vi.mock('@/mobile/use-native-audio-recorder.ts', () => ({
