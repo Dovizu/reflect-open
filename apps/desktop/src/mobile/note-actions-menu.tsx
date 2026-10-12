@@ -27,7 +27,7 @@ interface NoteActionsMenuProps {
  * both updated in the shared query cache while the index catches up. {@link shareNote} hands the note's body to the OS share sheet via
  * the Web Share API (`navigator.share`); delete confirms first (it's
  * destructive, even if recoverable from `.reflect/trash/`) and routes through
- * {@link deleteOpenNote} so the open session is discarded rather than flushed.
+ * `NoteActionsService.trashOne` so the open session is discarded rather than flushed.
  */
 export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): ReactElement {
   const { graph } = useGraph()

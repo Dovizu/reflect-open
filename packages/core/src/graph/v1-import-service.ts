@@ -3,7 +3,7 @@ import type { ClockService } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
-import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
+import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
 import type { GraphSessionService } from './graph-session-service.ts'
 import {
   graphImportProgressSchema,
@@ -93,15 +93,21 @@ export function createV1ImportService(deps: V1ImportServiceDeps): V1ImportServic
   }
 
   /** Live progress ticks of the running import. */
-  function subscribeProgress(handler: (progress: GraphImportProgress) => void): Promise<Unlisten> {
-    return ipc.listen(IMPORT_PROGRESS_EVENT, (payload) => {
-      const parsed = graphImportProgressSchema.safeParse(payload)
-      if (parsed.success) {
-        handler(parsed.data)
-      } else {
-        logger.error('invalid import:progress payload:', parsed.error)
-      }
-    })
+  function subscribeProgress(handler: (progress: GraphImportProgress) => void): Unlisten {
+    return listenNow(
+      () =>
+        ipc.listen(IMPORT_PROGRESS_EVENT, (payload) => {
+          const parsed = graphImportProgressSchema.safeParse(payload)
+          if (parsed.success) {
+            handler(parsed.data)
+          } else {
+            logger.error('invalid import:progress payload:', parsed.error)
+          }
+        }),
+      (cause) => {
+        logger.warn(`failed to listen for "${IMPORT_PROGRESS_EVENT}"`, cause)
+      },
+    )
   }
 
   /** Cancel the running import (a no-op when none runs); the pending import call rejects. */
@@ -130,7 +136,7 @@ export function createV1ImportService(deps: V1ImportServiceDeps): V1ImportServic
     running = true
     cancelRequested = false
     setState({ phase: 'running', progress: null, cancelling: false })
-    const unlistenPromise = subscribeProgress((progress) => {
+    const unlisten = subscribeProgress((progress) => {
       if (state.phase === 'running') {
         setState({ ...state, progress })
       }
@@ -163,7 +169,7 @@ export function createV1ImportService(deps: V1ImportServiceDeps): V1ImportServic
         )
       } finally {
         running = false
-        void unlistenPromise.then((unlisten) => unlisten()).catch(() => {})
+        unlisten()
       }
     })()
   }

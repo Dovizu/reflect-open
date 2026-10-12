@@ -12,6 +12,8 @@ type CommandHandler = (args: Record<string, unknown>) => unknown
 type BinaryCommandHandler = (body: Uint8Array, headers: Record<string, string>) => unknown
 
 export interface TestIpcBridgeService extends IpcBridgeService {
+  /** The in-memory transport the service wraps. */
+  readonly transport: IpcBridge
   onCommand(command: string, handler: (args: Record<string, unknown>) => unknown): void
   onBinaryCommand(
     command: string,

@@ -7,6 +7,7 @@ import { contactDetailsMarkdown } from '../contacts/markdown.ts'
 import type { PersonContactResolution, PersonNoteService } from '../contacts/person-note-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
+import { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
 import { aliasHint } from '../indexing/suggest.ts'
 import type { SuggestionService } from '../indexing/suggestion-service.ts'
 import { formatDayLabel } from '../lib/date-labels.ts'
@@ -77,11 +78,7 @@ export function createWikiLinkSuggestionService(
    * collision prevents proving uniqueness. Creation may not guess then.
    */
   function reportAmbiguousNoteTitle(title: string): void {
-    operations
-      .start('Creating note')
-      .fail(
-        `Couldn’t safely choose one note matching “${title}”. Rename conflicting notes or wait for unavailable notes to become available, then try again.`,
-      )
+    operations.start('Creating note').fail(ambiguousNoteTitleMessage(title))
   }
 
   function reportUnavailableNoteTitle(title: string): void {

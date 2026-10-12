@@ -52,10 +52,6 @@ export {
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
 export { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
-export {
-  createGitHostCredentialService,
-  type GitHostCredentialService,
-} from '../sync/git-host-credential-service.ts'
 export { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
 export { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
 export {

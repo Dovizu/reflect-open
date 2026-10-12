@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/dialog.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
-import { deleteOpenNote } from '@/lib/note-delete.ts'
 import { createTemplatesQueryOptions } from '@/lib/query-options.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useNoteTemplates } from '@/providers/note-templates-provider.tsx'
@@ -191,7 +190,7 @@ function TemplateDeleteDialog({ template, onClose }: TemplateDialogProps): React
     const operation = operations.start('Trashing template')
     setError(null)
     try {
-      await deleteOpenNote({ noteActions }, template.path, generation)
+      await noteActions.trashOne(template.path, generation)
       operation.done()
       onClose()
     } catch (cause) {

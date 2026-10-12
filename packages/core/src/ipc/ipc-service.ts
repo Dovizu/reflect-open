@@ -102,12 +102,8 @@ export interface IpcBridgeService {
     schema: ZodType<Payload, unknown>,
     handler: (payload: Payload) => void,
   ): PluginSubscription
-  /** The raw transport this service wraps. */
-  readonly transport: IpcBridge
   /** True when the transport can carry raw binary bodies. */
   readonly hasBinaryTransport: boolean
-  /** True when the transport can deliver plugin events. */
-  readonly hasPluginEvents: boolean
 }
 
 interface SharedListener<Payload> {
@@ -236,9 +232,7 @@ export function createIpcBridgeService(
       }
     },
 
-    transport,
     hasBinaryTransport: transport.invokeBinary !== undefined,
-    hasPluginEvents: transport.listenPlugin !== undefined,
   }
 }
 

@@ -34,6 +34,14 @@ export function parseGithubRemote(url: string): GithubRepoRef | null {
   return { owner: match[1]!, name: match[2]! }
 }
 
+/** The host of an HTTPS remote URL (lowercase, with any port), else `null`. */
+export function remoteHost(remoteUrl: string): string | null {
+  const match = /^https?:\/\/([^/@]+@)?([^/]+)\//i.exec(
+    remoteUrl.endsWith('/') ? remoteUrl : `${remoteUrl}/`,
+  )
+  return match === null ? null : match[2]!.toLowerCase()
+}
+
 /** The canonical HTTPS remote URL for a repo (token never embedded). */
 export function githubRemoteUrl(ref: GithubRepoRef): string {
   return `https://github.com/${ref.owner}/${ref.name}.git`

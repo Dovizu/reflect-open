@@ -48,13 +48,8 @@ import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
 import type { PrivacyService } from '../privacy/privacy-service.ts'
 import { createTestPrivacyService } from './privacy.ts'
-import {
-  createGitHostCredentialService,
-  type GitHostCredentialService,
-} from '../sync/git-host-credential-service.ts'
 import type {
   CommitOutcome,
-  GitCredential,
   GitRepositoryService,
   GitStatus,
   MergeOutcome,
@@ -378,26 +373,6 @@ export function createTestGithubAuthService(
   }
 }
 
-/**
- * The real {@link GitHostCredentialService} over an in-memory keychain that
- * holds one sign-in per host of `credentials`. `credentials` is ignored when
- * `secretStore` is given.
- */
-export function createTestGitHostCredentialService(options?: {
-  credentials?: Record<string, GitCredential>
-  secretStore?: SecretStoreService
-}): GitHostCredentialService {
-  const secrets = Object.fromEntries(
-    Object.entries(options?.credentials ?? {}).map(([host, credential]) => [
-      `git-host:${host.toLowerCase()}`,
-      JSON.stringify(credential),
-    ]),
-  )
-  return createGitHostCredentialService({
-    secretStore: options?.secretStore ?? createTestSecretStoreService(secrets),
-  })
-}
-
 /** The real {@link GithubRepoService} over `http`, an HTTP fake with no routes by default. */
 export function createTestGithubRepoService(options?: { http?: HttpService }): GithubRepoService {
   return createGithubRepoService({ http: options?.http ?? createTestHttpService() })
@@ -462,7 +437,6 @@ export function createTestBackupServiceFactory(
     syncEngines: deps?.syncEngines ?? createTestSyncEngineFactory({ git }),
     githubAuth: deps?.githubAuth ?? createTestGithubAuthService(),
     githubRepos: deps?.githubRepos ?? createTestGithubRepoService(),
-    gitHostCredentials: deps?.gitHostCredentials ?? createTestGitHostCredentialService(),
     fileChanges,
     indexLifecycle: deps?.indexLifecycle ?? createTestIndexLifecycleService({ fileChanges }),
     operations: deps?.operations ?? createTestOperationsService(),

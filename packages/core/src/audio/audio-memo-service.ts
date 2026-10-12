@@ -2,12 +2,8 @@ import {
   AUDIO_MEMO_REMINDER_MS,
   AUDIO_MEMO_SEGMENT_MS,
   type AudioMemoIdentity,
-} from '../actions/audio-memo-session.ts'
-import {
-  audioMemoIdentity,
-  audioMemoPartFromPath,
-  audioMemoPartPath,
-} from '../actions/audio-memo.ts'
+} from './audio-memo-session.ts'
+import { audioMemoIdentity, audioMemoPartFromPath, audioMemoPartPath } from './audio-memo.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
 import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'

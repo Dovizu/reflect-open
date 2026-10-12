@@ -120,7 +120,7 @@ export {
   audioMemoIdentity,
   audioMemoPartFromPath,
   audioMemoPartPath,
-} from '../actions/audio-memo.ts'
+} from '../audio/audio-memo.ts'
 export {
   createAudioMemoService,
   type AudioMemoPhase,
@@ -161,7 +161,7 @@ export {
   AUDIO_MEMO_REMINDER_MS,
   AUDIO_MEMO_SEGMENT_MS,
   type AudioMemoIdentity,
-} from '../actions/audio-memo-session.ts'
+} from '../audio/audio-memo-session.ts'
 export {
   captureAckSchema,
   captureEnvelopeSchema,
@@ -179,18 +179,20 @@ export {
   type TextCaptureEnvelope,
   type TextCaptureKind,
   type TextCaptureSource,
-} from '../actions/capture-envelope.ts'
+} from '../capture/capture-envelope.ts'
+export { appendXPost } from '../capture/bookmark-capture.ts'
+export type { XPostEnvelope } from '../capture/bookmark-envelope.ts'
 export {
   captureFromPath,
   captureIdentity,
-  captureNoteMeta,
-  appendXPost,
-  type XPostEnvelope,
   isCaptureSpoolPath,
   type CaptureIdentity,
+} from '../capture/capture-identity.ts'
+export {
+  captureNoteMeta,
   type CaptureNoteMeta,
   type CaptureStatus,
-} from '../actions/capture.ts'
+} from '../capture/capture-note.ts'
 export {
   createBacklinkTargetService,
   type BacklinkTargetService,

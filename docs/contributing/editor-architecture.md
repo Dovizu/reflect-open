@@ -118,8 +118,8 @@ services (`packages/core/src/documents/`):
 - **`OpenDocumentsService`** (`open-documents-service.ts`,
   `AppServices.openDocuments`) — the registry of live sessions of this
   webview. Quit teardown flushes every buffer and awaits settle-time work
-  before the webview dies: `installQuitFlush` (`apps/desktop/src/lib/quit-flush.ts`)
-  registers `openDocuments.flushAll()` with `PersistenceFlushService`. The
+  before the webview dies: `PersistenceFlushService` calls
+  `openDocuments.flushAll()` as its `documents` flusher. The
   rename and move services use `sessionFor(path)` to discover whether a note
   is open (possibly *reopened* in a new pane) and route through its live
   session instead of racing the disk.

@@ -162,11 +162,10 @@ The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
   passes `useAppServices()`:
 
   ```ts
-  // apps/desktop/src/lib/note-delete.ts
-  export async function deleteOpenNote(
+  // apps/desktop/src/lib/note-pin.ts
+  export async function toggleNotePinned(
     ctx: Pick<AppServices, 'noteActions'>,
-    path: string,
-    generation: number,
+    input: NoteActionInput,
   ): Promise<void>
   ```
 
@@ -237,9 +236,9 @@ maps events to cache invalidation in a few small adapters:
 |---|---|---|
 | `indexLifecycle.onApplied`, `onReconciled`, `onMoved`, `onStalePlaceholders` | `providers/graph-index.ts` (`bindGraphIndex`) | invalidate index queries, reload open documents, follow healed moves, request iCloud downloads |
 | `graphSession.onGraphReleased`, `onGraphDeleted` | `providers/graph-session.ts` (`bootGraphSession`) | drop what the app holds per graph |
-| `capture.onXPostsWritten` | `lib/capture-x-posts.ts` | invalidate X post queries |
-| `assetDescription.onDescriptionsIndexed` | `lib/asset-description-queries.ts` | invalidate index queries |
-| `githubAuth.subscribe` | `lib/github-auth-state.ts` | invalidate the GitHub connection query |
+| `capture.onXPostsWritten` | `lib/query-invalidation.ts` | invalidate X post queries |
+| `assetDescription.onDescriptionsIndexed` | `lib/query-invalidation.ts` | invalidate index queries |
+| `githubAuth.subscribe` | `lib/query-invalidation.ts` | invalidate the GitHub connection query |
 | `chatSessions.onConversationsChanged` | `providers/chat-provider.tsx` | invalidate chat history queries |
 | `noteMove.onMoved` | `routing/router.tsx` | rewrite history entries to the new path |
 

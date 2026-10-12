@@ -1,3 +1,4 @@
+import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import type { AppLifecycleService, BackgroundTaskToken } from './lifecycle-service.ts'
@@ -43,10 +44,13 @@ export function createPersistenceFlushService(deps: {
   window: WindowService
   platform: PlatformService
   settings: SettingsService
+  openDocuments: Pick<OpenDocumentsService, 'flushAll'>
   logger: LoggerService
 }): PersistenceFlushService {
-  const { lifecycle, window, platform, settings, logger } = deps
-  const flushers = new Map<PersistenceFlusherKind, PersistenceFlusher>()
+  const { lifecycle, window, platform, settings, openDocuments, logger } = deps
+  const flushers = new Map<PersistenceFlusherKind, PersistenceFlusher>([
+    ['documents', () => openDocuments.flushAll()],
+  ])
 
   const run = async (what: string, fn: (() => Promise<void>) | undefined): Promise<void> => {
     try {

@@ -42,14 +42,14 @@ export interface NoteMoveService {
   /** Subscribe to landed note moves; returns the unsubscribe. */
   onMoved(listener: NoteMovedListener): Unlisten
   /** Follow the Rust-side `note:moved` broadcast. */
-  followNativeMoves(): Promise<Unlisten>
+  followNativeMoves(): Unlisten
 }
 
 export interface NoteMoveServiceDeps {
   ipc: Pick<IpcBridgeService, 'listen'>
   indexStore: Pick<IndexStoreService, 'moveIndexed'>
   openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
-  logger: Pick<LoggerService, 'error'>
+  logger: Pick<LoggerService, 'error' | 'warn'>
 }
 
 export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveService {
@@ -96,9 +96,13 @@ Rules:
   `logger` instead of `console.*`, `clock` instead of `Date.now()` and
   `setTimeout`, `id` instead of `crypto.randomUUID()`, `http` instead of
   `fetch`. This is what lets a test control them.
-- Narrow each dependency to what you use with `Pick<>`, as the example does. A
-  test then only has to provide those methods, and the dependency graph stays
-  readable.
+- Declare each dependency as `Pick<XxxService, 'method'>` of the methods the
+  service actually calls, as the example does.
+  `packages/core/src/capture/capture-service.ts` is the model:
+  `noteFile: Pick<NoteFileService, 'read' | 'write' | 'listNotes'>`,
+  `clock: Pick<ClockService, 'now'>`. A test double then only has to implement
+  those methods, and the dependency graph shows which methods each service
+  uses.
 - Do not import another service's instance, and do not read a global.
   `@reflect/core` has none.
 - Do not pass a service as an argument of a method. If two services need each

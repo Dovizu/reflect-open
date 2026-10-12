@@ -1,4 +1,4 @@
-import { captureFromPath, type CaptureIdentity } from '../actions/capture-identity.ts'
+import { captureFromPath, type CaptureIdentity } from './capture-identity.ts'
 import {
   captureDescriptionFromBody,
   captureNoteMeta,
@@ -12,7 +12,7 @@ import {
   withScreenshot,
   withTitle,
   type CaptureNoteMeta,
-} from '../actions/capture-note.ts'
+} from './capture-note.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
 import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import {

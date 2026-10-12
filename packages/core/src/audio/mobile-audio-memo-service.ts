@@ -1,5 +1,5 @@
-import { AUDIO_MEMO_REMINDER_MS, AUDIO_MEMO_SEGMENT_MS } from '../actions/audio-memo-session.ts'
-import { audioMemoIdentity, audioMemoPartPath } from '../actions/audio-memo.ts'
+import { AUDIO_MEMO_REMINDER_MS, AUDIO_MEMO_SEGMENT_MS } from './audio-memo-session.ts'
+import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'

@@ -1,6 +1,6 @@
 import { vi, type Mock, type MockInstance } from 'vitest'
-import type { CaptureEnvelope } from '../actions/capture-envelope.ts'
-import { captureIdentity } from '../actions/capture-identity.ts'
+import type { CaptureEnvelope } from './capture-envelope.ts'
+import { captureIdentity } from './capture-identity.ts'
 import { aiKeySecretName } from '../ai/ai-credential-service.ts'
 import type { PageDescriberService } from '../ai/page-describer-service.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'

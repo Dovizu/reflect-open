@@ -171,6 +171,7 @@ export function createTestLinkNavigationService(
     platform: options?.platform ?? createTestPlatformService(),
     opener: options?.opener ?? createTestOpenerService(),
     deepLink: options?.deepLink ?? createTestDeepLinkService(),
+    navigation: options?.navigation ?? createTestNavigationService(),
     attachments: options?.attachments ?? createTestAttachmentService(),
     operations: options?.operations ?? createTestOperationsService(),
     logger: options?.logger ?? createTestLoggerService(),

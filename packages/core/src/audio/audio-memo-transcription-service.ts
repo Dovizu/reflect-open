@@ -9,8 +9,8 @@ import {
   type AudioMemoPart,
   type AudioMemoPartResult,
   type AudioMemoSession,
-} from '../actions/audio-memo-session.ts'
-import { audioMemoFromPath, audioMemoPartFromPath } from '../actions/audio-memo.ts'
+} from './audio-memo-session.ts'
+import { audioMemoFromPath, audioMemoPartFromPath } from './audio-memo.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
 import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import {
