@@ -23,6 +23,12 @@ export function defineDesktopProject(project: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
       },
     },
+    // A dependency that Vite first sees in the middle of a browser run gets
+    // optimized on the spot and reloads the page, which kills the test file
+    // in flight. Only a few test files reach these, so name them up front.
+    optimizeDeps: {
+      include: ['@tauri-apps/api/core'],
+    },
     test: {
       globals: false,
       maxConcurrency: 1,
