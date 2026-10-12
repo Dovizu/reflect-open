@@ -39,6 +39,7 @@ const SERVICE_KEYS = [
   'mobileStorage',
   'imageCodec',
   'exceptionTelemetry',
+  'database',
   'fileChanges',
   'noteFile',
   'assetStore',

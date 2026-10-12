@@ -2,6 +2,7 @@ import { createCalendarService, type CalendarService } from '../calendar/calenda
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
+import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
 import {
   createIpcBridgeService,
@@ -70,6 +71,7 @@ export interface AppServices {
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
+  readonly database: DatabaseService
   readonly fileChanges: FileChangeService
   readonly noteFile: NoteFileService
   readonly assetStore: AssetStoreService
@@ -137,6 +139,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
+    database: createDatabaseService({ ipc }),
     fileChanges,
     noteFile: createNoteFileService({ ipc, clock, fileChanges }),
     assetStore: createAssetStoreService({ ipc, clock, fileChanges }),

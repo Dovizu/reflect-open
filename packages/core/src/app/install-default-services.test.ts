@@ -4,6 +4,7 @@ import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultAssetStore } from '../graph/asset-store-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
+import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -58,6 +59,7 @@ describe('installDefaultServices', () => {
     expect(defaultMobileStorage()).toBe(services.mobileStorage)
     expect(defaultImageCodec()).toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
+    expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
     expect(defaultNoteFile()).toBe(services.noteFile)
     expect(defaultAssetStore()).toBe(services.assetStore)
@@ -77,6 +79,7 @@ describe('resetDefaultServices', () => {
     expect(defaultCalendar()).not.toBe(services.calendar)
     expect(defaultImageCodec()).not.toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
+    expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
     expect(defaultNoteFile()).not.toBe(services.noteFile)
     expect(defaultAssetStore()).not.toBe(services.assetStore)

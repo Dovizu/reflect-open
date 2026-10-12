@@ -290,6 +290,12 @@ export {
   setDefaultContacts,
   type ContactsService,
 } from '../contacts/contacts-service.ts'
+export {
+  createDatabaseService,
+  defaultDatabase,
+  setDefaultDatabase,
+  type DatabaseService,
+} from '../indexing/database-service.ts'
 export { chunkNote, type NoteChunk } from '../embeddings/chunk.ts'
 export {
   embedStatus,

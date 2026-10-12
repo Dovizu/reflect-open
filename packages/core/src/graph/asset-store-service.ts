@@ -121,8 +121,11 @@ export function createAssetStoreService(deps: {
 
   return {
     async uploadBlob(desiredName, contents, generation) {
-      const path = await streamUpload(contents, generation, async (id) =>
-        await ipc.call('asset_upload_commit', { id, desiredName, generation }, z.string()),
+      const path = await streamUpload(
+        contents,
+        generation,
+        async (id) =>
+          await ipc.call('asset_upload_commit', { id, desiredName, generation }, z.string()),
       )
       reportWrite(path)
       return path
@@ -133,8 +136,11 @@ export function createAssetStoreService(deps: {
         await writeBase64(path, bytesToBase64(bytes), generation)
         return
       }
-      await streamUpload(contents, generation, async (id) =>
-        await ipc.call('asset_upload_commit_path', { id, path, generation }, voidSchema),
+      await streamUpload(
+        contents,
+        generation,
+        async (id) =>
+          await ipc.call('asset_upload_commit_path', { id, path, generation }, voidSchema),
       )
       reportWrite(path)
     },
