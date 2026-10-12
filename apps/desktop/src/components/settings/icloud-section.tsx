@@ -1,6 +1,11 @@
 import { useState, type ReactElement } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { errorMessage, icloudAdoptGraph, icloudPendingCount, icloudStatus } from '@reflect/core'
+import {
+  defaultICloudMigration,
+  icloudPendingCount,
+  icloudStatus,
+  isICloudRoot,
+} from '@reflect/core'
 import { ConflictedNoteLinks } from '@/components/settings/conflicted-note-links.tsx'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { SettingsField } from '@/components/settings/field.tsx'
@@ -15,7 +20,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog.tsx'
-import { isICloudRoot } from '@/lib/icloud-controller.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import {
   createConflictedNotesQueryOptions,
@@ -24,6 +28,7 @@ import {
 import { isMacosDesktop } from '@/lib/platform.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSync } from '@/providers/sync-provider.tsx'
+import { useOptionalAppServices } from '@/services/services-provider.tsx'
 
 const PENDING_NOTES_REFETCH_MS = 5_000
 
@@ -72,6 +77,7 @@ function reviewLine(conflictCount: number, forkCount: number): string {
 export function IcloudSettingsField(): ReactElement | null {
   const { graph, openRecent } = useGraph()
   const { backup, disconnectGraph } = useSync()
+  const migration = useOptionalAppServices()?.icloudMigration ?? defaultICloudMigration()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -119,37 +125,16 @@ export function IcloudSettingsField(): ReactElement | null {
     setBusy(true)
     setError(null)
     try {
-      // Copy first: if it fails, nothing changed — the backup is still
-      // connected and the graph untouched.
-      const newRoot = await icloudAdoptGraph(graph.generation)
-      if (backupConnected) {
-        try {
-          await disconnectGraph()
-        } catch (caught) {
-          // The iCloud copy has no .git, so exclusivity holds for the new
-          // graph regardless; the original folder keeping its backup is the
-          // recovery copy working as intended. Tell the user, don't block.
-          setError(
-            `The graph moved to iCloud, but GitHub sync could not be disconnected from the original folder: ${errorMessage(caught)}`,
-          )
-        }
-      }
-      setConfirmOpen(false)
-      const opened = await openRecent(newRoot)
-      if (!opened) {
-        // Append rather than replace: a disconnect failure above must stay
-        // visible alongside this one — both tell the user something distinct.
-        setError((previous) =>
-          [
-            previous,
-            'The copy landed in iCloud but could not be opened — open it from Saved graphs.',
-          ]
-            .filter(Boolean)
-            .join(' '),
-        )
-      }
-    } catch (caught) {
-      setError(errorMessage(caught))
+      const failure = await migration.moveGraph({
+        generation: graph.generation,
+        disconnectBackup: backupConnected ? disconnectGraph : null,
+        openGraph: openRecent,
+        onCopied: (failureSoFar) => {
+          setError(failureSoFar)
+          setConfirmOpen(false)
+        },
+      })
+      setError(failure)
     } finally {
       setBusy(false)
     }
