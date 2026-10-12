@@ -36,34 +36,18 @@ function setup(options?: { evicted?: string[] }) {
       evicted,
     }),
   })
-  const indexing: boolean[] = []
-  let suspended = false
-  const unbind = bindGraphIndex(index, {
-    onIndexingChange: (value) => {
-      indexing.push(value)
-    },
-    shouldSuspend: () => suspended,
-  })
-  return {
-    index,
-    indexing,
-    unbind,
-    setSuspended: (value: boolean) => {
-      suspended = value
-    },
-  }
+  const unbind = bindGraphIndex(index)
+  return { index, unbind }
 }
 
 describe('bindGraphIndex', () => {
-  it('reports indexing while a pass reconciles and invalidates once it commits', async () => {
+  it('invalidates the index queries once a pass commits', async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    const { index, indexing } = setup()
+    const { index } = setup()
 
     index.sync(5, () => false)
-    expect(indexing).toEqual([true])
     await index.settled()
 
-    expect(indexing).toEqual([true, false])
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.index.all })
   })
 
@@ -79,31 +63,15 @@ describe('bindGraphIndex', () => {
     })
   })
 
-  it('installs the suspend guard: no pass starts while it holds', async () => {
-    const { index, indexing, setSuspended } = setup()
-    setSuspended(true)
-
-    index.sync(5, () => false)
-    await index.settled()
-    expect(indexing).toEqual([])
-
-    setSuspended(false)
-    index.sync(5, () => false)
-    await index.settled()
-    expect(indexing).toEqual([true, false])
-  })
-
-  it('disconnects every listener and the guard when unbound', async () => {
-    const { index, indexing, unbind, setSuspended } = setup({
-      evicted: ['notes/evicted.md'],
-    })
+  it('disconnects every listener when unbound', async () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const { index, unbind } = setup({ evicted: ['notes/evicted.md'] })
     unbind()
-    setSuspended(true) // the removed guard no longer holds the pass back
 
     index.sync(5, () => false)
     await index.settled()
 
-    expect(indexing).toEqual([])
+    expect(invalidate).not.toHaveBeenCalled()
     expect(icloud.calls()).toEqual([])
   })
 })

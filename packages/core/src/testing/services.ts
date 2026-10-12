@@ -68,6 +68,7 @@ import {
   type TestNoteFileService,
   type TestNoteLinkResolverService,
 } from './graph.ts'
+import { createTestGraphSessionService, type TestGraphSessionService } from './graph-session.ts'
 import { createTestPrivacyService, type TestPrivacyService } from './privacy.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
@@ -190,6 +191,7 @@ export interface TestAppServices extends AppServices {
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
+  readonly graphSession: TestGraphSessionService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
@@ -227,27 +229,44 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
   const hash = createTestHashService()
+  const platform = createTestPlatformService()
+  const dialog = createTestDialogService()
+  const path = createTestPathService()
+  const windowService = createTestWindowService()
+  const lifecycle = createTestLifecycleService()
+  const mobileStorage = createTestMobileStorageService()
+  const indexLifecycle = createTestIndexLifecycleService({
+    indexStore: overrides?.indexStore ?? indexStore,
+    noteFile: overrides?.noteFile ?? noteFile,
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+    database: overrides?.database ?? database,
+    xArchive: overrides?.xArchive ?? xArchive,
+    hash: overrides?.hash ?? hash,
+    clock: overrides?.clock ?? clock,
+    logger,
+    operations: overrides?.operations ?? operations,
+  })
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
     clock,
     id,
     hash,
-    platform: createTestPlatformService(),
+    platform,
     storage: createTestStorageService(),
     http,
-    dialog: createTestDialogService(),
+    dialog,
     clipboard: createTestClipboardService(),
     opener: createTestOpenerService({ logger }),
-    path: createTestPathService(),
-    window: createTestWindowService(),
-    lifecycle: createTestLifecycleService(),
+    path,
+    window: windowService,
+    lifecycle,
     secretStore,
     appInfo: createTestAppInfoService(),
     calendar: createTestCalendarService(),
     contacts: createTestContactsService(),
     agentSkill: createTestAgentSkillService(),
-    mobileStorage: createTestMobileStorageService(),
+    mobileStorage,
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
@@ -301,16 +320,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       id: overrides?.id ?? id,
     }),
     privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
-    indexLifecycle: createTestIndexLifecycleService({
+    indexLifecycle,
+    graphSession: createTestGraphSessionService({
+      ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
       indexStore: overrides?.indexStore ?? indexStore,
       noteFile: overrides?.noteFile ?? noteFile,
+      id: overrides?.id ?? id,
       fileChanges: overrides?.fileChanges ?? fileChanges,
-      database: overrides?.database ?? database,
-      xArchive: overrides?.xArchive ?? xArchive,
-      hash: overrides?.hash ?? hash,
-      clock: overrides?.clock ?? clock,
+      window: overrides?.window ?? windowService,
+      dialog: overrides?.dialog ?? dialog,
+      path: overrides?.path ?? path,
+      platform: overrides?.platform ?? platform,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      mobileStorage: overrides?.mobileStorage ?? mobileStorage,
       logger,
-      operations: overrides?.operations ?? operations,
     }),
     aiCredentials: createTestAiCredentialService({
       secretStore: overrides?.secretStore ?? secretStore,
