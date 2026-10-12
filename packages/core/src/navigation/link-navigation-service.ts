@@ -7,11 +7,13 @@ import type { AttachmentService } from '../documents/attachment-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
+import { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { normalizeWikiTarget } from '../markdown/resolve.ts'
 import { deepLinkForRoute } from './deep-link-format.ts'
 import { isDeepLinkUrl, parseDeepLink } from './deep-link-parse.ts'
 import type { DeepLinkService } from './deep-link-service.ts'
+import type { NavigationService } from './navigation-service.ts'
 import { routeForPath, type NoteRoute, type Route } from './route.ts'
 
 /**
@@ -54,8 +56,8 @@ export interface LinkNavigationHost {
   navigate: (route: Route) => void
   /**
    * Start one link activation; the returned probe answers "did it go
-   * stale?". The host decides what stale means beyond the app-wide intent
-   * token (its own unmount, a newer router navigation, a scope change).
+   * stale?". The host decides what stale means beyond
+   * {@link LinkNavigationService.beginIntent} (its own unmount, a scope change).
    */
   beginIntent: () => () => boolean
 }
@@ -66,10 +68,11 @@ export interface LinkNavigationHost {
  * user-visible refusal.
  */
 export interface LinkNavigationService {
-  /** Start a note-link activation and return its app-wide intent token. */
-  beginIntent: () => number
-  /** Whether no newer note-link activation has superseded `intent`. */
-  isCurrentIntent: (intent: number) => boolean
+  /**
+   * Start a note-link activation. The returned probe is true once a newer
+   * activation superseded it or the navigation revision advanced.
+   */
+  beginIntent: () => () => boolean
   /**
    * Open `route` in a secondary note window. False — never a throw —
    * when this surface can't (no shell, mobile, a route the
@@ -178,6 +181,7 @@ export interface LinkNavigationServiceDeps {
   platform: Pick<PlatformService, 'isNativeShell' | 'surface'>
   opener: Pick<OpenerService, 'openUrlSync'>
   deepLink: Pick<DeepLinkService, 'dispatch'>
+  navigation: Pick<NavigationService, 'navigationRevision'>
   attachments: Pick<AttachmentService, 'resolveAssetOpenPath' | 'openOrReveal'>
   operations: Pick<OperationsService, 'start'>
   logger: Pick<LoggerService, 'error'>
@@ -194,6 +198,7 @@ export function createLinkNavigationService(
     platform,
     opener,
     deepLink,
+    navigation,
     attachments,
     operations,
     logger,
@@ -202,11 +207,7 @@ export function createLinkNavigationService(
   let latestIntent = 0
 
   const reportAmbiguousNoteTitle = (operationLabel: string, title: string): void => {
-    operations
-      .start(operationLabel)
-      .fail(
-        `Couldn’t safely choose one note matching “${title}”. Rename conflicting notes or wait for unavailable notes to become available, then try again.`,
-      )
+    operations.start(operationLabel).fail(ambiguousNoteTitleMessage(title))
   }
 
   const reportUnavailableNote = (name: string): void => {
@@ -430,9 +431,10 @@ export function createLinkNavigationService(
   return {
     beginIntent: () => {
       latestIntent += 1
-      return latestIntent
+      const intent = latestIntent
+      const startedAtRevision = navigation.navigationRevision()
+      return () => latestIntent !== intent || navigation.navigationRevision() !== startedAtRevision
     },
-    isCurrentIntent: (intent) => latestIntent === intent,
     openRouteInNewWindow,
     openDeepLinkInNewWindow,
     openNoteLink,

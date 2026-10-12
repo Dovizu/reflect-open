@@ -52,7 +52,6 @@ import {
   createTestGistPublishService,
   createTestConflictResolutionService,
   createTestGistService,
-  createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
@@ -435,6 +434,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const opener = createTestOpenerService({ logger })
+  const navigation = createTestNavigationService()
   const deepLink = createTestDeepLinkService({
     indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
     captureInbox: overrides?.captureInbox ?? captureInbox,
@@ -450,9 +450,6 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     secretStore: overrides?.secretStore ?? secretStore,
     http: overrides?.http ?? http,
     clock: overrides?.clock ?? clock,
-  })
-  const gitHostCredentials = createTestGitHostCredentialService({
-    secretStore: overrides?.secretStore ?? secretStore,
   })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
   const gists = createTestGistService({ http: overrides?.http ?? http })
@@ -568,7 +565,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     embeddingRuntime,
     chatHistory,
     update: createTestUpdateService(),
-    navigation: createTestNavigationService(),
+    navigation,
     deepLink,
     linkNavigation: createTestLinkNavigationService({
       noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
@@ -578,13 +575,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       platform: overrides?.platform ?? platform,
       opener: overrides?.opener ?? opener,
       deepLink: overrides?.deepLink ?? deepLink,
+      navigation,
       attachments: overrides?.attachments ?? attachments,
       operations: overrides?.operations ?? operations,
       logger,
     }),
     gitRepository,
     githubAuth,
-    gitHostCredentials,
     githubRepos,
     syncEngines,
     backups: createTestBackupServiceFactory({
@@ -592,7 +589,6 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       syncEngines: overrides?.syncEngines ?? syncEngines,
       githubAuth: overrides?.githubAuth ?? githubAuth,
       githubRepos: overrides?.githubRepos ?? githubRepos,
-      gitHostCredentials: overrides?.gitHostCredentials ?? gitHostCredentials,
       fileChanges: overrides?.fileChanges ?? fileChanges,
       indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
       operations: overrides?.operations ?? operations,
