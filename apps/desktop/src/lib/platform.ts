@@ -3,9 +3,8 @@ import { defaultPlatform } from '@reflect/core'
 /**
  * True in a real Tauri webview — plugins, custom URL schemes, and real OS
  * windows are reachable. NOT satisfied by the in-browser dev bridge, which
- * answers IPC commands (`hasBridge()`) without any of those. Gates that mean
- * "the native shell exists" use this; gates that mean "commands can be
- * answered" use `hasBridge()`.
+ * answers IPC commands without any of those. Gates that mean "the native
+ * shell exists" use this.
  */
 export function isNativeShell(): boolean {
   return defaultPlatform().isNativeShell

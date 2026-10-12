@@ -1,9 +1,4 @@
-import {
-  defaultAppServices,
-  defaultCommands,
-  type AppServices,
-  type CommandService,
-} from '@reflect/core'
+import { defaultCommands, type AppServices, type CommandService } from '@reflect/core'
 import { attachFilesToNote } from '@/lib/attach-files.ts'
 import { openRouteInNewWindow } from '@/lib/windows/open-in-new-window.ts'
 import { routeForPath, type Route } from '@/routing/route.ts'
@@ -20,7 +15,7 @@ import type { AppCommand, CommandContext } from './types.ts'
  * (the same contract as daily notes). Shared by ⌘N and the All Notes screen's
  * New note button so "what a new note is" stays one definition.
  */
-export function newNoteRoute(ctx: Pick<AppServices, 'noteCreation'> = defaultAppServices()): Route {
+export function newNoteRoute(ctx: Pick<AppServices, 'noteCreation'>): Route {
   return { kind: 'note', path: ctx.noteCreation.untitledNotePath() }
 }
 
