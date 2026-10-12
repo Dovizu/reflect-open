@@ -1,5 +1,4 @@
 import { userEvent } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, type ReactNode } from 'react'
 import type { RetrievalService, SearchService, SuggestionService } from '@reflect/core'
@@ -8,17 +7,13 @@ import {
   createTestEmbeddingRuntimeService,
   createTestNoteFileService,
   createTestRetrievalService,
-  createTestSettingsService,
   createTestWindowService,
-  installTestServices,
 } from '@reflect/core/testing'
-import { registerAppCommands } from '@/lib/commands/app-commands.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import { formatBinding, isApplePlatform } from '@/lib/keybindings.ts'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { formatBinding } from '@/lib/keybindings.ts'
+import { useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { CommandPalette } from './command-palette.tsx'
 import { PaletteProvider, usePalette } from './palette-provider.tsx'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
@@ -36,9 +31,6 @@ vi.mock('@/editor/markdown-preview.tsx', () => ({
   MarkdownPreview: ({ content }: { content: string }) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
 }))
 
 // The model is absent by default: the palette is exactly the lexical surface
@@ -119,13 +111,7 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
     enableSemanticSearch: vi.fn(),
     ...context,
   }
-  const settings = createTestSettingsService({
-    semanticSearchEnabled: semanticEnabled,
-    dateFormat: 'mdy',
-  })
-  await settings.whenLoaded()
   const app = createTestAppServices({
-    settings,
     suggestions: {
       suggestWikiTargets,
       suggestWikiLinkTargets: async () => ({
@@ -145,26 +131,19 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
     noteFile: createTestNoteFileService({ files }),
     window: createTestWindowService({ openNoteWindow }),
   })
-  // The palette lists the registry of the installed services, so the app's
-  // commands register into it before the first render.
-  installTestServices(app)
-  registerAppCommands()
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const view = await renderWithServices(
-    <QueryClientProvider client={client}>
-      <SettingsProvider>
-        <RouterProvider>
-          <PaletteProvider>
-            <OpenOnMount query={query} />
-            <CommandPalette context={fullContext} />
-            <RouteProbe />
-          </PaletteProvider>
-        </RouterProvider>
-      </SettingsProvider>
-    </QueryClientProvider>,
-    { app },
+  const view = await renderInApp(
+    <PaletteProvider>
+      <OpenOnMount query={query} />
+      <CommandPalette context={fullContext} />
+      <RouteProbe />
+    </PaletteProvider>,
+    {
+      app,
+      graph: { root: '/g', name: 'g', generation: 1 },
+      settings: { semanticSearchEnabled: semanticEnabled, dateFormat: 'mdy' },
+    },
   )
-  return { view, navigate }
+  return { view, navigate, app }
 }
 
 describe('CommandPalette', () => {
@@ -313,11 +292,11 @@ describe('CommandPalette', () => {
   it('bound commands show keycap hints', async () => {
     suggestWikiTargets.mockResolvedValue([])
     searchWithFilters.mockResolvedValue([])
-    const { view } = await renderPalette('> go to today')
+    const { view, app } = await renderPalette('> go to today')
     const row = view.getByText('Go to today')
     await expect.element(row).toBeInTheDocument()
     const item = row.element().closest('[cmdk-item]')
-    for (const key of formatBinding('Mod-d', isApplePlatform())) {
+    for (const key of formatBinding('Mod-d', app.platform.isApplePlatform)) {
       expect(item?.textContent).toContain(key)
     }
   })

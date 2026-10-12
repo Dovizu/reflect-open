@@ -1,38 +1,18 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { userEvent, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import {
-  createTestAppServices,
-  createTestStorageService,
-  type TestStorageService,
-  createTestOperationsService,
-  createTestTaskService,
-  type TestAppServices,
-  type TestOperationsService,
-} from '@reflect/core/testing'
+import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import type { OpenTask, TaskAction, TaskService, TaskWriteResult } from '@reflect/core'
 import { act, useEffect, useState, type MutableRefObject, type ReactNode } from 'react'
 import { queryKeys } from '@/lib/query-client.ts'
 import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { useRouter } from '@/routing/router.tsx'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { MOD_KEY } from '@/test-utils/mod-key.ts'
 import '@/test-utils/locator.ts'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { TasksScreen } from './tasks-screen.tsx'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
-}))
-vi.mock('@/lib/use-today.ts', () => ({ useToday: () => '2026-06-14' }))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({ settings: { dateFormat: 'mdy' } }),
-}))
 vi.mock('@/editor/markdown-preview.tsx', () => ({
   MarkdownPreview: ({ content, className }: { content: string; className?: string }) => {
     const strong = /^(.*)\*\*([^*]+)\*\*(.*)$/u.exec(content)
@@ -196,15 +176,13 @@ function RouteProbe(): ReactNode {
   return <output data-testid="route">{JSON.stringify(route)}</output>
 }
 
-function renderScreen(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
-  return renderWithServices(
-    <QueryClientProvider client={client}>
-      <RouterProvider>
-        <TasksScreen />
-        <RouteProbe />
-      </RouterProvider>
-    </QueryClientProvider>,
-    { app },
+function renderScreen() {
+  return renderInApp(
+    <>
+      <TasksScreen />
+      <RouteProbe />
+    </>,
+    { app, graph: { root: '/g', name: 'g', generation: 1 }, settings: { dateFormat: 'mdy' } },
   ).then((view) => {
     const find = async (locator: Locator): Promise<Element> => {
       await expect.element(locator).toBeInTheDocument()
@@ -242,17 +220,19 @@ function renderScreen(client = new QueryClient({ defaultOptions: { queries: { re
 
 const waitFor = vi.waitFor
 
-let storage: TestStorageService
+let storage: TestAppServices['storage']
 
-let operations: TestOperationsService
+let operations: TestAppServices['operations']
 
-let app: Omit<TestAppServices, 'tasks'> & { tasks: TaskService }
+let app: TestAppServices
 
 beforeEach(() => {
-  operations = createTestOperationsService()
-  storage = createTestStorageService()
-  // A fresh service per test, so its recently-completed set starts empty.
-  const tasks = createTestTaskService({ operations })
+  // A fresh app per test, so its task service's recently-completed set starts empty.
+  app = createTestAppServices()
+  operations = app.operations
+  storage = app.storage
+  app.clock.setToday('2026-06-14')
+  const tasks = app.tasks
   getOpenTasks = vi.spyOn(tasks, 'getOpenTasks').mockResolvedValue([])
   getCompletedTasks = vi.spyOn(tasks, 'getCompletedTasks').mockResolvedValue([])
   writeTask = vi.spyOn(tasks, 'writeTask').mockResolvedValue(WRITTEN)
@@ -266,7 +246,6 @@ beforeEach(() => {
     moved: [],
     updatedAt: 0,
   })
-  app = createTestAppServices({ operations, storage, tasks })
 })
 
 // Keep native browser navigation out of keyboard-handler tests in this suite.
@@ -1551,8 +1530,8 @@ describe('TasksScreen', () => {
         updatedAt: 100,
       }),
     ])
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const view = await renderScreen(client)
+    const view = await renderScreen()
+    const client = view.queryClient
 
     await userEvent.click(await view.findByRole('button', { name: 'Complete: project task' }))
     await view.findByRole('button', { name: 'Reopen: project task' })
@@ -1588,8 +1567,8 @@ describe('TasksScreen', () => {
       updatedAt: 100,
     })
     getOpenTasks.mockResolvedValue([staleRow])
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const view = await renderScreen(client)
+    const view = await renderScreen()
+    const client = view.queryClient
 
     await userEvent.click(await view.findByRole('button', { name: 'Complete: project task' }))
     await view.findByRole('button', { name: 'Reopen: project task' })

@@ -18,7 +18,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * chooser/workspace app — none of which exist on mobile.
  */
 export function DesktopRoot(): ReactElement {
-  const { deepLink, noteMove, platform } = useAppServices()
+  const { deepLink, noteMove, operations, platform } = useAppServices()
   // Deep-link intake starts with the surface, not the workspace: a
   // `reflect://` URL that launched the app (or arrived on the graph chooser)
   // buffers in `intake.ts` until a graph opens. Browser dev has no plugin.
@@ -52,7 +52,7 @@ export function DesktopRoot(): ReactElement {
   // store is per-webview, matching the per-window mount this replaces). The
   // effect only ties the subscription to the window's lifetime; the toast
   // calls themselves run inside the store mutations that report the work.
-  useEffect(() => attachOperationToasts(), [])
+  useEffect(() => attachOperationToasts(operations), [operations])
 
   return (
     <AppErrorBoundary>

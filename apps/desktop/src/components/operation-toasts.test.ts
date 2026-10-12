@@ -1,7 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultOperations } from '@reflect/core'
 import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
-import { startOperation } from '@/lib/operations.ts'
 import type { MockToastAddOptions } from '@/test-utils/toast.ts'
 import { attachOperationToasts } from './operation-toasts.ts'
 
@@ -17,20 +15,18 @@ let operations: TestOperationsService
 
 beforeEach(() => {
   operations = createTestOperationsService()
-  setDefaultOperations(operations)
   toast.add.mockClear()
   toast.close.mockClear()
-  detach = attachOperationToasts()
+  detach = attachOperationToasts(operations)
 })
 
 afterEach(() => {
   detach()
-  setDefaultOperations(null)
 })
 
 describe('attachOperationToasts', () => {
   it('creates and updates a toast with a stable operation id', () => {
-    const handle = startOperation('Rebuilding search index')
+    const handle = operations.start('Rebuilding search index')
 
     expect(toast.add).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: 'operation-1', title: 'Rebuilding search index' }),
@@ -44,7 +40,7 @@ describe('attachOperationToasts', () => {
   })
 
   it('surfaces failures and closes the toast when the operation clears', async () => {
-    const handle = startOperation('Saving settings')
+    const handle = operations.start('Saving settings')
     handle.fail('disk full')
 
     expect(toast.add).toHaveBeenLastCalledWith(
@@ -58,7 +54,7 @@ describe('attachOperationToasts', () => {
   it('passes optional action metadata to the toast', () => {
     const run = vi.fn()
 
-    startOperation('Update available', { action: { label: 'Install', run }, persistent: true })
+    operations.start('Update available', { action: { label: 'Install', run }, persistent: true })
 
     expect(toast.add).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -75,7 +71,7 @@ describe('attachOperationToasts', () => {
   })
 
   it('does not remove the operation when a toast is dismissed', () => {
-    const handle = startOperation('Saving settings')
+    const handle = operations.start('Saving settings')
 
     expect(toast.add).toHaveBeenLastCalledWith(
       expect.not.objectContaining({ onClose: expect.any(Function) }),
@@ -95,7 +91,7 @@ describe('attachOperationToasts', () => {
     })
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
 
-    startOperation('Update available', { action: { label: 'Install', run } })
+    operations.start('Update available', { action: { label: 'Install', run } })
 
     const options = toast.add.mock.lastCall?.[0]
     options?.actionProps?.onClick()

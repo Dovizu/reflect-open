@@ -1,11 +1,6 @@
 import { memo, useCallback, useMemo, useRef, useState, type ReactElement } from 'react'
 import type { ExitBoundaryHandler, SearchStatus } from '@meowdown/core'
-import {
-  deferredCreationPolicy,
-  detectConflictMarkers,
-  isDaily,
-  untitledNoteSeed,
-} from '@reflect/core'
+import { deferredCreationPolicy, detectConflictMarkers, isDaily } from '@reflect/core'
 import { BacklinksPanel } from '@/components/backlinks-panel.tsx'
 import { ConflictNoteView } from '@/components/conflict-note-view.tsx'
 import { NoteLoading } from '@/components/note-loading.tsx'
@@ -33,11 +28,11 @@ import { useLinkPreview } from '@/editor/use-link-preview.ts'
 import { useWikiLinkNavigation } from '@/editor/use-wiki-link-navigation.ts'
 import { useWikiLinkHoverPreview } from '@/editor/use-wiki-link-hover-preview.tsx'
 import { useXPostPreload } from '@/editor/use-x-post-preload.ts'
-import { isTouchEditorSurface } from '@/lib/platform-surface.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useNoteSearchQuery, useNoteSearchReport } from '@/providers/note-find-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface NotePaneProps {
   /** Graph-relative path of the note to edit. */
@@ -134,6 +129,7 @@ export function NotePaneComponent({
 }: NotePaneProps): ReactElement {
   const { graph } = useGraph()
   const { settings } = useSettings()
+  const { noteCreation, platform } = useAppServices()
   const generation = graph?.generation ?? null
   const graphKey = graph?.root ?? null
   const dailyNote = isDaily(path)
@@ -145,9 +141,9 @@ export function NotePaneComponent({
   // seed reaches the session, so the transient stale render is harmless, and
   // this avoids writing a ref during render.
   const needsSeed = lazyCreate && policy.seedsUntitled
-  const [seed, setSeed] = useState(() => ({ path, seed: untitledNoteSeed() }))
+  const [seed, setSeed] = useState(() => ({ path, seed: noteCreation.untitledNoteSeed() }))
   if (needsSeed && seed.path !== path) {
-    setSeed({ path, seed: untitledNoteSeed() })
+    setSeed({ path, seed: noteCreation.untitledNoteSeed() })
   }
   const document = useNoteDocument(path, generation, {
     createIfMissing: lazyCreate,
@@ -350,7 +346,9 @@ export function NotePaneComponent({
         onWikiLinkClick={onWikiLinkClick}
         onLinkClick={onLinkClick}
         resolveLinkPreview={resolveLinkPreview}
-        {...(generation !== null && !isTouchEditorSurface() ? { renderWikilinkHoverCard } : {})}
+        {...(generation !== null && !platform.surface.touchEditor
+          ? { renderWikilinkHoverCard }
+          : {})}
         onTagClick={onTagClick}
         onWikilinkSearch={onWikilinkSearch}
         onTagSearch={onTagSearch}
