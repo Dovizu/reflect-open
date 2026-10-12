@@ -97,9 +97,9 @@ Desktop JS tests are split into Vitest projects (details in
   logic test that drives the DOM is named `.test.tsx` so it lands in the
   browser project.
 - `console.warn` / `console.error` fail tests (`vitest-fail-on-console`).
-  Pre-existing noise is allowlisted in
-  `apps/desktop/src/test-utils/allowed-console.ts`; PRs may only shrink that
-  list, and a new entry needs a stated reason.
+  This covers the desktop and the core projects. The allowlist in
+  `apps/desktop/src/test-utils/allowed-console.ts` holds one browser artifact;
+  a new entry needs a measured reason in that file.
 
 Rust tests (the Cargo workspace: desktop shell, `reflect` CLI, index-schema crate):
 

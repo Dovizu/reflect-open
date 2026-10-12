@@ -56,12 +56,18 @@ DEBUG=1 pnpm exec vitest --project browser path/to/test
 ## Console output fails tests
 
 `vitest-fail-on-console` turns any `console.warn` / `console.error` during a
-test into a failure, in every desktop project. Noise that predates the check
-is silenced by regex in `apps/desktop/src/test-utils/allowed-console.ts`.
+test into a failure, in every desktop and core project. The allowlist in
+`apps/desktop/src/test-utils/allowed-console.ts` holds one entry, a browser
+artifact (`ResizeObserver loop completed…`) that app code does not produce.
 The rules:
 
-- PRs may only shrink the allowlist (fix the warning, then delete its regex).
-- A new entry needs a stated reason in the PR.
+- Do not add to the allowlist to make a test pass: fix the warning. A new
+  entry needs a measured reason in that file.
+- App code does not call `console` at all (lint enforces it); it logs through
+  `LoggerService`.
+- Import `act` from `@/test-utils/act.ts`, not from `react`: it sets React's
+  act-environment flag for the call, which avoids the "not configured to
+  support act" warning.
 - Core services log through `LoggerService`, not the console. A test of an
   intentionally exercised error path passes a `createTestLoggerService()` and
   asserts on it: `expect(logger.getErrors()).toEqual([...])`. The test logger

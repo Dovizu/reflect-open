@@ -10,8 +10,8 @@ on:
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
-  cancel-in-progress: false
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Least-privilege default: CI only needs to read the repo.
 permissions:
@@ -69,10 +69,8 @@ jobs:
           VITEST_CHROMIUM_GC_DISK_THRESHOLD_GB: '100000'
 
   # Not part of `all-green`: a WebKit failure does not block merging.
-  # Disabled on the `service` branch while the service refactor is in progress;
-  # restore `github.event_name != 'merge_group'` before the branch is reviewed.
   test-webkit:
-    if: false
+    if: github.event_name != 'merge_group'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

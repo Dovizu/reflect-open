@@ -14,8 +14,8 @@ on:
 
 # Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
 concurrency:
-  group: build-${{ github.workflow }}-${{ github.ref }}-${{ github.sha }}
-  cancel-in-progress: false
+  group: build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Least-privilege default: the build only needs to read the repo.
 permissions:
