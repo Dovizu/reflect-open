@@ -3,16 +3,22 @@ import { renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { open } from '@tauri-apps/plugin-dialog'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { GraphProvider, useGraph } from './graph-provider.tsx'
 import { SettingsProvider } from './settings-provider.tsx'
 import { queryClient as appQueryClient, queryKeys } from '@/lib/query-client.ts'
 
 vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
 
 /**
  * Exercises the provider's open-ordering guards: overlapping opens are

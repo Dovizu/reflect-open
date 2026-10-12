@@ -1,24 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { providerFetch } from './provider-fetch.ts'
 
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-const isNativeShell = vi.hoisted(() => vi.fn(() => false))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell,
-}))
 const httpFetch = vi.mocked(tauriFetch)
 
 afterEach(() => {
-  isNativeShell.mockReturnValue(false)
+  setDefaultPlatform(null)
   httpFetch.mockReset()
   vi.unstubAllGlobals()
 })
 
 describe('providerFetch', () => {
   it('sends an explicit empty Origin so the plugin drops the header', async () => {
-    isNativeShell.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService())
     httpFetch.mockResolvedValue(new Response(null, { status: 200 }))
 
     await providerFetch('https://api.anthropic.com/v1/models', {
@@ -32,7 +29,7 @@ describe('providerFetch', () => {
   })
 
   it('leaves a caller-set Origin alone', async () => {
-    isNativeShell.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService())
     httpFetch.mockResolvedValue(new Response(null, { status: 200 }))
 
     await providerFetch('https://api.anthropic.com/v1/models', {

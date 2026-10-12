@@ -45,11 +45,14 @@ export const APP_BINDINGS = registerKeymap(
   Object.fromEntries(BOUND_COMMANDS.map(({ binding, command }) => [binding, command.title])),
 )
 
-const IS_APPLE = isApplePlatform()
+function bindingToId(apple: boolean): Map<string, string> {
+  return new Map(
+    BOUND_COMMANDS.map(({ binding, command }) => [normalizeBinding(binding, apple), command.id]),
+  )
+}
 
-const BINDING_TO_ID = new Map(
-  BOUND_COMMANDS.map(({ binding, command }) => [normalizeBinding(binding, IS_APPLE), command.id]),
-)
+const APPLE_BINDING_TO_ID = bindingToId(true)
+const OTHER_BINDING_TO_ID = bindingToId(false)
 const HISTORY_COMMAND_IDS = new Set(['history.back', 'history.forward'])
 
 // AppKit owns this key equivalent on macOS. Keep it in the registry for
@@ -131,6 +134,8 @@ function idForKeyDown(event: KeyboardEvent): string | null {
   if ((!event.metaKey && !event.ctrlKey) || event.repeat) {
     return null // held keys must not spam navigations (e.g. a stack of new notes)
   }
+  const apple = isApplePlatform()
+  const ids = apple ? APPLE_BINDING_TO_ID : OTHER_BINDING_TO_ID
   for (const { key, shift } of bindingLookupsFor(event)) {
     // Every held modifier is part of the lookup, so `Mod-Alt-l` can bind while
     // an alt chord still never fires a plain `Mod-` command.
@@ -140,7 +145,7 @@ function idForKeyDown(event: KeyboardEvent): string | null {
       event.altKey ? 'Alt' : null,
       shift ? 'Shift' : null,
     ].filter((modifier): modifier is string => modifier !== null)
-    const id = BINDING_TO_ID.get(normalizeBinding([...modifiers, key].join('-'), IS_APPLE))
+    const id = ids.get(normalizeBinding([...modifiers, key].join('-'), apple))
     if (id !== undefined) {
       return id
     }
@@ -149,7 +154,7 @@ function idForKeyDown(event: KeyboardEvent): string | null {
 }
 
 function isNativeMacosMenuCommand(commandId: string): boolean {
-  return isMacosDesktop && isNativeMenuInstalled() && NATIVE_MACOS_MENU_COMMAND_IDS.has(commandId)
+  return isMacosDesktop() && isNativeMenuInstalled() && NATIVE_MACOS_MENU_COMMAND_IDS.has(commandId)
 }
 
 /**

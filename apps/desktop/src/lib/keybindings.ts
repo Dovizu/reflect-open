@@ -8,6 +8,8 @@
  * platform check is separated out for components to call once.
  */
 
+import { defaultPlatform } from '@reflect/core'
+
 const APPLE_MODIFIERS: Record<string, string> = {
   mod: '⌘',
   meta: '⌘',
@@ -39,10 +41,7 @@ const KEY_SYMBOLS: Record<string, string> = {
 
 /** True on macOS/iOS — where Mod renders as ⌘ rather than Ctrl. */
 export function isApplePlatform(): boolean {
-  if (typeof navigator === 'undefined') {
-    return false
-  }
-  return /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)
+  return defaultPlatform().isApplePlatform
 }
 
 const MODIFIER_ORDER = ['Mod', 'Ctrl', 'Meta', 'Alt', 'Shift']

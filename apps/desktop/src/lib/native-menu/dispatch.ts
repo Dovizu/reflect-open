@@ -1,7 +1,7 @@
-import { isTauri } from '@tauri-apps/api/core'
 import { emitTo, type UnlistenFn } from '@tauri-apps/api/event'
 import { getAllWebviewWindows, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { z } from 'zod'
+import { isNativeShell } from '@/lib/platform.ts'
 
 /**
  * Native menu → command registry hand-off. The menu is built once at startup,
@@ -81,7 +81,7 @@ async function dispatchToFocusedWindow(commandId: FocusedNoteMenuCommand): Promi
  */
 export function dispatchMenuCommand(commandId: string): void {
   const focusedNoteCommand = FocusedNoteMenuCommandSchema.safeParse(commandId)
-  if (isTauri() && focusedNoteCommand.success) {
+  if (isNativeShell() && focusedNoteCommand.success) {
     void dispatchToFocusedWindow(focusedNoteCommand.data)
     return
   }
@@ -92,7 +92,7 @@ export function dispatchMenuCommand(commandId: string): void {
 export async function listenForFocusedNoteMenuCommands(
   dispatch: (commandId: FocusedNoteMenuCommand) => void,
 ): Promise<UnlistenFn> {
-  if (!isTauri()) {
+  if (!isNativeShell()) {
     return () => {}
   }
   return await getCurrentWebviewWindow().listen<unknown>(FOCUSED_NOTE_MENU_EVENT, ({ payload }) => {

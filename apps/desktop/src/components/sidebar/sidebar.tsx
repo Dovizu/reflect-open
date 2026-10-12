@@ -52,7 +52,7 @@ export function Sidebar({ graph, context }: SidebarProps): ReactElement {
         'flex h-full min-h-0 flex-col',
         // With the overlaid macOS title bar, the traffic lights and the
         // WindowDragRegion strip own the top 28px — start content below them.
-        hasMacosTitleBarOverlay ? 'pt-2' : 'pt-2.5',
+        hasMacosTitleBarOverlay() ? 'pt-2' : 'pt-2.5',
       )}
     >
       <div className="flex flex-none items-center justify-end px-2 pt-1">

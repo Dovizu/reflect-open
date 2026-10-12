@@ -43,7 +43,7 @@ export function installQuitFlush(): () => void {
   // git commit only — pushing on the way out could stall the quit).
   void subscriptions.add(
     currentWindow.onCloseRequested(async (event) => {
-      const shouldHide = isMacosDesktop && isMainWindow()
+      const shouldHide = isMacosDesktop() && isMainWindow()
       if (shouldHide) {
         // Prevent synchronously: waiting until after an await lets AppKit
         // destroy the last window (and Tauri then terminates the process).

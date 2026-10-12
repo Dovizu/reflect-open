@@ -8,7 +8,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import type { ThemePreference } from '@reflect/core'
+import { defaultPlatform, type ThemePreference } from '@reflect/core'
 import { writeCachedThemePreference } from '@/lib/theme-cache.ts'
 import { useSettings, type SettingsLoadOutcome } from '@/providers/settings-provider.tsx'
 
@@ -26,10 +26,8 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)'
-
 function getSystemTheme(): ResolvedTheme {
-  return window.matchMedia(DARK_MEDIA_QUERY).matches ? 'dark' : 'light'
+  return defaultPlatform().colorScheme()
 }
 
 interface ThemeProviderProps {
@@ -67,14 +65,7 @@ export function ThemeProvider({ children }: ThemeProviderProps): ReactElement {
     }
   }, [whenSettingsLoaded])
 
-  useEffect(() => {
-    const media = window.matchMedia(DARK_MEDIA_QUERY)
-    const onChange = (event: MediaQueryListEvent): void => {
-      setSystemTheme(event.matches ? 'dark' : 'light')
-    }
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
-  }, [])
+  useEffect(() => defaultPlatform().subscribeColorScheme(setSystemTheme), [])
 
   const resolvedTheme: ResolvedTheme = theme === 'system' ? systemTheme : theme
 

@@ -2,12 +2,19 @@ import { render } from 'vitest-browser-react'
 import { page, type Locator } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { CalendarIntegrationField } from './calendar-integration-field.tsx'
 
 // The section renders only in the macOS desktop webview; jsdom is neither.
-vi.mock('@/lib/platform.ts', () => ({ isMacosDesktop: true, isNativeShell: () => true }))
+beforeEach(() => {
+  setDefaultPlatform(createTestPlatformService())
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
 
 const openUrl = vi.hoisted(() => vi.fn<(url: string) => Promise<void>>(async () => {}))
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }))

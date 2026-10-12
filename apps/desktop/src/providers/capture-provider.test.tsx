@@ -1,7 +1,8 @@
 import { render } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GraphInfo } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultPlatform, type GraphInfo } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 
 const controller = vi.hoisted(() => ({
   start: vi.fn(),
@@ -14,16 +15,15 @@ const createCaptureController = vi.hoisted(() =>
 const captureHostRegister = vi.hoisted(() => vi.fn<() => Promise<void>>())
 const captureSharedInboxRelay = vi.hoisted(() => vi.fn<() => Promise<number>>())
 const hasBridge = vi.hoisted(() => vi.fn(() => true))
-const isMobileSurface = vi.hoisted(() => vi.fn(() => false))
 
 vi.mock('@/lib/capture-controller.ts', () => ({ createCaptureController }))
-vi.mock('@reflect/core', () => ({
+vi.mock('@reflect/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@reflect/core')>()),
   captureHostRegister,
   captureSharedInboxRelay,
   hasBridge,
   subscribeBridgeChanges: () => () => {},
 }))
-vi.mock('@/lib/platform-surface.ts', () => ({ isMobileSurface }))
 vi.mock('@/providers/settings-provider.tsx', () => ({
   useSettings: () => ({
     settings: { aiProviders: [], defaultAiProviderId: null },
@@ -41,9 +41,13 @@ function mount(children: ReactNode = null) {
 beforeEach(() => {
   vi.clearAllMocks()
   hasBridge.mockReturnValue(true)
-  isMobileSurface.mockReturnValue(false)
+  setDefaultPlatform(createTestPlatformService())
   captureHostRegister.mockResolvedValue(undefined)
   captureSharedInboxRelay.mockResolvedValue(0)
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
 })
 
 describe('CaptureProvider', () => {
@@ -89,7 +93,7 @@ describe('CaptureProvider', () => {
   })
 
   it('on mobile, skips host registration and wires the shared-inbox relay', async () => {
-    isMobileSurface.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService({ surface: { mobileApp: true } }))
 
     await mount()
 

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 
 interface CloseRequestedEventForTest {
   preventDefault: () => void
@@ -31,7 +33,8 @@ vi.mock('@tauri-apps/api/window', () => ({
   }),
 }))
 
-vi.mock('@reflect/core', () => ({
+vi.mock('@reflect/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@reflect/core')>()),
   confirmQuit: core.confirmQuit,
   subscribeQuitRequested: async (handler: () => void) => {
     core.quitRequested = handler
@@ -42,7 +45,6 @@ vi.mock('@reflect/core', () => ({
 vi.mock('@/editor/open-documents.ts', () => ({ flushOpenDocuments }))
 vi.mock('@/lib/backup-flush.ts', () => ({ flushBackup }))
 vi.mock('@/lib/settings-flush.ts', () => ({ flushSettings }))
-vi.mock('@/lib/platform.ts', () => ({ isMacosDesktop: true, isNativeShell: () => true }))
 vi.mock('@/lib/windows/window-role.ts', () => ({
   isMainWindow: () => windowRole.isMainWindow,
 }))
@@ -50,12 +52,14 @@ vi.mock('@/lib/windows/window-role.ts', () => ({
 const { installQuitFlush } = await import('./quit-flush.ts')
 
 beforeEach(() => {
+  setDefaultPlatform(createTestPlatformService())
   windowRole.isMainWindow = true
   windowMock.closeRequested = null
   core.quitRequested = null
 })
 
 afterEach(() => {
+  setDefaultPlatform(null)
   vi.clearAllMocks()
 })
 
@@ -160,6 +164,18 @@ describe('installQuitFlush', () => {
     expect(flushSettings).toHaveBeenCalledOnce()
     expect(flushBackup).toHaveBeenCalledOnce()
     expect(windowMock.hide).toHaveBeenCalledOnce()
+
+    dispose()
+  })
+
+  it('allows the main window to close normally outside macOS', async () => {
+    setDefaultPlatform(createTestPlatformService({ isMacosDesktop: false }))
+    const dispose = installQuitFlush()
+    const closeRequest = closeCurrentWindow()
+
+    expect(closeRequest.preventDefault).not.toHaveBeenCalled()
+    await closeRequest.completed
+    expect(windowMock.hide).not.toHaveBeenCalled()
 
     dispose()
   })

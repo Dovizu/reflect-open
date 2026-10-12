@@ -1,4 +1,4 @@
-import { isTauri } from '@tauri-apps/api/core'
+import { defaultPlatform } from '@reflect/core'
 
 /**
  * True in a real Tauri webview — plugins, custom URL schemes, and real OS
@@ -8,18 +8,14 @@ import { isTauri } from '@tauri-apps/api/core'
  * answered" use `hasBridge()`.
  */
 export function isNativeShell(): boolean {
-  return isTauri()
+  return defaultPlatform().isNativeShell
 }
 
 /**
  * True in the macOS desktop webview — the platform gate for macOS-only
- * capabilities (EventKit calendar access). Plain-browser dev and other
- * desktop platforms are excluded by the Tauri check; iPadOS — whose user
- * agent masquerades as macOS — by the touch-point check (the same rule as
- * `window-chrome.ts`'s title-bar probe).
+ * capabilities (EventKit calendar access). Plain-browser dev, other desktop
+ * platforms, and iPadOS are excluded.
  */
-export const isMacosDesktop: boolean =
-  isTauri() &&
-  typeof navigator !== 'undefined' &&
-  navigator.userAgent.includes('Macintosh') &&
-  navigator.maxTouchPoints === 0
+export function isMacosDesktop(): boolean {
+  return defaultPlatform().isMacosDesktop
+}

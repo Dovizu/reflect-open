@@ -7,6 +7,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
+import { defaultPlatform } from '@reflect/core'
 import { attachUpdateToasts } from '@/components/update-toasts.ts'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { isNativeShell } from '@/lib/platform.ts'
@@ -51,7 +52,7 @@ interface UpdateProviderProps {
  */
 export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): ReactElement {
   const supported = isNativeShell()
-  const resolvedAutoCheck = autoCheck ?? (supported && !import.meta.env.DEV)
+  const resolvedAutoCheck = autoCheck ?? (supported && !defaultPlatform().isDev)
   const [controller, setController] = useState<UpdateController | null>(null)
 
   // One checker per app: secondary note windows never poll for updates.

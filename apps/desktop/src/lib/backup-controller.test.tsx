@@ -1,11 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  setDefaultPlatform,
   emitFileChanges,
   setBridge,
   subscribeFileChanges,
   type FileChange,
   type GraphInfo,
 } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { flushBackup } from '@/lib/backup-flush.ts'
 import { setPlatformSurface } from '@/lib/platform-surface.ts'
@@ -14,10 +16,16 @@ import { createBackupController, type BackupState } from './backup-controller.ts
 // providerFetch routes GitHub API calls through the Tauri HTTP plugin
 // whenever a bridge is set — which it is in every test here.
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
+
 const httpFetch = vi.mocked(tauriFetch)
 
 afterEach(() => {

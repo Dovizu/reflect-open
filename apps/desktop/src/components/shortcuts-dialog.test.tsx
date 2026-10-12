@@ -1,18 +1,18 @@
 import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
 import { ShortcutsDialog } from './shortcuts-dialog.tsx'
 import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.tsx'
 
-const isApplePlatform = vi.hoisted(() => vi.fn(() => false))
-vi.mock('@/lib/keybindings.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/keybindings.ts')>()),
-  isApplePlatform,
-}))
-
 beforeEach(() => {
-  isApplePlatform.mockReturnValue(false)
+  setDefaultPlatform(createTestPlatformService({ isApplePlatform: false }))
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
 })
 
 function OpenButton() {
@@ -59,7 +59,7 @@ describe('ShortcutsDialog', () => {
   })
 
   it('lists the AI menu shortcut with the Apple command chord', async () => {
-    isApplePlatform.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService({ isApplePlatform: true }))
     await renderDialog()
     await openDialog()
 

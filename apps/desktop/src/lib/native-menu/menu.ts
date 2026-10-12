@@ -1,4 +1,4 @@
-import { invoke, isTauri } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import {
   Menu,
   MenuItem,
@@ -7,6 +7,7 @@ import {
   type PredefinedMenuItemOptions,
 } from '@tauri-apps/api/menu'
 import { APP_COMMANDS } from '@/lib/commands/app-commands.ts'
+import { isMacosDesktop } from '@/lib/platform.ts'
 import { isMainWindow } from '@/lib/windows/window-role.ts'
 import { bindingToAccelerator } from './accelerator.ts'
 import { dispatchMenuCommand } from './dispatch.ts'
@@ -162,20 +163,6 @@ async function menuEntry(entry: AppMenuEntry): Promise<MenuItem | PredefinedMenu
   return entry.kind === 'command'
     ? await MenuItem.new(menuItemOptions(entry.commandId, entry.text))
     : { item: entry.item, ...(entry.text !== undefined ? { text: entry.text } : {}) }
-}
-
-/**
- * True in the macOS desktop webview only — iPadOS masquerades as macOS in the
- * user agent and is excluded by the touch-point check (same test as
- * `lib/window-chrome.ts`).
- */
-function isMacosDesktop(): boolean {
-  return (
-    isTauri() &&
-    typeof navigator !== 'undefined' &&
-    navigator.userAgent.includes('Macintosh') &&
-    navigator.maxTouchPoints === 0
-  )
 }
 
 /**

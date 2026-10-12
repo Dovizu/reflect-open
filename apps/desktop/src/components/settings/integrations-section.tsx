@@ -52,7 +52,7 @@ export function IntegrationsSection(): ReactElement | null {
   }, [contactsEnabled, refreshAuthorization])
 
   const contactsAvailable = authorization !== null && authorization !== 'unavailable'
-  const calendarAvailable = isMacosDesktop
+  const calendarAvailable = isMacosDesktop()
 
   if (!contactsAvailable && !calendarAvailable) {
     return null

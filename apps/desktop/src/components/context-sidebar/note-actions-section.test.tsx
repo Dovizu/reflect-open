@@ -1,9 +1,10 @@
-import { upsertFrontmatter, type PinnedNote } from '@reflect/core'
+import { setDefaultPlatform, upsertFrontmatter, type PinnedNote } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { frontmatterPatchToYaml, type FrontmatterPatch } from '@/editor/note-session.ts'
 import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { queryKeys } from '@/lib/query-client.ts'
 import { RouterProvider } from '@/routing/router.tsx'
@@ -22,16 +23,11 @@ const operationFail = vi.hoisted(() => vi.fn())
 const startOperation = vi.hoisted(() =>
   vi.fn(() => ({ progress: vi.fn(), done: vi.fn(), fail: operationFail })),
 )
-const isApplePlatform = vi.hoisted(() => vi.fn(() => false))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   getPinnedNotes,
   getNote,
-}))
-vi.mock('@/lib/keybindings.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/keybindings.ts')>()),
-  isApplePlatform,
 }))
 vi.mock('@/lib/note-delete.ts', () => ({ deleteOpenNote }))
 vi.mock('@/lib/operations.ts', () => ({ startOperation }))
@@ -65,7 +61,18 @@ beforeEach(() => {
   deleteOpenNote.mockReset().mockResolvedValue(undefined)
   startOperation.mockClear()
   operationFail.mockClear()
-  isApplePlatform.mockReturnValue(false)
+  setDefaultPlatform(
+    createTestPlatformService({
+      isNativeShell: false,
+      isMacosDesktop: false,
+      isApplePlatform: false,
+      hasMacosTitleBarOverlay: false,
+    }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
 })
 
 function noteRow(path: string, isPrivate: boolean, title = 'A') {
