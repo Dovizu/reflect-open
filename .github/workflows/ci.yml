@@ -66,6 +66,7 @@ jobs:
           REFLECT_TEST_BROWSER: chromium
           DEBUG: "vitest:browser:gc"
           VITEST_CHROMIUM_GC_FORCE: "1"
+          VITEST_CHROMIUM_GC_DISK_THRESHOLD_GB: "100000"
 
   # Not part of `all-green`: a WebKit failure does not block merging.
   # Disabled on the `service` branch while the service refactor is in progress;
