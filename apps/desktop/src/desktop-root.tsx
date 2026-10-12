@@ -14,6 +14,7 @@ import { trackSubscriptions } from '@/lib/subscriptions.ts'
 import { GraphProvider } from '@/providers/graph-provider.tsx'
 import { SidebarWidthEffect } from '@/providers/sidebar-width.tsx'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * The desktop surface tree (split out of `main.tsx` by the Plan 19 platform
@@ -22,6 +23,7 @@ import { UpdateProvider } from '@/providers/update-provider.tsx'
  */
 export function DesktopRoot(): ReactElement {
   const bridgeReady = useBridgeReady()
+  const { operations } = useAppServices()
   // Deep-link intake starts with the surface, not the workspace: a
   // `reflect://` URL that launched the app (or arrived on the graph chooser)
   // buffers in `intake.ts` until a graph opens. Browser dev has no plugin.
@@ -58,7 +60,7 @@ export function DesktopRoot(): ReactElement {
   // store is per-webview, matching the per-window mount this replaces). The
   // effect only ties the subscription to the window's lifetime; the toast
   // calls themselves run inside the store mutations that report the work.
-  useEffect(() => attachOperationToasts(), [])
+  useEffect(() => attachOperationToasts(operations), [operations])
 
   return (
     <AppErrorBoundary>

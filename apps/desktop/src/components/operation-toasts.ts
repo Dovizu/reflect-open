@@ -1,5 +1,5 @@
+import type { Operation, OperationsService } from '@reflect/core'
 import { toast } from '@/components/ui/toast.tsx'
-import { getOperations, subscribeOperations, type Operation } from '@/lib/operations.ts'
 
 /**
  * The desktop face of the operations store (foundations hardening): a small,
@@ -71,22 +71,22 @@ function showOperationToast(operation: Operation): void {
   }
 }
 
-/** Start mirroring the operations store into toasts; returns a detach. */
-export function attachOperationToasts(): () => void {
+/** Start mirroring `operations` into toasts; returns a detach. */
+export function attachOperationToasts(operations: OperationsService): () => void {
   let shownIds = new Set<number>()
   const sync = (): void => {
-    const operations = getOperations()
-    const nextIds = new Set(operations.map((operation) => operation.id))
+    const current = operations.getAll()
+    const nextIds = new Set(current.map((operation) => operation.id))
     for (const id of shownIds) {
       if (!nextIds.has(id)) {
         toast.close(`operation-${id}`)
       }
     }
-    for (const operation of operations) {
+    for (const operation of current) {
       showOperationToast(operation)
     }
     shownIds = nextIds
   }
   sync()
-  return subscribeOperations(sync)
+  return operations.subscribe(sync)
 }
