@@ -111,14 +111,31 @@ export {
   type WebFetchKind,
 } from './capture.ts'
 export {
+  createTestGistService,
+  createTestGitHostCredentialService,
   createTestGitRepositoryService,
+  createTestGithubAuthService,
+  createTestGithubRepoService,
   createTestICloudNativeService,
   type GitRepositoryCall,
   type GitRepositoryHandler,
   type ICloudNativeCall,
   type TestGitRepositoryService,
+  type TestGithubAuthOptions,
   type TestICloudNativeService,
 } from './sync.ts'
+export {
+  createTestAiCredentialService,
+  createTestAiKeyValidationService,
+  createTestAiPromptService,
+  createTestLanguageModelService,
+  type TestAiCredentialServiceOptions,
+  type TestAiKeyValidationService,
+  type TestAiPromptServiceOptions,
+  type TestLanguageModelCall,
+  type TestLanguageModelService,
+  type TestLanguageModelSource,
+} from './ai.ts'
 export {
   createTestAppInfoService,
   createTestSecretStoreService,

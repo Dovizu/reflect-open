@@ -5,14 +5,33 @@ import type {
   IcloudStatus,
   IcloudSweepOutcome,
 } from '../ipc/icloud-native-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { HttpService } from '../app/http-service.ts'
+import type { SecretStoreService } from '../secrets/secret-store-service.ts'
+import { createGistService, type GistService } from '../sync/gist-service.ts'
+import {
+  createGitHostCredentialService,
+  type GitHostCredentialService,
+} from '../sync/git-host-credential-service.ts'
 import type {
   CommitOutcome,
+  GitCredential,
   GitRepositoryService,
   GitStatus,
   MergeOutcome,
   PushOutcome,
   RemoteDelta,
 } from '../sync/git-repository-service.ts'
+import {
+  createGithubAuthService,
+  GITHUB_AUTH_SECRET,
+  type GithubAuth,
+  type GithubAuthService,
+} from '../sync/github-auth-service.ts'
+import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
+import { createTestClockService } from './clock.ts'
+import { createTestHttpService } from './http.ts'
+import { createTestSecretStoreService } from './secrets.ts'
 
 type GitMethod = keyof GitRepositoryService
 
@@ -260,4 +279,58 @@ export function createTestICloudNativeService(options?: {
       }
     },
   }
+}
+
+export interface TestGithubAuthOptions {
+  /** The credential stored at the start; none by default. Ignored when `secretStore` is given. */
+  auth?: GithubAuth
+  /** Defaults to an in-memory keychain holding `auth`. */
+  secretStore?: SecretStoreService
+  /** Defaults to an HTTP fake with no routes. */
+  http?: HttpService
+  /** Defaults to a test clock. */
+  clock?: ClockService
+}
+
+/** The real {@link GithubAuthService} over an in-memory keychain, an HTTP fake and a test clock. */
+export function createTestGithubAuthService(options?: TestGithubAuthOptions): GithubAuthService {
+  return createGithubAuthService({
+    secretStore:
+      options?.secretStore ??
+      createTestSecretStoreService(
+        options?.auth === undefined ? {} : { [GITHUB_AUTH_SECRET]: JSON.stringify(options.auth) },
+      ),
+    http: options?.http ?? createTestHttpService(),
+    clock: options?.clock ?? createTestClockService(),
+  })
+}
+
+/**
+ * The real {@link GitHostCredentialService} over an in-memory keychain that
+ * holds one sign-in per host of `credentials`. `credentials` is ignored when
+ * `secretStore` is given.
+ */
+export function createTestGitHostCredentialService(options?: {
+  credentials?: Record<string, GitCredential>
+  secretStore?: SecretStoreService
+}): GitHostCredentialService {
+  const secrets = Object.fromEntries(
+    Object.entries(options?.credentials ?? {}).map(([host, credential]) => [
+      `git-host:${host.toLowerCase()}`,
+      JSON.stringify(credential),
+    ]),
+  )
+  return createGitHostCredentialService({
+    secretStore: options?.secretStore ?? createTestSecretStoreService(secrets),
+  })
+}
+
+/** The real {@link GithubRepoService} over `http`, an HTTP fake with no routes by default. */
+export function createTestGithubRepoService(options?: { http?: HttpService }): GithubRepoService {
+  return createGithubRepoService({ http: options?.http ?? createTestHttpService() })
+}
+
+/** The real {@link GistService} over `http`, an HTTP fake with no routes by default. */
+export function createTestGistService(options?: { http?: HttpService }): GistService {
+  return createGistService({ http: options?.http ?? createTestHttpService() })
 }

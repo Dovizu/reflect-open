@@ -61,7 +61,7 @@ export async function* transformSelection(
 ): AsyncGenerator<TransformStreamEvent> {
   try {
     options.signal?.throwIfAborted()
-    const model = await languageModel(options.config, options.apiKey, options.fetchFn)
+    const model = await languageModel(options.config, options.apiKey)
     options.signal?.throwIfAborted()
     yield* streamTransformTurn(model, {
       prompt: renderSelectionPrompt(options.promptBody, options.selection),

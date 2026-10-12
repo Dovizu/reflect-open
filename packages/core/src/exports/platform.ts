@@ -89,6 +89,30 @@ export {
   setDefaultGitRepository,
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
+export {
+  createGithubAuthService,
+  defaultGithubAuth,
+  setDefaultGithubAuth,
+  type GithubAuthService,
+} from '../sync/github-auth-service.ts'
+export {
+  createGitHostCredentialService,
+  defaultGitHostCredentials,
+  setDefaultGitHostCredentials,
+  type GitHostCredentialService,
+} from '../sync/git-host-credential-service.ts'
+export {
+  createGithubRepoService,
+  defaultGithubRepos,
+  setDefaultGithubRepos,
+  type GithubRepoService,
+} from '../sync/github-repo-service.ts'
+export {
+  createGistService,
+  defaultGists,
+  setDefaultGists,
+  type GistService,
+} from '../sync/gist-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
 export {
   createSystemClock,
@@ -464,6 +488,35 @@ export {
   setDefaultEmbeddingRuntime,
   type EmbeddingRuntimeService,
 } from '../embeddings/embedding-runtime-service.ts'
+export {
+  createAiCredentialService,
+  defaultAiCredentials,
+  setDefaultAiCredentials,
+  type AiCredentialService,
+  type AiKeyReader,
+} from '../ai/ai-credential-service.ts'
+export {
+  createAiKeyValidationService,
+  defaultAiKeyValidation,
+  setDefaultAiKeyValidation,
+  type AiKeyValidationService,
+} from '../ai/ai-key-validation-service.ts'
+export {
+  createAiPromptService,
+  defaultAiPrompts,
+  setDefaultAiPrompts,
+  type AiPromptDraft,
+  type AiPromptService,
+} from '../ai/ai-prompt-service.ts'
+export {
+  createLanguageModelService,
+  createLazyAiSdkLoader,
+  defaultLanguageModel,
+  setDefaultLanguageModel,
+  withAppReviewDemo,
+  type AiSdkLoader,
+  type LanguageModelService,
+} from '../ai/language-model-service.ts'
 export {
   createChatHistoryService,
   defaultChatHistory,

@@ -96,7 +96,7 @@ export async function formatAudioMemoTranscript(
   try {
     const { generateText, Output } = await import('@reflect/modules/ai')
     const result = await generateText({
-      model: await languageModel(config, request.credentials.apiKey, request.fetchFn),
+      model: await languageModel(config, request.credentials.apiKey),
       output: Output.object({ schema: formattedAudioMemoSchema }),
       instructions: FORMAT_SYSTEM_PROMPT,
       prompt: `Transcript JSON string:\n${JSON.stringify(request.transcript)}`,

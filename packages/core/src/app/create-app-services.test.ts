@@ -55,6 +55,10 @@ const SERVICE_KEYS = [
   'chatHistory',
   'update',
   'gitRepository',
+  'githubAuth',
+  'gitHostCredentials',
+  'githubRepos',
+  'gists',
   'icloudNative',
   'captureInbox',
   'webFetch',
@@ -75,6 +79,10 @@ const SERVICE_KEYS = [
   'noteLinkResolver',
   'noteCreation',
   'privacy',
+  'aiCredentials',
+  'aiKeyValidation',
+  'languageModel',
+  'aiPrompts',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

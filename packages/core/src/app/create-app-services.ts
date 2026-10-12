@@ -1,3 +1,15 @@
+import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
+import {
+  createAiKeyValidationService,
+  type AiKeyValidationService,
+} from '../ai/ai-key-validation-service.ts'
+import { createAiPromptService, type AiPromptService } from '../ai/ai-prompt-service.ts'
+import {
+  createLanguageModelService,
+  createLazyAiSdkLoader,
+  withAppReviewDemo,
+  type LanguageModelService,
+} from '../ai/language-model-service.ts'
 import {
   createChatHistoryService,
   type ChatHistoryService,
@@ -14,6 +26,13 @@ import {
   createGitRepositoryService,
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
+import { createGistService, type GistService } from '../sync/gist-service.ts'
+import {
+  createGitHostCredentialService,
+  type GitHostCredentialService,
+} from '../sync/git-host-credential-service.ts'
+import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
+import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
@@ -167,6 +186,10 @@ export interface AppServices {
   readonly chatHistory: ChatHistoryService
   readonly update: UpdateService
   readonly gitRepository: GitRepositoryService
+  readonly githubAuth: GithubAuthService
+  readonly gitHostCredentials: GitHostCredentialService
+  readonly githubRepos: GithubRepoService
+  readonly gists: GistService
   readonly icloudNative: ICloudNativeService
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
@@ -203,6 +226,10 @@ export interface AppServices {
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
+  readonly aiCredentials: AiCredentialService
+  readonly aiKeyValidation: AiKeyValidationService
+  readonly languageModel: LanguageModelService
+  readonly aiPrompts: AiPromptService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -407,6 +434,10 @@ export function createAppServices(adapters: AppAdapters): AppServices {
         })
       : createUnsupportedUpdateService(),
     gitRepository: createGitRepositoryService({ ipc }),
+    githubAuth: createGithubAuthService({ secretStore, http: adapters.http, clock }),
+    gitHostCredentials: createGitHostCredentialService({ secretStore }),
+    githubRepos: createGithubRepoService({ http: adapters.http }),
+    gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox: createCaptureInboxService({ ipc }),
     webFetch: createWebFetchService({ ipc }),
@@ -449,5 +480,11 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       mobileStorage,
       logger,
     }),
+    aiCredentials: createAiCredentialService({ secretStore }),
+    aiKeyValidation: createAiKeyValidationService({ http: adapters.http }),
+    languageModel: withAppReviewDemo(
+      createLanguageModelService({ http: adapters.http, sdk: createLazyAiSdkLoader() }),
+    ),
+    aiPrompts: createAiPromptService({ settings, id }),
   }
 }

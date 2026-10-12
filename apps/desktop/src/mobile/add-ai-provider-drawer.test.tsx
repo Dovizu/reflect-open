@@ -15,7 +15,7 @@ import { fireEvent } from '@/test-utils/fire-event.ts'
  */
 
 const validateApiKey = vi.hoisted(() =>
-  vi.fn<(input: ApiKeyValidationInput, fetchFn: typeof fetch) => Promise<ApiKeyValidation>>(),
+  vi.fn<(input: ApiKeyValidationInput) => Promise<ApiKeyValidation>>(),
 )
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
@@ -166,7 +166,6 @@ describe('AddAiProviderDrawer', () => {
           apiKey: '',
           baseUrl: 'http://localhost:1234/v1',
         }),
-        expect.any(Function),
       ),
     )
     expect(onAdd).toHaveBeenCalledWith(
