@@ -28,24 +28,25 @@ The webview's Tauri label decides the role: `main` is the config-declared
 window; note windows normally get content-addressed `note-<hash(deep link)>`
 labels, with a numeric suffix when opening the target requires a distinct
 destination. An app-wide registry remembers the preferred window for each
-target. The frontend reads the role via `isMainWindow()`
-(`src/lib/windows/window-role.ts`), which treats
-bridge-less environments — browser dev, jsdom, the `?platform=ios` harness —
-as main: they are all single-window.
+target. The frontend reads the role via `WindowService.isMainWindow()`
+(`packages/core/src/app/window-service.ts`, `useAppServices().window`).
+Environments without native windows — browser dev, tests, the `?platform=ios`
+harness — get the single-window host (`createSingleWindowHost`), whose label is
+`main`: they are all single-window.
 
 | Runs where?          | main window | note window |
 | -------------------- | ----------- | ----------- |
 | Editing, note sessions, quit flush of own buffers | ✓ | ✓ |
 | Chat UI, audio recording, palette-free routed views | ✓ | ✓ |
 | Index writer (reconcile → subscribe → watch)      | ✓ | — |
-| Git backup + iCloud controllers                   | ✓ | — |
+| Git backup + iCloud sync services                 | ✓ | — |
 | Capture drain, transcription, embeddings, asset describing | ✓ | — |
 | Update checks, OS deep-link intake                | ✓ | — |
 | Graph management (open / switch / delete)         | ✓ | refused |
 
 The gate is structural: singleton mounts go through `useMainWindowEffect`
-(`src/hooks/use-main-window-effect.ts`), so a new background controller
-declares its ownership rather than remembering a guard. Graph-mutating
+(`src/hooks/use-main-window-effect.ts`), so a new per-session background
+service declares its ownership rather than remembering a guard. Graph-mutating
 actions are refused off-main in `GraphSessionService` (`requireMainWindow`) —
 opening a graph from a note window would re-root the shared `GraphState`
 under every window at once.
@@ -69,7 +70,8 @@ below. The command is also exposed in the native Window menu.
    The flag then resolves the target as usual. Resolved note
    references share `useNoteLinkNavigation`, which applies the convention and
    delegates to `openRouteInNewWindow`; raw in-note links use
-   `openDeepLinkInNewWindow` (`src/lib/windows/open-in-new-window.ts`). Routes
+   `openDeepLinkInNewWindow` (both on `LinkNavigationService`,
+   `packages/core/src/navigation/link-navigation-service.ts`). Routes
    serialize through the existing deep-link grammar (`deepLinkForRoute`);
    capture links (`append`, `task`) are writes, not places, and never
    window-ify. A declined or failed open falls back to in-window navigation
@@ -109,7 +111,7 @@ screen — never the chooser, which could re-root every other window.
 
 All cross-window signals are **Tauri events emitted from Rust**; the
 frontends never talk to each other directly. In-process signals
-(`IndexLifecycleService.onChangesApplied`, `emitNoteMoved`) do not cross webviews — that
+(`IndexLifecycleService.onChangesApplied`, `NoteMoveService.onMoved`) do not cross webviews — that
 asymmetry is what each broadcast below exists to bridge.
 
 | Event | Emitted by | Consumed by | Purpose |
@@ -153,7 +155,7 @@ silently dropped the note window's initial link.
   their owner (via `close()`, so each child's flush runs exactly like ⌘W — no
   data loss).
 - **Switching or deleting the graph closes note windows first.** They
-  adopted the outgoing session, so `GraphProvider` awaits
+  adopted the outgoing session, so `GraphSessionService` awaits
   `close_note_windows` **before** anything bumps the generations: each
   child's flush runs against the still-valid session, and a destroyed
   webview implies its flush landed (close-requested defers destruction until
@@ -190,11 +192,11 @@ can contend; the writer connection carries a 5s `busy_timeout`
   Menu action channels belong to the webview that creates them; letting a
   chrome-free note window replace the app-wide menu would leave command items
   with no `useAppShortcuts` dispatcher.
-- A note window's settings screen shows sync as loading (its controller is
-  deliberately inert).
+- A note window's settings screen shows sync as loading (it creates no
+  backup service, on purpose).
 - **Settings are effectively main-window-owned.** Note windows mount no
   settings-writing surface (no sidebar/palette/shortcuts/settings route),
-  so their quit-time `flushSettings` is a comparison no-op — the provider
+  so their quit-time `settings.flush()` is a no-op — `SettingsService`
   only writes when the window's own doc diverged from its confirmed
   baseline. Constraint for future work: settings saves are full-document,
   so before any surface lets a note window call `updateSettings`, add a

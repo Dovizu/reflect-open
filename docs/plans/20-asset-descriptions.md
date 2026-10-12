@@ -34,7 +34,8 @@ almost verbatim.
 lives in `@reflect/core`; the desktop app owns the watcher trigger, the
 single-flight controller, and the Settings UI. This mirrors capture
 ([`actions/capture.ts`](../../packages/core/src/actions/capture.ts) +
-[`lib/capture-controller.ts`](../../apps/desktop/src/lib/capture-controller.ts))
+`lib/capture-controller.ts`, today
+[`capture/capture-service.ts`](../../packages/core/src/capture/capture-service.ts))
 and audio memos
 ([`audio/audio-memo-transcription-service.ts`](../../packages/core/src/audio/audio-memo-transcription-service.ts)).
 
@@ -121,7 +122,8 @@ Capture → Inbox → Drain → Enrich
 
 ### AI module — `packages/core/src/ai/describe-asset.ts`
 
-A near-clone of [`describe-page.ts`](../../packages/core/src/ai/describe-page.ts),
+A near-clone of `describe-page.ts` (today
+[`page-describer-service.ts`](../../packages/core/src/ai/page-describer-service.ts)),
 same error contract:
 
 ```ts
@@ -158,7 +160,8 @@ Provider resolution: `defaultAiProvider(state)` (the configured default, else th
 first configured provider), key via `getSecret(aiKeySecretName(config.id))` —
 identical to capture
 ([`provider-config.ts`](../../packages/core/src/ai/provider-config.ts),
-[`secrets.ts`](../../packages/core/src/ai/secrets.ts)).
+`secrets.ts`, today
+[`ai-credential-service.ts`](../../packages/core/src/ai/ai-credential-service.ts)).
 
 ### Privacy gate — the crux
 

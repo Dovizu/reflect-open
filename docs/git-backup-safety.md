@@ -5,7 +5,7 @@ The rules every change to the sync path must keep. "The sync path" is
 engine and the backup service), the backup flusher of
 `packages/core/src/app/persistence-flush-service.ts`, and the
 note session's external-change handling in
-`apps/desktop/src/editor/note-session-state.ts`.
+`packages/core/src/documents/note-session.ts`.
 
 Each rule names the test that enforces it. A rule whose test is still
 `#[ignore]` / `test.fails` is a known gap: the test is red on purpose and

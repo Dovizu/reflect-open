@@ -130,8 +130,9 @@ crates form a single **Cargo workspace** rooted at the repository root.
 reflect-open/
 ├── apps/
 │   ├── desktop/            # @reflect/desktop — the Tauri 2 app
-│   │   ├── src/            # React frontend (main.tsx, app.tsx, components/, editor/,
-│   │   │                   #   hooks/, providers/, routing/); calls Rust via @tauri-apps/api
+│   │   ├── src/            # React frontend (main.tsx, boot.ts, components/, editor/,
+│   │   │                   #   hooks/, providers/, routing/, services/); reaches Rust
+│   │   │                   #   only through @reflect/core services
 │   │   ├── src-tauri/      # Tauri native shell (Rust crate `reflect-open`)
 │   │   │   ├── src/        # lib.rs (#[tauri::command] handlers, plugins), db/, fs/,
 │   │   │   │               #   watcher.rs, embed.rs, recents.rs, secrets.rs, settings.rs
@@ -148,8 +149,9 @@ reflect-open/
 │   ├── extension/          # @reflect/extension — Chrome MV3 capture extension (WXT; see its README)
 │   └── native-host/        # `reflect-capture-host` — native-messaging spooler sidecar (Plan 11)
 ├── packages/
-│   ├── core/               # @reflect/core — ALL TS business logic (markdown/, indexing/,
-│   │                       #   graph/, embeddings/, ai/, settings/, ipc/)
+│   ├── core/               # @reflect/core — ALL TS business logic as services (app/,
+│   │                       #   graph/, documents/, indexing/, markdown/, embeddings/,
+│   │                       #   ai/, sync/, settings/, ipc/, testing/)
 │   └── db/                 # @reflect/db — generated Kysely schema + the IPC dialect
 ├── crates/
 │   └── index-schema/       # Shared SQLite migrations for <graph>/.reflect/index.sqlite
@@ -179,10 +181,37 @@ All UI work should follow the Reflect design system documented in [`design-syste
 - `design-system/guidelines/` — color, type, spacing, and brand specimens
 - `design-system/styles.css` — global entry point that imports all tokens
 
-**Frontend ↔ Rust bridge**
+**Services (how TypeScript code is wired)**
+
+Read [docs/plans/architecture-conventions.md](docs/plans/architecture-conventions.md) §3
+and [docs/contributing/services.md](docs/contributing/services.md) before adding logic.
+The short version:
+
+- Business logic lives in `@reflect/core` as services: `createXxxService(deps)` in
+  `packages/core/src/<domain>/<name>-service.ts` returns an object literal. A service
+  gets other services only through `deps`. Core has no process-wide instances, no
+  module-level mutable state, and never imports `@tauri-apps/*`.
+- `createAppServices(adapters)` (`packages/core/src/app/create-app-services.ts`) builds
+  every service once and returns `AppServices`. The desktop app supplies the platform
+  adapters from `apps/desktop/src/services/` and builds the services in
+  `apps/desktop/src/boot.ts`.
+- React reads services with `useAppServices()`
+  (`apps/desktop/src/services/services-provider.tsx`). Non-React desktop modules take
+  them as a first parameter `ctx`. Commands get them from `CommandContext.services`.
+  Never import `appServices` from `boot.ts` outside `main.tsx` and the platform roots.
+- Core emits events (`onXxx(listener)`); the desktop app maps them to query-cache
+  invalidation. Core never touches the query cache.
+- Service methods that write take the graph's `generation`. Thread it through and read
+  it at call time; never cache one across a graph switch.
+- Tests construct services over the test doubles in `@reflect/core/testing`
+  (`createTestAppServices()`, `createTestXxxService()`), and desktop tests render with
+  `renderInApp` / `renderWithServices`. `vi.mock` is only for stubbing a pure UI child.
+  See [docs/contributing/testing.md](docs/contributing/testing.md).
+
+**Frontend ↔ Rust**
 
 - Define commands in `apps/desktop/src-tauri/src/` (registered in `lib.rs`'s `invoke_handler`) with `#[tauri::command]`.
-- Call commands from the frontend with `invoke` from `@tauri-apps/api/core`.
+- Bind each command as a method of the core service that owns the domain, through `ipc.call(command, args, zodSchema)`. Components never call `invoke`. See [docs/contributing/adding-a-command.md](docs/contributing/adding-a-command.md).
 - Add Tauri plugins in `apps/desktop/src-tauri/Cargo.toml` (Rust) and grant permissions in `apps/desktop/src-tauri/capabilities/`.
 
 **Common commands** (run from the repo root)
@@ -190,7 +219,7 @@ All UI work should follow the Reflect design system documented in [`design-syste
 ```bash
 pnpm dev              # turbo dev across packages (Vite on http://localhost:1420)
                       #   add ?platform=ios to the URL to preview the MOBILE tree in a
-                      #   plain browser (dev-only in-memory bridge + seeded demo graph)
+                      #   plain browser (dev-only in-memory IPC backend + seeded demo graph)
 pnpm tauri dev        # Full Tauri app with hot reload (stages the CLI sidecar first)
 pnpm tauri:dev        # `pnpm tauri dev` with the dev overlay → the "Reflect Dev" flavor (green icon, own identifier; coexists with Reflect / Reflect Beta)
 pnpm build            # turbo build pipeline → apps/desktop/dist/
