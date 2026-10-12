@@ -35,7 +35,7 @@ export function useAppServices(options?: { optional: true }): AppServices | null
   return services
 }
 
-/** The {@link AppServices} of the nearest `AppServicesProvider`, or null outside one. */
+/** The {@link AppServices} of the nearest `AppServicesProvider`, or `null` outside one. */
 export function useOptionalAppServices(): AppServices | null {
   return use(AppServicesContext)
 }

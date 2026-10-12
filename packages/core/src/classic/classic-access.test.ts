@@ -1,26 +1,28 @@
 import { verifyChallenge } from 'pkce-challenge'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultLogger } from '../app/logger-service.ts'
-import { setBridge } from '../ipc/bridge.ts'
-import { createTestIdService } from '../testing/index.ts'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createSystemIdService, type IdService } from '../app/id-service.ts'
+import { createTestClockService, type TestClockService } from '../testing/clock.ts'
+import { createTestHttpService, type TestHttpService } from '../testing/http.ts'
+import { createTestIdService } from '../testing/id.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
+import { createTestWebAuthService, type TestWebAuthService } from '../testing/plugins.ts'
+import { createTestSecretStoreService, type TestSecretStoreService } from '../testing/secrets.ts'
 import {
   CLASSIC_ACCESS_SECRET,
   classicAccessUntil,
   classicPaidThrough,
-  loadClassicAccess,
-  readClassicAccess,
-  signInWithClassic,
+  createClassicAccessService,
   type ClassicAccess,
+  type ClassicAccessService,
   type ClassicInvoice,
-  type StartWebAuth,
-} from './classic-access.ts'
+} from './classic-access-service.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const YEAR_MS = 365 * DAY_MS
 const NOW = Date.UTC(2026, 9, 1)
 const AUGUST_END = '2026-09-01T00:00:00.000Z'
 const JULY_END = '2026-08-01T00:00:00.000Z'
+const ORIGIN = 'https://reflect.app'
 
 function invoice(overrides: Partial<ClassicInvoice> = {}): ClassicInvoice {
   return {
@@ -32,66 +34,18 @@ function invoice(overrides: Partial<ClassicInvoice> = {}): ClassicInvoice {
   }
 }
 
-/** Keychain fake over the bridge: one in-memory secret store. */
-function fakeKeychain(initial: Record<string, string> = {}): Map<string, string> {
-  const store = new Map(Object.entries(initial))
-  setBridge({
-    invoke: async (command, args) => {
-      const name = args['name'] as string
-      if (command === 'secret_get') return store.get(name) ?? null
-      if (command === 'secret_set') {
-        store.set(name, args['value'] as string)
-        return null
-      }
-      if (command === 'secret_delete') {
-        store.delete(name)
-        return null
-      }
-      throw new Error(`unexpected command ${command}`)
-    },
-    listen: async () => () => {},
-  })
-  return store
-}
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
-type Route = (init: RequestInit | undefined) => Response | Promise<Response>
-
-/** A fetch fake that answers by URL path and records the paths it was asked for. */
-function fakeFetch(routes: Record<string, Route>): { fetchFn: typeof fetch; paths: string[] } {
-  const paths: string[] = []
-  const fetchFn: typeof fetch = async (input, init) => {
-    const path = new URL(input instanceof Request ? input.url : String(input)).pathname
-    paths.push(path)
-    const route = routes[path]
-    if (route === undefined) throw new Error(`unexpected request ${path}`)
-    return await route(init)
-  }
-  return { fetchFn, paths }
-}
-
-/** A sign-in sheet that approves and echoes the request's `state`. */
-const approve: StartWebAuth = async ({ url }) => {
-  const state = new URL(url).searchParams.get('state') ?? ''
-  return `reflect://oauth/callback?code=the-code&state=${state}`
-}
+type Route = (request: Request) => Response | Promise<Response>
 
 function tokenRoute(): Route {
-  return () => jsonResponse({ access_token: 'the-token', access_token_id: 'id' })
+  return () => Response.json({ access_token: 'the-token', access_token_id: 'id' })
 }
 
 function meRoute(paid: boolean): Route {
-  return () => jsonResponse({ id: 'uid', email: 'a@example.com', subscription: { paid } })
+  return () => Response.json({ id: 'uid', email: 'a@example.com', subscription: { paid } })
 }
 
 function invoicesRoute(invoices: ClassicInvoice[]): Route {
-  return () => jsonResponse({ invoices })
+  return () => Response.json({ invoices })
 }
 
 function storedAccess(overrides: Partial<ClassicAccess> = {}): ClassicAccess {
@@ -104,21 +58,59 @@ function storedAccess(overrides: Partial<ClassicAccess> = {}): ClassicAccess {
   }
 }
 
+/** The callback of a sign-in sheet that approves `url` and echoes its `state`. */
+function approve(url: string): string {
+  const state = new URL(url).searchParams.get('state') ?? ''
+  return `reflect://oauth/callback?code=the-code&state=${state}`
+}
+
 let logger: TestLoggerService
+let clock: TestClockService
+let http: TestHttpService
+let secrets: TestSecretStoreService
+let webAuth: TestWebAuthService
 
 beforeEach(() => {
   logger = createTestLoggerService()
-  setDefaultLogger(logger)
-  vi.useFakeTimers({ toFake: ['Date'] })
-  vi.setSystemTime(NOW)
+  clock = createTestClockService({ now: NOW })
+  http = createTestHttpService()
+  secrets = createTestSecretStoreService()
+  webAuth = createTestWebAuthService(null)
 })
 
-afterEach(() => {
-  vi.useRealTimers()
-  vi.restoreAllMocks()
-  setBridge(null)
-  setDefaultLogger(null)
-})
+/** Answers each path under the Reflect Classic origin with its route. */
+function routes(byPath: Record<string, Route>): void {
+  for (const [path, route] of Object.entries(byPath)) {
+    http.on('*', `${ORIGIN}${path}`, route)
+  }
+}
+
+function paths(): string[] {
+  return http.requests().map((request) => new URL(request.url).pathname)
+}
+
+function service(options?: { id?: IdService; approved?: boolean }): ClassicAccessService {
+  const approved = options?.approved ?? true
+  return createClassicAccessService({
+    secretStore: secrets,
+    http,
+    webAuth: approved
+      ? {
+          start: async (start) => {
+            await webAuth.start(start)
+            return approve(start.url)
+          },
+        }
+      : webAuth,
+    clock,
+    id: options?.id ?? createTestIdService(),
+    logger,
+  })
+}
+
+function stored(): unknown {
+  return JSON.parse(secrets.snapshot()[CLASSIC_ACCESS_SECRET] ?? 'null')
+}
 
 describe('classicPaidThrough', () => {
   it('takes the latest period end across qualifying invoices, not the first invoice', () => {
@@ -162,31 +154,31 @@ describe('classicAccessUntil', () => {
   })
 })
 
-describe('signInWithClassic', () => {
+describe('signIn', () => {
   it('opens the authorize page with PKCE and stores a year of access for a paying account', async () => {
-    const keychain = fakeKeychain()
-    let authorizeUrl = new URL('https://invalid')
-    const startWebAuth = vi.fn<StartWebAuth>(async (options) => {
-      authorizeUrl = new URL(options.url)
-      return await approve(options)
-    })
     let verifier = ''
-    const { fetchFn, paths } = fakeFetch({
-      '/api/oauth/token': (init) => {
-        const body = JSON.parse(String(init?.body)) as Record<string, string>
+    routes({
+      '/api/oauth/token': async (request) => {
+        const body = (await request.json()) as Record<string, string>
         verifier = body['code_verifier'] ?? ''
         expect(body['client_id']).toBe('reflect-open')
         expect(body['code']).toBe('the-code')
-        return tokenRoute()(init)
+        return await tokenRoute()(request)
       },
       '/api/users/me': meRoute(true),
     })
+    let closed = 0
 
-    const result = await signInWithClassic({ ephemeral: false, fetchFn, startWebAuth })
+    const result = await service({ id: createSystemIdService() }).signIn({
+      ephemeral: false,
+      onSheetClosed: () => {
+        closed += 1
+      },
+    })
 
-    expect(startWebAuth).toHaveBeenCalledWith(
-      expect.objectContaining({ callbackScheme: 'reflect', ephemeral: false }),
-    )
+    const [start] = webAuth.starts()
+    expect(start).toMatchObject({ callbackScheme: 'reflect', ephemeral: false })
+    const authorizeUrl = new URL(start?.url ?? 'https://invalid')
     expect(authorizeUrl.origin + authorizeUrl.pathname).toBe('https://reflect.app/oauth')
     expect(authorizeUrl.searchParams.get('client_id')).toBe('reflect-open')
     expect(authorizeUrl.searchParams.get('redirect_uri')).toBe('reflect://oauth/callback')
@@ -194,7 +186,8 @@ describe('signInWithClassic', () => {
     await expect(
       verifyChallenge(verifier, authorizeUrl.searchParams.get('code_challenge') ?? ''),
     ).resolves.toBe(true)
-    expect(paths).toEqual(['/api/oauth/token', '/api/users/me'])
+    expect(paths()).toEqual(['/api/oauth/token', '/api/users/me'])
+    expect(closed).toBe(1)
 
     const access = {
       token: 'the-token',
@@ -203,50 +196,51 @@ describe('signInWithClassic', () => {
       checkedAt: NOW,
     }
     expect(result).toEqual({ kind: 'signed-in', access })
-    expect(JSON.parse(keychain.get(CLASSIC_ACCESS_SECRET) ?? 'null')).toEqual(access)
+    expect(stored()).toEqual(access)
+  })
+
+  it('leaves the state alone until the next read', async () => {
+    routes({ '/api/oauth/token': tokenRoute(), '/api/users/me': meRoute(true) })
+    const classic = service()
+
+    await classic.signIn({ ephemeral: false })
+    expect(classic.getState()).toEqual({ access: null, active: false, isLoading: true })
+
+    await classic.read()
+    expect(classic.getState()).toMatchObject({ active: true, isLoading: false })
   })
 
   it('uses the last paid period for an account that stopped paying', async () => {
-    fakeKeychain()
-    const { fetchFn, paths } = fakeFetch({
+    routes({
       '/api/oauth/token': tokenRoute(),
       '/api/users/me': meRoute(false),
       '/api/users/me/invoices': invoicesRoute([invoice()]),
     })
 
-    const result = await signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve })
+    const result = await service().signIn({ ephemeral: false })
 
-    expect(paths).toEqual(['/api/oauth/token', '/api/users/me', '/api/users/me/invoices'])
+    expect(paths()).toEqual(['/api/oauth/token', '/api/users/me', '/api/users/me/invoices'])
     expect(result).toMatchObject({
       kind: 'signed-in',
       access: { expiresAt: Date.parse(JULY_END) + YEAR_MS },
     })
   })
 
-  it('takes the PKCE pair and `state` from the injected `IdService`', async () => {
-    fakeKeychain()
+  it('takes the PKCE pair and `state` from the `IdService`', async () => {
     const id = createTestIdService()
-    let authorizeUrl = new URL('https://invalid')
     let verifier = ''
-    const { fetchFn } = fakeFetch({
-      '/api/oauth/token': (init) => {
-        const body = JSON.parse(String(init?.body)) as Record<string, string>
+    routes({
+      '/api/oauth/token': async (request) => {
+        const body = (await request.json()) as Record<string, string>
         verifier = body['code_verifier'] ?? ''
-        return tokenRoute()(init)
+        return await tokenRoute()(request)
       },
       '/api/users/me': meRoute(true),
     })
 
-    await signInWithClassic({
-      ephemeral: false,
-      fetchFn,
-      id,
-      startWebAuth: async (options) => {
-        authorizeUrl = new URL(options.url)
-        return await approve(options)
-      },
-    })
+    await service({ id }).signIn({ ephemeral: false })
 
+    const authorizeUrl = new URL(webAuth.starts()[0]?.url ?? 'https://invalid')
     const pair = await id.pkceChallenge()
     expect(authorizeUrl.searchParams.get('state')).toBe(id.issued()[0])
     expect(authorizeUrl.searchParams.get('code_challenge')).toBe(pair.code_challenge)
@@ -254,79 +248,75 @@ describe('signInWithClassic', () => {
   })
 
   it('reports an account that never paid without storing anything', async () => {
-    const keychain = fakeKeychain()
-    const { fetchFn } = fakeFetch({
+    routes({
       '/api/oauth/token': tokenRoute(),
       '/api/users/me': meRoute(false),
       '/api/users/me/invoices': invoicesRoute([invoice({ amount_paid: 0 })]),
     })
 
-    await expect(
-      signInWithClassic({ ephemeral: true, fetchFn, startWebAuth: approve }),
-    ).resolves.toEqual({ kind: 'not-eligible', email: 'a@example.com' })
-    expect(keychain.size).toBe(0)
+    await expect(service().signIn({ ephemeral: true })).resolves.toEqual({
+      kind: 'not-eligible',
+      email: 'a@example.com',
+    })
+    expect(webAuth.starts()[0]?.ephemeral).toBe(true)
+    expect(secrets.snapshot()).toEqual({})
   })
 
   it('makes no request when the sheet is cancelled', async () => {
-    fakeKeychain()
-    const { fetchFn, paths } = fakeFetch({})
-
+    let closed = 0
     await expect(
-      signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: async () => null }),
+      service({ approved: false }).signIn({
+        ephemeral: false,
+        onSheetClosed: () => {
+          closed += 1
+        },
+      }),
     ).resolves.toEqual({ kind: 'cancelled' })
-    expect(paths).toEqual([])
+    expect(paths()).toEqual([])
+    expect(closed).toBe(0)
   })
 
   it('rejects a callback whose state does not match', async () => {
-    fakeKeychain()
-    const { fetchFn, paths } = fakeFetch({})
-    const forged: StartWebAuth = async () => 'reflect://oauth/callback?code=x&state=forged'
+    webAuth.setCallbackUrl('reflect://oauth/callback?code=x&state=forged')
 
-    await expect(
-      signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: forged }),
-    ).rejects.toMatchObject({ kind: 'auth' })
-    expect(paths).toEqual([])
+    await expect(service({ approved: false }).signIn({ ephemeral: false })).rejects.toMatchObject({
+      kind: 'auth',
+    })
+    expect(paths()).toEqual([])
   })
 
   it('rejects and logs a code that Reflect Classic does not accept', async () => {
-    fakeKeychain()
-    const { fetchFn } = fakeFetch({
-      '/api/oauth/token': () => jsonResponse({ error: { type: 'error' } }, 400),
+    routes({
+      '/api/oauth/token': () => Response.json({ error: { type: 'error' } }, { status: 400 }),
     })
 
-    await expect(
-      signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
-    ).rejects.toMatchObject({ kind: 'auth' })
+    await expect(service().signIn({ ephemeral: false })).rejects.toMatchObject({ kind: 'auth' })
     expect(logger.getWarnings()).toEqual([
       { message: 'Reflect Classic answered 400 (/api/oauth/token)', cause: undefined },
     ])
   })
 
   it('reports and logs an error status as a network failure', async () => {
-    fakeKeychain()
-    const { fetchFn } = fakeFetch({
+    routes({
       '/api/oauth/token': tokenRoute(),
-      '/api/users/me': () => jsonResponse({ error: { type: 'error' } }, 500),
+      '/api/users/me': () => Response.json({ error: { type: 'error' } }, { status: 500 }),
     })
 
-    await expect(
-      signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
-    ).rejects.toMatchObject({ kind: 'network' })
+    await expect(service().signIn({ ephemeral: false })).rejects.toMatchObject({
+      kind: 'network',
+    })
     expect(logger.getWarnings()).toEqual([
       { message: 'Reflect Classic answered 500 (/api/users/me)', cause: undefined },
     ])
   })
 
   it('reports and logs a body that is not JSON as a parse failure', async () => {
-    fakeKeychain()
-    const { fetchFn } = fakeFetch({
+    routes({
       '/api/oauth/token': tokenRoute(),
       '/api/users/me': () => new Response('<html>oops</html>', { status: 200 }),
     })
 
-    await expect(
-      signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
-    ).rejects.toMatchObject({ kind: 'parse' })
+    await expect(service().signIn({ ephemeral: false })).rejects.toMatchObject({ kind: 'parse' })
     expect(logger.getWarnings()).toEqual([
       {
         message: 'Reflect Classic returned a body that is not JSON (/api/users/me)',
@@ -336,15 +326,12 @@ describe('signInWithClassic', () => {
   })
 
   it('reports and logs a body with an unexpected shape as a parse failure', async () => {
-    fakeKeychain()
-    const { fetchFn } = fakeFetch({
+    routes({
       '/api/oauth/token': tokenRoute(),
-      '/api/users/me': () => jsonResponse({ email: 'a@example.com' }),
+      '/api/users/me': () => Response.json({ email: 'a@example.com' }),
     })
 
-    await expect(
-      signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
-    ).rejects.toMatchObject({ kind: 'parse' })
+    await expect(service().signIn({ ephemeral: false })).rejects.toMatchObject({ kind: 'parse' })
     expect(logger.getWarnings()).toEqual([
       {
         message: 'Reflect Classic returned an unexpected body (/api/users/me)',
@@ -352,17 +339,15 @@ describe('signInWithClassic', () => {
       },
     ])
   })
+
   it('reports and logs an invoice period end that is not a date as a parse failure', async () => {
-    fakeKeychain()
-    const { fetchFn } = fakeFetch({
+    routes({
       '/api/oauth/token': tokenRoute(),
       '/api/users/me': meRoute(false),
       '/api/users/me/invoices': invoicesRoute([invoice({ lines: [{ period_end: 'soon' }] })]),
     })
 
-    await expect(
-      signInWithClassic({ ephemeral: false, fetchFn, startWebAuth: approve }),
-    ).rejects.toMatchObject({ kind: 'parse' })
+    await expect(service().signIn({ ephemeral: false })).rejects.toMatchObject({ kind: 'parse' })
     expect(logger.getWarnings()).toEqual([
       {
         message: 'Reflect Classic returned an unexpected body (/api/users/me/invoices)',
@@ -370,94 +355,169 @@ describe('signInWithClassic', () => {
       },
     ])
   })
+
+  it('reports a request that cannot be sent as a network failure', async () => {
+    routes({ '/api/oauth/token': () => Promise.reject(new TypeError('offline')) })
+
+    await expect(service().signIn({ ephemeral: false })).rejects.toMatchObject({
+      kind: 'network',
+    })
+  })
 })
 
-describe('readClassicAccess', () => {
+describe('read', () => {
   it('returns a record older than a day without a request', async () => {
     const access = storedAccess({ checkedAt: NOW - 30 * DAY_MS })
-    fakeKeychain({ [CLASSIC_ACCESS_SECRET]: JSON.stringify(access) })
-    await expect(readClassicAccess()).resolves.toEqual(access)
+    secrets = createTestSecretStoreService({ [CLASSIC_ACCESS_SECRET]: JSON.stringify(access) })
+    const classic = service()
+
+    await expect(classic.read()).resolves.toEqual(access)
+    expect(paths()).toEqual([])
+    expect(classic.getState()).toEqual({ access, active: true, isLoading: false })
   })
 
   it('is null without a stored record', async () => {
-    fakeKeychain()
-    await expect(readClassicAccess()).resolves.toBeNull()
+    const classic = service()
+    expect(classic.getState().isLoading).toBe(true)
+
+    await expect(classic.read()).resolves.toBeNull()
+    expect(classic.getState()).toEqual({ access: null, active: false, isLoading: false })
+  })
+
+  it('reports an expired record as inactive by the clock', async () => {
+    const access = storedAccess({ expiresAt: NOW + DAY_MS })
+    secrets = createTestSecretStoreService({ [CLASSIC_ACCESS_SECRET]: JSON.stringify(access) })
+    const classic = service()
+    clock.setNow(NOW + 2 * DAY_MS)
+
+    await classic.read()
+    expect(classic.getState().active).toBe(false)
+  })
+
+  it('stops loading and rethrows when the keychain fails', async () => {
+    secrets = {
+      ...createTestSecretStoreService(),
+      get: () => Promise.reject(new Error('locked')),
+    }
+    const classic = service()
+    const notified: boolean[] = []
+    classic.subscribe(() => {
+      notified.push(classic.getState().isLoading)
+    })
+
+    await expect(classic.read()).rejects.toThrow('locked')
+    expect(notified).toEqual([false])
   })
 })
 
-describe('loadClassicAccess', () => {
-  function keychainWith(access: ClassicAccess): Map<string, string> {
-    return fakeKeychain({ [CLASSIC_ACCESS_SECRET]: JSON.stringify(access) })
+describe('load', () => {
+  function withStored(access: ClassicAccess): void {
+    secrets = createTestSecretStoreService({ [CLASSIC_ACCESS_SECRET]: JSON.stringify(access) })
   }
 
   it('is null without a stored record', async () => {
-    fakeKeychain()
-    const { fetchFn, paths } = fakeFetch({})
-    await expect(loadClassicAccess(fetchFn)).resolves.toBeNull()
-    expect(paths).toEqual([])
+    await expect(service().load()).resolves.toBeNull()
+    expect(paths()).toEqual([])
   })
 
   it('ignores and logs an unreadable record', async () => {
-    fakeKeychain({ [CLASSIC_ACCESS_SECRET]: '{"broken"' })
-    const { fetchFn } = fakeFetch({})
-    await expect(loadClassicAccess(fetchFn)).resolves.toBeNull()
+    secrets = createTestSecretStoreService({ [CLASSIC_ACCESS_SECRET]: '{"broken"' })
+    await expect(service().load()).resolves.toBeNull()
     expect(logger.getErrors()).toHaveLength(1)
   })
 
   it('returns a record checked within the last day without a request', async () => {
     const access = storedAccess({ checkedAt: NOW - DAY_MS + 1 })
-    keychainWith(access)
-    const { fetchFn, paths } = fakeFetch({})
-    await expect(loadClassicAccess(fetchFn)).resolves.toEqual(access)
-    expect(paths).toEqual([])
+    withStored(access)
+    await expect(service().load()).resolves.toEqual(access)
+    expect(paths()).toEqual([])
+  })
+
+  it('rechecks once the clock passes a day since the last check', async () => {
+    const access = storedAccess({ checkedAt: NOW - DAY_MS + 1000 })
+    withStored(access)
+    routes({ '/api/users/me': meRoute(true) })
+    const classic = service()
+
+    await classic.load()
+    expect(paths()).toEqual([])
+    await clock.advance(1000)
+    await classic.load()
+    expect(paths()).toEqual(['/api/users/me'])
   })
 
   it('extends a paying account to a year from now with one request', async () => {
-    const keychain = keychainWith(storedAccess())
-    const { fetchFn, paths } = fakeFetch({ '/api/users/me': meRoute(true) })
+    withStored(storedAccess())
+    routes({ '/api/users/me': meRoute(true) })
+    const classic = service()
 
     const expected = storedAccess({ expiresAt: NOW + YEAR_MS, checkedAt: NOW })
-    await expect(loadClassicAccess(fetchFn)).resolves.toEqual(expected)
-    expect(paths).toEqual(['/api/users/me'])
-    expect(JSON.parse(keychain.get(CLASSIC_ACCESS_SECRET) ?? 'null')).toEqual(expected)
+    await expect(classic.load()).resolves.toEqual(expected)
+    expect(paths()).toEqual(['/api/users/me'])
+    expect(stored()).toEqual(expected)
+    expect(classic.getState()).toEqual({ access: expected, active: true, isLoading: false })
+  })
+
+  it('shares one recheck between overlapping calls', async () => {
+    withStored(storedAccess())
+    routes({ '/api/users/me': meRoute(true) })
+    const classic = service()
+
+    const [first, second] = await Promise.all([classic.load(), classic.load()])
+    expect(second).toBe(first)
+    expect(paths()).toEqual(['/api/users/me'])
   })
 
   it('keeps the expiry when the account now looks like it never paid', async () => {
-    keychainWith(storedAccess())
-    const { fetchFn } = fakeFetch({
-      '/api/users/me': meRoute(false),
-      '/api/users/me/invoices': invoicesRoute([]),
-    })
-    await expect(loadClassicAccess(fetchFn)).resolves.toEqual(storedAccess({ checkedAt: NOW }))
+    withStored(storedAccess())
+    routes({ '/api/users/me': meRoute(false), '/api/users/me/invoices': invoicesRoute([]) })
+    await expect(service().load()).resolves.toEqual(storedAccess({ checkedAt: NOW }))
   })
 
   it('drops a rejected token but keeps the expiry', async () => {
-    const keychain = keychainWith(storedAccess())
-    const { fetchFn } = fakeFetch({ '/api/users/me': () => jsonResponse({}, 401) })
+    withStored(storedAccess())
+    routes({ '/api/users/me': () => Response.json({}, { status: 401 }) })
 
     const expected = storedAccess({ token: null })
-    await expect(loadClassicAccess(fetchFn)).resolves.toEqual(expected)
-    expect(JSON.parse(keychain.get(CLASSIC_ACCESS_SECRET) ?? 'null')).toEqual(expected)
+    await expect(service().load()).resolves.toEqual(expected)
+    expect(stored()).toEqual(expected)
     expect(logger.getWarnings()).toHaveLength(1)
   })
 
   it('keeps the record unchanged when Reflect Classic cannot be reached', async () => {
     const access = storedAccess()
-    const keychain = keychainWith(access)
-    const { fetchFn } = fakeFetch({
-      '/api/users/me': () => Promise.reject(new TypeError('offline')),
-    })
+    withStored(access)
+    routes({ '/api/users/me': () => Promise.reject(new TypeError('offline')) })
 
-    await expect(loadClassicAccess(fetchFn)).resolves.toEqual(access)
-    expect(JSON.parse(keychain.get(CLASSIC_ACCESS_SECRET) ?? 'null')).toEqual(access)
+    await expect(service().load()).resolves.toEqual(access)
+    expect(stored()).toEqual(access)
     expect(logger.getWarnings()).toHaveLength(1)
   })
 
   it('never rechecks once the token is gone', async () => {
     const access = storedAccess({ token: null })
-    keychainWith(access)
-    const { fetchFn, paths } = fakeFetch({})
-    await expect(loadClassicAccess(fetchFn)).resolves.toEqual(access)
-    expect(paths).toEqual([])
+    withStored(access)
+    await expect(service().load()).resolves.toEqual(access)
+    expect(paths()).toEqual([])
+  })
+})
+
+describe('signOut', () => {
+  it('deletes the record and publishes no access', async () => {
+    secrets = createTestSecretStoreService({
+      [CLASSIC_ACCESS_SECRET]: JSON.stringify(storedAccess()),
+    })
+    const classic = service()
+    await classic.read()
+    let notified = 0
+    classic.subscribe(() => {
+      notified += 1
+    })
+
+    await classic.signOut()
+
+    expect(secrets.snapshot()).toEqual({})
+    expect(classic.getState()).toEqual({ access: null, active: false, isLoading: false })
+    expect(notified).toBe(1)
   })
 })

@@ -160,28 +160,10 @@ export const queryKeys = {
       return [...this.all, root, 'status'] as const
     },
   },
-  appStore: {
-    all: ['app-store'] as const,
-    get environment() {
-      return [...this.all, 'environment'] as const
-    },
-  },
-  classic: {
-    all: ['classic'] as const,
-    get access() {
-      return [...this.all, 'access'] as const
-    },
-    get recheck() {
-      return [...this.all, 'recheck'] as const
-    },
-  },
   iap: {
     all: ['iap'] as const,
     get products() {
       return [...this.all, 'products'] as const
-    },
-    get entitlements() {
-      return [...this.all, 'entitlement'] as const
     },
   },
   mobile: {

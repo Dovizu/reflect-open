@@ -18,6 +18,19 @@ import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 import { createPlatformAudioRecorder } from '../audio/default-audio-recorder.ts'
+import {
+  createClassicAccessService,
+  type ClassicAccessService,
+} from '../classic/classic-access-service.ts'
+import {
+  createAppStoreEnvironmentService,
+  type AppStoreEnvironmentService,
+} from '../monetization/app-store-environment-service.ts'
+import { createPaywallService, type PaywallService } from '../monetization/paywall-service.ts'
+import {
+  createSubscriptionService,
+  type SubscriptionService,
+} from '../monetization/subscription-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
@@ -150,6 +163,13 @@ export interface AppServices {
   readonly appStore?: AppStoreService
   /** Mobile only. */
   readonly webAuth?: WebAuthService
+  readonly classicAccess: ClassicAccessService
+  /** Mobile only. */
+  readonly subscription?: SubscriptionService
+  /** Mobile only. */
+  readonly appStoreEnvironment?: AppStoreEnvironmentService
+  /** Mobile only. */
+  readonly paywall?: PaywallService
   readonly noteFile: NoteFileService
   readonly assetStore: AssetStoreService
   readonly attachments: AttachmentService
@@ -246,13 +266,48 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     { ipc, logger },
     { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
   )
+  const id = adapters.id ?? createSystemIdService()
+  const secretStore = createSecretStoreService({ ipc })
+  // The desktop shell's web-auth plugin answers every sign-in as cancelled.
+  const webAuth = createWebAuthService({ ipc })
+  const classicAccess = createClassicAccessService({
+    secretStore,
+    http: adapters.http,
+    webAuth,
+    clock,
+    id,
+    logger,
+  })
+  const createMobileServices = () => {
+    const iap = createIapService({ ipc, logger })
+    const appStore = createAppStoreService({ ipc })
+    const subscription = createSubscriptionService({ iap, storage, clock, platform, logger })
+    const appStoreEnvironment = createAppStoreEnvironmentService({ appStore, storage, platform })
+    return {
+      haptics: createHapticsService({ ipc, logger }),
+      iap,
+      appStore,
+      webAuth,
+      subscription,
+      appStoreEnvironment,
+      paywall: createPaywallService({
+        subscription,
+        classicAccess,
+        appStoreEnvironment,
+        iap,
+        appStore,
+        platform,
+        storage,
+      }),
+    }
+  }
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
   return {
     ipc,
     logger,
     clock,
-    id: adapters.id ?? createSystemIdService(),
+    id,
     hash: adapters.hash ?? createWebCryptoHashService(),
     platform,
     storage,
@@ -263,7 +318,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     path: createPathService({ transport: adapters.path }),
     window: windowService,
     lifecycle,
-    secretStore: createSecretStoreService({ ipc }),
+    secretStore,
     appInfo: createAppInfoService({ ipc }),
     calendar: createCalendarService({ ipc, logger }),
     contacts: createContactsService({ ipc }),
@@ -305,14 +360,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clock,
       logger,
     }),
-    ...(mobile
-      ? {
-          haptics: createHapticsService({ ipc, logger }),
-          iap: createIapService({ ipc, logger }),
-          appStore: createAppStoreService({ ipc }),
-          webAuth: createWebAuthService({ ipc }),
-        }
-      : {}),
+    classicAccess,
+    ...(mobile ? createMobileServices() : {}),
     fileChanges,
     noteFile,
     assetStore,

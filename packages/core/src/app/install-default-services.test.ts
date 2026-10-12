@@ -12,6 +12,10 @@ import { defaultWebFetch } from './web-fetch-service.ts'
 import { defaultIap } from '../ipc/iap-plugin.ts'
 import { defaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { defaultWebAuth } from '../ipc/web-auth-plugin.ts'
+import { defaultClassicAccess } from '../classic/classic-access-service.ts'
+import { defaultAppStoreEnvironment } from '../monetization/app-store-environment-service.ts'
+import { defaultPaywall } from '../monetization/paywall-service.ts'
+import { defaultSubscription } from '../monetization/subscription-service.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultAssetStore } from '../graph/asset-store-service.ts'
@@ -104,6 +108,10 @@ describe('installDefaultServices', () => {
     expect(defaultIap()).toBe(services.iap)
     expect(defaultAppStore()).toBe(services.appStore)
     expect(defaultWebAuth()).toBe(services.webAuth)
+    expect(defaultClassicAccess()).toBe(services.classicAccess)
+    expect(defaultSubscription()).toBe(services.subscription)
+    expect(defaultAppStoreEnvironment()).toBe(services.appStoreEnvironment)
+    expect(defaultPaywall()).toBe(services.paywall)
     expect(defaultNoteFile()).toBe(services.noteFile)
     expect(defaultAssetStore()).toBe(services.assetStore)
     expect(defaultAttachments()).toBe(services.attachments)
@@ -118,12 +126,24 @@ describe('installDefaultServices', () => {
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
-    const { haptics, iap, appStore, webAuth, ...desktop } = createTestAppServices()
+    const {
+      haptics,
+      iap,
+      appStore,
+      webAuth,
+      subscription,
+      appStoreEnvironment,
+      paywall,
+      ...desktop
+    } = createTestAppServices()
     installDefaultServices(desktop)
     expect(defaultHaptics()).not.toBe(haptics)
     expect(defaultIap()).not.toBe(iap)
     expect(defaultAppStore()).not.toBe(appStore)
     expect(defaultWebAuth()).not.toBe(webAuth)
+    expect(defaultSubscription()).not.toBe(subscription)
+    expect(defaultAppStoreEnvironment()).not.toBe(appStoreEnvironment)
+    expect(defaultPaywall()).not.toBe(paywall)
   })
 })
 
@@ -159,6 +179,10 @@ describe('resetDefaultServices', () => {
     expect(defaultIap()).not.toBe(services.iap)
     expect(defaultAppStore()).not.toBe(services.appStore)
     expect(defaultWebAuth()).not.toBe(services.webAuth)
+    expect(defaultClassicAccess()).not.toBe(services.classicAccess)
+    expect(defaultSubscription()).not.toBe(services.subscription)
+    expect(defaultAppStoreEnvironment()).not.toBe(services.appStoreEnvironment)
+    expect(defaultPaywall()).not.toBe(services.paywall)
     expect(defaultNoteFile()).not.toBe(services.noteFile)
     expect(defaultAssetStore()).not.toBe(services.assetStore)
     expect(defaultAttachments()).not.toBe(services.attachments)

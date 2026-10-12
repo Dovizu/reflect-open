@@ -5,6 +5,10 @@ import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
+import { setDefaultClassicAccess } from '../classic/classic-access-service.ts'
+import { setDefaultAppStoreEnvironment } from '../monetization/app-store-environment-service.ts'
+import { setDefaultPaywall } from '../monetization/paywall-service.ts'
+import { setDefaultSubscription } from '../monetization/subscription-service.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
@@ -96,6 +100,10 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultIap(services.iap ?? null)
   setDefaultAppStore(services.appStore ?? null)
   setDefaultWebAuth(services.webAuth ?? null)
+  setDefaultClassicAccess(services.classicAccess)
+  setDefaultSubscription(services.subscription ?? null)
+  setDefaultAppStoreEnvironment(services.appStoreEnvironment ?? null)
+  setDefaultPaywall(services.paywall ?? null)
   setDefaultNoteFile(services.noteFile)
   setDefaultAssetStore(services.assetStore)
   setDefaultAttachments(services.attachments)
@@ -153,6 +161,10 @@ export function resetDefaultServices(): void {
   setDefaultIap(null)
   setDefaultAppStore(null)
   setDefaultWebAuth(null)
+  setDefaultClassicAccess(null)
+  setDefaultSubscription(null)
+  setDefaultAppStoreEnvironment(null)
+  setDefaultPaywall(null)
   setDefaultNoteFile(null)
   setDefaultAssetStore(null)
   setDefaultAttachments(null)

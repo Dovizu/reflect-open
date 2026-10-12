@@ -188,3 +188,17 @@ export {
   type TestAttachmentService,
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
+export {
+  createTestAppStoreEnvironmentService,
+  createTestClassicAccessService,
+  createTestPaywallService,
+  createTestSubscriptionService,
+  type AppStoreEnvironmentCall,
+  type ClassicAccessCall,
+  type PaywallAction,
+  type SubscriptionCall,
+  type TestAppStoreEnvironmentService,
+  type TestClassicAccessService,
+  type TestPaywallService,
+  type TestSubscriptionService,
+} from './monetization.ts'
