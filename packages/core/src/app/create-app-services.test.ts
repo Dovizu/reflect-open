@@ -63,6 +63,8 @@ const SERVICE_KEYS = [
   'noteFile',
   'assetStore',
   'attachments',
+  'noteSessions',
+  'openDocuments',
   'indexQuery',
   'wikiResolver',
   'backlinks',

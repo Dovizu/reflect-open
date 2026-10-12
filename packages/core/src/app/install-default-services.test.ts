@@ -24,6 +24,8 @@ import { defaultNoteFile } from '../graph/note-file-service.ts'
 import { defaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { defaultPrivacy } from '../privacy/privacy-service.ts'
 import { defaultAttachments } from '../documents/attachment-service.ts'
+import { defaultNoteSessions } from '../documents/note-session.ts'
+import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultBacklinks } from '../indexing/backlink-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
@@ -118,6 +120,8 @@ describe('installDefaultServices', () => {
     expect(defaultNoteFile()).toBe(services.noteFile)
     expect(defaultAssetStore()).toBe(services.assetStore)
     expect(defaultAttachments()).toBe(services.attachments)
+    expect(defaultNoteSessions()).toBe(services.noteSessions)
+    expect(defaultOpenDocuments()).toBe(services.openDocuments)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
     expect(defaultBacklinks()).toBe(services.backlinks)
@@ -192,6 +196,8 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteFile()).not.toBe(services.noteFile)
     expect(defaultAssetStore()).not.toBe(services.assetStore)
     expect(defaultAttachments()).not.toBe(services.attachments)
+    expect(defaultNoteSessions()).not.toBe(services.noteSessions)
+    expect(defaultOpenDocuments()).not.toBe(services.openDocuments)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
     expect(defaultBacklinks()).not.toBe(services.backlinks)
