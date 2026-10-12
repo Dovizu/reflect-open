@@ -5,7 +5,8 @@ import {
   type PinnedNote,
   setDefaultOperations,
 } from '@reflect/core'
-import { frontmatterPatchToYaml, type FrontmatterPatch } from '@/editor/note-session.ts'
+import { frontmatterPatchToYaml } from '@/editor/note-session.ts'
+import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-client.ts'
 import { act, type ReactElement, type ReactNode } from 'react'
@@ -15,11 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getNote = vi.hoisted(() => vi.fn())
 const noteSource = vi.hoisted(() => ({ value: '# A\n' }))
-const readNoteSource = vi.hoisted(() => vi.fn(async () => noteSource.value))
-const commitNoteFrontmatter = vi.hoisted(() =>
-  vi.fn<(path: string, patch: FrontmatterPatch, generation: number) => Promise<void>>(),
-)
-vi.mock('@/lib/note-frontmatter.ts', () => ({ readNoteSource, commitNoteFrontmatter }))
+const { readSource: readNoteSource, commitFrontmatter: commitNoteFrontmatter } =
+  installTestNoteDocuments()
 const deleteOpenNote = vi.hoisted(() => vi.fn(async () => {}))
 const shareNote = vi.hoisted(() => vi.fn(async () => {}))
 

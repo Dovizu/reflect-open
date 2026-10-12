@@ -1,5 +1,13 @@
+import type { ClipboardService } from '../app/clipboard-service.ts'
 import type { ClockService } from '../app/clock-service.ts'
+import type { IdService } from '../app/id-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { PathService } from '../app/path-service.ts'
+import {
+  createNoteActionsService,
+  type NoteActionsService,
+} from '../documents/note-actions-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -15,11 +23,15 @@ import {
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import { appendBlock } from '../markdown/append-section.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { createTestClockService } from './clock.ts'
 import { createTestNoteFileService } from './graph.ts'
+import { createTestIdService } from './id.ts'
 import { createTestLoggerService } from './logger.ts'
+import { createTestOperationsService } from './operations.ts'
+import { createTestClipboardService, createTestPathService } from './shell.ts'
 
 export interface TestNoteSessionOptions {
   /** Graph-relative path of the note. */
@@ -209,4 +221,51 @@ export function createTestNoteDocumentService(
     openDocuments: options?.openDocuments ?? createTestOpenDocumentsService(),
     noteFile: options?.noteFile ?? createTestNoteFileService(),
   })
+}
+
+export interface TestNoteActionsServiceOptions {
+  /** Defaults to an empty {@link createTestNoteFileService}. */
+  noteFile?: NoteFileService
+  /** Defaults to an empty {@link createTestOpenDocumentsService}. */
+  openDocuments?: OpenDocumentsService
+  /** Defaults to the real service over `openDocuments` and `noteFile`. */
+  noteDocuments?: NoteDocumentService
+  /** Defaults to an indexer that only records its calls. */
+  indexLifecycle?: Pick<IndexLifecycleService, 'indexNote'>
+  operations?: OperationsService
+  clipboard?: ClipboardService
+  path?: PathService
+  id?: IdService
+}
+
+export interface TestNoteActionsService extends NoteActionsService {
+  /** Every note handed to the default indexer for an immediate reindex, in order. */
+  indexed(): ReadonlyArray<{ path: string; generation: number }>
+}
+
+/**
+ * The real {@link NoteActionsService} over test doubles (fresh ones by
+ * default). The default indexer writes nothing.
+ */
+export function createTestNoteActionsService(
+  options?: TestNoteActionsServiceOptions,
+): TestNoteActionsService {
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  const openDocuments = options?.openDocuments ?? createTestOpenDocumentsService()
+  const indexLog: { path: string; generation: number }[] = []
+  const service = createNoteActionsService({
+    noteDocuments: options?.noteDocuments ?? createNoteDocumentService({ openDocuments, noteFile }),
+    noteFile,
+    openDocuments,
+    indexLifecycle: options?.indexLifecycle ?? {
+      indexNote: async (path, indexOptions) => {
+        indexLog.push({ path, generation: indexOptions.generation })
+      },
+    },
+    operations: options?.operations ?? createTestOperationsService(),
+    clipboard: options?.clipboard ?? createTestClipboardService(),
+    path: options?.path ?? createTestPathService(),
+    id: options?.id ?? createTestIdService(),
+  })
+  return { ...service, indexed: () => [...indexLog] }
 }

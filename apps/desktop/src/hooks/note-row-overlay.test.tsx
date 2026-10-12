@@ -3,8 +3,6 @@ import { renderHook } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { NoteRow } from '@reflect/core'
 import {
-  applyNoteRowOverlay,
-  getNoteRowOverlay,
   reconcileNoteRowOverlay,
   resetNoteRowOverlays,
   setNoteRowOverlay,
@@ -32,59 +30,6 @@ beforeEach(() => {
 })
 afterEach(() => {
   resetNoteRowOverlays()
-})
-
-describe('applyNoteRowOverlay', () => {
-  it('merges overlay fields over the row', async () => {
-    expect(
-      applyNoteRowOverlay(noteRow({ gistStale: true }), {
-        gistUrl: URL,
-        gistStale: false,
-      }),
-    ).toMatchObject({
-      gistUrl: URL,
-      gistStale: false,
-    })
-  })
-
-  it('passes a null row through — the overlay only sharpens an existing row', async () => {
-    expect(applyNoteRowOverlay(null, { gistUrl: URL })).toBeNull()
-  })
-
-  it('returns the same row reference when there is no overlay', async () => {
-    const row = noteRow({ gistUrl: 'kept' })
-    expect(applyNoteRowOverlay(row, null)).toBe(row)
-  })
-})
-
-describe('setNoteRowOverlay', () => {
-  it('ignores an empty or all-undefined patch (no non-reconcilable entry)', async () => {
-    setNoteRowOverlay('notes/a.md', GEN, {})
-    setNoteRowOverlay('notes/a.md', GEN, { gistUrl: undefined })
-    expect(getNoteRowOverlay('notes/a.md', GEN)).toBeNull()
-  })
-
-  it('scopes the overlay to the writing generation', async () => {
-    setNoteRowOverlay('notes/a.md', GEN, { gistUrl: URL })
-    expect(getNoteRowOverlay('notes/a.md', GEN)?.gistUrl).toBe(URL)
-    // A reader on a different graph generation never sees it.
-    expect(getNoteRowOverlay('notes/a.md', GEN + 1)).toBeNull()
-    expect(getNoteRowOverlay('notes/a.md', undefined)).toBeNull()
-  })
-
-  it('lets a newer generation replace an older overlay', async () => {
-    setNoteRowOverlay('notes/a.md', GEN, { gistUrl: 'old' })
-    setNoteRowOverlay('notes/a.md', GEN + 1, { gistUrl: 'new' })
-    expect(getNoteRowOverlay('notes/a.md', GEN + 1)?.gistUrl).toBe('new')
-    expect(getNoteRowOverlay('notes/a.md', GEN)).toBeNull()
-  })
-
-  it('ignores an older generation late write, keeping the newer overlay', async () => {
-    setNoteRowOverlay('notes/a.md', GEN + 1, { gistUrl: 'new' })
-    setNoteRowOverlay('notes/a.md', GEN, { gistUrl: 'stale' }) // older graph, resolved late
-    expect(getNoteRowOverlay('notes/a.md', GEN + 1)?.gistUrl).toBe('new')
-    expect(getNoteRowOverlay('notes/a.md', GEN)).toBeNull()
-  })
 })
 
 describe('useNoteRowOverlay', () => {
@@ -131,14 +76,6 @@ describe('reconcileNoteRowOverlay', () => {
     act(() => setNoteRowOverlay('notes/a.md', GEN, { gistUrl: URL }))
     act(() => reconcileNoteRowOverlay('notes/a.md', GEN, null))
     expect(result.current?.gistUrl).toBe(URL)
-  })
-
-  it('holds an overlay whose generation does not match the reconciling read', async () => {
-    setNoteRowOverlay('notes/a.md', GEN, { gistUrl: URL })
-    // A reconcile on a *different* generation can't retire this overlay — even
-    // when the row's value matches — so a stale-graph read never drops it.
-    reconcileNoteRowOverlay('notes/a.md', GEN + 1, noteRow({ gistUrl: URL }))
-    expect(getNoteRowOverlay('notes/a.md', GEN)?.gistUrl).toBe(URL)
   })
 })
 

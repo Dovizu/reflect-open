@@ -89,6 +89,11 @@ import {
 } from '../graph/graph-session-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import {
+  createNoteActionsService,
+  type NoteActionsService,
+} from '../documents/note-actions-service.ts'
+import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
+import {
   createNoteDocumentService,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
@@ -256,6 +261,8 @@ export interface AppServices {
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
   readonly noteDocuments: NoteDocumentService
+  readonly noteActions: NoteActionsService
+  readonly noteRows: NoteRowService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -437,6 +444,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
     noteFile,
@@ -527,7 +535,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments,
+    noteActions: createNoteActionsService({
+      noteDocuments,
+      noteFile,
+      openDocuments,
+      indexLifecycle,
+      operations,
+      clipboard: adapters.clipboard,
+      path,
+      id,
+    }),
+    noteRows: createNoteRowService(),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

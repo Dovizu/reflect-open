@@ -198,6 +198,14 @@ export interface IndexLifecycleService {
    * generation gate drops the superseded pass's writes anyway.
    */
   rebuildVisibly: (generation: number) => Promise<void>
+  /**
+   * Read, parse, and index one note now, without waiting for the watcher. For
+   * an in-app write whose row must be readable at once.
+   */
+  indexNote: (
+    path: string,
+    options: { generation: number; content?: string | undefined; mtime?: number | undefined },
+  ) => Promise<void>
 }
 
 /** The services an {@link IndexLifecycleService} runs on. */
@@ -531,6 +539,9 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     fileProgress: () => currentFileProgress,
     subscribeFileProgress: (listener) => attach(fileProgressStoreListeners, listener),
     rebuildVisibly,
+    indexNote: async (path, options) => {
+      await indexer.indexNote(path, options)
+    },
   }
 }
 

@@ -3,7 +3,9 @@ import { act, createElement, type ReactNode } from 'react'
 import { renderHook } from 'vitest-browser-react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultOperations } from '@reflect/core'
+import { setDefaultOperations } from '@reflect/core'
+import { installTestNoteFile } from '@/test-utils/note-file.ts'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 import { useNoteTrash } from './use-note-trash.ts'
 
 interface GraphValue {
@@ -12,7 +14,8 @@ interface GraphValue {
 let graphValue: GraphValue
 vi.mock('@/providers/graph-provider.tsx', () => ({ useGraph: () => graphValue }))
 
-const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
+installTestOpenDocuments()
+const noteFile = installTestNoteFile()
 
 let client: QueryClient
 function wrapper({ children }: { children: ReactNode }): ReactNode {
@@ -23,14 +26,13 @@ beforeEach(() => {
   setDefaultOperations(createTestOperationsService())
   graphValue = { graph: { root: '/g', name: 'g', generation: 1 } }
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  setBridge({ invoke: mockInvoke, listen: async () => () => {} })
-  mockInvoke.mockReset()
-  mockInvoke.mockResolvedValue(null)
+  for (const path of ['notes/a.md', 'notes/b.md', 'notes/c.md']) {
+    noteFile.service().set(path, '# Note\n')
+  }
 })
 
 afterEach(() => {
   setDefaultOperations(null)
-  setBridge(null) // don't leak the mock transport into other suites in this worker
 })
 
 describe('useNoteTrash', () => {
@@ -39,14 +41,14 @@ describe('useNoteTrash', () => {
     const { result } = await renderHook(() => useNoteTrash(), { wrapper })
 
     await expect(result.current.trash(['notes/a.md'])).resolves.toBe(false)
-    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(noteFile.service().trashed()).toEqual([])
   })
 
   it('is a no-op for an empty selection', async () => {
     const { result } = await renderHook(() => useNoteTrash(), { wrapper })
 
     await expect(result.current.trash([])).resolves.toBe(true)
-    expect(mockInvoke).not.toHaveBeenCalled()
+    expect(noteFile.service().trashed()).toEqual([])
   })
 
   it('trashes every note and resolves true', async () => {
@@ -58,22 +60,17 @@ describe('useNoteTrash', () => {
     })
 
     expect(trashed).toBe(true)
-    expect(mockInvoke).toHaveBeenCalledWith('note_delete', {
-      path: 'notes/a.md',
-      generation: 1,
-    })
-    expect(mockInvoke).toHaveBeenCalledWith('note_delete', {
-      path: 'notes/b.md',
-      generation: 1,
-    })
+    expect(noteFile.service().trashed()).toEqual(['notes/a.md', 'notes/b.md'])
   })
 
   it('keeps going past a per-note failure and resolves false', async () => {
-    mockInvoke.mockImplementation(async (command, args) => {
-      if (command === 'note_delete' && args['path'] === 'notes/b.md') {
+    const files = noteFile.service()
+    const trashFile = files.delete.bind(files)
+    vi.spyOn(files, 'delete').mockImplementation(async (path, generation) => {
+      if (path === 'notes/b.md') {
         throw new Error('locked')
       }
-      return null
+      await trashFile(path, generation)
     })
     const { result } = await renderHook(() => useNoteTrash(), { wrapper })
 
@@ -84,13 +81,6 @@ describe('useNoteTrash', () => {
 
     // The batch reports failure but still attempted (and trashed) the others.
     expect(trashed).toBe(false)
-    expect(mockInvoke).toHaveBeenCalledWith('note_delete', {
-      path: 'notes/a.md',
-      generation: 1,
-    })
-    expect(mockInvoke).toHaveBeenCalledWith('note_delete', {
-      path: 'notes/c.md',
-      generation: 1,
-    })
+    expect(files.trashed()).toEqual(['notes/a.md', 'notes/c.md'])
   })
 })
