@@ -1,4 +1,5 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
@@ -9,7 +10,7 @@ import type {
   MobileStorageKind,
   MobileStorageService,
 } from '../ipc/mobile-storage-service.ts'
-import type { SettingsService } from '../settings/settings-service.ts'
+import type { SettingsLoadOutcome, SettingsService } from '../settings/settings-service.ts'
 import { DEFAULT_GRAPH_NAME, graphNameFromRoot } from './graph-names.ts'
 import type { GraphSessionService } from './graph-session-service.ts'
 
@@ -109,8 +110,9 @@ export interface MobileOnboardingService {
   /**
    * Run the mobile boot path: a fresh install parks on onboarding (sandbox
    * root seeded instantly, iCloud section pending); an onboarded graph opens
-   * from its persisted kind and name. Inert on desktop. The returned
-   * function stops the boot.
+   * from its persisted kind and name. When the settings load failed, it
+   * reloads them and runs again the next time the app is focused or visible.
+   * Inert on desktop. The returned function stops the boot.
    */
   boot: () => Unlisten
   /**
@@ -126,18 +128,27 @@ export interface MobileOnboardingService {
 
 export interface MobileOnboardingServiceDeps {
   readonly mobileStorage: MobileStorageService
-  readonly settings: Pick<SettingsService, 'get' | 'update' | 'whenLoaded'>
+  readonly settings: Pick<SettingsService, 'get' | 'update' | 'whenLoaded' | 'reload'>
   /** The session's serialized open, and its 'choosing' state for a boot that opens nothing. */
   readonly graphSession: Pick<GraphSessionService, 'openRecent' | 'park'>
   readonly platform: Pick<PlatformFacts, 'appPlatform'>
   readonly clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeFocus' | 'subscribeVisible'>
   readonly logger: LoggerService
 }
 
 export function createMobileOnboardingService(
   deps: MobileOnboardingServiceDeps,
 ): MobileOnboardingService {
-  const { mobileStorage, settings: settingsService, graphSession, platform, clock, logger } = deps
+  const {
+    mobileStorage,
+    settings: settingsService,
+    graphSession,
+    platform,
+    clock,
+    lifecycle,
+    logger,
+  } = deps
   const listeners = new Set<() => void>()
   let state: MobileOnboardingState = {
     needsOnboarding: false,
@@ -185,6 +196,7 @@ export function createMobileOnboardingService(
     }
     let active = true
     let retryTimer: TimerHandle | undefined
+    let removeSettingsRetry: Unlisten | undefined
     // The container resolve is the slow IPC on this path and depends on
     // nothing below — adopt the warm started at platform resolve or start
     // one now, so it overlaps the settings read instead of running after it.
@@ -209,118 +221,142 @@ export function createMobileOnboardingService(
           },
         )
     }
-    void (async () => {
-      try {
-        // The settings load started at first render, before the mobile chunk
-        // was even fetched, so this usually reads a settled load.
-        if ((await settingsService.whenLoaded()) === 'failed') {
-          throw new Error('Couldn’t load your settings.')
+    /** Reload the settings and run again once the app comes back. */
+    function retrySettingsOnReturn(): void {
+      const retry = (): void => {
+        removeSettingsRetry?.()
+        removeSettingsRetry = undefined
+        if (active) {
+          run(() => settingsService.reload())
         }
-        const settings = settingsService.get()
-        if (!active) {
-          return
-        }
-        // Gate the first launch on the onboarding choice (Plan 19, step 6).
-        // A missing/false flag is a fresh install: defer the open until the
-        // user chooses (opening here would bootstrap and seed a root they
-        // may not want). Once onboarded, open the persisted storage kind.
-        if (settings.mobileOnboarded !== true) {
-          // Show onboarding immediately. The sandbox root resolves in
-          // milliseconds and unlocks the on-device choice; the iCloud
-          // section renders as pending until the container resolves.
-          setState({ needsOnboarding: true })
-          graphSession.park(null)
-          setState({ resolving: true })
-          void mobileStorage.resolveLocal().then(
-            (localRoot) => {
-              if (active) {
-                setState({
-                  storageInfo: state.storageInfo ?? {
-                    localRoot,
-                    icloudDocumentsRoot: null,
-                    icloudGraphRoots: [],
-                  },
-                })
-              }
-            },
-            () => {
-              // Non-fatal: the full resolve below carries the local root too.
-            },
-          )
-          const resolveWithRetries = (
-            attempt: number,
-            pending: Promise<MobileStorageInfo>,
-          ): void => {
-            void pending.then(
-              (storage) => {
-                if (active) {
-                  setState({ storageInfo: storage, resolving: false })
-                }
-              },
-              (err) => {
-                logger.error('mobile storage resolution failed:', errorMessage(err))
-                if (!active) {
-                  return
-                }
-                const delay = ONBOARDING_RESOLVE_RETRY_DELAYS_MS[attempt]
-                if (delay === undefined) {
-                  setState({ resolving: false })
-                  return
-                }
-                retryTimer = clock.setTimeout(() => {
-                  if (active) {
-                    resolveWithRetries(attempt + 1, mobileStorage.resolve())
-                  }
-                }, delay)
-              },
-            )
+      }
+      const removeFocus = lifecycle.subscribeFocus(retry)
+      const removeVisible = lifecycle.subscribeVisible(retry)
+      removeSettingsRetry = () => {
+        removeFocus()
+        removeVisible()
+      }
+    }
+    function run(loadSettings: () => Promise<SettingsLoadOutcome>): void {
+      void (async () => {
+        try {
+          // The settings load started at first render, before the mobile chunk
+          // was even fetched, so this usually reads a settled load.
+          if ((await loadSettings()) === 'failed') {
+            if (active) {
+              graphSession.park('Couldn’t load your settings.')
+              retrySettingsOnReturn()
+            }
+            return
           }
-          resolveWithRetries(0, storagePromise)
-          return
-        }
-        const kind = settings.mobileStorage
-        if (kind === 'local') {
-          // The sandbox graph needs no container: open it right away and
-          // let the full storage info (the settings switcher reads it)
-          // resolve in the background.
-          const localRoot = await mobileStorage.resolveLocal()
+          const settings = settingsService.get()
           if (!active) {
             return
           }
-          resolveStorageInBackground()
-          setState({ kind: 'local' })
-          await graphSession.openRecent(localRoot)
-          return
+          // Gate the first launch on the onboarding choice (Plan 19, step 6).
+          // A missing/false flag is a fresh install: defer the open until the
+          // user chooses (opening here would bootstrap and seed a root they
+          // may not want). Once onboarded, open the persisted storage kind.
+          if (settings.mobileOnboarded !== true) {
+            // Show onboarding immediately. The sandbox root resolves in
+            // milliseconds and unlocks the on-device choice; the iCloud
+            // section renders as pending until the container resolves.
+            setState({ needsOnboarding: true })
+            graphSession.park(null)
+            setState({ resolving: true })
+            void mobileStorage.resolveLocal().then(
+              (localRoot) => {
+                if (active) {
+                  setState({
+                    storageInfo: state.storageInfo ?? {
+                      localRoot,
+                      icloudDocumentsRoot: null,
+                      icloudGraphRoots: [],
+                    },
+                  })
+                }
+              },
+              () => {
+                // Non-fatal: the full resolve below carries the local root too.
+              },
+            )
+            const resolveWithRetries = (
+              attempt: number,
+              pending: Promise<MobileStorageInfo>,
+            ): void => {
+              void pending.then(
+                (storage) => {
+                  if (active) {
+                    setState({ storageInfo: storage, resolving: false })
+                  }
+                },
+                (err) => {
+                  logger.error('mobile storage resolution failed:', errorMessage(err))
+                  if (!active) {
+                    return
+                  }
+                  const delay = ONBOARDING_RESOLVE_RETRY_DELAYS_MS[attempt]
+                  if (delay === undefined) {
+                    setState({ resolving: false })
+                    return
+                  }
+                  retryTimer = clock.setTimeout(() => {
+                    if (active) {
+                      resolveWithRetries(attempt + 1, mobileStorage.resolve())
+                    }
+                  }, delay)
+                },
+              )
+            }
+            resolveWithRetries(0, storagePromise)
+            return
+          }
+          const kind = settings.mobileStorage
+          if (kind === 'local') {
+            // The sandbox graph needs no container: open it right away and
+            // let the full storage info (the settings switcher reads it)
+            // resolve in the background.
+            const localRoot = await mobileStorage.resolveLocal()
+            if (!active) {
+              return
+            }
+            resolveStorageInBackground()
+            setState({ kind: 'local' })
+            await graphSession.openRecent(localRoot)
+            return
+          }
+          // The early-started resolve, with one fresh retry on failure — a
+          // transient error from the head-start call must not park a graph the
+          // call-at-this-point would have opened.
+          const storage = await storagePromise.catch(() => mobileStorage.resolve())
+          if (!active) {
+            return
+          }
+          setState({ storageInfo: storage })
+          const root = storageRoot(storage, kind, settings.mobileGraphName)
+          if (root === null) {
+            // The graph lives in iCloud but the account is gone (signed out,
+            // iCloud Drive off). Opening the empty local root instead would
+            // silently start a second graph — park on an honest error until
+            // iCloud is back.
+            graphSession.park(
+              'Your notes are stored in iCloud Drive, but iCloud isn’t available on this device. Sign in to iCloud in Settings, then reopen Reflect.',
+            )
+            return
+          }
+          setState({ kind })
+          await graphSession.openRecent(root)
+        } catch (err) {
+          if (active) {
+            graphSession.park(errorMessage(err))
+          }
         }
-        // The early-started resolve, with one fresh retry on failure — a
-        // transient error from the head-start call must not park a graph the
-        // call-at-this-point would have opened.
-        const storage = await storagePromise.catch(() => mobileStorage.resolve())
-        if (!active) {
-          return
-        }
-        setState({ storageInfo: storage })
-        const root = storageRoot(storage, kind, settings.mobileGraphName)
-        if (root === null) {
-          // The graph lives in iCloud but the account is gone (signed out,
-          // iCloud Drive off). Opening the empty local root instead would
-          // silently start a second graph — park on an honest error until
-          // iCloud is back.
-          graphSession.park(
-            'Your notes are stored in iCloud Drive, but iCloud isn’t available on this device. Sign in to iCloud in Settings, then reopen Reflect.',
-          )
-          return
-        }
-        setState({ kind })
-        await graphSession.openRecent(root)
-      } catch (err) {
-        if (active) {
-          graphSession.park(errorMessage(err))
-        }
-      }
-    })()
+      })()
+    }
+    run(() => settingsService.whenLoaded())
     return () => {
       active = false
+      removeSettingsRetry?.()
       if (retryTimer !== undefined) {
         clock.clearTimeout(retryTimer)
       }

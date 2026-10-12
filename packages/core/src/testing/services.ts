@@ -746,6 +746,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       graphSession: overrides?.graphSession ?? graphSession,
       platform: overrides?.platform ?? platform,
       clock: overrides?.clock ?? clock,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
       logger,
     }),
     aiCredentials,

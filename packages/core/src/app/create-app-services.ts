@@ -984,6 +984,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       graphSession,
       platform,
       clock,
+      lifecycle,
       logger,
     }),
     aiCredentials,
