@@ -167,7 +167,12 @@ export {
   type LifecycleDomAdapter,
   type LifecyclePageEvent,
 } from '../app/lifecycle-service.ts'
-export { createSystemIdService, type IdService, type PkcePair } from '../app/id-service.ts'
+export {
+  createSystemIdService,
+  defaultIdService,
+  type IdService,
+  type PkcePair,
+} from '../app/id-service.ts'
 export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
 export {
   createConsoleLogger,
@@ -390,6 +395,30 @@ export {
   setDefaultNotePath,
   type NotePathService,
 } from '../indexing/note-path-service.ts'
+export {
+  createIndexStoreService,
+  defaultIndexStore,
+  setDefaultIndexStore,
+  type IndexApplyBatch,
+  type IndexedNoteTouch,
+  type IndexStoreService,
+  type MtimeTouchBatch,
+  type ReconcileScan,
+  type SkippedIndexedNote,
+} from '../indexing/index-store-service.ts'
+export {
+  createEmbeddingRuntimeService,
+  defaultEmbeddingRuntime,
+  setDefaultEmbeddingRuntime,
+  type EmbeddingRuntimeService,
+} from '../embeddings/embedding-runtime-service.ts'
+export {
+  createChatHistoryService,
+  defaultChatHistory,
+  setDefaultChatHistory,
+  type ChatHistoryService,
+  type SaveChatTurnInput,
+} from '../ai/chat/chat-history-service.ts'
 export { chunkNote, type NoteChunk } from '../embeddings/chunk.ts'
 export {
   embedStatus,
@@ -531,6 +560,7 @@ export {
   resolveOrCreateNoteWithTitle,
   type ResolveOrCreateNoteResult,
 } from '../graph/create-note.ts'
+export { ensureWelcomeNote, type EnsureWelcomeNoteOptions } from '../graph/onboarding.ts'
 export {
   resolveExistingMarkdownTarget,
   resolveExistingWikiTarget,
@@ -601,7 +631,14 @@ export {
   type AiPrompt,
   type AiPromptMode,
 } from '../settings/schema.ts'
-export { loadSettings, saveSettings } from '../settings/commands.ts'
+export {
+  createSettingsService,
+  defaultSettings,
+  setDefaultSettings,
+  type SettingsLoadOutcome,
+  type SettingsService,
+  type SettingsStatus,
+} from '../settings/settings-service.ts'
 export {
   contactsAuthorizationSchema,
   contactMatchSchema,

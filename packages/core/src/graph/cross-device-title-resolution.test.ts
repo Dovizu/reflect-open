@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { setBridge } from '../ipc/bridge.ts'
-import type { IndexedNote } from '../indexing/indexed-note.ts'
+import { setDefaultIndexStore } from '../indexing/index-store-service.ts'
 import { applyIndexChanges } from '../indexing/live.ts'
+import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { resolveOrCreateNoteWithTitle } from './create-note.ts'
 
 afterEach(() => {
+  setDefaultIndexStore(null)
   setBridge(null)
 })
 
@@ -16,7 +18,8 @@ describe('cross-device emoji title resolution', () => {
       [emojiPath]: '# 🧠 Business ideas\n',
       [linkingPath]: 'An external edit linked [[Business ideas]].\n',
     }
-    const indexedNotes: IndexedNote[] = []
+    const indexStore = createTestIndexStoreService()
+    setDefaultIndexStore(indexStore)
     const createCommands: string[] = []
 
     setBridge({
@@ -40,10 +43,6 @@ describe('cross-device emoji title resolution', () => {
             size: source.length,
             modifiedMs: 1,
           }))
-        }
-        if (command === 'index_apply_batch') {
-          indexedNotes.push(...(args['notes'] as IndexedNote[]))
-          return null
         }
         if (command === 'note_exists') {
           return String(args['path']) in files
@@ -75,6 +74,7 @@ describe('cross-device emoji title resolution', () => {
       7,
     )
 
+    const indexedNotes = indexStore.applied()
     expect(indexedNotes.find((note) => note.path === emojiPath)).toMatchObject({
       title: '🧠 Business ideas',
       titleKey: '🧠 business ideas',

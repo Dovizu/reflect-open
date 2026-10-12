@@ -43,8 +43,12 @@ const SERVICE_KEYS = [
   'imageCodec',
   'exceptionTelemetry',
   'operations',
+  'settings',
   'database',
   'fileChanges',
+  'indexStore',
+  'embeddingRuntime',
+  'chatHistory',
   'update',
   'gitRepository',
   'icloudNative',
@@ -195,14 +199,14 @@ describe('createAppServices', () => {
 
   it('builds the index reads over the composed database', async () => {
     const ipc = createTestIpcBridgeService({
-      commands: { db_query: () => [{ value: 'stored' }] },
+      commands: { db_query: () => [{ path: 'notes/a.md' }] },
     })
     const services = createAppServices({
       ...requiredAdapters(),
       ipc: ipc.transport,
       logger: createTestLoggerService(),
     })
-    await expect(services.indexQuery.getIndexMeta('key')).resolves.toBe('stored')
+    await expect(services.indexQuery.randomNotePath()).resolves.toBe('notes/a.md')
     expect(ipc.calls().map((call) => call.command)).toEqual(['db_query'])
   })
 

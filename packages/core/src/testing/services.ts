@@ -27,7 +27,12 @@ import {
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
+import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
+import {
+  createTestEmbeddingRuntimeService,
+  type TestEmbeddingRuntimeService,
+} from './embeddings.ts'
 import {
   createTestExceptionTelemetry,
   type TestExceptionTelemetryService,
@@ -47,6 +52,7 @@ import {
   type TestIdService,
 } from './id.ts'
 import { createTestImageCodec, type TestImageCodecService } from './image-codec.ts'
+import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
@@ -80,6 +86,7 @@ import {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
+import { createTestSettingsService, type TestSettingsService } from './settings.ts'
 import { createTestStorageService, type TestStorageService } from './storage.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
 
@@ -108,8 +115,12 @@ export interface TestAppServices extends AppServices {
   readonly imageCodec: TestImageCodecService
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly operations: TestOperationsService
+  readonly settings: TestSettingsService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
+  readonly indexStore: TestIndexStoreService
+  readonly embeddingRuntime: TestEmbeddingRuntimeService
+  readonly chatHistory: TestChatHistoryService
   readonly update: TestUpdateService
   readonly gitRepository: TestGitRepositoryService
   readonly icloudNative: TestICloudNativeService
@@ -134,6 +145,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const testLogger = createTestLoggerService()
   const logger = overrides?.logger ?? testLogger
   const clock = createTestClockService()
+  const operations = createTestOperationsService(clock)
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
   const services: TestAppServices = {
@@ -159,9 +171,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: createTestMobileStorageService(),
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
-    operations: createTestOperationsService(clock),
+    operations,
+    settings: createTestSettingsService({}, { operations: overrides?.operations ?? operations }),
     database,
     fileChanges: createTestFileChangeService(),
+    indexStore: createTestIndexStoreService(),
+    embeddingRuntime: createTestEmbeddingRuntimeService(),
+    chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     gitRepository: createTestGitRepositoryService(),
     icloudNative: createTestICloudNativeService(),

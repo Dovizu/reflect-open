@@ -1,7 +1,11 @@
-import { beginBackgroundTask, endBackgroundTask, type BackgroundTaskToken } from '@reflect/core'
+import {
+  beginBackgroundTask,
+  defaultSettings,
+  endBackgroundTask,
+  type BackgroundTaskToken,
+} from '@reflect/core'
 import { flushOpenDocuments } from '@/editor/open-documents.ts'
 import { flushBackup } from '@/lib/backup-flush.ts'
-import { flushSettings } from '@/lib/settings-flush.ts'
 
 /**
  * The mobile leg of quit-time persistence (Plan 19, decision 6). Desktop's
@@ -44,7 +48,7 @@ export function installBackgroundFlush(): () => void {
     }
 
     try {
-      await Promise.allSettled([flushOpenDocuments(), flushSettings()])
+      await Promise.allSettled([flushOpenDocuments(), defaultSettings().flush()])
       await flushBackup()
     } finally {
       if (backgroundTask !== null) {

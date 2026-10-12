@@ -72,6 +72,17 @@ export {
   type TestDatabaseService,
   type TestNote,
 } from './database.ts'
+export {
+  createTestEmbeddingRuntimeService,
+  type TestEmbeddingRuntimeService,
+  type TestEmbeddingRuntimeServiceOptions,
+} from './embeddings.ts'
+export {
+  createTestChatHistoryService,
+  type TestChatConversation,
+  type TestChatHistoryService,
+  type TestChatHistoryServiceOptions,
+} from './chat.ts'
 export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 export {
   createTestMobileStorageService,
@@ -114,10 +125,17 @@ export {
   type TestSecretStoreService,
 } from './secrets.ts'
 export {
+  createTestIndexStoreService,
+  type IndexStoreCall,
+  type TestIndexStoreService,
+  type TestIndexStoreServiceOptions,
+} from './index-store.ts'
+export {
   createTestOperationsService,
   type OperationSnapshot,
   type TestOperationsService,
 } from './operations.ts'
+export { createTestSettingsService, type TestSettingsService } from './settings.ts'
 export {
   createTestFileChangeService,
   type TestFileChangeService,

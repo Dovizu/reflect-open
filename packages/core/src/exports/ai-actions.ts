@@ -12,11 +12,10 @@ export { aiKeySecretName, aiApiKeyForConfig } from '../ai/secrets.ts'
 export {
   DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
   DEFAULT_OPENAI_COMPATIBLE_MODEL,
-  isHttpBaseUrl,
   isPlainHttpRemoteBaseUrl,
-  normalizeOpenAICompatibleBaseUrl,
   OPENAI_COMPATIBLE_PROVIDER_ID,
 } from '../ai/openai-compatible.ts'
+export { isHttpBaseUrl, normalizeOpenAICompatibleBaseUrl } from '../lib/http-url.ts'
 export { setSecret, getSecret, deleteSecret } from '../secrets/keychain.ts'
 export {
   KEY_HINT_LENGTH,

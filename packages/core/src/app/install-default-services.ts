@@ -1,3 +1,4 @@
+import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
@@ -8,6 +9,7 @@ import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
+import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
@@ -18,6 +20,7 @@ import { setDefaultNotePath } from '../indexing/note-path-service.ts'
 import { setDefaultSearch } from '../indexing/search-service.ts'
 import { setDefaultSuggestions } from '../indexing/suggestion-service.ts'
 import { setDefaultWikiResolver } from '../indexing/wiki-resolver-service.ts'
+import { setDefaultIndexStore } from '../indexing/index-store-service.ts'
 import { setDefaultAppStore } from '../ipc/app-store-plugin.ts'
 import { setDefaultIpc } from '../ipc/bridge.ts'
 import { setDefaultIap } from '../ipc/iap-plugin.ts'
@@ -25,6 +28,7 @@ import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
+import { setDefaultSettings } from '../settings/settings-service.ts'
 import { setDefaultAgentSkill } from './agent-skill-service.ts'
 import { setDefaultAppInfo } from './app-info-service.ts'
 import { setDefaultClipboard } from './clipboard-service.ts'
@@ -70,8 +74,12 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultImageCodec(services.imageCodec)
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
   setDefaultOperations(services.operations)
+  setDefaultSettings(services.settings)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
+  setDefaultIndexStore(services.indexStore)
+  setDefaultEmbeddingRuntime(services.embeddingRuntime)
+  setDefaultChatHistory(services.chatHistory)
   setDefaultUpdate(services.update)
   setDefaultGitRepository(services.gitRepository)
   setDefaultICloudNative(services.icloudNative)
@@ -120,8 +128,12 @@ export function resetDefaultServices(): void {
   setDefaultImageCodec(null)
   setDefaultExceptionTelemetry(null)
   setDefaultOperations(null)
+  setDefaultSettings(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
+  setDefaultIndexStore(null)
+  setDefaultEmbeddingRuntime(null)
+  setDefaultChatHistory(null)
   setDefaultUpdate(null)
   setDefaultGitRepository(null)
   setDefaultICloudNative(null)

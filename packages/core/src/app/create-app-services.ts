@@ -1,4 +1,8 @@
 import {
+  createChatHistoryService,
+  type ChatHistoryService,
+} from '../ai/chat/chat-history-service.ts'
+import {
   createCaptureInboxService,
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
@@ -18,6 +22,10 @@ import { createCalendarService, type CalendarService } from '../calendar/calenda
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
+import {
+  createEmbeddingRuntimeService,
+  type EmbeddingRuntimeService,
+} from '../embeddings/embedding-runtime-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createBacklinkService, type BacklinkService } from '../indexing/backlink-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
@@ -31,6 +39,7 @@ import {
   createWikiResolverService,
   type WikiResolverService,
 } from '../indexing/wiki-resolver-service.ts'
+import { createIndexStoreService, type IndexStoreService } from '../indexing/index-store-service.ts'
 import { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
 import { createIapService, type IapService } from '../ipc/iap-plugin.ts'
 import {
@@ -48,6 +57,7 @@ import {
   createSecretStoreService,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
+import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import type { ClipboardService } from './clipboard-service.ts'
@@ -110,8 +120,12 @@ export interface AppServices {
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly operations: OperationsService
+  readonly settings: SettingsService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
+  readonly indexStore: IndexStoreService
+  readonly embeddingRuntime: EmbeddingRuntimeService
+  readonly chatHistory: ChatHistoryService
   readonly update: UpdateService
   readonly gitRepository: GitRepositoryService
   readonly icloudNative: ICloudNativeService
@@ -203,15 +217,16 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
+  const database = createDatabaseService({ ipc })
   const platform = createPlatformService(adapters.platform)
   const windowService = createWindowService({ ipc, host: adapters.window, logger })
   const mobile =
     isMobilePlatform(adapters.platform.appPlatform) || adapters.platform.surface.mobileApp
+  const operations = createOperationsService({ clock })
   const fileChanges = createFileChangeService(
     { ipc, logger },
     { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
   )
-  const database = createDatabaseService({ ipc })
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   return {
     ipc,
@@ -240,8 +255,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
-    operations: createOperationsService({ clock }),
+    operations,
+    settings: createSettingsService({ ipc, operations }),
     database,
+    indexStore: createIndexStoreService({ ipc, database }),
+    embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
+    chatHistory: createChatHistoryService({ ipc, database, logger }),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,

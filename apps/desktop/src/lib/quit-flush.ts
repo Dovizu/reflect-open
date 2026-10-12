@@ -1,9 +1,8 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { confirmQuit, subscribeQuitRequested } from '@reflect/core'
+import { confirmQuit, defaultSettings, subscribeQuitRequested } from '@reflect/core'
 import { flushOpenDocuments } from '@/editor/open-documents.ts'
 import { flushBackup } from '@/lib/backup-flush.ts'
 import { isMacosDesktop, isNativeShell } from '@/lib/platform.ts'
-import { flushSettings } from '@/lib/settings-flush.ts'
 import { trackSubscriptions } from '@/lib/subscriptions.ts'
 import { isMainWindow } from '@/lib/windows/window-role.ts'
 
@@ -56,7 +55,7 @@ export function installQuitFlush(): () => void {
         }
       } finally {
         // A failed hide must not skip persistence either.
-        await Promise.allSettled([flushOpenDocuments(), flushSettings()])
+        await Promise.allSettled([flushOpenDocuments(), defaultSettings().flush()])
         await flushBackup()
       }
     }),
@@ -64,7 +63,7 @@ export function installQuitFlush(): () => void {
 
   subscriptions.track(
     subscribeQuitRequested(() => {
-      void Promise.allSettled([flushOpenDocuments(), flushSettings()])
+      void Promise.allSettled([flushOpenDocuments(), defaultSettings().flush()])
         .then(() => flushBackup())
         .then(() => {
           void confirmQuit()
@@ -74,7 +73,7 @@ export function installQuitFlush(): () => void {
 
   const onBeforeUnload = (): void => {
     void flushOpenDocuments()
-    void flushSettings()
+    void defaultSettings().flush()
     void flushBackup()
   }
   window.addEventListener('beforeunload', onBeforeUnload)

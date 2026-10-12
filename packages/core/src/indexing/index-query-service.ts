@@ -63,7 +63,7 @@ export interface TemplateEntry {
   mtime: number
 }
 
-/** Row lookups over the index's `notes`, `aliases` and `index_meta` tables. */
+/** Row lookups over the index's `notes` and `aliases` tables. */
 export interface IndexQueryService {
   /** Fetch a single note's row by graph-relative path, or `undefined` if absent. */
   getNote(path: string): Promise<NoteRow | undefined>
@@ -89,8 +89,6 @@ export interface IndexQueryService {
    * the one query that *selects* them.
    */
   listTemplates(): Promise<TemplateEntry[]>
-  /** One `index_meta` value, or `null` when the key has never been written. */
-  getIndexMeta(key: string): Promise<string | null>
   /**
    * Stored `path → {fileHash, mtime}` facts for a specific path set, so
    * applying a large `index:changed` batch can skip already-indexed files
@@ -213,15 +211,6 @@ export function createIndexQueryService(deps: { database: DatabaseService }): In
         .orderBy('titleKey')
         .orderBy('path')
         .execute()
-    },
-
-    async getIndexMeta(key) {
-      const row = await db
-        .selectFrom('indexMeta')
-        .where('key', '=', key)
-        .select('value')
-        .executeTakeFirst()
-      return row?.value ?? null
     },
 
     async getIndexedFileFactsByPath(paths) {

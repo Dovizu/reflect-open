@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { defaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { defaultAppStore } from '../ipc/app-store-plugin.ts'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
+import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
+import { defaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { defaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { defaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { defaultGitRepository } from '../sync/git-repository-service.ts'
@@ -24,6 +26,7 @@ import { defaultNotePath } from '../indexing/note-path-service.ts'
 import { defaultSearch } from '../indexing/search-service.ts'
 import { defaultSuggestions } from '../indexing/suggestion-service.ts'
 import { defaultWikiResolver } from '../indexing/wiki-resolver-service.ts'
+import { defaultIndexStore } from '../indexing/index-store-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
 import { createTestAppServices } from '../testing/services.ts'
@@ -82,6 +85,9 @@ describe('installDefaultServices', () => {
     expect(defaultOperations()).toBe(services.operations)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
+    expect(defaultIndexStore()).toBe(services.indexStore)
+    expect(defaultEmbeddingRuntime()).toBe(services.embeddingRuntime)
+    expect(defaultChatHistory()).toBe(services.chatHistory)
     expect(defaultUpdate()).toBe(services.update)
     expect(defaultGitRepository()).toBe(services.gitRepository)
     expect(defaultICloudNative()).toBe(services.icloudNative)
@@ -131,6 +137,9 @@ describe('resetDefaultServices', () => {
     expect(defaultOperations()).not.toBe(services.operations)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
+    expect(defaultIndexStore()).not.toBe(services.indexStore)
+    expect(defaultEmbeddingRuntime()).not.toBe(services.embeddingRuntime)
+    expect(defaultChatHistory()).not.toBe(services.chatHistory)
     expect(defaultUpdate()).not.toBe(services.update)
     expect(defaultGitRepository()).not.toBe(services.gitRepository)
     expect(defaultICloudNative()).not.toBe(services.icloudNative)

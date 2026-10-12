@@ -1,6 +1,7 @@
 import { isNotNullish } from '@ocavue/utils'
 import { db } from './db.ts'
 import { defaultIndexQuery, type IndexQueryService } from './index-query-service.ts'
+import { defaultIndexStore, type IndexStoreService } from './index-store-service.ts'
 import { defaultWikiResolver, type WikiResolverService } from './wiki-resolver-service.ts'
 export {
   getBacklinks,
@@ -67,8 +68,8 @@ export const getConflictedNotes: IndexQueryService['getConflictedNotes'] = (...a
 export const getDuplicateNoteIds: IndexQueryService['getDuplicateNoteIds'] = (...args) =>
   defaultIndexQuery().getDuplicateNoteIds(...args)
 
-export const getIndexMeta: IndexQueryService['getIndexMeta'] = (...args) =>
-  defaultIndexQuery().getIndexMeta(...args)
+export const getIndexMeta: IndexStoreService['getMeta'] = (...args) =>
+  defaultIndexStore().getMeta(...args)
 
 export const getIndexedFileFactsByPath: IndexQueryService['getIndexedFileFactsByPath'] = (
   ...args

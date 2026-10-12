@@ -127,9 +127,6 @@ export const queryKeys = {
       return [...this.all, generation] as const
     },
   },
-  settings: {
-    all: ['settings'] as const,
-  },
   calendar: {
     all: ['calendar'] as const,
     get authorization() {
@@ -272,19 +269,12 @@ export const mutationKeys = {
       return [...this.all, 'redeem'] as const
     },
   },
-  settings: {
-    all: ['settings'] as const,
-    get save() {
-      return [...this.all, 'save'] as const
-    },
-  },
 } as const
 
 export const mutationScopeIds = {
   pinnedNotesReorder: (root: GraphRoot) => `pinned-notes:reorder:${root ?? 'none'}`,
   agentSkillWrite: (root: GraphRoot) => `agent-skill:write:${root ?? 'none'}`,
   iapAction: 'iap:action',
-  settingsSave: 'settings:save',
 } as const
 
 /**

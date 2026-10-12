@@ -1,46 +1,31 @@
 import { z } from 'zod'
-import { defaultLogger } from '../app/logger-service.ts'
-import { getBridge, type Unlisten } from '../ipc/bridge.ts'
+import type { Unlisten } from '../ipc/bridge.ts'
 import { call } from '../ipc/invoke.ts'
+import { defaultEmbeddingRuntime, type EmbedStatus } from './embedding-runtime-service.ts'
 
 /** Typed bindings for the Rust embedding runtime + vector writes (Plan 09). */
 
-/** Byte counts for an active model download; absent until it starts. */
-export const embedProgressSchema = z.object({
-  /** Bytes fetched so far. */
-  downloaded: z.number().int().nonnegative(),
-  /** Bytes the download will fetch in total. */
-  total: z.number().int().nonnegative(),
-})
-export type EmbedProgress = z.infer<typeof embedProgressSchema>
-
-export const embedStatusSchema = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('uninitialized') }),
-  z.object({
-    status: z.literal('loading'),
-    progress: embedProgressSchema.optional(),
-  }),
-  z.object({ status: z.literal('ready'), model: z.string() }),
-  z.object({ status: z.literal('failed'), message: z.string() }),
-  z.object({ status: z.literal('unsupported') }),
-])
-export type EmbedStatus = z.infer<typeof embedStatusSchema>
+export {
+  embedProgressSchema,
+  embedStatusSchema,
+  type EmbedProgress,
+  type EmbedStatus,
+} from './embedding-runtime-service.ts'
 
 const voidSchema = z.null()
-const vectorsSchema = z.array(z.array(z.number()))
 
 export function embedStatus(): Promise<EmbedStatus> {
-  return call('embed_status', {}, embedStatusSchema)
+  return defaultEmbeddingRuntime().status()
 }
 
 /** Load (downloading on first use) the model. Resolves with the outcome. */
 export function embedEnsure(): Promise<EmbedStatus> {
-  return call('embed_ensure', {}, embedStatusSchema)
+  return defaultEmbeddingRuntime().ensure()
 }
 
 /** Embed texts → 384-dim vectors. Errors unless status is `ready`. */
 export function embedTexts(texts: string[]): Promise<number[][]> {
-  return call('embed_texts', { texts }, vectorsSchema)
+  return defaultEmbeddingRuntime().embedTexts(texts)
 }
 
 /** One chunk in the `embed_apply` payload; `vector` only for new/changed. */
@@ -69,13 +54,8 @@ export async function embedRemove(path: string, generation: number): Promise<voi
 }
 
 /** Live runtime status changes (download started/finished/failed). */
-export function subscribeEmbedStatus(handler: (status: EmbedStatus) => void): Promise<Unlisten> {
-  return getBridge().listen('embed:status', (payload) => {
-    const parsed = embedStatusSchema.safeParse(payload)
-    if (parsed.success) {
-      handler(parsed.data)
-    } else {
-      defaultLogger().error('invalid embed:status payload:', parsed.error)
-    }
-  })
+export async function subscribeEmbedStatus(
+  handler: (status: EmbedStatus) => void,
+): Promise<Unlisten> {
+  return defaultEmbeddingRuntime().subscribe(handler)
 }
