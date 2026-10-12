@@ -1,11 +1,17 @@
 import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { setBridge, setDefaultHttp, setDefaultOpener, setDefaultPlatform } from '@reflect/core'
+import {
+  setDefaultHttp,
+  setDefaultOpener,
+  setDefaultPlatform,
+  setDefaultSecretStore,
+} from '@reflect/core'
 import {
   createTestHttpService,
   createTestOpenerService,
   createTestPlatformService,
+  createTestSecretStoreService,
 } from '@reflect/core/testing'
 import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
 import { ConnectGithubDialog } from './connect-github-dialog.tsx'
@@ -29,10 +35,7 @@ let openedUrls: MockInstance<(url: string) => Promise<void>>
 
 /** A keychain holding the given credential; GET /user accepting it makes the auth step skip itself. */
 function storeCredential(auth: Record<string, unknown>): void {
-  setBridge({
-    invoke: async (command) => (command === 'secret_get' ? JSON.stringify(auth) : null),
-    listen: async () => () => {},
-  })
+  setDefaultSecretStore(createTestSecretStoreService({ 'github-auth': JSON.stringify(auth) }))
 }
 
 /** A device-flow (GitHub App) credential with a comfortably unexpired token. */
@@ -67,7 +70,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  setBridge(null)
+  setDefaultSecretStore(null)
   // Reset (not just clear): a failed test must not leak queued one-shot
   // implementations into its neighbors. Defaults are re-applied above.
   vi.resetAllMocks()

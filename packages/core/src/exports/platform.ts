@@ -176,6 +176,19 @@ export {
   type HttpService,
 } from '../app/http-service.ts'
 export {
+  createAppInfoService,
+  defaultAppInfo,
+  marketingVersion,
+  setDefaultAppInfo,
+  type AppInfoService,
+} from '../app/app-info-service.ts'
+export {
+  createSecretStoreService,
+  defaultSecretStore,
+  setDefaultSecretStore,
+  type SecretStoreService,
+} from '../secrets/secret-store-service.ts'
+export {
   createWebStorageService,
   defaultStorage,
   getJson,
@@ -204,6 +217,31 @@ export {
   type AgentSkillInstallState,
   type AgentSkillStatus,
 } from '../app/agent-skill.ts'
+export {
+  createAgentSkillService,
+  defaultAgentSkill,
+  setDefaultAgentSkill,
+  type AgentSkillService,
+} from '../app/agent-skill-service.ts'
+export {
+  createMobileStorageService,
+  defaultMobileStorage,
+  setDefaultMobileStorage,
+  type MobileStorageService,
+} from '../ipc/mobile-storage-service.ts'
+export {
+  createCalendarService,
+  defaultCalendar,
+  setDefaultCalendar,
+  type CalendarRange,
+  type CalendarService,
+} from '../calendar/calendar-service.ts'
+export {
+  createContactsService,
+  defaultContacts,
+  setDefaultContacts,
+  type ContactsService,
+} from '../contacts/contacts-service.ts'
 export { chunkNote, type NoteChunk } from '../embeddings/chunk.ts'
 export {
   embedStatus,

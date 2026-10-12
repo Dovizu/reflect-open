@@ -2,10 +2,12 @@ import { render } from 'vitest-browser-react'
 import { page, type Locator } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultOpener, setDefaultPlatform } from '@reflect/core'
+import { setBridge, setDefaultCalendar, setDefaultOpener, setDefaultPlatform } from '@reflect/core'
 import {
+  createTestCalendarService,
   createTestOpenerService,
   createTestPlatformService,
+  type TestCalendarService,
   type TestOpenerService,
 } from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
@@ -29,37 +31,23 @@ const CALENDARS = [
 
 let stored: Record<string, unknown>
 let saved: Array<Record<string, unknown>>
-let authStatus: string
-let accessGranted: boolean
-let calendarsResponse: () => Promise<unknown>
+let calendar: TestCalendarService
 
-function installFakeBridge(): { invoked: string[] } {
-  const invoked: string[] = []
+function installFakeBridge(): void {
   setBridge({
     invoke: async (command, args) => {
-      invoked.push(command)
       switch (command) {
         case 'settings_load':
           return stored
         case 'settings_save':
           saved.push(args['settings'] as Record<string, unknown>)
           return null
-        case 'calendar_authorization_status':
-          return authStatus
-        case 'calendar_request_access':
-          if (authStatus === 'notDetermined') {
-            authStatus = accessGranted ? 'fullAccess' : 'denied'
-          }
-          return accessGranted
-        case 'calendar_list_calendars':
-          return await calendarsResponse()
         default:
           return null
       }
     },
     listen: async () => () => {},
   })
-  return { invoked }
 }
 
 let queryClient: QueryClient
@@ -81,9 +69,8 @@ function calendarSwitch(): Locator {
 beforeEach(() => {
   stored = {}
   saved = []
-  authStatus = 'notDetermined'
-  accessGranted = true
-  calendarsResponse = async () => CALENDARS
+  calendar = createTestCalendarService({ status: 'notDetermined', calendars: CALENDARS })
+  setDefaultCalendar(calendar)
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   opener = createTestOpenerService()
   setDefaultOpener(opener)
@@ -92,6 +79,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setBridge(null)
+  setDefaultCalendar(null)
   queryClient.clear()
 })
 
@@ -126,8 +114,8 @@ describe('CalendarIntegrationField', () => {
 
   it('shows nothing (not "No calendars found") while the list is still loading', async () => {
     stored = { calendarEnabled: true }
-    authStatus = 'fullAccess'
-    calendarsResponse = () => new Promise(() => {}) // never settles
+    calendar.setStatus('fullAccess')
+    setDefaultCalendar({ ...calendar, listCalendars: () => new Promise(() => {}) })
     await renderSection()
 
     await expect.element(calendarSwitch()).toHaveAttribute('aria-checked', 'true')
@@ -136,8 +124,8 @@ describe('CalendarIntegrationField', () => {
 
   it('shows the empty state once an empty list has actually loaded', async () => {
     stored = { calendarEnabled: true }
-    authStatus = 'fullAccess'
-    calendarsResponse = async () => []
+    calendar.setStatus('fullAccess')
+    calendar.setCalendars([])
     await renderSection()
 
     await expect.element(page.getByText(/no calendars found/i)).toBeInTheDocument()
@@ -145,7 +133,7 @@ describe('CalendarIntegrationField', () => {
 
   it('toggling a calendar persists its id and updates the count', async () => {
     stored = { calendarEnabled: true }
-    authStatus = 'fullAccess'
+    calendar.setStatus('fullAccess')
     await renderSection()
     await expect.element(page.getByText('0/2 calendars selected')).toBeInTheDocument()
     await page.getByRole('button', { name: /choose calendars/i }).click()
@@ -158,7 +146,7 @@ describe('CalendarIntegrationField', () => {
 
   it('counts only ids the Mac still knows, ignoring stale ones', async () => {
     stored = { calendarEnabled: true, calendarIds: ['cal-work', 'cal-gone-1', 'cal-gone-2'] }
-    authStatus = 'fullAccess'
+    calendar.setStatus('fullAccess')
     await renderSection()
 
     await expect.element(page.getByText('1/2 calendars selected')).toBeInTheDocument()
@@ -166,7 +154,7 @@ describe('CalendarIntegrationField', () => {
 
   it('denied access shows the explanation and deep-links to System Settings', async () => {
     stored = { calendarEnabled: true }
-    authStatus = 'denied'
+    calendar.setStatus('denied')
     await renderSection()
 
     const open = page.getByRole('button', { name: /open system settings/i })
@@ -182,13 +170,12 @@ describe('CalendarIntegrationField', () => {
 
   it('not-yet-asked access shows a Grant button that prompts and recovers', async () => {
     stored = { calendarEnabled: true }
-    authStatus = 'notDetermined'
-    const { invoked } = installFakeBridge()
+    calendar.setStatus('notDetermined')
     await renderSection()
 
     await page.getByRole('button', { name: /grant access/i }).click()
 
-    await vi.waitFor(() => expect(invoked).toContain('calendar_request_access'))
+    await vi.waitFor(() => expect(calendar.accessRequests()).toBe(1))
     // The grant resolved and the invalidated auth query re-ran: the calendar
     // list replaces the permission explanation.
     await expect.element(page.getByText('0/2 calendars selected')).toBeInTheDocument()

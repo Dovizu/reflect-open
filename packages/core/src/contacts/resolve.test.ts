@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
+import { afterEach, describe, expect, it } from 'vitest'
+import { createTestContactsService } from '../testing/contacts.ts'
 import type { ContactMatch } from './commands.ts'
+import { setDefaultContacts } from './contacts-service.ts'
 import { pickContactForEmail, resolveAttendeeContact } from './resolve.ts'
 
 function contact(overrides: Partial<ContactMatch>): ContactMatch {
@@ -15,7 +16,7 @@ function contact(overrides: Partial<ContactMatch>): ContactMatch {
 }
 
 afterEach(() => {
-  setBridge(null)
+  setDefaultContacts(null)
 })
 
 describe('pickContactForEmail', () => {
@@ -41,34 +42,34 @@ describe('pickContactForEmail', () => {
 })
 
 describe('resolveAttendeeContact', () => {
-  it('short-circuits blank emails without touching the bridge', async () => {
-    const invoke = vi.fn()
-    setBridge({ invoke, listen: async () => () => {} })
+  it('short-circuits blank emails without a lookup', async () => {
+    const contacts = createTestContactsService()
+    setDefaultContacts(contacts)
     await expect(resolveAttendeeContact(' ')).resolves.toBeNull()
-    expect(invoke).not.toHaveBeenCalled()
+    expect(contacts.lookups()).toEqual([])
   })
 
   it('looks up the trimmed email and applies the ownership rule', async () => {
-    const invoke = vi.fn().mockResolvedValue([
-      {
-        fullName: 'Ada Lovelace',
-        givenName: 'Ada',
-        familyName: 'Lovelace',
-        emails: ['ada@example.com'],
-        phones: [],
-      },
-    ])
-    setBridge({ invoke, listen: async () => () => {} })
+    const contacts = createTestContactsService({
+      contacts: [
+        {
+          fullName: 'Ada Lovelace',
+          givenName: 'Ada',
+          familyName: 'Lovelace',
+          emails: ['ada@example.com'],
+          phones: [],
+        },
+      ],
+    })
+    setDefaultContacts(contacts)
 
     const match = await resolveAttendeeContact(' ada@example.com ')
     expect(match?.fullName).toBe('Ada Lovelace')
-    expect(invoke).toHaveBeenCalledWith('contacts_lookup_by_email', {
-      email: 'ada@example.com',
-    })
+    expect(contacts.lookups()).toEqual([{ kind: 'email', email: 'ada@example.com' }])
   })
 
   it('resolves null on a miss (the flow then creates a bare person note)', async () => {
-    setBridge({ invoke: async () => [], listen: async () => () => {} })
+    setDefaultContacts(createTestContactsService())
     await expect(resolveAttendeeContact('nobody@example.com')).resolves.toBeNull()
   })
 })
