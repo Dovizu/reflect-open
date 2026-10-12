@@ -148,7 +148,7 @@ export function useAppShortcuts(): CommandContext {
           focusedDailyDateRef.current,
         )
         if (root !== null && generation !== null && path !== null) {
-          await toggleNotePinned({ queryClient, root, generation, path })
+          await toggleNotePinned(services, { queryClient, root, generation, path })
         }
       },
       togglePrivate: async () => {
@@ -160,7 +160,7 @@ export function useAppShortcuts(): CommandContext {
           focusedDailyDateRef.current,
         )
         if (root !== null && generation !== null && path !== null) {
-          await toggleNotePrivate({ queryClient, root, generation, path })
+          await toggleNotePrivate(services, { queryClient, root, generation, path })
         }
       },
       back,

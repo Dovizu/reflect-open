@@ -9,6 +9,7 @@ import {
   type NoteRowModel,
 } from '@/mobile/swipeable-note-row.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface NoteRowListProps {
   rows: NoteRowModel[]
@@ -24,18 +25,22 @@ interface NoteRowListProps {
  */
 export function NoteRowList({ rows, onOpen, onDeleted }: NoteRowListProps): ReactElement {
   const { graph } = useGraph()
+  const { noteActions } = useAppServices()
   const queryClient = useQueryClient()
   const [revealedPath, setRevealedPath] = useState<string | null>(null)
   const [deletePath, setDeletePath] = useState<string | null>(null)
 
   const togglePin = (row: NoteRowModel): void => {
     if (graph !== null) {
-      void toggleNotePinned({
-        queryClient,
-        root: graph.root,
-        generation: graph.generation,
-        path: row.path,
-      })
+      void toggleNotePinned(
+        { noteActions },
+        {
+          queryClient,
+          root: graph.root,
+          generation: graph.generation,
+          path: row.path,
+        },
+      )
     }
   }
 

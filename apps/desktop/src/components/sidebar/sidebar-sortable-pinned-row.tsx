@@ -26,7 +26,7 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
   const noteLabel = useNoteLabel()
   const { graph } = useGraph()
   const queryClient = useQueryClient()
-  const { nativeMenu, operations } = useAppServices()
+  const { nativeMenu, noteActions, operations } = useAppServices()
   const target = routeForPath(note.path)
   const active = routesEqual(route, target)
   const label = noteLabel(note)
@@ -50,12 +50,15 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
             {
               text: 'Unpin Note',
               action: () => {
-                void unpinNote({
-                  queryClient,
-                  root: graph.root,
-                  generation: graph.generation,
-                  path: note.path,
-                })
+                void unpinNote(
+                  { noteActions },
+                  {
+                    queryClient,
+                    root: graph.root,
+                    generation: graph.generation,
+                    path: note.path,
+                  },
+                )
               },
             },
           ],
@@ -64,7 +67,7 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
           operations.start('Opening note menu').fail(errorMessage(cause))
         })
     },
-    [graph, nativeMenu, note, queryClient, operations],
+    [graph, nativeMenu, note, noteActions, queryClient, operations],
   )
 
   return (

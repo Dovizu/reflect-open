@@ -1,6 +1,7 @@
 import {
   defaultNoteActions,
   getNextPinOrder,
+  type AppServices,
   type FilteredSearchHit,
   type NoteListEntry,
   type NoteRow,
@@ -16,13 +17,19 @@ import {
 import type { NoteActionInput } from './notes/types.ts'
 
 /** Toggle pin with shared optimistic feedback and save-error reporting. Markdown owns the final state. */
-export async function toggleNotePinned(input: NoteActionInput): Promise<void> {
-  await updatePin(input, 'toggle')
+export async function toggleNotePinned(
+  ctx: Pick<AppServices, 'noteActions'>,
+  input: NoteActionInput,
+): Promise<void> {
+  await updatePin(ctx, input, 'toggle')
 }
 
 /** Remove a pin directionally, even when the cached shelf is stale. */
-export async function unpinNote(input: NoteActionInput): Promise<void> {
-  await updatePin(input, 'unpin')
+export async function unpinNote(
+  ctx: Pick<AppServices, 'noteActions'>,
+  input: NoteActionInput,
+): Promise<void> {
+  await updatePin(ctx, input, 'unpin')
 }
 
 function applyPinnedState(input: NoteActionInput, note: PinnedNote, isPinned: boolean): void {
@@ -43,7 +50,11 @@ function applyPinnedState(input: NoteActionInput, note: PinnedNote, isPinned: bo
   )
 }
 
-async function updatePin(input: NoteActionInput, kind: 'toggle' | 'unpin'): Promise<void> {
+async function updatePin(
+  ctx: Pick<AppServices, 'noteActions'>,
+  input: NoteActionInput,
+  kind: 'toggle' | 'unpin',
+): Promise<void> {
   const { queryClient, root, generation, path } = input
   let feedback = null as { preview: PinnedNote; predicted: boolean } | null
   // Runs once the service accepts the call, so a duplicate press changes nothing.
@@ -65,7 +76,7 @@ async function updatePin(input: NoteActionInput, kind: 'toggle' | 'unpin'): Prom
     applyPinnedState(input, preview, predicted)
     return order
   }
-  const actions = defaultNoteActions()
+  const actions = ctx.noteActions
   const outcome =
     kind === 'unpin'
       ? await actions.unpin(path, generation, {
