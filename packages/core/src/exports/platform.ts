@@ -167,7 +167,12 @@ export {
   type LifecycleDomAdapter,
   type LifecyclePageEvent,
 } from '../app/lifecycle-service.ts'
-export { createSystemIdService, type IdService, type PkcePair } from '../app/id-service.ts'
+export {
+  createSystemIdService,
+  defaultIdService,
+  type IdService,
+  type PkcePair,
+} from '../app/id-service.ts'
 export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
 export {
   createConsoleLogger,
@@ -507,6 +512,7 @@ export {
   resolveOrCreateNoteWithTitle,
   type ResolveOrCreateNoteResult,
 } from '../graph/create-note.ts'
+export { ensureWelcomeNote, type EnsureWelcomeNoteOptions } from '../graph/onboarding.ts'
 export {
   resolveExistingMarkdownTarget,
   resolveExistingWikiTarget,
