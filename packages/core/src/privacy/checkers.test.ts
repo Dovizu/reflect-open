@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { RetrievalHit } from '../embeddings/retrieve.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import {
@@ -71,8 +71,7 @@ describe('isPrivateNoteError', () => {
 
 function setup(files: Record<string, string>) {
   const noteFile = createTestNoteFileService({ files })
-  const read = vi.spyOn(noteFile, 'read')
-  return { noteFile, read, privacy: createPrivacyService({ noteFile }) }
+  return { noteFile, privacy: createPrivacyService({ noteFile }) }
 }
 
 describe('isPrivateLive', () => {
@@ -143,10 +142,10 @@ describe('cloudSafeSearchHits', () => {
   })
 
   it('never probes hits the index already flags private', async () => {
-    const { privacy, read } = setup({ 'notes/a.md': '# Public\n' })
+    const { privacy, noteFile } = setup({ 'notes/a.md': '# Public\n' })
 
     await privacy.cloudSafeSearchHits([PUBLIC, PRIVATE])
-    expect(read.mock.calls.map(([path]) => path)).toEqual(['notes/a.md'])
+    expect(noteFile.getReads().map((read) => read.path)).toEqual(['notes/a.md'])
   })
 
   it('strips hits to the cloud-facing fields (no score, no flag)', async () => {

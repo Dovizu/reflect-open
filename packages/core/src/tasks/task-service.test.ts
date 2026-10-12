@@ -91,7 +91,6 @@ const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
 describe('write serialization', () => {
   it('serializes concurrent writes to the same note — no read/write interleave', async () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n')
-    const readNote = vi.spyOn(noteFile, 'read')
     const pendingFirstWrite = Promise.withResolvers<number>()
     let writes = 0
     const writeNote = vi.spyOn(noteFile, 'write').mockImplementation(() => {
@@ -104,13 +103,13 @@ describe('write serialization', () => {
     await flushMicrotasks()
 
     // The first write is in flight; the second hasn't even read yet — it's queued.
-    expect(readNote).toHaveBeenCalledTimes(1)
+    expect(noteFile.getReads()).toHaveLength(1)
     expect(writeNote).toHaveBeenCalledTimes(1)
 
     pendingFirstWrite.resolve(0)
     await Promise.all([first, second])
     // The second only read after the first's write settled.
-    expect(readNote).toHaveBeenCalledTimes(2)
+    expect(noteFile.getReads()).toHaveLength(2)
     expect(writeNote).toHaveBeenCalledTimes(2)
   })
 

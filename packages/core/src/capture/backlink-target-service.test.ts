@@ -1,6 +1,5 @@
-import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
-import type { NoteFileService } from '../graph/note-file-service.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/index.ts'
 import {
   createBacklinkTargetService,
@@ -9,7 +8,6 @@ import {
 
 const resolveOrCreateMock = vi.fn<NoteCreationService['resolveOrCreateNoteWithTitle']>()
 let noteFile: TestNoteFileService
-let readNoteMock: MockInstance<NoteFileService['read']>
 let backlinkTarget: BacklinkTargetService
 
 beforeEach(() => {
@@ -18,7 +16,6 @@ beforeEach(() => {
   noteFile = createTestNoteFileService({
     files: { 'notes/links.md': '# Links\n', 'notes/links-2.md': '# Links\n' },
   })
-  readNoteMock = vi.spyOn(noteFile, 'read')
   backlinkTarget = createBacklinkTargetService({
     noteCreation: { resolveOrCreateNoteWithTitle: resolveOrCreateMock },
     noteFile,
@@ -31,7 +28,7 @@ describe('BacklinkTargetService', () => {
     noteFile.set('notes/bookmarks.md', '# Bookmarks\n')
 
     await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Bookmarks')
-    expect(readNoteMock).toHaveBeenCalledWith('notes/bookmarks.md', 3)
+    expect(noteFile.getReads()).toContainEqual({ path: 'notes/bookmarks.md', generation: 3 })
   })
 
   it('returns the canonical title of a newly created target', async () => {
@@ -54,7 +51,7 @@ describe('BacklinkTargetService', () => {
     })
 
     await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Links')
-    expect(readNoteMock).toHaveBeenCalledWith('notes/links-2.md', 3)
+    expect(noteFile.getReads()).toContainEqual({ path: 'notes/links-2.md', generation: 3 })
   })
 
   it('links directly to the selected duplicate when its current title is unique', async () => {
@@ -65,7 +62,7 @@ describe('BacklinkTargetService', () => {
     noteFile.set('notes/bookmarks.md', '# Bookmarks\n')
 
     await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Bookmarks')
-    expect(readNoteMock).toHaveBeenCalledWith('notes/bookmarks.md', 3)
+    expect(noteFile.getReads()).toContainEqual({ path: 'notes/bookmarks.md', generation: 3 })
   })
 
   it('keeps a duplicate target retryable when the selected winner cannot be read', async () => {
@@ -73,7 +70,9 @@ describe('BacklinkTargetService', () => {
       kind: 'ambiguous',
       paths: ['notes/links.md', 'notes/links-2.md'],
     })
-    readNoteMock.mockRejectedValue({ kind: 'io', message: 'not downloaded' })
+    const readNoteMock = vi
+      .spyOn(noteFile, 'read')
+      .mockRejectedValue({ kind: 'io', message: 'not downloaded' })
 
     await expect(backlinkTarget.ensure('Links', 3)).rejects.toMatchObject({
       kind: 'io',
@@ -90,7 +89,7 @@ describe('BacklinkTargetService', () => {
     })
 
     await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Links')
-    expect(readNoteMock).not.toHaveBeenCalled()
+    expect(noteFile.getReads()).toEqual([])
   })
 
   it('rejects an impossible ambiguous result without any target paths', async () => {
@@ -100,6 +99,6 @@ describe('BacklinkTargetService', () => {
       kind: 'unknown',
       message: expect.stringContaining('could not be resolved'),
     })
-    expect(readNoteMock).not.toHaveBeenCalled()
+    expect(noteFile.getReads()).toEqual([])
   })
 })

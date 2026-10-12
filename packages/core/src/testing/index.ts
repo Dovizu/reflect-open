@@ -278,6 +278,7 @@ export {
   createTestNoteFileService,
   createTestNoteLinkResolverService,
   type AssetUpload,
+  type NoteFileRead,
   type NoteFileWrite,
   type NoteLinkResolution,
   type TestAssetStoreService,
