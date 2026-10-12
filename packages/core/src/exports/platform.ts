@@ -643,11 +643,6 @@ export {
 } from '../graph/schemas.ts'
 export {
   windowBootstrap,
-  createGraph,
-  importReflectV1Zip,
-  subscribeImportProgress,
-  cancelReflectV1Import,
-  markReflectV1ImportOwnWrites,
   readNote,
   readNoteLocal,
   type LocalNoteRead,
@@ -700,6 +695,12 @@ export {
   type GraphSessionState,
   type GraphStatus,
 } from '../graph/graph-session-service.ts'
+export {
+  createV1ImportService,
+  type V1ImportService,
+  type V1ImportServiceDeps,
+  type V1ImportState,
+} from '../graph/v1-import-service.ts'
 export {
   createMobileOnboardingService,
   type MobileOnboardingService,

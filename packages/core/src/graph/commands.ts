@@ -1,30 +1,12 @@
-import { z } from 'zod'
-import { defaultLogger } from '../app/logger-service.ts'
 import { defaultWebFetch } from '../app/web-fetch-service.ts'
 import { defaultWindow } from '../app/window-service.ts'
-import { echoLocalWrite } from '../indexing/local-write-echo.ts'
-import { getBridge, type Unlisten } from '../ipc/bridge.ts'
-import { call } from '../ipc/invoke.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import { defaultAssetStore } from './asset-store-service.ts'
 import { defaultCaptureInbox } from './capture-inbox-service.ts'
 import { defaultNoteFile, type LocalNoteRead, type VaultScanStats } from './note-file-service.ts'
-import {
-  graphImportProgressSchema,
-  graphImportSummarySchema,
-  graphInfoSchema,
-  type FileMeta,
-  type GraphImportProgress,
-  type GraphImportSummary,
-  type GraphInfo,
-  type NoteCreateOutcome,
-  type WindowBootstrap,
-} from './schemas.ts'
+import type { FileMeta, NoteCreateOutcome, WindowBootstrap } from './schemas.ts'
 
 export type { LocalNoteRead, VaultScanStats } from './note-file-service.ts'
-
-/** Commands that return `()` from Rust serialize as `null` over IPC. */
-const voidSchema = z.null()
 
 /**
  * Adopt the already-open graph for a secondary note window: a pure read of
@@ -34,67 +16,6 @@ const voidSchema = z.null()
  */
 export async function windowBootstrap(): Promise<WindowBootstrap> {
   return await defaultWindow().bootstrap()
-}
-
-/** Create a new graph at `path` and open it. */
-export async function createGraph(path: string): Promise<GraphInfo> {
-  return await call('graph_create', { path }, graphInfoSchema)
-}
-
-/**
- * Import a Reflect V1 export `.zip` into the open graph. V1 exports already use
- * Reflect Open's graph-folder layout; Rust extracts safe entries under the
- * active graph root without ever replacing an existing file (identical files
- * skip, conflicting notes rename, conflicting daily notes merge). Attachments
- * the notes link to on Firebase Storage or Reflect's asset CDN are downloaded
- * into `assets/` and the links rewritten, so the call can take a while on
- * attachment-heavy graphs — observe {@link subscribeImportProgress} and offer
- * {@link cancelReflectV1Import} while it runs.
- */
-export async function importReflectV1Zip(
-  path: string,
-  generation: number,
-): Promise<GraphImportSummary> {
-  return await call('graph_import_reflect_v1_zip', { path, generation }, graphImportSummarySchema)
-}
-
-/** Event name the running import emits {@link GraphImportProgress} ticks on. */
-export const IMPORT_PROGRESS_EVENT = 'import:progress'
-
-/** Live progress ticks of the running Reflect V1 import. */
-export function subscribeImportProgress(
-  handler: (progress: GraphImportProgress) => void,
-): Promise<Unlisten> {
-  return getBridge().listen(IMPORT_PROGRESS_EVENT, (payload) => {
-    const parsed = graphImportProgressSchema.safeParse(payload)
-    if (parsed.success) {
-      handler(parsed.data)
-    } else {
-      defaultLogger().error('invalid import:progress payload:', parsed.error)
-    }
-  })
-}
-
-/**
- * Cancel the running Reflect V1 import (a no-op when none runs). The import
- * aborts before anything lands in the graph, so cancelling is always safe;
- * the pending {@link importReflectV1Zip} call rejects.
- */
-export async function cancelReflectV1Import(): Promise<void> {
-  await call('graph_import_cancel', {}, voidSchema)
-}
-
-/**
- * Mark files imported by {@link importReflectV1Zip} as this device's writes.
- * Call only after the UI confirms the imported graph is still the active graph:
- * these paths are graph-relative and the own-write channel is scoped to the
- * currently running iCloud controller.
- */
-export function markReflectV1ImportOwnWrites(summary: GraphImportSummary): void {
-  const modifiedMs = Date.now()
-  for (const changedPath of summary.changedPaths) {
-    echoLocalWrite({ path: changedPath, kind: 'upsert', modifiedMs })
-  }
 }
 
 /** `defaultNoteFile().read`. */
