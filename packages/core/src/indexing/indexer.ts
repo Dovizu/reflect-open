@@ -49,7 +49,7 @@ export interface IndexingDeps {
 /**
  * Reports a batch of file changes after the index applied it at `generation`.
  * The lifecycle that owns the indexer supplies it and forwards each batch to
- * its `onChangesApplied` listeners.
+ * its `onApplied` listeners.
  */
 export type ChangesAppliedEmitter = (changes: readonly FileChange[], generation: number) => void
 

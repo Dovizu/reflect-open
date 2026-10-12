@@ -204,7 +204,7 @@ describe('LiveIndex.subscribe', () => {
       },
     })
 
-    liveIndex.subscribe(1, undefined, undefined, () => canApply)
+    liveIndex.subscribe(1, undefined, () => canApply)
     emit([{ path: 'notes/started-visible.md', kind: 'upsert' }])
     emit([{ path: 'notes/queued.md', kind: 'upsert' }])
     await vi.waitFor(() => expect(reads).toContain('notes/started-visible.md'))
@@ -219,26 +219,6 @@ describe('LiveIndex.subscribe', () => {
     // foreground full reconcile is the durable replay path for both.
     expect(writes()).toEqual([])
     expect(reads).not.toContain('notes/queued.md')
-  })
-
-  it('fires onApplied only after the batch has been written to the index', async () => {
-    const order: string[] = []
-    const { liveIndex, writes, emit } = setup({ files: { 'notes/a.md': '# content' } })
-
-    liveIndex.subscribe(1, (changes) => {
-      order.push(...writes(), `applied:${changes.map((change) => change.path).join(',')}`)
-    })
-    // A recordings-only batch never reaches the queue or onApplied; a mixed
-    // batch applies (and reports) only its notes.
-    emit([{ path: 'audio-memos/audio-memo-2026-06-12-090000-000.m4a', kind: 'upsert' }])
-    emit([
-      { path: 'notes/a.md', kind: 'upsert' },
-      { path: 'audio-memos/audio-memo-2026-06-12-091500-000.m4a', kind: 'upsert' },
-    ])
-    await vi.waitFor(() => {
-      expect(order).toContain('applied:notes/a.md')
-    })
-    expect(order).toEqual(['apply:notes/a.md', 'applied:notes/a.md'])
   })
 
   it('emits index-applied to subscribers after the batch is written — notes settle first', async () => {

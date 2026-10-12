@@ -149,7 +149,7 @@ interface AssetCandidates {
  * the single-flight loop, focus/online retries, and teardown live there; this
  * supplies the asset-specific pass and triggers.
  *
- * Triggers fire off `IndexLifecycleService.onChangesApplied` — the indexer's
+ * Triggers fire off `IndexLifecycleService.onApplied` — the indexer's
  * POST-APPLY signal — not the raw watcher stream, so the privacy gate always
  * reads a settled index and can't race a just-written private note's
  * indexing. It describes **new** eligible assets only — there is no launch
@@ -226,7 +226,7 @@ export function createAssetDescriptionService(deps: {
   hash: HashService
   clock: Pick<ClockService, 'now'>
   reconcilers: BackgroundReconcilerFactory
-  indexLifecycle: Pick<IndexLifecycleService, 'onChangesApplied' | 'reindexNotesReferencing'>
+  indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'reindexNotesReferencing'>
   operations: Pick<OperationsService, 'start'>
   logger: Pick<LoggerService, 'warn'>
 }): AssetDescriptionService {
@@ -623,9 +623,9 @@ export function createAssetDescriptionService(deps: {
       // note's indexing. Carries the full batch — asset-file upserts (a dropped
       // image) and note upserts (which may newly reference an asset).
       loop.onDispose(
-        indexLifecycle.onChangesApplied((event) => {
-          if (event.generation !== generation) {
-            return // a delayed emit from a graph we've switched away from
+        indexLifecycle.onApplied((event) => {
+          if (event.generation !== generation || event.changes === null) {
+            return // a delayed emit from a graph we've switched away from, or a sync pass
           }
           const newAssets: string[] = []
           const changedNotes: string[] = []

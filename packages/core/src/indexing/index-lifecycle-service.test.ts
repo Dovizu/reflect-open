@@ -16,7 +16,6 @@ import { createTestOperationsService } from '../testing/operations.ts'
 import {
   createIndexLifecycleService,
   type IndexAppliedEvent,
-  type IndexChangesAppliedEvent,
   type IndexLifecycleProgress,
   type IndexReconciledEvent,
 } from './index-lifecycle-service.ts'
@@ -201,31 +200,20 @@ describe('createIndexLifecycleService', () => {
     // Sequenced: reconcile → subscribe → watchStart.
     expect(steps).toEqual(['scan', 'subscribe', 'watchStart'])
     // The initial reconcile is itself an index change: invalidate once there.
-    expect(applied).toEqual([{ generation: 5, paths: null }])
+    expect(applied).toEqual([{ generation: 5, changes: null }])
     expect(fileChanges.watcherRunning()).toBe(true)
     expect(subscriptions()).toBe(1) // retained as the active subscription
   })
 
-  it('reports each applied watcher batch with its paths and generation', async () => {
-    const { index, fileChanges, applied } = setup({ files: { 'notes/a.md': '# A' } })
-    index.sync(5, () => false)
-    await index.settled()
-
-    fileChanges.emit({ changes: [{ path: 'notes/a.md', kind: 'upsert' }], source: 'external' })
-
-    await vi.waitFor(() => expect(applied).toHaveLength(2))
-    expect(applied[1]).toEqual({ generation: 5, paths: ['notes/a.md'] })
-  })
-
   it('reports the full batch of each applied watcher batch, asset files included', async () => {
     const { index, fileChanges } = setup({ files: { 'notes/a.md': '# A' } })
-    const batches: IndexChangesAppliedEvent[] = []
-    const unlisten = index.onChangesApplied((event) => {
+    const batches: IndexAppliedEvent[] = []
+    const unlisten = index.onApplied((event) => {
       batches.push(event)
     })
     index.sync(5, () => false)
     await index.settled()
-    expect(batches).toEqual([]) // a sync pass reports no batch
+    expect(batches).toEqual([{ generation: 5, changes: null }]) // a sync pass reports no batch
 
     const changes = [
       { path: 'notes/a.md', kind: 'upsert' as const },
@@ -233,13 +221,13 @@ describe('createIndexLifecycleService', () => {
       { path: 'assets/photo.png', kind: 'upsert' as const },
     ]
     fileChanges.emit({ changes, source: 'external' })
-    await vi.waitFor(() => expect(batches).toHaveLength(1))
-    expect(batches[0]).toEqual({ generation: 5, changes })
+    await vi.waitFor(() => expect(batches).toHaveLength(2))
+    expect(batches[1]).toEqual({ generation: 5, changes })
 
     unlisten()
     fileChanges.emit({ changes, source: 'external' })
     await index.close()
-    expect(batches).toHaveLength(1)
+    expect(batches).toHaveLength(2)
   })
 
   it('reports the notes a description re-index applied, to its own listeners only', async () => {
@@ -249,12 +237,12 @@ describe('createIndexLifecycleService', () => {
       indexed: [{ path: 'notes/a.md', markdown: REFERENCING }],
     })
     const other = setup()
-    const batches: IndexChangesAppliedEvent[] = []
-    const otherBatches: IndexChangesAppliedEvent[] = []
-    index.onChangesApplied((event) => {
+    const batches: IndexAppliedEvent[] = []
+    const otherBatches: IndexAppliedEvent[] = []
+    index.onApplied((event) => {
       batches.push(event)
     })
-    other.index.onChangesApplied((event) => {
+    other.index.onApplied((event) => {
       otherBatches.push(event)
     })
 
@@ -814,7 +802,9 @@ describe('applyChanges', () => {
 
     expect(mutations).toBe(1)
     expect(store.applied().map((note) => note.path)).toEqual(['notes/pulled.md'])
-    expect(applied).toEqual([{ generation: 4, paths: ['notes/pulled.md'] }])
+    expect(applied).toEqual([
+      { generation: 4, changes: [{ path: 'notes/pulled.md', kind: 'upsert', modifiedMs: 5 }] },
+    ])
     expect(steps).not.toContain('subscribe')
   })
 

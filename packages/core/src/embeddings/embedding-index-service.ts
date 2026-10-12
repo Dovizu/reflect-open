@@ -260,9 +260,9 @@ export function createEmbeddingIndexService(deps: {
         logger.error('embedding backfill failed:', cause)
       })
 
-    const unlisten = indexLifecycle.onChangesApplied((event) => {
-      if (!active || event.generation !== generation) {
-        return // torn down, or a delayed emit from a superseded index session
+    const unlisten = indexLifecycle.onApplied((event) => {
+      if (!active || event.generation !== generation || event.changes === null) {
+        return // torn down, a delayed emit from a superseded index session, or a sync pass
       }
       for (const change of event.changes) {
         if (!isNotePath(change.path)) {

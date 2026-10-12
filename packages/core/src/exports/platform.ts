@@ -558,7 +558,6 @@ export {
 export {
   createIndexLifecycleService,
   type IndexAppliedEvent,
-  type IndexChangesAppliedEvent,
   type IndexFileProgress,
   type IndexLifecycleDeps,
   type IndexLifecycleProgress,
