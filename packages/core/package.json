@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./capture-envelope": "./src/actions/capture-envelope.ts",
     "./x-archive": "./src/x-archive.ts",
+    "./platform-service": "./src/app/platform-service.ts",
     "./testing": "./src/testing/index.ts"
   },
   "scripts": {
