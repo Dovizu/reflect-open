@@ -294,6 +294,52 @@ describe('createTestIndexStoreService', () => {
     }
   })
 
+  it('mirrors a move into its database, re-stating the path-derived claims', async () => {
+    const database = createTestDatabaseService()
+    const store = createTestIndexStoreService({ database })
+    try {
+      const source = '# Title\n\n[[Other]] #tag\n'
+      await store.apply(
+        buildIndexedNote(parseNote({ path: 'notes/old.md', source }), {
+          fileHash: 'hash',
+          mtime: 1,
+          source,
+        }),
+        1,
+      )
+      await store.apply(note('notes/taken.md'), 1)
+      await store.moveIndexed('notes/old.md', 'notes/New Name.md', 1)
+
+      await expect(
+        database.db.selectFrom('notes').select(['path', 'pathKey']).orderBy('path').execute(),
+      ).resolves.toEqual([
+        { path: 'notes/New Name.md', pathKey: 'notes/new name.md' },
+        { path: 'notes/taken.md', pathKey: 'notes/taken.md' },
+      ])
+      await expect(
+        database.runQuery('SELECT key, tier FROM note_claims WHERE note_path = ? ORDER BY tier', [
+          'notes/New Name.md',
+        ]),
+      ).resolves.toEqual([
+        { key: 'title', tier: 2 },
+        { key: 'new name', tier: 4 },
+      ])
+      await expect(
+        database.runQuery('SELECT source_path FROM links UNION SELECT note_path FROM tags', []),
+      ).resolves.toEqual([{ source_path: 'notes/New Name.md' }])
+      await expect(
+        database.runQuery('SELECT path FROM search_fts ORDER BY path', []),
+      ).resolves.toEqual([{ path: 'notes/New Name.md' }, { path: 'notes/taken.md' }])
+
+      await expect(store.move('notes/New Name.md', 'notes/taken.md', 1)).rejects.toMatchObject({
+        kind: 'io',
+        message: 'cannot move note: notes/taken.md is already indexed',
+      })
+    } finally {
+      database.close()
+    }
+  })
+
   it('rejects a call that `fail` answers, after recording it', async () => {
     const store = createTestIndexStoreService({
       fail: (call) => (call.method === 'clear' ? new Error('refused') : undefined),

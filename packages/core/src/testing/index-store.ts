@@ -1,4 +1,7 @@
-import type { IndexedNote } from '../indexing/indexed-note.ts'
+import { ReflectError } from '../errors.ts'
+import { noteBasenameKey } from '../graph/note-reference.ts'
+import { dateFromDailyPath, foldGraphPath, isCalendarDate } from '../graph/paths.ts'
+import { CLAIM_TIER, type IndexedNote } from '../indexing/indexed-note.ts'
 import {
   createIndexApplyBatchWriter,
   createMtimeTouchBatchWriter,
@@ -47,8 +50,8 @@ export type IndexStoreCall =
 
 export interface TestIndexStoreServiceOptions {
   /**
-   * Mirror applies, removes, clears and `index_meta` into this database, so
-   * reads through it see what the store wrote. Row moves are not mirrored.
+   * Mirror applies, removes, moves, clears and `index_meta` into this
+   * database, so reads through it see what the store wrote.
    */
   database?: TestDatabaseService
   /** What `open` resolves with. Defaults to `1`. */
@@ -131,6 +134,62 @@ export function createTestIndexStoreService(
     }
   }
 
+  /** Re-key every row of `from` to `to`, statement for statement like `index_move`. */
+  async function moveRows(from: string, to: string): Promise<void> {
+    if (database === undefined) {
+      return
+    }
+    const run = database.runQuery
+    const occupied = await run('SELECT 1 FROM notes WHERE path = ?', [to])
+    if (Array.isArray(occupied) && occupied.length > 0) {
+      throw new ReflectError('io', `cannot move note: ${to} is already indexed`)
+    }
+    const date = dateFromDailyPath(to)
+    const dailyDate = date !== null && isCalendarDate(date) ? date : null
+    const restateClaim = `INSERT INTO note_claims(note_path, key, tier)
+      SELECT ?, ?, ?
+      WHERE NOT EXISTS (SELECT 1 FROM note_claims WHERE note_path = ? AND key = ?)`
+    // The child tables reference `notes(path)`, so the parent-key update
+    // needs deferred foreign-key checks, which only apply inside a transaction.
+    await run('BEGIN', [])
+    try {
+      await run('PRAGMA defer_foreign_keys = ON', [])
+      const moved = await run(
+        'UPDATE notes SET path = ?, path_key = ? WHERE path = ? RETURNING path',
+        [to, foldGraphPath(to), from],
+      )
+      await run('UPDATE note_claims SET note_path = ? WHERE note_path = ?', [to, from])
+      if (Array.isArray(moved) && moved.length > 0) {
+        await run('DELETE FROM note_claims WHERE note_path = ? AND tier IN (?, ?)', [
+          to,
+          CLAIM_TIER.dailyDate,
+          CLAIM_TIER.basename,
+        ])
+        if (dailyDate !== null) {
+          await run(restateClaim, [to, dailyDate, CLAIM_TIER.dailyDate, to, dailyDate])
+        }
+        const basenameKey = noteBasenameKey(to)
+        await run(restateClaim, [to, basenameKey, CLAIM_TIER.basename, to, basenameKey])
+      }
+      await run('UPDATE links SET source_path = ? WHERE source_path = ?', [to, from])
+      for (const table of [
+        'tags',
+        'aliases',
+        'note_emails',
+        'assets',
+        'tasks',
+        'embedding_chunks',
+      ]) {
+        await run(`UPDATE ${table} SET note_path = ? WHERE note_path = ?`, [to, from])
+      }
+      await run('UPDATE search_fts SET path = ? WHERE path = ?', [to, from])
+      await run('COMMIT', [])
+    } catch (error) {
+      await run('ROLLBACK', [])
+      throw error
+    }
+  }
+
   const applyBatch: IndexStoreService['applyBatch'] = async (notes, writeGeneration) => {
     record({ method: 'applyBatch', notes: [...notes], generation: writeGeneration })
     await writeNotes(notes)
@@ -157,10 +216,12 @@ export function createTestIndexStoreService(
     },
     move: async (from, to, writeGeneration) => {
       record({ method: 'move', from, to, generation: writeGeneration })
+      await moveRows(from, to)
       moves.push({ from, to })
     },
     moveIndexed: async (from, to, fileGeneration) => {
       record({ method: 'moveIndexed', from, to, fileGeneration })
+      await moveRows(from, to)
       moves.push({ from, to })
     },
     reconcileScan: async (scanGeneration) => {

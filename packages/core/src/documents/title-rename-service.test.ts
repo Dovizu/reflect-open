@@ -91,6 +91,7 @@ function setup(options?: SetupOptions) {
     sessions: session === null ? [] : [session],
   })
   const indexStore = createTestIndexStoreService({
+    database,
     fail: (call) => (call.method === 'moveIndexed' ? options?.moveError : undefined),
   })
   const noteMove = createTestNoteMoveService({
@@ -507,8 +508,6 @@ describe('rename coordinator', () => {
     const { coordinator, noteFile, indexStore } = setup({
       path: PLACEHOLDER,
       files: { [PLACEHOLDER]: managed('# B\n') },
-      // The index still holds the first title; the fake store moves no rows.
-      indexed: { [PLACEHOLDER]: managed('# A\n') },
     })
     await renameOnce(coordinator, 'A', 'B')
     expect(indexStore.moved()).toEqual([{ from: PLACEHOLDER, to: 'notes/b.md' }])
