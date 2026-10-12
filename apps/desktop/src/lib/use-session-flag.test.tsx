@@ -1,9 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultStorage } from '@reflect/core'
+import { createTestStorageService } from '@reflect/core/testing'
 import { renderHook } from 'vitest-browser-react'
 import { useSessionFlag } from './use-session-flag.ts'
 
 beforeEach(() => {
-  window.sessionStorage.clear()
+  setDefaultStorage(createTestStorageService())
+})
+
+afterEach(() => {
+  setDefaultStorage(null)
 })
 
 describe('useSessionFlag', () => {

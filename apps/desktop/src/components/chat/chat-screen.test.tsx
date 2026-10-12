@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
 import type { ReactElement } from 'react'
 import {
+  setDefaultHttp,
   aiProvider,
   cloudSafeGraphContext,
   type AiProviderConfig,
@@ -16,6 +17,7 @@ import {
   type Settings,
   type StreamChatOptions,
 } from '@reflect/core'
+import { createTestHttpService } from '@reflect/core/testing'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { ChatProvider, useChatSession } from '@/providers/chat-provider.tsx'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
@@ -93,7 +95,12 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ indexGeneration: null, graph: null }),
 }))
 
-vi.mock('@/lib/provider-fetch.ts', () => ({ providerFetch: vi.fn() }))
+beforeEach(() => {
+  setDefaultHttp(createTestHttpService())
+})
+afterEach(() => {
+  setDefaultHttp(null)
+})
 
 const GRAPH: GraphInfo = { root: '/graphs/test', name: 'test-graph', generation: 1 }
 

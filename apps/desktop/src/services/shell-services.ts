@@ -7,6 +7,7 @@ import {
   createWindowService,
   currentIpc,
   defaultClock,
+  defaultPlatform,
   isMobilePlatform,
   setDefaultClipboard,
   setDefaultDialog,
@@ -15,7 +16,6 @@ import {
   setDefaultPath,
   setDefaultWindow,
 } from '@reflect/core'
-import { parseEnvPlatform } from '@/lib/env.ts'
 import { createNavigatorClipboardService } from '@/services/browser-clipboard.ts'
 import { createBrowserDialogService } from '@/services/browser-dialog.ts'
 import { createBrowserOpenerTransport } from '@/services/browser-opener.ts'
@@ -49,7 +49,7 @@ export function installShellServices(options: { nativeShell: boolean }): void {
       createWindowService({
         ipc,
         host: createTauriWindowHost({
-          multiWindow: !isMobilePlatform(parseEnvPlatform()),
+          multiWindow: !isMobilePlatform(defaultPlatform().appPlatform),
           logger,
         }),
         logger,

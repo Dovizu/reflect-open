@@ -1,33 +1,34 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createStorage } from '@/test-utils/storage.ts'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultStorage } from '@reflect/core'
+import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
 import { getLocalStorageStore, resetLocalStorageStores } from './local-storage.ts'
 
+let storage: TestStorageService
+
 beforeEach(() => {
-  vi.stubGlobal('window', { localStorage: createStorage({ key: 'local' }) })
   resetLocalStorageStores()
+  storage = createTestStorageService({ local: { key: 'local' } })
+  setDefaultStorage(storage)
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
+  setDefaultStorage(null)
 })
 
 describe('getLocalStorageStore', () => {
-  it('shares one store per key and reads localStorage', () => {
+  it('shares one store per key and reads the local area', () => {
     expect(getLocalStorageStore('key').get()).toBe('local')
     expect(getLocalStorageStore('key')).toBe(getLocalStorageStore('key'))
     expect(getLocalStorageStore('key')).not.toBe(getLocalStorageStore('other'))
   })
 
-  it('returns an empty store when localStorage is unavailable', () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.stubGlobal('window', {
-      get localStorage(): Storage {
-        throw new Error('SecurityError')
-      },
-    })
-    resetLocalStorageStores()
+  it('writes to the current default storage', () => {
+    getLocalStorageStore('key').set('written')
+    expect(storage.dump().local).toEqual({ key: 'written' })
 
-    expect(getLocalStorageStore('key').get()).toBeNull()
-    expect(error).toHaveBeenCalledOnce()
+    const next = createTestStorageService()
+    setDefaultStorage(next)
+    getLocalStorageStore('key').set('again')
+    expect(next.dump().local).toEqual({ key: 'again' })
   })
 })

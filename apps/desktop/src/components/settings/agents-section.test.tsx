@@ -2,14 +2,10 @@ import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, type AgentSkillStatus } from '@reflect/core'
+import { setBridge, setDefaultPlatform, type AgentSkillStatus } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import { AgentsSection } from './agents-section.tsx'
-
-// A browser-mode module mock materializes value exports once, so this file
-// keeps the flag statically true; the off-macOS test lives in
-// `agents-section-non-macos.test.tsx`.
-vi.mock('@/lib/platform.ts', () => ({ isMacosDesktop: true, isNativeShell: () => true }))
 
 const GRAPH = { root: '/graphs/Personal', name: 'Personal', generation: 7 }
 const graphState = vi.hoisted(() => ({
@@ -80,6 +76,7 @@ async function renderSection(): Promise<SectionView> {
 }
 
 beforeEach(() => {
+  setDefaultPlatform(createTestPlatformService())
   graphState.graph = GRAPH
   installState = 'missing'
   installResult = async () => {
@@ -96,6 +93,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setBridge(null)
+  setDefaultPlatform(null)
   queryClient.clear()
 })
 
@@ -217,5 +215,13 @@ describe('AgentsSection', () => {
     await expect.element(page.getByText(/Reflect doesn’t manage/)).toBeInTheDocument()
     expect(page.getByRole('button', { name: 'Install skill' }).query()).toBeNull()
     expect(page.getByRole('button', { name: 'Remove' }).query()).toBeNull()
+  })
+})
+
+describe('AgentsSection off macOS desktop', () => {
+  it('renders nothing off macOS desktop', async () => {
+    setDefaultPlatform(createTestPlatformService({ isNativeShell: false, isMacosDesktop: false }))
+    await renderSection()
+    expect(page.getByText('Agent skill').query()).toBeNull()
   })
 })

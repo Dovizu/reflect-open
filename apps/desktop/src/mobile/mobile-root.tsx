@@ -14,7 +14,8 @@ setLocalWriteEcho(true)
 
 // Editors apply iOS text-input hygiene and shared components render their
 // mobile variants — see `platform-surface.ts`. Module scope for the same
-// reason: it must precede the first editor mount and the first write.
+// reason: it must precede the first editor mount and the first write. It
+// replaces the default platform, which `boot.ts` installs before this runs.
 setPlatformSurface({ touchEditor: true, mobileApp: true })
 
 /**

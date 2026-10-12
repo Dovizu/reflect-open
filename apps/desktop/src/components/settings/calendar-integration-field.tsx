@@ -61,7 +61,7 @@ export function CalendarIntegrationField(): ReactElement | null {
     return [...bySource]
   }, [calendars])
 
-  if (!isMacosDesktop) {
+  if (!isMacosDesktop()) {
     return null
   }
 

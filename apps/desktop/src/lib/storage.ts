@@ -1,76 +1,31 @@
+import { getJson, setJson, type KeyValueStore } from '@reflect/core'
 import type { ZodType } from 'zod'
 
-/** Shared primitive for a subscribable browser-storage key. */
-
 /**
- * One key's value, held in memory and published to subscribers. The store
- * assumes it is the only writer of its key, and treats every failure storage
- * can produce as "nothing stored".
+ * One key of a {@link KeyValueStore} with bound methods, shaped for
+ * `useSyncExternalStore`. The area is resolved on every call so that a
+ * replaced default storage takes effect at once.
  */
 export class StorageStore {
   private readonly key: string
-  private readonly storage: Storage | null
-  /** The last known value; `undefined` until storage has been read once. */
-  private cachedValue: string | null | undefined = undefined
-  private readonly listeners = new Set<() => void>()
+  private readonly area: () => KeyValueStore
 
-  constructor(key: string, storage?: Storage | null) {
+  constructor(key: string, area: () => KeyValueStore) {
     this.key = key
-    this.storage = storage ?? null
+    this.area = area
   }
 
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener)
-    return () => {
-      this.listeners.delete(listener)
-    }
-  }
+  subscribe = (listener: () => void): (() => void) => this.area().subscribe(this.key, listener)
 
-  get = (): string | null => {
-    if (this.cachedValue === undefined) {
-      try {
-        this.cachedValue = this.storage?.getItem(this.key) ?? null
-      } catch (error) {
-        console.error('reading storage failed', this.key, error)
-        this.cachedValue = null
-      }
-    }
-    return this.cachedValue
-  }
+  get = (): string | null => this.area().get(this.key)
 
-  getJson = <T>(schema: ZodType<T>): T | undefined => {
-    try {
-      const value: unknown = JSON.parse(this.get() ?? '')
-      const result = schema.safeParse(value)
-      return result.success ? result.data : undefined
-    } catch {
-      return undefined
-    }
-  }
+  getJson = <T>(schema: ZodType<T>): T | undefined => getJson(this.area(), this.key, schema)
 
   set = (value: string | null): void => {
-    if (this.get() === value) {
-      return
-    }
-    this.cachedValue = value
-    try {
-      if (value === null) {
-        this.storage?.removeItem(this.key)
-      } else {
-        this.storage?.setItem(this.key, value)
-      }
-    } catch (error) {
-      console.error('writing storage failed', this.key, error)
-    }
-    for (const listener of this.listeners) {
-      listener()
-    }
+    this.area().set(this.key, value)
   }
 
   setJson = <T>(schema: ZodType<T>, value: T): void => {
-    const result = schema.safeParse(value)
-    if (result.success) {
-      this.set(JSON.stringify(result.data))
-    }
+    setJson(this.area(), this.key, schema, value)
   }
 }

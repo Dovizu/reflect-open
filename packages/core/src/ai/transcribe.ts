@@ -52,7 +52,7 @@ export interface TranscriptionRequest {
    * Host transport — the desktop app passes the Tauri HTTP plugin's fetch
    * (CORS-free); `@reflect/core` itself stays platform-agnostic.
    */
-  fetchFn?: typeof fetch | undefined
+  fetchFn: typeof fetch
   /**
    * Abort gate consulted before every provider call — a graph switch
    * mid-pass must not bill another call. Firing reads as a retryable
@@ -107,7 +107,7 @@ function isModelNotFound(body: string): boolean {
 }
 
 async function transcribeWithOpenAi(request: TranscriptionRequest): Promise<string> {
-  const fetchFn = request.fetchFn ?? fetch
+  const fetchFn = request.fetchFn
   const attempt = (model: string): Promise<Response> => {
     const form = new FormData()
     form.append('file', request.audio, uploadFilename(request.mimeType))
@@ -180,7 +180,7 @@ async function transcribeWithGemini(request: TranscriptionRequest): Promise<stri
       `the recording does not fit a gemini inline request (${request.audio.size} bytes)`,
     )
   }
-  const fetchFn = request.fetchFn ?? fetch
+  const fetchFn = request.fetchFn
   const data = bytesToBase64(new Uint8Array(await request.audio.arrayBuffer()))
   const instruction = request.prompt
     ? `${GEMINI_INSTRUCTION}\n${request.prompt}`

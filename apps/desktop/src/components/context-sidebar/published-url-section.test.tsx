@@ -1,10 +1,16 @@
 import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultClipboard, setDefaultOpener, type NoteRow } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  setDefaultClipboard,
+  setDefaultOpener,
+  setDefaultStorage,
+  type NoteRow,
+} from '@reflect/core'
 import {
   createTestClipboardService,
   createTestOpenerService,
+  createTestStorageService,
   type TestClipboardService,
   type TestOpenerService,
 } from '@reflect/core/testing'
@@ -55,7 +61,7 @@ let clipboard: TestClipboardService
 let opener: TestOpenerService
 
 beforeEach(() => {
-  window.sessionStorage.clear()
+  setDefaultStorage(createTestStorageService())
   useNoteRow.mockReset().mockReturnValue(null)
   clipboard = createTestClipboardService()
   setDefaultClipboard(clipboard)
@@ -65,6 +71,10 @@ beforeEach(() => {
   runGistPublish.mockReset().mockResolvedValue('https://gist.github.com/alex/g1')
   operationDone.mockClear()
   operationFail.mockClear()
+})
+
+afterEach(() => {
+  setDefaultStorage(null)
 })
 
 describe('PublishedUrlSection', () => {

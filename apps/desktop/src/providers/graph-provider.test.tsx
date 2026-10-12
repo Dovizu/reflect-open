@@ -9,17 +9,27 @@ import {
   currentIpc,
   setBridge,
   setDefaultDialog,
+  setDefaultPlatform,
   setDefaultWindow,
 } from '@reflect/core'
-import { createTestDialogService, type TestDialogService } from '@reflect/core/testing'
+import {
+  createTestDialogService,
+  createTestPlatformService,
+  type TestDialogService,
+} from '@reflect/core/testing'
 import { GraphProvider, useGraph } from './graph-provider.tsx'
 import { SettingsProvider } from './settings-provider.tsx'
 import { queryClient as appQueryClient, queryKeys } from '@/lib/query-client.ts'
 
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
 
 /**
  * Exercises the provider's open-ordering guards: overlapping opens are

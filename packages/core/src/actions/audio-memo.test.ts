@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import type { GenerateAudioMemoTitleRequest } from '../ai/audio-memo-title.ts'
 import type {
@@ -96,6 +97,7 @@ const ANTHROPIC_CONFIG = {
 
 /** 2026-06-11 15:30:22.845 local — every derived name is asserted from it. */
 const RECORDED_AT = new Date(2026, 5, 11, 15, 30, 22, 845)
+const FETCH_FN = createTestHttpService().fetchFn
 const MEMO = audioMemoIdentity(RECORDED_AT, 'audio/webm;codecs=opus')
 
 function fileMeta(path: string): { path: string; size: number; modifiedMs: number } {
@@ -108,6 +110,7 @@ function reconcile(overrides: Partial<ReconcileAudioMemosInput> = {}) {
     generation: 3,
     formatTranscript: false,
     transcriptionPrompt: '',
+    fetchFn: FETCH_FN,
     ...overrides,
   })
 }
@@ -283,7 +286,7 @@ describe('reconcileAudioMemos', () => {
         config: { ...PROVIDERS.providers[0], model: 'gpt-5.4-nano' },
         apiKey: 'sk-live-key',
       },
-      fetchFn: undefined,
+      fetchFn: FETCH_FN,
       transcript: 'memo transcript',
       fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
     })
@@ -311,7 +314,7 @@ describe('reconcileAudioMemos', () => {
         config: { ...PROVIDERS.providers[0], model: 'gpt-5.4-nano' },
         apiKey: 'sk-live-key',
       },
-      fetchFn: undefined,
+      fetchFn: FETCH_FN,
       transcript: 'memo transcript',
       fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
     })
@@ -350,7 +353,7 @@ describe('reconcileAudioMemos', () => {
         config: { ...ANTHROPIC_CONFIG, model: 'claude-haiku-4-5' },
         apiKey: 'sk-ant-live-key',
       },
-      fetchFn: undefined,
+      fetchFn: FETCH_FN,
       transcript: 'memo transcript',
       fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
     })

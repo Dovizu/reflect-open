@@ -34,7 +34,7 @@ export interface EnrichSessionTranscriptInput {
   /** Timestamp-derived title used when enrichment cannot name the memo. */
   readonly fallbackTitle: string
   /** Host transport (the Tauri HTTP plugin's fetch; tests pass a stub). */
-  readonly fetchFn?: typeof fetch | undefined
+  readonly fetchFn: typeof fetch
 }
 
 export interface EnrichedSessionTranscript {

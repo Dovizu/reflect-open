@@ -15,13 +15,13 @@ export type SettingsSectionEntry = (typeof SETTINGS_SECTIONS)[number]
 export function useVisibleSettingsSections(): readonly SettingsSectionEntry[] {
   const authorization = useContactsAuthorization()
   const hasAppleIntegrations =
-    isMacosDesktop || (authorization !== null && authorization !== 'unavailable')
+    isMacosDesktop() || (authorization !== null && authorization !== 'unavailable')
   return SETTINGS_SECTIONS.filter((section) => {
     if (section.id === 'integrations') {
       return hasAppleIntegrations
     }
     if (section.id === 'agents') {
-      return isMacosDesktop
+      return isMacosDesktop()
     }
     return true
   })

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import { AssetDescriptionRejectedError, describeAsset } from '../ai/describe-asset.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import { ReflectError } from '../errors.ts'
@@ -119,6 +120,7 @@ function input(
     mode: 'incremental',
     changed: ['assets/a.png'],
     now: NOW,
+    fetchFn: createTestHttpService().fetchFn,
     ...overrides,
   }
 }

@@ -32,3 +32,18 @@ export {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
+export {
+  createTestPlatformService,
+  type TestPlatformOptions,
+  type TestPlatformService,
+} from './platform.ts'
+export {
+  createTestHttpService,
+  type TestHttpHandler,
+  type TestHttpMatcher,
+  type TestHttpReply,
+  type TestHttpRequest,
+  type TestHttpRoute,
+  type TestHttpService,
+} from './http.ts'
+export { createTestStorageService, type TestStorageService } from './storage.ts'

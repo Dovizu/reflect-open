@@ -1,28 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultWindow } from '@reflect/core'
-import { createTestWindowService, type TestWindowService } from '@reflect/core/testing'
-
-const isNativeShell = vi.hoisted(() => vi.fn(() => true))
-const isMobileSurface = vi.hoisted(() => vi.fn(() => false))
-
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell,
-}))
-vi.mock('@/lib/platform-surface.ts', () => ({ isMobileSurface }))
-
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultPlatform, setDefaultWindow } from '@reflect/core'
+import {
+  createTestPlatformService,
+  createTestWindowService,
+  type TestWindowService,
+} from '@reflect/core/testing'
 import { openDeepLinkInNewWindow, openRouteInNewWindow } from './open-in-new-window.ts'
 
 let windows: TestWindowService
 let opens: boolean
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  isNativeShell.mockReturnValue(true)
-  isMobileSurface.mockReturnValue(false)
+  setDefaultPlatform(createTestPlatformService())
   opens = true
   windows = createTestWindowService({ openNoteWindow: () => opens })
   setDefaultWindow(windows)
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
 })
 
 describe('openRouteInNewWindow', () => {
@@ -37,10 +33,9 @@ describe('openRouteInNewWindow', () => {
   })
 
   it('declines without a native shell and on mobile', async () => {
-    isNativeShell.mockReturnValue(false)
+    setDefaultPlatform(createTestPlatformService({ isNativeShell: false }))
     await expect(openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })).resolves.toBe(false)
-    isNativeShell.mockReturnValue(true)
-    isMobileSurface.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService({ surface: { mobileApp: true } }))
     await expect(openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })).resolves.toBe(false)
     expect(windows.openedNoteWindows()).toEqual([])
   })

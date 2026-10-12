@@ -428,7 +428,7 @@ export interface ReconcileAudioMemosInput {
   /** User transcription hint, sent with every segment. */
   transcriptionPrompt: string
   /** Host transport for the provider call (the Tauri HTTP plugin's fetch). */
-  fetchFn?: typeof fetch
+  fetchFn: typeof fetch
   /** Abort gate, checked between memos (graph switch / unmount). */
   isStale?: () => boolean
   /** Observes how many memos need transcription, before work starts. */

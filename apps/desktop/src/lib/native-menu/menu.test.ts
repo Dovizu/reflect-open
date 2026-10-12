@@ -1,7 +1,11 @@
 import { isNotNullish } from '@ocavue/utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultWindow } from '@reflect/core'
-import { createTestWindowService, type TestWindowService } from '@reflect/core/testing'
+import { setDefaultPlatform, setDefaultWindow } from '@reflect/core'
+import {
+  createTestPlatformService,
+  createTestWindowService,
+  type TestWindowService,
+} from '@reflect/core/testing'
 
 interface MenuItemOptionsForTest {
   readonly id?: string
@@ -15,7 +19,6 @@ interface SubmenuOptionsForTest {
   readonly items: readonly MenuItemOptionsForTest[]
 }
 
-const isTauri = vi.hoisted(() => vi.fn(() => true))
 const invoke = vi.hoisted(() => vi.fn(async () => undefined))
 const isMainWindow = vi.hoisted(() => vi.fn(() => true))
 const setAsAppMenu = vi.hoisted(() => vi.fn(async () => null))
@@ -30,7 +33,7 @@ const submenuNew = vi.hoisted(() =>
 const menuNew = vi.hoisted(() => vi.fn(async () => ({ setAsAppMenu })))
 const menuItemNew = vi.hoisted(() => vi.fn(async (options: MenuItemOptionsForTest) => options))
 
-vi.mock('@tauri-apps/api/core', () => ({ isTauri, invoke }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 vi.mock('@tauri-apps/api/menu', () => ({
   Menu: { new: menuNew },
   MenuItem: { new: menuItemNew },
@@ -46,8 +49,7 @@ const { appMenuLayout, installNativeMenu, isNativeMenuInstalled } = await import
 let windows: TestWindowService
 
 beforeEach(() => {
-  vi.stubGlobal('navigator', { userAgent: 'Macintosh', maxTouchPoints: 0 })
-  isTauri.mockReset().mockReturnValue(true)
+  setDefaultPlatform(createTestPlatformService())
   isMainWindow.mockReset().mockReturnValue(true)
   submenuNew.mockClear()
   menuNew.mockClear()
@@ -62,7 +64,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setMenuCommandDispatch(null)
-  vi.unstubAllGlobals()
+  setDefaultPlatform(null)
 })
 
 function referencedCommandIds(): string[] {

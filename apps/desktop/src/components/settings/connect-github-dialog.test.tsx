@@ -1,9 +1,12 @@
 import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { setBridge, setDefaultOpener } from '@reflect/core'
-import { createTestOpenerService } from '@reflect/core/testing'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { setBridge, setDefaultHttp, setDefaultOpener, setDefaultPlatform } from '@reflect/core'
+import {
+  createTestHttpService,
+  createTestOpenerService,
+  createTestPlatformService,
+} from '@reflect/core/testing'
 import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
 import { ConnectGithubDialog } from './connect-github-dialog.tsx'
 
@@ -12,12 +15,16 @@ const sync = vi.hoisted(() => ({
   connectExistingRepo: vi.fn(async (): Promise<ConnectExistingResult> => 'connected'),
 }))
 vi.mock('@/providers/sync-provider.tsx', () => ({ useSync: () => sync }))
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
-const httpFetch = vi.mocked(tauriFetch)
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+  setDefaultHttp(null)
+})
 let openedUrls: MockInstance<(url: string) => Promise<void>>
 
 /** A keychain holding the given credential; GET /user accepting it makes the auth step skip itself. */
@@ -43,14 +50,14 @@ beforeEach(() => {
   // skip itself, so a Continue lands straight on the finish step. PAT by
   // default; app-credential tests re-store before rendering.
   storeCredential({ kind: 'pat', token: 'ghp_abc' })
-  // A fresh Response per call — bodies are single-use, and a wizard run can
-  // pass through the auth step more than once.
-  httpFetch.mockImplementation(
-    async () =>
-      new Response(JSON.stringify({ login: 'alex' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+  setDefaultHttp(
+    createTestHttpService([
+      {
+        method: 'GET',
+        url: 'https://api.github.com/user',
+        reply: { status: 200, json: { login: 'alex' } },
+      },
+    ]),
   )
   sync.connectNewRepo.mockResolvedValue('connected')
   sync.connectExistingRepo.mockResolvedValue('connected')

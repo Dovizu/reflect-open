@@ -3,7 +3,8 @@ import { render } from 'vitest-browser-react'
 import { page, type Locator } from 'vitest/browser'
 import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GraphInfo } from '@reflect/core'
+import { setDefaultPlatform, type GraphInfo } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import type { BackupState } from '@/lib/backup-controller.ts'
 import '@/test-utils/locator.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
@@ -42,10 +43,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   getConflictedNotes: vi.fn(async () => core.conflictedNotes),
   getDuplicateNoteIds: vi.fn(async () => core.duplicateIds),
 }))
-// A browser-mode module mock materializes value exports once, so this file
-// keeps the flag statically true; the platform-hidden test lives in
-// `sync-section-non-macos.test.tsx`.
-vi.mock('@/lib/platform.ts', () => ({ isMacosDesktop: true, isNativeShell: () => true }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: graph.current, openRecent: graph.openRecent }),
 }))
@@ -76,6 +73,7 @@ function legend(section: Locator, text: string): Locator {
 }
 
 beforeEach(() => {
+  setDefaultPlatform(createTestPlatformService())
   graph.current = {
     root: '/Users/alex/Documents/Notes',
     name: 'Notes',
@@ -94,6 +92,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  setDefaultPlatform(null)
   vi.clearAllMocks()
 })
 
@@ -191,5 +190,26 @@ describe('SyncSection', () => {
       }),
     )
     expect(page.getByTestId('route').element().textContent).toBe('settings')
+  })
+})
+
+describe('SyncSection off macOS desktop', () => {
+  it('keeps backup visible when the iCloud row is platform-hidden', async () => {
+    setDefaultPlatform(createTestPlatformService({ isMacosDesktop: false }))
+    graph.current = {
+      root: '/Users/alex/Library/Mobile Documents/iCloud~app/Documents/Notes',
+      name: 'Notes',
+      generation: 1,
+    }
+    core.status = {
+      available: true,
+      documentsRoot: '/Users/alex/Library/Mobile Documents/iCloud~app/Documents',
+      existingGraphRoots: [],
+    }
+    await renderSection()
+
+    const section = page.getByRole('region', { name: 'Sync' })
+    expect(legend(section, 'iCloud Drive').query()).toBeNull()
+    await expect.element(legend(section, 'GitHub sync')).toBeInTheDocument()
   })
 })

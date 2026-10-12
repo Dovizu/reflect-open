@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { userEvent, type Locator } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultStorage } from '@reflect/core'
+import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
 import type { OpenTask } from '@reflect/core'
 import type { TaskAction } from '@/lib/note-task.ts'
 import { act, useEffect, useState, type MutableRefObject, type ReactNode } from 'react'
@@ -250,8 +252,11 @@ function renderScreen(client = new QueryClient({ defaultOptions: { queries: { re
 
 const waitFor = vi.waitFor
 
+let storage: TestStorageService
+
 beforeEach(() => {
-  window.sessionStorage.clear()
+  storage = createTestStorageService()
+  setDefaultStorage(storage)
   getOpenTasks.mockReset()
   getCompletedTasks.mockReset()
   getCompletedTasks.mockResolvedValue([])
@@ -275,6 +280,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await cleanup()
+  setDefaultStorage(null)
 })
 
 // Keep native browser navigation out of keyboard-handler tests in this suite.
@@ -287,7 +293,7 @@ describe('TasksScreen', () => {
   })
 
   it('does not flash an empty state while archived tasks are still loading', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([])
     const pendingCompleted = Promise.withResolvers<OpenTask[]>()
     getCompletedTasks.mockReturnValue(pendingCompleted.promise)
@@ -315,7 +321,7 @@ describe('TasksScreen', () => {
   })
 
   it('surfaces a failed archived query as an alert, not a blank list', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([])
     getCompletedTasks.mockRejectedValue(new Error('index unavailable'))
     const view = await renderScreen()
@@ -325,7 +331,7 @@ describe('TasksScreen', () => {
   })
 
   it('clears the archived error when "show archived" is turned off', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([
       task({ notePath: 'notes/p.md', text: 'open task', noteTitle: 'P' }),
     ])
@@ -724,7 +730,7 @@ describe('TasksScreen', () => {
   })
 
   it('editing an already-completed task with ⌘↵ saves the text, never reopens it', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([])
     getCompletedTasks.mockResolvedValue([
       task({
@@ -1261,7 +1267,7 @@ describe('TasksScreen', () => {
   })
 
   it('does not reopen an already-completed task when ⌘↵ hits the selection', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([
       task({
         notePath: 'notes/a.md',
@@ -1674,7 +1680,7 @@ describe('TasksScreen', () => {
   })
 
   it('reopens selected checked tasks when a checked selected checkbox is clicked', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([
       task({
         notePath: 'notes/a.md',
@@ -1809,7 +1815,7 @@ describe('TasksScreen', () => {
   })
 
   it('reopens an archived completed task when its checkbox is clicked', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([])
     getCompletedTasks.mockResolvedValue([
       task({
@@ -1841,7 +1847,7 @@ describe('TasksScreen', () => {
   })
 
   it('shows an open checkbox while a reopen write is pending', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     let resolveToggle = (): void => {
       throw new Error('toggle promise was not created')
     }
@@ -1903,7 +1909,7 @@ describe('TasksScreen', () => {
   })
 
   it('reopens a selected completed task when its checkbox is clicked', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([])
     getCompletedTasks.mockResolvedValue([
       task({
@@ -1936,7 +1942,7 @@ describe('TasksScreen', () => {
   })
 
   it('saves an edited selected completed task before reopening it from the checkbox', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([])
     getCompletedTasks.mockResolvedValue([
       task({
@@ -1999,7 +2005,7 @@ describe('TasksScreen', () => {
   it('keeps a completed task visible (struck) when archived tasks are shown', async () => {
     // With "show archived" on, completing must move the row into the completed
     // list (struck), not drop it until the refetch (Bugbot regression).
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getCompletedTasks.mockResolvedValue([])
     getOpenTasks.mockResolvedValue([
       task({

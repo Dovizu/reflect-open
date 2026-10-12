@@ -1,14 +1,27 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setBridge, setDefaultHttp, setDefaultPlatform } from '@reflect/core'
+import {
+  createTestHttpService,
+  createTestPlatformService,
+  type TestHttpService,
+} from '@reflect/core/testing'
 import { fetchSignedInUser } from './github-account.ts'
 
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
-const httpFetch = vi.mocked(tauriFetch)
+const USER_URL = 'https://api.github.com/user'
+let http: TestHttpService
+
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+  http = createTestHttpService()
+  setDefaultHttp(http)
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+  setDefaultHttp(null)
+})
 
 function fakeKeychain(initial: Record<string, string> = {}): Map<string, string> {
   const store = new Map(Object.entries(initial))
@@ -42,13 +55,12 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 afterEach(() => {
   setBridge(null)
-  vi.resetAllMocks()
 })
 
 describe('fetchSignedInUser', () => {
   it('resolves the stored credential to the signed-in identity', async () => {
     fakeKeychain({ 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_abc' }) })
-    httpFetch.mockResolvedValue(jsonResponse({ login: 'alex' }))
+    http.on('GET', USER_URL, jsonResponse({ login: 'alex' }))
 
     expect(await fetchSignedInUser()).toEqual({ login: 'alex', avatarUrl: null })
   })
@@ -57,14 +69,14 @@ describe('fetchSignedInUser', () => {
     fakeKeychain()
 
     expect(await fetchSignedInUser()).toBeNull()
-    expect(httpFetch).not.toHaveBeenCalled()
+    expect(http.requests()).toHaveLength(0)
   })
 
   it('clears a credential GitHub rejects before rethrowing', async () => {
     const store = fakeKeychain({
       'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_dead' }),
     })
-    httpFetch.mockResolvedValue(jsonResponse({ message: 'Bad credentials' }, 401))
+    http.on('GET', USER_URL, jsonResponse({ message: 'Bad credentials' }, 401))
 
     await expect(fetchSignedInUser()).rejects.toMatchObject({ kind: 'auth' })
     expect(store.has('github-auth')).toBe(false)
@@ -77,7 +89,7 @@ describe('fetchSignedInUser', () => {
     const store = fakeKeychain({
       'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_old' }),
     })
-    httpFetch.mockImplementationOnce(async () => {
+    http.on('GET', USER_URL, () => {
       store.set('github-auth', JSON.stringify({ kind: 'pat', token: 'ghp_new' }))
       return jsonResponse({ message: 'Bad credentials' }, 401)
     })

@@ -1,24 +1,24 @@
 import { render } from 'vitest-browser-react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { ShortcutKeys } from './shortcut-keys.tsx'
-
-const isApplePlatform = vi.hoisted(() => vi.fn(() => false))
-vi.mock('@/lib/keybindings.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/keybindings.ts')>()),
-  isApplePlatform,
-}))
 
 function keycapLabels(container: HTMLElement): string[] {
   return [...container.querySelectorAll('kbd')].map((keycap) => keycap.textContent ?? '')
 }
 
 beforeEach(() => {
-  isApplePlatform.mockReturnValue(false)
+  setDefaultPlatform(createTestPlatformService({ isApplePlatform: false }))
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
 })
 
 describe('ShortcutKeys', () => {
   it('renders Mod-k as command keycaps on Apple platforms', async () => {
-    isApplePlatform.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService({ isApplePlatform: true }))
     const view = await render(<ShortcutKeys binding="Mod-k" />)
     expect(keycapLabels(view.container)).toEqual(['⌘', 'K'])
     await view.unmount()
@@ -31,14 +31,14 @@ describe('ShortcutKeys', () => {
   })
 
   it('renders one keycap per modifier with named-key symbols', async () => {
-    isApplePlatform.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService({ isApplePlatform: true }))
     const view = await render(<ShortcutKeys binding="Mod-Shift-Enter" />)
     expect(keycapLabels(view.container)).toEqual(['⌘', '⇧', '↩'])
     await view.unmount()
   })
 
   it('groups all keys inside a single pill, V1-style', async () => {
-    isApplePlatform.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService({ isApplePlatform: true }))
     const view = await render(<ShortcutKeys binding="Mod-Shift-Enter" />)
     const pills = view.container.querySelectorAll(':scope > span')
     expect(pills).toHaveLength(1)
@@ -47,7 +47,7 @@ describe('ShortcutKeys', () => {
   })
 
   it('ghost mode renders the keys as plain joined text, not keycaps', async () => {
-    isApplePlatform.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService({ isApplePlatform: true }))
     const view = await render(<ShortcutKeys binding="Mod-k" ghost />)
     expect(keycapLabels(view.container)).toEqual([])
     expect(view.container.textContent).toBe('⌘K')

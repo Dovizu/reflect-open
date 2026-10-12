@@ -17,6 +17,7 @@ export default defineDesktopProject({
     sequence: { groupOrder: 100 },
     setupFiles: [
       './src/test-utils/setup-console.ts',
+      './src/test-utils/setup-platform.ts',
       './src/test-utils/setup-services.ts',
       './src/test-utils/setup-browser.ts',
     ],

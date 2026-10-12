@@ -80,12 +80,12 @@ export function IcloudSettingsField(): ReactElement | null {
   const { data: status } = useQuery({
     queryKey: queryKeys.icloud.status,
     queryFn: icloudStatus,
-    enabled: bridgeAvailable && isMacosDesktop,
+    enabled: bridgeAvailable && isMacosDesktop(),
   })
   const pendingNotes = useQuery({
     queryKey: queryKeys.icloud.pendingNotes(graph?.root),
     queryFn: () => (graph === null ? Promise.resolve(0) : icloudPendingCount(graph.root, 'notes')),
-    enabled: bridgeAvailable && isMacosDesktop && hosted,
+    enabled: bridgeAvailable && isMacosDesktop() && hosted,
     staleTime: PENDING_NOTES_REFETCH_MS,
     refetchInterval: (query) => {
       const count = query.state.data
@@ -103,7 +103,7 @@ export function IcloudSettingsField(): ReactElement | null {
 
   // The navigator hides the entry off macOS through the same gate — the two
   // must agree (see use-visible-settings-sections).
-  if (!isMacosDesktop || graph === null) {
+  if (!isMacosDesktop() || graph === null) {
     return null
   }
   const backupConnected = backup.phase === 'connected'

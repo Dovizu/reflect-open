@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultStorage } from '@reflect/core'
+import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
 import { resetOperations } from '@/lib/operations.ts'
 import { THEME_PREFERENCE_CACHE_KEY } from '@/lib/theme-cache.ts'
 import { queryKeys } from '@/lib/query-client.ts'
@@ -100,13 +101,14 @@ function paintDarkFirstFrame(): void {
 }
 
 function cachedPreference(): string | null {
-  return localStorage.getItem(THEME_PREFERENCE_CACHE_KEY)
+  return storage.local.get(THEME_PREFERENCE_CACHE_KEY)
 }
 
 function systemTheme(): 'light' | 'dark' {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+let storage: TestStorageService
 let originalClassName: string
 let originalColorScheme: string
 
@@ -114,7 +116,8 @@ beforeEach(() => {
   originalClassName = document.documentElement.className
   originalColorScheme = document.documentElement.style.colorScheme
   stored = {}
-  localStorage.removeItem(THEME_PREFERENCE_CACHE_KEY)
+  storage = createTestStorageService()
+  setDefaultStorage(storage)
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
@@ -124,7 +127,7 @@ beforeEach(() => {
 afterEach(() => {
   setBridge(null)
   queryClient.clear()
-  localStorage.removeItem(THEME_PREFERENCE_CACHE_KEY)
+  setDefaultStorage(null)
   document.documentElement.className = originalClassName
   document.documentElement.style.colorScheme = originalColorScheme
   resetOperations() // failed-load entries linger on a timer otherwise

@@ -1,29 +1,39 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  setDefaultHttp,
+  setDefaultPlatform,
   emitFileChanges,
   setBridge,
   subscribeFileChanges,
   type FileChange,
   type GraphInfo,
 } from '@reflect/core'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import {
+  createTestHttpService,
+  createTestPlatformService,
+  type TestHttpService,
+} from '@reflect/core/testing'
 import { flushBackup } from '@/lib/backup-flush.ts'
 import { setPlatformSurface } from '@/lib/platform-surface.ts'
 import { createBackupController, type BackupState } from './backup-controller.ts'
 
-// providerFetch routes GitHub API calls through the Tauri HTTP plugin
-// whenever a bridge is set — which it is in every test here.
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
-const httpFetch = vi.mocked(tauriFetch)
+let http: TestHttpService
+
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+  http = createTestHttpService()
+  setDefaultHttp(http)
+})
 
 afterEach(() => {
+  setDefaultPlatform(null)
+  setDefaultHttp(null)
   setBridge(null)
-  httpFetch.mockReset()
 })
+
+const USER_URL = 'https://api.github.com/user'
 
 const GRAPH: GraphInfo = { root: '/g', name: 'G', generation: 3 }
 
@@ -506,10 +516,10 @@ describe('createBackupController', () => {
 
   it('connectNewRepo creates a private repo and connects to its default branch', async () => {
     const { invocations } = fakeBridge()
-    const requests: Array<Record<string, unknown>> = []
-    httpFetch.mockImplementation(async (_input, init) => {
-      requests.push(JSON.parse(String(init?.body)) as Record<string, unknown>)
-      return jsonResponse(
+    http.on(
+      'POST',
+      'https://api.github.com/user/repos',
+      jsonResponse(
         {
           full_name: 'alex/g-backup',
           private: true,
@@ -517,13 +527,16 @@ describe('createBackupController', () => {
           html_url: 'https://github.com/alex/g-backup',
         },
         201,
-      )
-    })
+      ),
+    )
     const controller = createBackupController({ graph: GRAPH, indexGeneration: 1 })
 
     await controller.connectNewRepo('g-backup')
 
-    expect(requests[0]).toMatchObject({ name: 'g-backup', private: true })
+    expect(JSON.parse(http.requests()[0]?.body ?? '')).toMatchObject({
+      name: 'g-backup',
+      private: true,
+    })
     const setup = invocations.find(({ command }) => command === 'git_setup')
     expect(setup?.args).toMatchObject({
       remoteUrl: 'https://github.com/alex/g-backup.git',
@@ -539,7 +552,11 @@ describe('createBackupController', () => {
 
   it('connectExistingRepo reports a missing repo without touching the graph', async () => {
     const { calls } = fakeBridge()
-    httpFetch.mockImplementation(async () => jsonResponse({ message: 'Not Found' }, 404))
+    http.on(
+      'GET',
+      'https://api.github.com/repos/alex/gone',
+      jsonResponse({ message: 'Not Found' }, 404),
+    )
     const controller = createBackupController({ graph: GRAPH, indexGeneration: 1 })
 
     expect(await controller.connectExistingRepo({ owner: 'alex', name: 'gone' })).toBe('notFound')
@@ -549,8 +566,9 @@ describe('createBackupController', () => {
 
   it('connectExistingRepo demands explicit consent before a public repo', async () => {
     const { calls, invocations } = fakeBridge()
-    // A fresh Response per call — a body is single-read.
-    httpFetch.mockImplementation(async () =>
+    http.on(
+      'GET',
+      'https://api.github.com/repos/alex/public-notes',
       jsonResponse({
         full_name: 'alex/public-notes',
         private: false,
@@ -592,7 +610,7 @@ describe('createBackupController', () => {
 
   it('a 403 with a valid token reports a refused sync, not a bad credential', async () => {
     fakeBridge({ mergeOutcome: MERGED, pushError: FORBIDDEN })
-    httpFetch.mockResolvedValueOnce(jsonResponse({ login: 'alex' }))
+    http.on('GET', USER_URL, jsonResponse({ login: 'alex' }))
     const controller = createBackupController({ graph: GRAPH, indexGeneration: 1 })
     await controller.start()
     await vi.waitFor(() => {
@@ -610,11 +628,11 @@ describe('createBackupController', () => {
 
   it('a 403 with a rejected token stays an auth error', async () => {
     fakeBridge({ mergeOutcome: MERGED, pushError: FORBIDDEN })
-    httpFetch.mockResolvedValueOnce(jsonResponse({ message: 'Bad credentials' }, 401))
+    http.on('GET', USER_URL, jsonResponse({ message: 'Bad credentials' }, 401))
     const controller = createBackupController({ graph: GRAPH, indexGeneration: 1 })
     await controller.start()
     await vi.waitFor(() => {
-      expect(httpFetch).toHaveBeenCalled()
+      expect(http.requests()).not.toHaveLength(0)
     })
     // Let the probe's rejection settle before asserting nothing changed.
     await new Promise((resolve) => setTimeout(resolve, 20))
@@ -627,7 +645,9 @@ describe('createBackupController', () => {
 
   it('a 403 with a token probe that never reaches GitHub reports offline', async () => {
     fakeBridge({ mergeOutcome: MERGED, pushError: FORBIDDEN })
-    httpFetch.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    http.on('GET', USER_URL, () => {
+      throw new TypeError('Failed to fetch')
+    })
     const controller = createBackupController({ graph: GRAPH, indexGeneration: 1 })
     await controller.start()
     await vi.waitFor(() => {
@@ -641,7 +661,7 @@ describe('createBackupController', () => {
 
   it('a 403 with a rate-limited token probe reports offline, not a bad credential', async () => {
     fakeBridge({ mergeOutcome: MERGED, pushError: FORBIDDEN })
-    httpFetch.mockResolvedValueOnce(jsonResponse({ message: 'API rate limit exceeded' }, 403))
+    http.on('GET', USER_URL, jsonResponse({ message: 'API rate limit exceeded' }, 403))
     const controller = createBackupController({ graph: GRAPH, indexGeneration: 1 })
     await controller.start()
     await vi.waitFor(() => {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultStorage } from '@reflect/core'
+import { createTestStorageService } from '@reflect/core/testing'
 import {
   consumeLegacySemanticOptIn,
   ensureEmbeddingsVisibly,
@@ -8,17 +9,20 @@ import {
 
 afterEach(() => {
   setBridge(null)
+  setDefaultStorage(null)
 })
 
 describe('consumeLegacySemanticOptIn', () => {
   it('returns a stored opt-in exactly once (the settings document owns it after)', () => {
-    localStorage.setItem('reflect.semantic.enabled', 'true')
+    const storage = createTestStorageService({ local: { 'reflect.semantic.enabled': 'true' } })
+    setDefaultStorage(storage)
     expect(consumeLegacySemanticOptIn()).toBe(true)
     expect(consumeLegacySemanticOptIn()).toBe(false)
-    expect(localStorage.getItem('reflect.semantic.enabled')).toBeNull()
+    expect(storage.dump().local).toEqual({})
   })
 
   it('is false when the legacy key was never set', () => {
+    setDefaultStorage(createTestStorageService())
     expect(consumeLegacySemanticOptIn()).toBe(false)
   })
 })

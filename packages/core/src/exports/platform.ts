@@ -65,6 +65,17 @@ export {
   type TimerHandle,
 } from '../app/clock-service.ts'
 export { parseIsoDate, todayIso } from '../lib/dates.ts'
+export {
+  createPlatformService,
+  defaultPlatform,
+  platformFacts,
+  setDefaultPlatform,
+  type ColorScheme,
+  type PlatformFacts,
+  type PlatformMedia,
+  type PlatformService,
+  type PlatformSurface,
+} from '../app/platform-service.ts'
 export { confirmQuit, subscribeQuitRequested } from '../app/quit.ts'
 export {
   beginBackgroundTask,
@@ -126,6 +137,21 @@ export {
 export { createSystemIdService, type IdService, type PkcePair } from '../app/id-service.ts'
 export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
+export {
+  createBrowserHttpService,
+  defaultHttp,
+  setDefaultHttp,
+  type HttpService,
+} from '../app/http-service.ts'
+export {
+  createWebStorageService,
+  defaultStorage,
+  getJson,
+  setDefaultStorage,
+  setJson,
+  type KeyValueStore,
+  type StorageService,
+} from '../app/storage-service.ts'
 export {
   agentSkillStatus,
   agentSkillInstall,

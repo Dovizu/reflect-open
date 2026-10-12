@@ -1,13 +1,22 @@
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { runDeviceFlow, setBridge, setDefaultClipboard, setDefaultOpener } from '@reflect/core'
+import {
+  runDeviceFlow,
+  setBridge,
+  setDefaultClipboard,
+  setDefaultHttp,
+  setDefaultOpener,
+  setDefaultPlatform,
+} from '@reflect/core'
 import {
   createTestClipboardService,
+  createTestHttpService,
   createTestOpenerService,
+  createTestPlatformService,
   type TestClipboardService,
+  type TestHttpService,
 } from '@reflect/core/testing'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import '@/test-utils/locator.ts'
 import { GithubAuthStep } from './github-auth-step.tsx'
@@ -15,20 +24,29 @@ import { GithubAuthStep } from './github-auth-step.tsx'
 // The Reflect GitHub App is registered, so the device flow leads and the PAT
 // path sits behind a "use a personal access token instead" toggle. The
 // keychain is the bridge fake; GET /user (instant token validation) goes
-// through the mocked Tauri HTTP plugin. The device-flow tests stub core's
+// through the fake HTTP service. The device-flow tests stub core's
 // runDeviceFlow (polling policy is unit-tested in core) to drive the
 // code-handoff view.
 
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
+const USER_URL = 'https://api.github.com/user'
+let http: TestHttpService
+
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+  http = createTestHttpService()
+  setDefaultHttp(http)
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+  setDefaultHttp(null)
+})
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   runDeviceFlow: vi.fn(),
 }))
-const httpFetch = vi.mocked(tauriFetch)
 const mockFlow = vi.mocked(runDeviceFlow)
 
 /** Switch the step from the device-flow lead to PAT entry. */
@@ -63,7 +81,6 @@ beforeEach(() => {
 afterEach(async () => {
   await cleanup()
   setBridge(null)
-  httpFetch.mockReset()
   mockFlow.mockReset()
 })
 
@@ -91,21 +108,11 @@ function fakeKeychain(initial: Record<string, string> = {}) {
 }
 
 function githubAccepts(login: string): void {
-  httpFetch.mockResolvedValue(
-    new Response(JSON.stringify({ login }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }),
-  )
+  http.on('GET', USER_URL, { status: 200, json: { login } })
 }
 
 function githubRejects(): void {
-  httpFetch.mockResolvedValue(
-    new Response(JSON.stringify({ message: 'Bad credentials' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    }),
-  )
+  http.on('GET', USER_URL, { status: 401, json: { message: 'Bad credentials' } })
 }
 
 describe('GithubAuthStep', () => {
@@ -187,16 +194,13 @@ describe('GithubAuthStep', () => {
     // onAuthed, so the late probe must be swallowed, not start a second run.
     fakeKeychain({ 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_old' }) })
     let resolveProbe: (response: Response) => void = () => {}
-    httpFetch.mockImplementationOnce(
-      () => new Promise<Response>((resolve) => (resolveProbe = resolve)),
-    )
-    httpFetch.mockImplementation(
-      async () =>
-        new Response(JSON.stringify({ login: 'alex' }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-    )
+    let probes = 0
+    http.on('GET', USER_URL, () => {
+      probes += 1
+      return probes === 1
+        ? new Promise<Response>((resolve) => (resolveProbe = resolve))
+        : Response.json({ login: 'alex' })
+    })
     const onAuthed = vi.fn()
     await render(<GithubAuthStep onAuthed={onAuthed} />)
     await switchToPat()

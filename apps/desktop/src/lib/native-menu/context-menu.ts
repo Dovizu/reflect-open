@@ -1,4 +1,4 @@
-import { isTauri } from '@tauri-apps/api/core'
+import { isNativeShell } from '@/lib/platform.ts'
 import { Menu, MenuItem } from '@tauri-apps/api/menu'
 
 export interface NativeContextMenuItem {
@@ -18,7 +18,7 @@ export interface NativeContextMenuOptions {
  * and test shells can call the same path without platform guards.
  */
 export async function openNativeContextMenu(options: NativeContextMenuOptions): Promise<void> {
-  if (!isTauri()) {
+  if (!isNativeShell()) {
     return
   }
 

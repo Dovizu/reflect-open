@@ -1,6 +1,8 @@
 import { render } from 'vitest-browser-react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultStorage } from '@reflect/core'
+import { createTestStorageService } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
@@ -56,12 +58,16 @@ function renderPanel(path: string) {
 }
 
 beforeEach(() => {
-  window.sessionStorage.clear()
+  setDefaultStorage(createTestStorageService())
   getBacklinksWithContext.mockReset()
   getBacklinksPage.mockClear()
   resolveOrCreateNoteWithTitle.mockReset()
   resolveExistingMarkdownTarget.mockReset()
   openRouteInNewWindow.mockReset().mockResolvedValue(true)
+})
+
+afterEach(() => {
+  setDefaultStorage(null)
 })
 
 describe('BacklinksPanel', () => {

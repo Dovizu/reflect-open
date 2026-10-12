@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 
-const isTauri = vi.hoisted(() => vi.fn(() => true))
 const popup = vi.hoisted(() => vi.fn(async () => {}))
 interface NativeMenuItemForTest {
   text: string
@@ -21,7 +22,6 @@ const menuNew = vi.hoisted(() =>
   })),
 )
 
-vi.mock('@tauri-apps/api/core', () => ({ isTauri }))
 const menuItemNew = vi.hoisted(() => vi.fn(async (options: NativeMenuItemForTest) => options))
 
 vi.mock('@tauri-apps/api/menu', () => ({ Menu: { new: menuNew }, MenuItem: { new: menuItemNew } }))
@@ -29,10 +29,14 @@ vi.mock('@tauri-apps/api/menu', () => ({ Menu: { new: menuNew }, MenuItem: { new
 const { openNativeContextMenu } = await import('./context-menu.ts')
 
 beforeEach(() => {
-  isTauri.mockReset().mockReturnValue(true)
+  setDefaultPlatform(createTestPlatformService())
   popup.mockClear()
   menuItemNew.mockClear()
   menuNew.mockResolvedValue({ popup })
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
 })
 
 function firstMenuItem(): NativeMenuItemForTest {
@@ -45,7 +49,7 @@ function firstMenuItem(): NativeMenuItemForTest {
 
 describe('openNativeContextMenu', () => {
   it('does nothing outside Tauri', async () => {
-    isTauri.mockReturnValue(false)
+    setDefaultPlatform(createTestPlatformService({ isNativeShell: false }))
     const onSelect = vi.fn()
 
     await openNativeContextMenu({ items: [{ text: 'Unpin Note', action: onSelect }] })

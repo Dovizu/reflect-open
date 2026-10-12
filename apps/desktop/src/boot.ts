@@ -1,12 +1,22 @@
 import { initializeExceptionTelemetry } from '@/lib/exception-telemetry.ts'
+import { detectPlatformFacts } from '@/services/detect-platform.ts'
+import { createTauriHttpService } from '@/services/tauri-http.ts'
 import { installShellServices } from '@/services/shell-services.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
-import { setBridge } from '@reflect/core'
-
+import {
+  createBrowserHttpService,
+  createPlatformService,
+  defaultPlatform,
+  setBridge,
+  setDefaultHttp,
+  setDefaultPlatform,
+} from '@reflect/core'
 import { isTauri } from '@tauri-apps/api/core'
 
-// Runs before every module imported after this one, so exception telemetry
-// and the IPC bridge exist while the rest of the app's modules evaluate.
+// Runs before every module imported after this one, so the platform facts,
+// exception telemetry, and the IPC bridge exist while the rest of the app's
+// modules evaluate.
+setDefaultPlatform(createPlatformService(detectPlatformFacts(isTauri())))
 initializeExceptionTelemetry()
 
 // Install the Tauri bridge when running inside a Tauri webview. Plain-browser
@@ -14,9 +24,13 @@ initializeExceptionTelemetry()
 // root later installs the in-memory dev bridge instead, and features that
 // need the real shell rather than just an answering bridge gate on
 // `isNativeShell()`.
-if (isTauri()) {
+if (defaultPlatform().isNativeShell) {
   setBridge(createTauriIpcTransport())
 }
 
+setDefaultHttp(
+  defaultPlatform().isNativeShell ? createTauriHttpService() : createBrowserHttpService(),
+)
+
 // The dialog, clipboard, opener, path, window, and lifecycle services.
-installShellServices({ nativeShell: isTauri() })
+installShellServices({ nativeShell: defaultPlatform().isNativeShell })

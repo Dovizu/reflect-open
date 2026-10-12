@@ -1,5 +1,6 @@
 import {
   backfillEmbeddings,
+  defaultStorage,
   embedEnsure,
   embedStatus,
   subscribeEmbedStatus,
@@ -24,13 +25,10 @@ const LEGACY_ENABLED_KEY = 'reflect.semantic.enabled'
  * settings — the caller persists it there and the key never matters again.
  */
 export function consumeLegacySemanticOptIn(): boolean {
-  try {
-    const enabled = localStorage.getItem(LEGACY_ENABLED_KEY) === 'true'
-    localStorage.removeItem(LEGACY_ENABLED_KEY)
-    return enabled
-  } catch {
-    return false
-  }
+  const local = defaultStorage().local
+  const enabled = local.get(LEGACY_ENABLED_KEY) === 'true'
+  local.set(LEGACY_ENABLED_KEY, null)
+  return enabled
 }
 
 function isTerminalStatus(status: EmbedStatus): boolean {
