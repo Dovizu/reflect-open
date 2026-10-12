@@ -54,6 +54,14 @@ export {
   type MobileStorageKind,
 } from '../ipc/commands.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
+export {
+  createSystemClock,
+  defaultClock,
+  setDefaultClock,
+  type ClockService,
+  type TimerHandle,
+} from '../app/clock-service.ts'
+export { parseIsoDate, todayIso } from '../lib/dates.ts'
 export { confirmQuit, subscribeQuitRequested } from '../app/quit.ts'
 export {
   beginBackgroundTask,

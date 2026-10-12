@@ -3,4 +3,4 @@
  * returns an in-memory implementation of the matching service interface plus
  * observation helpers. Apps import this module in tests only.
  */
-export {}
+export { createTestClockService, type TestClockService } from './clock.ts'
