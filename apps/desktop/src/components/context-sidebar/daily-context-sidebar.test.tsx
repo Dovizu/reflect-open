@@ -14,17 +14,16 @@ import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import '@/test-utils/locator.ts'
 import { DailyContextSidebar } from './daily-context-sidebar.tsx'
+import { installTestNoteFile } from '@/test-utils/note-file.ts'
 
 const dailyDatesInRange = vi.hoisted(() => vi.fn())
 const relatedNotes = vi.hoisted(() => vi.fn())
-const readNote = vi.hoisted(() => vi.fn())
 const useNoteRow = vi.hoisted(() => vi.fn<(path: string) => NoteRow | null>(() => null))
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<(route: NoteRoute) => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   dailyDatesInRange,
-  readNote,
   relatedNotes,
 }))
 vi.mock('@/hooks/use-note-row.ts', () => ({ useNoteRow }))
@@ -77,10 +76,12 @@ function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
   }
 }
 
+const noteFile = installTestNoteFile()
+
 beforeEach(() => {
   setDefaultStorage(createTestStorageService())
   dailyDatesInRange.mockReset().mockResolvedValue([])
-  readNote.mockReset().mockResolvedValue('- daily entry\n')
+  noteFile.read().mockResolvedValue('- daily entry\n')
   relatedNotes.mockReset().mockResolvedValue([])
   useNoteRow.mockReset().mockReturnValue(null)
   openRouteInNewWindow.mockReset().mockResolvedValue(true)
@@ -204,9 +205,9 @@ describe('DailyContextSidebar related notes', () => {
   })
 
   it('does not calculate Similar notes for an empty-bullet daily note', async () => {
-    readNote.mockResolvedValue('- \n')
+    noteFile.read().mockResolvedValue('- \n')
     const view = await renderSidebar('2026-06-09')
-    await vi.waitFor(() => expect(readNote).toHaveBeenCalledWith('daily/2026-06-09.md'))
+    await vi.waitFor(() => expect(noteFile.read()).toHaveBeenCalledWith('daily/2026-06-09.md'))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(relatedNotes).not.toHaveBeenCalled()
     await expect.element(page.getByText('Similar notes')).not.toBeInTheDocument()
