@@ -16,6 +16,7 @@ import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultAssetStore } from '../graph/asset-store-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
+import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultBacklinks } from '../indexing/backlink-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
@@ -105,6 +106,7 @@ describe('installDefaultServices', () => {
     expect(defaultWebAuth()).toBe(services.webAuth)
     expect(defaultNoteFile()).toBe(services.noteFile)
     expect(defaultAssetStore()).toBe(services.assetStore)
+    expect(defaultAttachments()).toBe(services.attachments)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
     expect(defaultBacklinks()).toBe(services.backlinks)
@@ -159,6 +161,7 @@ describe('resetDefaultServices', () => {
     expect(defaultWebAuth()).not.toBe(services.webAuth)
     expect(defaultNoteFile()).not.toBe(services.noteFile)
     expect(defaultAssetStore()).not.toBe(services.assetStore)
+    expect(defaultAttachments()).not.toBe(services.attachments)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
     expect(defaultBacklinks()).not.toBe(services.backlinks)

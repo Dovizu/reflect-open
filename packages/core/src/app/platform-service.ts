@@ -28,6 +28,11 @@ export interface PlatformFacts {
 }
 
 export interface PlatformService extends PlatformFacts {
+  /**
+   * The webview URL that serves `filePath` through the custom URI scheme
+   * `protocol`, such as `reflect-asset`.
+   */
+  convertFileSrc(filePath: string, protocol: string): string
   prefersReducedMotion(): boolean
   subscribeReducedMotion(listener: (value: boolean) => void): () => void
   colorScheme(): ColorScheme
@@ -38,13 +43,23 @@ export interface PlatformMedia {
   readonly matchMedia?: (query: string) => MediaQueryList
 }
 
+/** Maps a file path to the webview URL serving it through a custom URI scheme. */
+export type FileSrcConverter = (filePath: string, protocol: string) => string
+
+/** The custom-scheme URL shape Tauri uses on macOS and iOS. */
+export function appleFileSrc(filePath: string, protocol: string): string {
+  return `${protocol}://localhost/${encodeURIComponent(filePath)}`
+}
+
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
 export function createPlatformService(
   facts: PlatformFacts,
   media?: PlatformMedia,
+  fileSrc?: FileSrcConverter,
 ): PlatformService {
+  const toFileSrc = fileSrc ?? appleFileSrc
   // Resolved per call: the global `matchMedia` may be replaced after construction.
   function resolveMatchMedia(): ((query: string) => MediaQueryList) | undefined {
     if (media) {
@@ -86,6 +101,7 @@ export function createPlatformService(
     surface: { touchEditor: facts.surface.touchEditor, mobileApp: facts.surface.mobileApp },
     isDev: facts.isDev,
     appVersion: facts.appVersion,
+    convertFileSrc: (filePath, protocol) => toFileSrc(filePath, protocol),
     prefersReducedMotion: () => matches(REDUCED_MOTION_QUERY),
     subscribeReducedMotion: (listener) => subscribe(REDUCED_MOTION_QUERY, listener),
     colorScheme: () => (matches(DARK_QUERY) ? 'dark' : 'light'),

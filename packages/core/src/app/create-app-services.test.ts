@@ -60,6 +60,7 @@ const SERVICE_KEYS = [
   'audioRecorder',
   'noteFile',
   'assetStore',
+  'attachments',
   'indexQuery',
   'wikiResolver',
   'backlinks',

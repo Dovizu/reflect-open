@@ -22,6 +22,7 @@ import { createCalendarService, type CalendarService } from '../calendar/calenda
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
+import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import {
   createEmbeddingRuntimeService,
   type EmbeddingRuntimeService,
@@ -88,6 +89,7 @@ import {
 } from './persistence-flush-service.ts'
 import {
   createPlatformService,
+  type FileSrcConverter,
   type PlatformFacts,
   type PlatformService,
 } from './platform-service.ts'
@@ -150,6 +152,7 @@ export interface AppServices {
   readonly webAuth?: WebAuthService
   readonly noteFile: NoteFileService
   readonly assetStore: AssetStoreService
+  readonly attachments: AttachmentService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -218,6 +221,8 @@ export interface AppAdapters {
   readonly exceptionTelemetry?: ExceptionTelemetryService
   /** The native updater; without one, updates are unsupported. */
   readonly updater?: UpdaterAdapter
+  /** Defaults to the URL shape of Apple webviews. */
+  readonly convertFileSrc?: FileSrcConverter
 }
 
 export function createAppServices(adapters: AppAdapters): AppServices {
@@ -225,7 +230,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
   const database = createDatabaseService({ ipc })
-  const platform = createPlatformService(adapters.platform)
+  const platform = createPlatformService(adapters.platform, undefined, adapters.convertFileSrc)
   const windowService = createWindowService({ ipc, host: adapters.window, logger })
   const mobile =
     isMobilePlatform(adapters.platform.appPlatform) || adapters.platform.surface.mobileApp
@@ -242,6 +247,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
   )
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
+  const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
   return {
     ipc,
     logger,
@@ -309,7 +315,16 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       : {}),
     fileChanges,
     noteFile,
-    assetStore: createAssetStoreService({ ipc, clock, fileChanges }),
+    assetStore,
+    attachments: createAttachmentService({
+      assetStore,
+      noteFile,
+      fileChanges,
+      dialog: adapters.dialog,
+      operations,
+      clock,
+      platform,
+    }),
     ...createIndexReadServices({ database, noteFile }),
   }
 }

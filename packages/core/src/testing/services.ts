@@ -38,6 +38,7 @@ import {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
+import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestAssetStoreService,
   createTestNoteFileService,
@@ -141,6 +142,7 @@ export interface TestAppServices extends AppServices {
   readonly webAuth: TestWebAuthService
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
+  readonly attachments: TestAttachmentService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -200,6 +202,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     webAuth: createTestWebAuthService(null),
     noteFile,
     assetStore: createTestAssetStoreService(),
+    attachments: createTestAttachmentService(),
     ...createIndexReadServices({
       database: overrides?.database ?? database,
       noteFile: overrides?.noteFile ?? noteFile,
