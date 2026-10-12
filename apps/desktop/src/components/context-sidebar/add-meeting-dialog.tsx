@@ -49,7 +49,7 @@ const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
 export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps): ReactElement {
   const { settings } = useSettings()
   const { graph } = useGraph()
-  const { meetings, logger } = useAppServices()
+  const { contacts, meetings, logger } = useAppServices()
   const [name, setName] = useState(event.title)
   const [attendees, setAttendees] = useState<MeetingAttendee[]>(() => defaultAttendees(event))
   const [createNote, setCreateNote] = useState(event.recurring)
@@ -96,10 +96,11 @@ export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps
     setSubmitting(true)
     setError(null)
     try {
-      // The permission state is read at submit time, not dialog mount — the
-      // cached query may still be in flight (or stale after a System
-      // Settings trip), and a quick submit must not skip the pre-fill.
-      const lookupContacts = await meetings.canLookupContacts()
+      // The permission state is re-read at submit time, not dialog mount: it
+      // may be stale after a System Settings trip, and a quick submit must
+      // not skip the pre-fill.
+      await contacts.refresh()
+      const lookupContacts = meetings.canLookupContacts()
       await meetings.addMeetingToDaily({
         date,
         title: name,

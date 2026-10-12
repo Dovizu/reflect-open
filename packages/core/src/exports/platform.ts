@@ -516,13 +516,16 @@ export {
   type FileChangeBatch,
   type FileChangeService,
 } from '../indexing/file-change-service.ts'
-export { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+export {
+  createContactsService,
+  type ContactsService,
+  type ContactsState,
+} from '../contacts/contacts-service.ts'
 export {
   canPromptForContacts,
   contactsAccessNotice,
   createContactSuggestionService,
   isContactsAvailable,
-  showsContactSuggestions,
   suggestedContactDetails,
   type ContactSuggestionService,
 } from '../contacts/contact-suggestion-service.ts'

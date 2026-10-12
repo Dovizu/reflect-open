@@ -35,7 +35,7 @@ export interface TestWikiLinkSuggestionServiceOptions {
   /** Defaults to a fresh {@link createTestNoteCreationService}. */
   noteCreation?: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
   /** Defaults to an empty {@link createTestContactsService}. */
-  contacts?: Pick<ContactsService, 'lookupByName'>
+  contacts?: Pick<ContactsService, 'canLookup' | 'lookupPeople'>
   /** Defaults to a {@link createTestPersonNoteService} over `database` and `noteCreation`. */
   personNotes?: Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>
   /** Defaults to a fresh {@link createTestSettingsService}. */

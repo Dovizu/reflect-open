@@ -636,7 +636,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   })
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const calendar = createCalendarService({ ipc, logger })
-  const contacts = createContactsService({ ipc })
+  const contacts = createContactsService({ ipc, logger })
   const personNotes = createPersonNoteService({
     database,
     wikiResolver: indexReads.wikiResolver,

@@ -123,12 +123,6 @@ export const queryKeys = {
       return [...this.all, 'events', date, calendarIds] as const
     },
   },
-  contacts: {
-    all: ['contacts'] as const,
-    get authorization() {
-      return [...this.all, 'authorization'] as const
-    },
-  },
   github: {
     all: ['github'] as const,
     get authentication() {

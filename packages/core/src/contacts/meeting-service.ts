@@ -14,10 +14,8 @@ import { foldKey } from '../markdown/keys.ts'
 import { slugForTitle } from '../markdown/slug.ts'
 import { appendListItem, type SectionTarget } from '../markdown/task-ast.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
-import { isContactsReadable } from './commands.ts'
 import type { ContactMatch, ContactsService } from './contacts-service.ts'
 import { contactDetailsMarkdown } from './markdown.ts'
-import { pickContactLinkSuggestions } from './match.ts'
 import type { PersonNoteService, PersonResolution } from './person-note-service.ts'
 import { pickContactForEmail } from './resolve.ts'
 
@@ -57,9 +55,6 @@ const MEETINGS_SECTION: SectionTarget = { titles: [MEETINGS_HEADING], linked: fa
 const MEETING_NOTE_BODY = '- Type: #meeting'
 const PERSON_NOTE_BODY = '- Type: #person'
 
-/** How many Apple Contacts the attendee field offers, like the `[[` link menu. */
-const CONTACT_SUGGESTION_LIMIT = 4
-
 export interface AddMeetingInput {
   /** ISO `YYYY-MM-DD` day of the daily note receiving the entry. */
   date: string
@@ -75,7 +70,7 @@ export interface AddMeetingInput {
   backlinkMeeting: boolean
   /**
    * The contacts gate, computed by the caller at submit time
-   * (`settings.contactsEnabled && isContactsReadable(authorization)`). On,
+   * ({@link MeetingService.canLookupContacts}). On,
    * a missing person note can include phone details from the Apple Contacts
    * entry matching an attendee email. Known emails are written either way.
    */
@@ -302,10 +297,10 @@ export function withAttendee(
 /** Adds a calendar event to its daily note, with the attendee resolution around it. */
 export interface MeetingService {
   /**
-   * The contacts gate: the integration is enabled and the permission is
-   * readable right now. Reads the permission state fresh on every call.
+   * The contacts gate: the integration is enabled and the permission, as
+   * {@link ContactsService} last read it, is readable.
    */
-  canLookupContacts(): Promise<boolean>
+  canLookupContacts(): boolean
   /**
    * Resolve attendees for meeting serialization. Every Contact email participates
    * in ownership; conflicts and unaddressable owners become plain text.
@@ -475,22 +470,8 @@ export function createMeetingService(deps: {
     return resolved.map(({ attendee }) => attendee)
   }
 
-  async function canLookupContacts(): Promise<boolean> {
-    return (
-      settings.get().contactsEnabled && isContactsReadable(await contacts.authorizationStatus())
-    )
-  }
-
-  /** Contacts for the attendee field, by the `[[` link menu's rule. */
-  async function contactLinkSuggestions(query: string): Promise<ContactMatch[]> {
-    const trimmed = query.trim()
-    if (trimmed.length < 2) {
-      return []
-    }
-    return pickContactLinkSuggestions(
-      await contacts.lookupByName(trimmed),
-      CONTACT_SUGGESTION_LIMIT,
-    )
+  function canLookupContacts(): boolean {
+    return contacts.canLookup(settings.get())
   }
 
   return {
@@ -499,7 +480,8 @@ export function createMeetingService(deps: {
     resolveAttendees,
 
     async resolvePrefilledAttendees(prefilled) {
-      const lookupContacts = await canLookupContacts()
+      await contacts.refresh()
+      const lookupContacts = canLookupContacts()
       const resolved = await resolveAttendees(prefilled, lookupContacts)
       return new Map(
         prefilled.map((original, index) => [original.name, resolved[index] ?? original]),
@@ -512,7 +494,7 @@ export function createMeetingService(deps: {
         // A contacts hiccup must cost only its own rows, never the note
         // suggestions (the same containment as the editor's `[[` menu).
         lookupContacts
-          ? contactLinkSuggestions(query).catch((error: unknown) => {
+          ? contacts.lookupPeople(query).catch((error: unknown) => {
               logger.error('contact link suggestions failed:', error)
               return []
             })

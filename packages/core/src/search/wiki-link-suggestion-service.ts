@@ -2,14 +2,8 @@ import { Counter, isNotNullish } from '@ocavue/utils'
 import type { ClockService } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
-import { isContactsReadable } from '../contacts/commands.ts'
-import type {
-  ContactMatch,
-  ContactsAuthorization,
-  ContactsService,
-} from '../contacts/contacts-service.ts'
+import type { ContactsService } from '../contacts/contacts-service.ts'
 import { contactDetailsMarkdown } from '../contacts/markdown.ts'
-import { pickContactLinkSuggestions } from '../contacts/match.ts'
 import type { PersonContactResolution, PersonNoteService } from '../contacts/person-note-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
@@ -38,18 +32,9 @@ export interface TagMenuItem {
   tag: string
 }
 
-/** How many Contact rows the `[[` menu shows at most. */
-const CONTACT_SUGGESTION_LIMIT = 4
-
 export interface WikiLinkSuggestionOptions {
   /** The open graph's generation: a background create that outlives it is rejected. */
   generation: number
-  /**
-   * The Contacts permission state, or `null` while it is unknown. Contacts
-   * join the menu (v1's backlink-menu behavior) only while the integration is
-   * on and the permission readable.
-   */
-  contactsAuthorization: ContactsAuthorization | null
 }
 
 /**
@@ -72,7 +57,7 @@ export interface WikiLinkSuggestionService {
 export interface WikiLinkSuggestionServiceDeps {
   suggestions: Pick<SuggestionService, 'suggestWikiLinkTargets' | 'suggestTags'>
   noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-  contacts: Pick<ContactsService, 'lookupByName'>
+  contacts: Pick<ContactsService, 'canLookup' | 'lookupPeople'>
   personNotes: Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>
   settings: Pick<SettingsService, 'get'>
   clock: Pick<ClockService, 'now'>
@@ -85,24 +70,6 @@ export function createWikiLinkSuggestionService(
 ): WikiLinkSuggestionService {
   const { suggestions, noteCreation, contacts, personNotes, settings, clock, operations, logger } =
     deps
-
-  /**
-   * Contacts for the `[[` link menu — v1 mixed contacts into the backlink
-   * autocomplete so a person note could be born from the address book. This
-   * keeps the framework's word-prefix matches (typing "Ada" should offer "Ada
-   * Lovelace"). Queries shorter than two characters answer empty — one letter
-   * matches half the address book.
-   */
-  async function contactLinkSuggestions(query: string): Promise<ContactMatch[]> {
-    const trimmed = query.trim()
-    if (trimmed.length < 2) {
-      return []
-    }
-    return pickContactLinkSuggestions(
-      await contacts.lookupByName(trimmed),
-      CONTACT_SUGGESTION_LIMIT,
-    )
-  }
 
   /**
    * The one user-visible refusal for an `ambiguous` title resolution: several
@@ -140,11 +107,11 @@ export function createWikiLinkSuggestionService(
   return {
     async suggestLinks(query, options) {
       const { generation } = options
-      const { contactsEnabled, dateFormat, weekStartDay } = settings.get()
-      const contactsInMenu =
-        contactsEnabled &&
-        options.contactsAuthorization !== null &&
-        isContactsReadable(options.contactsAuthorization)
+      const current = settings.get()
+      const { dateFormat, weekStartDay } = current
+      // Contacts join the menu (v1's backlink-menu behavior) only while the
+      // integration is on and the permission readable.
+      const contactsInMenu = contacts.canLookup(current)
       const dateContext = {
         today: localIsoDate(new Date(clock.now())),
         dateFormat,
@@ -155,7 +122,8 @@ export function createWikiLinkSuggestionService(
         // A contacts hiccup (permission revoked mid-session, store error)
         // must cost only its own rows, never the note suggestions.
         contactsInMenu
-          ? contactLinkSuggestions(query)
+          ? contacts
+              .lookupPeople(query)
               .then((matches) =>
                 Promise.all(matches.map((contact) => personNotes.resolvePersonContact(contact))),
               )

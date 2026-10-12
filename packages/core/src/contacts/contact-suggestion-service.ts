@@ -6,7 +6,6 @@ import { parseNote } from '../markdown/extract.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 import type { Settings } from '../settings/schema.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
-import { isContactsReadable } from './commands.ts'
 import type { ContactMatch, ContactsAuthorization, ContactsService } from './contacts-service.ts'
 import { appendContactDetails, contactDetailsMarkdown, noteHasContactDetails } from './markdown.ts'
 import { contactNamesEqual, matchContactForTitle } from './match.ts'
@@ -29,13 +28,16 @@ import { contactNamesEqual, matchContactForTitle } from './match.ts'
  * address book.
  */
 export interface ContactSuggestionService {
-  /** The Contacts permission state. Never prompts. */
-  authorizationStatus(): Promise<ContactsAuthorization>
+  /**
+   * The card's gate for the note at `path`: the contacts gate
+   * ({@link ContactsService.canLookup}) is open and the note is not a daily one.
+   */
+  showsSuggestionFor(settings: Pick<Settings, 'contactsEnabled'>, path: string): boolean
   /**
    * The Apple Contact the title of the note at `path` exactly matches, or
    * `null`: no match, a match with nothing to add, a body that already
    * carries contact details, or a contact dismissed on this note. Callers
-   * gate on {@link showsContactSuggestions} first.
+   * gate on {@link ContactSuggestionService.showsSuggestionFor} first.
    */
   suggestionFor(path: string): Promise<ContactMatch | null>
   /**
@@ -60,29 +62,11 @@ export interface ContactSuggestionService {
   /** Switch the integration on or off. Never prompts. */
   setEnabled(enabled: boolean): void
   /**
-   * Trigger the OS contacts permission prompt. Never rejects: a failed prompt
-   * (e.g. it timed out unanswered) isn't surfaced, the permission state is the
-   * truth.
+   * Trigger the OS contacts permission prompt and refresh the permission
+   * state. Never rejects: a failed prompt (e.g. it timed out unanswered) isn't
+   * surfaced, the permission state is the truth.
    */
   requestAccess(): Promise<void>
-}
-
-/**
- * The card's gate for the note at `path`: the integration is enabled, the
- * permission is readable, and the note is not a daily one. `authorization` is
- * `null` while its first read is in flight.
- */
-export function showsContactSuggestions(
-  settings: Pick<Settings, 'contactsEnabled'>,
-  authorization: ContactsAuthorization | null,
-  path: string,
-): boolean {
-  return (
-    settings.contactsEnabled &&
-    authorization !== null &&
-    isContactsReadable(authorization) &&
-    !isDaily(path)
-  )
 }
 
 /** The card's detail line: the contact's primary email and phone. */
@@ -164,7 +148,9 @@ export function createContactSuggestionService(deps: {
   }
 
   return {
-    authorizationStatus: () => contacts.authorizationStatus(),
+    showsSuggestionFor(current, path) {
+      return contacts.canLookup(current) && !isDaily(path)
+    },
 
     async suggestionFor(path) {
       const source = await noteDocuments.readSource(path)

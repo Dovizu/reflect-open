@@ -1,4 +1,4 @@
-import { useContactsAuthorization } from '@/hooks/use-contacts-authorization.ts'
+import { useContactsState } from '@/hooks/use-contacts-state.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
 import { SETTINGS_SECTIONS } from './sections.ts'
 
@@ -13,7 +13,7 @@ export type SettingsSectionEntry = (typeof SETTINGS_SECTIONS)[number]
  * directly.
  */
 export function useVisibleSettingsSections(): readonly SettingsSectionEntry[] {
-  const authorization = useContactsAuthorization()
+  const { authorization } = useContactsState()
   const { platform } = useAppServices()
   const hasAppleIntegrations =
     platform.isMacosDesktop || (authorization !== null && authorization !== 'unavailable')
