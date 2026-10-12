@@ -1,7 +1,5 @@
-import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render } from 'vitest-browser-react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { QueryClient } from '@tanstack/react-query'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   IAP_PRODUCT_IDS,
   createPaywallService,
@@ -17,13 +15,12 @@ import {
   createTestIapService,
   createTestPlatformService,
   createTestSubscriptionService,
-  installTestServices,
   type TestClassicAccessService,
   type TestLoggerService,
   type TestSubscriptionService,
 } from '@reflect/core/testing'
 import { mutationKeys, mutationScopeIds } from '@/lib/query-client.ts'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderInApp, type InAppRenderResult } from '@/test-utils/render-in-app.tsx'
 import { PaywallScreen } from './paywall-screen.tsx'
 
 const YEARLY_PRODUCT = {
@@ -47,15 +44,13 @@ let subscription: TestSubscriptionService
 let classicAccess: TestClassicAccessService
 let logger: TestLoggerService
 let services: AppServices
-let restoreServices: () => void
 let queryClient: QueryClient
 
-function wrapper({ children }: { children: ReactNode }): ReactNode {
-  return (
-    <AppServicesProvider services={services}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    </AppServicesProvider>
-  )
+/** Render the paywall over the services of the running test. */
+async function mount(): Promise<InAppRenderResult<AppServices>> {
+  const view = await renderInApp(<PaywallScreen />, { app: services })
+  queryClient = view.queryClient
+  return view
 }
 
 function invalidations(): number {
@@ -74,9 +69,6 @@ beforeEach(() => {
   purchases = []
   syncs = 0
   redeems = 0
-  queryClient = new QueryClient({
-    defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
-  })
   const base = createTestAppServices({
     platform: createTestPlatformService({ appPlatform: 'ios' }),
   })
@@ -118,26 +110,19 @@ beforeEach(() => {
       storage: base.storage,
     }),
   }
-  restoreServices = installTestServices(services)
-})
-
-afterEach(async () => {
-  queryClient.clear()
-  await cleanup()
-  restoreServices()
 })
 
 describe('PaywallScreen products', () => {
   it('shows the existing failure UI when a required product is missing', async () => {
     getProducts = async () => [YEARLY_PRODUCT]
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
 
     await expect.element(view.getByText(/Could not load subscription options/)).toBeVisible()
   })
 
   it('shows the existing failure UI when the products query rejects', async () => {
     getProducts = () => Promise.reject(new Error('StoreKit unavailable'))
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
 
     await expect.element(view.getByText(/Could not load subscription options/)).toBeVisible()
   })
@@ -147,7 +132,7 @@ describe('PaywallScreen purchase mutation', () => {
   it('purchases the yearly plan, disables every action, and invalidates on success', async () => {
     const pendingPurchase = Promise.withResolvers<void>()
     purchase = () => pendingPurchase.promise
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     const trial = view.getByRole('button', { name: 'Start 7-day free trial' })
 
     await expect.element(trial).toBeVisible()
@@ -178,7 +163,7 @@ describe('PaywallScreen purchase mutation', () => {
 
   it('uses the monthly initiator and treats a rejected purchase as fail soft', async () => {
     purchase = () => Promise.reject(new Error('cancelled'))
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await expect.element(view.getByRole('button', { name: 'Start 7-day free trial' })).toBeVisible()
 
     await view.getByRole('radio', { name: /Monthly/ }).click()
@@ -197,7 +182,7 @@ describe('PaywallScreen offer code', () => {
   it('opens the in-app redemption sheet and refetches entitlements after it closes', async () => {
     const pendingRedeem = Promise.withResolvers<void>()
     redeem = () => pendingRedeem.promise
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     const button = view.getByRole('button', { name: 'Redeem a code' })
     await expect.element(button).toBeVisible()
 
@@ -219,7 +204,7 @@ describe('PaywallScreen offer code', () => {
 
   it('shows a retryable message when the sheet cannot be presented', async () => {
     redeem = () => Promise.reject(new Error('no active window scene'))
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await expect.element(view.getByRole('button', { name: 'Redeem a code' })).toBeVisible()
 
     await view.getByRole('button', { name: 'Redeem a code' }).click()
@@ -233,7 +218,7 @@ describe('PaywallScreen offer code', () => {
 
   it('clears the redeem message when a restore starts', async () => {
     redeem = () => Promise.reject(new Error('no active window scene'))
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await expect.element(view.getByRole('button', { name: 'Redeem a code' })).toBeVisible()
     await view.getByRole('button', { name: 'Redeem a code' }).click()
     await expect
@@ -249,7 +234,7 @@ describe('PaywallScreen offer code', () => {
 
 describe('PaywallScreen restore mutation', () => {
   it('syncs with the App Store and shows the no-purchase message when nothing is owned', async () => {
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await expect.element(view.getByRole('button', { name: 'Restore Purchases' })).toBeVisible()
 
     await view.getByRole('button', { name: 'Restore Purchases' }).click()
@@ -263,7 +248,7 @@ describe('PaywallScreen restore mutation', () => {
 
   it('hides the message when the refetched entitlement names a plan', async () => {
     subscription.setState({ value: 'yearly' })
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await expect.element(view.getByRole('button', { name: 'Restore Purchases' })).toBeVisible()
 
     await view.getByRole('button', { name: 'Restore Purchases' }).click()
@@ -275,7 +260,7 @@ describe('PaywallScreen restore mutation', () => {
 
   it('shows the existing retry message when the sync rejects', async () => {
     sync = () => Promise.reject(new Error('offline'))
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await expect.element(view.getByRole('button', { name: 'Restore Purchases' })).toBeVisible()
 
     await view.getByRole('button', { name: 'Restore Purchases' }).click()
@@ -289,7 +274,7 @@ describe('PaywallScreen restore mutation', () => {
   it('clears an old restore message when a purchase starts', async () => {
     const pendingPurchase = Promise.withResolvers<void>()
     purchase = () => pendingPurchase.promise
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await expect.element(view.getByRole('button', { name: 'Restore Purchases' })).toBeVisible()
     await view.getByRole('button', { name: 'Restore Purchases' }).click()
     await expect
@@ -306,7 +291,7 @@ describe('PaywallScreen restore mutation', () => {
   it('uses the shared IAP scope and only restore shows progress while restoring', async () => {
     const pendingSync = Promise.withResolvers<void>()
     sync = () => pendingSync.promise
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await expect.element(view.getByRole('button', { name: 'Restore Purchases' })).toBeVisible()
 
     await view.getByRole('button', { name: 'Restore Purchases' }).click()
@@ -350,14 +335,14 @@ describe('PaywallScreen Reflect Classic verification', () => {
   }
 
   async function openSignIn() {
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
     await view.getByRole('button', { name: CLAIM }).click()
     await view.getByRole('button', { name: SIGN_IN }).click()
     return view
   }
 
   it('offers signing in here or a web offer code from the claim link', async () => {
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
 
     await view.getByRole('button', { name: CLAIM }).click()
 
@@ -444,7 +429,7 @@ describe('PaywallScreen Reflect Classic verification', () => {
       access: { token: 'token', email: 'a@example.com', expiresAt: 1, checkedAt: 0 },
       active: false,
     })
-    const view = await render(<PaywallScreen />, { wrapper })
+    const view = await mount()
 
     await expect
       .element(view.getByText('Your Reflect Classic access to Reflect Open has ended.'))

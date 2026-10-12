@@ -1,25 +1,22 @@
 import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { page, userEvent, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
   createTestAppServices,
-  createTestStorageService,
-  type TestStorageService,
   createTestOperationsService,
-  createTestHapticsService,
+  createTestPlatformService,
   createTestTaskService,
   type TestAppServices,
   type TestHapticsService,
+  type TestStorageService,
 } from '@reflect/core/testing'
 import type { OpenTask, TaskAction, TaskService, TaskWriteResult } from '@reflect/core'
 import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { useRouter } from '@/routing/router.tsx'
 import '@/test-utils/locator.ts'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { swipe, translateX } from '@/test-utils/swipe.ts'
 import { MobileTasks } from './tasks.tsx'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
 
 let haptics: TestHapticsService
 
@@ -33,28 +30,6 @@ let haptics: TestHapticsService
  * rules are unit-tested in task-visibility.test.ts.
  */
 
-const resolveOrCreateNoteWithTitle = vi.fn()
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-}))
-const linkNavigation = installTestLinkNavigation({
-  noteCreation: { resolveOrCreateNoteWithTitle },
-})
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
-}))
-vi.mock('@/lib/use-today.ts', () => ({ useToday: () => '2026-06-14' }))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({
-    settings: {
-      dateFormat: 'mdy',
-      weekStartDay: 'monday',
-      editorMarkdownSyntax: 'hide',
-      editorSpellCheck: false,
-    },
-  }),
-}))
 // TaskText rendering is covered separately, so this suite keeps a small preview stub.
 vi.mock('@/editor/markdown-preview.tsx', () => ({
   MarkdownPreview: ({ content, className }: { content: string; className?: string }) => (
@@ -63,17 +38,6 @@ vi.mock('@/editor/markdown-preview.tsx', () => ({
     </span>
   ),
 }))
-// The autocomplete hook reads the contacts authorization over IPC; the menus
-// themselves live inside meowdown, which is stubbed out below anyway.
-vi.mock('@/editor/use-editor-autocomplete.ts', () => ({
-  useEditorAutocomplete: () => ({
-    onWikilinkSearch: async () => [],
-    onTagSearch: async () => [],
-  }),
-}))
-// Instant settle, so row transforms can be asserted synchronously.
-vi.mock('@/mobile/use-reduced-motion.ts', () => ({ usePrefersReducedMotion: () => true }))
-
 const editorProbe = vi.hoisted(() => ({ focusCalls: 0 }))
 
 // The sheet hosts the real markdown editor (desktop's inline task-editor
@@ -204,15 +168,21 @@ function RouteProbe(): ReactNode {
 }
 
 function renderScreen() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return renderWithServices(
-    <QueryClientProvider client={client}>
-      <RouterProvider>
-        <MobileTasks />
-        <RouteProbe />
-      </RouterProvider>
-    </QueryClientProvider>,
-    { app },
+  return renderInApp(
+    <>
+      <MobileTasks />
+      <RouteProbe />
+    </>,
+    {
+      app,
+      graph: { root: '/g', name: 'g', generation: 1 },
+      settings: {
+        dateFormat: 'mdy',
+        weekStartDay: 'monday',
+        editorMarkdownSyntax: 'hide',
+        editorSpellCheck: false,
+      },
+    },
   ).then((view) => {
     const find = async (locator: Locator): Promise<Element> => {
       await expect.element(locator).toBeInTheDocument()
@@ -261,8 +231,6 @@ let app: Omit<TestAppServices, 'tasks'> & { tasks: TaskService }
 beforeEach(async () => {
   const operations = createTestOperationsService()
   await page.viewport(375, 700)
-  storage = createTestStorageService()
-  haptics = createTestHapticsService()
   // A fresh service per test, so its recently-completed set starts empty.
   const tasks = createTestTaskService({ operations })
   getOpenTasks = vi.spyOn(tasks, 'getOpenTasks').mockResolvedValue([])
@@ -275,13 +243,16 @@ beforeEach(async () => {
   })
   app = createTestAppServices({
     operations,
-    storage,
-    haptics,
     tasks,
-    linkNavigation: linkNavigation.service(),
+    // Reduced motion: an instant settle, so row transforms can be asserted synchronously.
+    platform: createTestPlatformService({ reducedMotion: true }),
   })
-  resolveOrCreateNoteWithTitle.mockReset()
-  resolveOrCreateNoteWithTitle.mockResolvedValue({
+  storage = app.storage
+  haptics = app.haptics
+  // Today is 2026-06-14.
+  app.clock.setNow(new Date(2026, 5, 14, 12).getTime())
+  // A wiki-link tap resolves to this note.
+  vi.spyOn(app.noteCreation, 'resolveOrCreateNoteWithTitle').mockResolvedValue({
     kind: 'resolved',
     path: 'notes/other.md',
   })

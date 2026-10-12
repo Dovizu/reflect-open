@@ -2,11 +2,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react'
 import { focusManager, useMutation } from '@tanstack/react-query'
 import type { ClassicAccess, ClassicSignInResult } from '@reflect/core'
 import { mutationKeys, mutationScopeIds } from '@/lib/query-client.ts'
-import {
-  useClassicAccessService,
-  useLoggerService,
-  usePlatformService,
-} from '@/services/use-monetization-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * This device's Reflect Classic access as stored in the keychain. Loading
@@ -18,9 +14,8 @@ export function useClassicAccess(): {
   active: boolean
   isLoading: boolean
 } {
-  const enabled = usePlatformService().appPlatform === 'ios'
-  const classic = useClassicAccessService()
-  const logger = useLoggerService()
+  const { classicAccess: classic, logger, platform } = useAppServices()
+  const enabled = platform.appPlatform === 'ios'
   const state = useSyncExternalStore(classic.subscribe, classic.getState)
   const hasToken = state.access?.token != null
 
@@ -57,8 +52,7 @@ export function useClassicAccess(): {
  * the subscription is being read.
  */
 export function useClassicSignIn() {
-  const classic = useClassicAccessService()
-  const logger = useLoggerService()
+  const { classicAccess: classic, logger } = useAppServices()
   const [browserClosed, setBrowserClosed] = useState(false)
   const mutation = useMutation<ClassicSignInResult, Error, boolean>({
     mutationKey: mutationKeys.classic.signIn,
@@ -78,7 +72,7 @@ export type ClassicSignIn = ReturnType<typeof useClassicSignIn>
 
 /** Forgets this device's Reflect Classic verification. */
 export function useClassicSignOut() {
-  const classic = useClassicAccessService()
+  const { classicAccess: classic } = useAppServices()
   return useMutation({
     mutationKey: mutationKeys.classic.signOut,
     mutationFn: () => classic.signOut(),

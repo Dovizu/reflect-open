@@ -1,54 +1,17 @@
-import type { ReactNode } from 'react'
-import { cleanup, renderHook } from 'vitest-browser-react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { ICloudDownloadServiceOptions } from '@reflect/core'
-import {
-  createTestAppServices,
-  createTestIpcBridgeService,
-  installTestBridge,
-} from '@reflect/core/testing'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { createTestAppServices } from '@reflect/core/testing'
+import { renderHookInApp, type RenderInAppOptions } from '@/test-utils/render-in-app.tsx'
 import { useICloudRefresh } from './use-icloud-refresh.ts'
 
-const graphState = vi.hoisted<{
-  current: {
-    graph: { root: string } | null
-    mobileStorageKind: 'icloud' | 'local' | null
-    refreshIndex: () => void
-  }
-}>(() => ({
-  current: { graph: null, mobileStorageKind: null, refreshIndex: () => {} },
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => graphState.current,
-}))
-
-function refreshIndex(): void {}
-
-let uninstallBridge: () => void = () => {}
-
-beforeEach(() => {
-  graphState.current = {
-    graph: { root: '/iCloud/Documents' },
-    mobileStorageKind: 'icloud',
-    refreshIndex,
-  }
-  uninstallBridge = installTestBridge(createTestIpcBridgeService())
-})
-
-afterEach(async () => {
-  await cleanup()
-  uninstallBridge()
-})
-
-/** App services whose download factory hands out scripted services, recorded in order. */
-function setup() {
+/** Mount the hook over a download factory that hands out scripted services, recorded in order. */
+async function setup(options?: Pick<RenderInAppOptions, 'graph' | 'mobile'>) {
   const created: Array<{ options: ICloudDownloadServiceOptions; calls: string[] }> = []
   const app = createTestAppServices({
     icloudDownloads: {
-      create: (options) => {
+      create: (downloadOptions) => {
         const calls: string[] = []
-        created.push({ options, calls })
+        created.push({ options: downloadOptions, calls })
         return {
           start: () => {
             calls.push('start')
@@ -60,56 +23,44 @@ function setup() {
       },
     },
   })
-  const wrapper = ({ children }: { children: ReactNode }) => (
-    <AppServicesProvider services={app}>{children}</AppServicesProvider>
-  )
-  return { created, wrapper }
+  const hook = await renderHookInApp(() => useICloudRefresh(), {
+    app,
+    graph: { root: '/iCloud/Documents' },
+    mobile: { kind: 'icloud' },
+    ...options,
+  })
+  return { ...hook, created }
 }
 
 describe('useICloudRefresh', () => {
   it('is inert for local graphs', async () => {
-    graphState.current = {
-      graph: { root: '/Documents' },
-      mobileStorageKind: 'local',
-      refreshIndex,
-    }
-    const { created, wrapper } = setup()
-    await renderHook(() => useICloudRefresh(), { wrapper })
-
-    expect(created).toEqual([])
-  })
-
-  it('is inert until the bridge is installed', async () => {
-    uninstallBridge()
-    const { created, wrapper } = setup()
-    await renderHook(() => useICloudRefresh(), { wrapper })
+    const { created } = await setup({ graph: { root: '/Documents' }, mobile: { kind: 'local' } })
 
     expect(created).toEqual([])
   })
 
   it('starts one download service for the open iCloud graph', async () => {
-    const { created, wrapper } = setup()
-    await renderHook(() => useICloudRefresh(), { wrapper })
+    const { created, app } = await setup()
 
     expect(created).toHaveLength(1)
-    expect(created[0]?.options).toEqual({ root: '/iCloud/Documents', refreshIndex })
+    expect(created[0]?.options).toEqual({
+      root: '/iCloud/Documents',
+      refreshIndex: app.graphSession.refreshIndex,
+    })
     expect(created[0]?.calls).toEqual(['start'])
   })
 
   it('disposes the service on unmount', async () => {
-    const { created, wrapper } = setup()
-    const { unmount } = await renderHook(() => useICloudRefresh(), { wrapper })
+    const { created, unmount } = await setup()
     await unmount()
 
     expect(created[0]?.calls).toEqual(['start', 'dispose'])
   })
 
   it('replaces the service when another iCloud graph opens', async () => {
-    const { created, wrapper } = setup()
-    const { rerender } = await renderHook(() => useICloudRefresh(), { wrapper })
+    const { created, app, act } = await setup()
 
-    graphState.current = { ...graphState.current, graph: { root: '/iCloud/Other' } }
-    await rerender()
+    await act(() => app.graphSession.setGraph({ root: '/iCloud/Other' }))
 
     expect(created.map((entry) => entry.options.root)).toEqual([
       '/iCloud/Documents',

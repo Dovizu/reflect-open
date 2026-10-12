@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { focusManager } from '@tanstack/react-query'
 import type { ActiveSubscription } from '@reflect/core'
-import { useSubscriptionService } from '@/services/use-monetization-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 /**
  * The live or startup-seeded active subscription. Mounting looks it up unless
@@ -14,7 +14,7 @@ export function useActiveSubscription(): {
   invalidate: VoidFunction
   refetch: () => Promise<ActiveSubscription>
 } {
-  const subscription = useSubscriptionService()
+  const { subscription } = useMobileAppServices()
   const state = useSyncExternalStore(subscription.subscribe, subscription.getState)
 
   useEffect(() => {

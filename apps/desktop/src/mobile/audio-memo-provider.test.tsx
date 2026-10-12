@@ -1,6 +1,4 @@
-import type { ReactElement, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
 import {
   audioMemoIdentity,
   audioMemoPartPath,
@@ -13,9 +11,8 @@ import {
   createTestAssetStoreService,
   createTestAudioRecorderService,
   createTestPlatformService,
-  createTestSettingsService,
 } from '@reflect/core/testing'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { MobileAudioMemoProvider, useMobileAudioMemo } from './audio-memo-provider.tsx'
 
 const GRAPH: GraphInfo = { root: '/notes', name: 'Notes', generation: 3 }
@@ -51,33 +48,26 @@ const RECORDING: AudioRecorderFinalSegment = {
 }
 
 async function setup(provider: AiProviderConfig = OPENAI) {
-  const settings = createTestSettingsService({
-    aiProviders: [provider],
-    defaultAiProviderId: provider.id,
-  })
-  await settings.whenLoaded()
   const audioRecorder = createTestAudioRecorderService({ sessionStartedMs: SESSION_STARTED_MS })
   audioRecorder.setStopResult(RECORDING)
   const assetStore = createTestAssetStoreService({ sources: { [STAGED]: 'audio' } })
   const app = createTestAppServices({
-    settings,
     audioRecorder,
     assetStore,
     platform: createTestPlatformService({ appPlatform: 'ios' }),
   })
 
-  function wrapper({ children }: { children: ReactNode }): ReactElement {
-    return (
-      <AppServicesProvider services={app}>
-        <MobileAudioMemoProvider graph={GRAPH}>{children}</MobileAudioMemoProvider>
-      </AppServicesProvider>
-    )
-  }
-
-  const hook = await renderHook(() => useMobileAudioMemo(), { wrapper })
+  const hook = await renderHookInApp(() => useMobileAudioMemo(), {
+    app,
+    graph: GRAPH,
+    settings: { aiProviders: [provider], defaultAiProviderId: provider.id },
+    wrapper: (children) => (
+      <MobileAudioMemoProvider graph={GRAPH}>{children}</MobileAudioMemoProvider>
+    ),
+  })
   const count = (method: string): number =>
     audioRecorder.calls().filter((call) => call.method === method).length
-  return { app, audioRecorder, assetStore, count, ...hook }
+  return { ...hook, audioRecorder, assetStore, count }
 }
 
 describe('MobileAudioMemoProvider', () => {
