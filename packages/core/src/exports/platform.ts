@@ -1,26 +1,13 @@
 export {
-  setBridge,
-  setDefaultIpc,
-  hasBridge,
-  subscribeBridgeChanges,
-  defaultIpc,
-  currentIpc,
+  createIpcBridgeService,
+  listenNow,
   type IpcBridge,
+  type IpcBridgeService,
   type Unlisten,
-} from '../ipc/bridge.ts'
-export { createIpcBridgeService, listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
-export { call, callBinary } from '../ipc/invoke.ts'
+} from '../ipc/ipc-service.ts'
+
 export { type PluginSubscription } from '../ipc/plugin.ts'
 export {
-  cancelRecording,
-  deleteStaged,
-  listStaged,
-  recordingStatus,
-  startRecording,
-  stopRecording,
-  subscribeRecordingLevel,
-  subscribeRecordingSegment,
-  subscribeRecordingStopped,
   type RecordingLevelEvent,
   type RecordingNativeActionEvent,
   type RecordingSegmentEvent,
@@ -31,12 +18,7 @@ export {
   type StagedRecordingFile,
   type StartRecordingOptions,
 } from '../ipc/recording-plugin.ts'
-export {
-  createHapticsService,
-  defaultHaptics,
-  setDefaultHaptics,
-  type HapticsService,
-} from '../ipc/mobile-haptics-plugin.ts'
+export { createHapticsService, type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
 export {
   MIN_RECORDING_DURATION_MS,
   type AudioRecorderFinalSegment,
@@ -53,63 +35,32 @@ export {
   type WebMediaRecorder,
   type WebMediaRecorderConstructor,
 } from '../audio/web-audio-recorder.ts'
-export { defaultAudioRecorder, setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 export {
-  getAppVersion,
-  mobileStorage,
-  mobileStorageLocal,
-  icloudPendingCount,
-  icloudRequestDownloads,
-  icloudStatus,
   type IcloudDownloadScope,
   type IcloudScanOptions,
   type IcloudSweepScope,
   type IcloudStatus,
   type IcloudSweepOutcome,
-  type MobileStorageInfo,
-  type MobileStorageKind,
-} from '../ipc/commands.ts'
+} from '../ipc/icloud-native-service.ts'
+export { type MobileStorageInfo, type MobileStorageKind } from '../ipc/mobile-storage-service.ts'
 export {
   createICloudNativeService,
-  defaultICloudNative,
-  setDefaultICloudNative,
   type ICloudNativeService,
 } from '../ipc/icloud-native-service.ts'
 export {
   createGitRepositoryService,
-  defaultGitRepository,
-  setDefaultGitRepository,
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
-export {
-  createGithubAuthService,
-  defaultGithubAuth,
-  setDefaultGithubAuth,
-  type GithubAuthService,
-} from '../sync/github-auth-service.ts'
+export { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
 export {
   createGitHostCredentialService,
-  defaultGitHostCredentials,
-  setDefaultGitHostCredentials,
   type GitHostCredentialService,
 } from '../sync/git-host-credential-service.ts'
-export {
-  createGithubRepoService,
-  defaultGithubRepos,
-  setDefaultGithubRepos,
-  type GithubRepoService,
-} from '../sync/github-repo-service.ts'
-export {
-  createSyncEngineFactory,
-  defaultSyncEngines,
-  setDefaultSyncEngines,
-  type SyncEngineFactory,
-} from '../sync/engine.ts'
+export { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
+export { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
 export {
   createBackupService,
   createBackupServiceFactory,
-  defaultBackups,
-  setDefaultBackups,
   type BackupService,
   type BackupServiceDeps,
   type BackupServiceFactory,
@@ -120,9 +71,7 @@ export {
 export {
   createICloudSyncService,
   createICloudSyncServiceFactory,
-  defaultICloudSyncs,
   isICloudRoot,
-  setDefaultICloudSyncs,
   type ICloudSyncService,
   type ICloudSyncServiceDeps,
   type ICloudSyncServiceFactory,
@@ -131,8 +80,6 @@ export {
 export {
   createICloudDownloadService,
   createICloudDownloadServiceFactory,
-  defaultICloudDownloads,
-  setDefaultICloudDownloads,
   type ICloudDownloadService,
   type ICloudDownloadServiceDeps,
   type ICloudDownloadServiceFactory,
@@ -140,16 +87,12 @@ export {
 } from '../sync/icloud-download-service.ts'
 export {
   createICloudMigrationService,
-  defaultICloudMigration,
-  setDefaultICloudMigration,
   type ICloudMigrationService,
   type ICloudMigrationServiceDeps,
   type MoveGraphToICloudOptions,
 } from '../sync/icloud-migration-service.ts'
 export {
   createConflictResolutionService,
-  defaultConflictResolution,
-  setDefaultConflictResolution,
   type ConflictResolutionOutcome,
   type ConflictResolutionService,
   type ConflictResolutionServiceDeps,
@@ -157,9 +100,7 @@ export {
 } from '../sync/conflict-resolution-service.ts'
 export {
   createSyncStatusService,
-  defaultSyncStatus,
   mobileSyncStatus,
-  setDefaultSyncStatus,
   type MobileSyncStatus,
   type SyncStatusInput,
   type SyncStatusService,
@@ -174,33 +115,18 @@ export {
   type ConnectGithubWizardState,
   type ConnectWizardStep,
 } from '../sync/connect-github-wizard-service.ts'
-export {
-  createGistService,
-  defaultGists,
-  setDefaultGists,
-  type GistService,
-} from '../sync/gist-service.ts'
+export { createGistService, type GistService } from '../sync/gist-service.ts'
 export {
   createGistPublishService,
-  defaultGistPublish,
-  setDefaultGistPublish,
   type GistPublishResult,
   type GistPublishService,
 } from '../sync/gist-publish-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
-export {
-  createSystemClock,
-  defaultClock,
-  setDefaultClock,
-  type ClockService,
-  type TimerHandle,
-} from '../app/clock-service.ts'
+export { createSystemClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
 export { parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
   createPlatformService,
-  defaultPlatform,
-  setDefaultPlatform,
   type ColorScheme,
   type FileSrcConverter,
   type PlatformFacts,
@@ -208,31 +134,19 @@ export {
   type PlatformService,
   type PlatformSurface,
 } from '../app/platform-service.ts'
-export { confirmQuit, subscribeQuitRequested } from '../app/quit.ts'
+
+export { type BackgroundTaskToken } from '../app/lifecycle-service.ts'
+export { WINDOW_NAVIGATE_EVENT } from '../app/window-service.ts'
+
 export {
-  beginBackgroundTask,
-  endBackgroundTask,
-  type BackgroundTaskToken,
-} from '../app/background-task.ts'
-export { WINDOW_NAVIGATE_EVENT, subscribeWindowNavigate } from '../app/window-events.ts'
-export { toggleDevtools } from '../app/devtools.ts'
-export {
-  defaultDialog,
-  setDefaultDialog,
   type DialogFilter,
   type DialogService,
   type PickFilesOptions,
   type PickFolderOptions,
 } from '../app/dialog-service.ts'
-export {
-  defaultClipboard,
-  setDefaultClipboard,
-  type ClipboardService,
-} from '../app/clipboard-service.ts'
+export { type ClipboardService } from '../app/clipboard-service.ts'
 export {
   createOpenerService,
-  defaultOpener,
-  setDefaultOpener,
   type OpenerService,
   type OpenerTransport,
   type SystemSettingsPane,
@@ -240,8 +154,6 @@ export {
 export {
   createPathService,
   createPosixPathTransport,
-  defaultPath,
-  setDefaultPath,
   type PathService,
   type PathTransport,
 } from '../app/path-service.ts'
@@ -249,8 +161,6 @@ export {
   MAIN_WINDOW_LABEL,
   createSingleWindowHost,
   createWindowService,
-  defaultWindow,
-  setDefaultWindow,
   type CloseRequestedEvent,
   type CloseRequestedHandler,
   type WindowHost,
@@ -260,37 +170,21 @@ export {
   RESUME_THROTTLE_MS,
   createDetachedLifecycleDom,
   createLifecycleService,
-  defaultLifecycle,
-  setDefaultLifecycle,
   type AppLifecycleService,
   type LifecycleDomAdapter,
   type LifecyclePageEvent,
 } from '../app/lifecycle-service.ts'
 export {
   createPersistenceFlushService,
-  defaultPersistenceFlush,
-  setDefaultPersistenceFlush,
   type PersistenceFlusher,
   type PersistenceFlusherKind,
   type PersistenceFlushService,
 } from '../app/persistence-flush-service.ts'
-export {
-  createSystemIdService,
-  defaultIdService,
-  type IdService,
-  type PkcePair,
-} from '../app/id-service.ts'
+export { createSystemIdService, type IdService, type PkcePair } from '../app/id-service.ts'
 export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
-export {
-  createConsoleLogger,
-  defaultLogger,
-  setDefaultLogger,
-  type LoggerService,
-} from '../app/logger-service.ts'
+export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export {
   createBackgroundReconcilerFactory,
-  defaultBackgroundReconcilerFactory,
-  setDefaultBackgroundReconcilerFactory,
   type BackgroundReconciler,
   type BackgroundReconcilerFactory,
   type BackgroundReconcilerOptions,
@@ -298,8 +192,6 @@ export {
 } from '../app/background-reconciler.ts'
 export {
   createUnavailableImageCodec,
-  defaultImageCodec,
-  setDefaultImageCodec,
   type DecodedImage,
   type ImageCodecService,
   type ImageEncodeOptions,
@@ -307,8 +199,6 @@ export {
 export {
   createUnsupportedUpdateService,
   createUpdateService,
-  defaultUpdate,
-  setDefaultUpdate,
   type AvailableUpdate,
   type UpdateDownloadEvent,
   type UpdaterAdapter,
@@ -318,55 +208,27 @@ export {
 } from '../app/update-service.ts'
 export {
   createDisabledExceptionTelemetry,
-  defaultExceptionTelemetry,
-  setDefaultExceptionTelemetry,
   type ExceptionErrorHandler,
   type ExceptionErrorInfo,
   type ExceptionRootOptions,
   type ExceptionTelemetryService,
 } from '../app/exception-telemetry-service.ts'
-export {
-  createBrowserHttpService,
-  defaultHttp,
-  setDefaultHttp,
-  type HttpService,
-} from '../app/http-service.ts'
-export {
-  createWebFetchService,
-  defaultWebFetch,
-  setDefaultWebFetch,
-  type WebFetchService,
-} from '../app/web-fetch-service.ts'
+export { createBrowserHttpService, type HttpService } from '../app/http-service.ts'
+export { createWebFetchService, type WebFetchService } from '../app/web-fetch-service.ts'
 export {
   createCaptureInboxService,
-  defaultCaptureInbox,
-  setDefaultCaptureInbox,
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
-export {
-  createNoteFileService,
-  defaultNoteFile,
-  setDefaultNoteFile,
-  type NoteFileService,
-} from '../graph/note-file-service.ts'
+export { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
 export {
   createNoteLinkResolverService,
-  defaultNoteLinkResolver,
-  setDefaultNoteLinkResolver,
   type NoteLinkResolverService,
 } from '../graph/note-link-resolver-service.ts'
 export {
   createNoteCreationService,
-  defaultNoteCreation,
-  setDefaultNoteCreation,
   type NoteCreationService,
 } from '../graph/note-creation-service.ts'
-export {
-  createPrivacyService,
-  defaultPrivacy,
-  setDefaultPrivacy,
-  type PrivacyService,
-} from '../privacy/privacy-service.ts'
+export { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
 export {
   DEEP_LINK_SCHEME,
   DEEP_LINK_TEXT_MAX_LENGTH,
@@ -381,8 +243,6 @@ export {
 export {
   createDeepLinkService,
   createNoDeepLinkSource,
-  defaultDeepLink,
-  setDefaultDeepLink,
   type DeepLinkIo,
   type DeepLinkService,
   type DeepLinkServiceDeps,
@@ -390,20 +250,15 @@ export {
   type DeepLinkSource,
 } from '../navigation/deep-link-service.ts'
 export {
-  createDefaultLinkNavigationDeps,
   createLinkNavigationService,
-  defaultLinkNavigation,
   isOpenableExternalUrl,
   routeForTag,
-  setDefaultLinkNavigation,
   type LinkNavigationHost,
   type LinkNavigationService,
   type LinkNavigationServiceDeps,
 } from '../navigation/link-navigation-service.ts'
 export {
   createNavigationService,
-  defaultNavigation,
-  setDefaultNavigation,
   type NavigateOptions,
   type NavigationPosition,
   type NavigationService,
@@ -420,17 +275,10 @@ export {
   type NoteRoute,
   type Route,
 } from '../navigation/route.ts'
-export {
-  createAssetStoreService,
-  defaultAssetStore,
-  setDefaultAssetStore,
-  type AssetStoreService,
-} from '../graph/asset-store-service.ts'
+export { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
 export {
   LARGE_FILE_BYTES,
   createAttachmentService,
-  defaultAttachments,
-  setDefaultAttachments,
   type AssetSaveError,
   type AssetSaveResult,
   type AttachFilesRequest,
@@ -442,9 +290,7 @@ export {
 export {
   INITIAL_NOTE_SNAPSHOT,
   createNoteSessionService,
-  defaultNoteSessions,
   frontmatterPatchToYaml,
-  setDefaultNoteSessions,
   type FrontmatterPatch,
   type NoteContentOrigin,
   type NoteSession,
@@ -461,8 +307,6 @@ export {
 } from '../search/wiki-autocomplete-entries.ts'
 export {
   createWikiLinkSuggestionService,
-  defaultWikiLinkSuggestions,
-  setDefaultWikiLinkSuggestions,
   type TagMenuItem,
   type WikiLinkMenuItem,
   type WikiLinkSuggestionOptions,
@@ -478,8 +322,6 @@ export {
 } from '../search/palette-entries.ts'
 export {
   createPaletteSearchService,
-  defaultPaletteSearch,
-  setDefaultPaletteSearch,
   type PaletteSearchService,
   type PaletteSearchServiceDeps,
   type PaletteSectionsInput,
@@ -499,12 +341,7 @@ export {
   type UpdatedFilter,
   type UpdatedPreset,
 } from '../search/all-notes-filters.ts'
-export {
-  createDailyNoteService,
-  defaultDailyNotes,
-  setDefaultDailyNotes,
-  type DailyNoteService,
-} from '../daily/daily-note-service.ts'
+export { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
 export {
   dailyArrivalIntent,
   type DailyArrival,
@@ -543,8 +380,6 @@ export {
 } from '../daily/week-window.ts'
 export {
   createTemplateService,
-  defaultTemplates,
-  setDefaultTemplates,
   type TemplateInsertTarget,
   type TemplateService,
   type TemplateServiceDeps,
@@ -552,17 +387,13 @@ export {
 } from '../documents/template-service.ts'
 export {
   createNoteDocumentService,
-  defaultNoteDocuments,
   isOstensiblyEmptyNoteSource,
   NoteBusyError,
-  setDefaultNoteDocuments,
   type CommitSourceEditOptions,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export {
   createNotePreviewService,
-  defaultNotePreview,
-  setDefaultNotePreview,
   type NotePreview,
   type NotePreviewService,
   type NotePreviewServiceDeps,
@@ -570,8 +401,6 @@ export {
 export {
   canTrashNote,
   createNoteActionsService,
-  defaultNoteActions,
-  setDefaultNoteActions,
   type NoteActionOptions,
   type NoteActionOutcome,
   type NoteActionsService,
@@ -585,8 +414,6 @@ export {
 export {
   applyNoteRowOverlay,
   createNoteRowService,
-  defaultNoteRows,
-  setDefaultNoteRows,
   type NoteRowOverlay,
   type NoteRowOverlayPatch,
   type NoteRowService,
@@ -599,15 +426,11 @@ export {
 } from '../documents/pin-order.ts'
 export {
   createOpenDocumentsService,
-  defaultOpenDocuments,
-  setDefaultOpenDocuments,
   type OpenDocument,
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
 export {
   createNoteMoveService,
-  defaultNoteMove,
-  setDefaultNoteMove,
   NOTE_MOVED_EVENT,
   type NoteMovedListener,
   type NoteMoveService,
@@ -615,8 +438,6 @@ export {
 } from '../documents/note-move-service.ts'
 export {
   createTitleRenameService,
-  defaultTitleRename,
-  setDefaultTitleRename,
   type RenameCoordinator,
   type RenameCoordinatorOptions,
   type TitleRenameService,
@@ -631,30 +452,22 @@ export {
 } from '../documents/document-binding.ts'
 export {
   createXArchiveService,
-  defaultXArchive,
-  setDefaultXArchive,
   type ResolvedArchivedPost,
   type XArchiveService,
 } from '../x-archive.ts'
 export {
   createAppInfoService,
-  defaultAppInfo,
   marketingVersion,
-  setDefaultAppInfo,
   type AppInfoService,
 } from '../app/app-info-service.ts'
 export {
   createSecretStoreService,
-  defaultSecretStore,
-  setDefaultSecretStore,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
 export {
   createWebStorageService,
-  defaultStorage,
   getJson,
   reachWebStorage,
-  setDefaultStorage,
   setJson,
   type KeyValueStore,
   type StorageService,
@@ -663,8 +476,6 @@ export {
   LINGER_MS,
   MIN_VISIBLE_MS,
   createOperationsService,
-  defaultOperations,
-  setDefaultOperations,
   type Operation,
   type OperationAction,
   type OperationHandle,
@@ -682,140 +493,61 @@ export {
   type GraphRole,
   type GraphServices,
 } from '../app/create-graph-services.ts'
-export { installDefaultServices } from '../app/install-default-services.ts'
-export { defaultAppServices } from '../app/default-app-services.ts'
-export {
-  agentSkillStatus,
-  agentSkillInstall,
-  agentSkillUninstall,
-  type AgentSkillInstallState,
-  type AgentSkillStatus,
-} from '../app/agent-skill.ts'
-export {
-  createAgentSkillService,
-  defaultAgentSkill,
-  setDefaultAgentSkill,
-  type AgentSkillService,
-} from '../app/agent-skill-service.ts'
+export { type AgentSkillInstallState, type AgentSkillStatus } from '../app/agent-skill-service.ts'
+export { createAgentSkillService, type AgentSkillService } from '../app/agent-skill-service.ts'
 export {
   createMobileStorageService,
-  defaultMobileStorage,
-  setDefaultMobileStorage,
   type MobileStorageService,
 } from '../ipc/mobile-storage-service.ts'
 export {
   createCalendarService,
-  defaultCalendar,
-  setDefaultCalendar,
   type CalendarRange,
   type CalendarService,
 } from '../calendar/calendar-service.ts'
 export {
   countSelectedCalendars,
   createCalendarEventsService,
-  defaultCalendarEvents,
   groupCalendarsBySource,
-  setDefaultCalendarEvents,
   showsDayEvents,
   type CalendarEventsService,
 } from '../calendar/calendar-events-service.ts'
 export {
   createFileChangeService,
-  defaultFileChanges,
-  setDefaultFileChanges,
   type FileChangeBatch,
   type FileChangeService,
 } from '../indexing/file-change-service.ts'
-export {
-  createContactsService,
-  defaultContacts,
-  setDefaultContacts,
-  type ContactsService,
-} from '../contacts/contacts-service.ts'
+export { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 export {
   canPromptForContacts,
   contactsAccessNotice,
   createContactSuggestionService,
-  defaultContactSuggestions,
   isContactsAvailable,
-  setDefaultContactSuggestions,
   showsContactSuggestions,
   suggestedContactDetails,
   type ContactSuggestionService,
 } from '../contacts/contact-suggestion-service.ts'
-export {
-  createPersonNoteService,
-  defaultPersonNotes,
-  setDefaultPersonNotes,
-  type PersonNoteService,
-} from '../contacts/person-note-service.ts'
+export { createPersonNoteService, type PersonNoteService } from '../contacts/person-note-service.ts'
 export {
   createMeetingService,
-  defaultMeetings,
   mergeAttendeeUpgrades,
-  setDefaultMeetings,
   withAttendee,
   type AttendeeSuggestions,
   type MeetingService,
 } from '../contacts/meeting-service.ts'
-export {
-  createDatabaseService,
-  defaultDatabase,
-  setDefaultDatabase,
-  type DatabaseService,
-} from '../indexing/database-service.ts'
-export {
-  createIndexQueryService,
-  defaultIndexQuery,
-  setDefaultIndexQuery,
-  type IndexQueryService,
-} from '../indexing/index-query-service.ts'
+export { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
+export { createIndexQueryService, type IndexQueryService } from '../indexing/index-query-service.ts'
 export {
   createWikiResolverService,
-  defaultWikiResolver,
-  setDefaultWikiResolver,
   type WikiResolverService,
 } from '../indexing/wiki-resolver-service.ts'
-export {
-  createBacklinkService,
-  defaultBacklinks,
-  setDefaultBacklinks,
-  type BacklinkService,
-} from '../indexing/backlink-service.ts'
-export {
-  createSearchService,
-  defaultSearch,
-  setDefaultSearch,
-  type SearchService,
-} from '../indexing/search-service.ts'
-export {
-  createSuggestionService,
-  defaultSuggestions,
-  setDefaultSuggestions,
-  type SuggestionService,
-} from '../indexing/suggestion-service.ts'
-export {
-  createNoteListService,
-  defaultNoteList,
-  setDefaultNoteList,
-  type NoteListService,
-} from '../indexing/note-list-service.ts'
-export {
-  createGraphStatsService,
-  defaultGraphStats,
-  setDefaultGraphStats,
-  type GraphStatsService,
-} from '../indexing/graph-stats-service.ts'
-export {
-  createNotePathService,
-  defaultNotePath,
-  setDefaultNotePath,
-  type NotePathService,
-} from '../indexing/note-path-service.ts'
+export { createBacklinkService, type BacklinkService } from '../indexing/backlink-service.ts'
+export { createSearchService, type SearchService } from '../indexing/search-service.ts'
+export { createSuggestionService, type SuggestionService } from '../indexing/suggestion-service.ts'
+export { createNoteListService, type NoteListService } from '../indexing/note-list-service.ts'
+export { createGraphStatsService, type GraphStatsService } from '../indexing/graph-stats-service.ts'
+export { createNotePathService, type NotePathService } from '../indexing/note-path-service.ts'
 export {
   createIndexStoreService,
-  defaultIndexStore,
-  setDefaultIndexStore,
   type IndexApplyBatch,
   type IndexedNoteTouch,
   type IndexStoreService,
@@ -825,8 +557,6 @@ export {
 } from '../indexing/index-store-service.ts'
 export {
   createIndexLifecycleService,
-  defaultIndexLifecycle,
-  setDefaultIndexLifecycle,
   type IndexAppliedEvent,
   type IndexChangesAppliedEvent,
   type IndexFileProgress,
@@ -838,70 +568,50 @@ export {
 } from '../indexing/index-lifecycle-service.ts'
 export {
   createEmbeddingRuntimeService,
-  defaultEmbeddingRuntime,
-  setDefaultEmbeddingRuntime,
   type EmbeddingRuntimeService,
 } from '../embeddings/embedding-runtime-service.ts'
 export {
   createAiCredentialService,
-  defaultAiCredentials,
-  setDefaultAiCredentials,
   type AiCredentialService,
   type AiKeyReader,
 } from '../ai/ai-credential-service.ts'
 export {
   createAiKeyValidationService,
-  defaultAiKeyValidation,
-  setDefaultAiKeyValidation,
   type AiKeyValidationService,
 } from '../ai/ai-key-validation-service.ts'
 export {
   createAiPromptService,
-  defaultAiPrompts,
-  setDefaultAiPrompts,
   type AiPromptDraft,
   type AiPromptService,
 } from '../ai/ai-prompt-service.ts'
 export {
   createAiProviderConfigService,
-  defaultAiProviderConfig,
-  setDefaultAiProviderConfig,
   type AiProviderConfigService,
   type AiProviderDraftCheck,
   type NewAiProvider,
 } from '../ai/ai-provider-config-service.ts'
 export {
   createSelectionTransformService,
-  defaultSelectionTransform,
-  setDefaultSelectionTransform,
   type SelectionTransformRequest,
   type SelectionTransformService,
   type TransformStreamEvent,
 } from '../ai/selection-transform-service.ts'
 export {
   createPageDescriberService,
-  defaultPageDescriber,
-  setDefaultPageDescriber,
   type PageDescriberService,
   type PageEnrichment,
 } from '../ai/page-describer-service.ts'
 export {
   createAssetDescriberService,
-  defaultAssetDescriber,
-  setDefaultAssetDescriber,
   type AssetDescriberService,
 } from '../ai/asset-describer-service.ts'
 export {
   createTranscriptionService,
-  defaultTranscription,
-  setDefaultTranscription,
   withAppReviewDemoTranscription,
   type TranscriptionService,
 } from '../ai/transcription-service.ts'
 export {
   createTranscriptEnrichmentService,
-  defaultTranscriptEnrichment,
-  setDefaultTranscriptEnrichment,
   type AudioMemoEnrichmentCredentials,
   type EnrichedSessionTranscript,
   type EnrichSessionTranscriptInput,
@@ -913,16 +623,12 @@ export {
 export {
   createLanguageModelService,
   createLazyAiSdkLoader,
-  defaultLanguageModel,
-  setDefaultLanguageModel,
   withAppReviewDemo,
   type AiSdkLoader,
   type LanguageModelService,
 } from '../ai/language-model-service.ts'
 export {
   createChatHistoryService,
-  defaultChatHistory,
-  setDefaultChatHistory,
   type ChatHistoryService,
   type SaveChatTurnInput,
 } from '../ai/chat/chat-history-service.ts'
@@ -947,18 +653,12 @@ export {
 } from '../ai/chat/chat-session-service.ts'
 export { chunkNote, type NoteChunk } from '../embeddings/chunk.ts'
 export {
-  embedStatus,
-  embedEnsure,
-  embedTexts,
-  subscribeEmbedStatus,
   embedStatusSchema,
   type EmbedStatus,
   type EmbedProgress,
-} from '../embeddings/commands.ts'
+} from '../embeddings/embedding-runtime-service.ts'
 export {
   createEmbeddingIndexService,
-  defaultEmbeddingIndex,
-  setDefaultEmbeddingIndex,
   type EmbedChunkPayload,
   type EmbeddingBackfillOptions,
   type EmbeddingBackfillResult,
@@ -967,17 +667,13 @@ export {
 } from '../embeddings/embedding-index-service.ts'
 export {
   createRetrievalService,
-  defaultRetrieval,
   fuseRanked,
-  setDefaultRetrieval,
   type RetrievalHit,
   type RetrievalService,
   type RetrieveOptions,
 } from '../embeddings/retrieval-service.ts'
 export {
   createSemanticSearchService,
-  defaultSemanticSearch,
-  setDefaultSemanticSearch,
   type SemanticSearchGraphSource,
   type SemanticSearchService,
   type SemanticSearchServiceDeps,
@@ -1050,44 +746,16 @@ export {
   type GraphImportSummary,
   type WindowBootstrap,
 } from '../graph/schemas.ts'
-export {
-  windowBootstrap,
-  readNote,
-  readNoteLocal,
-  type LocalNoteRead,
-  writeNote,
-  createNoteIfAbsent,
-  writeAsset,
-  readAsset,
-  openAsset,
-  revealAsset,
-  listDir,
-  noteExists,
-  deleteNote,
-  listFiles,
-  listAttachments,
-  vaultScanStats,
-  type VaultScanStats,
-} from '../graph/commands.ts'
-export {
-  createEmbedMediaService,
-  defaultEmbedMedia,
-  setDefaultEmbedMedia,
-  type EmbedMediaService,
-} from '../embeds/embed-media-service.ts'
-export { createAsset, importAsset } from '../graph/assets.ts'
+export { type LocalNoteRead, type VaultScanStats } from '../graph/note-file-service.ts'
+export { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
+
 export { assetFileName } from '../graph/asset-names.ts'
 export {
-  newNoteId,
-  untitledNoteSeed,
-  untitledNotePath,
   isUntitledNotePath,
   deferredCreationPolicy,
   type DeferredCreationPolicy,
-  createNoteWithTitle,
-  resolveOrCreateNoteWithTitle,
   type ResolveOrCreateNoteResult,
-} from '../graph/create-note.ts'
+} from '../graph/note-creation-service.ts'
 export { ensureWelcomeNote, type EnsureWelcomeNoteOptions } from '../graph/onboarding.ts'
 export {
   createGraphSessionService,
@@ -1098,17 +766,10 @@ export {
   type GraphSessionState,
   type GraphStatus,
 } from '../graph/graph-session-service.ts'
-export {
-  createKeyboardService,
-  defaultKeyboard,
-  setDefaultKeyboard,
-  type KeyboardService,
-} from '../mobile/keyboard-service.ts'
+export { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
 export {
   createShareService,
-  defaultShare,
   noteShareContent,
-  setDefaultShare,
   type NoteShareContent,
   type ShareService,
 } from '../mobile/share-service.ts'
@@ -1131,11 +792,7 @@ export {
   graphRootForName,
   isGraphNameTaken,
 } from '../graph/graph-names.ts'
-export {
-  resolveExistingMarkdownTarget,
-  resolveExistingWikiTarget,
-  type ExistingWikiTargetResolution,
-} from '../graph/resolve-existing-wiki-target.ts'
+export { type ExistingWikiTargetResolution } from '../graph/note-link-resolver-service.ts'
 export {
   settingsSchema,
   editorMarkdownSyntaxSchema,
@@ -1203,16 +860,12 @@ export {
 } from '../settings/schema.ts'
 export {
   createSettingsService,
-  defaultSettings,
-  setDefaultSettings,
   type SettingsLoadOutcome,
   type SettingsService,
   type SettingsStatus,
 } from '../settings/settings-service.ts'
 export {
   createThemeService,
-  defaultTheme,
-  setDefaultTheme,
   THEME_PREFERENCE_CACHE_KEY,
   type ResolvedTheme,
   type ThemeService,
@@ -1220,16 +873,11 @@ export {
 export {
   contactsAuthorizationSchema,
   contactMatchSchema,
-  lookupContactsByName,
   isContactsReadable,
   type ContactsAuthorization,
   type ContactMatch,
 } from '../contacts/commands.ts'
-export {
-  contactLinkSuggestions,
-  contactNamesEqual,
-  matchContactForTitle,
-} from '../contacts/match.ts'
+export { contactNamesEqual, matchContactForTitle } from '../contacts/match.ts'
 export {
   contactDetailsMarkdown,
   appendContactDetails,
@@ -1237,8 +885,6 @@ export {
 } from '../contacts/markdown.ts'
 export { pickContactForEmail } from '../contacts/resolve.ts'
 export {
-  ensurePersonNote,
-  resolvePersonContact,
   type BlockedPersonResolution,
   type BlockedPersonContactResolution,
   type EnsurePersonNoteInput,
@@ -1249,84 +895,54 @@ export {
   type NewPersonContactResolution,
   type PersonContactResolution,
   type PersonResolution,
-} from '../contacts/person.ts'
+} from '../contacts/person-note-service.ts'
 export {
   CLASSIC_ACCESS_SECRET,
   classicAccessUntil,
   classicPaidThrough,
-  clearClassicAccess,
   isClassicAccessActive,
-  loadClassicAccess,
-  readClassicAccess,
-  signInWithClassic,
   type ClassicAccess,
   type ClassicInvoice,
   type ClassicSignInResult,
-} from '../classic/classic-access.ts'
+} from '../classic/classic-access-service.ts'
 export {
   createClassicAccessService,
-  defaultClassicAccess,
-  setDefaultClassicAccess,
   type ClassicAccessService,
   type ClassicAccessState,
   type ClassicSignInOptions,
 } from '../classic/classic-access-service.ts'
 export {
   createSubscriptionService,
-  defaultSubscription,
-  setDefaultSubscription,
   type ActiveSubscription,
   type SubscriptionService,
   type SubscriptionState,
 } from '../monetization/subscription-service.ts'
 export {
   createAppStoreEnvironmentService,
-  defaultAppStoreEnvironment,
-  setDefaultAppStoreEnvironment,
   type AppStoreEnvironment,
   type AppStoreEnvironmentService,
   type AppStoreEnvironmentState,
 } from '../monetization/app-store-environment-service.ts'
 export {
   createPaywallService,
-  defaultPaywall,
-  setDefaultPaywall,
   type PaywallGate,
   type PaywallService,
 } from '../monetization/paywall-service.ts'
 export {
   IAP_PRODUCT_IDS,
   createIapService,
-  defaultIap,
-  iapGetProducts,
-  iapPurchase,
-  iapIsOwned,
-  setDefaultIap,
   type IapProduct,
   type IapService,
 } from '../ipc/iap-plugin.ts'
-export {
-  createAppStoreService,
-  defaultAppStore,
-  getAppStoreEnvironment,
-  presentOfferCodeRedeemSheet,
-  setDefaultAppStore,
-  syncAppStore,
-  type AppStoreService,
-} from '../ipc/app-store-plugin.ts'
+export { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
 export {
   createWebAuthService,
-  defaultWebAuth,
-  setDefaultWebAuth,
-  startWebAuth,
   type StartWebAuth,
   type WebAuthOptions,
   type WebAuthService,
 } from '../ipc/web-auth-plugin.ts'
 export {
   createCommandService,
-  defaultCommands,
-  setDefaultCommands,
   type Command,
   type CommandKeyEvent,
   type CommandService,
@@ -1335,8 +951,6 @@ export {
 export { formatBinding } from '../commands/keybindings.ts'
 export {
   createKeymapService,
-  defaultKeymap,
-  setDefaultKeymap,
   type KeymapScope,
   type KeymapService,
   type KeymapServiceDeps,
@@ -1344,8 +958,6 @@ export {
 export {
   createNativeMenuService,
   createUnsupportedNativeMenuHost,
-  defaultNativeMenu,
-  setDefaultNativeMenu,
   type AppMenuEntry,
   type AppSubmenuLayout,
   type FocusedNoteMenuCommand,

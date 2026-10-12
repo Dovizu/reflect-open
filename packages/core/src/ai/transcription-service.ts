@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defaultHttp, type HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../app/http-service.ts'
 import { bytesToBase64 } from '../lib/base64.ts'
 import { ReflectError } from '../errors.ts'
 import { APP_REVIEW_STUB_KEY, stubTranscriptBody } from './app-review-demo.ts'
@@ -273,25 +273,4 @@ async function transcribeWithGemini(
     .map((part) => part.text ?? '')
     .join('')
     .trim()
-}
-
-let defaultService: TranscriptionService | null = null
-
-/**
- * The process-wide `TranscriptionService`; one with the App Review demo over
- * the HTTP service that `defaultHttp()` returns at call time unless
- * {@link setDefaultTranscription} installed another.
- */
-export function defaultTranscription(): TranscriptionService {
-  defaultService ??= withAppReviewDemoTranscription(
-    createTranscriptionService({
-      http: { fetch: (input, init) => defaultHttp().fetch(input, init) },
-    }),
-  )
-  return defaultService
-}
-
-/** Installs the process-wide `TranscriptionService`; `null` restores the default one. */
-export function setDefaultTranscription(service: TranscriptionService | null): void {
-  defaultService = service
 }

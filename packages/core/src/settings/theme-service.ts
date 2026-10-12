@@ -1,8 +1,8 @@
-import { defaultPlatform, type ColorScheme, type PlatformService } from '../app/platform-service.ts'
-import { defaultStorage, type StorageService } from '../app/storage-service.ts'
+import type { ColorScheme, PlatformService } from '../app/platform-service.ts'
+import type { StorageService } from '../app/storage-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { ThemePreference } from './schema.ts'
-import { defaultSettings, type SettingsService } from './settings-service.ts'
+import type { SettingsService } from './settings-service.ts'
 
 /** The concrete theme applied to the document. */
 export type ResolvedTheme = ColorScheme
@@ -120,21 +120,4 @@ export function createThemeService(deps: {
       await settings.whenLoaded()
     },
   }
-}
-
-let defaultService: ThemeService | null = null
-
-/** The process-wide theme; built over the default settings, storage, and platform unless {@link setDefaultTheme} installed another. */
-export function defaultTheme(): ThemeService {
-  defaultService ??= createThemeService({
-    settings: defaultSettings(),
-    storage: defaultStorage(),
-    platform: defaultPlatform(),
-  })
-  return defaultService
-}
-
-/** Installs the process-wide theme; `null` restores a lazily created one. */
-export function setDefaultTheme(service: ThemeService | null): void {
-  defaultService = service
 }

@@ -2,14 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestStorageService } from '../testing/storage.ts'
-import { setDefaultLogger } from './logger-service.ts'
-import {
-  createWebStorageService,
-  defaultStorage,
-  getJson,
-  setDefaultStorage,
-  setJson,
-} from './storage-service.ts'
+import { createWebStorageService, getJson, setJson } from './storage-service.ts'
 
 function createStorage(entries: Record<string, string> = {}): Storage {
   const values = new Map(Object.entries(entries))
@@ -34,8 +27,6 @@ function createStorage(entries: Record<string, string> = {}): Storage {
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
-  setDefaultStorage(null)
-  setDefaultLogger(null)
 })
 
 describe('createWebStorageService', () => {
@@ -134,41 +125,6 @@ describe('getJson and setJson', () => {
     expect(storage.local.get('key')).toBeNull()
   })
 })
-
-describe('defaultStorage', () => {
-  it('reaches the Web storage of `window`', () => {
-    vi.stubGlobal('window', {
-      localStorage: createStorage({ key: 'local' }),
-      sessionStorage: createStorage({ key: 'session' }),
-    })
-    expect(defaultStorage().local.get('key')).toBe('local')
-    expect(defaultStorage().session.get('key')).toBe('session')
-  })
-
-  it('keeps an area in memory when `window` denies access to it', () => {
-    vi.stubGlobal('window', {
-      get localStorage(): Storage {
-        throw new Error('SecurityError')
-      },
-      sessionStorage: createStorage(),
-    })
-    const logger = createTestLoggerService()
-    setDefaultLogger(logger)
-
-    defaultStorage().local.set('key', 'written')
-    expect(defaultStorage().local.get('key')).toBe('written')
-    expect(logger.getWarnings()).toHaveLength(1)
-  })
-
-  it('returns an installed service until it is reset', () => {
-    const storage = createTestStorageService()
-    setDefaultStorage(storage)
-    expect(defaultStorage()).toBe(storage)
-    setDefaultStorage(null)
-    expect(defaultStorage()).not.toBe(storage)
-  })
-})
-
 describe('createTestStorageService', () => {
   it('seeds, dumps, and notifies per key without touching globals', () => {
     const storage = createTestStorageService({ local: { a: '1' }, session: { b: '2' } })

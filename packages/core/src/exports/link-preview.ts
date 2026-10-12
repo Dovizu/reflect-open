@@ -1,8 +1,6 @@
 export type { LinkPreviewHtml } from '../app/web-fetch-service.ts'
 export {
   createLinkPreviewService,
-  defaultLinkPreview,
-  setDefaultLinkPreview,
   type LinkPreview,
   type LinkPreviewResolver,
   type LinkPreviewService,

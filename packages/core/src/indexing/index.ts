@@ -1,32 +1,12 @@
-/**
- * `@reflect/core` indexing layer (Plan 04) — the TS pipeline that turns parsed
- * notes into the SQLite projection, plus the typed read getters over it.
- */
-export {
-  applyIndexedNote,
-  applyIndexedNotes,
-  removeFromIndex,
-  moveNoteIndexed,
-  clearIndex,
-  setIndexMeta,
-} from './commands.ts'
-export {
-  subscribeFileChanges,
-  subscribeReconcileRequests,
-  emitFileChanges,
-  type FileChangeHandler,
-} from './file-changes.ts'
 export {
   FILE_CHANGES_EVENT,
   RECONCILE_EVENT,
   type FileChange,
   type FileChangeSource,
 } from './file-change-service.ts'
-export { INDEX_WRITTEN_EVENT, subscribeIndexWritten } from './index-written.ts'
+export { INDEX_WRITTEN_EVENT } from '../app/window-service.ts'
 export type { ApplyErrorHandler, MovedHandler } from './live.ts'
-export { hashContent } from './hash.ts'
-export { availableTemplatePath, slugPathForTitle, templateSlugPathForTitle } from './note-paths.ts'
-export { listTemplates, type TemplateEntry } from './template-list.ts'
+export { type TemplateEntry } from './index-query-service.ts'
 export {
   buildIndexedNote,
   CLAIM_TIER,
@@ -42,50 +22,30 @@ export {
   type IndexedTag,
   type IndexedAlias,
 } from './indexed-note.ts'
-export { indexNote, PROJECTION_VERSION_KEY, type IndexPassOptions } from './indexer.ts'
+export { PROJECTION_VERSION_KEY, type IndexPassOptions } from './indexer.ts'
 export {
-  dailyDatesInRange,
-  getBacklinks,
-  getBacklinksWithContext,
-  getConflictedNotes,
-  getDuplicateNoteIds,
-  getIndexMeta,
-  getLinkSources,
-  getPathLinkSources,
-  getNote,
-  getPinnedNotes,
-  getWikiAddressForPath,
-  suggestWikiTargets,
-  suggestWikiLinkTargets,
-  suggestTags,
-  getIndexedFileFactsByPath,
-  listDailyNotes,
-  resolveWikiTarget,
   type Backlink,
   type BacklinkContext,
   type BacklinkContextPage,
   type BacklinkContextPageOptions,
   type BacklinkSourceCursor,
+} from './backlink-service.ts'
+export {
   type ConflictedNote,
-  type DailyNoteRow,
-  type DailyNotesRange,
   type DuplicateIdGroup,
   type NoteRow,
   type PinnedNote,
-  type TagSuggestion,
-  type WikiLinkSuggestionResult,
-} from './queries.ts'
-export { resolveNoteTarget } from './resolve-target.ts'
+} from './index-query-service.ts'
+export { type DailyNoteRow, type DailyNotesRange } from '../daily/daily-note-service.ts'
+export { type TagSuggestion, type WikiLinkSuggestionResult } from './suggestion-service.ts'
+
 export {
-  listNotes,
-  listNoteTags,
-  listRecentNotes,
   type NoteListEntry,
   type NoteListOptions,
   type NoteTagFacet,
   type RecentNoteRow,
   type RecentNotesOptions,
-} from './note-list.ts'
+} from './note-list-service.ts'
 export {
   aliasHint,
   rankWikiSuggestions,
@@ -97,13 +57,7 @@ export {
 } from './suggest.ts'
 export type { DateSuggestion, DateSuggestionContext } from './date-suggestion-types.ts'
 export { generateDateSuggestions } from './date-suggestions.ts'
-export {
-  parseHighlights,
-  randomNotePath,
-  HIGHLIGHT_START,
-  HIGHLIGHT_END,
-  type HighlightSegment,
-} from './search.ts'
+export { parseHighlights, HIGHLIGHT_START, HIGHLIGHT_END, type HighlightSegment } from './search.ts'
 export { lineAt, lineSnippet, previewSnippet } from './snippet.ts'
 export {
   blockContextAt,
@@ -114,11 +68,7 @@ export {
 } from './block-context.ts'
 export { extractSnippetTasks, type SnippetTask } from './snippet-tasks.ts'
 export { parseSearchQuery, type ParsedSearchQuery, type SearchFilters } from './filter-query.ts'
-export {
-  searchWithFilters,
-  type FilteredSearchHit,
-  type FilteredSearchOptions,
-} from './filtered-search.ts'
+export { type FilteredSearchHit, type FilteredSearchOptions } from './search-service.ts'
 export {
   rewriteLinksForTitleChange,
   rewritePathLinksForMove,

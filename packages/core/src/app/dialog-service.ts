@@ -23,18 +23,3 @@ export interface DialogService {
   /** The absolute path of the picked folder. */
   pickFolder(options: PickFolderOptions): Promise<string | null>
 }
-
-let defaultService: DialogService | null = null
-
-/** The process-wide `DialogService`; throws when the host installed none. */
-export function defaultDialog(): DialogService {
-  if (defaultService === null) {
-    throw new Error('No DialogService is installed. Call setDefaultDialog() at startup.')
-  }
-  return defaultService
-}
-
-/** Install the process-wide `DialogService`, or remove it with `null`. */
-export function setDefaultDialog(service: DialogService | null): void {
-  defaultService = service
-}

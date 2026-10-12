@@ -31,16 +31,3 @@ export function createUnavailableImageCodec(): ImageCodecService {
     decode: async () => null,
   }
 }
-
-let defaultCodec: ImageCodecService | null = null
-
-/** The process-wide `ImageCodecService`; one with no decoder unless replaced. */
-export function defaultImageCodec(): ImageCodecService {
-  defaultCodec ??= createUnavailableImageCodec()
-  return defaultCodec
-}
-
-/** Install the process-wide `ImageCodecService`; `null` restores the one with no decoder. */
-export function setDefaultImageCodec(codec: ImageCodecService | null): void {
-  defaultCodec = codec
-}

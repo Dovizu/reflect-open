@@ -238,16 +238,3 @@ export function createUnsupportedUpdateService(): UpdateService {
     dispose: () => {},
   }
 }
-
-let defaultUpdateInstance: UpdateService | null = null
-
-/** The process-wide `UpdateService`; an unsupported one unless replaced. */
-export function defaultUpdate(): UpdateService {
-  defaultUpdateInstance ??= createUnsupportedUpdateService()
-  return defaultUpdateInstance
-}
-
-/** Install the process-wide `UpdateService`; `null` restores the unsupported one. */
-export function setDefaultUpdate(service: UpdateService | null): void {
-  defaultUpdateInstance = service
-}

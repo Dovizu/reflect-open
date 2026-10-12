@@ -1,9 +1,8 @@
 import { z } from 'zod'
 import { errorMessage } from '../errors.ts'
 import { windowBootstrapSchema, type WindowBootstrap } from '../graph/schemas.ts'
-import { currentIpc } from '../ipc/bridge.ts'
 import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
-import { defaultLogger, type LoggerService } from './logger-service.ts'
+import type { LoggerService } from './logger-service.ts'
 
 /** The label of the window the app opens at launch. */
 export const MAIN_WINDOW_LABEL = 'main'
@@ -164,21 +163,4 @@ export function createSingleWindowHost(): WindowHost {
     onCloseRequested: async () => () => {},
     hide: async () => {},
   }
-}
-
-let defaultService: WindowService | null = null
-
-/** The process-wide `WindowService`; a single main window over the installed bridge unless replaced. */
-export function defaultWindow(): WindowService {
-  defaultService ??= createWindowService({
-    ipc: currentIpc(),
-    host: createSingleWindowHost(),
-    logger: defaultLogger(),
-  })
-  return defaultService
-}
-
-/** Install the process-wide `WindowService`; `null` restores the single-window one. */
-export function setDefaultWindow(service: WindowService | null): void {
-  defaultService = service
 }

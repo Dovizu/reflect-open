@@ -13,7 +13,6 @@ import {
   createTestAppServices,
   createTestPlatformService,
   createTestScriptedBackupServiceFactory,
-  installTestServices,
   type TestAppServices,
   type TestBackupService,
   type TestOpenGraph,
@@ -137,8 +136,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
 
   const queryClient =
     options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const restore = installTestServices(app)
-  registerAppCommands()
+  registerAppCommands(app.commands)
 
   const route = options?.route
   const wrap = (children: ReactNode): ReactElement => {
@@ -171,7 +169,6 @@ async function prepare(options: AnyOptions | undefined): Promise<
     wrap,
     dispose: () => {
       queryClient.clear()
-      restore()
     },
   }
 }
@@ -180,9 +177,8 @@ async function prepare(options: AnyOptions | undefined): Promise<
  * Render `ui` the way the app does: inside `AppServicesProvider`, a query
  * client, and the real `SettingsProvider`, `GraphProvider` (which provides
  * the graph services), `RouterProvider` and, on request, `SyncProvider`. All
- * of them read `app`, which defaults to test doubles and is also installed as
- * the process-wide defaults until the test ends. Tests drive and observe the
- * app through the returned `app`: `app.graphSession.setGraph()`,
+ * of them read `app`, which defaults to test doubles. Tests drive and observe
+ * the app through the returned `app`: `app.graphSession.setGraph()`,
  * `app.settings.get()`, `app.navigation.navigations()`,
  * `app.operations.getAll()`.
  *

@@ -1,12 +1,12 @@
 import { mapXPostMediaUrls, parseYouTubeVideo } from '@post-embed/schema'
 import type { XPost, YouTubeVideo } from '@post-embed/types'
 import { oembedRequestURL } from '../actions/oembed.ts'
-import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultPlatform, type PlatformService } from '../app/platform-service.ts'
-import { defaultWebFetch, type WebFetchService } from '../app/web-fetch-service.ts'
+import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformService } from '../app/platform-service.ts'
+import type { WebFetchService } from '../app/web-fetch-service.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
-import { createArchivedPost, defaultXArchive, type XArchiveService } from '../x-archive.ts'
+import { createArchivedPost, type XArchiveService } from '../x-archive.ts'
 
 // A video no note asked for again is dropped this long after it was fetched.
 const YOUTUBE_VIDEO_DROP_MS = 30 * 60 * 1000
@@ -143,49 +143,4 @@ export function createEmbedMediaService(deps: {
     },
     resolveYouTubeVideo: (url) => videos.get(url) ?? loadYouTubeVideo(url),
   }
-}
-
-let installedService: EmbedMediaService | null = null
-let fallback: EmbedMediaService | null = null
-
-/**
- * The process-wide `EmbedMediaService`. Unless one is installed, it runs over
- * the default services, each resolved per call, so one instance holds what
- * was fetched however the defaults are replaced.
- */
-export function defaultEmbedMedia(): EmbedMediaService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createEmbedMediaService({
-    xArchive: {
-      resolve: async (generation, postId) => await defaultXArchive().resolve(generation, postId),
-      write: async (generation, post) => {
-        await defaultXArchive().write(generation, post)
-      },
-      fetchSyndication: async (postId) => await defaultXArchive().fetchSyndication(postId),
-    },
-    webFetch: { fetchOembed: async (url) => await defaultWebFetch().fetchOembed(url) },
-    platform: {
-      convertFileSrc: (filePath, protocol) => defaultPlatform().convertFileSrc(filePath, protocol),
-    },
-    clock: {
-      now: () => defaultClock().now(),
-      setTimeout: (fn, ms) => defaultClock().setTimeout(fn, ms),
-      clearTimeout: (handle) => {
-        defaultClock().clearTimeout(handle)
-      },
-    },
-    logger: {
-      error: (message, cause) => {
-        defaultLogger().error(message, cause)
-      },
-    },
-  })
-  return fallback
-}
-
-/** Install the process-wide `EmbedMediaService`; `null` restores the one over the defaults. */
-export function setDefaultEmbedMedia(service: EmbedMediaService | null): void {
-  installedService = service
 }

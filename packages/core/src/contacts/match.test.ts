@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { createTestContactsService } from '../testing/contacts.ts'
+import { describe, expect, it } from 'vitest'
 import type { ContactMatch } from './commands.ts'
-import { setDefaultContacts } from './contacts-service.ts'
-import { contactLinkSuggestions, contactNamesEqual, matchContactForTitle } from './match.ts'
+import { contactNamesEqual, matchContactForTitle, pickContactLinkSuggestions } from './match.ts'
 
 function contact(overrides: Partial<ContactMatch>): ContactMatch {
   return {
@@ -14,10 +12,6 @@ function contact(overrides: Partial<ContactMatch>): ContactMatch {
     ...overrides,
   }
 }
-
-afterEach(() => {
-  setDefaultContacts(null)
-})
 
 describe('matchContactForTitle', () => {
   it('matches a title that exactly equals a full name', () => {
@@ -75,7 +69,7 @@ describe('contactNamesEqual', () => {
   })
 })
 
-describe('contactLinkSuggestions', () => {
+describe('pickContactLinkSuggestions', () => {
   const ada = {
     fullName: 'Ada Lovelace',
     givenName: 'Ada',
@@ -84,28 +78,20 @@ describe('contactLinkSuggestions', () => {
     phones: [],
   }
 
-  it('answers empty for short queries without a lookup', async () => {
-    const contacts = createTestContactsService({ contacts: [ada] })
-    setDefaultContacts(contacts)
-    await expect(contactLinkSuggestions('a')).resolves.toEqual([])
-    expect(contacts.lookups()).toEqual([])
+  it('drops nameless and detail-less contacts', () => {
+    expect(
+      pickContactLinkSuggestions(
+        [
+          ada,
+          { fullName: '', givenName: 'Ada', familyName: '', emails: ['x@example.com'], phones: [] },
+          { fullName: 'Ada Byron', givenName: 'Ada', familyName: 'Byron', emails: [], phones: [] },
+        ],
+        4,
+      ),
+    ).toEqual([ada])
   })
 
-  it('keeps word-prefix matches, dropping nameless and detail-less contacts', async () => {
-    const contacts = createTestContactsService({
-      contacts: [
-        ada,
-        { fullName: '', givenName: 'Ada', familyName: '', emails: ['x@example.com'], phones: [] },
-        { fullName: 'Ada Byron', givenName: 'Ada', familyName: 'Byron', emails: [], phones: [] },
-      ],
-    })
-    setDefaultContacts(contacts)
-
-    await expect(contactLinkSuggestions('Ada')).resolves.toEqual([ada])
-    expect(contacts.lookups()).toEqual([{ kind: 'name', name: 'Ada' }])
-  })
-
-  it('dedupes same-named entries and honors the limit', async () => {
+  it('dedupes same-named entries and honors the limit', () => {
     const named = (index: number) => ({
       fullName: `Person ${index}`,
       givenName: 'Person',
@@ -113,20 +99,17 @@ describe('contactLinkSuggestions', () => {
       emails: [`p${index}@example.com`],
       phones: [],
     })
-    setDefaultContacts(
-      createTestContactsService({
-        contacts: [
-          named(1),
-          { ...named(1), emails: ['dupe@example.com'] },
-          named(2),
-          named(3),
-          named(4),
-          named(5),
-        ],
-      }),
+    const suggestions = pickContactLinkSuggestions(
+      [
+        named(1),
+        { ...named(1), emails: ['dupe@example.com'] },
+        named(2),
+        named(3),
+        named(4),
+        named(5),
+      ],
+      4,
     )
-
-    const suggestions = await contactLinkSuggestions('Person')
     expect(suggestions.map((entry) => entry.fullName)).toEqual([
       'Person 1',
       'Person 2',

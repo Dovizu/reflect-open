@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { ReflectError } from '../../errors.ts'
 import type { ToolExecutionOptions } from '@reflect/modules/ai'
 import type { RetrievalHit, RetrieveOptions } from '../../embeddings/retrieve.ts'
-import type { DailyNoteRow, DailyNotesRange } from '../../indexing/queries.ts'
-import type { RecentNoteRow, RecentNotesOptions } from '../../indexing/note-list.ts'
+import type { DailyNoteRow, DailyNotesRange } from '../../daily/daily-note-service.ts'
+import type { RecentNoteRow, RecentNotesOptions } from '../../indexing/note-list-service.ts'
 import {
   ASSET_UNAVAILABLE_ERROR,
   MAX_ASSET_DESCRIPTION_CHARS,
@@ -13,6 +13,7 @@ import {
   type ReadAssetsOutput,
 } from './read-assets.ts'
 import { MAX_NOTE_CONTENT_CHARS, type ReadNoteResult, type ReadNotesOutput } from './read-notes.ts'
+import { createAssetPrivacyService } from '../../assets/asset-privacy-service.ts'
 import { createPrivacyService } from '../../privacy/privacy-service.ts'
 import { createTestXArchiveService } from '../../testing/index.ts'
 import {
@@ -46,15 +47,20 @@ function buildNoteTools(effects: ToolEffects = {}): NoteTools {
       return await effects.readNoteFn(path)
     },
   }
+  const assetReferences = {
+    notePaths: effects.assetReferencingNotePathsFn ?? (async () => []),
+  }
+  const xArchive = createTestXArchiveService(
+    effects.xArchiveOwners === undefined ? {} : { owners: effects.xArchiveOwners },
+  )
   return createNoteToolsService({
     retrieval: { retrieve: effects.retrieveFn ?? (async () => []) },
     noteFile,
     noteList: { listRecentNotes: effects.listRecentNotesFn ?? (async () => []) },
     dailyNotes: { listDailyNotes: effects.listDailyNotesFn ?? (async () => []) },
-    assetReferences: { notePaths: effects.assetReferencingNotePathsFn ?? (async () => []) },
-    xArchive: createTestXArchiveService(
-      effects.xArchiveOwners === undefined ? {} : { owners: effects.xArchiveOwners },
-    ),
+    assetReferences,
+    assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),
+    xArchive,
     privacy: createPrivacyService({ noteFile }),
   }).build({ semanticSearchEnabled: effects.semanticSearchEnabled ?? true })
 }

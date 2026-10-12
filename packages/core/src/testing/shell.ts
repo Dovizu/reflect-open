@@ -1,35 +1,19 @@
-import { setDefaultClipboard, type ClipboardService } from '../app/clipboard-service.ts'
-import { defaultClock } from '../app/clock-service.ts'
-import {
-  setDefaultDialog,
-  type DialogService,
-  type PickFilesOptions,
-  type PickFolderOptions,
-} from '../app/dialog-service.ts'
-import {
-  createLifecycleService,
-  setDefaultLifecycle,
-  type AppLifecycleService,
-  type BackgroundTaskToken,
-  type LifecycleDomAdapter,
-} from '../app/lifecycle-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { createOpenerService, setDefaultOpener, type OpenerService } from '../app/opener-service.ts'
-import { setDefaultPersistenceFlush } from '../app/persistence-flush-service.ts'
+import type { ClipboardService } from '../app/clipboard-service.ts'
+import type { DialogService, PickFilesOptions, PickFolderOptions } from '../app/dialog-service.ts'
+import type { AppLifecycleService, BackgroundTaskToken } from '../app/lifecycle-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import { createOpenerService, type OpenerService } from '../app/opener-service.ts'
 import {
   createPathService,
   createPosixPathTransport,
-  setDefaultPath,
   type PathService,
 } from '../app/path-service.ts'
 import {
   MAIN_WINDOW_LABEL,
-  setDefaultWindow,
   type CloseRequestedHandler,
   type WindowService,
 } from '../app/window-service.ts'
 import type { WindowBootstrap } from '../graph/schemas.ts'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { createTestLoggerService } from './logger.ts'
 
@@ -375,28 +359,4 @@ export function createTestLifecycleService(options?: {
     confirmQuitCalls: () => confirmCalls,
     backgroundTasks: () => tasks.map((task) => ({ ...task })),
   }
-}
-
-/**
- * Install fresh dialog, clipboard, opener, and path fakes, the single-window
- * `WindowService`, an `AppLifecycleService` over `dom` (none without it), and
- * a `PersistenceFlushService` over them as the process-wide defaults.
- */
-export function installTestShellServices(options?: { dom?: LifecycleDomAdapter }): void {
-  setDefaultDialog(createTestDialogService())
-  setDefaultClipboard(createTestClipboardService())
-  setDefaultOpener(createTestOpenerService())
-  setDefaultPath(createTestPathService())
-  setDefaultWindow(null)
-  setDefaultPersistenceFlush(null)
-  setDefaultLifecycle(
-    options?.dom === undefined
-      ? null
-      : createLifecycleService({
-          ipc: currentIpc(),
-          dom: options.dom,
-          clock: defaultClock(),
-          logger: defaultLogger(),
-        }),
-  )
 }

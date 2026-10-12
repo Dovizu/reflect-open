@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { ExistingWikiTargetResolution } from '../graph/note-link-resolver-service.ts'
@@ -16,15 +16,9 @@ import {
   createTestNoteSession,
   createTestOperationsService,
   createTestPlatformService,
-  installTestServices,
-  createTestAppServices,
 } from '../testing/index.ts'
 import { createAttachmentService } from './attachment-service.ts'
-import {
-  createNotePreviewService,
-  defaultNotePreview,
-  setDefaultNotePreview,
-} from './note-preview-service.ts'
+import { createNotePreviewService } from './note-preview-service.ts'
 
 function previewAssetUrl(generation: number, path: string): string {
   return `reflect-asset://localhost/${encodeURIComponent(`${generation}/${path}`)}?reflect-preview=raster`
@@ -198,30 +192,5 @@ describe('readExistingNoteSource', () => {
     const notePreview = createTestNotePreviewService({ noteFile })
 
     await expect(notePreview.readExistingNoteSource('notes/alpha.md', 7)).resolves.toBe('# Alpha')
-  })
-})
-
-describe('defaultNotePreview', () => {
-  afterEach(() => {
-    setDefaultNotePreview(null)
-  })
-
-  it('reads the default services of the moment', async () => {
-    const service = defaultNotePreview()
-    const app = createTestAppServices()
-    app.noteFile.set('notes/alpha.md', '# Alpha\n\nBody')
-    const restore = installTestServices(app)
-    setDefaultNotePreview(null)
-
-    await expect(service.previewWikiTarget('Alpha', 1)).resolves.toMatchObject({
-      path: 'notes/alpha.md',
-    })
-    restore()
-  })
-
-  it('returns an installed service', () => {
-    const installed = createTestNotePreviewService()
-    setDefaultNotePreview(installed)
-    expect(defaultNotePreview()).toBe(installed)
   })
 })

@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from './bridge.ts'
 import type { IpcBridgeService } from './ipc-service.ts'
 import { definePluginCommand } from './plugin.ts'
 
@@ -48,19 +47,3 @@ export function createWebAuthService(deps: { ipc: IpcBridgeService }): WebAuthSe
     },
   }
 }
-
-let defaultService: WebAuthService | null = null
-
-/** The process-wide `WebAuthService`; one over the installed bridge unless replaced. */
-export function defaultWebAuth(): WebAuthService {
-  defaultService ??= createWebAuthService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `WebAuthService`; `null` restores the bridge-backed one. */
-export function setDefaultWebAuth(service: WebAuthService | null): void {
-  defaultService = service
-}
-
-/** {@link WebAuthService.start} on the process-wide service. */
-export const startWebAuth: StartWebAuth = async (options) => await defaultWebAuth().start(options)

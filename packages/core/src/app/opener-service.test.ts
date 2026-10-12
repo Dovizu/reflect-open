@@ -1,11 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createTestLoggerService } from '../testing/logger.ts'
-import {
-  createOpenerService,
-  defaultOpener,
-  setDefaultOpener,
-  type OpenerTransport,
-} from './opener-service.ts'
+import { createOpenerService, type OpenerTransport } from './opener-service.ts'
 
 function serviceOver(transport: Partial<OpenerTransport>) {
   const logger = createTestLoggerService()
@@ -59,18 +54,5 @@ describe('createOpenerService', () => {
       ['x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars'],
       ['x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts'],
     ])
-  })
-})
-
-describe('defaultOpener', () => {
-  afterEach(() => {
-    setDefaultOpener(null)
-  })
-
-  it('throws until a host installs one', () => {
-    expect(() => defaultOpener()).toThrow(/No OpenerService is installed/)
-    const { opener } = serviceOver({})
-    setDefaultOpener(opener)
-    expect(defaultOpener()).toBe(opener)
   })
 })

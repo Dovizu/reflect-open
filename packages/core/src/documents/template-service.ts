@@ -1,14 +1,14 @@
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
-import { defaultIndexQuery, type IndexQueryService } from '../indexing/index-query-service.ts'
-import { defaultNotePath, type NotePathService } from '../indexing/note-path-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { IndexQueryService } from '../indexing/index-query-service.ts'
+import type { NotePathService } from '../indexing/note-path-service.ts'
 import { splitFrontmatter, upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { displayNoteTitle } from '../markdown/note-title.ts'
 import { hasAuthoredTitle, parseNote } from '../markdown/extract.ts'
 import { slugForTitle } from '../markdown/slug.ts'
-import { defaultNoteMove, type NoteMoveService } from './note-move-service.ts'
-import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
+import type { NoteMoveService } from './note-move-service.ts'
+import type { OpenDocumentsService } from './open-documents-service.ts'
 
 /** The editor a template is inserted into: the part of the editor handle that the insert needs. */
 export interface TemplateInsertTarget {
@@ -171,44 +171,4 @@ export function createTemplateService(deps: TemplateServiceDeps): TemplateServic
       return target
     },
   }
-}
-
-let installedService: TemplateService | null = null
-let fallback: (TemplateServiceDeps & { service: TemplateService }) | null = null
-
-/**
- * The process-wide `TemplateService`; one over the default services unless
- * {@link setDefaultTemplates} installed another.
- */
-export function defaultTemplates(): TemplateService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const deps: TemplateServiceDeps = {
-    noteFile: defaultNoteFile(),
-    indexQuery: defaultIndexQuery(),
-    notePath: defaultNotePath(),
-    noteMove: defaultNoteMove(),
-    openDocuments: defaultOpenDocuments(),
-    operations: defaultOperations(),
-  }
-  if (
-    fallback?.noteFile !== deps.noteFile ||
-    fallback.indexQuery !== deps.indexQuery ||
-    fallback.notePath !== deps.notePath ||
-    fallback.noteMove !== deps.noteMove ||
-    fallback.openDocuments !== deps.openDocuments ||
-    fallback.operations !== deps.operations
-  ) {
-    fallback = { ...deps, service: createTemplateService(deps) }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `TemplateService`; `null` restores the one over
- * the default services.
- */
-export function setDefaultTemplates(service: TemplateService | null): void {
-  installedService = service
 }

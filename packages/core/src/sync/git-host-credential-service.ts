@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defaultSecretStore, type SecretStoreService } from '../secrets/secret-store-service.ts'
+import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type { GitCredential } from './git-repository-service.ts'
 
 /**
@@ -44,32 +44,4 @@ export function createGitHostCredentialService(deps: {
       }
     },
   }
-}
-
-let installedService: GitHostCredentialService | null = null
-let fallback: {
-  service: GitHostCredentialService
-  secretStore: SecretStoreService
-} | null = null
-
-/**
- * The process-wide `GitHostCredentialService`; one over
- * {@link defaultSecretStore} unless {@link setDefaultGitHostCredentials}
- * installed another.
- */
-export function defaultGitHostCredentials(): GitHostCredentialService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const secretStore = defaultSecretStore()
-  if (fallback?.secretStore !== secretStore) {
-    fallback = { service: createGitHostCredentialService({ secretStore }), secretStore }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `GitHostCredentialService`; `null` restores the default-backed one. */
-export function setDefaultGitHostCredentials(service: GitHostCredentialService | null): void {
-  installedService = service
-  fallback = null
 }

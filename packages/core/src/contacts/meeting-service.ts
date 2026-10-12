@@ -1,11 +1,11 @@
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import { isAppError } from '../errors.ts'
-import { defaultNoteCreation, type NoteCreationService } from '../graph/note-creation-service.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteCreationService } from '../graph/note-creation-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { dailyPath, notePath } from '../graph/paths.ts'
 import { serializeWikiSuggestionAddress, type WikiSuggestion } from '../indexing/suggest.ts'
-import { defaultSuggestions, type SuggestionService } from '../indexing/suggestion-service.ts'
-import { defaultWikiResolver, type WikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import type { SuggestionService } from '../indexing/suggestion-service.ts'
+import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { wikiLinkSafe } from '../markdown/edit.ts'
 import { canonicalEmail, canonicalEmails } from '../markdown/email-fields.ts'
 import { parseNote } from '../markdown/extract.ts'
@@ -13,16 +13,12 @@ import { headingNamesSection, sectionEnd, topLevelHeadings } from '../markdown/h
 import { foldKey } from '../markdown/keys.ts'
 import { slugForTitle } from '../markdown/slug.ts'
 import { appendListItem, type SectionTarget } from '../markdown/task-ast.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
 import { isContactsReadable } from './commands.ts'
-import { defaultContacts, type ContactMatch, type ContactsService } from './contacts-service.ts'
+import type { ContactMatch, ContactsService } from './contacts-service.ts'
 import { contactDetailsMarkdown } from './markdown.ts'
 import { pickContactLinkSuggestions } from './match.ts'
-import {
-  defaultPersonNotes,
-  type PersonNoteService,
-  type PersonResolution,
-} from './person-note-service.ts'
+import type { PersonNoteService, PersonResolution } from './person-note-service.ts'
 import { pickContactForEmail } from './resolve.ts'
 
 /**
@@ -594,50 +590,4 @@ export function createMeetingService(deps: {
       return { appended: true, createdNotes }
     },
   }
-}
-
-type MeetingServiceDeps = Parameters<typeof createMeetingService>[0]
-
-let installedService: MeetingService | null = null
-let fallback: { service: MeetingService; deps: MeetingServiceDeps } | null = null
-
-/**
- * The process-wide `MeetingService`; one over the default services unless
- * {@link setDefaultMeetings} installed another.
- */
-export function defaultMeetings(): MeetingService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const deps: MeetingServiceDeps = {
-    noteFile: defaultNoteFile(),
-    noteCreation: defaultNoteCreation(),
-    wikiResolver: defaultWikiResolver(),
-    suggestions: defaultSuggestions(),
-    personNotes: defaultPersonNotes(),
-    contacts: defaultContacts(),
-    settings: defaultSettings(),
-    logger: defaultLogger(),
-  }
-  if (
-    fallback?.deps.noteFile !== deps.noteFile ||
-    fallback.deps.noteCreation !== deps.noteCreation ||
-    fallback.deps.wikiResolver !== deps.wikiResolver ||
-    fallback.deps.suggestions !== deps.suggestions ||
-    fallback.deps.personNotes !== deps.personNotes ||
-    fallback.deps.contacts !== deps.contacts ||
-    fallback.deps.settings !== deps.settings ||
-    fallback.deps.logger !== deps.logger
-  ) {
-    fallback = { service: createMeetingService(deps), deps }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `MeetingService`; `null` restores the one over the
- * default services.
- */
-export function setDefaultMeetings(service: MeetingService | null): void {
-  installedService = service
 }

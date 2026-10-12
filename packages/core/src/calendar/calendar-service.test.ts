@@ -1,13 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { createTestCalendarService } from '../testing/calendar.ts'
+import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import {
-  createCalendarService,
-  defaultCalendar,
-  setDefaultCalendar,
-  type CalendarEvent,
-} from './calendar-service.ts'
+import { createCalendarService, type CalendarEvent } from './calendar-service.ts'
 
 function event(overrides: Partial<CalendarEvent> = {}): CalendarEvent {
   return {
@@ -31,10 +25,6 @@ function setup() {
   const calendar = createCalendarService({ ipc, logger })
   return { ipc, logger, calendar }
 }
-
-afterEach(() => {
-  setDefaultCalendar(null)
-})
 
 describe('createCalendarService', () => {
   it('reads the permission state and requests access', async () => {
@@ -97,16 +87,5 @@ describe('createCalendarService', () => {
     await Promise.resolve()
 
     expect(logger.getWarnings()).toHaveLength(1)
-  })
-})
-
-describe('defaultCalendar', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestCalendarService()
-    setDefaultCalendar(fake)
-    expect(defaultCalendar()).toBe(fake)
-
-    setDefaultCalendar(null)
-    expect(defaultCalendar()).not.toBe(fake)
   })
 })

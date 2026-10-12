@@ -16,6 +16,7 @@ import {
   createTestCaptureInboxService,
   createTestClockService,
   createTestHashService,
+  createTestLoggerService,
   createTestNoteFileService,
   createTestPageDescriberService,
   createTestPrivacyService,
@@ -140,6 +141,7 @@ export function createCaptureTestKit(): CaptureTestKit {
     backlinkTarget: { ensure: ensureBacklinkTargetMock },
     hash,
     clock,
+    logger: createTestLoggerService(),
   })
 
   return {

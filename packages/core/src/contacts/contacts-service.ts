@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 /**
@@ -69,17 +68,4 @@ export function createContactsService(deps: { ipc: IpcBridgeService }): Contacts
     lookupByName: (name) =>
       ipc.call('contacts_lookup_by_name', { name }, z.array(contactMatchSchema)),
   }
-}
-
-let defaultService: ContactsService | null = null
-
-/** The process-wide `ContactsService`; one over the installed bridge unless replaced. */
-export function defaultContacts(): ContactsService {
-  defaultService ??= createContactsService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `ContactsService`; `null` restores the bridge-backed one. */
-export function setDefaultContacts(service: ContactsService | null): void {
-  defaultService = service
 }

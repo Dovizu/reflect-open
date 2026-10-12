@@ -3,7 +3,7 @@ import { isIsoDate } from '@reflect/utils'
 import { sql } from 'kysely'
 import { dailyPath } from '../graph/paths.ts'
 import { foldKey } from '../markdown/index.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 import { inClauseChunks } from './query-utils.ts'
 
 /** One pinned note, as the sidebar's Pinned section lists it. */
@@ -294,27 +294,4 @@ export function createIndexQueryService(deps: { database: DatabaseService }): In
       return byAlias?.notePath ?? null
     },
   }
-}
-
-let installedService: IndexQueryService | null = null
-let fallback: { service: IndexQueryService; database: DatabaseService } | null = null
-
-/**
- * The process-wide `IndexQueryService`; one over {@link defaultDatabase}
- * unless {@link setDefaultIndexQuery} installed another.
- */
-export function defaultIndexQuery(): IndexQueryService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  if (fallback?.database !== database) {
-    fallback = { service: createIndexQueryService({ database }), database }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `IndexQueryService`; `null` restores the one over the default database. */
-export function setDefaultIndexQuery(service: IndexQueryService | null): void {
-  installedService = service
 }

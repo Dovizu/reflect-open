@@ -1,12 +1,12 @@
 import type { Database } from '@reflect/db'
 import { sql, type Selectable } from 'kysely'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import {
   blockContextLinesAt,
   prepareBlockContext,
   type BlockContextSource,
 } from './block-context.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 import {
   createSourceTaskLocator,
   extractSnippetTasks,
@@ -273,32 +273,4 @@ export function createBacklinkService(deps: {
       return { contexts: results, nextCursor, indexedLinkCount }
     },
   }
-}
-
-let installedService: BacklinkService | null = null
-let fallback: {
-  service: BacklinkService
-  database: DatabaseService
-  noteFile: NoteFileService
-} | null = null
-
-/**
- * The process-wide `BacklinkService`; one over {@link defaultDatabase} and
- * {@link defaultNoteFile} unless {@link setDefaultBacklinks} installed another.
- */
-export function defaultBacklinks(): BacklinkService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  const noteFile = defaultNoteFile()
-  if (fallback?.database !== database || fallback.noteFile !== noteFile) {
-    fallback = { service: createBacklinkService({ database, noteFile }), database, noteFile }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `BacklinkService`; `null` restores the default-backed one. */
-export function setDefaultBacklinks(service: BacklinkService | null): void {
-  installedService = service
 }

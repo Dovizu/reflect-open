@@ -1,22 +1,18 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { parseSearchQuery } from '../indexing/filter-query.ts'
-import { defaultIpc } from '../ipc/bridge.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
 import { createTestHttpService } from '../testing/http.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
-import { createTestAppServices, installTestServices } from '../testing/services.ts'
+import { createTestAppServices } from '../testing/services.ts'
 import { createTestClipboardService, createTestDialogService } from '../testing/shell.ts'
 import { createTestUpdaterAdapter } from '../testing/update.ts'
-import { defaultClock } from './clock-service.ts'
 import { createAppServices, type AppAdapters, type AppServices } from './create-app-services.ts'
-import { defaultLogger } from './logger-service.ts'
 import { createDetachedLifecycleDom } from './lifecycle-service.ts'
 import { createPosixPathTransport } from './path-service.ts'
-import { defaultPlatform } from './platform-service.ts'
 import { createSingleWindowHost } from './window-service.ts'
 
 const SERVICE_KEYS = [
@@ -164,13 +160,6 @@ function setup() {
   return { adapters, services: createAppServices(adapters) }
 }
 
-let restore: (() => void) | null = null
-
-afterEach(() => {
-  restore?.()
-  restore = null
-})
-
 describe('createAppServices', () => {
   it('composes every app service', () => {
     const { services } = setup()
@@ -291,16 +280,6 @@ describe('createAppServices', () => {
     })
     await expect(services.indexQuery.randomNotePath()).resolves.toBe('notes/a.md')
     expect(ipc.calls().map((call) => call.command)).toEqual(['db_query'])
-  })
-
-  it('leaves every process-wide default alone', () => {
-    const installed = createTestAppServices()
-    restore = installTestServices(installed)
-    setup()
-    expect(defaultLogger()).toBe(installed.logger)
-    expect(defaultClock()).toBe(installed.clock)
-    expect(defaultPlatform()).toBe(installed.platform)
-    expect(defaultIpc()).toBe(installed.ipc)
   })
 })
 

@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { graphInfoSchema, type GraphInfo } from '../graph/schemas.ts'
-import { currentIpc } from './bridge.ts'
 import type { IpcBridgeService } from './ipc-service.ts'
 
 const mobileStorageInfoSchema = z.object({
@@ -45,17 +44,4 @@ export function createMobileStorageService(deps: { ipc: IpcBridgeService }): Mob
     resolveLocal: () => ipc.call('mobile_storage_local', {}, z.string()),
     createGraph: (path) => ipc.call('graph_create', { path }, graphInfoSchema),
   }
-}
-
-let defaultService: MobileStorageService | null = null
-
-/** The process-wide `MobileStorageService`; one over the installed bridge unless replaced. */
-export function defaultMobileStorage(): MobileStorageService {
-  defaultService ??= createMobileStorageService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `MobileStorageService`; `null` restores the bridge-backed one. */
-export function setDefaultMobileStorage(service: MobileStorageService | null): void {
-  defaultService = service
 }

@@ -1,0 +1,21 @@
+import type { ClockService } from '../app/clock-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
+import { isMobilePlatform } from '../app/platform.ts'
+import type { IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { AudioRecorderService } from './audio-recorder-service.ts'
+import { createNativeAudioRecorder } from './native-audio-recorder.ts'
+import { createWebAudioRecorder } from './web-audio-recorder.ts'
+
+/** The native recorder in the mobile app, the webview recorder everywhere else. */
+export function createPlatformAudioRecorder(deps: {
+  platform: PlatformFacts
+  ipc: IpcBridgeService
+  clock: ClockService
+  logger: LoggerService
+}): AudioRecorderService {
+  const { platform, ipc, clock, logger } = deps
+  return isMobilePlatform(platform.appPlatform) || platform.surface.mobileApp
+    ? createNativeAudioRecorder({ ipc, logger })
+    : createWebAudioRecorder({ clock })
+}

@@ -1,22 +1,14 @@
-import { defaultPlatform, type PlatformService } from '../app/platform-service.ts'
-import { defaultStorage, type StorageService } from '../app/storage-service.ts'
-import {
-  defaultClassicAccess,
-  type ClassicAccessService,
-} from '../classic/classic-access-service.ts'
-import { defaultAppStore, type AppStoreService } from '../ipc/app-store-plugin.ts'
-import { IAP_PRODUCT_IDS, defaultIap, type IapProduct, type IapService } from '../ipc/iap-plugin.ts'
+import type { PlatformService } from '../app/platform-service.ts'
+import type { StorageService } from '../app/storage-service.ts'
+import type { ClassicAccessService } from '../classic/classic-access-service.ts'
+import type { AppStoreService } from '../ipc/app-store-plugin.ts'
+import { IAP_PRODUCT_IDS, type IapProduct, type IapService } from '../ipc/iap-plugin.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import {
-  defaultAppStoreEnvironment,
-  type AppStoreEnvironment,
-  type AppStoreEnvironmentService,
+import type {
+  AppStoreEnvironment,
+  AppStoreEnvironmentService,
 } from './app-store-environment-service.ts'
-import {
-  defaultSubscription,
-  type ActiveSubscription,
-  type SubscriptionService,
-} from './subscription-service.ts'
+import type { ActiveSubscription, SubscriptionService } from './subscription-service.ts'
 
 /** Paywall visibility: `show` replaces the app; `hide` leaves the app visible. */
 export type PaywallGate = 'show' | 'hide'
@@ -121,25 +113,4 @@ export function createPaywallService(deps: {
       subscription.invalidate()
     },
   }
-}
-
-let defaultService: PaywallService | null = null
-
-/** The process-wide `PaywallService`; one over the default services unless replaced. */
-export function defaultPaywall(): PaywallService {
-  defaultService ??= createPaywallService({
-    subscription: defaultSubscription(),
-    classicAccess: defaultClassicAccess(),
-    appStoreEnvironment: defaultAppStoreEnvironment(),
-    iap: defaultIap(),
-    appStore: defaultAppStore(),
-    platform: defaultPlatform(),
-    storage: defaultStorage(),
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `PaywallService`; `null` restores the default one. */
-export function setDefaultPaywall(service: PaywallService | null): void {
-  defaultService = service
 }

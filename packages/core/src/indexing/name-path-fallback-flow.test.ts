@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveOrCreateNoteWithTitle } from '../graph/create-note.ts'
+
 import { createTestDatabaseService } from '../testing/database.ts'
 import {
   connectIndex,
@@ -7,7 +7,6 @@ import {
   disconnectIndex,
   project,
 } from './flow-test-harness.ts'
-import { getBacklinks, suggestWikiLinkTargets } from './queries.ts'
 
 describe('colon and slash title flow', () => {
   it('projects, resolves, backlinks, and autocompletes a colon title', async () => {
@@ -19,21 +18,24 @@ describe('colon and slash title flow', () => {
     database.applyProjection(
       project('daily/2026-08-04.md', 'See [[Test: Long With Parens & Ampersand Follow-up]].\n', 10),
     )
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
       await expect(
-        resolveOrCreateNoteWithTitle('Test: Long With Parens & Ampersand Follow-up', 1),
+        index.noteCreation.resolveOrCreateNoteWithTitle(
+          'Test: Long With Parens & Ampersand Follow-up',
+          1,
+        ),
       ).resolves.toEqual({ kind: 'resolved', path: targetPath })
 
-      const backlinks = await getBacklinks(targetPath)
+      const backlinks = await index.backlinks.getBacklinks(targetPath)
       expect(backlinks.map((row) => row.sourcePath)).toEqual(['daily/2026-08-04.md'])
 
-      const { suggestions } = await suggestWikiLinkTargets('Test: Long')
+      const { suggestions } = await index.suggestions.suggestWikiLinkTargets('Test: Long')
       expect(suggestions.map((row) => row.insertText)).toEqual([
         'Test: Long With Parens & Ampersand Follow-up',
       ])
-      await expectSuggestionOpensItsPath(suggestions[0]!)
+      await expectSuggestionOpensItsPath(index, suggestions[0]!)
     } finally {
       disconnectIndex(database)
     }
@@ -46,20 +48,22 @@ describe('colon and slash title flow', () => {
     database.applyProjection(
       project('daily/2026-08-04.md', 'See [[john/sally meeting notes]].\n', 10),
     )
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
-      await expect(resolveOrCreateNoteWithTitle('john/sally meeting notes', 1)).resolves.toEqual({
+      await expect(
+        index.noteCreation.resolveOrCreateNoteWithTitle('john/sally meeting notes', 1),
+      ).resolves.toEqual({
         kind: 'resolved',
         path: targetPath,
       })
 
-      const backlinks = await getBacklinks(targetPath)
+      const backlinks = await index.backlinks.getBacklinks(targetPath)
       expect(backlinks.map((row) => row.sourcePath)).toEqual(['daily/2026-08-04.md'])
 
-      const { suggestions } = await suggestWikiLinkTargets('john/sally')
+      const { suggestions } = await index.suggestions.suggestWikiLinkTargets('john/sally')
       expect(suggestions.map((row) => row.insertText)).toEqual(['john/sally meeting notes'])
-      await expectSuggestionOpensItsPath(suggestions[0]!)
+      await expectSuggestionOpensItsPath(index, suggestions[0]!)
     } finally {
       disconnectIndex(database)
     }
@@ -70,17 +74,19 @@ describe('colon and slash title flow', () => {
     database.applyProjection(project('Projects/Plan.md', '# Weekly Planning\n', 20))
     database.applyProjection(project('notes/imposter.md', '# Projects/Plan\n', 30))
     database.applyProjection(project('daily/2026-08-04.md', 'See [[Projects/Plan]].\n', 10))
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
-      await expect(resolveOrCreateNoteWithTitle('Projects/Plan', 1)).resolves.toEqual({
+      await expect(
+        index.noteCreation.resolveOrCreateNoteWithTitle('Projects/Plan', 1),
+      ).resolves.toEqual({
         kind: 'resolved',
         path: 'Projects/Plan.md',
       })
 
-      const fileBacklinks = await getBacklinks('Projects/Plan.md')
+      const fileBacklinks = await index.backlinks.getBacklinks('Projects/Plan.md')
       expect(fileBacklinks.map((row) => row.sourcePath)).toEqual(['daily/2026-08-04.md'])
-      await expect(getBacklinks('notes/imposter.md')).resolves.toEqual([])
+      await expect(index.backlinks.getBacklinks('notes/imposter.md')).resolves.toEqual([])
     } finally {
       disconnectIndex(database)
     }
@@ -90,14 +96,16 @@ describe('colon and slash title flow', () => {
     const database = createTestDatabaseService()
     database.applyProjection(project('notes/missing.md', '# /Missing\n', 20))
     database.applyProjection(project('daily/2026-08-04.md', 'See [[/Missing]].\n', 10))
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
-      await expect(resolveOrCreateNoteWithTitle('/Missing', 1)).resolves.toEqual({
-        kind: 'unavailable',
-        paths: ['Missing.md'],
-      })
-      await expect(getBacklinks('notes/missing.md')).resolves.toEqual([])
+      await expect(index.noteCreation.resolveOrCreateNoteWithTitle('/Missing', 1)).resolves.toEqual(
+        {
+          kind: 'unavailable',
+          paths: ['Missing.md'],
+        },
+      )
+      await expect(index.backlinks.getBacklinks('notes/missing.md')).resolves.toEqual([])
     } finally {
       disconnectIndex(database)
     }
@@ -108,15 +116,17 @@ describe('colon and slash title flow', () => {
     const targetPath = 'notes/missingplan.md'
     database.applyProjection(project(targetPath, '# Missing/Plan\n', 20))
     database.applyProjection(project('daily/2026-08-04.md', 'See [[Missing/Plan#Next]].\n', 10))
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
-      await expect(resolveOrCreateNoteWithTitle('Missing/Plan#Next', 1)).resolves.toEqual({
+      await expect(
+        index.noteCreation.resolveOrCreateNoteWithTitle('Missing/Plan#Next', 1),
+      ).resolves.toEqual({
         kind: 'resolved',
         path: targetPath,
       })
 
-      const backlinks = await getBacklinks(targetPath)
+      const backlinks = await index.backlinks.getBacklinks(targetPath)
       expect(backlinks.map((row) => row.sourcePath)).toEqual(['daily/2026-08-04.md'])
     } finally {
       disconnectIndex(database)
@@ -128,15 +138,17 @@ describe('colon and slash title flow', () => {
     const targetPath = 'notes/missingplan.md'
     database.applyProjection(project(targetPath, '# Missing/Plan\n', 20))
     database.applyProjection(project('daily/2026-08-04.md', 'See [[Missing/Plan.md]].\n', 10))
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
-      await expect(resolveOrCreateNoteWithTitle('Missing/Plan.md', 1)).resolves.toEqual({
+      await expect(
+        index.noteCreation.resolveOrCreateNoteWithTitle('Missing/Plan.md', 1),
+      ).resolves.toEqual({
         kind: 'resolved',
         path: targetPath,
       })
 
-      const backlinks = await getBacklinks(targetPath)
+      const backlinks = await index.backlinks.getBacklinks(targetPath)
       expect(backlinks.map((row) => row.sourcePath)).toEqual(['daily/2026-08-04.md'])
     } finally {
       disconnectIndex(database)

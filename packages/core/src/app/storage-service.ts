@@ -1,5 +1,5 @@
 import type { ZodType } from 'zod'
-import { defaultLogger, type LoggerService } from './logger-service.ts'
+import type { LoggerService } from './logger-service.ts'
 
 /** One string-valued key-value area whose keys can be observed. */
 export interface KeyValueStore {
@@ -132,24 +132,4 @@ export function reachWebStorage(
     logger.warn(`reaching ${name} failed`, error)
     return null
   }
-}
-
-let defaultStorageInstance: StorageService | null = null
-
-/** The process-wide storage; the Web storage of `window` unless {@link setDefaultStorage} installed another. */
-export function defaultStorage(): StorageService {
-  if (defaultStorageInstance === null) {
-    const logger = defaultLogger()
-    defaultStorageInstance = createWebStorageService({
-      logger,
-      localStorage: reachWebStorage(logger, 'localStorage'),
-      sessionStorage: reachWebStorage(logger, 'sessionStorage'),
-    })
-  }
-  return defaultStorageInstance
-}
-
-/** Installs the process-wide storage; `null` restores a lazily created Web storage with an empty cache. */
-export function setDefaultStorage(storage: StorageService | null): void {
-  defaultStorageInstance = storage
 }

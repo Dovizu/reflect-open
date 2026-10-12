@@ -1,13 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestICloudNativeService } from '../testing/sync.ts'
-import { icloudPendingCount } from './commands.ts'
-import { createICloudNativeService, setDefaultICloudNative } from './icloud-native-service.ts'
-
-afterEach(() => {
-  setDefaultICloudNative(null)
-})
+import { createICloudNativeService } from './icloud-native-service.ts'
 
 function serviceOver(commands?: Record<string, (args: Record<string, unknown>) => unknown>) {
   const ipc = createTestIpcBridgeService({ commands })
@@ -118,16 +112,5 @@ describe('createICloudNativeService', () => {
     icloud.subscribeWatchFailed(() => {})
 
     await expect.poll(() => logger.getErrors()).toHaveLength(1)
-  })
-})
-
-describe('defaultICloudNative', () => {
-  it('backs the free functions and can be replaced', async () => {
-    const icloud = createTestICloudNativeService({ pendingCount: 3 })
-    setDefaultICloudNative(icloud)
-
-    await expect(icloudPendingCount('/c', 'notes')).resolves.toBe(3)
-
-    expect(icloud.calls()).toEqual([{ method: 'pendingCount', args: ['/c', 'notes'] }])
   })
 })

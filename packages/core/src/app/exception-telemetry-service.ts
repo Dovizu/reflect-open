@@ -27,16 +27,3 @@ export function createDisabledExceptionTelemetry(): ExceptionTelemetryService {
     reactRootOptions: () => ({}),
   }
 }
-
-let defaultService: ExceptionTelemetryService | null = null
-
-/** The process-wide `ExceptionTelemetryService`; a disabled one unless replaced. */
-export function defaultExceptionTelemetry(): ExceptionTelemetryService {
-  defaultService ??= createDisabledExceptionTelemetry()
-  return defaultService
-}
-
-/** Install the process-wide `ExceptionTelemetryService`; `null` restores the disabled one. */
-export function setDefaultExceptionTelemetry(service: ExceptionTelemetryService | null): void {
-  defaultService = service
-}

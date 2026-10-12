@@ -1,7 +1,7 @@
 import type { Database } from '@reflect/db'
 import { sql, type Kysely } from 'kysely'
 import { foldTag, normalizeWikiTarget } from '../markdown/index.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 import type { DateSuggestionContext } from './date-suggestion-types.ts'
 import { generateDateSuggestions } from './date-suggestions.ts'
 import { likeContains } from './query-utils.ts'
@@ -213,27 +213,4 @@ async function queryWikiTargetCandidates(
     candidateTargetKeys: [...candidateTargetKeys],
     queryReadsAsDate: dates.length > 0,
   }
-}
-
-let installedService: SuggestionService | null = null
-let fallback: { service: SuggestionService; database: DatabaseService } | null = null
-
-/**
- * The process-wide `SuggestionService`; one over {@link defaultDatabase}
- * unless {@link setDefaultSuggestions} installed another.
- */
-export function defaultSuggestions(): SuggestionService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  if (fallback?.database !== database) {
-    fallback = { service: createSuggestionService({ database }), database }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `SuggestionService`; `null` restores the one over the default database. */
-export function setDefaultSuggestions(service: SuggestionService | null): void {
-  installedService = service
 }

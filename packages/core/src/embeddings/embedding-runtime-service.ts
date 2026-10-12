@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
 
 /** Byte counts for an active model download; absent until it starts. */
@@ -198,17 +197,4 @@ export function createEmbeddingRuntimeService(deps: {
     subscribe,
     lastStatus: () => last,
   }
-}
-
-let defaultService: EmbeddingRuntimeService | null = null
-
-/** The process-wide `EmbeddingRuntimeService`; one over the installed bridge unless replaced. */
-export function defaultEmbeddingRuntime(): EmbeddingRuntimeService {
-  defaultService ??= createEmbeddingRuntimeService({ ipc: currentIpc(), logger: defaultLogger() })
-  return defaultService
-}
-
-/** Install the process-wide `EmbeddingRuntimeService`; `null` restores the bridge-backed one. */
-export function setDefaultEmbeddingRuntime(service: EmbeddingRuntimeService | null): void {
-  defaultService = service
 }

@@ -1,20 +1,17 @@
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOpener, type OpenerService } from '../app/opener-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import { defaultPlatform, type PlatformService } from '../app/platform-service.ts'
-import { defaultWindow, type WindowService } from '../app/window-service.ts'
-import { defaultAttachments, type AttachmentService } from '../documents/attachment-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OpenerService } from '../app/opener-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { PlatformService } from '../app/platform-service.ts'
+import type { WindowService } from '../app/window-service.ts'
+import type { AttachmentService } from '../documents/attachment-service.ts'
 import { errorMessage } from '../errors.ts'
-import { defaultNoteCreation, type NoteCreationService } from '../graph/note-creation-service.ts'
-import {
-  defaultNoteLinkResolver,
-  type NoteLinkResolverService,
-} from '../graph/note-link-resolver-service.ts'
-import { defaultWikiResolver, type WikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import type { NoteCreationService } from '../graph/note-creation-service.ts'
+import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
+import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { normalizeWikiTarget } from '../markdown/resolve.ts'
 import { deepLinkForRoute } from './deep-link-format.ts'
 import { isDeepLinkUrl, parseDeepLink } from './deep-link-parse.ts'
-import { defaultDeepLink, type DeepLinkService } from './deep-link-service.ts'
+import type { DeepLinkService } from './deep-link-service.ts'
 import { routeForPath, type NoteRoute, type Route } from './route.ts'
 
 /**
@@ -445,77 +442,4 @@ export function createLinkNavigationService(
     followDeepLink,
     reportAmbiguousNoteTitle,
   }
-}
-
-/**
- * Dependencies that read the process-wide default services at each call, so a
- * service built over them follows a replaced default.
- */
-export function createDefaultLinkNavigationDeps(): LinkNavigationServiceDeps {
-  return {
-    noteLinkResolver: {
-      resolveWikiTarget: (target, generation, sourcePath) =>
-        defaultNoteLinkResolver().resolveWikiTarget(target, generation, sourcePath),
-      resolveMarkdownHref: (sourcePath, href, generation) =>
-        defaultNoteLinkResolver().resolveMarkdownHref(sourcePath, href, generation),
-    },
-    noteCreation: {
-      resolveOrCreateNoteWithTitle: (title, generation, body) =>
-        defaultNoteCreation().resolveOrCreateNoteWithTitle(title, generation, body),
-    },
-    wikiResolver: {
-      resolveWikiTarget: (target) => defaultWikiResolver().resolveWikiTarget(target),
-    },
-    window: { openNoteWindow: (link) => defaultWindow().openNoteWindow(link) },
-    platform: {
-      get isNativeShell() {
-        return defaultPlatform().isNativeShell
-      },
-      get surface() {
-        return defaultPlatform().surface
-      },
-    },
-    opener: {
-      openUrlSync: (url) => {
-        defaultOpener().openUrlSync(url)
-      },
-    },
-    deepLink: {
-      dispatch: (url) => {
-        defaultDeepLink().dispatch(url)
-      },
-    },
-    attachments: {
-      resolveAssetOpenPath: (notePath, source, generation) =>
-        defaultAttachments().resolveAssetOpenPath(notePath, source, generation),
-      openOrReveal: (path, generation) => defaultAttachments().openOrReveal(path, generation),
-    },
-    operations: { start: (label, options) => defaultOperations().start(label, options) },
-    logger: {
-      error: (message, cause) => {
-        defaultLogger().error(message, cause)
-      },
-    },
-  }
-}
-
-let installedService: LinkNavigationService | null = null
-let fallback: LinkNavigationService | null = null
-
-/**
- * The process-wide `LinkNavigationService`. Unless one is installed, it is one
- * instance over {@link createDefaultLinkNavigationDeps} (its intent token
- * must outlive a replaced default).
- */
-export function defaultLinkNavigation(): LinkNavigationService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createLinkNavigationService(createDefaultLinkNavigationDeps())
-  return fallback
-}
-
-/** Install the process-wide `LinkNavigationService`; `null` restores the lazily built one. */
-export function setDefaultLinkNavigation(service: LinkNavigationService | null): void {
-  installedService = service
 }

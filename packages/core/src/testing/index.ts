@@ -20,7 +20,6 @@ export {
 } from './search.ts'
 export {
   createTestIpcBridgeService,
-  installTestBridge,
   type TestIpcBridgeService,
   type TestIpcBridgeServiceOptions,
 } from './ipc.ts'
@@ -31,7 +30,6 @@ export {
   createTestOpenerService,
   createTestPathService,
   createTestWindowService,
-  installTestShellServices,
   type DialogCall,
   type TestClipboardService,
   type TestDialogService,
@@ -57,7 +55,6 @@ export { createTestStorageService, type TestStorageService } from './storage.ts'
 export {
   createTestAppServices,
   createTestGraphServices,
-  installTestServices,
   type TestAppServices,
   type TestGraphServices,
 } from './services.ts'

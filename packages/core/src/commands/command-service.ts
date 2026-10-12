@@ -1,5 +1,5 @@
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import { normalizeBinding } from './keybindings.ts'
 
 /**
@@ -176,36 +176,4 @@ export function createCommandService<Context = unknown>(
       return null
     },
   }
-}
-
-let installedService: CommandService | null = null
-let fallback: CommandService | null = null
-
-/**
- * The process-wide `CommandService`. Unless one is installed, it is one
- * registry that reads the current default platform and logger on every call.
- */
-export function defaultCommands(): CommandService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createCommandService({
-    // Resolved per call: the platform and the logger may be installed later.
-    platform: {
-      get isApplePlatform() {
-        return defaultPlatform().isApplePlatform
-      },
-    },
-    logger: {
-      error: (...args) => defaultLogger().error(...args),
-      warn: (...args) => defaultLogger().warn(...args),
-      info: (...args) => defaultLogger().info(...args),
-    },
-  })
-  return fallback
-}
-
-/** Install the process-wide `CommandService`; `null` restores the fallback registry. */
-export function setDefaultCommands(service: CommandService | null): void {
-  installedService = service
 }

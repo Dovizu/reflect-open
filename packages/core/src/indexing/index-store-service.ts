@@ -2,10 +2,9 @@ import { z } from 'zod'
 import { errorMessage } from '../errors.ts'
 import { noteBasenameKey } from '../graph/note-reference.ts'
 import { dateFromDailyPath, foldGraphPath, isCalendarDate } from '../graph/paths.ts'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
-import { db } from './db.ts'
+import type { DatabaseService } from './database-service.ts'
+
 import type { IndexedNote } from './indexed-note.ts'
 
 /** Index commands return `()` from Rust, which serializes to `null` over IPC. */
@@ -319,27 +318,4 @@ export function createIndexStoreService(deps: {
       createIndexApplyBatchWriter(applyBatch, generation, onSkippedNote),
     createTouchBatch: (generation) => createMtimeTouchBatchWriter(touch, generation),
   }
-}
-
-let defaultInstance: IndexStoreService | null = null
-
-/**
- * The process-wide `IndexStoreService` over the bridge and the
- * `DatabaseService` installed at call time, unless {@link setDefaultIndexStore}
- * installed another.
- */
-export function defaultIndexStore(): IndexStoreService {
-  defaultInstance ??= createIndexStoreService({
-    ipc: currentIpc(),
-    database: {
-      db,
-      runQuery: async (sql, params) => await defaultDatabase().runQuery(sql, params),
-    },
-  })
-  return defaultInstance
-}
-
-/** Install the process-wide `IndexStoreService`; `null` restores the bridge-backed one. */
-export function setDefaultIndexStore(service: IndexStoreService | null): void {
-  defaultInstance = service
 }

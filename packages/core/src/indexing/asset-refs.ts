@@ -1,5 +1,5 @@
-import { defaultXArchive, type XArchiveService } from '../x-archive.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { XArchiveService } from '../x-archive.ts'
+import type { DatabaseService } from './database-service.ts'
 
 /**
  * Does an indexed reference name this file? A bare `![[photo.png]]` is stored
@@ -54,15 +54,4 @@ export function createAssetReferences(deps: {
       return rows.map((row) => row.notePath)
     },
   }
-}
-
-/** {@link AssetReferences.notePaths} over the default database and X archive. */
-export async function assetReferencingNotePaths(
-  assetPath: string,
-  knownOwners?: readonly string[],
-): Promise<string[]> {
-  return await createAssetReferences({
-    database: defaultDatabase(),
-    xArchive: defaultXArchive(),
-  }).notePaths(assetPath, knownOwners)
 }

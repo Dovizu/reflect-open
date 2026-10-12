@@ -1,12 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { createTestAgentSkillService } from '../testing/agent-skill.ts'
+import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { agentSkillInstall } from './agent-skill.ts'
-import {
-  createAgentSkillService,
-  defaultAgentSkill,
-  setDefaultAgentSkill,
-} from './agent-skill-service.ts'
+
+import { createAgentSkillService } from './agent-skill-service.ts'
 
 const STATUS = {
   skillName: 'reflect-notes',
@@ -14,11 +9,6 @@ const STATUS = {
   cliPath: '/app/reflect',
   installState: 'missing',
 }
-
-afterEach(() => {
-  setDefaultAgentSkill(null)
-})
-
 describe('createAgentSkillService', () => {
   it('reads the status and pins mutations to the generation', async () => {
     const ipc = createTestIpcBridgeService({
@@ -47,24 +37,5 @@ describe('createAgentSkillService', () => {
     await expect(createAgentSkillService({ ipc }).status()).rejects.toMatchObject({
       kind: 'parse',
     })
-  })
-})
-
-describe('defaultAgentSkill', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestAgentSkillService()
-    setDefaultAgentSkill(fake)
-    expect(defaultAgentSkill()).toBe(fake)
-
-    setDefaultAgentSkill(null)
-    expect(defaultAgentSkill()).not.toBe(fake)
-  })
-
-  it('backs the free functions', async () => {
-    const fake = createTestAgentSkillService()
-    setDefaultAgentSkill(fake)
-
-    await expect(agentSkillInstall(7)).resolves.toMatchObject({ installState: 'current' })
-    expect(fake.calls()).toEqual([{ method: 'install', generation: 7 }])
   })
 })

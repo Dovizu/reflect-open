@@ -15,16 +15,3 @@ export function createWebCryptoHashService(): HashService {
     },
   }
 }
-
-let defaultService: HashService | null = null
-
-/** The process-wide `HashService`, the Web Crypto one unless replaced. */
-export function defaultHashService(): HashService {
-  defaultService ??= createWebCryptoHashService()
-  return defaultService
-}
-
-/** Replace the process-wide `HashService`; `null` restores the Web Crypto one. */
-export function setDefaultHashService(service: HashService | null): void {
-  defaultService = service
-}

@@ -1,13 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { hasBridge, setBridge } from '../ipc/bridge.ts'
-import { call } from '../ipc/invoke.ts'
-import { createTestIpcBridgeService, installTestBridge } from './ipc.ts'
 
-afterEach(() => {
-  setBridge(null)
-})
-
+import { createTestIpcBridgeService } from './ipc.ts'
 describe('createTestIpcBridgeService', () => {
   it('answers commands from the constructor table and onCommand', async () => {
     const ipc = createTestIpcBridgeService({ commands: { app_version: () => '1.0.0' } })
@@ -82,16 +76,5 @@ describe('createTestIpcBridgeService', () => {
     const ipc = createTestIpcBridgeService({ binary: false, pluginEvents: false })
     expect(ipc.hasBinaryTransport).toBe(false)
     expect(ipc.hasPluginEvents).toBe(false)
-  })
-})
-
-describe('installTestBridge', () => {
-  it('installs the fake as the process-wide bridge until uninstalled', async () => {
-    const ipc = createTestIpcBridgeService({ commands: { ping: () => 'pong' } })
-    const uninstall = installTestBridge(ipc)
-
-    await expect(call('ping', {}, z.string())).resolves.toBe('pong')
-    uninstall()
-    expect(hasBridge()).toBe(false)
   })
 })

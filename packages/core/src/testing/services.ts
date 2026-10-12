@@ -5,7 +5,6 @@ import {
   type GraphServices,
 } from '../app/create-graph-services.ts'
 import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
-import { installDefaultServices, resetDefaultServices } from '../app/install-default-services.ts'
 import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
@@ -871,13 +870,4 @@ export function createTestGraphServices(
     sessionOverrides?.signal,
   )
   return createGraphServices(app ?? createTestAppServices(), session, role ?? 'main')
-}
-
-/**
- * Point every process-wide `defaultXxx()` at `services`. The returned
- * function resets every default to its state before any install.
- */
-export function installTestServices(services: AppServices): () => void {
-  installDefaultServices(services)
-  return resetDefaultServices
 }

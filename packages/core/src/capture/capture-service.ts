@@ -1,38 +1,29 @@
 import { appendXPost } from '../actions/bookmark-capture.ts'
 import type { XPostEnvelope } from '../actions/bookmark-envelope.ts'
 import { isCaptureSpoolPath } from '../actions/capture-identity.ts'
-import { defaultAiCredentials, type AiCredentialService } from '../ai/ai-credential-service.ts'
-import {
-  defaultAiProviderConfig,
-  type AiProviderConfigService,
-} from '../ai/ai-provider-config-service.ts'
-import { defaultPageDescriber, type PageDescriberService } from '../ai/page-describer-service.ts'
-import {
-  defaultBackgroundReconcilerFactory,
-  type BackgroundReconcilerFactory,
-} from '../app/background-reconciler.ts'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultHashService, type HashService } from '../app/hash-service.ts'
-import { defaultLifecycle, type AppLifecycleService } from '../app/lifecycle-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
+import type { AiCredentialService } from '../ai/ai-credential-service.ts'
+import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
+import type { PageDescriberService } from '../ai/page-describer-service.ts'
+import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { HashService } from '../app/hash-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
 import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
-import { defaultWebFetch, type WebFetchService } from '../app/web-fetch-service.ts'
-import {
-  defaultOpenDocuments,
-  type OpenDocumentsService,
-} from '../documents/open-documents-service.ts'
+import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
-import { defaultAssetStore, type AssetStoreService } from '../graph/asset-store-service.ts'
-import { defaultCaptureInbox, type CaptureInboxService } from '../graph/capture-inbox-service.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
-import { defaultFileChanges, type FileChangeService } from '../indexing/file-change-service.ts'
+import type { AssetStoreService } from '../graph/asset-store-service.ts'
+import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultPrivacy, type PrivacyService } from '../privacy/privacy-service.ts'
-import { defaultXArchive, type XArchiveService } from '../x-archive.ts'
-import { defaultBacklinkTarget, type BacklinkTargetService } from './backlink-target-service.ts'
+import type { PrivacyService } from '../privacy/privacy-service.ts'
+import type { XArchiveService } from '../x-archive.ts'
+import type { BacklinkTargetService } from './backlink-target-service.ts'
 import { createCaptureDrainService } from './capture-drain-service.ts'
 import { createCaptureEnrichmentService } from './capture-enrichment-service.ts'
 import { createPageMetaService } from './page-meta-service.ts'
@@ -104,7 +95,7 @@ export function createCaptureService(deps: {
   fileChanges: Pick<FileChangeService, 'subscribe'>
   operations: Pick<OperationsService, 'start'>
   platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
-  logger: Pick<LoggerService, 'error'>
+  logger: Pick<LoggerService, 'error' | 'warn'>
 }): CaptureService {
   const {
     captureInbox,
@@ -135,6 +126,7 @@ export function createCaptureService(deps: {
     backlinkTarget,
     hash,
     clock,
+    logger,
   })
   const enrichment = createCaptureEnrichmentService({
     noteFile,
@@ -310,49 +302,4 @@ export function createCaptureService(deps: {
       }
     },
   }
-}
-
-let installedService: CaptureService | null = null
-let fallback: CaptureService | null = null
-
-/**
- * The process-wide `CaptureService`. Unless {@link setDefaultCapture}
- * installed one, a service over the process-wide defaults of its
- * dependencies as they are at the first call.
- */
-export function defaultCapture(): CaptureService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createCaptureService({
-    captureInbox: defaultCaptureInbox(),
-    noteFile: defaultNoteFile(),
-    assetStore: defaultAssetStore(),
-    openDocuments: defaultOpenDocuments(),
-    backlinkTarget: defaultBacklinkTarget(),
-    xArchive: defaultXArchive(),
-    webFetch: defaultWebFetch(),
-    pageDescriber: defaultPageDescriber(),
-    aiProviderConfig: defaultAiProviderConfig(),
-    aiCredentials: defaultAiCredentials(),
-    privacy: defaultPrivacy(),
-    hash: defaultHashService(),
-    clock: defaultClock(),
-    reconcilers: defaultBackgroundReconcilerFactory(),
-    lifecycle: defaultLifecycle(),
-    fileChanges: defaultFileChanges(),
-    operations: defaultOperations(),
-    platform: defaultPlatform(),
-    logger: defaultLogger(),
-  })
-  return fallback
-}
-
-/**
- * Install the process-wide `CaptureService`. `null` restores the
- * default-backed one, rebuilt over the defaults at its next use.
- */
-export function setDefaultCapture(service: CaptureService | null): void {
-  installedService = service
-  fallback = null
 }

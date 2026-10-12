@@ -1,7 +1,6 @@
 import { z } from 'zod'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultFileChanges, type FileChangeService } from '../indexing/file-change-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import {
   fileMetaSchema,
@@ -134,36 +133,4 @@ export function createNoteFileService(deps: {
       return await ipc.call('vault_scan_stats', { generation }, vaultScanStatsSchema)
     },
   }
-}
-
-let installedService: NoteFileService | null = null
-let fallback: {
-  service: NoteFileService
-  clock: ClockService
-  fileChanges: FileChangeService
-} | null = null
-
-/**
- * The process-wide `NoteFileService`. Unless one is installed, it runs over
- * the installed bridge and the current default clock and file-change service.
- */
-export function defaultNoteFile(): NoteFileService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const clock = defaultClock()
-  const fileChanges = defaultFileChanges()
-  if (fallback?.clock !== clock || fallback.fileChanges !== fileChanges) {
-    fallback = {
-      service: createNoteFileService({ ipc: currentIpc(), clock, fileChanges }),
-      clock,
-      fileChanges,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `NoteFileService`; `null` restores the one over the installed bridge. */
-export function setDefaultNoteFile(service: NoteFileService | null): void {
-  installedService = service
 }

@@ -109,34 +109,3 @@ export function createPlatformService(
       subscribe(DARK_QUERY, (dark) => listener(dark ? 'dark' : 'light')),
   }
 }
-
-const NEUTRAL_FACTS: PlatformFacts = {
-  appPlatform: 'desktop',
-  isNativeShell: false,
-  isMacosDesktop: false,
-  isApplePlatform: false,
-  hasMacosTitleBarOverlay: false,
-  surface: { touchEditor: false, mobileApp: false },
-  isDev: false,
-  appVersion: '',
-}
-
-let installed: PlatformService | null = null
-let neutral: PlatformService | null = null
-
-/**
- * The process-wide platform: the one installed by {@link setDefaultPlatform},
- * or a neutral non-native desktop until then.
- */
-export function defaultPlatform(): PlatformService {
-  if (installed) {
-    return installed
-  }
-  neutral ??= createPlatformService(NEUTRAL_FACTS)
-  return neutral
-}
-
-/** Install the process-wide platform; `null` restores the neutral default. */
-export function setDefaultPlatform(platform: PlatformService | null): void {
-  installed = platform
-}

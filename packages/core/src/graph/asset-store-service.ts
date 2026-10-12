@@ -1,7 +1,6 @@
 import { z } from 'zod'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultFileChanges, type FileChangeService } from '../indexing/file-change-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import { base64ToBytes, bytesToBase64 } from '../lib/base64.ts'
 import { blobChunks } from '../lib/blob.ts'
@@ -186,36 +185,4 @@ export function createAssetStoreService(deps: {
       await ipc.call('transcript_cache_write', { name, contents, generation }, voidSchema)
     },
   }
-}
-
-let installedService: AssetStoreService | null = null
-let fallback: {
-  service: AssetStoreService
-  clock: ClockService
-  fileChanges: FileChangeService
-} | null = null
-
-/**
- * The process-wide `AssetStoreService`. Unless one is installed, it runs over
- * the installed bridge and the current default clock and file-change service.
- */
-export function defaultAssetStore(): AssetStoreService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const clock = defaultClock()
-  const fileChanges = defaultFileChanges()
-  if (fallback?.clock !== clock || fallback.fileChanges !== fileChanges) {
-    fallback = {
-      service: createAssetStoreService({ ipc: currentIpc(), clock, fileChanges }),
-      clock,
-      fileChanges,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `AssetStoreService`; `null` restores the one over the installed bridge. */
-export function setDefaultAssetStore(service: AssetStoreService | null): void {
-  installedService = service
 }

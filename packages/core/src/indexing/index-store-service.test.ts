@@ -1,23 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
+import { describe, expect, it } from 'vitest'
 import { parseNote } from '../markdown/index.ts'
 import { createTestDatabaseService } from '../testing/database.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
-import { createTestIpcBridgeService, installTestBridge } from '../testing/ipc.ts'
-import { setDefaultDatabase } from './database-service.ts'
+import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { buildIndexedNote, type IndexedNote } from './indexed-note.ts'
-import {
-  createIndexStoreService,
-  defaultIndexStore,
-  INDEX_APPLY_BATCH_SIZE,
-  setDefaultIndexStore,
-} from './index-store-service.ts'
-
-afterEach(() => {
-  setDefaultIndexStore(null)
-  setDefaultDatabase(null)
-  setBridge(null)
-})
+import { createIndexStoreService, INDEX_APPLY_BATCH_SIZE } from './index-store-service.ts'
 
 function note(path: string): IndexedNote {
   const source = `# ${path}\n`
@@ -239,33 +226,6 @@ describe('createTouchBatch', () => {
     expect(touches.applied()).toBe(2)
   })
 })
-
-describe('defaultIndexStore', () => {
-  it('writes through the bridge installed at call time', async () => {
-    const store = defaultIndexStore()
-    const ipc = createTestIpcBridgeService({ commands: writeCommands() })
-    installTestBridge(ipc)
-
-    await store.remove('notes/a.md', 2)
-
-    expect(ipc.calls()).toEqual([
-      { command: 'index_remove', args: { path: 'notes/a.md', generation: 2 } },
-    ])
-  })
-
-  it('reads `index_meta` through the database installed at call time', async () => {
-    const store = defaultIndexStore()
-    const database = createTestDatabaseService()
-    await database.runQuery('INSERT INTO index_meta(key, value) VALUES (?, ?)', ['k', 'v'])
-    setDefaultDatabase(database)
-    try {
-      await expect(store.getMeta('k')).resolves.toBe('v')
-    } finally {
-      database.close()
-    }
-  })
-})
-
 describe('createTestIndexStoreService', () => {
   it('records calls and mirrors applies into its database', async () => {
     const database = createTestDatabaseService()

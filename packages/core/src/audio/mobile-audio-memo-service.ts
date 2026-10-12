@@ -1,24 +1,19 @@
 import { AUDIO_MEMO_REMINDER_MS, AUDIO_MEMO_SEGMENT_MS } from '../actions/audio-memo-session.ts'
 import { audioMemoIdentity, audioMemoPartPath } from '../actions/audio-memo.ts'
-import { defaultLifecycle, type AppLifecycleService } from '../app/lifecycle-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultHaptics, type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
-import {
-  defaultAudioMemo,
-  type AudioMemoPhase,
-  type AudioMemoService,
-} from './audio-memo-service.ts'
+import type { HapticsService } from '../ipc/mobile-haptics-plugin.ts'
+import type { AudioMemoPhase, AudioMemoService } from './audio-memo-service.ts'
 import type {
   AudioRecorderSegment,
   AudioRecorderService,
   AudioRecorderState,
 } from './audio-recorder-service.ts'
-import { defaultAudioRecorder } from './default-audio-recorder.ts'
 import { NATIVE_RECORDING_MIME } from './native-audio-recorder.ts'
-import { defaultNativeAction, type NativeActionService } from './native-action-service.ts'
+import type { NativeActionService } from './native-action-service.ts'
 
 const MIC_DENIED_REASON = 'Microphone access was denied. Allow it for Reflect in the Settings app.'
 
@@ -517,37 +512,4 @@ export function createMobileAudioMemoService(deps: {
   }
 
   return { openSession }
-}
-
-let installedService: MobileAudioMemoService | null = null
-let fallback: MobileAudioMemoService | null = null
-
-/**
- * The process-wide `MobileAudioMemoService`. Unless
- * {@link setDefaultMobileAudioMemo} installed one, a service over the
- * process-wide defaults of its dependencies as they are at the first call.
- */
-export function defaultMobileAudioMemo(): MobileAudioMemoService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createMobileAudioMemoService({
-    audioMemo: defaultAudioMemo(),
-    audioRecorder: defaultAudioRecorder(),
-    nativeAction: defaultNativeAction(),
-    lifecycle: defaultLifecycle(),
-    haptics: defaultHaptics(),
-    platform: defaultPlatform(),
-    logger: defaultLogger(),
-  })
-  return fallback
-}
-
-/**
- * Install the process-wide `MobileAudioMemoService`. `null` restores the
- * default-backed one, rebuilt over the defaults at its next use.
- */
-export function setDefaultMobileAudioMemo(service: MobileAudioMemoService | null): void {
-  installedService = service
-  fallback = null
 }

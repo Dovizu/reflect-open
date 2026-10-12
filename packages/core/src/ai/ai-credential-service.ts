@@ -1,4 +1,4 @@
-import { defaultSecretStore, type SecretStoreService } from '../secrets/secret-store-service.ts'
+import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import { aiProviderRequiresApiKey } from './provider-catalog.ts'
 
@@ -72,27 +72,4 @@ export function createAiCredentialService(deps: {
       }
     },
   }
-}
-
-let defaultService: AiCredentialService | null = null
-
-/**
- * The process-wide `AiCredentialService`; one over the keychain that
- * `defaultSecretStore()` returns at call time unless
- * {@link setDefaultAiCredentials} installed another.
- */
-export function defaultAiCredentials(): AiCredentialService {
-  defaultService ??= createAiCredentialService({
-    secretStore: {
-      get: (name) => defaultSecretStore().get(name),
-      set: (name, value) => defaultSecretStore().set(name, value),
-      delete: (name) => defaultSecretStore().delete(name),
-    },
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `AiCredentialService`; `null` restores the default one. */
-export function setDefaultAiCredentials(service: AiCredentialService | null): void {
-  defaultService = service
 }

@@ -1,5 +1,3 @@
-import { defaultIndexQuery, type IndexQueryService } from './index-query-service.ts'
-
 /**
  * Search-highlight plumbing for indexed snippets and query-matched titles.
  * The search itself lives in `filtered-search.ts` — one ranked, snippeted
@@ -39,6 +37,3 @@ export function parseHighlights(snippet: string): HighlightSegment[] {
   }
   return segments
 }
-
-export const randomNotePath: IndexQueryService['randomNotePath'] = (...args) =>
-  defaultIndexQuery().randomNotePath(...args)

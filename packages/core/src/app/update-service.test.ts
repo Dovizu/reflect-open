@@ -12,8 +12,6 @@ import {
 import {
   createUnsupportedUpdateService,
   createUpdateService,
-  defaultUpdate,
-  setDefaultUpdate,
   type UpdateService,
 } from './update-service.ts'
 
@@ -55,7 +53,6 @@ function checkCount(updater: TestUpdaterAdapter): number {
 afterEach(() => {
   current?.dispose()
   current = null
-  setDefaultUpdate(null)
 })
 
 describe('createUpdateService', () => {
@@ -272,18 +269,6 @@ describe('createUnsupportedUpdateService', () => {
     expect(service.getState()).toEqual({ phase: 'idle' })
   })
 })
-
-describe('defaultUpdate', () => {
-  it('is unsupported until one is installed', () => {
-    expect(defaultUpdate().supported).toBe(false)
-    const installed = createTestUpdateService()
-    setDefaultUpdate(installed)
-    expect(defaultUpdate()).toBe(installed)
-    setDefaultUpdate(null)
-    expect(defaultUpdate()).not.toBe(installed)
-  })
-})
-
 describe('createTestUpdateService', () => {
   it('routes retryAction by the failed phase', async () => {
     const service = createTestUpdateService({ phase: 'error', message: 'x', during: 'install' })

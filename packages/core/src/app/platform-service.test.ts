@@ -1,10 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import {
-  createPlatformService,
-  defaultPlatform,
-  setDefaultPlatform,
-  type PlatformFacts,
-} from './platform-service.ts'
+import { describe, expect, it } from 'vitest'
+import { createPlatformService, type PlatformFacts } from './platform-service.ts'
 
 const FACTS: PlatformFacts = {
   appPlatform: 'ios',
@@ -136,25 +131,5 @@ describe('createPlatformService', () => {
     expect(platform.colorScheme()).toBe('light')
     const unsubscribe = platform.subscribeColorScheme(() => {})
     unsubscribe()
-  })
-})
-
-describe('defaultPlatform', () => {
-  afterEach(() => setDefaultPlatform(null))
-
-  it('is a neutral browser desktop until one is installed', () => {
-    expect(defaultPlatform().appPlatform).toBe('desktop')
-    expect(defaultPlatform().isNativeShell).toBe(false)
-    expect(defaultPlatform().isMacosDesktop).toBe(false)
-  })
-
-  it('returns the installed platform until it is reset', () => {
-    const platform = createPlatformService(FACTS, {})
-    setDefaultPlatform(platform)
-    expect(defaultPlatform()).toBe(platform)
-
-    setDefaultPlatform(null)
-    expect(defaultPlatform()).not.toBe(platform)
-    expect(defaultPlatform().isNativeShell).toBe(false)
   })
 })

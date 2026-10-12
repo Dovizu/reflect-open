@@ -1,8 +1,8 @@
 import { isAppError } from '../errors.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { splitFrontmatter, upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { frontmatterPatchToYaml, type FrontmatterPatch } from './note-session-frontmatter.ts'
-import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
+import type { OpenDocumentsService } from './open-documents-service.ts'
 
 /**
  * The single safe way to read and write a note from an in-app action (pin,
@@ -211,40 +211,4 @@ export function createNoteDocumentService(deps: {
     },
     isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
   }
-}
-
-let installedService: NoteDocumentService | null = null
-let fallback: {
-  service: NoteDocumentService
-  openDocuments: OpenDocumentsService
-  noteFile: NoteFileService
-} | null = null
-
-/**
- * The process-wide `NoteDocumentService`; one over {@link defaultOpenDocuments}
- * and {@link defaultNoteFile} unless {@link setDefaultNoteDocuments} installed
- * another.
- */
-export function defaultNoteDocuments(): NoteDocumentService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const openDocuments = defaultOpenDocuments()
-  const noteFile = defaultNoteFile()
-  if (fallback?.openDocuments !== openDocuments || fallback.noteFile !== noteFile) {
-    fallback = {
-      service: createNoteDocumentService({ openDocuments, noteFile }),
-      openDocuments,
-      noteFile,
-    }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `NoteDocumentService`; `null` restores the one over
- * the default open documents and note file.
- */
-export function setDefaultNoteDocuments(service: NoteDocumentService | null): void {
-  installedService = service
 }

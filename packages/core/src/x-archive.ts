@@ -2,7 +2,6 @@ import { z } from 'zod'
 import { fromSyndication } from '@post-embed/exporter/x/syndication'
 import { parseXPost } from '@post-embed/schema'
 import type { XPost, XPostBase } from '@post-embed/types'
-import { currentIpc } from './ipc/bridge.ts'
 import type { IpcBridgeService } from './ipc/ipc-service.ts'
 
 export interface ArchivedXPost {
@@ -91,17 +90,4 @@ export function createXArchiveService(deps: { ipc: IpcBridgeService }): XArchive
       return post?.id === postId ? post : null
     },
   }
-}
-
-let defaultService: XArchiveService | null = null
-
-/** The process-wide `XArchiveService`; one over the installed bridge unless replaced. */
-export function defaultXArchive(): XArchiveService {
-  defaultService ??= createXArchiveService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `XArchiveService`; `null` restores the one over the installed bridge. */
-export function setDefaultXArchive(service: XArchiveService | null): void {
-  defaultService = service
 }

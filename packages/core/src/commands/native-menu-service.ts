@@ -1,11 +1,10 @@
 import { z } from 'zod'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
-import { defaultWindow, MAIN_WINDOW_LABEL, type WindowService } from '../app/window-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
+import { MAIN_WINDOW_LABEL, type WindowService } from '../app/window-service.ts'
 import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
 import { bindingToAccelerator } from './accelerator.ts'
-import { defaultCommands, type CommandService } from './command-service.ts'
+import type { CommandService } from './command-service.ts'
 
 /** A menu item whose behavior the operating system implements. */
 export type NativeMenuPredefinedItem =
@@ -273,52 +272,4 @@ export function createNativeMenuService(deps: NativeMenuServiceDeps): NativeMenu
       await host.popup(options.items)
     },
   }
-}
-
-let installedService: NativeMenuService | null = null
-let fallback: NativeMenuService | null = null
-
-/**
- * The process-wide `NativeMenuService`. Unless one is installed, it runs over
- * the current default command, window, platform, IPC, and logger services,
- * read on every call, and a host without native menus.
- */
-export function defaultNativeMenu(): NativeMenuService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createNativeMenuService({
-    // Resolved per call: each of these may be installed later.
-    commands: { list: () => defaultCommands().list() },
-    window: {
-      isMainWindow: () => defaultWindow().isMainWindow(),
-      focusedWindowLabel: async () => await defaultWindow().focusedWindowLabel(),
-      emitTo: async (label, event, payload) => {
-        await defaultWindow().emitTo(label, event, payload)
-      },
-      subscribeWindowEvent: (event, listener) =>
-        defaultWindow().subscribeWindowEvent(event, listener),
-    },
-    platform: {
-      get isMacosDesktop() {
-        return defaultPlatform().isMacosDesktop
-      },
-      get isNativeShell() {
-        return defaultPlatform().isNativeShell
-      },
-    },
-    ipc: currentIpc(),
-    logger: {
-      error: (...args) => defaultLogger().error(...args),
-      warn: (...args) => defaultLogger().warn(...args),
-      info: (...args) => defaultLogger().info(...args),
-    },
-    host: createUnsupportedNativeMenuHost(),
-  })
-  return fallback
-}
-
-/** Install the process-wide `NativeMenuService`; `null` restores the fallback. */
-export function setDefaultNativeMenu(service: NativeMenuService | null): void {
-  installedService = service
 }

@@ -1,10 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import {
-  createPathService,
-  createPosixPathTransport,
-  defaultPath,
-  setDefaultPath,
-} from './path-service.ts'
+import { describe, expect, it } from 'vitest'
+import { createPathService, createPosixPathTransport } from './path-service.ts'
 
 describe('createPathService', () => {
   it('derives the iCloud Drive root from the home directory', async () => {
@@ -26,18 +21,5 @@ describe('createPosixPathTransport', () => {
     await expect(join('/', '..')).resolves.toBe('/')
     await expect(join('a', '..', '..', 'b')).resolves.toBe('../b')
     await expect(join('')).resolves.toBe('.')
-  })
-})
-
-describe('defaultPath', () => {
-  afterEach(() => {
-    setDefaultPath(null)
-  })
-
-  it('throws until a host installs one', () => {
-    expect(() => defaultPath()).toThrow(/No PathService is installed/)
-    const path = createPathService({ transport: createPosixPathTransport('/') })
-    setDefaultPath(path)
-    expect(defaultPath()).toBe(path)
   })
 })

@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import { fileMetaSchema, type FileMeta } from './schemas.ts'
 
@@ -77,17 +76,4 @@ export function createCaptureInboxService(deps: { ipc: IpcBridgeService }): Capt
       )
     },
   }
-}
-
-let defaultService: CaptureInboxService | null = null
-
-/** The process-wide `CaptureInboxService`; one over the installed bridge unless replaced. */
-export function defaultCaptureInbox(): CaptureInboxService {
-  defaultService ??= createCaptureInboxService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `CaptureInboxService`; `null` restores the one over the installed bridge. */
-export function setDefaultCaptureInbox(service: CaptureInboxService | null): void {
-  defaultService = service
 }

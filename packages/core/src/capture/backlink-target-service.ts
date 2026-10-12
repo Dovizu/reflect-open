@@ -1,6 +1,6 @@
 import { ReflectError } from '../errors.ts'
-import { defaultNoteCreation, type NoteCreationService } from '../graph/note-creation-service.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteCreationService } from '../graph/note-creation-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { wikiLinkSafe } from '../markdown/edit.ts'
 import { parseNote } from '../markdown/extract.ts'
 
@@ -39,37 +39,4 @@ export function createBacklinkTargetService(deps: {
       return wikiLinkSafe(currentTitle) === currentTitle ? currentTitle : title
     },
   }
-}
-
-let installedService: BacklinkTargetService | null = null
-let fallback: {
-  service: BacklinkTargetService
-  noteCreation: NoteCreationService
-  noteFile: NoteFileService
-} | null = null
-
-/**
- * The process-wide `BacklinkTargetService`; one over
- * {@link defaultNoteCreation} and {@link defaultNoteFile} unless
- * {@link setDefaultBacklinkTarget} installed another.
- */
-export function defaultBacklinkTarget(): BacklinkTargetService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const noteCreation = defaultNoteCreation()
-  const noteFile = defaultNoteFile()
-  if (fallback?.noteCreation !== noteCreation || fallback.noteFile !== noteFile) {
-    fallback = {
-      service: createBacklinkTargetService({ noteCreation, noteFile }),
-      noteCreation,
-      noteFile,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `BacklinkTargetService`; `null` restores the default-backed one. */
-export function setDefaultBacklinkTarget(service: BacklinkTargetService | null): void {
-  installedService = service
 }

@@ -1,8 +1,7 @@
 import { z } from 'zod'
-import { currentIpc } from '../ipc/bridge.ts'
 import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
-import { defaultClock, type ClockService, type TimerHandle } from './clock-service.ts'
-import { defaultLogger, type LoggerService } from './logger-service.ts'
+import type { ClockService, TimerHandle } from './clock-service.ts'
+import type { LoggerService } from './logger-service.ts'
 
 /** The shell's notice that it deferred an app exit so the frontend can flush. */
 export const QUIT_REQUESTED_EVENT = 'app:quit-requested'
@@ -152,22 +151,4 @@ export function createDetachedLifecycleDom(): LifecycleDomAdapter {
     onVisibilityChange: () => () => {},
     isHidden: () => false,
   }
-}
-
-let defaultService: AppLifecycleService | null = null
-
-/** The process-wide `AppLifecycleService`; one without DOM signals unless replaced. */
-export function defaultLifecycle(): AppLifecycleService {
-  defaultService ??= createLifecycleService({
-    ipc: currentIpc(),
-    dom: createDetachedLifecycleDom(),
-    clock: defaultClock(),
-    logger: defaultLogger(),
-  })
-  return defaultService
-}
-
-/** Install the process-wide `AppLifecycleService`; `null` restores the one without DOM signals. */
-export function setDefaultLifecycle(service: AppLifecycleService | null): void {
-  defaultService = service
 }

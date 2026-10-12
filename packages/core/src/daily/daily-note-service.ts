@@ -1,7 +1,7 @@
 import { isNotNullish } from '@ocavue/utils'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultLifecycle, type AppLifecycleService } from '../app/lifecycle-service.ts'
-import { defaultDatabase, type DatabaseService } from '../indexing/database-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { DatabaseService } from '../indexing/database-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { localIsoDate } from '../lib/dates.ts'
 
@@ -125,47 +125,4 @@ export function createDailyNoteService(deps: {
       }
     },
   }
-}
-
-let installedService: DailyNoteService | null = null
-let fallback: {
-  service: DailyNoteService
-  database: DatabaseService
-  clock: ClockService
-  lifecycle: AppLifecycleService
-} | null = null
-
-/**
- * The process-wide `DailyNoteService`; one over {@link defaultDatabase},
- * {@link defaultClock} and {@link defaultLifecycle} unless
- * {@link setDefaultDailyNotes} installed another.
- */
-export function defaultDailyNotes(): DailyNoteService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  const clock = defaultClock()
-  const lifecycle = defaultLifecycle()
-  if (
-    fallback?.database !== database ||
-    fallback.clock !== clock ||
-    fallback.lifecycle !== lifecycle
-  ) {
-    fallback = {
-      service: createDailyNoteService({ database, clock, lifecycle }),
-      database,
-      clock,
-      lifecycle,
-    }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `DailyNoteService`; `null` restores the one over
- * the default database, clock and lifecycle.
- */
-export function setDefaultDailyNotes(service: DailyNoteService | null): void {
-  installedService = service
 }

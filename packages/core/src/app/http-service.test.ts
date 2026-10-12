@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestHttpService } from '../testing/index.ts'
-import { createBrowserHttpService, defaultHttp, setDefaultHttp } from './http-service.ts'
+import { createBrowserHttpService } from './http-service.ts'
 
 afterEach(() => {
-  setDefaultHttp(null)
   vi.unstubAllGlobals()
 })
 
@@ -20,19 +19,6 @@ describe('createBrowserHttpService', () => {
     expect(globalFetch).toHaveBeenCalledWith('https://example.com/a', init)
   })
 })
-
-describe('defaultHttp', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestHttpService()
-    setDefaultHttp(fake)
-    expect(defaultHttp()).toBe(fake)
-
-    setDefaultHttp(null)
-    expect(defaultHttp()).not.toBe(fake)
-    expect(defaultHttp()).toBe(defaultHttp())
-  })
-})
-
 describe('createTestHttpService', () => {
   it('answers an unmatched request with 404', async () => {
     const http = createTestHttpService()

@@ -54,18 +54,3 @@ function joinPosix(parts: readonly string[]): string {
   }
   return joined === '' ? '.' : joined
 }
-
-let defaultService: PathService | null = null
-
-/** The process-wide `PathService`; throws when the host installed none. */
-export function defaultPath(): PathService {
-  if (defaultService === null) {
-    throw new Error('No PathService is installed. Call setDefaultPath() at startup.')
-  }
-  return defaultService
-}
-
-/** Install the process-wide `PathService`, or remove it with `null`. */
-export function setDefaultPath(service: PathService | null): void {
-  defaultService = service
-}

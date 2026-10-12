@@ -1,15 +1,11 @@
 import { isAppError } from '../errors.ts'
 import { CLAIM_TIER, projectNoteAliases } from '../indexing/indexed-note.ts'
-import {
-  defaultWikiResolver,
-  type WikiResolverService,
-  type WikiTargetMatch,
-} from '../indexing/wiki-resolver-service.ts'
+import type { WikiResolverService, WikiTargetMatch } from '../indexing/wiki-resolver-service.ts'
 import { parseNote } from '../markdown/extract.ts'
 import { foldFallbackTitleKey, foldKey } from '../markdown/keys.ts'
 import { normalizeWikiTarget } from '../markdown/resolve.ts'
 import { slugForTitle } from '../markdown/slug.ts'
-import { defaultNoteFile, type NoteFileService } from './note-file-service.ts'
+import type { NoteFileService } from './note-file-service.ts'
 import { markdownNoteReference, wikiNoteReference, type NoteReference } from './note-reference.ts'
 import { dailyPath, foldGraphPath, NOTES_DIR } from './paths.ts'
 import type { FileMeta } from './schemas.ts'
@@ -341,37 +337,4 @@ export function createNoteLinkResolverService(deps: {
         : await resolveReference(reference, sourcePath, generation)
     },
   }
-}
-
-let installedService: NoteLinkResolverService | null = null
-let fallback: {
-  service: NoteLinkResolverService
-  wikiResolver: WikiResolverService
-  noteFile: NoteFileService
-} | null = null
-
-/**
- * The process-wide `NoteLinkResolverService`; one over
- * {@link defaultWikiResolver} and {@link defaultNoteFile} unless
- * {@link setDefaultNoteLinkResolver} installed another.
- */
-export function defaultNoteLinkResolver(): NoteLinkResolverService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const wikiResolver = defaultWikiResolver()
-  const noteFile = defaultNoteFile()
-  if (fallback?.wikiResolver !== wikiResolver || fallback.noteFile !== noteFile) {
-    fallback = {
-      service: createNoteLinkResolverService({ wikiResolver, noteFile }),
-      wikiResolver,
-      noteFile,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `NoteLinkResolverService`; `null` restores the default-backed one. */
-export function setDefaultNoteLinkResolver(service: NoteLinkResolverService | null): void {
-  installedService = service
 }

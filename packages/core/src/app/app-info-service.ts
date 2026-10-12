@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 /** Facts about the running application build. */
@@ -29,20 +28,4 @@ export function createAppInfoService(deps: { ipc: IpcBridgeService }): AppInfoSe
  */
 export function marketingVersion(version: string): string {
   return version.replace(/[-+].*$/, '')
-}
-
-let defaultAppInfoInstance: AppInfoService | null = null
-
-/**
- * The process-wide app info; one over the bridge installed at call time
- * unless {@link setDefaultAppInfo} installed another.
- */
-export function defaultAppInfo(): AppInfoService {
-  defaultAppInfoInstance ??= createAppInfoService({ ipc: currentIpc() })
-  return defaultAppInfoInstance
-}
-
-/** Installs the process-wide app info; `null` restores the bridge-backed one. */
-export function setDefaultAppInfo(service: AppInfoService | null): void {
-  defaultAppInfoInstance = service
 }

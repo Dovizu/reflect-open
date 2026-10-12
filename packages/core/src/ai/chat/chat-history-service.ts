@@ -1,9 +1,7 @@
 import { z } from 'zod'
 import type { ModelMessage } from '@reflect/modules/ai'
-import { defaultLogger, type LoggerService } from '../../app/logger-service.ts'
-import { defaultDatabase, type DatabaseService } from '../../indexing/database-service.ts'
-import { db } from '../../indexing/db.ts'
-import { currentIpc } from '../../ipc/bridge.ts'
+import type { LoggerService } from '../../app/logger-service.ts'
+import type { DatabaseService } from '../../indexing/database-service.ts'
 import type { IpcBridgeService } from '../../ipc/ipc-service.ts'
 import type { AssistantPart, ChatTurn } from './transcript.ts'
 
@@ -241,29 +239,6 @@ export function createChatHistoryService(deps: {
       })
     },
   }
-}
-
-let defaultService: ChatHistoryService | null = null
-
-/**
- * The process-wide `ChatHistoryService`; one over the bridge and database
- * installed at call time unless replaced.
- */
-export function defaultChatHistory(): ChatHistoryService {
-  defaultService ??= createChatHistoryService({
-    ipc: currentIpc(),
-    database: {
-      db,
-      runQuery: async (sql, params) => await defaultDatabase().runQuery(sql, params),
-    },
-    logger: defaultLogger(),
-  })
-  return defaultService
-}
-
-/** Install the process-wide `ChatHistoryService`; `null` restores the bridge-backed one. */
-export function setDefaultChatHistory(service: ChatHistoryService | null): void {
-  defaultService = service
 }
 
 interface StoredMessageRow {

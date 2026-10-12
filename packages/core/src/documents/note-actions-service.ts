@@ -1,19 +1,18 @@
 import { isIsoDate } from '@reflect/utils'
-import { defaultClipboard, type ClipboardService } from '../app/clipboard-service.ts'
-import { defaultIdService, type IdService } from '../app/id-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import { defaultPath, type PathService } from '../app/path-service.ts'
+import type { ClipboardService } from '../app/clipboard-service.ts'
+import type { IdService } from '../app/id-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { PathService } from '../app/path-service.ts'
 import { errorMessage } from '../errors.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { dateFromDailyPath, isDaily } from '../graph/paths.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
-import { indexNote } from '../indexing/indexer.ts'
 import type { PinnedNote } from '../indexing/index-query-service.ts'
 import { parseNote } from '../markdown/extract.ts'
 import { dailyDeepLink, noteDeepLink } from '../navigation/deep-link-format.ts'
 import { isPinned } from '../markdown/model.ts'
-import { defaultNoteDocuments, type NoteDocumentService } from './note-document-service.ts'
-import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
+import type { NoteDocumentService } from './note-document-service.ts'
+import type { OpenDocumentsService } from './open-documents-service.ts'
 import { isValidPinOrder } from './pin-order.ts'
 
 /**
@@ -395,54 +394,4 @@ export function createNoteActionsService(deps: {
       }
     },
   }
-}
-
-let installedService: NoteActionsService | null = null
-let fallback: {
-  service: NoteActionsService
-  deps: readonly unknown[]
-} | null = null
-
-/**
- * The process-wide `NoteActionsService`. Unless one is installed, it runs over
- * the current default note document, note file, open documents, operations,
- * and id services, and is rebuilt when any of them is replaced. It indexes
- * through the free `indexNote`.
- */
-export function defaultNoteActions(): NoteActionsService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const noteDocuments = defaultNoteDocuments()
-  const noteFile = defaultNoteFile()
-  const openDocuments = defaultOpenDocuments()
-  const operations = defaultOperations()
-  const id = defaultIdService()
-  const deps = [noteDocuments, noteFile, openDocuments, operations, id]
-  if (fallback === null || fallback.deps.some((dep, index) => dep !== deps[index])) {
-    fallback = {
-      service: createNoteActionsService({
-        noteDocuments,
-        noteFile,
-        openDocuments,
-        // Resolved per call: these services may be installed later.
-        indexLifecycle: {
-          indexNote: async (path, options) => {
-            await indexNote(path, options)
-          },
-        },
-        operations,
-        clipboard: { writeText: async (text) => await defaultClipboard().writeText(text) },
-        path: { join: async (...parts) => await defaultPath().join(...parts) },
-        id,
-      }),
-      deps,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `NoteActionsService`; `null` restores the one over the defaults. */
-export function setDefaultNoteActions(service: NoteActionsService | null): void {
-  installedService = service
 }

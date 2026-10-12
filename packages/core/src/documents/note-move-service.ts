@@ -1,9 +1,8 @@
 import { z } from 'zod'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultIndexStore, type IndexStoreService } from '../indexing/index-store-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { IndexStoreService } from '../indexing/index-store-service.ts'
 import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
-import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
+import type { OpenDocumentsService } from './open-documents-service.ts'
 
 /** Event name the Rust move commands emit after their rows commit. */
 export const NOTE_MOVED_EVENT = 'note:moved'
@@ -146,44 +145,4 @@ export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveServic
       })
     },
   }
-}
-
-let installedService: NoteMoveService | null = null
-let fallback: NoteMoveService | null = null
-
-/**
- * The process-wide `NoteMoveService`. Unless {@link setDefaultNoteMove}
- * installed another, it is one lazily created service that reads the default
- * IPC bridge, index store, open documents and logger at call time, so its
- * subscribers survive a replaced default.
- */
-export function defaultNoteMove(): NoteMoveService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createNoteMoveService({
-    ipc: currentIpc(),
-    indexStore: {
-      moveIndexed: async (from, to, fileGeneration) => {
-        await defaultIndexStore().moveIndexed(from, to, fileGeneration)
-      },
-    },
-    openDocuments: {
-      sessionFor: (path) => defaultOpenDocuments().sessionFor(path),
-      retarget: (from, to, session) => {
-        defaultOpenDocuments().retarget(from, to, session)
-      },
-    },
-    logger: {
-      error: (message, cause) => {
-        defaultLogger().error(message, cause)
-      },
-    },
-  })
-  return fallback
-}
-
-/** Install the process-wide `NoteMoveService`; `null` restores the lazily created one. */
-export function setDefaultNoteMove(service: NoteMoveService | null): void {
-  installedService = service
 }

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTestDatabaseService } from '../testing/database.ts'
 import { connectIndex, disconnectIndex, project } from './flow-test-harness.ts'
-import { suggestWikiLinkTargets, suggestWikiTargets } from './queries.ts'
 
 /**
  * End-to-end flow for usage ranking: notes are projected from real Markdown
@@ -26,9 +25,9 @@ describe('link usage flow', () => {
         ),
       )
     }
-    connectIndex(database)
+    const index = connectIndex(database)
     try {
-      const { suggestions } = await suggestWikiLinkTargets('sam')
+      const { suggestions } = await index.suggestions.suggestWikiLinkTargets('sam')
       expect(suggestions[0]).toMatchObject({ path: 'notes/sam-brown.md' })
     } finally {
       disconnectIndex(database)
@@ -43,9 +42,9 @@ describe('link usage flow', () => {
     database.applyProjection(project('notes/john-doe.md', '# John Doe\n', 900))
     database.applyProjection(project('notes/a.md', '# A\n[[JS]]\n', 10))
     database.applyProjection(project('notes/b.md', '# B\n[[JS]]\n', 11))
-    connectIndex(database)
+    const index = connectIndex(database)
     try {
-      const suggestions = await suggestWikiTargets('john')
+      const suggestions = await index.suggestions.suggestWikiTargets('john')
       expect(suggestions.map((s) => s.path)).toEqual(['notes/john-smith.md', 'notes/john-doe.md'])
     } finally {
       disconnectIndex(database)
@@ -58,9 +57,9 @@ describe('link usage flow', () => {
     database.applyProjection(project('notes/fresh.md', '# Fresh\n', 900))
     database.applyProjection(project('daily/2026-01-10.md', '[[Hub]] [[2026-01-11]]\n', 5000))
     database.applyProjection(project('daily/2026-01-11.md', '[[Hub]]\n', 5001))
-    connectIndex(database)
+    const index = connectIndex(database)
     try {
-      const suggestions = await suggestWikiTargets('')
+      const suggestions = await index.suggestions.suggestWikiTargets('')
       expect(suggestions.map((s) => s.path)).toEqual(['notes/hub.md', 'notes/fresh.md'])
     } finally {
       disconnectIndex(database)

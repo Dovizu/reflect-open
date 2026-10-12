@@ -143,16 +143,3 @@ export function createSystemClock(): ClockService {
   }
   return clock
 }
-
-let defaultClockInstance: ClockService | null = null
-
-/** The process-wide clock; a system clock unless {@link setDefaultClock} installed another. */
-export function defaultClock(): ClockService {
-  defaultClockInstance ??= createSystemClock()
-  return defaultClockInstance
-}
-
-/** Installs the process-wide clock; `null` restores a lazily created system clock. */
-export function setDefaultClock(clock: ClockService | null): void {
-  defaultClockInstance = clock
-}

@@ -48,18 +48,3 @@ export function createOpenerService(deps: {
     },
   }
 }
-
-let defaultService: OpenerService | null = null
-
-/** The process-wide `OpenerService`; throws when the host installed none. */
-export function defaultOpener(): OpenerService {
-  if (defaultService === null) {
-    throw new Error('No OpenerService is installed. Call setDefaultOpener() at startup.')
-  }
-  return defaultService
-}
-
-/** Install the process-wide `OpenerService`, or remove it with `null`. */
-export function setDefaultOpener(service: OpenerService | null): void {
-  defaultService = service
-}

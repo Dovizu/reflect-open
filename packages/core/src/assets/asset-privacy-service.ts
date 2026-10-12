@@ -1,12 +1,8 @@
 import { isAppError } from '../errors.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
-import {
-  assetReferenceMatches,
-  assetReferencingNotePaths,
-  type AssetReferences,
-} from '../indexing/asset-refs.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import { assetReferenceMatches, type AssetReferences } from '../indexing/asset-refs.ts'
 import { parseNote } from '../markdown/extract.ts'
-import { defaultXArchive, type XArchiveService } from '../x-archive.ts'
+import type { XArchiveService } from '../x-archive.ts'
 
 /** Outcome of the privacy gate for one asset. */
 export type AssetVerdict = 'send' | 'skip-unreferenced' | 'skip-private'
@@ -103,33 +99,4 @@ export function createAssetPrivacyService(deps: {
     },
     classifyAssetFromNotes,
   }
-}
-
-let installedService: AssetPrivacyService | null = null
-let fallback: AssetPrivacyService | null = null
-
-/**
- * The process-wide `AssetPrivacyService`. Unless
- * {@link setDefaultAssetPrivacy} installed one, a service that reads the
- * process-wide note files, X archive and index at every call.
- */
-export function defaultAssetPrivacy(): AssetPrivacyService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createAssetPrivacyService({
-    noteFile: { read: (path, generation) => defaultNoteFile().read(path, generation) },
-    xArchive: {
-      owners: (assetPath, generation) => defaultXArchive().owners(assetPath, generation),
-    },
-    assetReferences: {
-      notePaths: (assetPath, knownOwners) => assetReferencingNotePaths(assetPath, knownOwners),
-    },
-  })
-  return fallback
-}
-
-/** Install the process-wide `AssetPrivacyService`; `null` restores the one over the default services. */
-export function setDefaultAssetPrivacy(service: AssetPrivacyService | null): void {
-  installedService = service
 }

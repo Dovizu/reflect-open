@@ -54,7 +54,7 @@ export interface TaskCacheWriter {
  */
 export function useTaskCacheWriter(): TaskCacheWriter {
   const { graph } = useGraph()
-  const { operations } = useAppServices()
+  const { operations, logger } = useAppServices()
   const queryClient = useQueryClient()
   const openKey = queryKeys.index.openTasks(graph?.root)
   const completedKey = queryKeys.index.completedTasks(graph?.root)
@@ -82,8 +82,8 @@ export function useTaskCacheWriter(): TaskCacheWriter {
 
   const relocate = (notePath: string, moved: TaskMoves): void => {
     patch(
-      (rows) => withRelocatedTasks(rows, notePath, moved),
-      (rows) => withRelocatedTasks(rows, notePath, moved),
+      (rows) => withRelocatedTasks({ logger }, rows, notePath, moved),
+      (rows) => withRelocatedTasks({ logger }, rows, notePath, moved),
     )
   }
 

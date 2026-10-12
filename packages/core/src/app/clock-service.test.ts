@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestClockService } from '../testing/clock.ts'
-import { createSystemClock, defaultClock, setDefaultClock } from './clock-service.ts'
+import { createSystemClock } from './clock-service.ts'
 
 describe('createSystemClock', () => {
   beforeEach(() => {
@@ -127,23 +127,6 @@ describe('createSystemClock', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 })
-
-describe('defaultClock', () => {
-  afterEach(() => {
-    setDefaultClock(null)
-  })
-
-  it('returns the installed clock, or one lazily created system clock', () => {
-    const installed = createTestClockService()
-    setDefaultClock(installed)
-    expect(defaultClock()).toBe(installed)
-    setDefaultClock(null)
-    const system = defaultClock()
-    expect(system).not.toBe(installed)
-    expect(defaultClock()).toBe(system)
-  })
-})
-
 describe('createTestClockService', () => {
   it('runs due timers in order and moves time with them', async () => {
     const clock = createTestClockService({ now: 1000 })

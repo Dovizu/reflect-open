@@ -1,29 +1,24 @@
 import { Counter, isNotNullish } from '@ocavue/utils'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
 import { isContactsReadable } from '../contacts/commands.ts'
-import {
-  defaultContacts,
-  type ContactMatch,
-  type ContactsAuthorization,
-  type ContactsService,
+import type {
+  ContactMatch,
+  ContactsAuthorization,
+  ContactsService,
 } from '../contacts/contacts-service.ts'
 import { contactDetailsMarkdown } from '../contacts/markdown.ts'
 import { pickContactLinkSuggestions } from '../contacts/match.ts'
-import {
-  defaultPersonNotes,
-  type PersonContactResolution,
-  type PersonNoteService,
-} from '../contacts/person-note-service.ts'
+import type { PersonContactResolution, PersonNoteService } from '../contacts/person-note-service.ts'
 import { errorMessage } from '../errors.ts'
-import { defaultNoteCreation, type NoteCreationService } from '../graph/note-creation-service.ts'
+import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import { aliasHint } from '../indexing/suggest.ts'
-import { defaultSuggestions, type SuggestionService } from '../indexing/suggestion-service.ts'
+import type { SuggestionService } from '../indexing/suggestion-service.ts'
 import { formatDayLabel } from '../lib/date-labels.ts'
 import { localIsoDate } from '../lib/dates.ts'
 import { displayNoteTitle } from '../markdown/note-title.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
 import { buildAutocompleteEntries } from './wiki-autocomplete-entries.ts'
 
 /** One row of the editor's `[[` menu. The rows arrive ranked; the menu does not re-sort. */
@@ -277,48 +272,4 @@ export function createWikiLinkSuggestionService(
       return tags.map((tag) => ({ tag: tag.tag }))
     },
   }
-}
-
-let installedService: WikiLinkSuggestionService | null = null
-let fallback: (WikiLinkSuggestionServiceDeps & { service: WikiLinkSuggestionService }) | null = null
-
-/**
- * The process-wide `WikiLinkSuggestionService`; one over the default services
- * unless {@link setDefaultWikiLinkSuggestions} installed another.
- */
-export function defaultWikiLinkSuggestions(): WikiLinkSuggestionService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const deps: WikiLinkSuggestionServiceDeps = {
-    suggestions: defaultSuggestions(),
-    noteCreation: defaultNoteCreation(),
-    contacts: defaultContacts(),
-    personNotes: defaultPersonNotes(),
-    settings: defaultSettings(),
-    clock: defaultClock(),
-    operations: defaultOperations(),
-    logger: defaultLogger(),
-  }
-  if (
-    fallback?.suggestions !== deps.suggestions ||
-    fallback.noteCreation !== deps.noteCreation ||
-    fallback.contacts !== deps.contacts ||
-    fallback.personNotes !== deps.personNotes ||
-    fallback.settings !== deps.settings ||
-    fallback.clock !== deps.clock ||
-    fallback.operations !== deps.operations ||
-    fallback.logger !== deps.logger
-  ) {
-    fallback = { ...deps, service: createWikiLinkSuggestionService(deps) }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `WikiLinkSuggestionService`; `null` restores the
- * one over the default services.
- */
-export function setDefaultWikiLinkSuggestions(service: WikiLinkSuggestionService | null): void {
-  installedService = service
 }

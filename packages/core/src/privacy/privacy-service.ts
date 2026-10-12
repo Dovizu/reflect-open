@@ -1,5 +1,5 @@
 import type { RetrievalHit } from '../embeddings/retrieve.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { parseFrontmatter, splitFrontmatter } from '../markdown/frontmatter.ts'
 import type { CloudSafe } from './cloud-safe.ts'
 
@@ -289,27 +289,4 @@ export function createPrivacyService(deps: {
     cloudSafeAssetDescription,
     cloudSafeSelection,
   }
-}
-
-let installedService: PrivacyService | null = null
-let fallback: { service: PrivacyService; noteFile: NoteFileService } | null = null
-
-/**
- * The process-wide `PrivacyService`; one over {@link defaultNoteFile} unless
- * {@link setDefaultPrivacy} installed another.
- */
-export function defaultPrivacy(): PrivacyService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const noteFile = defaultNoteFile()
-  if (fallback?.noteFile !== noteFile) {
-    fallback = { service: createPrivacyService({ noteFile }), noteFile }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `PrivacyService`; `null` restores the one over the default note file. */
-export function setDefaultPrivacy(service: PrivacyService | null): void {
-  installedService = service
 }

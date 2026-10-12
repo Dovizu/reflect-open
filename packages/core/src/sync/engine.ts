@@ -1,11 +1,10 @@
-import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
+import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import { isAppError } from '../errors.ts'
-import {
-  defaultGitRepository,
-  type ChangedFile,
-  type GitCredential,
-  type GitRepositoryService,
-  type SkippedFile,
+import type {
+  ChangedFile,
+  GitCredential,
+  GitRepositoryService,
+  SkippedFile,
 } from './git-repository-service.ts'
 
 /**
@@ -491,31 +490,4 @@ function statusForError(error: unknown): SyncStatus {
     errorKind: 'other',
     message: error instanceof Error ? error.message : String(error),
   }
-}
-
-let installedFactory: SyncEngineFactory | null = null
-let fallback: { factory: SyncEngineFactory; deps: readonly unknown[] } | null = null
-
-/**
- * The process-wide `SyncEngineFactory`. Unless one is installed, it runs over
- * the current default git repository and clock services, and is rebuilt when
- * either of them is replaced.
- */
-export function defaultSyncEngines(): SyncEngineFactory {
-  if (installedFactory !== null) {
-    return installedFactory
-  }
-  const git = defaultGitRepository()
-  const clock = defaultClock()
-  const deps = [git, clock]
-  if (fallback === null || fallback.deps.some((dep, index) => dep !== deps[index])) {
-    fallback = { factory: createSyncEngineFactory({ git, clock }), deps }
-  }
-  return fallback.factory
-}
-
-/** Install the process-wide `SyncEngineFactory`; `null` restores the one over the defaults. */
-export function setDefaultSyncEngines(factory: SyncEngineFactory | null): void {
-  installedFactory = factory
-  fallback = null
 }

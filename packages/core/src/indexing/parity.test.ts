@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { isNotePath, mayContainNotes } from '../graph/paths.ts'
 import { foldKey, parseNote } from '../markdown/index.ts'
-import { hashContent } from './hash.ts'
+import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { buildIndexedNote } from './indexed-note.ts'
 import { buildFtsMatch } from './search-query.ts'
 
@@ -71,11 +71,12 @@ function walkCorpusNotes(): string[] {
 }
 
 async function deriveExpectations(): Promise<ExpectedParity> {
+  const hash = createWebCryptoHashService()
   const notes: Record<string, ExpectedNote> = {}
   for (const relPath of walkCorpusNotes()) {
     const source = readFileSync(join(corpusDir, relPath), 'utf8').replaceAll(/\r\n?/g, '\n')
     const indexed = buildIndexedNote(parseNote({ path: relPath, source }), {
-      fileHash: await hashContent(source),
+      fileHash: await hash.sha256Hex(source),
       mtime: 0,
       source,
     })

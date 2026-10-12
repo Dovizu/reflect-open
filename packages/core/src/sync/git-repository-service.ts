@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 /**
@@ -134,17 +133,4 @@ export function createGitRepositoryService(deps: { ipc: IpcBridgeService }): Git
       ipc.call('git_push', { credential, generation }, pushOutcomeSchema),
     mergeRemote: (generation) => ipc.call('git_merge_remote', { generation }, mergeOutcomeSchema),
   }
-}
-
-let defaultInstance: GitRepositoryService | null = null
-
-/** The process-wide `GitRepositoryService` over the installed bridge, unless {@link setDefaultGitRepository} installed another. */
-export function defaultGitRepository(): GitRepositoryService {
-  defaultInstance ??= createGitRepositoryService({ ipc: currentIpc() })
-  return defaultInstance
-}
-
-/** Install the process-wide `GitRepositoryService`; `null` restores the bridge-backed one. */
-export function setDefaultGitRepository(service: GitRepositoryService | null): void {
-  defaultInstance = service
 }

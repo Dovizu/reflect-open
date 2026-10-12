@@ -1,14 +1,9 @@
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
 import { isNotePath } from '../graph/paths.ts'
-import { getBridge, hasBridge, type IpcBridge } from '../ipc/bridge.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import {
-  defaultFileChanges,
-  type FileChange,
-  type FileChangeService,
-} from './file-change-service.ts'
-import { createNoteIndexer, defaultIndexingDeps, type IndexingDeps } from './indexer.ts'
+import type { FileChange, FileChangeService } from './file-change-service.ts'
+import { createNoteIndexer, type IndexingDeps } from './indexer.ts'
 import { createLiveIndex } from './live.ts'
 
 /** Stage of the index lifecycle that failed. */
@@ -606,53 +601,4 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
       await indexer.reindexNotesReferencing(assetPaths, generation)
     },
   }
-}
-
-let installedService: IndexLifecycleService | null = null
-let fallback: {
-  service: IndexLifecycleService
-  deps: IndexLifecycleDeps
-  bridge: IpcBridge | null
-} | null = null
-
-function sameDeps(left: IndexLifecycleDeps, right: IndexLifecycleDeps): boolean {
-  return (
-    left.indexStore === right.indexStore &&
-    left.noteFile === right.noteFile &&
-    left.indexQuery === right.indexQuery &&
-    left.database === right.database &&
-    left.xArchive === right.xArchive &&
-    left.hash === right.hash &&
-    left.clock === right.clock &&
-    left.logger === right.logger &&
-    left.fileChanges === right.fileChanges &&
-    left.operations === right.operations
-  )
-}
-
-/**
- * The process-wide `IndexLifecycleService`; one over the default services
- * unless {@link setDefaultIndexLifecycle} installed another. The fallback is
- * rebuilt, with fresh state, when the bridge or a default service it runs on
- * is replaced.
- */
-export function defaultIndexLifecycle(): IndexLifecycleService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const deps: IndexLifecycleDeps = {
-    ...defaultIndexingDeps(),
-    fileChanges: defaultFileChanges(),
-    operations: defaultOperations(),
-  }
-  const bridge = hasBridge() ? getBridge() : null
-  if (fallback === null || fallback.bridge !== bridge || !sameDeps(fallback.deps, deps)) {
-    fallback = { service: createIndexLifecycleService(deps), deps, bridge }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `IndexLifecycleService`; `null` restores the one over the default services. */
-export function setDefaultIndexLifecycle(service: IndexLifecycleService | null): void {
-  installedService = service
 }

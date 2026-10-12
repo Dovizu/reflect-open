@@ -8,7 +8,7 @@ export {
   type AiProviderInfo,
   type AiModelOption,
 } from '../ai/provider-catalog.ts'
-export { aiKeySecretName, aiApiKeyForConfig } from '../ai/secrets.ts'
+export { aiKeySecretName } from '../ai/ai-credential-service.ts'
 export {
   DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
   DEFAULT_OPENAI_COMPATIBLE_MODEL,
@@ -16,7 +16,7 @@ export {
   OPENAI_COMPATIBLE_PROVIDER_ID,
 } from '../ai/openai-compatible.ts'
 export { isHttpBaseUrl, normalizeOpenAICompatibleBaseUrl } from '../lib/http-url.ts'
-export { setSecret, getSecret, deleteSecret } from '../secrets/keychain.ts'
+
 export {
   KEY_HINT_LENGTH,
   TRANSCRIPTION_PROVIDERS,
@@ -36,10 +36,9 @@ export {
   type ChatModelSelection,
 } from '../ai/chat/model-options.ts'
 export {
-  validateApiKey,
   type ApiKeyValidation,
   type ApiKeyValidationInput,
-} from '../ai/validate-key.ts'
+} from '../ai/ai-key-validation-service.ts'
 export {
   assertCloudAllowed,
   cloudSafeAssetDescription,
@@ -106,7 +105,7 @@ export {
   type ChatAttachment,
   type ChatTurn,
 } from '../ai/chat/transcript.ts'
-export { listChatConversations, type ChatConversation } from '../ai/chat/store.ts'
+export { type ChatConversation } from '../ai/chat/chat-history-service.ts'
 export {
   estimateTokens,
   fitToContextWindow,
@@ -124,8 +123,6 @@ export {
 } from '../actions/audio-memo.ts'
 export {
   createAudioMemoService,
-  defaultAudioMemo,
-  setDefaultAudioMemo,
   type AudioMemoPhase,
   type AudioMemoPipeline,
   type AudioMemoPipelineOptions,
@@ -149,8 +146,6 @@ export {
 } from '../audio/audio-memo-transcription-service.ts'
 export {
   createMobileAudioMemoService,
-  defaultMobileAudioMemo,
-  setDefaultMobileAudioMemo,
   type MobileAudioMemoService,
   type MobileAudioMemoSession,
   type MobileAudioMemoSessionOptions,
@@ -158,8 +153,6 @@ export {
 } from '../audio/mobile-audio-memo-service.ts'
 export {
   createNativeActionService,
-  defaultNativeAction,
-  setDefaultNativeAction,
   type NativeActionService,
   type NativeRecordActionHandler,
 } from '../audio/native-action-service.ts'
@@ -200,8 +193,6 @@ export {
 } from '../actions/capture.ts'
 export {
   createBacklinkTargetService,
-  defaultBacklinkTarget,
-  setDefaultBacklinkTarget,
   type BacklinkTargetService,
 } from '../capture/backlink-target-service.ts'
 export {
@@ -218,8 +209,6 @@ export {
 } from '../capture/capture-enrichment-service.ts'
 export {
   createCaptureService,
-  defaultCapture,
-  setDefaultCapture,
   type CaptureService,
   type CaptureSession,
   type CaptureSessionOptions,
@@ -266,8 +255,6 @@ export {
 } from '../assets/asset-description-helpers.ts'
 export {
   createAssetDescriptionService,
-  defaultAssetDescription,
-  setDefaultAssetDescription,
   type AssetDescriptionMode,
   type AssetDescriptionService,
   type AssetDescriptionSession,
@@ -277,8 +264,6 @@ export {
 } from '../assets/asset-description-service.ts'
 export {
   createAssetPrivacyService,
-  defaultAssetPrivacy,
-  setDefaultAssetPrivacy,
   type AssetPrivacyService,
   type AssetVerdict,
 } from '../assets/asset-privacy-service.ts'

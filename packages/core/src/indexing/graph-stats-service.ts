@@ -1,5 +1,5 @@
 import { sql } from 'kysely'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 import type { NoteTagFacet } from './note-list-service.ts'
 
 /**
@@ -88,27 +88,4 @@ export function createGraphStatsService(deps: { database: DatabaseService }): Gr
       }
     },
   }
-}
-
-let installedService: GraphStatsService | null = null
-let fallback: { service: GraphStatsService; database: DatabaseService } | null = null
-
-/**
- * The process-wide `GraphStatsService`; one over {@link defaultDatabase}
- * unless {@link setDefaultGraphStats} installed another.
- */
-export function defaultGraphStats(): GraphStatsService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  if (fallback?.database !== database) {
-    fallback = { service: createGraphStatsService({ database }), database }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `GraphStatsService`; `null` restores the one over the default database. */
-export function setDefaultGraphStats(service: GraphStatsService | null): void {
-  installedService = service
 }

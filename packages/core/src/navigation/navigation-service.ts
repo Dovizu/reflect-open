@@ -316,16 +316,3 @@ export function createNavigationService(deps?: NavigationServiceDeps): Navigatio
     },
   }
 }
-
-let defaultNavigationInstance: NavigationService | null = null
-
-/** The process-wide `NavigationService`; built on first use unless one is installed. */
-export function defaultNavigation(): NavigationService {
-  defaultNavigationInstance ??= createNavigationService()
-  return defaultNavigationInstance
-}
-
-/** Install the process-wide `NavigationService`; `null` drops it. */
-export function setDefaultNavigation(service: NavigationService | null): void {
-  defaultNavigationInstance = service
-}

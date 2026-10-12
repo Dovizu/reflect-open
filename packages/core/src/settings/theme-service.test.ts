@@ -1,18 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { setDefaultPlatform } from '../app/platform-service.ts'
-import { setDefaultStorage } from '../app/storage-service.ts'
+import { describe, expect, it } from 'vitest'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
 import { createTestStorageService, type TestStorageService } from '../testing/storage.ts'
 import { createTestThemeService } from '../testing/theme.ts'
 import type { Settings } from './schema.ts'
-import { setDefaultSettings } from './settings-service.ts'
-import {
-  createThemeService,
-  defaultTheme,
-  setDefaultTheme,
-  THEME_PREFERENCE_CACHE_KEY,
-} from './theme-service.ts'
+import { createThemeService, THEME_PREFERENCE_CACHE_KEY } from './theme-service.ts'
 
 function setup(stored: Partial<Settings> = {}, options: { gateLoad?: boolean } = {}) {
   const settings = createTestSettingsService(stored)
@@ -32,13 +24,6 @@ function setup(stored: Partial<Settings> = {}, options: { gateLoad?: boolean } =
 function cached(storage: TestStorageService): string | null {
   return storage.local.get(THEME_PREFERENCE_CACHE_KEY)
 }
-
-afterEach(() => {
-  setDefaultTheme(null)
-  setDefaultSettings(null)
-  setDefaultStorage(null)
-  setDefaultPlatform(null)
-})
 
 describe('createThemeService', () => {
   it('does not load settings until first used', () => {
@@ -144,26 +129,6 @@ describe('createThemeService', () => {
     expect(calls).toBe(0)
   })
 })
-
-describe('defaultTheme', () => {
-  it('is built over the default settings, storage, and platform', async () => {
-    const settings = createTestSettingsService({ theme: 'dark' })
-    const storage = createTestStorageService()
-    setDefaultSettings(settings)
-    setDefaultStorage(storage)
-    setDefaultPlatform(createTestPlatformService())
-    await defaultTheme().whenSettled()
-    expect(defaultTheme().resolved()).toBe('dark')
-    expect(cached(storage)).toBe('dark')
-  })
-
-  it('returns the installed service', () => {
-    const theme = createTestThemeService('dark')
-    setDefaultTheme(theme)
-    expect(defaultTheme()).toBe(theme)
-  })
-})
-
 describe('createTestThemeService', () => {
   it('starts settled and lets tests choose the resolved theme', () => {
     const theme = createTestThemeService()

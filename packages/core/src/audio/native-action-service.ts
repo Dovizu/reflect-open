@@ -1,10 +1,8 @@
-import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
+import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { AudioRecorderFinalSegment, AudioRecorderService } from './audio-recorder-service.ts'
-import { defaultAudioRecorder } from './default-audio-recorder.ts'
-
 /**
  * How long the recording UI must survive before a delivered native action is
  * confirmed (V1 parity): a webview crash during presentation must leave the
@@ -115,34 +113,4 @@ export function createNativeActionService(deps: {
       }
     },
   }
-}
-
-let installedService: NativeActionService | null = null
-let fallback: NativeActionService | null = null
-
-/**
- * The process-wide `NativeActionService`. Unless {@link setDefaultNativeAction}
- * installed one, a service over the process-wide defaults of its
- * dependencies as they are at the first call.
- */
-export function defaultNativeAction(): NativeActionService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createNativeActionService({
-    audioRecorder: defaultAudioRecorder(),
-    clock: defaultClock(),
-    platform: defaultPlatform(),
-    logger: defaultLogger(),
-  })
-  return fallback
-}
-
-/**
- * Install the process-wide `NativeActionService`. `null` restores the
- * default-backed one, rebuilt over the defaults at its next use.
- */
-export function setDefaultNativeAction(service: NativeActionService | null): void {
-  installedService = service
-  fallback = null
 }

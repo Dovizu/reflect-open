@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
 
 /**
@@ -133,17 +132,4 @@ export function createCalendarService(deps: {
         },
       ),
   }
-}
-
-let defaultService: CalendarService | null = null
-
-/** The process-wide `CalendarService`; one over the installed bridge unless replaced. */
-export function defaultCalendar(): CalendarService {
-  defaultService ??= createCalendarService({ ipc: currentIpc(), logger: defaultLogger() })
-  return defaultService
-}
-
-/** Install the process-wide `CalendarService`; `null` restores the bridge-backed one. */
-export function setDefaultCalendar(service: CalendarService | null): void {
-  defaultService = service
 }

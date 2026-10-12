@@ -1,10 +1,11 @@
 import type { Tool, TypedToolCall, TypedToolResult } from '@reflect/modules/ai'
 import { z } from 'zod'
 import type { RetrievalService, RetrieveOptions } from '../../embeddings/retrieval-service.ts'
+import type { AssetPrivacyService } from '../../assets/asset-privacy-service.ts'
 import type { NoteFileService } from '../../graph/note-file-service.ts'
 import type { AssetReferences } from '../../indexing/asset-refs.ts'
 import type { NoteListService, RecentNoteRow } from '../../indexing/note-list-service.ts'
-import type { DailyNoteRow, DailyNotesRange } from '../../indexing/queries.ts'
+import type { DailyNoteRow, DailyNotesRange } from '../../daily/daily-note-service.ts'
 import { isTagName } from '../../markdown/extract.ts'
 import type {
   CloudNoteListing,
@@ -130,7 +131,7 @@ export interface NoteToolsService {
   build: (options: BuildNoteToolsOptions) => NoteTools
 }
 
-/** The daily-note range query, as `indexing/queries.ts` has it today. */
+/** The daily-note range query of `DailyNoteService`. */
 export interface DailyNoteQueries {
   listDailyNotes: (range: DailyNotesRange) => Promise<DailyNoteRow[]>
 }
@@ -141,6 +142,7 @@ export function createNoteToolsService(deps: {
   noteList: Pick<NoteListService, 'listRecentNotes'>
   dailyNotes: DailyNoteQueries
   assetReferences: Pick<AssetReferences, 'notePaths'>
+  assetPrivacy: Pick<AssetPrivacyService, 'classifyAssetFromNotes'>
   xArchive: Pick<XArchiveService, 'owners'>
   privacy: Pick<
     PrivacyService,
@@ -150,13 +152,28 @@ export function createNoteToolsService(deps: {
     | 'cloudSafeAssetDescription'
   >
 }): NoteToolsService {
-  const { retrieval, noteFile, noteList, dailyNotes, assetReferences, xArchive, privacy } = deps
+  const {
+    retrieval,
+    noteFile,
+    noteList,
+    dailyNotes,
+    assetReferences,
+    assetPrivacy,
+    xArchive,
+    privacy,
+  } = deps
 
   const readNote = async (path: string): Promise<string> => await noteFile.read(path)
 
   const readOneNote = buildReadOneNote({ readNote, privacy })
 
-  const readOneAsset = buildReadOneAsset({ readNote, assetReferences, xArchive, privacy })
+  const readOneAsset = buildReadOneAsset({
+    readNote,
+    assetReferences,
+    assetPrivacy,
+    xArchive,
+    privacy,
+  })
 
   function buildNoteTools(options: BuildNoteToolsOptions): NoteTools {
     const searchMode: RetrieveOptions['mode'] = options.semanticSearchEnabled ? 'hybrid' : 'lexical'

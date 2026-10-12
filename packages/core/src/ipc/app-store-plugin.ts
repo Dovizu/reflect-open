@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from './bridge.ts'
 import type { IpcBridgeService } from './ipc-service.ts'
 import { definePluginCommand, ignoredResult } from './plugin.ts'
 
@@ -65,32 +64,4 @@ export function createAppStoreService(deps: { ipc: IpcBridgeService }): AppStore
       await presentOfferCodeRedeemSheetCommand(ipc, {})
     },
   }
-}
-
-let defaultService: AppStoreService | null = null
-
-/** The process-wide `AppStoreService`; one over the installed bridge unless replaced. */
-export function defaultAppStore(): AppStoreService {
-  defaultService ??= createAppStoreService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `AppStoreService`; `null` restores the bridge-backed one. */
-export function setDefaultAppStore(service: AppStoreService | null): void {
-  defaultService = service
-}
-
-/** {@link AppStoreService.environment} on the process-wide service. */
-export async function getAppStoreEnvironment(): Promise<string> {
-  return await defaultAppStore().environment()
-}
-
-/** {@link AppStoreService.sync} on the process-wide service. */
-export async function syncAppStore(): Promise<void> {
-  await defaultAppStore().sync()
-}
-
-/** {@link AppStoreService.presentOfferCodeRedeemSheet} on the process-wide service. */
-export async function presentOfferCodeRedeemSheet(): Promise<void> {
-  await defaultAppStore().presentOfferCodeRedeemSheet()
 }

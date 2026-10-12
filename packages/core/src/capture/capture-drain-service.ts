@@ -22,6 +22,7 @@ import {
 } from '../actions/capture-note.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HashService } from '../app/hash-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import type { ReconcileStop } from '../app/reconcile.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
@@ -111,8 +112,9 @@ export function createCaptureDrainService(deps: {
   backlinkTarget: BacklinkTargetService
   hash: HashService
   clock: Pick<ClockService, 'now'>
+  logger: Pick<LoggerService, 'warn'>
 }): CaptureDrainService {
-  const { captureInbox, noteFile, xArchive, backlinkTarget, hash, clock } = deps
+  const { captureInbox, noteFile, xArchive, backlinkTarget, hash, clock, logger } = deps
 
   /**
    * The capture note this day's Links sections already hold for `url`, or `null`.
@@ -342,7 +344,7 @@ export function createCaptureDrainService(deps: {
     // square `- [ ]`, an inert daily item appended at the end.
     const next =
       envelope.kind === 'task'
-        ? applyTaskEdits(dailySource, [
+        ? applyTaskEdits({ logger }, dailySource, [
             { kind: 'insert', at: { kind: 'tasksSection' }, markdown: envelope.text },
           ]).source
         : appendListItem(dailySource, {

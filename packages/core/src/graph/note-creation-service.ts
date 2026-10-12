@@ -1,11 +1,10 @@
-import { defaultIdService, type IdService } from '../app/id-service.ts'
+import type { IdService } from '../app/id-service.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { slugForTitle } from '../markdown/slug.ts'
-import { defaultNoteFile, type NoteFileService } from './note-file-service.ts'
-import {
-  defaultNoteLinkResolver,
-  type ExistingWikiTargetResolution,
-  type NoteLinkResolverService,
+import type { NoteFileService } from './note-file-service.ts'
+import type {
+  ExistingWikiTargetResolution,
+  NoteLinkResolverService,
 } from './note-link-resolver-service.ts'
 import { wikiNoteReference } from './note-reference.ts'
 import { isDaily, isTemplatePath, notePath } from './paths.ts'
@@ -202,44 +201,4 @@ export function createNoteCreationService(deps: {
       )
     },
   }
-}
-
-let installedService: NoteCreationService | null = null
-let fallback: {
-  service: NoteCreationService
-  noteFile: NoteFileService
-  noteLinkResolver: NoteLinkResolverService
-  id: IdService
-} | null = null
-
-/**
- * The process-wide `NoteCreationService`; one over {@link defaultNoteFile},
- * {@link defaultNoteLinkResolver} and {@link defaultIdService} unless
- * {@link setDefaultNoteCreation} installed another.
- */
-export function defaultNoteCreation(): NoteCreationService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const noteFile = defaultNoteFile()
-  const noteLinkResolver = defaultNoteLinkResolver()
-  const id = defaultIdService()
-  if (
-    fallback?.noteFile !== noteFile ||
-    fallback.noteLinkResolver !== noteLinkResolver ||
-    fallback.id !== id
-  ) {
-    fallback = {
-      service: createNoteCreationService({ noteFile, noteLinkResolver, id }),
-      noteFile,
-      noteLinkResolver,
-      id,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `NoteCreationService`; `null` restores the default-backed one. */
-export function setDefaultNoteCreation(service: NoteCreationService | null): void {
-  installedService = service
 }

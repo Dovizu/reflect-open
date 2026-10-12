@@ -1,4 +1,4 @@
-import { defaultLifecycle, type AppLifecycleService } from './lifecycle-service.ts'
+import type { AppLifecycleService } from './lifecycle-service.ts'
 
 /**
  * A generation-pinned, single-flight background reconcile loop driven by
@@ -116,22 +116,4 @@ export function createBackgroundReconcilerFactory(deps: {
       }
     },
   }
-}
-
-let defaultFactory: BackgroundReconcilerFactory | null = null
-
-/**
- * The process-wide `BackgroundReconcilerFactory`. Unless one is installed, a
- * factory over the current {@link defaultLifecycle}, so a lifecycle installed
- * later still applies to loops created after it.
- */
-export function defaultBackgroundReconcilerFactory(): BackgroundReconcilerFactory {
-  return defaultFactory ?? createBackgroundReconcilerFactory({ lifecycle: defaultLifecycle() })
-}
-
-/** Install the process-wide `BackgroundReconcilerFactory`; `null` restores the lifecycle-following one. */
-export function setDefaultBackgroundReconcilerFactory(
-  factory: BackgroundReconcilerFactory | null,
-): void {
-  defaultFactory = factory
 }
