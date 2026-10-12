@@ -11,6 +11,7 @@ export {
 } from './id.ts'
 export { createTestLoggerService, type LogEntry, type TestLoggerService } from './logger.ts'
 export { createTestClockService, type TestClockService } from './clock.ts'
+export { createTestDailyNoteService, type TestDailyNoteServiceOptions } from './daily.ts'
 export {
   createTestIpcBridgeService,
   installTestBridge,
@@ -292,6 +293,7 @@ export {
   createTestNoteSession,
   createTestNoteSessionService,
   createTestOpenDocumentsService,
+  createTestTemplateService,
   type NoteSessionCall,
   type TestNoteActionsService,
   type TestNoteActionsServiceOptions,
@@ -301,6 +303,7 @@ export {
   type TestNoteSessionOptions,
   type TestNoteSessionService,
   type TestNoteSessionServiceOptions,
+  type TestTemplateServiceOptions,
   createTestNoteMoveService,
   createTestTitleRenameService,
   type TestNoteMoveService,

@@ -33,14 +33,21 @@ import {
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
 import {
+  createTemplateService,
+  type TemplateService,
+  type TemplateServiceDeps,
+} from '../documents/template-service.ts'
+import {
   createTitleRenameService,
   type RenameCoordinator,
   type TitleRenameService,
   type TitleRenameServiceDeps,
 } from '../documents/title-rename-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { DatabaseService } from '../indexing/database-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import { createBacklinkService } from '../indexing/backlink-service.ts'
+import { createIndexQueryService } from '../indexing/index-query-service.ts'
 import { createNotePathService } from '../indexing/note-path-service.ts'
 import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { appendBlock } from '../markdown/append-section.ts'
@@ -387,4 +394,34 @@ export function createTestNoteActionsService(
     id: options?.id ?? createTestIdService(),
   })
   return { ...service, indexed: () => [...indexLog] }
+}
+
+export interface TestTemplateServiceOptions extends Partial<
+  Omit<TemplateServiceDeps, 'noteFile' | 'openDocuments'>
+> {
+  /** Defaults to an empty {@link createTestNoteFileService}. */
+  noteFile?: NoteFileService
+  /** Defaults to an empty {@link createTestOpenDocumentsService}. */
+  openDocuments?: OpenDocumentsService
+  /** The index behind the default `indexQuery` and `notePath`. Defaults to an empty one. */
+  database?: DatabaseService
+}
+
+/**
+ * The real {@link TemplateService} over test doubles (fresh ones by default).
+ * The default `noteMove` is {@link createTestNoteMoveService} over
+ * `openDocuments`; it records the move but does not move the file.
+ */
+export function createTestTemplateService(options?: TestTemplateServiceOptions): TemplateService {
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  const openDocuments = options?.openDocuments ?? createTestOpenDocumentsService()
+  const database = options?.database ?? createTestDatabaseService()
+  return createTemplateService({
+    noteFile,
+    indexQuery: options?.indexQuery ?? createIndexQueryService({ database }),
+    notePath: options?.notePath ?? createNotePathService({ database, noteFile }),
+    noteMove: options?.noteMove ?? createTestNoteMoveService({ openDocuments }),
+    openDocuments,
+    operations: options?.operations ?? createTestOperationsService(),
+  })
 }

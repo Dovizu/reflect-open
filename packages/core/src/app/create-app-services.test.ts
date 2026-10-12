@@ -83,6 +83,8 @@ const SERVICE_KEYS = [
   'tasks',
   'noteActions',
   'noteRows',
+  'dailyNotes',
+  'templates',
   'indexQuery',
   'wikiResolver',
   'backlinks',
