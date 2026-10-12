@@ -3,11 +3,11 @@ import '@/boot.ts'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { defaultExceptionTelemetry } from '@reflect/core'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/query-client.ts'
 import { registerAppCommands } from '@/lib/commands/app-commands.ts'
 import { installNativeMenu } from '@/lib/native-menu/menu.ts'
-import { getExceptionReactRootOptions } from '@/lib/exception-telemetry.ts'
 import { PlatformRoot, warmPlatformRoot } from '@platform-root'
 import { EditorFullWidthEffect } from '@/providers/editor-full-width.tsx'
 import { EditorTextSizeEffect } from '@/providers/editor-text-size.tsx'
@@ -28,7 +28,7 @@ if (!rootElement) {
   throw new Error('Root element #root was not found')
 }
 
-const reactRootOptions = getExceptionReactRootOptions()
+const reactRootOptions = defaultExceptionTelemetry().reactRootOptions()
 
 // Platform-neutral providers only — everything desktop- or mobile-specific
 // (update checks, drag region, graph bootstrap mode) lives inside the
