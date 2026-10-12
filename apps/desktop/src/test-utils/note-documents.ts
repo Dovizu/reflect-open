@@ -30,6 +30,7 @@ export function installTestNoteDocuments(options?: { source?: string }): TestNot
       readSource,
       readExisting: async (path) => await readSource(path),
       commitFrontmatter,
+      commitSourceEdit: () => Promise.reject(new Error('commitSourceEdit is not stubbed')),
       isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
     })
   })

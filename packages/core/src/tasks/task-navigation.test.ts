@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { OpenTask } from '@reflect/core'
-import { makeOpenTask } from './open-task-fixture.ts'
+import { makeOpenTask } from '../testing/tasks.ts'
+import type { OpenTask } from './open-task.ts'
 import { previousTaskKey } from './task-navigation.ts'
 import { getTaskKey } from './task-identity.ts'
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { TaskSnapshot } from '@reflect/core'
-import { makeOpenTask as task } from './open-task-fixture.ts'
+import type { TaskSnapshot } from '../markdown/index.ts'
+import { makeOpenTask as task } from '../testing/tasks.ts'
 import {
   asCompleted,
   asOpen,

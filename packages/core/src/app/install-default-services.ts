@@ -83,6 +83,7 @@ import { setDefaultImageCodec } from './image-codec-service.ts'
 import { setDefaultLifecycle } from './lifecycle-service.ts'
 import { setDefaultLogger } from './logger-service.ts'
 import { setDefaultOperations } from './operations-service.ts'
+import { setDefaultTasks } from '../tasks/task-service.ts'
 import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
 import { setDefaultPersistenceFlush } from './persistence-flush-service.ts'
@@ -157,6 +158,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultKeyboard(services.keyboard)
   setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
+  setDefaultTasks(services.tasks)
   setDefaultNoteActions(services.noteActions)
   setDefaultNoteRows(services.noteRows)
   setDefaultIndexQuery(services.indexQuery)
@@ -255,6 +257,7 @@ export function resetDefaultServices(): void {
   setDefaultKeyboard(null)
   setDefaultShare(null)
   setDefaultNoteDocuments(null)
+  setDefaultTasks(null)
   setDefaultNoteActions(null)
   setDefaultNoteRows(null)
   setDefaultIndexQuery(null)

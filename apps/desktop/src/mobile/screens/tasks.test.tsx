@@ -1,54 +1,41 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent, type Locator } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultStorage, setDefaultOperations, setDefaultHaptics } from '@reflect/core'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
+  createTestAppServices,
   createTestStorageService,
   type TestStorageService,
   createTestOperationsService,
   createTestHapticsService,
+  createTestTaskService,
+  type TestAppServices,
   type TestHapticsService,
 } from '@reflect/core/testing'
-import type { OpenTask } from '@reflect/core'
-import type { TaskAction } from '@/lib/note-task.ts'
+import type { OpenTask, TaskAction, TaskService, TaskWriteResult } from '@reflect/core'
 import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
-import { resetRecentlyCompleted } from '@/lib/tasks/recently-completed.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import '@/test-utils/locator.ts'
+import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { swipe, translateX } from '@/test-utils/swipe.ts'
 import { MobileTasks } from './tasks.tsx'
 
 let haptics: TestHapticsService
 
-beforeEach(() => {
-  haptics = createTestHapticsService()
-  setDefaultHaptics(haptics)
-})
-
-afterEach(() => {
-  setDefaultHaptics(null)
-})
-
 /**
  * The mobile Tasks tab (V1 mobile's third tab over Plan 18 data): desktop's
  * groups and guarded write-backs with a touch surface — checkbox toggles,
  * the quick-edit sheet (edit / schedule / complete / convert / open note /
- * delete), the filter sheet, and "+" add. The core getters and the note-task
- * write layer are mocked, like the desktop screen's tests; the sheet's markdown
+ * delete), the filter sheet, and "+" add. The task service's reads and writes
+ * are spied, like the desktop screen's tests; the sheet's markdown
  * editor is a textarea stand-in; grouping/merge
  * rules are unit-tested in task-visibility.test.ts.
  */
 
-const getOpenTasks = vi.hoisted(() => vi.fn())
-const getCompletedTasks = vi.hoisted(() => vi.fn())
 const resolveOrCreateNoteWithTitle = vi.hoisted(() => vi.fn())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-  getOpenTasks,
-  getCompletedTasks,
   resolveOrCreateNoteWithTitle,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
@@ -154,17 +141,15 @@ vi.mock('@/editor/note-editor.tsx', async () => {
   }
 })
 
-const insertTask = vi.hoisted(() => vi.fn())
-const continueTaskInContext = vi.hoisted(() => vi.fn())
-const writeTask = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/note-task.ts', () => ({
-  writeTask,
-  insertTask,
-  continueTaskInContext,
-}))
+// The screen runs on the real `TaskService` of the test app services; each
+// test steers its reads and writes through these spies.
+let getOpenTasks: MockInstance<TaskService['getOpenTasks']>
+let getCompletedTasks: MockInstance<TaskService['getCompletedTasks']>
+let writeTask: MockInstance<TaskService['writeTask']>
+let insertTask: MockInstance<TaskService['insertTask']>
 
 /** The result of a write that changed nothing the cache needs to re-address. */
-const WRITTEN = { source: '', moved: [], inserted: [], tasks: [] }
+const WRITTEN: TaskWriteResult = { source: '', moved: [], inserted: [], tasks: [], updatedAt: 0 }
 
 type TaskActionKind = TaskAction['kind']
 
@@ -174,7 +159,7 @@ function isWrite(actions: readonly TaskAction[], kinds: readonly TaskActionKind[
 
 /** The `writeTask` calls whose actions are exactly `kinds`, e.g. `('setMarkdown', 'toggle')`. */
 function writesOf(...kinds: TaskActionKind[]): unknown[][] {
-  return writeTask.mock.calls.filter((call: unknown[]) => isWrite(call[1] as TaskAction[], kinds))
+  return writeTask.mock.calls.filter((call) => isWrite(call[1], kinds))
 }
 
 // Vaul's drag/animation is verified on-device. This passthrough honours `open` and
@@ -217,13 +202,14 @@ function RouteProbe(): ReactNode {
 
 function renderScreen() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  return renderWithServices(
     <QueryClientProvider client={client}>
       <RouterProvider>
         <MobileTasks />
         <RouteProbe />
       </RouterProvider>
     </QueryClientProvider>,
+    { app },
   ).then((view) => {
     const find = async (locator: Locator): Promise<Element> => {
       await expect.element(locator).toBeInTheDocument()
@@ -267,39 +253,30 @@ async function revealSwipeActions(
 
 let storage: TestStorageService
 
+let app: Omit<TestAppServices, 'tasks'> & { tasks: TaskService }
+
 beforeEach(async () => {
-  setDefaultOperations(createTestOperationsService())
+  const operations = createTestOperationsService()
   await page.viewport(375, 700)
   storage = createTestStorageService()
-  setDefaultStorage(storage)
-  getOpenTasks.mockReset()
-  getCompletedTasks.mockReset()
-  getCompletedTasks.mockResolvedValue([])
-  writeTask.mockReset()
-  writeTask.mockResolvedValue(WRITTEN)
-  insertTask.mockReset()
-  insertTask.mockResolvedValue({
+  haptics = createTestHapticsService()
+  // A fresh service per test, so its recently-completed set starts empty.
+  const tasks = createTestTaskService({ operations })
+  getOpenTasks = vi.spyOn(tasks, 'getOpenTasks').mockResolvedValue([])
+  getCompletedTasks = vi.spyOn(tasks, 'getCompletedTasks').mockResolvedValue([])
+  writeTask = vi.spyOn(tasks, 'writeTask').mockResolvedValue(WRITTEN)
+  insertTask = vi.spyOn(tasks, 'insertTask').mockResolvedValue({
     created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
     moved: [],
+    updatedAt: 0,
   })
-  continueTaskInContext.mockReset()
-  continueTaskInContext.mockResolvedValue({
-    created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
-    moved: [],
-  })
+  app = createTestAppServices({ operations, storage, haptics, tasks })
   resolveOrCreateNoteWithTitle.mockReset()
   resolveOrCreateNoteWithTitle.mockResolvedValue({
     kind: 'resolved',
     path: 'notes/other.md',
   })
   editorProbe.focusCalls = 0
-  resetRecentlyCompleted()
-})
-
-afterEach(async () => {
-  setDefaultOperations(null)
-  await cleanup()
-  setDefaultStorage(null)
 })
 
 describe('MobileTasks', () => {

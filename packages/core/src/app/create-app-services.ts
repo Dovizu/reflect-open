@@ -205,6 +205,7 @@ import {
 } from './lifecycle-service.ts'
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
 import { createOperationsService, type OperationsService } from './operations-service.ts'
+import { createTaskService, type TaskService } from '../tasks/task-service.ts'
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
@@ -305,6 +306,7 @@ export interface AppServices {
   readonly noteMove: NoteMoveService
   readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
+  readonly tasks: TaskService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
   readonly indexQuery: IndexQueryService
@@ -658,6 +660,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
     noteDocuments,
+    tasks: createTaskService({ database, noteDocuments, operations, clock, logger }),
     noteActions: createNoteActionsService({
       noteDocuments,
       noteFile,

@@ -77,6 +77,7 @@ const SERVICE_KEYS = [
   'noteMove',
   'titleRename',
   'noteDocuments',
+  'tasks',
   'noteActions',
   'noteRows',
   'indexQuery',
