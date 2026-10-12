@@ -634,8 +634,38 @@ export {
   type ClassicAccess,
   type ClassicInvoice,
   type ClassicSignInResult,
-  type StartWebAuth,
 } from '../classic/classic-access.ts'
+export {
+  createClassicAccessService,
+  defaultClassicAccess,
+  setDefaultClassicAccess,
+  type ClassicAccessService,
+  type ClassicAccessState,
+  type ClassicSignInOptions,
+} from '../classic/classic-access-service.ts'
+export {
+  createSubscriptionService,
+  defaultSubscription,
+  setDefaultSubscription,
+  type ActiveSubscription,
+  type SubscriptionService,
+  type SubscriptionState,
+} from '../monetization/subscription-service.ts'
+export {
+  createAppStoreEnvironmentService,
+  defaultAppStoreEnvironment,
+  setDefaultAppStoreEnvironment,
+  type AppStoreEnvironment,
+  type AppStoreEnvironmentService,
+  type AppStoreEnvironmentState,
+} from '../monetization/app-store-environment-service.ts'
+export {
+  createPaywallService,
+  defaultPaywall,
+  setDefaultPaywall,
+  type PaywallGate,
+  type PaywallService,
+} from '../monetization/paywall-service.ts'
 export {
   IAP_PRODUCT_IDS,
   createIapService,
@@ -661,6 +691,7 @@ export {
   defaultWebAuth,
   setDefaultWebAuth,
   startWebAuth,
+  type StartWebAuth,
   type WebAuthOptions,
   type WebAuthService,
 } from '../ipc/web-auth-plugin.ts'

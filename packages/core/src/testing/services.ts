@@ -57,6 +57,16 @@ import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
+import {
+  createTestAppStoreEnvironmentService,
+  createTestClassicAccessService,
+  createTestPaywallService,
+  createTestSubscriptionService,
+  type TestAppStoreEnvironmentService,
+  type TestClassicAccessService,
+  type TestPaywallService,
+  type TestSubscriptionService,
+} from './monetization.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
 import {
   createTestAppStoreService,
@@ -130,6 +140,10 @@ export interface TestAppServices extends AppServices {
   readonly iap: TestIapService
   readonly appStore: TestAppStoreService
   readonly webAuth: TestWebAuthService
+  readonly classicAccess: TestClassicAccessService
+  readonly subscription: TestSubscriptionService
+  readonly appStoreEnvironment: TestAppStoreEnvironmentService
+  readonly paywall: TestPaywallService
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
 }
@@ -183,6 +197,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     iap: createTestIapService(),
     appStore: createTestAppStoreService(),
     webAuth: createTestWebAuthService(null),
+    classicAccess: createTestClassicAccessService(),
+    subscription: createTestSubscriptionService(),
+    appStoreEnvironment: createTestAppStoreEnvironmentService(),
+    paywall: createTestPaywallService(),
     noteFile: createTestNoteFileService(),
     assetStore: createTestAssetStoreService(),
   }

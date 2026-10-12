@@ -53,6 +53,7 @@ const SERVICE_KEYS = [
   'webFetch',
   'xArchive',
   'audioRecorder',
+  'classicAccess',
   'noteFile',
   'assetStore',
 ] as const satisfies readonly (keyof AppServices)[]
@@ -134,6 +135,10 @@ describe('createAppServices', () => {
     expect(desktop.iap).toBeUndefined()
     expect(desktop.appStore).toBeUndefined()
     expect(desktop.webAuth).toBeUndefined()
+    expect(desktop.subscription).toBeUndefined()
+    expect(desktop.appStoreEnvironment).toBeUndefined()
+    expect(desktop.paywall).toBeUndefined()
+    expect(desktop.classicAccess).toBeDefined()
 
     const mobile = createAppServices({
       ...requiredAdapters(),
@@ -144,6 +149,9 @@ describe('createAppServices', () => {
     expect(mobile.iap).toBeDefined()
     expect(mobile.appStore).toBeDefined()
     expect(mobile.webAuth).toBeDefined()
+    expect(mobile.subscription).toBeDefined()
+    expect(mobile.appStoreEnvironment).toBeDefined()
+    expect(mobile.paywall).toBeDefined()
     // Only the native recorder is supported without `MediaRecorder`.
     expect(mobile.audioRecorder.isSupported()).toBe(true)
   })

@@ -169,3 +169,17 @@ export {
   type TestNoteFileService,
   type TestNoteFileServiceOptions,
 } from './graph.ts'
+export {
+  createTestAppStoreEnvironmentService,
+  createTestClassicAccessService,
+  createTestPaywallService,
+  createTestSubscriptionService,
+  type AppStoreEnvironmentCall,
+  type ClassicAccessCall,
+  type PaywallAction,
+  type SubscriptionCall,
+  type TestAppStoreEnvironmentService,
+  type TestClassicAccessService,
+  type TestPaywallService,
+  type TestSubscriptionService,
+} from './monetization.ts'
