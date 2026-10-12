@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { canTrashNote, foldTag, listNotes, listNoteTags } from '@reflect/core'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import type { ModClickEvent } from '@/lib/windows/open-in-new-window.ts'
@@ -54,8 +53,7 @@ export function AllNotesScreen({ tag }: AllNotesScreenProps): ReactElement {
   // The surface, so the keyboard shortcuts can scope to it (and focus it on mount).
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const bridgeReady = useBridgeReady()
-  const enabled = bridgeReady && graph !== null
+  const enabled = graph !== null
 
   const { data: notes } = useQuery({
     queryKey: queryKeys.index.allNotesWithTag(graph?.root, tag === null ? null : foldTag(tag)),
