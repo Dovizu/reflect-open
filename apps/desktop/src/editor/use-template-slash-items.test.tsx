@@ -1,5 +1,3 @@
-import type { ReactElement, ReactNode } from 'react'
-import { renderHook } from 'vitest-browser-react'
 import { describe, expect, it, vi } from 'vitest'
 import {
   createTestAppServices,
@@ -7,16 +5,9 @@ import {
   createTestOperationsService,
   createTestTemplateService,
 } from '@reflect/core/testing'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { useTemplateSlashItems } from './use-template-slash-items.ts'
-
-const graphState = vi.hoisted(() => ({
-  graph: { root: '/g', generation: 1 } as { root: string; generation: number } | null,
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: graphState.graph }),
-}))
 
 function setup() {
   const operations = createTestOperationsService()
@@ -36,10 +27,7 @@ function setup() {
     operations,
   })
   const app = createTestAppServices({ templates, operations })
-  function wrapper({ children }: { children: ReactNode }): ReactElement {
-    return <AppServicesProvider services={app}>{children}</AppServicesProvider>
-  }
-  return { wrapper, operations }
+  return { app, operations }
 }
 
 function fakeEditor(): NoteEditorHandle & { inserted: string[] } {
@@ -66,11 +54,9 @@ function fakeEditor(): NoteEditorHandle & { inserted: string[] } {
 
 describe('useTemplateSlashItems', () => {
   it('maps templates to slash rows whose select inserts through the shared flow', async () => {
-    const { wrapper } = setup()
+    const { app } = setup()
     const editor = fakeEditor()
-    const { result } = await renderHook(() => useTemplateSlashItems(() => editor), {
-      wrapper,
-    })
+    const { result } = await renderHookInApp(() => useTemplateSlashItems(() => editor), { app })
 
     const items = await result.current('jour')
     expect(
@@ -92,10 +78,8 @@ describe('useTemplateSlashItems', () => {
   it('resolves the editor at select time, not capture time', async () => {
     // The pane unmounted between the menu opening and the select — the shared
     // flow receives null and surfaces the failure, never a stale editor.
-    const { wrapper, operations } = setup()
-    const { result } = await renderHook(() => useTemplateSlashItems(() => null), {
-      wrapper,
-    })
+    const { app, operations } = setup()
+    const { result } = await renderHookInApp(() => useTemplateSlashItems(() => null), { app })
     const items = await result.current('')
     items[0]!.onSelect()
     await vi.waitFor(() =>
@@ -106,15 +90,11 @@ describe('useTemplateSlashItems', () => {
   })
 
   it('returns nothing without an open graph', async () => {
-    const { wrapper } = setup()
-    graphState.graph = null
-    try {
-      const { result } = await renderHook(() => useTemplateSlashItems(() => fakeEditor()), {
-        wrapper,
-      })
-      await expect(result.current('')).resolves.toEqual([])
-    } finally {
-      graphState.graph = { root: '/g', generation: 1 }
-    }
+    const { app } = setup()
+    const { result } = await renderHookInApp(() => useTemplateSlashItems(() => fakeEditor()), {
+      app,
+      graph: null,
+    })
+    await expect(result.current('')).resolves.toEqual([])
   })
 })

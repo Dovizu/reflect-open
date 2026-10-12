@@ -1,7 +1,7 @@
 import { render } from 'vitest-browser-react'
-import { describe, expect, it } from 'vitest'
-import { defaultClock } from '@reflect/core'
-import { createTestAppServices } from '@reflect/core/testing'
+import { describe, expect, it, onTestFinished } from 'vitest'
+import { defaultClock, setDefaultPlatform } from '@reflect/core'
+import { createTestAppServices, createTestPlatformService } from '@reflect/core/testing'
 import { useAppServices, useGraphServices } from '@/services/services-provider.tsx'
 import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 
@@ -37,9 +37,11 @@ describe('services providers', () => {
     expect(defaultClock()).toBe(app.clock)
   })
 
-  it('throws outside the providers', async () => {
-    await expect(render(<AppVersion />)).rejects.toThrow(
-      /useAppServices\(\) must be called inside an <AppServicesProvider>/,
-    )
+  it('gives the process-wide defaults outside the providers', async () => {
+    const platform = createTestPlatformService({ appVersion: '1.2.3-default' })
+    setDefaultPlatform(platform)
+    onTestFinished(() => setDefaultPlatform(null))
+    const screen = await render(<AppVersion />)
+    await expect.element(screen.getByText('version 1.2.3-default')).toBeVisible()
   })
 })

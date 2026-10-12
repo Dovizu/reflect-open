@@ -1,23 +1,18 @@
-import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultAgentSkill, setDefaultPlatform, type AgentSkillStatus } from '@reflect/core'
+import type { QueryClient } from '@tanstack/react-query'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AgentSkillService, AgentSkillStatus } from '@reflect/core'
 import {
-  createTestIpcBridgeService,
+  createTestAppServices,
   createTestPlatformService,
-  installTestBridge,
+  type TestGraphSessionService,
+  type TestPlatformOptions,
 } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { AgentsSection } from './agents-section.tsx'
 
 const GRAPH = { root: '/graphs/Personal', name: 'Personal', generation: 7 }
-const graphState = vi.hoisted(() => ({
-  graph: { root: '/graphs/Personal', name: 'Personal', generation: 7 },
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => graphState,
-}))
 
 type InstallState = 'missing' | 'current' | 'stale' | 'conflict'
 
@@ -26,7 +21,6 @@ let installGenerations: number[]
 let uninstallGenerations: number[]
 let installResult: () => Promise<AgentSkillStatus>
 let uninstallResult: () => Promise<AgentSkillStatus>
-let queryClient: QueryClient
 
 function statusPayload(): AgentSkillStatus {
   return {
@@ -37,38 +31,33 @@ function statusPayload(): AgentSkillStatus {
   }
 }
 
-let removeBridge: () => void
-
-function installFakeAgentSkill(): void {
-  installGenerations = []
-  uninstallGenerations = []
-  setDefaultAgentSkill({
-    status: async () => statusPayload(),
-    install: async (generation) => {
-      installGenerations.push(generation)
-      return await installResult()
-    },
-    uninstall: async (generation) => {
-      uninstallGenerations.push(generation)
-      return await uninstallResult()
-    },
-  })
+const agentSkill: AgentSkillService = {
+  status: async () => statusPayload(),
+  install: async (generation) => {
+    installGenerations.push(generation)
+    return await installResult()
+  },
+  uninstall: async (generation) => {
+    uninstallGenerations.push(generation)
+    return await uninstallResult()
+  },
 }
 
-type SectionView = Awaited<ReturnType<typeof render>>
+interface SectionView {
+  graphSession: TestGraphSessionService
+  queryClient: QueryClient
+}
 
-async function renderSection(): Promise<SectionView> {
-  return await render(
-    <QueryClientProvider client={queryClient}>
-      <AgentsSection />
-    </QueryClientProvider>,
-  )
+async function renderSection(platform?: TestPlatformOptions): Promise<SectionView> {
+  const app = createTestAppServices({ agentSkill, platform: createTestPlatformService(platform) })
+  const { queryClient } = await renderInApp(<AgentsSection />, { app, graph: GRAPH })
+  return { graphSession: app.graphSession, queryClient }
 }
 
 beforeEach(() => {
-  setDefaultPlatform(createTestPlatformService())
-  graphState.graph = GRAPH
   installState = 'missing'
+  installGenerations = []
+  uninstallGenerations = []
   installResult = async () => {
     installState = 'current'
     return statusPayload()
@@ -77,16 +66,6 @@ beforeEach(() => {
     installState = 'missing'
     return statusPayload()
   }
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  installFakeAgentSkill()
-  removeBridge = installTestBridge(createTestIpcBridgeService())
-})
-
-afterEach(() => {
-  removeBridge()
-  setDefaultAgentSkill(null)
-  setDefaultPlatform(null)
-  queryClient.clear()
 })
 
 describe('AgentsSection', () => {
@@ -155,12 +134,7 @@ describe('AgentsSection', () => {
     await page.getByRole('button', { name: 'Install skill' }).click()
     await expect.element(page.getByText('Installing failed')).toBeInTheDocument()
 
-    graphState.graph = { root: '/graphs/Work', name: 'Work', generation: 11 }
-    await view.rerender(
-      <QueryClientProvider client={queryClient}>
-        <AgentsSection />
-      </QueryClientProvider>,
-    )
+    view.graphSession.setGraph({ root: '/graphs/Work', name: 'Work', generation: 11 })
 
     await expect.element(page.getByRole('button', { name: 'Install skill' })).toBeEnabled()
     expect(page.getByText('Installing failed').query()).toBeNull()
@@ -169,16 +143,11 @@ describe('AgentsSection', () => {
   it('writes a completed mutation to its original graph cache', async () => {
     const pendingInstall = Promise.withResolvers<AgentSkillStatus>()
     installResult = () => pendingInstall.promise
-    const view = await renderSection()
+    const { graphSession, queryClient } = await renderSection()
     await page.getByRole('button', { name: 'Install skill' }).click()
 
     const nextGraph = { root: '/graphs/Work', name: 'Work', generation: 11 }
-    graphState.graph = nextGraph
-    await view.rerender(
-      <QueryClientProvider client={queryClient}>
-        <AgentsSection />
-      </QueryClientProvider>,
-    )
+    graphSession.setGraph(nextGraph)
     await vi.waitFor(() =>
       expect(queryClient.getQueryState(queryKeys.agentSkill.status(nextGraph.root))?.status).toBe(
         'success',
@@ -212,8 +181,7 @@ describe('AgentsSection', () => {
 
 describe('AgentsSection off macOS desktop', () => {
   it('renders nothing off macOS desktop', async () => {
-    setDefaultPlatform(createTestPlatformService({ isNativeShell: false, isMacosDesktop: false }))
-    await renderSection()
+    await renderSection({ isNativeShell: false, isMacosDesktop: false })
     expect(page.getByText('Agent skill').query()).toBeNull()
   })
 })

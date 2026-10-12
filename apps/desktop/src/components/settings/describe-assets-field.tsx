@@ -1,5 +1,4 @@
 import { useState, type ReactElement } from 'react'
-import { defaultAssetDescription } from '@reflect/core'
 import { Button } from '@/components/ui/button.tsx'
 import {
   Dialog,
@@ -25,7 +24,7 @@ import { SettingsField } from './field.tsx'
 export function DescribeAssetsField(): ReactElement {
   const { settings, updateSettings } = useSettings()
   const { graph } = useGraph()
-  const assetDescription = useAppServices({ optional: true })?.assetDescription
+  const { assetDescription } = useAppServices()
   const [confirming, setConfirming] = useState(false)
   const [running, setRunning] = useState(false)
 
@@ -39,7 +38,7 @@ export function DescribeAssetsField(): ReactElement {
     }
     setRunning(true)
     try {
-      await (assetDescription ?? defaultAssetDescription()).backfillVisibly(generation)
+      await assetDescription.backfillVisibly(generation)
     } finally {
       setRunning(false)
     }

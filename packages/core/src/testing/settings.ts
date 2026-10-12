@@ -16,6 +16,8 @@ export interface TestSettingsService extends SettingsService {
   failNextSave(): void
   /** Makes the load reject with an `io` error. Call before the first read. */
   failLoad(): void
+  /** Merges `patch` into the stored document. Throws once the load has read it. */
+  seed(patch: Partial<Settings>): void
 }
 
 /**
@@ -29,15 +31,18 @@ export function createTestSettingsService(
 ): TestSettingsService {
   const operations = deps?.operations ?? createTestOperationsService()
   const saved: Settings[] = []
+  let stored: Partial<Settings> = { ...initial }
+  let loadStarted = false
   let failSave = false
   let loadFails = false
   const ipc = createTestIpcBridgeService({
     commands: {
       settings_load: () => {
+        loadStarted = true
         if (loadFails) {
           throw new ReflectError('io', 'test settings: load failed')
         }
-        return saved.at(-1) ?? { ...initial }
+        return saved.at(-1) ?? { ...stored }
       },
       settings_save: (args) => {
         if (failSave) {
@@ -60,6 +65,12 @@ export function createTestSettingsService(
     },
     failLoad() {
       loadFails = true
+    },
+    seed(patch) {
+      if (loadStarted) {
+        throw new Error('test settings: seed() must come before the first read')
+      }
+      stored = { ...stored, ...patch }
     },
   }
 }

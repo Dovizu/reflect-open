@@ -1,31 +1,18 @@
 import type { ReactElement } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
-import {
-  agentSkillInstall,
-  agentSkillStatus,
-  agentSkillUninstall,
-  errorMessage,
-  type AgentSkillStatus,
-} from '@reflect/core'
+import { errorMessage, type AgentSkillStatus } from '@reflect/core'
 import { SettingsField } from '@/components/settings/field.tsx'
 import { SettingsSection } from '@/components/settings/section.tsx'
 import { Button } from '@/components/ui/button.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
-import { isMacosDesktop } from '@/lib/platform.ts'
 import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface AgentSkillAction {
   action: 'install' | 'uninstall'
   generation: number
   root: string
-}
-
-function writeAgentSkill(variables: AgentSkillAction): Promise<AgentSkillStatus> {
-  return variables.action === 'uninstall'
-    ? agentSkillUninstall(variables.generation)
-    : agentSkillInstall(variables.generation)
 }
 
 /**
@@ -37,24 +24,27 @@ function writeAgentSkill(variables: AgentSkillAction): Promise<AgentSkillStatus>
  */
 export function AgentsSection(): ReactElement | null {
   const { graph } = useGraph()
+  const { agentSkill, platform } = useAppServices()
   const queryClient = useQueryClient()
   const queryKey = queryKeys.agentSkill.status(graph?.root)
-  const bridgeReady = useBridgeReady()
   const { data: status } = useQuery({
     queryKey,
-    queryFn: agentSkillStatus,
-    enabled: bridgeReady && isMacosDesktop() && graph !== null,
+    queryFn: () => agentSkill.status(),
+    enabled: platform.isMacosDesktop && graph !== null,
   })
   const mutation = useMutation({
     mutationKey: mutationKeys.agentSkill.write(graph?.root),
     scope: { id: mutationScopeIds.agentSkillWrite(graph?.root) },
-    mutationFn: writeAgentSkill,
+    mutationFn: (variables: AgentSkillAction): Promise<AgentSkillStatus> =>
+      variables.action === 'uninstall'
+        ? agentSkill.uninstall(variables.generation)
+        : agentSkill.install(variables.generation),
     onSuccess: (nextStatus, variables) => {
       queryClient.setQueryData(queryKeys.agentSkill.status(variables.root), nextStatus)
     },
   })
 
-  if (!isMacosDesktop() || graph === null) {
+  if (!platform.isMacosDesktop || graph === null) {
     return null
   }
 

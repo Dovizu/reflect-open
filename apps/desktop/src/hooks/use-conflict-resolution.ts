@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { defaultConflictResolution, type ConflictResolution } from '@reflect/core'
+import type { ConflictResolution } from '@reflect/core'
 import { invalidateIndexQueries } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 export interface ConflictResolutionState {
   busy: boolean
@@ -21,7 +21,7 @@ export interface ConflictResolutionState {
  */
 export function useConflictResolution(path: string): ConflictResolutionState {
   const { graph, indexGeneration } = useGraph()
-  const service = useOptionalAppServices()?.conflictResolution ?? defaultConflictResolution()
+  const { conflictResolution: service } = useAppServices()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const writeGeneration = graph?.generation ?? null

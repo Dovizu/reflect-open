@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { getPinnedNotes, type PinnedNote } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 
@@ -12,11 +11,10 @@ import { useGraph } from '@/providers/graph-provider.tsx'
  */
 export function usePinnedNotes(): PinnedNote[] {
   const { graph } = useGraph()
-  const bridgeReady = useBridgeReady()
   const { data } = useQuery({
     queryKey: queryKeys.index.pinnedNotes(graph?.root),
     queryFn: () => getPinnedNotes(),
-    enabled: bridgeReady && graph !== null,
+    enabled: graph !== null,
   })
   return data ?? []
 }

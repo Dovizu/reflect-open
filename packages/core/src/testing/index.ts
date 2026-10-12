@@ -167,6 +167,8 @@ export { createTestEmbedMediaService, type TestEmbedMediaServiceOptions } from '
 export { createTestLinkPreviewService, type TestLinkPreviewServiceOptions } from './link-preview.ts'
 export {
   createTestBackupService,
+  createTestScriptedBackupServiceFactory,
+  type TestScriptedBackupServiceFactory,
   createTestBackupServiceFactory,
   createTestGistPublishService,
   createTestConflictResolutionService,
@@ -236,6 +238,7 @@ export {
   createTestGraphSessionService,
   type TestGraphSessionService,
   type TestGraphSessionServiceOptions,
+  type TestOpenGraph,
 } from './graph-session.ts'
 export { createTestV1ImportService } from './v1-import.ts'
 export { createTestKeyboardService, createTestShareService } from './mobile.ts'
