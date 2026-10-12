@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTestUpdateService } from '@reflect/core/testing'
+import { createTestLoggerService, createTestUpdateService } from '@reflect/core/testing'
 import type { MockToastAddOptions } from '@/test-utils/toast.ts'
 import { attachUpdateToasts } from './update-toasts.ts'
 
@@ -18,7 +18,7 @@ afterEach(() => {
 describe('attachUpdateToasts', () => {
   it('shows an install action when an update is available', () => {
     const update = createTestUpdateService()
-    attachUpdateToasts(update)
+    attachUpdateToasts({ update, logger: createTestLoggerService() })
 
     update.setState({ phase: 'available', version: '1.2.3' })
 
@@ -40,7 +40,7 @@ describe('attachUpdateToasts', () => {
 
   it('updates the same toast while downloading and when ready', () => {
     const update = createTestUpdateService()
-    attachUpdateToasts(update)
+    attachUpdateToasts({ update, logger: createTestLoggerService() })
     expect(toast.close).toHaveBeenCalledWith('reflect-update')
 
     update.setState({ phase: 'available', version: '1.2.3' })
@@ -74,7 +74,7 @@ describe('attachUpdateToasts', () => {
 
   it('surfaces install errors but ignores check-only failures', () => {
     const update = createTestUpdateService()
-    attachUpdateToasts(update)
+    attachUpdateToasts({ update, logger: createTestLoggerService() })
 
     update.setState({ phase: 'error', message: 'offline', during: 'check' })
     expect(toast.close).toHaveBeenCalledWith('reflect-update')
@@ -97,7 +97,7 @@ describe('attachUpdateToasts', () => {
 
   it('stops mirroring after detach', () => {
     const update = createTestUpdateService()
-    const detach = attachUpdateToasts(update)
+    const detach = attachUpdateToasts({ update, logger: createTestLoggerService() })
     detach()
 
     update.setState({ phase: 'available', version: '1.2.3' })

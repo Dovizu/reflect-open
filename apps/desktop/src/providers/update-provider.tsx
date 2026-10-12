@@ -44,7 +44,7 @@ interface UpdateProviderProps {
  * from first launch, before any graph is open.
  */
 export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): ReactElement {
-  const { update, platform } = useAppServices()
+  const { update, platform, logger } = useAppServices()
   const supported = update.supported
   const resolvedAutoCheck = autoCheck ?? !platform.isDev
 
@@ -53,7 +53,7 @@ export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): Re
     if (!supported) {
       return
     }
-    const detachToasts = attachUpdateToasts(update)
+    const detachToasts = attachUpdateToasts({ update, logger })
     if (resolvedAutoCheck) {
       update.start()
     }
@@ -61,7 +61,7 @@ export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): Re
       detachToasts()
       update.dispose()
     }
-  }, [update, supported, resolvedAutoCheck])
+  }, [update, supported, resolvedAutoCheck, logger])
 
   const state = useSyncExternalStore(update.subscribe, update.getState)
 

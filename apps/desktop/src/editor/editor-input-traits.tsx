@@ -23,19 +23,19 @@ import { whenEditorMounted } from './when-editor-mounted.ts'
  */
 export function EditorInputTraits(): null {
   const editor = useEditor()
-  const { platform } = useAppServices()
+  const { platform, logger } = useAppServices()
   const touchEditor = platform.surface.touchEditor
 
   useEffect(() => {
     if (!touchEditor) {
       return
     }
-    return whenEditorMounted(editor, () => {
+    return whenEditorMounted({ logger }, editor, () => {
       const dom = editor.view.dom
       dom.setAttribute('autocapitalize', 'sentences')
       dom.setAttribute('autocorrect', 'on')
     })
-  }, [editor, touchEditor])
+  }, [editor, touchEditor, logger])
 
   return null
 }

@@ -1,4 +1,4 @@
-import type { UpdateService, UpdateState } from '@reflect/core'
+import type { AppServices, LoggerService, UpdateService, UpdateState } from '@reflect/core'
 import { toast } from '@/components/ui/toast.tsx'
 
 const UPDATE_TOAST_ID = 'reflect-update'
@@ -10,13 +10,13 @@ const NON_DISMISSIBLE_UPDATE_OPTIONS = {
   data: { dismissible: false },
 }
 
-function runToastAction(action: () => Promise<void>): void {
+function runToastAction(action: () => Promise<void>, logger: LoggerService): void {
   void action().catch((error: unknown) => {
-    console.error('update toast action failed:', error)
+    logger.error('update toast action failed:', error)
   })
 }
 
-function showUpdateToast(state: UpdateState, update: UpdateService): void {
+function showUpdateToast(state: UpdateState, update: UpdateService, logger: LoggerService): void {
   switch (state.phase) {
     case 'available':
       toast.add({
@@ -29,7 +29,7 @@ function showUpdateToast(state: UpdateState, update: UpdateService): void {
         ...NON_DISMISSIBLE_UPDATE_OPTIONS,
         actionProps: {
           children: 'Install',
-          onClick: () => runToastAction(update.install),
+          onClick: () => runToastAction(update.install, logger),
         },
       })
       break
@@ -56,7 +56,7 @@ function showUpdateToast(state: UpdateState, update: UpdateService): void {
         ...NON_DISMISSIBLE_UPDATE_OPTIONS,
         actionProps: {
           children: 'Restart',
-          onClick: () => runToastAction(update.restart),
+          onClick: () => runToastAction(update.restart, logger),
         },
       })
       break
@@ -70,7 +70,7 @@ function showUpdateToast(state: UpdateState, update: UpdateService): void {
           ...NON_DISMISSIBLE_UPDATE_OPTIONS,
           actionProps: {
             children: 'Retry install',
-            onClick: () => runToastAction(update.retryAction),
+            onClick: () => runToastAction(update.retryAction, logger),
           },
         })
       } else {
@@ -89,8 +89,9 @@ function showUpdateToast(state: UpdateState, update: UpdateService): void {
  * transitions (check results, download progress callbacks), not in a React
  * render cycle. Returns a detach.
  */
-export function attachUpdateToasts(update: UpdateService): () => void {
-  const sync = (): void => showUpdateToast(update.getState(), update)
+export function attachUpdateToasts(ctx: Pick<AppServices, 'update' | 'logger'>): () => void {
+  const { update, logger } = ctx
+  const sync = (): void => showUpdateToast(update.getState(), update, logger)
   sync()
   return update.subscribe(sync)
 }

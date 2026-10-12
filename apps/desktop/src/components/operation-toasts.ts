@@ -1,4 +1,4 @@
-import type { Operation, OperationsService } from '@reflect/core'
+import type { AppServices, LoggerService, Operation } from '@reflect/core'
 import { toast } from '@/components/ui/toast.tsx'
 
 /**
@@ -36,14 +36,14 @@ function descriptionFor(operation: Operation): string | undefined {
   return operation.description ?? undefined
 }
 
-function showOperationToast(operation: Operation): void {
+function showOperationToast(operation: Operation, logger: LoggerService): void {
   const operationAction = operation.action
   const actionProps = operationAction
     ? {
         children: operationAction.label,
         onClick: () => {
           void Promise.resolve(operationAction.run()).catch((error: unknown) => {
-            console.error('operation action failed:', error)
+            logger.error('operation action failed:', error)
           })
         },
       }
@@ -72,7 +72,8 @@ function showOperationToast(operation: Operation): void {
 }
 
 /** Start mirroring `operations` into toasts; returns a detach. */
-export function attachOperationToasts(operations: OperationsService): () => void {
+export function attachOperationToasts(ctx: Pick<AppServices, 'operations' | 'logger'>): () => void {
+  const { operations, logger } = ctx
   let shownIds = new Set<number>()
   const sync = (): void => {
     const current = operations.getAll()
@@ -83,7 +84,7 @@ export function attachOperationToasts(operations: OperationsService): () => void
       }
     }
     for (const operation of current) {
-      showOperationToast(operation)
+      showOperationToast(operation, logger)
     }
     shownIds = nextIds
   }

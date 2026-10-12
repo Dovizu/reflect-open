@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import {
+  createTestLoggerService,
+  createTestOperationsService,
+  type TestLoggerService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import type { MockToastAddOptions } from '@/test-utils/toast.ts'
 import { attachOperationToasts } from './operation-toasts.ts'
 
@@ -12,12 +17,14 @@ vi.mock('@/components/ui/toast.tsx', () => ({ toast }))
 
 let detach: () => void = () => {}
 let operations: TestOperationsService
+let logger: TestLoggerService
 
 beforeEach(() => {
   operations = createTestOperationsService()
+  logger = createTestLoggerService()
   toast.add.mockClear()
   toast.close.mockClear()
-  detach = attachOperationToasts(operations)
+  detach = attachOperationToasts({ operations, logger })
 })
 
 afterEach(() => {
@@ -89,16 +96,12 @@ describe('attachOperationToasts', () => {
     const run = vi.fn(async () => {
       throw error
     })
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-
     operations.start('Update available', { action: { label: 'Install', run } })
 
     const options = toast.add.mock.lastCall?.[0]
     options?.actionProps?.onClick()
     await vi.waitFor(() =>
-      expect(consoleError).toHaveBeenCalledWith('operation action failed:', error),
+      expect(logger.getErrors()).toEqual([{ message: 'operation action failed:', cause: error }]),
     )
-
-    consoleError.mockRestore()
   })
 })

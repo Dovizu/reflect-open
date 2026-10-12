@@ -43,7 +43,7 @@ export function FormattingToolbarBridge({
   saveFile?: ((file: File) => Promise<string | undefined>) | undefined
 }): null {
   const editor = useEditor<EditorExtension>()
-  const { imageCodec, platform } = useAppServices()
+  const { imageCodec, platform, logger } = useAppServices()
   const touchEditor = platform.surface.touchEditor
   // Read through a ref like the editor's other host callbacks: a changing
   // identity must not tear down and re-attach the published toolbar.
@@ -62,7 +62,7 @@ export function FormattingToolbarBridge({
 
     // Same mount dance as EditorInputTraits — see `whenEditorMounted` for
     // why the wait is bounded.
-    const cancel = whenEditorMounted(editor, () => {
+    const cancel = whenEditorMounted({ logger }, editor, () => {
       const dom = editor.view.dom
 
       function readCapabilities(): FormattingToolbarCapabilities {
@@ -185,7 +185,7 @@ export function FormattingToolbarBridge({
     // `canAttachFiles` is fixed per editor in practice (a pane either has a
     // saveFile or does not), so re-attaching on a flip costs nothing and
     // keeps the published capability honest.
-  }, [editor, canAttachFiles, imageCodec, touchEditor])
+  }, [editor, canAttachFiles, imageCodec, touchEditor, logger])
 
   return null
 }

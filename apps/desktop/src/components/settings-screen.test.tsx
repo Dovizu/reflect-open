@@ -15,21 +15,11 @@ import { formatFullDate } from '@/lib/dates.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider } from '@/providers/shortcuts-provider.tsx'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
+import { V1ImportProvider } from '@/providers/v1-import-provider.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { ShortcutsDialog } from './shortcuts-dialog.tsx'
 import { SettingsScreen } from './settings-screen.tsx'
-
-// The Import section only hands the picked zip to the workspace-level V1
-// import controller, which these screen tests don't mount.
-vi.mock('@/providers/v1-import-provider.tsx', () => ({
-  useV1Import: () => ({
-    state: { phase: 'idle' },
-    startImport: () => {},
-    cancelImport: () => {},
-    dismiss: () => {},
-  }),
-}))
 
 // What the app starts from; each test sets them before `renderScreen`.
 let stored: Partial<Settings>
@@ -74,11 +64,14 @@ async function renderScreen(): Promise<void> {
         defaultOptions: { queries: { retry: false, staleTime: Infinity } },
       }),
       // The Note templates section shares the "New template" dialog state
-      // (templates provider).
+      // (templates provider). The Import section hands the picked zip to the
+      // workspace's V1 import.
       wrapper: (children) => (
         <UpdateProvider autoCheck={false}>
           <ShortcutsProvider>
-            <NoteTemplatesProvider>{children}</NoteTemplatesProvider>
+            <NoteTemplatesProvider>
+              <V1ImportProvider>{children}</V1ImportProvider>
+            </NoteTemplatesProvider>
           </ShortcutsProvider>
         </UpdateProvider>
       ),

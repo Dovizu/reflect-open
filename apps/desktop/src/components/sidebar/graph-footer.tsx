@@ -65,7 +65,7 @@ interface GraphFooterProps {
 export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement {
   const [appsOpen, setAppsOpen] = useState(false)
   const graphTriggerRef = useRef<HTMLButtonElement>(null)
-  const { opener, window: appWindow } = useAppServices()
+  const { opener, window: appWindow, logger } = useAppServices()
   const { recents, indexing, openRecent, chooseGraph } = useGraph()
   const { colorFor } = useGraphColors()
   const { backup } = useSync()
@@ -136,7 +136,7 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
           <DropdownMenuItem
             onClick={() => {
               void opener.revealInFileManager(graph.root).catch((cause: unknown) => {
-                console.error('open graph folder failed:', cause)
+                logger.error('open graph folder failed:', cause)
               })
             }}
             className={MENU_ITEM_CLASS}

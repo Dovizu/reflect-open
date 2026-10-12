@@ -104,7 +104,7 @@ export function MobileSettings(): ReactElement {
   const subscription = useActiveSubscription()
   const classicAccess = useClassicAccess()
   const classicSignOut = useClassicSignOut()
-  const { paywall, opener, noteList } = useMobileAppServices()
+  const { paywall, opener, noteList, logger } = useMobileAppServices()
   const [, setPaywallRequested] = usePaywallRequested()
   const [restorePending, setRestorePending] = useState(false)
   const [redeemPending, setRedeemPending] = useState(false)
@@ -192,7 +192,7 @@ export function MobileSettings(): ReactElement {
       await sync.disconnectGraph()
       await sync.signOut()
     } catch (err) {
-      console.error('GitHub disconnect failed:', errorMessage(err))
+      logger.error('GitHub disconnect failed:', errorMessage(err))
     } finally {
       setDisconnecting(false)
     }
