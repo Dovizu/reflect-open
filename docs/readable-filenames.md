@@ -81,10 +81,10 @@ keeps existing vault layouts intact. Settled in-app retitles of any editable
 regular note still maintain known wiki links and preserve the old title as an
 alias; link consistency does not imply filename ownership.
 
-The settled-title tracker (`apps/desktop/src/editor/title-rename.ts`, Plan
+The settled-title tracker (`packages/core/src/documents/title-rename-tracker.ts`, Plan
 07b) watches saves and fires after 5 seconds of quiet, or immediately on
 blur/pane teardown/quit. The rename coordinator
-(`apps/desktop/src/editor/rename-coordinator.ts`) then runs three phases, each
+(`packages/core/src/documents/title-rename-service.ts`) then runs three phases, each
 failing independently with an honest report (`rename-failure.ts`):
 
 1. **Rewrite** inbound `[[old title]]` targets and pipe displays that still
@@ -188,8 +188,8 @@ tests in `src-tauri/src/git/tests.rs`):
 | Slug rules (frozen) | `packages/core/src/markdown/slug.ts` + golden corpus in `slug.test.ts` |
 | Collision probe / rename target | `packages/core/src/indexing/note-paths.ts` |
 | Creation (titled + ⌘N seed/path) | `apps/desktop/src/lib/create-note.ts` |
-| Settled-title detection, births | `apps/desktop/src/editor/title-rename.ts` |
-| Rename orchestration | `apps/desktop/src/editor/rename-coordinator.ts` (+ `alias-placement.ts`, `rename-failure.ts`) |
+| Settled-title detection, births | `packages/core/src/documents/title-rename-tracker.ts` |
+| Rename orchestration | `packages/core/src/documents/title-rename-service.ts` (+ `alias-placement.ts`, `rename-failure.ts`) |
 | The move (session-carrying + healed) | `apps/desktop/src/editor/move-note.ts` |
 | Pane lifecycle (create/adopt/hand-off) | `apps/desktop/src/editor/document-binding.ts` |
 | Move announcements → router/panes | `apps/desktop/src/lib/note-moves.ts`, `apps/desktop/src/routing/router.tsx` |

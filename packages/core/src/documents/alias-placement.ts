@@ -1,12 +1,9 @@
-import {
-  foldKey,
-  nextAliases,
-  parseNote,
-  readNote,
-  upsertFrontmatter,
-  writeNote,
-} from '@reflect/core'
-import { openSession } from './open-documents.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import { nextAliases } from '../indexing/rename.ts'
+import { parseNote } from '../markdown/extract.ts'
+import { upsertFrontmatter } from '../markdown/frontmatter.ts'
+import { foldKey } from '../markdown/keys.ts'
+import type { OpenDocumentsService } from './open-documents-service.ts'
 
 /**
  * Old-title alias placement after a settled rename (Plan 07b): the renamed
@@ -31,6 +28,12 @@ export interface SettledRename {
   previousAutoAliases: readonly string[]
 }
 
+/** What {@link placeOldTitleAlias} reads and writes through. */
+export interface AliasPlacementDeps {
+  noteFile: Pick<NoteFileService, 'read' | 'write'>
+  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+}
+
 /** The entries of `next` that `current` did not already carry. */
 function addedAliases(current: readonly string[], next: readonly string[]): string[] {
   const kept = new Set(current.map((alias) => foldKey(alias)))
@@ -47,12 +50,14 @@ function addedAliases(current: readonly string[], next: readonly string[]): stri
  * concurrently-gained entries. Throws on failure; the caller owns reporting.
  */
 export async function placeOldTitleAlias(
+  deps: AliasPlacementDeps,
   path: string,
   rename: SettledRename,
   generation: number,
 ): Promise<string[]> {
+  const { noteFile, openDocuments } = deps
   const aliasesOf = (source: string): string[] => parseNote({ path, source }).frontmatter.aliases
-  const owner = openSession(path)
+  const owner = openDocuments.sessionFor(path)
   let placed = false
   let added: string[] = []
   if (owner !== null) {
@@ -69,13 +74,13 @@ export async function placeOldTitleAlias(
     }
   }
   if (!placed) {
-    const content = await readNote(path)
+    const content = await noteFile.read(path)
     const current = aliasesOf(content)
     const aliases = nextAliases(current, rename)
     if (aliases !== null) {
       const patched = upsertFrontmatter(content, { aliases })
       if (patched !== content) {
-        await writeNote(path, patched, generation)
+        await noteFile.write(path, patched, generation)
       }
       added = addedAliases(current, aliases)
     }

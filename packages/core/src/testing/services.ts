@@ -72,10 +72,14 @@ import {
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
+  createTestNoteMoveService,
   createTestNoteSessionService,
   createTestNoteDocumentService,
   createTestOpenDocumentsService,
+  createTestTitleRenameService,
+  type TestNoteMoveService,
   type TestNoteSessionService,
+  type TestTitleRenameService,
 } from './documents.ts'
 import {
   createTestAssetStoreService,
@@ -227,6 +231,8 @@ export interface TestAppServices extends AppServices {
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
   readonly noteSessions: TestNoteSessionService
+  readonly noteMove: TestNoteMoveService
+  readonly titleRename: TestTitleRenameService
   readonly noteLinkResolver: TestNoteLinkResolverService
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
@@ -317,6 +323,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
     operations: overrides?.operations ?? operations,
   })
+  const ipc = createTestIpcBridgeService({ logger })
+  const noteMove = createTestNoteMoveService({
+    ipc: overrides?.ipc ?? ipc,
+    indexStore: overrides?.indexStore ?? indexStore,
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+    logger,
+  })
   const graphSession = createTestGraphSessionService({
     ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
     indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
@@ -343,7 +356,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   })
   const storage = createTestStorageService()
   const services: TestAppServices = {
-    ipc: createTestIpcBridgeService({ logger }),
+    ipc,
     logger: testLogger,
     clock,
     id,
@@ -417,6 +430,18 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       logger,
     }),
     openDocuments,
+    noteMove,
+    titleRename: createTestTitleRenameService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+      backlinks: overrides?.backlinks ?? indexReads.backlinks,
+      notePath: overrides?.notePath ?? indexReads.notePath,
+      noteMove: overrides?.noteMove ?? noteMove,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      operations: overrides?.operations ?? operations,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
     keyboard: createTestKeyboardService(),
     share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
     noteDocuments: createTestNoteDocumentService({

@@ -32,7 +32,9 @@ import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
 import { setDefaultNoteDocuments } from '../documents/note-document-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
+import { setDefaultNoteMove } from '../documents/note-move-service.ts'
 import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
+import { setDefaultTitleRename } from '../documents/title-rename-service.ts'
 import { setDefaultEmbeddingIndex } from '../embeddings/embedding-index-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultRetrieval } from '../embeddings/retrieval-service.ts'
@@ -146,6 +148,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAttachments(services.attachments)
   setDefaultNoteSessions(services.noteSessions)
   setDefaultOpenDocuments(services.openDocuments)
+  setDefaultNoteMove(services.noteMove)
+  setDefaultTitleRename(services.titleRename)
   setDefaultKeyboard(services.keyboard)
   setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
@@ -238,6 +242,8 @@ export function resetDefaultServices(): void {
   setDefaultAttachments(null)
   setDefaultNoteSessions(null)
   setDefaultOpenDocuments(null)
+  setDefaultNoteMove(null)
+  setDefaultTitleRename(null)
   setDefaultKeyboard(null)
   setDefaultShare(null)
   setDefaultNoteDocuments(null)
