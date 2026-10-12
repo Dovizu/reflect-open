@@ -245,6 +245,28 @@ describe('createIndexLifecycleService', () => {
     expect(batches).toHaveLength(1)
   })
 
+  it('reports the notes a description re-index applied, to its own listeners only', async () => {
+    const REFERENCING = '# Hello\n\n![pic](assets/pic.png)\n'
+    const { index } = setup({
+      files: { 'notes/a.md': REFERENCING },
+      indexed: [{ path: 'notes/a.md', markdown: REFERENCING }],
+    })
+    const other = setup()
+    const batches: IndexChangesAppliedEvent[] = []
+    const otherBatches: IndexChangesAppliedEvent[] = []
+    index.onChangesApplied((event) => {
+      batches.push(event)
+    })
+    other.index.onChangesApplied((event) => {
+      otherBatches.push(event)
+    })
+
+    await index.reindexNotesReferencing(['assets/pic.png'], 7)
+
+    expect(batches).toEqual([{ generation: 7, changes: [{ path: 'notes/a.md', kind: 'upsert' }] }])
+    expect(otherBatches).toEqual([]) // the signal is per lifecycle, not process-wide
+  })
+
   it('reports a move healed by the reconcile', async () => {
     const OLD = 'notes/01arz3ndektsv4rrffq69g5fav.md'
     const NEW = 'notes/meeting-notes.md'
@@ -776,6 +798,48 @@ describe('rebuildVisibly', () => {
     const index = createTestIndexLifecycleService()
     await index.rebuildVisibly(7)
     expect(index.rebuilds()).toEqual([7])
+  })
+})
+
+describe('applyChanges', () => {
+  it('applies the changed notes without a live subscription and reports them', async () => {
+    const { index, store, applied, steps } = setup({
+      files: { 'notes/pulled.md': '# Pulled\n' },
+    })
+
+    const mutations = await index.applyChanges(
+      [
+        { path: 'notes/pulled.md', kind: 'upsert', modifiedMs: 5 },
+        { path: 'audio-memos/memo.m4a', kind: 'upsert', modifiedMs: 6 },
+      ],
+      4,
+    )
+
+    expect(mutations).toBe(1)
+    expect(store.applied().map((note) => note.path)).toEqual(['notes/pulled.md'])
+    expect(applied).toEqual([{ generation: 4, paths: ['notes/pulled.md'] }])
+    expect(steps).not.toContain('subscribe')
+  })
+
+  it('reports nothing when no index row changed', async () => {
+    const { index, applied } = setup()
+
+    expect(await index.applyChanges([{ path: 'assets/a.png', kind: 'upsert' }], 4)).toBe(0)
+    expect(applied).toEqual([])
+  })
+
+  it('writes nothing while `canApply` says no', async () => {
+    const { index, store, applied } = setup({ files: { 'notes/pulled.md': '# Pulled\n' } })
+
+    const mutations = await index.applyChanges(
+      [{ path: 'notes/pulled.md', kind: 'upsert', modifiedMs: 5 }],
+      4,
+      () => false,
+    )
+
+    expect(mutations).toBe(0)
+    expect(store.applied()).toEqual([])
+    expect(applied).toEqual([])
   })
 })
 

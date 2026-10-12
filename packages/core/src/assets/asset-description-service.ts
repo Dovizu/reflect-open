@@ -1,0 +1,778 @@
+import { defaultAiCredentials, type AiCredentialService } from '../ai/ai-credential-service.ts'
+import {
+  defaultAiProviderConfig,
+  type AiProviderConfigService,
+} from '../ai/ai-provider-config-service.ts'
+import {
+  defaultAssetDescriber,
+  isAssetDescriptionRejected,
+  type AssetDescriberService,
+} from '../ai/asset-describer-service.ts'
+import {
+  defaultBackgroundReconcilerFactory,
+  type BackgroundReconcilerFactory,
+} from '../app/background-reconciler.ts'
+import { defaultClock, type ClockService } from '../app/clock-service.ts'
+import { defaultHashService, type HashService } from '../app/hash-service.ts'
+import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
+import { errorMessage, isAppError, toAppError } from '../errors.ts'
+import { defaultAssetStore, type AssetStoreService } from '../graph/asset-store-service.ts'
+import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import { ASSETS_DIR, descriptionPathFor, isNotePath } from '../graph/paths.ts'
+import type { FileMeta } from '../graph/schemas.ts'
+import {
+  defaultIndexLifecycle,
+  type IndexLifecycleService,
+} from '../indexing/index-lifecycle-service.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
+import { base64ToBytes } from '../lib/base64.ts'
+import { parseNote } from '../markdown/extract.ts'
+import type { AiProviderConfig } from '../settings/schema.ts'
+import {
+  assetTypeFor,
+  base64ByteLength,
+  buildDescriptionSource,
+  isEligibleAssetPath,
+  readManagedDescription,
+  type ManagedDescription,
+} from './asset-description-helpers.ts'
+import { defaultAssetPrivacy, type AssetPrivacyService } from './asset-privacy-service.ts'
+
+/** Largest source we send to a provider; bigger assets are skipped, not sent. */
+const MAX_ASSET_BYTES = 20 * 1024 * 1024
+
+/** Whether new eligible assets are described automatically vs. only on backfill. */
+export type AssetDescriptionMode = 'incremental' | 'backfill'
+
+export interface ReconcileAssetDescriptionsInput {
+  /** `GraphInfo.generation` — pins every read/write to the issuing graph. */
+  generation: number
+  /** `incremental` processes `changed`; `backfill` enumerates every asset. */
+  mode: AssetDescriptionMode
+  /** Incremental only: the eligible asset paths the watcher reported changed. */
+  changed?: readonly string[]
+  /** Abort gate, checked between assets and after each slow await. */
+  isStale?: () => boolean
+  /** Backfill progress: `(processed, total)` after each handled asset. */
+  onProgress?: (processed: number, total: number) => void
+}
+
+export interface ReconcileAssetDescriptionsOutcome {
+  /** Eligible assets this pass considered. */
+  pending: number
+  /** Assets described and written this pass. */
+  described: number
+  /** Skipped — a managed description already matched the source hash. */
+  skippedUpToDate: number
+  /** Skipped — referenced by no public note (or none at all). */
+  skippedUnreferenced: number
+  /** Skipped — referenced by a private note (the hard block). */
+  skippedPrivate: number
+  /** Skipped — an existing description was user-authored, never overwritten. */
+  skippedUserAuthored: number
+  /** Skipped — larger than the size cap. */
+  skippedOversize: number
+  /** Permanent provider refusals — logged, no description written. */
+  refused: number
+  /**
+   * Asset paths for which a description was written this pass. The session
+   * and the backfill re-index the notes referencing them so the new text
+   * becomes searchable (`IndexLifecycleService.reindexNotesReferencing`).
+   */
+  describedAssetPaths: string[]
+  /** Why the pass ended early, or `null` when every asset was handled. */
+  stopped: ReconcileStop | null
+}
+
+/** Why an asset was skipped (no description written, nothing sent). */
+type AssetSkipReason =
+  | 'up-to-date'
+  | 'unreferenced'
+  | 'private'
+  | 'user-authored'
+  | 'oversize'
+  | 'gone'
+
+/** Per-asset result; `stop` ends the whole pass, everything else is a tally. */
+type AssetStep =
+  | { kind: 'described' }
+  | { kind: 'skipped'; reason: AssetSkipReason }
+  | { kind: 'refused' }
+  | { kind: 'stop'; stopped: ReconcileStop }
+
+/** The mutable counters a pass accumulates; spread verbatim into the outcome. */
+interface AssetTally {
+  described: number
+  skippedUpToDate: number
+  skippedUnreferenced: number
+  skippedPrivate: number
+  skippedUserAuthored: number
+  skippedOversize: number
+  refused: number
+}
+
+/**
+ * Which {@link AssetTally} counter each skip reason increments. `gone` (the asset
+ * vanished since it was observed, or an ineligible path slipped in) counts as
+ * unreferenced — either way nothing was read, hashed, or sent.
+ */
+const SKIP_COUNTER: Readonly<Record<AssetSkipReason, keyof AssetTally>> = {
+  'up-to-date': 'skippedUpToDate',
+  unreferenced: 'skippedUnreferenced',
+  gone: 'skippedUnreferenced',
+  private: 'skippedPrivate',
+  'user-authored': 'skippedUserAuthored',
+  oversize: 'skippedOversize',
+}
+
+interface AssetContext {
+  config: AiProviderConfig
+  apiKey: string
+  generation: number
+  isStale: () => boolean
+  /** `assets/` file stats (size + mtime), to skip reads we can prove are stale. */
+  statByPath: Map<string, FileMeta>
+}
+
+const STALE: ReconcileStop = { reason: 'stale', message: 'the graph session ended mid-pass' }
+
+function basename(path: string): string {
+  return path.split('/').pop() ?? path
+}
+
+function utf8FromBase64(base64: string): string {
+  return new TextDecoder().decode(base64ToBytes(base64))
+}
+
+interface AssetCandidates {
+  /** Eligible asset paths to consider this pass. */
+  paths: string[]
+  /** The `assets/` listing when the mode already fetched it (backfill), else null. */
+  listing: FileMeta[] | null
+}
+
+/**
+ * The automatic asset-description lifecycle for one graph session. Built on
+ * `BackgroundReconcilerFactory` (shared with capture and transcription):
+ * the single-flight loop, focus/online retries, and teardown live there; this
+ * supplies the asset-specific pass and triggers.
+ *
+ * Triggers fire off `IndexLifecycleService.onChangesApplied` — the indexer's
+ * POST-APPLY signal — not the raw watcher stream, so the privacy gate always
+ * reads a settled index and can't race a just-written private note's
+ * indexing. It describes **new** eligible assets only — there is no launch
+ * backfill ({@link AssetDescriptionService.backfillVisibly} handles existing
+ * assets). Observed assets accumulate in a dirty set; each pass reconciles it.
+ * A transient (auth/network) stop leaves the set intact so the next trigger
+ * retries; a clean pass clears it. Re-describing an unchanged asset is cheap —
+ * its managed description's hash matches, so no provider call is made.
+ */
+export interface AssetDescriptionSession {
+  /** Attach the triggers (index-applied, focus, online). No launch backfill. */
+  start(): void
+  /** Request a pass; coalesces while one runs (at most one follow-up). */
+  schedule(): void
+  /** Tear down triggers and abort an in-flight pass at its next gate. */
+  dispose(): void
+}
+
+export interface AssetDescriptionSessionOptions {
+  /** The open graph's generation — every pass's reads and writes pin to it. */
+  generation: number
+}
+
+/**
+ * Asset descriptions (Plan 20). For each eligible image/PDF under `assets/`
+ * that is safely associated with public notes, generate a managed markdown
+ * description file (`<asset>.reflect.md`) holding an AI description + OCR,
+ * then fold the new text into the referencing notes' search rows.
+ *
+ * Privacy is a hard block — an asset referenced by any private note is never
+ * sent.
+ */
+export interface AssetDescriptionService {
+  /**
+   * Describe every candidate asset that needs it. `incremental` mode handles the
+   * eligible paths in `changed`; `backfill` mode enumerates every eligible asset
+   * under `assets/`. Idempotent in both modes: a managed description whose source
+   * hash still matches is skipped, so re-runs are cheap. Never throws.
+   *
+   * Generation-pinned, abortable between items via `isStale`, and the retry
+   * layer for transient provider failures (auth/network stop the pass; the
+   * next trigger re-runs it). The caller serializes passes. The default
+   * provider and its key are read at the start of every pass — a provider
+   * added in Settings mid-session must be seen by the very next pass.
+   */
+  reconcile(input: ReconcileAssetDescriptionsInput): Promise<ReconcileAssetDescriptionsOutcome>
+  /** Build the automatic lifecycle for one graph session. `dispose()` is terminal. */
+  openSession(options: AssetDescriptionSessionOptions): AssetDescriptionSession
+  /**
+   * Describe every existing eligible asset with user-visible status (Plan 20):
+   * the explicit backfill behind the Settings button + cost warning. Unlike the
+   * automatic path it enumerates all of `assets/`, but obeys the same privacy and
+   * idempotency rules — already-described assets are skipped, and private or
+   * unreferenced ones are never sent. Coalesces while a run is in flight (the
+   * generation is the file-write generation, `GraphInfo.generation`).
+   */
+  backfillVisibly(generation: number): Promise<ReconcileAssetDescriptionsOutcome>
+  /**
+   * Fires after a pass re-indexed the notes referencing the assets it
+   * described, even when that re-index failed partway. The re-index writes
+   * search rows directly (not via the watcher), so holders of index-backed
+   * caches refresh off this.
+   */
+  onDescriptionsIndexed(listener: () => void): Unlisten
+}
+
+export function createAssetDescriptionService(deps: {
+  assetStore: Pick<AssetStoreService, 'readBase64'>
+  noteFile: Pick<NoteFileService, 'read' | 'write' | 'listDir'>
+  assetPrivacy: Pick<AssetPrivacyService, 'classifyAsset'>
+  assetDescriber: AssetDescriberService
+  aiProviderConfig: Pick<AiProviderConfigService, 'defaultProvider'>
+  aiCredentials: Pick<AiCredentialService, 'read'>
+  hash: HashService
+  clock: Pick<ClockService, 'now'>
+  reconcilers: BackgroundReconcilerFactory
+  indexLifecycle: Pick<IndexLifecycleService, 'onChangesApplied' | 'reindexNotesReferencing'>
+  operations: Pick<OperationsService, 'start'>
+  logger: Pick<LoggerService, 'warn'>
+}): AssetDescriptionService {
+  const {
+    assetStore,
+    noteFile,
+    assetPrivacy,
+    assetDescriber,
+    aiProviderConfig,
+    aiCredentials,
+    hash,
+    clock,
+    reconcilers,
+    indexLifecycle,
+    operations,
+    logger,
+  } = deps
+
+  const indexedListeners = new Set<() => void>()
+
+  function emitDescriptionsIndexed(): void {
+    for (const listener of indexedListeners) {
+      listener()
+    }
+  }
+
+  async function readDescriptionSource(path: string, generation: number): Promise<string | null> {
+    try {
+      return await noteFile.read(path, generation)
+    } catch (cause) {
+      if (isAppError(cause) && cause.kind === 'notFound') {
+        return null
+      }
+      throw cause
+    }
+  }
+
+  /** Process one asset. Throws on transient (auth/network) failure to stop the pass. */
+  async function processAsset(assetPath: string, ctx: AssetContext): Promise<AssetStep> {
+    const assetType = assetTypeFor(assetPath)
+    if (assetType === null) {
+      return { kind: 'skipped', reason: 'gone' } // defensive: an ineligible path slipped in
+    }
+
+    // Gate first, on the notes index: never read or send an asset's bytes until a
+    // non-private note is associated with it (and no private note is). Waiting for
+    // the association before attempting keeps private and unreferenced assets
+    // entirely untouched — they are never read, hashed, or sent to a provider.
+    const verdict = await assetPrivacy.classifyAsset(assetPath, ctx.generation)
+    if (ctx.isStale()) {
+      return { kind: 'stop', stopped: STALE }
+    }
+    if (verdict === 'skip-private') {
+      return { kind: 'skipped', reason: 'private' }
+    }
+    if (verdict === 'skip-unreferenced') {
+      return { kind: 'skipped', reason: 'unreferenced' }
+    }
+
+    // Read the (small) description and identify a user-authored file we must never
+    // touch. The up-to-date decision is the content hash below — never mtime/size,
+    // which an mtime-preserving replacement (`cp -p`, a restore, a sync) could spoof
+    // into a false skip and strand a stale description; the index compares content
+    // hashes for the same reason (see indexing/hash). The stat is used only for the
+    // pre-read size cap.
+    const stat = ctx.statByPath.get(assetPath)
+    const descriptionPath = descriptionPathFor(assetPath)
+    const existing = await readDescriptionSource(descriptionPath, ctx.generation)
+    let managed: ManagedDescription | null = null
+    if (existing !== null) {
+      managed = readManagedDescription(existing)
+      if (managed === null) {
+        return { kind: 'skipped', reason: 'user-authored' }
+      }
+    }
+
+    // Cap before reading when the stat is known — never pull an oversize file's
+    // bytes into memory just to skip it.
+    if (stat !== undefined && stat.size > MAX_ASSET_BYTES) {
+      return { kind: 'skipped', reason: 'oversize' }
+    }
+
+    let base64: string
+    try {
+      base64 = await assetStore.readBase64(assetPath, ctx.generation)
+    } catch (cause) {
+      if (isAppError(cause) && cause.kind === 'notFound') {
+        return { kind: 'skipped', reason: 'gone' } // removed since it was observed
+      }
+      throw cause
+    }
+
+    const sourceSize = base64ByteLength(base64)
+    if (sourceSize > MAX_ASSET_BYTES) {
+      return { kind: 'skipped', reason: 'oversize' } // belt: no stat was available
+    }
+
+    const sourceHash = await hash.sha256Hex(base64)
+    if (managed !== null && managed.sourceHash === sourceHash) {
+      return { kind: 'skipped', reason: 'up-to-date' } // mtime moved but content identical
+    }
+
+    if (ctx.isStale()) {
+      return { kind: 'stop', stopped: STALE }
+    }
+
+    let body: string
+    try {
+      body = await assetDescriber.describe({
+        config: ctx.config,
+        apiKey: ctx.apiKey,
+        kind: assetType.kind,
+        mediaType: assetType.mediaType,
+        data: assetType.kind === 'svg' ? utf8FromBase64(base64) : base64,
+        filename: basename(assetPath),
+      })
+    } catch (cause) {
+      if (isAssetDescriptionRejected(cause)) {
+        return { kind: 'refused' } // permanent — log only, no failure description
+      }
+      throw cause // auth/network — stop the pass, retry on the next trigger
+    }
+    if (ctx.isStale()) {
+      return { kind: 'stop', stopped: STALE }
+    }
+    if (body === '') {
+      return { kind: 'refused' } // an empty description is as useless as a refusal
+    }
+
+    await noteFile.write(
+      descriptionPath,
+      buildDescriptionSource(
+        {
+          source: assetPath,
+          sourceHash,
+          sourceSize,
+          provider: ctx.config.provider,
+          model: ctx.config.model,
+          generatedAt: new Date(clock.now()).toISOString(),
+        },
+        body,
+      ),
+      ctx.generation,
+    )
+    return { kind: 'described' }
+  }
+
+  async function candidateAssets(input: ReconcileAssetDescriptionsInput): Promise<AssetCandidates> {
+    if (input.mode === 'backfill') {
+      const listing = await noteFile.listDir(ASSETS_DIR, input.generation)
+      return {
+        // iCloud-evicted assets list under their logical names but aren't
+        // readable until downloaded — they get described on a later pass.
+        paths: listing
+          .filter((file) => file.placeholder !== true)
+          .map((file) => file.path)
+          .filter(isEligibleAssetPath),
+        listing,
+      }
+    }
+    const unique = new Set<string>()
+    for (const path of input.changed ?? []) {
+      if (isEligibleAssetPath(path)) {
+        unique.add(path)
+      }
+    }
+    return { paths: [...unique], listing: null }
+  }
+
+  /**
+   * File stats for the candidates, keyed by path. Reuses backfill's listing; for
+   * incremental it lists `assets/` best-effort — a failure just means the pass
+   * reads every asset instead of skipping unchanged ones by stat.
+   */
+  async function statMap(
+    input: ReconcileAssetDescriptionsInput,
+    listing: FileMeta[] | null,
+  ): Promise<Map<string, FileMeta>> {
+    const files = listing ?? (await noteFile.listDir(ASSETS_DIR, input.generation).catch(() => []))
+    return new Map(files.map((file) => [file.path, file]))
+  }
+
+  async function reconcile(
+    input: ReconcileAssetDescriptionsInput,
+  ): Promise<ReconcileAssetDescriptionsOutcome> {
+    const tally: AssetTally = {
+      described: 0,
+      skippedUpToDate: 0,
+      skippedUnreferenced: 0,
+      skippedPrivate: 0,
+      skippedUserAuthored: 0,
+      skippedOversize: 0,
+      refused: 0,
+    }
+    const describedAssetPaths: string[] = []
+    const outcome = (
+      pending: number,
+      stopped: ReconcileStop | null,
+    ): ReconcileAssetDescriptionsOutcome => ({ pending, ...tally, describedAssetPaths, stopped })
+
+    let candidate: AssetCandidates
+    try {
+      candidate = await candidateAssets(input)
+    } catch (cause) {
+      return outcome(0, { reason: toAppError(cause).kind, message: errorMessage(cause) })
+    }
+
+    const total = candidate.paths.length
+    if (total === 0) {
+      return outcome(0, null)
+    }
+
+    // Re-resolved every pass: a provider added in Settings mid-session must be
+    // seen by the very next pass. Unlike capture there is no non-AI fallback —
+    // no provider means nothing can be described, so the pass stops.
+    const config = aiProviderConfig.defaultProvider()
+    if (config === null) {
+      return outcome(total, { reason: 'config', message: 'No AI provider is configured.' })
+    }
+    const apiKey = await aiCredentials.read(config).catch(() => null)
+    if (apiKey === null) {
+      return outcome(total, {
+        reason: 'config',
+        message: `The API key for the configured ${config.provider} model is missing from the keychain.`,
+      })
+    }
+
+    const ctx: AssetContext = {
+      config,
+      apiKey,
+      generation: input.generation,
+      isStale: () => input.isStale?.() === true,
+      statByPath: await statMap(input, candidate.listing),
+    }
+
+    let processed = 0
+    for (const assetPath of candidate.paths) {
+      if (ctx.isStale()) {
+        return outcome(total, STALE)
+      }
+      let step: AssetStep
+      try {
+        step = await processAsset(assetPath, ctx)
+      } catch (cause) {
+        return outcome(total, { reason: toAppError(cause).kind, message: errorMessage(cause) })
+      }
+      if (step.kind === 'stop') {
+        return outcome(total, step.stopped)
+      }
+      if (step.kind === 'described') {
+        tally.described += 1
+        describedAssetPaths.push(assetPath)
+      } else if (step.kind === 'refused') {
+        tally.refused += 1
+      } else {
+        tally[SKIP_COUNTER[step.reason]] += 1
+      }
+      processed += 1
+      input.onProgress?.(processed, total)
+    }
+    return outcome(total, null)
+  }
+
+  function openSession(options: AssetDescriptionSessionOptions): AssetDescriptionSession {
+    const { generation } = options
+    let started = false
+    /** Eligible assets observed changed and not yet successfully reconciled. */
+    const dirty = new Set<string>()
+    /** Last logged stop message — retries must not re-log it. */
+    let loggedStop: string | null = null
+
+    function surfaceStop(stopped: ReconcileStop | null): void {
+      if (stopped === null) {
+        loggedStop = null
+        return
+      }
+      // Automatic description is background, best-effort work, so it never toasts:
+      // self-healing stops (network/config/stale) stay silent, and the Settings
+      // backfill is the user-initiated path that surfaces progress and errors. An
+      // index-not-ready (io) failure during startup is unexpected here, so it is
+      // logged (deduped) for diagnosis only.
+      if (isSilentStop(stopped) || loggedStop === stopped.message) {
+        return
+      }
+      loggedStop = stopped.message
+      logger.warn(`asset description stopped (${stopped.reason}): ${stopped.message}`)
+    }
+
+    /**
+     * One reconcile pass over the dirty set, then fold any new descriptions into
+     * the referencing notes' search rows so a query matching a description
+     * surfaces the note (Plan 20 search integration). Returns `'stop'` on a
+     * transient/config stop so the loop keeps the batch for the next trigger
+     * instead of spinning.
+     */
+    const pass = async (isStale: () => boolean): Promise<void | 'stop'> => {
+      if (dirty.size === 0) {
+        return // nothing pending
+      }
+      const batch = [...dirty]
+      const outcome = await reconcile({
+        generation,
+        mode: 'incremental',
+        changed: batch,
+        isStale,
+      })
+      surfaceStop(outcome.stopped)
+      if (isStale()) {
+        return 'stop'
+      }
+      // Runs even on a stop — whatever was described is real. A re-index failure
+      // must not crash the loop: the descriptions are written, so search catches
+      // up on the note's next re-index or a rebuild. The re-index emits the
+      // post-apply signal for the refreshed notes (the embedding sync re-embeds
+      // them off it); our own index-applied trigger hears that emit too and
+      // re-marks the notes' assets, which the next pass skips as up-to-date —
+      // one cheap extra cycle, no loop (a clean pass writes nothing new).
+      if (outcome.describedAssetPaths.length > 0) {
+        try {
+          await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, generation)
+        } catch (cause) {
+          logger.warn('asset-description re-index failed:', cause)
+        }
+        // The re-index wrote search rows directly (not via the watcher → onApplied
+        // path), so nothing invalidated the index-backed query caches. Listeners
+        // refresh them so ⌘K reflects the new descriptions.
+        emitDescriptionsIndexed()
+      }
+      if (isStale()) {
+        return 'stop'
+      }
+      if (outcome.stopped !== null) {
+        return 'stop' // transient/config stop: keep the batch, wait for the next trigger
+      }
+      for (const path of batch) {
+        dirty.delete(path)
+      }
+    }
+
+    const loop = reconcilers.create({ pass })
+
+    function markDirty(paths: readonly string[]): void {
+      let added = false
+      for (const path of paths) {
+        if (!dirty.has(path)) {
+          dirty.add(path)
+          added = true
+        }
+      }
+      if (added) {
+        loop.schedule()
+      }
+    }
+
+    /**
+     * A note changed — re-evaluate the eligible assets it references. This is the
+     * "relevant note changes" trigger: an asset already on disk that a note edit
+     * newly makes public (referenced by a non-private note) gets described, even
+     * though the asset file itself did not change. Already-described assets fall
+     * through the reconcile's hash check cheaply, so re-marking is harmless.
+     */
+    async function markAssetsFromNotes(notePaths: readonly string[]): Promise<void> {
+      const referenced = new Set<string>()
+      for (const notePath of notePaths) {
+        if (loop.isStale()) {
+          return
+        }
+        let source: string
+        try {
+          source = await noteFile.read(notePath, generation)
+        } catch {
+          continue // deleted/unreadable since the change — nothing to re-evaluate
+        }
+        for (const asset of parseNote({ path: notePath, source }).assets) {
+          if (isEligibleAssetPath(asset.path)) {
+            referenced.add(asset.path)
+          }
+        }
+      }
+      if (referenced.size > 0 && !loop.isStale()) {
+        markDirty([...referenced])
+      }
+    }
+
+    function start(): void {
+      if (started || loop.isStale()) {
+        return // idempotent: never register the wake/index listeners twice
+      }
+      started = true
+      loop.retryOnWake() // retry assets a prior pass left dirty after coming back online
+      // Drive off the indexer's POST-APPLY signal, not the raw watcher stream: when
+      // this fires the batch's note rows (privacy flags, `assets` projection) are
+      // already in the index, so the privacy gate can't race a just-written private
+      // note's indexing. Carries the full batch — asset-file upserts (a dropped
+      // image) and note upserts (which may newly reference an asset).
+      loop.onDispose(
+        indexLifecycle.onChangesApplied((event) => {
+          if (event.generation !== generation) {
+            return // a delayed emit from a graph we've switched away from
+          }
+          const newAssets: string[] = []
+          const changedNotes: string[] = []
+          for (const change of event.changes) {
+            if (change.kind !== 'upsert') {
+              continue
+            }
+            if (isEligibleAssetPath(change.path)) {
+              newAssets.push(change.path)
+            } else if (isNotePath(change.path)) {
+              changedNotes.push(change.path)
+            }
+          }
+          if (newAssets.length > 0) {
+            markDirty(newAssets)
+          }
+          if (changedNotes.length > 0) {
+            void markAssetsFromNotes(changedNotes)
+          }
+        }),
+      )
+    }
+
+    return { start, schedule: loop.schedule, dispose: loop.dispose }
+  }
+
+  let backfillInFlight: {
+    generation: number
+    promise: Promise<ReconcileAssetDescriptionsOutcome>
+  } | null = null
+
+  async function runBackfill(generation: number): Promise<ReconcileAssetDescriptionsOutcome> {
+    const operation = operations.start('Describing assets')
+    let outcome: ReconcileAssetDescriptionsOutcome
+    try {
+      outcome = await reconcile({
+        generation,
+        mode: 'backfill',
+        onProgress: (done, total) => operation.progress(done, total),
+      })
+    } catch (cause) {
+      // `reconcile` is contracted not to throw, but finalize the operation
+      // defensively so an unexpected failure never strands a "running" entry
+      // in the operations UI.
+      operation.fail('Failed to describe assets.')
+      throw cause
+    }
+    // Make the new descriptions searchable: re-index the notes that reference the
+    // assets we just described (Plan 20 search integration). A failure here must
+    // not fail the backfill — the descriptions are written; search folds them on
+    // the next re-index or a rebuild.
+    if (outcome.describedAssetPaths.length > 0) {
+      try {
+        await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, generation)
+      } catch (cause) {
+        logger.warn('asset-description re-index failed:', cause)
+      }
+      // The re-index wrote search rows directly (not via the watcher → onApplied
+      // path), so the index-backed query caches need a refresh for ⌘K to reflect
+      // the new descriptions.
+      emitDescriptionsIndexed()
+    }
+    if (outcome.stopped === null || outcome.stopped.reason === 'stale') {
+      operation.done()
+    } else if (outcome.stopped.reason === 'config') {
+      operation.warn('Add an AI provider in Settings to describe assets.')
+    } else if (outcome.stopped.reason === 'network') {
+      operation.warn('Some assets could not be described — check your connection and try again.')
+    } else {
+      operation.fail(outcome.stopped.message)
+    }
+    return outcome
+  }
+
+  function backfillVisibly(generation: number): Promise<ReconcileAssetDescriptionsOutcome> {
+    if (backfillInFlight !== null && backfillInFlight.generation === generation) {
+      return backfillInFlight.promise
+    }
+    const promise = runBackfill(generation).finally(() => {
+      if (backfillInFlight !== null && backfillInFlight.promise === promise) {
+        backfillInFlight = null
+      }
+    })
+    backfillInFlight = { generation, promise }
+    return promise
+  }
+
+  return {
+    reconcile,
+    openSession,
+    backfillVisibly,
+    onDescriptionsIndexed(listener) {
+      const deliver = (): void => {
+        listener()
+      }
+      indexedListeners.add(deliver)
+      return () => {
+        indexedListeners.delete(deliver)
+      }
+    },
+  }
+}
+
+let installedService: AssetDescriptionService | null = null
+let fallback: AssetDescriptionService | null = null
+
+/**
+ * The process-wide `AssetDescriptionService`. Unless
+ * {@link setDefaultAssetDescription} installed one, a service over the
+ * process-wide defaults of its dependencies as they are at the first call.
+ */
+export function defaultAssetDescription(): AssetDescriptionService {
+  if (installedService !== null) {
+    return installedService
+  }
+  fallback ??= createAssetDescriptionService({
+    assetStore: defaultAssetStore(),
+    noteFile: defaultNoteFile(),
+    assetPrivacy: defaultAssetPrivacy(),
+    assetDescriber: defaultAssetDescriber(),
+    aiProviderConfig: defaultAiProviderConfig(),
+    aiCredentials: defaultAiCredentials(),
+    hash: defaultHashService(),
+    clock: defaultClock(),
+    reconcilers: defaultBackgroundReconcilerFactory(),
+    indexLifecycle: defaultIndexLifecycle(),
+    operations: defaultOperations(),
+    logger: defaultLogger(),
+  })
+  return fallback
+}
+
+/**
+ * Install the process-wide `AssetDescriptionService`. `null` restores the
+ * default-backed one, rebuilt over the defaults at its next use.
+ */
+export function setDefaultAssetDescription(service: AssetDescriptionService | null): void {
+  installedService = service
+  fallback = null
+}

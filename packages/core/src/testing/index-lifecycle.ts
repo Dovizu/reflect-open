@@ -5,9 +5,9 @@ import type { OperationsService } from '../app/operations-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
-import { emitIndexApplied } from '../indexing/index-applied.ts'
 import {
   createIndexLifecycleService,
+  type IndexChangesAppliedEvent,
   type IndexFileProgress,
   type IndexLifecycleService,
 } from '../indexing/index-lifecycle-service.ts'
@@ -44,8 +44,8 @@ export interface TestIndexLifecycleService extends IndexLifecycleService {
   /** The generation of every `rebuildVisibly` request, in order. */
   rebuilds: () => readonly number[]
   /**
-   * Report `changes` as applied at `generation`, as an applied watcher batch
-   * does. The signal is process-wide: every lifecycle's listeners receive it.
+   * Report `changes` as applied at `generation` to this lifecycle's
+   * `onChangesApplied` listeners, as an applied watcher batch does.
    */
   emitChangesApplied: (changes: readonly FileChange[], generation: number) => void
 }
@@ -70,6 +70,7 @@ export function createTestIndexLifecycleService(
   })
   const rebuildLog: number[] = []
   const seededListeners = new Set<() => void>()
+  const changesAppliedListeners = new Set<(event: IndexChangesAppliedEvent) => void>()
   let seeded: { progress: IndexFileProgress | null } | null = null
   service.subscribeFileProgress(() => {
     seeded = null
@@ -96,6 +97,18 @@ export function createTestIndexLifecycleService(
       }
     },
     rebuilds: () => [...rebuildLog],
-    emitChangesApplied: emitIndexApplied,
+    onChangesApplied: (listener) => {
+      const unlisten = service.onChangesApplied(listener)
+      changesAppliedListeners.add(listener)
+      return () => {
+        unlisten()
+        changesAppliedListeners.delete(listener)
+      }
+    },
+    emitChangesApplied: (changes, generation) => {
+      for (const listener of changesAppliedListeners) {
+        listener({ generation, changes })
+      }
+    },
   }
 }

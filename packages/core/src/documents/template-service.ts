@@ -1,0 +1,214 @@
+import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import { errorMessage } from '../errors.ts'
+import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import { defaultIndexQuery, type IndexQueryService } from '../indexing/index-query-service.ts'
+import { defaultNotePath, type NotePathService } from '../indexing/note-path-service.ts'
+import { splitFrontmatter, upsertFrontmatter } from '../markdown/frontmatter.ts'
+import { displayNoteTitle } from '../markdown/note-title.ts'
+import { hasAuthoredTitle, parseNote } from '../markdown/extract.ts'
+import { slugForTitle } from '../markdown/slug.ts'
+import { defaultNoteMove, type NoteMoveService } from './note-move-service.ts'
+import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
+
+/** The editor a template is inserted into: the part of the editor handle that the insert needs. */
+export interface TemplateInsertTarget {
+  /** Insert markdown at the cursor. */
+  insertMarkdown(markdown: string): void
+  focus(): void
+}
+
+/** One template row of the editor's `/` menu. */
+export interface TemplateSlashItem {
+  /** The template's graph-relative path. */
+  id: string
+  label: string
+  keywords: string[]
+  onSelect: () => void
+}
+
+/**
+ * Note templates (docs/porting/note-templates.md): markdown files under
+ * `templates/`, inserted verbatim at the cursor. This service owns the
+ * file-level operations — reading a template's insertable body, inserting
+ * it, creating, and renaming — shared by the palette commands, the slash
+ * menu, and the settings section.
+ */
+export interface TemplateService {
+  /**
+   * The insertable body of a template: its markdown with any frontmatter
+   * stripped (v1 parity — template frontmatter is metadata, never content).
+   */
+  templateBody(path: string): Promise<string>
+  /**
+   * Insert `path`'s body into `editor` at the cursor and refocus it. Every
+   * failure is loud — a missing editor (the routed note is protected or still
+   * loading) or a failed read must never be a silent nothing after the user
+   * picked a template.
+   */
+  insertTemplate(path: string, editor: TemplateInsertTarget | null): Promise<void>
+  /**
+   * The editor's `/` menu rows: every template, A→Z, each inserting through
+   * {@link TemplateService.insertTemplate}. `getEditor` is read at select
+   * time, not capture time: the menu belongs to exactly one editor, and a
+   * late resolve after that pane unmounted must insert nowhere rather than
+   * somewhere stale.
+   */
+  slashItems(getEditor: () => TemplateInsertTarget | null): Promise<TemplateSlashItem[]>
+  /**
+   * Create a template named `name` at a collision-free `templates/<slug>.md`
+   * (the `-2` suffix policy notes use), named via frontmatter `title:` — the
+   * v1 split between name (metadata) and body (content): insertion strips
+   * frontmatter, so the name never lands in a note as a stray heading. An
+   * authored H1 still works (and inserts) when the user wants one. Returns the
+   * new graph-relative path. The first template write also creates the
+   * `templates/` folder — it is not bootstrapped with the graph (no-litter).
+   */
+  createTemplate(name: string, generation: number): Promise<string>
+  /**
+   * Rename a template to `name`: move the file onto the new name's slug
+   * (carrying any open editor session) **and** rewrite the authored title the
+   * display name derives from — the leading H1 (or a frontmatter `title:`).
+   * Without the rewrite, an authored title would keep presenting the old name
+   * everywhere no matter where the file lives. A title authored nowhere
+   * (filename-only templates) needs no rewrite — the moved filename is the
+   * name. Returns the template's (possibly unchanged) path.
+   */
+  renameTemplate(path: string, name: string, generation: number): Promise<string>
+}
+
+export interface TemplateServiceDeps {
+  noteFile: Pick<NoteFileService, 'read' | 'write'>
+  indexQuery: Pick<IndexQueryService, 'listTemplates'>
+  notePath: Pick<NotePathService, 'availableTemplatePath' | 'templateSlugPathForTitle'>
+  noteMove: Pick<NoteMoveService, 'moveNote'>
+  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  operations: Pick<OperationsService, 'start'>
+}
+
+export function createTemplateService(deps: TemplateServiceDeps): TemplateService {
+  const { noteFile, indexQuery, notePath, noteMove, openDocuments, operations } = deps
+
+  const templateBody = async (path: string): Promise<string> => {
+    return splitFrontmatter(await noteFile.read(path)).body
+  }
+
+  const insertTemplate = async (
+    path: string,
+    editor: TemplateInsertTarget | null,
+  ): Promise<void> => {
+    if (editor === null) {
+      operations.start('Inserting template').fail('No open note to insert into')
+      return
+    }
+    try {
+      editor.insertMarkdown(await templateBody(path))
+      editor.focus()
+    } catch (cause) {
+      operations.start('Inserting template').fail(errorMessage(cause))
+    }
+  }
+
+  /** Rewrite the file's authored title to `title`, if it authors one. */
+  const retitleTemplate = async (
+    path: string,
+    title: string,
+    generation: number,
+  ): Promise<void> => {
+    const source = await noteFile.read(path)
+    const parsed = parseNote({ path, source })
+    const h1 = parsed.headings.find((heading) => heading.level === 1 && heading.text)
+    if (h1 !== undefined && h1.text === parsed.title) {
+      if (h1.text === title) {
+        return
+      }
+      await noteFile.write(
+        path,
+        `${source.slice(0, h1.from)}# ${title}${source.slice(h1.to)}`,
+        generation,
+      )
+      return
+    }
+    if (hasAuthoredTitle(parsed)) {
+      // No display-driving H1, so the authored title is frontmatter `title:`.
+      await noteFile.write(path, upsertFrontmatter(source, { title }), generation)
+    }
+  }
+
+  return {
+    templateBody,
+    insertTemplate,
+
+    async slashItems(getEditor) {
+      const templates = await indexQuery.listTemplates()
+      return templates.map((template) => ({
+        id: template.path,
+        label: displayNoteTitle(template.title),
+        // v1 parity: typing `/template` lists every template, whatever its name.
+        keywords: ['template'],
+        onSelect: () => {
+          void insertTemplate(template.path, getEditor())
+        },
+      }))
+    },
+
+    async createTemplate(name, generation) {
+      const title = name.trim()
+      const path = await notePath.availableTemplatePath(slugForTitle(title))
+      await noteFile.write(path, upsertFrontmatter('', { title }), generation)
+      return path
+    },
+
+    async renameTemplate(path, name, generation) {
+      const title = name.trim()
+      // Flush first so the retitle below edits settled bytes; the move flushes on
+      // its own, but a same-slug rename skips the move entirely.
+      await openDocuments.sessionFor(path)?.flush()
+      const target = await notePath.templateSlugPathForTitle(path, title)
+      if (target !== path) {
+        await noteMove.moveNote(path, target, generation)
+      }
+      await retitleTemplate(target, title, generation)
+      return target
+    },
+  }
+}
+
+let installedService: TemplateService | null = null
+let fallback: (TemplateServiceDeps & { service: TemplateService }) | null = null
+
+/**
+ * The process-wide `TemplateService`; one over the default services unless
+ * {@link setDefaultTemplates} installed another.
+ */
+export function defaultTemplates(): TemplateService {
+  if (installedService !== null) {
+    return installedService
+  }
+  const deps: TemplateServiceDeps = {
+    noteFile: defaultNoteFile(),
+    indexQuery: defaultIndexQuery(),
+    notePath: defaultNotePath(),
+    noteMove: defaultNoteMove(),
+    openDocuments: defaultOpenDocuments(),
+    operations: defaultOperations(),
+  }
+  if (
+    fallback?.noteFile !== deps.noteFile ||
+    fallback.indexQuery !== deps.indexQuery ||
+    fallback.notePath !== deps.notePath ||
+    fallback.noteMove !== deps.noteMove ||
+    fallback.openDocuments !== deps.openDocuments ||
+    fallback.operations !== deps.operations
+  ) {
+    fallback = { ...deps, service: createTemplateService(deps) }
+  }
+  return fallback.service
+}
+
+/**
+ * Install the process-wide `TemplateService`; `null` restores the one over
+ * the default services.
+ */
+export function setDefaultTemplates(service: TemplateService | null): void {
+  installedService = service
+}

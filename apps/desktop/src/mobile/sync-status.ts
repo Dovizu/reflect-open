@@ -1,4 +1,4 @@
-import type { BackupState } from '@/lib/backup-controller.ts'
+import type { BackupState } from '@reflect/core'
 
 /**
  * The plain-language sync status mobile shows (Plan 19, step 10). The phone

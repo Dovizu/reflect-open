@@ -1,42 +1,40 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
-import { render } from 'vitest-browser-react'
 import type { ReactElement } from 'react'
 import {
-  setDefaultHttp,
+  aiKeySecretName,
   aiProvider,
-  cloudSafeGraphContext,
   type AiProviderConfig,
   type ChatModelSelection,
   type ChatStreamEvent,
   type CloudGraphContext,
-  type CloudSafe,
-  type GraphContextDeps,
   type GraphInfo,
-  type Settings,
-  type StreamChatOptions,
 } from '@reflect/core'
-import { createTestHttpService } from '@reflect/core/testing'
+import {
+  createTestAppServices,
+  createTestChatEngineService,
+  createTestChatGraphContextService,
+  createTestSecretStoreService,
+  createTestSettingsService,
+  type TestChatEngineService,
+  type TestChatGraphContextService,
+} from '@reflect/core/testing'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { ChatProvider, useChatSession } from '@/providers/chat-provider.tsx'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { ChatScreen } from './chat-screen.tsx'
 
 /**
- * The chat view over a faked engine: the provider stack and screen are real,
- * `streamChat` is scripted. Covers the no-provider call-to-action, a full
- * grounded turn (user bubble → tool chip → cited answer), the model picker,
- * live markdown rendering, abort-on-unmount, New chat, and
- * photo attachments (drop → preview → image-only send).
+ * The chat view over a faked engine: the provider stack, the chat session and
+ * the screen are real, the engine's turns are scripted. Covers the
+ * no-provider call-to-action, a full grounded turn (user bubble → tool chip →
+ * cited answer), the model picker, live markdown rendering,
+ * abort-on-unmount, New chat, and photo attachments (drop → preview →
+ * image-only send).
  */
 
-const streamChat = vi.hoisted(() =>
-  vi.fn<(options: StreamChatOptions) => AsyncGenerator<ChatStreamEvent>>(),
-)
-const aiApiKeyForConfig = vi.hoisted(() =>
-  vi.fn<(config: AiProviderConfig) => Promise<string | null>>(),
-)
 const resolveWikiTarget = vi.hoisted(() =>
   vi.fn<
     (
@@ -44,67 +42,34 @@ const resolveWikiTarget = vi.hoisted(() =>
     ) => Promise<{ kind: 'resolved'; ref: string } | { kind: 'unresolved'; text: string }>
   >(),
 )
-const loadChatGraphContext = vi.hoisted(() =>
-  vi.fn<(graphName: string, deps?: GraphContextDeps) => Promise<CloudSafe<CloudGraphContext>>>(),
-)
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
-  streamChat,
-  aiApiKeyForConfig,
   resolveWikiTarget,
-  loadChatGraphContext,
 }))
 vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
   openRouteInNewWindow,
 }))
 
-const settingsState = vi.hoisted(() => ({
+// The settings document and the keychain each test starts from.
+const settingsState = {
   models: [] as AiProviderConfig[],
   defaultId: null as string | null,
   selection: null as ChatModelSelection | null,
-}))
-// Stateful like the real provider: a chatModelSelection patch re-renders with
-// the new value, so picking a model in the UI applies instantly here too.
-vi.mock('@/providers/settings-provider.tsx', async () => {
-  const { useState } = await import('react')
-  return {
-    useSettings: () => {
-      const [selection, setSelection] = useState(settingsState.selection)
-      return {
-        settings: {
-          aiProviders: settingsState.models,
-          defaultAiProviderId: settingsState.defaultId,
-          chatModelSelection: selection,
-          chatSystemPrompt: '',
-        },
-        updateSettings: (patch: Partial<Settings>) => {
-          if (patch.chatModelSelection !== undefined) {
-            setSelection(patch.chatModelSelection)
-          }
-        },
-      }
-    },
-  }
-})
+  apiKey: 'sk-test' as string | null,
+}
 
-// No open index → the provider's persistence layer stays inert; these tests
-// cover the screen, chat-provider.test.tsx covers persistence.
+// The history menu reads the index generation here: none, so it lists nothing.
+// The session reads the graph session service, which has no open graph either,
+// so persistence stays inert; chat-session-service.test.ts covers it.
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ indexGeneration: null, graph: null }),
 }))
 
-beforeEach(() => {
-  setDefaultHttp(createTestHttpService())
-})
-afterEach(() => {
-  setDefaultHttp(null)
-})
-
 const GRAPH: GraphInfo = { root: '/graphs/test', name: 'test-graph', generation: 1 }
 
-const GRAPH_CONTEXT = cloudSafeGraphContext({
+const GRAPH_CONTEXT: CloudGraphContext = {
   graphName: 'test-graph',
   noteCount: 3,
   dailyNoteCount: 1,
@@ -112,15 +77,18 @@ const GRAPH_CONTEXT = cloudSafeGraphContext({
   latestDailyDate: '2026-06-01',
   tags: [{ tag: 'book', count: 2 }],
   tagsTruncated: false,
-})
+}
+
+let chatEngine: TestChatEngineService
+let chatGraphContext: TestChatGraphContextService
 
 beforeEach(() => {
   settingsState.models = []
   settingsState.defaultId = null
   settingsState.selection = null
-  streamChat.mockReset()
-  aiApiKeyForConfig.mockReset().mockResolvedValue('sk-test')
-  loadChatGraphContext.mockReset().mockResolvedValue(GRAPH_CONTEXT)
+  settingsState.apiKey = 'sk-test'
+  chatEngine = createTestChatEngineService()
+  chatGraphContext = createTestChatGraphContextService(GRAPH_CONTEXT)
   resolveWikiTarget.mockReset().mockImplementation(async (target) => ({
     kind: 'resolved',
     ref: `notes/${target.toLowerCase()}.md`,
@@ -136,11 +104,7 @@ function configureModel() {
 }
 
 function scriptTurn(events: ChatStreamEvent[]) {
-  streamChat.mockImplementation(function script() {
-    return (async function* () {
-      yield* events
-    })()
-  })
+  chatEngine.setScript(events)
 }
 
 /** A tiny PNG-magic-bytes file — base64 `iVBORw==` once read. */
@@ -175,11 +139,25 @@ function RouteProbe(): ReactElement | null {
   return null
 }
 
-function renderChat() {
+async function renderChat() {
   probedSend = null
   probedRoute = null
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  const settings = createTestSettingsService({
+    aiProviders: settingsState.models,
+    defaultAiProviderId: settingsState.defaultId,
+    chatModelSelection: settingsState.selection,
+  })
+  await settings.whenLoaded()
+  const app = createTestAppServices({
+    settings,
+    secretStore: createTestSecretStoreService(
+      settingsState.apiKey === null ? {} : { [aiKeySecretName(MODEL.id)]: settingsState.apiKey },
+    ),
+    chatEngine,
+    chatGraphContext,
+  })
+  return await renderWithServices(
     <QueryClientProvider client={client}>
       <RouterProvider>
         <TooltipProvider>
@@ -191,6 +169,7 @@ function renderChat() {
         </TooltipProvider>
       </RouterProvider>
     </QueryClientProvider>,
+    { app },
   )
 }
 
@@ -233,8 +212,8 @@ describe('ChatScreen', () => {
     expect(probedRoute).toEqual({ kind: 'note', path: 'notes/atlas.md' })
 
     // The turn went out with the keychain key and the full derived history.
-    expect(aiApiKeyForConfig).toHaveBeenCalledWith(MODEL)
-    const options = streamChat.mock.lastCall?.[0]
+    const options = chatEngine.calls().at(-1)
+    expect(options?.apiKey).toBe('sk-test')
     expect(options?.config).toEqual(MODEL)
     expect(options?.messages.at(-1)).toEqual({ role: 'user', content: 'when does atlas ship?' })
   })
@@ -398,9 +377,9 @@ describe('ChatScreen', () => {
 
     await userEvent.type(view.getByLabelText('Chat message'), 'hi{Enter}')
 
-    await vi.waitFor(() => expect(streamChat).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(chatEngine.calls()).toHaveLength(1))
     // Same entry (id → keychain key), with the picked model applied.
-    expect(streamChat.mock.lastCall?.[0].config).toEqual({ ...MODEL, model: pick.id })
+    expect(chatEngine.calls().at(-1)?.config).toEqual({ ...MODEL, model: pick.id })
   })
 
   it('starts the picker on the model persisted from the last session', async () => {
@@ -425,14 +404,16 @@ describe('ChatScreen', () => {
 
     await userEvent.type(view.getByLabelText('Chat message'), 'hi{Enter}')
 
-    await vi.waitFor(() => expect(streamChat).toHaveBeenCalledTimes(1))
-    expect(loadChatGraphContext).toHaveBeenCalledWith('test-graph')
-    expect(streamChat.mock.lastCall?.[0].context).toEqual(GRAPH_CONTEXT)
+    await vi.waitFor(() => expect(chatEngine.calls()).toHaveLength(1))
+    expect(chatGraphContext.calls()).toEqual(['test-graph'])
+    expect(chatEngine.calls().at(-1)?.context).toEqual(GRAPH_CONTEXT)
   })
 
   it('still sends the turn, without an overview, when the context load fails', async () => {
     configureModel()
-    loadChatGraphContext.mockRejectedValue(new Error('index not open'))
+    chatGraphContext.setResult(() => {
+      throw new Error('index not open')
+    })
     scriptTurn([
       { type: 'text-delta', text: 'Hi.' },
       { type: 'complete', messages: [{ role: 'assistant', content: 'Hi.' }] },
@@ -441,8 +422,8 @@ describe('ChatScreen', () => {
 
     await userEvent.type(view.getByLabelText('Chat message'), 'hi{Enter}')
 
-    await vi.waitFor(() => expect(streamChat).toHaveBeenCalledTimes(1))
-    expect(streamChat.mock.lastCall?.[0].context).toBeNull()
+    await vi.waitFor(() => expect(chatEngine.calls()).toHaveLength(1))
+    expect(chatEngine.calls().at(-1)?.context).toBeNull()
     await expect.element(view.getByText('Hi.')).toBeInTheDocument()
   })
 
@@ -549,7 +530,7 @@ describe('ChatScreen', () => {
     const firstChunk = '# Streaming\n\n**markdown'
     const secondChunk = '**\n\n- First item\n- Second item\n\n```ts\nconst answer = 42'
     const finalChunk = '\n```\n\nSee [[Atlas]].'
-    streamChat.mockImplementation(() =>
+    chatEngine.setScript(() =>
       (async function* (): AsyncGenerator<ChatStreamEvent> {
         yield { type: 'text-delta', text: firstChunk }
         await nextChunk.promise
@@ -606,7 +587,7 @@ describe('ChatScreen', () => {
     // says idle for both, so the guard must be synchronous.
     await Promise.all([send('one'), send('two')])
 
-    expect(streamChat).toHaveBeenCalledTimes(1)
+    expect(chatEngine.calls()).toHaveLength(1)
     // Exact match: the assistant's reply ("One.") also contains this text.
     await expect.element(view.getByText('one', { exact: true })).toBeInTheDocument()
     expect(view.getByText('two', { exact: true }).query()).toBeNull()
@@ -614,18 +595,18 @@ describe('ChatScreen', () => {
 
   it('surfaces a missing keychain entry as an in-transcript error', async () => {
     configureModel()
-    aiApiKeyForConfig.mockResolvedValueOnce(null)
+    settingsState.apiKey = null
     const view = await renderChat()
 
     await userEvent.type(view.getByLabelText('Chat message'), 'hi{Enter}')
     await expect.element(view.getByText(/No API key found for this provider/)).toBeInTheDocument()
-    expect(streamChat).not.toHaveBeenCalled()
+    expect(chatEngine.calls()).toEqual([])
   })
 
   it('aborts an in-flight turn when the provider unmounts (graph switch)', async () => {
     configureModel()
     let signal: AbortSignal | undefined
-    streamChat.mockImplementation((options) => {
+    chatEngine.setScript((options) => {
       signal = options.signal
       return (async function* (): AsyncGenerator<ChatStreamEvent> {
         yield { type: 'text-delta', text: 'Hi' }
@@ -659,8 +640,8 @@ describe('ChatScreen', () => {
 
     await userEvent.type(view.getByLabelText('Chat message'), '{Enter}')
 
-    await vi.waitFor(() => expect(streamChat).toHaveBeenCalled())
-    expect(streamChat.mock.lastCall?.[0]?.messages.at(-1)).toEqual({
+    await vi.waitFor(() => expect(chatEngine.calls()).toHaveLength(1))
+    expect(chatEngine.calls().at(-1)?.messages.at(-1)).toEqual({
       role: 'user',
       content: [{ type: 'file', data: 'data:image/png;base64,iVBORw==', mediaType: 'image/png' }],
     })
@@ -711,7 +692,7 @@ describe('ChatScreen', () => {
 
     // Nothing left to send: Enter on the empty composer is a no-op again.
     await userEvent.type(view.getByLabelText('Chat message'), '{Enter}')
-    expect(streamChat).not.toHaveBeenCalled()
+    expect(chatEngine.calls()).toEqual([])
   })
 
   it('New chat clears the conversation', async () => {

@@ -1,5 +1,6 @@
 import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
+import { isNotePath } from '../graph/paths.ts'
 import { getBridge, hasBridge, type IpcBridge } from '../ipc/bridge.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import {
@@ -7,7 +8,6 @@ import {
   type FileChange,
   type FileChangeService,
 } from './file-change-service.ts'
-import { subscribeIndexApplied } from './index-applied.ts'
 import { createNoteIndexer, defaultIndexingDeps, type IndexingDeps } from './indexer.ts'
 import { createLiveIndex } from './live.ts'
 
@@ -155,6 +155,19 @@ export interface IndexLifecycleService {
    */
   onApplied: (listener: (event: IndexAppliedEvent) => void) => Unlisten
   /**
+   * Apply `changes` to the index at `generation` now, without waiting for the
+   * live subscription: files a pull wrote must reach the index even before
+   * the watcher runs. Applying a batch the live subscription also applies is
+   * idempotent. Resolves with the number of index mutations and reports
+   * {@link IndexLifecycleService.onApplied} when there was any. `canApply` is
+   * checked before every write; a rejection is the caller's to handle.
+   */
+  applyChanges: (
+    changes: FileChange[],
+    generation: number,
+    canApply?: () => boolean,
+  ) => Promise<number>
+  /**
    * Listen for every batch of file changes after the index applied it: each
    * watcher batch (notes and asset files, even when no row changed) and the
    * notes that an asset description write re-indexed. A sync pass reports no
@@ -228,6 +241,13 @@ export interface IndexLifecycleService {
     path: string,
     options: { generation: number; content?: string | undefined; mtime?: number | undefined },
   ) => Promise<void>
+  /**
+   * Re-index every note that references any of `assetPaths`, so an asset
+   * description written after its notes were indexed reaches their search
+   * rows. The re-applied notes report through
+   * {@link IndexLifecycleService.onChangesApplied}.
+   */
+  reindexNotesReferencing: (assetPaths: readonly string[], generation: number) => Promise<void>
 }
 
 /** The services an {@link IndexLifecycleService} runs on. */
@@ -243,11 +263,9 @@ export interface IndexLifecycleDeps extends IndexingDeps {
  */
 export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLifecycleService {
   const { indexStore, fileChanges, operations, clock, logger } = deps
-  const indexer = createNoteIndexer(deps)
-  const liveIndex = createLiveIndex(deps)
-
   const progressListeners = new Set<(progress: IndexLifecycleProgress) => void>()
   const appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
+  const changesAppliedListeners = new Set<(event: IndexChangesAppliedEvent) => void>()
   const reconciledListeners = new Set<(event: IndexReconciledEvent) => void | Promise<void>>()
   const movedListeners = new Set<(from: string, to: string) => void>()
   const fileProgressListeners = new Set<(done: number, total: number, worked: number) => void>()
@@ -260,6 +278,15 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
       listeners.delete(listener)
     }
   }
+
+  function emitChangesApplied(changes: readonly FileChange[], generation: number): void {
+    for (const listener of changesAppliedListeners) {
+      listener({ generation, changes })
+    }
+  }
+
+  const indexer = createNoteIndexer({ ...deps, emitChangesApplied })
+  const liveIndex = createLiveIndex({ ...deps, emitChangesApplied })
 
   let currentFileProgress: IndexFileProgress | null = null
 
@@ -554,10 +581,17 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     },
     onProgress: (listener) => attach(progressListeners, listener),
     onApplied: (listener) => attach(appliedListeners, listener),
-    onChangesApplied: (listener) =>
-      subscribeIndexApplied((changes, generation) => {
-        listener({ generation, changes })
-      }),
+    applyChanges: async (changes, generation, canApply) => {
+      const mutations = await liveIndex.apply(changes, generation, undefined, undefined, canApply)
+      if (mutations > 0) {
+        emitApplied({
+          generation,
+          paths: changes.filter((change) => isNotePath(change.path)).map((change) => change.path),
+        })
+      }
+      return mutations
+    },
+    onChangesApplied: (listener) => attach(changesAppliedListeners, listener),
     onReconciled: (listener) => attach(reconciledListeners, listener),
     onMoved: (listener) => attach(movedListeners, listener),
     onFileProgress: (listener) => attach(fileProgressListeners, listener),
@@ -567,6 +601,9 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     rebuildVisibly,
     indexNote: async (path, options) => {
       await indexer.indexNote(path, options)
+    },
+    reindexNotesReferencing: async (assetPaths, generation) => {
+      await indexer.reindexNotesReferencing(assetPaths, generation)
     },
   }
 }

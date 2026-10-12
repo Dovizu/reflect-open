@@ -35,10 +35,23 @@ import {
   withAppReviewDemo,
   type LanguageModelService,
 } from '../ai/language-model-service.ts'
+import { createChatEngineService, type ChatEngineService } from '../ai/chat/chat-engine-service.ts'
+import {
+  createChatGraphContextService,
+  type ChatGraphContextService,
+} from '../ai/chat/chat-graph-context-service.ts'
 import {
   createChatHistoryService,
   type ChatHistoryService,
 } from '../ai/chat/chat-history-service.ts'
+import {
+  createChatSessionService,
+  type ChatSessionService,
+} from '../ai/chat/chat-session-service.ts'
+import { fitToContextWindow } from '../ai/chat/context-window.ts'
+import { createNoteToolsService, type NoteToolsService } from '../ai/chat/note-tools-service.ts'
+import { createAssetReferences } from '../indexing/asset-refs.ts'
+import { listDailyNotes } from '../indexing/queries.ts'
 import {
   createBacklinkTargetService,
   type BacklinkTargetService,
@@ -53,6 +66,14 @@ import {
   createNativeActionService,
   type NativeActionService,
 } from '../audio/native-action-service.ts'
+import {
+  createAssetDescriptionService,
+  type AssetDescriptionService,
+} from '../assets/asset-description-service.ts'
+import {
+  createAssetPrivacyService,
+  type AssetPrivacyService,
+} from '../assets/asset-privacy-service.ts'
 import {
   createCaptureInboxService,
   type CaptureInboxService,
@@ -72,6 +93,8 @@ import {
 } from '../sync/git-host-credential-service.ts'
 import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
 import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
+import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
+import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
@@ -105,6 +128,7 @@ import {
   createMobileOnboardingService,
   type MobileOnboardingService,
 } from '../graph/mobile-onboarding-service.ts'
+import { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
 import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
@@ -118,6 +142,7 @@ import {
   type NoteActionsService,
 } from '../documents/note-actions-service.ts'
 import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
+import { createTemplateService, type TemplateService } from '../documents/template-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -287,6 +312,10 @@ export interface AppServices {
   readonly gitHostCredentials: GitHostCredentialService
   readonly githubRepos: GithubRepoService
   readonly gists: GistService
+  /** Builds the sync engine of one graph session. */
+  readonly syncEngines: SyncEngineFactory
+  /** Builds the backup lifecycle of one (graph, index session) pair. */
+  readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
@@ -318,6 +347,8 @@ export interface AppServices {
   readonly tasks: TaskService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
+  readonly dailyNotes: DailyNoteService
+  readonly templates: TemplateService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -351,6 +382,11 @@ export interface AppServices {
   readonly assetDescriber: AssetDescriberService
   readonly transcription: TranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly noteTools: NoteToolsService
+  readonly chatEngine: ChatEngineService
+  readonly chatGraphContext: ChatGraphContextService
+  /** Creates the chat session of an open graph; the workspace owns the session. */
+  readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: CaptureService
   readonly audioMemo: AudioMemoService
@@ -358,6 +394,8 @@ export interface AppServices {
   readonly nativeAction?: NativeActionService
   /** Mobile only. */
   readonly mobileAudioMemo?: MobileAudioMemoService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescription: AssetDescriptionService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -533,6 +571,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const captureInbox = createCaptureInboxService({ ipc })
   const webFetch = createWebFetchService({ ipc })
   const pageDescriber = createPageDescriberService({ languageModel })
+  const reconcilers = createBackgroundReconcilerFactory({ lifecycle })
+  const assetPrivacy = createAssetPrivacyService({
+    noteFile,
+    xArchive,
+    assetReferences: createAssetReferences({ database, xArchive }),
+  })
+  const assetDescriber = createAssetDescriberService({ languageModel })
   const backlinkTarget = createBacklinkTargetService({
     noteCreation: noteServices.noteCreation,
     noteFile,
@@ -564,6 +609,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage,
     logger,
   })
+  const persistenceFlush = createPersistenceFlushService({
+    lifecycle,
+    window: windowService,
+    platform,
+    settings,
+    logger,
+  })
+  const gitRepository = createGitRepositoryService({ ipc })
+  const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
+  const gitHostCredentials = createGitHostCredentialService({ secretStore })
+  const githubRepos = createGithubRepoService({ http: adapters.http })
+  const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
   const retrieval = createRetrievalService({
     database,
@@ -579,7 +636,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexLifecycle,
     logger,
   })
-  const reconcilers = createBackgroundReconcilerFactory({ lifecycle })
   const transcription = withAppReviewDemoTranscription(
     createTranscriptionService({ http: adapters.http }),
   )
@@ -604,6 +660,22 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
   })
   const mobileServices = mobile ? createMobileServices() : null
+  const chatHistory = createChatHistoryService({ ipc, database, logger })
+  const noteTools = createNoteToolsService({
+    retrieval,
+    noteFile,
+    noteList: indexReads.noteList,
+    dailyNotes: { listDailyNotes },
+    assetReferences: createAssetReferences({ database, xArchive }),
+    xArchive,
+    privacy: noteServices.privacy,
+  })
+  const chatEngine = createChatEngineService({ languageModel, noteTools, fitToContextWindow })
+  const chatGraphContext = createChatGraphContextService({
+    graphStats: indexReads.graphStats,
+    privacy: noteServices.privacy,
+  })
+  const imageCodec = adapters.imageCodec ?? createUnavailableImageCodec()
   return {
     ipc,
     logger,
@@ -625,22 +697,16 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     contacts: createContactsService({ ipc }),
     agentSkill: createAgentSkillService({ ipc }),
     mobileStorage,
-    imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
+    imageCodec,
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
     settings,
     theme: createThemeService({ settings, storage, platform }),
-    persistenceFlush: createPersistenceFlushService({
-      lifecycle,
-      window: windowService,
-      platform,
-      settings,
-      logger,
-    }),
+    persistenceFlush,
     database,
     indexStore,
     embeddingRuntime,
-    chatHistory: createChatHistoryService({ ipc, database, logger }),
+    chatHistory,
     navigation: createNavigationService(),
     deepLink: createDeepLinkService({
       source: adapters.deepLink ?? createNoDeepLinkSource(),
@@ -660,10 +726,25 @@ export function createAppServices(adapters: AppAdapters): AppServices {
           window: windowService,
         })
       : createUnsupportedUpdateService(),
-    gitRepository: createGitRepositoryService({ ipc }),
-    githubAuth: createGithubAuthService({ secretStore, http: adapters.http, clock }),
-    gitHostCredentials: createGitHostCredentialService({ secretStore }),
-    githubRepos: createGithubRepoService({ http: adapters.http }),
+    gitRepository,
+    githubAuth,
+    gitHostCredentials,
+    githubRepos,
+    syncEngines,
+    backups: createBackupServiceFactory({
+      git: gitRepository,
+      syncEngines,
+      githubAuth,
+      githubRepos,
+      gitHostCredentials,
+      fileChanges,
+      indexLifecycle,
+      operations,
+      lifecycle,
+      platform,
+      persistenceFlush,
+      logger,
+    }),
     gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox,
@@ -713,6 +794,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       id,
     }),
     noteRows: createNoteRowService(),
+    dailyNotes: createDailyNoteService({ database, clock, lifecycle }),
+    templates: createTemplateService({
+      noteFile,
+      indexQuery: indexReads.indexQuery,
+      notePath: indexReads.notePath,
+      noteMove,
+      openDocuments,
+      operations,
+    }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,
@@ -760,9 +850,26 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       privacy: noteServices.privacy,
     }),
     pageDescriber,
-    assetDescriber: createAssetDescriberService({ languageModel }),
+    assetDescriber,
     transcription,
     transcriptEnrichment,
+    noteTools,
+    chatEngine,
+    chatGraphContext,
+    chatSessions: createChatSessionService({
+      chatEngine,
+      chatHistory,
+      chatGraphContext,
+      providerConfig: aiProviderConfig,
+      credentials: aiCredentials,
+      embeddingRuntime,
+      settings,
+      graphSession,
+      clock,
+      id,
+      imageCodec,
+      logger,
+    }),
     backlinkTarget,
     capture: createCaptureService({
       captureInbox,
@@ -800,5 +907,20 @@ export function createAppServices(adapters: AppAdapters): AppServices {
             logger,
           }),
         }),
+    assetPrivacy,
+    assetDescription: createAssetDescriptionService({
+      assetStore,
+      noteFile,
+      assetPrivacy,
+      assetDescriber,
+      aiProviderConfig,
+      aiCredentials,
+      hash,
+      clock,
+      reconcilers,
+      indexLifecycle,
+      operations,
+      logger,
+    }),
   }
 }

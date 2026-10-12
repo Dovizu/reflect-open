@@ -49,19 +49,34 @@ import {
   type TestXArchiveService,
 } from './capture.ts'
 import {
+  createTestBackupServiceFactory,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
   createTestICloudNativeService,
+  createTestSyncEngineFactory,
   type TestGitRepositoryService,
+  type TestGithubAuthService,
   type TestICloudNativeService,
 } from './sync.ts'
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
+import { createTestDailyNoteService } from './daily.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
-import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
+import {
+  createTestChatEngineService,
+  createTestChatGraphContextService,
+  createTestChatHistoryService,
+  createTestChatSessionService,
+  createTestNoteToolsService,
+  type TestChatEngineService,
+  type TestChatGraphContextService,
+  type TestChatHistoryService,
+} from './chat.ts'
+import type { ChatSessionService } from '../ai/chat/chat-session-service.ts'
+import type { NoteToolsService } from '../ai/chat/note-tools-service.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
 import {
   createTestEmbeddingIndexService,
@@ -82,6 +97,7 @@ import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestNoteActionsService,
+  createTestTemplateService,
   createTestNoteMoveService,
   createTestNoteSessionService,
   createTestNoteDocumentService,
@@ -190,6 +206,12 @@ import type { BacklinkTargetService } from '../capture/backlink-target-service.t
 import type { AudioMemoService } from '../audio/audio-memo-service.ts'
 import type { MobileAudioMemoService } from '../audio/mobile-audio-memo-service.ts'
 import type { NativeActionService } from '../audio/native-action-service.ts'
+import type { AssetPrivacyService } from '../assets/asset-privacy-service.ts'
+import {
+  createTestAssetDescriptionService,
+  createTestAssetPrivacyService,
+  type TestAssetDescriptionService,
+} from './assets.ts'
 import type { CommandService } from '../commands/command-service.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 
@@ -230,6 +252,7 @@ export interface TestAppServices extends AppServices {
   readonly navigation: TestNavigationService
   readonly deepLink: TestDeepLinkService
   readonly gitRepository: TestGitRepositoryService
+  readonly githubAuth: TestGithubAuthService
   readonly icloudNative: TestICloudNativeService
   readonly captureInbox: TestCaptureInboxService
   readonly webFetch: TestWebFetchService
@@ -272,11 +295,17 @@ export interface TestAppServices extends AppServices {
   readonly assetDescriber: TestAssetDescriberService
   readonly transcription: TestTranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly noteTools: NoteToolsService
+  readonly chatEngine: TestChatEngineService
+  readonly chatGraphContext: TestChatGraphContextService
+  readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: TestCaptureService
   readonly audioMemo: AudioMemoService
   readonly nativeAction: NativeActionService
   readonly mobileAudioMemo: MobileAudioMemoService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescription: TestAssetDescriptionService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -377,6 +406,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: overrides?.mobileStorage ?? mobileStorage,
     logger,
   })
+  const persistenceFlush = createTestPersistenceFlushService()
+  const gitRepository = createTestGitRepositoryService()
+  const githubAuth = createTestGithubAuthService({
+    secretStore: overrides?.secretStore ?? secretStore,
+    http: overrides?.http ?? http,
+    clock: overrides?.clock ?? clock,
+  })
+  const gitHostCredentials = createTestGitHostCredentialService({
+    secretStore: overrides?.secretStore ?? secretStore,
+  })
+  const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
+  const syncEngines = createTestSyncEngineFactory({
+    git: overrides?.gitRepository ?? gitRepository,
+    clock: overrides?.clock ?? clock,
+  })
   const embeddingRuntime = createTestEmbeddingRuntimeService()
   const retrieval = createTestRetrievalService()
   const embeddingIndex = createTestEmbeddingIndexService({
@@ -422,6 +466,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     platform: overrides?.platform ?? platform,
     logger,
   })
+  const chatHistory = createTestChatHistoryService()
+  const chatEngine = createTestChatEngineService()
+  const chatGraphContext = createTestChatGraphContextService()
+  const imageCodec = createTestImageCodec()
   const services: TestAppServices = {
     ipc,
     logger: testLogger,
@@ -443,17 +491,17 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     contacts: createTestContactsService(),
     agentSkill: createTestAgentSkillService(),
     mobileStorage,
-    imageCodec: createTestImageCodec(),
+    imageCodec,
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
     settings,
     theme: createTestThemeService(),
-    persistenceFlush: createTestPersistenceFlushService(),
+    persistenceFlush,
     database,
     fileChanges,
     indexStore,
     embeddingRuntime,
-    chatHistory: createTestChatHistoryService(),
+    chatHistory,
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
     deepLink: createTestDeepLinkService({
@@ -464,16 +512,25 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
     }),
-    gitRepository: createTestGitRepositoryService(),
-    githubAuth: createTestGithubAuthService({
-      secretStore: overrides?.secretStore ?? secretStore,
-      http: overrides?.http ?? http,
-      clock: overrides?.clock ?? clock,
+    gitRepository,
+    githubAuth,
+    gitHostCredentials,
+    githubRepos,
+    syncEngines,
+    backups: createTestBackupServiceFactory({
+      git: overrides?.gitRepository ?? gitRepository,
+      syncEngines: overrides?.syncEngines ?? syncEngines,
+      githubAuth: overrides?.githubAuth ?? githubAuth,
+      githubRepos: overrides?.githubRepos ?? githubRepos,
+      gitHostCredentials: overrides?.gitHostCredentials ?? gitHostCredentials,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      operations: overrides?.operations ?? operations,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      platform: overrides?.platform ?? platform,
+      persistenceFlush: overrides?.persistenceFlush ?? persistenceFlush,
+      logger,
     }),
-    gitHostCredentials: createTestGitHostCredentialService({
-      secretStore: overrides?.secretStore ?? secretStore,
-    }),
-    githubRepos: createTestGithubRepoService({ http: overrides?.http ?? http }),
     gists: createTestGistService({ http: overrides?.http ?? http }),
     icloudNative: createTestICloudNativeService(),
     captureInbox,
@@ -529,6 +586,19 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       id: overrides?.id ?? id,
     }),
     noteRows: createNoteRowService(),
+    templates: createTestTemplateService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
+      notePath: overrides?.notePath ?? indexReads.notePath,
+      noteMove: overrides?.noteMove ?? noteMove,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      operations: overrides?.operations ?? operations,
+    }),
+    dailyNotes: createTestDailyNoteService({
+      database: overrides?.database ?? database,
+      clock: overrides?.clock ?? clock,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+    }),
     ...indexReads,
     noteLinkResolver,
     noteCreation,
@@ -582,8 +652,36 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     assetDescriber: createTestAssetDescriberService(),
     transcription,
     transcriptEnrichment,
+    noteTools: createTestNoteToolsService({
+      retrieval: overrides?.retrieval ?? retrieval,
+      noteFile: overrides?.noteFile ?? noteFile,
+      noteList: overrides?.noteList ?? indexReads.noteList,
+      xArchive: overrides?.xArchive ?? xArchive,
+      privacy: overrides?.privacy ?? privacy,
+    }),
+    chatEngine,
+    chatGraphContext,
+    chatSessions: createTestChatSessionService({
+      chatEngine: overrides?.chatEngine ?? chatEngine,
+      chatHistory: overrides?.chatHistory ?? chatHistory,
+      chatGraphContext: overrides?.chatGraphContext ?? chatGraphContext,
+      settings: overrides?.settings ?? settings,
+      credentials: overrides?.aiCredentials ?? aiCredentials,
+      providerConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
+      embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
+      graphSession: overrides?.graphSession ?? graphSession,
+      clock: overrides?.clock ?? clock,
+      id: overrides?.id ?? id,
+      imageCodec: overrides?.imageCodec ?? imageCodec,
+      logger,
+    }),
     backlinkTarget,
     capture: createTestCaptureService(),
+    assetPrivacy: createTestAssetPrivacyService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      xArchive: overrides?.xArchive ?? xArchive,
+    }),
+    assetDescription: createTestAssetDescriptionService(),
     audioMemo,
     nativeAction,
     mobileAudioMemo: createTestMobileAudioMemoService({
