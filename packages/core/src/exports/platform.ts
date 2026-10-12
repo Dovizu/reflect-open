@@ -592,7 +592,6 @@ export { createAsset, importAsset } from '../graph/assets.ts'
 export { assetFileName } from '../graph/asset-names.ts'
 export {
   newNoteId,
-  newNoteSource,
   untitledNoteSeed,
   untitledNotePath,
   isUntitledNotePath,

@@ -19,7 +19,10 @@ import { defaultSubscription } from '../monetization/subscription-service.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultAssetStore } from '../graph/asset-store-service.ts'
+import { defaultNoteCreation } from '../graph/note-creation-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
+import { defaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
+import { defaultPrivacy } from '../privacy/privacy-service.ts'
 import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultBacklinks } from '../indexing/backlink-service.ts'
@@ -123,6 +126,9 @@ describe('installDefaultServices', () => {
     expect(defaultNoteList()).toBe(services.noteList)
     expect(defaultGraphStats()).toBe(services.graphStats)
     expect(defaultNotePath()).toBe(services.notePath)
+    expect(defaultNoteLinkResolver()).toBe(services.noteLinkResolver)
+    expect(defaultNoteCreation()).toBe(services.noteCreation)
+    expect(defaultPrivacy()).toBe(services.privacy)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
@@ -194,6 +200,9 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteList()).not.toBe(services.noteList)
     expect(defaultGraphStats()).not.toBe(services.graphStats)
     expect(defaultNotePath()).not.toBe(services.notePath)
+    expect(defaultNoteLinkResolver()).not.toBe(services.noteLinkResolver)
+    expect(defaultNoteCreation()).not.toBe(services.noteCreation)
+    expect(defaultPrivacy()).not.toBe(services.privacy)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

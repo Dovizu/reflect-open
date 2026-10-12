@@ -173,14 +173,26 @@ export {
 } from './audio-recorder.ts'
 export {
   createTestAssetStoreService,
+  createTestNoteCreationService,
   createTestNoteFileService,
+  createTestNoteLinkResolverService,
   type AssetUpload,
   type NoteFileWrite,
+  type NoteLinkResolution,
   type TestAssetStoreService,
   type TestAssetStoreServiceOptions,
+  type TestNoteCreationService,
+  type TestNoteCreationServiceOptions,
   type TestNoteFileService,
   type TestNoteFileServiceOptions,
+  type TestNoteLinkResolverService,
+  type TestNoteLinkResolverServiceOptions,
 } from './graph.ts'
+export {
+  createTestPrivacyService,
+  type TestPrivacyService,
+  type TestPrivacyServiceOptions,
+} from './privacy.ts'
 export {
   createTestAttachmentService,
   type AttachmentSave,

@@ -70,6 +70,9 @@ const SERVICE_KEYS = [
   'noteList',
   'graphStats',
   'notePath',
+  'noteLinkResolver',
+  'noteCreation',
+  'privacy',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

@@ -1,9 +1,26 @@
+import type { IdService } from '../app/id-service.ts'
 import { ReflectError } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
+import {
+  createNoteCreationService,
+  type NoteCreationService,
+  type ResolveOrCreateNoteResult,
+} from '../graph/note-creation-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
+import {
+  createNoteLinkResolverService,
+  type ExistingWikiTargetResolution,
+  type NoteLinkResolverService,
+} from '../graph/note-link-resolver-service.ts'
 import { ASSETS_DIR, AUDIO_MEMOS_DIR, isAttachmentPath, isNotePath } from '../graph/paths.ts'
 import type { FileMeta } from '../graph/schemas.ts'
+import {
+  createWikiResolverService,
+  type WikiResolverService,
+} from '../indexing/wiki-resolver-service.ts'
 import { bytesToBase64, base64ToBytes } from '../lib/base64.ts'
+import { createTestDatabaseService } from './database.ts'
+import { createTestIdService } from './id.ts'
 
 function notFound(what: string): ReflectError {
   return new ReflectError('notFound', `${what} not found`)
@@ -332,5 +349,106 @@ export function createTestAssetStoreService(
     transcripts: () => new Map(transcripts),
     opened: () => [...openLog],
     revealed: () => [...revealLog],
+  }
+}
+
+export interface TestNoteLinkResolverServiceOptions {
+  /** The index the resolver's tiers read; defaults to one over an empty test database. */
+  wikiResolver?: WikiResolverService
+  /** The files the resolver probes; defaults to an empty test note file service. */
+  noteFile?: NoteFileService
+}
+
+/** One call to a {@link TestNoteLinkResolverService}, with its result. */
+export type NoteLinkResolution =
+  | {
+      readonly kind: 'wiki'
+      readonly target: string
+      readonly generation: number
+      readonly sourcePath: string | undefined
+      readonly result: ExistingWikiTargetResolution
+    }
+  | {
+      readonly kind: 'markdown'
+      readonly sourcePath: string
+      readonly href: string
+      readonly generation: number
+      readonly result: ExistingWikiTargetResolution
+    }
+
+export interface TestNoteLinkResolverService extends NoteLinkResolverService {
+  /** Every settled resolution, in order. */
+  calls(): readonly NoteLinkResolution[]
+}
+
+/** The real {@link NoteLinkResolverService} over test doubles, recording each resolution. */
+export function createTestNoteLinkResolverService(
+  options?: TestNoteLinkResolverServiceOptions,
+): TestNoteLinkResolverService {
+  const service = createNoteLinkResolverService({
+    wikiResolver:
+      options?.wikiResolver ?? createWikiResolverService({ database: createTestDatabaseService() }),
+    noteFile: options?.noteFile ?? createTestNoteFileService(),
+  })
+  const log: NoteLinkResolution[] = []
+  return {
+    async resolveWikiTarget(target, generation, sourcePath) {
+      const result = await service.resolveWikiTarget(target, generation, sourcePath)
+      log.push({ kind: 'wiki', target, generation, sourcePath, result })
+      return result
+    },
+    async resolveMarkdownHref(sourcePath, href, generation) {
+      const result = await service.resolveMarkdownHref(sourcePath, href, generation)
+      log.push({ kind: 'markdown', sourcePath, href, generation, result })
+      return result
+    },
+    calls: () => [...log],
+  }
+}
+
+export interface TestNoteCreationServiceOptions {
+  /** Where notes are created; defaults to an empty test note file service. */
+  noteFile?: NoteFileService
+  /** Defaults to a {@link createTestNoteLinkResolverService} over `noteFile`. */
+  noteLinkResolver?: NoteLinkResolverService
+  /** Defaults to {@link createTestIdService}. */
+  id?: IdService
+}
+
+export interface TestNoteCreationService extends NoteCreationService {
+  /** Every path `createNoteWithTitle` or `resolveOrCreateNoteWithTitle` created, in order. */
+  created(): readonly string[]
+}
+
+/** The real {@link NoteCreationService} over test doubles, recording each created path. */
+export function createTestNoteCreationService(
+  options?: TestNoteCreationServiceOptions,
+): TestNoteCreationService {
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  const service = createNoteCreationService({
+    noteFile,
+    noteLinkResolver: options?.noteLinkResolver ?? createTestNoteLinkResolverService({ noteFile }),
+    id: options?.id ?? createTestIdService(),
+  })
+  const createdLog: string[] = []
+  return {
+    ...service,
+    async createNoteWithTitle(title, generation, body) {
+      const path = await service.createNoteWithTitle(title, generation, body)
+      createdLog.push(path)
+      return path
+    },
+    async resolveOrCreateNoteWithTitle(
+      title,
+      generation,
+      body,
+    ): Promise<ResolveOrCreateNoteResult> {
+      const result = await service.resolveOrCreateNoteWithTitle(title, generation, body)
+      if (result.kind === 'created') {
+        createdLog.push(result.path)
+      }
+      return result
+    },
+    created: () => [...createdLog],
   }
 }

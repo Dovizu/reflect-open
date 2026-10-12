@@ -1,8 +1,4 @@
-import {
-  createIndexReadServices,
-  createNoteServices,
-  type AppServices,
-} from '../app/create-app-services.ts'
+import { createIndexReadServices, type AppServices } from '../app/create-app-services.ts'
 import {
   createGraphServices,
   type GraphRole,
@@ -45,10 +41,15 @@ import { createTestFileChangeService, type TestFileChangeService } from './file-
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestAssetStoreService,
+  createTestNoteCreationService,
   createTestNoteFileService,
+  createTestNoteLinkResolverService,
   type TestAssetStoreService,
+  type TestNoteCreationService,
   type TestNoteFileService,
+  type TestNoteLinkResolverService,
 } from './graph.ts'
+import { createTestPrivacyService, type TestPrivacyService } from './privacy.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
   createTestHashService,
@@ -161,6 +162,9 @@ export interface TestAppServices extends AppServices {
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
+  readonly noteLinkResolver: TestNoteLinkResolverService
+  readonly noteCreation: TestNoteCreationService
+  readonly privacy: TestPrivacyService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -178,6 +182,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const id = createTestIdService()
   const indexReads = createIndexReadServices({
     database: overrides?.database ?? database,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
+  const noteLinkResolver = createTestNoteLinkResolverService({
+    wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
     noteFile: overrides?.noteFile ?? noteFile,
   })
   const services: TestAppServices = {
@@ -231,11 +239,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     assetStore: createTestAssetStoreService(),
     attachments: createTestAttachmentService(),
     ...indexReads,
-    ...createNoteServices({
+    noteLinkResolver,
+    noteCreation: createTestNoteCreationService({
       noteFile: overrides?.noteFile ?? noteFile,
-      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
       id: overrides?.id ?? id,
     }),
+    privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
   }
   return Object.assign(services, overrides)
 }

@@ -27,11 +27,6 @@ export interface NoteCreationService {
   /** A fresh frontmatter `id` (lowercase ULID, matching the filename convention). */
   newNoteId(): string
   /**
-   * The on-disk source for a brand-new note: `id:` frontmatter + H1 title,
-   * plus an optional body block under the title.
-   */
-  newNoteSource(title: string, body?: string): string
-  /**
    * The buffer seed for a Cmd-N note (created lazily on the first keystroke):
    * an empty H1 plus a fresh `id:`. The `#` carries no trailing space: that
    * is the serializer's round-trip form, and anything else would classify the
@@ -113,6 +108,10 @@ export function createNoteCreationService(deps: {
 }): NoteCreationService {
   const { noteFile, noteLinkResolver, id } = deps
 
+  /**
+   * The on-disk source for a brand-new note: `id:` frontmatter + H1 title,
+   * plus an optional body block under the title.
+   */
   function newNoteSource(title: string, body?: string): string {
     const content = body ? `# ${title.trim()}\n\n${body.trim()}\n` : `# ${title.trim()}\n`
     return upsertFrontmatter(content, { id: id.noteId() })
@@ -159,7 +158,6 @@ export function createNoteCreationService(deps: {
 
   return {
     newNoteId: () => id.noteId(),
-    newNoteSource,
     untitledNoteSeed: () => upsertFrontmatter('#\n', { id: id.noteId() }),
     untitledNotePath: () => notePath(id.noteId()),
 

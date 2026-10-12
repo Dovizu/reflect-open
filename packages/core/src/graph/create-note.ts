@@ -12,11 +12,6 @@ export function newNoteId(): string {
   return defaultNoteCreation().newNoteId()
 }
 
-/** `defaultNoteCreation().newNoteSource`. */
-export function newNoteSource(title: string, body?: string): string {
-  return defaultNoteCreation().newNoteSource(title, body)
-}
-
 /** `defaultNoteCreation().untitledNoteSeed`. */
 export function untitledNoteSeed(): string {
   return defaultNoteCreation().untitledNoteSeed()
