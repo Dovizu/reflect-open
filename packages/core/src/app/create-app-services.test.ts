@@ -54,6 +54,7 @@ const SERVICE_KEYS = [
   'embeddingRuntime',
   'chatHistory',
   'update',
+  'navigation',
   'gitRepository',
   'githubAuth',
   'gitHostCredentials',
@@ -85,6 +86,12 @@ const SERVICE_KEYS = [
   'aiKeyValidation',
   'languageModel',
   'aiPrompts',
+  'aiProviderConfig',
+  'selectionTransform',
+  'pageDescriber',
+  'assetDescriber',
+  'transcription',
+  'transcriptEnrichment',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

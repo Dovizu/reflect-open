@@ -1,25 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
-  createTestHttpService,
-  createTestLanguageModelService,
-  type TestLanguageModelService,
-} from '../testing/index.ts'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { createTestLanguageModelService, type TestLanguageModelService } from '../testing/index.ts'
 import { APICallError } from '@reflect/modules/ai'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3CallOptions, LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { AiProviderConfig } from '../settings/schema.ts'
-import { describePage, isDescriptionRejected } from './describe-page.ts'
-import { setDefaultLanguageModel } from './language-model-service.ts'
+import {
+  createPageDescriberService,
+  isDescriptionRejected,
+  type DescribePageRequest,
+  type PageDescriberService,
+} from './page-describer-service.ts'
 
 let languageModelService: TestLanguageModelService
+let pageDescriber: PageDescriberService
 
 beforeEach(() => {
   languageModelService = createTestLanguageModelService()
-  setDefaultLanguageModel(languageModelService)
-})
-
-afterEach(() => {
-  setDefaultLanguageModel(null)
+  pageDescriber = createPageDescriberService({ languageModel: languageModelService })
 })
 
 const USAGE: LanguageModelV3Usage = {
@@ -77,13 +74,12 @@ function apiError(statusCode: number): APICallError {
   })
 }
 
-function request(overrides: Partial<Parameters<typeof describePage>[0]> = {}) {
-  return describePage({
+function request(overrides: Partial<DescribePageRequest> = {}) {
+  return pageDescriber.describe({
     config: CONFIG,
     apiKey: 'sk-live-key',
     url: 'https://example.com/article',
     title: 'An article',
-    fetchFn: createTestHttpService().fetchFn,
     ...overrides,
   })
 }
@@ -94,7 +90,7 @@ function userText(calls: LanguageModelV3CallOptions[]): string {
   return parts.find((part) => part.type === 'text')?.text ?? ''
 }
 
-describe('describePage', () => {
+describe('PageDescriberService', () => {
   it('returns the trimmed title and description, grounding the call in the screenshot', async () => {
     const calls = modelAnsweringObject('  A cleaned title  ', '  A concise description.  ')
 

@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { createTestHttpService } from '../testing/index.ts'
 import {
   GOOGLE_TRANSCRIPTION_FALLBACK_MODEL,
   GOOGLE_TRANSCRIPTION_MODEL,
   OPENAI_TRANSCRIPTION_FALLBACK_MODEL,
   OPENAI_TRANSCRIPTION_MODEL,
-  transcribeAudio,
+  createTranscriptionService,
+  withAppReviewDemoTranscription,
   type TranscriptionRequest,
-} from './transcribe.ts'
+} from './transcription-service.ts'
+import { APP_REVIEW_STUB_KEY } from './app-review-demo.ts'
 import { bytesToBase64 } from '../lib/base64.ts'
 import { isTranscriptionOversize, isTranscriptionRejected } from './transcribe-http.ts'
 
@@ -36,23 +37,27 @@ function jsonResponse(status: number, payload: unknown): Response {
   return new Response(JSON.stringify(payload), { status })
 }
 
-function request(overrides: Partial<TranscriptionRequest>): TranscriptionRequest {
+function request(overrides: Partial<TranscriptionRequest> = {}): TranscriptionRequest {
   return {
     provider: 'openai',
     apiKey: 'sk-test',
     audio: new Blob(['abc'], { type: 'audio/mp4' }),
     mimeType: 'audio/mp4',
-    fetchFn: createTestHttpService().fetchFn,
     ...overrides,
   }
 }
 
-describe('transcribeAudio (openai)', () => {
+/** Transcribes `request` with a service whose HTTP requests go to `fetchFn`. */
+function transcribe(fetchFn: typeof fetch, request: TranscriptionRequest): Promise<string> {
+  return createTranscriptionService({ http: { fetch: fetchFn } }).transcribe(request)
+}
+
+describe('TranscriptionService (openai)', () => {
   it('posts multipart with an extension-correct filename and returns the trimmed text', async () => {
     const calls: RecordedCall[] = []
     const fetchFn = recordingFetch(calls, () => jsonResponse(200, { text: '  Hello world.  ' }))
 
-    const text = await transcribeAudio(request({ fetchFn }))
+    const text = await transcribe(fetchFn, request())
 
     expect(text).toBe('Hello world.')
     expect(calls).toHaveLength(1)
@@ -69,9 +74,9 @@ describe('transcribeAudio (openai)', () => {
     const calls: RecordedCall[] = []
     const fetchFn = recordingFetch(calls, () => jsonResponse(200, { text: 'ok' }))
 
-    await transcribeAudio(request({ fetchFn, prompt: 'Names: Ocavue' }))
-    await transcribeAudio(request({ fetchFn, prompt: '' }))
-    await transcribeAudio(request({ fetchFn }))
+    await transcribe(fetchFn, request({ prompt: 'Names: Ocavue' }))
+    await transcribe(fetchFn, request({ prompt: '' }))
+    await transcribe(fetchFn, request())
 
     expect((calls[0]!.body as FormData).get('prompt')).toBe('Names: Ocavue')
     expect((calls[1]!.body as FormData).get('prompt')).toBeNull()
@@ -82,8 +87,9 @@ describe('transcribeAudio (openai)', () => {
     const calls: RecordedCall[] = []
     const fetchFn = recordingFetch(calls, () => jsonResponse(200, { text: 'hi' }))
 
-    await transcribeAudio(
-      request({ fetchFn, mimeType: 'audio/webm;codecs=opus', audio: new Blob(['abc']) }),
+    await transcribe(
+      fetchFn,
+      request({ mimeType: 'audio/webm;codecs=opus', audio: new Blob(['abc']) }),
     )
 
     const file = (calls[0]!.body as FormData).get('file') as File
@@ -98,7 +104,7 @@ describe('transcribeAudio (openai)', () => {
         : jsonResponse(200, { text: 'fallback worked' }),
     )
 
-    const text = await transcribeAudio(request({ fetchFn }))
+    const text = await transcribe(fetchFn, request())
 
     expect(text).toBe('fallback worked')
     expect(calls).toHaveLength(2)
@@ -111,9 +117,7 @@ describe('transcribeAudio (openai)', () => {
       jsonResponse(400, { error: { message: 'Invalid file format.', code: null } }),
     )
 
-    const failure: unknown = await transcribeAudio(request({ fetchFn })).catch(
-      (cause: unknown) => cause,
-    )
+    const failure: unknown = await transcribe(fetchFn, request()).catch((cause: unknown) => cause)
 
     expect(isTranscriptionRejected(failure)).toBe(true)
     expect(failure).toMatchObject({ message: expect.stringContaining('Invalid file format.') })
@@ -124,7 +128,7 @@ describe('transcribeAudio (openai)', () => {
     const tooLarge = recordingFetch([], () =>
       jsonResponse(413, { error: { message: 'Maximum content size exceeded.' } }),
     )
-    const rejection: unknown = await transcribeAudio(request({ fetchFn: tooLarge })).catch(
+    const rejection: unknown = await transcribe(tooLarge, request()).catch(
       (cause: unknown) => cause,
     )
     expect(isTranscriptionOversize(rejection)).toBe(true)
@@ -133,7 +137,7 @@ describe('transcribeAudio (openai)', () => {
     const rateLimited = recordingFetch([], () =>
       jsonResponse(429, { error: { message: 'Rate limit reached.' } }),
     )
-    const transient: unknown = await transcribeAudio(request({ fetchFn: rateLimited })).catch(
+    const transient: unknown = await transcribe(rateLimited, request()).catch(
       (cause: unknown) => cause,
     )
     expect(isTranscriptionRejected(transient)).toBe(false)
@@ -147,7 +151,7 @@ describe('transcribeAudio (openai)', () => {
       }),
     )
 
-    const outcome = transcribeAudio(request({ provider: 'google', fetchFn }))
+    const outcome = transcribe(fetchFn, request({ provider: 'google' }))
 
     await expect(outcome).rejects.toSatisfy((error) => isTranscriptionRejected(error))
     await expect(outcome).rejects.toThrow(/stopped early \(MAX_TOKENS\)/)
@@ -156,13 +160,13 @@ describe('transcribeAudio (openai)', () => {
   it('reports a rejected key as an auth error', async () => {
     const fetchFn = recordingFetch([], () => jsonResponse(401, { error: { message: 'bad key' } }))
 
-    await expect(transcribeAudio(request({ fetchFn }))).rejects.toMatchObject({ kind: 'auth' })
+    await expect(transcribe(fetchFn, request())).rejects.toMatchObject({ kind: 'auth' })
   })
 
   it('reports an unrecognizable success body as a parse error', async () => {
     const fetchFn = recordingFetch([], () => jsonResponse(200, { transcript: 'wrong shape' }))
 
-    await expect(transcribeAudio(request({ fetchFn }))).rejects.toMatchObject({ kind: 'parse' })
+    await expect(transcribe(fetchFn, request())).rejects.toMatchObject({ kind: 'parse' })
   })
 
   it('reports a thrown fetch as a network error', async () => {
@@ -170,7 +174,7 @@ describe('transcribeAudio (openai)', () => {
       throw new TypeError('offline')
     }
 
-    await expect(transcribeAudio(request({ fetchFn }))).rejects.toMatchObject({
+    await expect(transcribe(fetchFn, request())).rejects.toMatchObject({
       kind: 'network',
       message: 'offline',
     })
@@ -183,7 +187,7 @@ describe('transcribeAudio (openai)', () => {
       return jsonResponse(200, { text: 'ok' })
     }
 
-    await transcribeAudio(request({ fetchFn }))
+    await transcribe(fetchFn, request())
 
     expect(signals[0]).toBeInstanceOf(AbortSignal)
   })
@@ -193,14 +197,14 @@ describe('transcribeAudio (openai)', () => {
       throw new DOMException('The operation timed out.', 'TimeoutError')
     }
 
-    await expect(transcribeAudio(request({ fetchFn }))).rejects.toMatchObject({
+    await expect(transcribe(fetchFn, request())).rejects.toMatchObject({
       kind: 'network',
       message: expect.stringContaining('timed out'),
     })
   })
 })
 
-describe('transcribeAudio (google)', () => {
+describe('TranscriptionService (google)', () => {
   function geminiResponse(text: string): Response {
     return jsonResponse(200, { candidates: [{ content: { parts: [{ text }] } }] })
   }
@@ -209,8 +213,8 @@ describe('transcribeAudio (google)', () => {
     const calls: RecordedCall[] = []
     const fetchFn = recordingFetch(calls, () => geminiResponse('ok'))
 
-    await transcribeAudio(request({ provider: 'google', fetchFn, prompt: 'Names: Ocavue' }))
-    await transcribeAudio(request({ provider: 'google', fetchFn }))
+    await transcribe(fetchFn, request({ provider: 'google', prompt: 'Names: Ocavue' }))
+    await transcribe(fetchFn, request({ provider: 'google' }))
 
     const text = (index: number) =>
       (JSON.parse(String(calls[index]!.body)) as { contents: { parts: { text?: string }[] }[] })
@@ -225,9 +229,7 @@ describe('transcribeAudio (google)', () => {
     const calls: RecordedCall[] = []
     const fetchFn = recordingFetch(calls, () => geminiResponse(' transcript here '))
 
-    const text = await transcribeAudio(
-      request({ provider: 'google', apiKey: 'AIza-test', fetchFn }),
-    )
+    const text = await transcribe(fetchFn, request({ provider: 'google', apiKey: 'AIza-test' }))
 
     expect(text).toBe('transcript here')
     expect(calls[0]!.url).toBe(
@@ -246,9 +248,7 @@ describe('transcribeAudio (google)', () => {
     const calls: RecordedCall[] = []
     const fetchFn = recordingFetch(calls, () => geminiResponse('ok'))
 
-    await transcribeAudio(
-      request({ provider: 'google', fetchFn, mimeType: 'audio/webm;codecs=opus' }),
-    )
+    await transcribe(fetchFn, request({ provider: 'google', mimeType: 'audio/webm;codecs=opus' }))
 
     const payload = JSON.parse(String(calls[0]!.body)) as {
       contents: { parts: { inline_data?: { mime_type: string } }[] }[]
@@ -264,7 +264,7 @@ describe('transcribeAudio (google)', () => {
         : jsonResponse(404, { error: { message: 'This model is no longer available.' } }),
     )
 
-    const text = await transcribeAudio(request({ provider: 'google', fetchFn }))
+    const text = await transcribe(fetchFn, request({ provider: 'google' }))
 
     expect(text).toBe('fallback transcript')
     expect(calls).toHaveLength(2)
@@ -278,7 +278,7 @@ describe('transcribeAudio (google)', () => {
       jsonResponse(429, { error: { message: 'quota exhausted' } }),
     )
 
-    await expect(transcribeAudio(request({ provider: 'google', fetchFn }))).rejects.toMatchObject({
+    await expect(transcribe(fetchFn, request({ provider: 'google' }))).rejects.toMatchObject({
       kind: 'network',
       message: expect.stringContaining('quota exhausted'),
     })
@@ -290,7 +290,7 @@ describe('transcribeAudio (google)', () => {
       jsonResponse(400, { error: { message: 'Invalid audio content.' } }),
     )
 
-    const failure: unknown = await transcribeAudio(request({ provider: 'google', fetchFn })).catch(
+    const failure: unknown = await transcribe(fetchFn, request({ provider: 'google' })).catch(
       (cause: unknown) => cause,
     )
 
@@ -302,11 +302,10 @@ describe('transcribeAudio (google)', () => {
     const fetchFn = recordingFetch(calls, () => geminiResponse('never reached'))
     const oversized = request({
       provider: 'google',
-      fetchFn,
       audio: new Blob([new Uint8Array(13 * 1024 * 1024)], { type: 'audio/webm' }),
     })
 
-    await expect(transcribeAudio(oversized)).rejects.toSatisfy((error) =>
+    await expect(transcribe(fetchFn, oversized)).rejects.toSatisfy((error) =>
       isTranscriptionOversize(error),
     )
     expect(calls).toHaveLength(0)
@@ -315,7 +314,7 @@ describe('transcribeAudio (google)', () => {
   it('returns an empty transcript when no candidates come back', async () => {
     const fetchFn = recordingFetch([], () => jsonResponse(200, {}))
 
-    const text = await transcribeAudio(request({ provider: 'google', fetchFn }))
+    const text = await transcribe(fetchFn, request({ provider: 'google' }))
 
     expect(text).toBe('')
   })
@@ -323,7 +322,7 @@ describe('transcribeAudio (google)', () => {
   it('reports a rejected key as an auth error', async () => {
     const fetchFn = recordingFetch([], () => jsonResponse(403, { error: { message: 'denied' } }))
 
-    await expect(transcribeAudio(request({ provider: 'google', fetchFn }))).rejects.toMatchObject({
+    await expect(transcribe(fetchFn, request({ provider: 'google' }))).rejects.toMatchObject({
       kind: 'auth',
     })
   })
@@ -337,5 +336,33 @@ describe('bytesToBase64', () => {
   it('survives payloads beyond one chunk', () => {
     const bytes = new Uint8Array(0x8000 * 2 + 7).fill(65)
     expect(bytesToBase64(bytes)).toBe(btoa('A'.repeat(bytes.length)))
+  })
+})
+
+describe('withAppReviewDemoTranscription', () => {
+  it('answers the demo key with a canned transcript and no provider call', async () => {
+    const calls: RecordedCall[] = []
+    const service = withAppReviewDemoTranscription(
+      createTranscriptionService({
+        http: { fetch: recordingFetch(calls, () => jsonResponse(200, { text: 'never reached' })) },
+      }),
+    )
+
+    const text = await service.transcribe(request({ apiKey: APP_REVIEW_STUB_KEY }))
+
+    expect(text).toContain('demo transcription')
+    expect(calls).toHaveLength(0)
+  })
+
+  it('sends every other key to the provider', async () => {
+    const calls: RecordedCall[] = []
+    const service = withAppReviewDemoTranscription(
+      createTranscriptionService({
+        http: { fetch: recordingFetch(calls, () => jsonResponse(200, { text: 'Hello world.' })) },
+      }),
+    )
+
+    expect(await service.transcribe(request())).toBe('Hello world.')
+    expect(calls).toHaveLength(1)
   })
 })

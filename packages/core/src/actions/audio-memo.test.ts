@@ -300,7 +300,6 @@ describe('reconcileAudioMemos', () => {
         config: { ...PROVIDERS.providers[0], model: 'gpt-5.4-nano' },
         apiKey: 'sk-live-key',
       },
-      fetchFn: FETCH_FN,
       transcript: 'memo transcript',
       fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
     })
@@ -328,7 +327,6 @@ describe('reconcileAudioMemos', () => {
         config: { ...PROVIDERS.providers[0], model: 'gpt-5.4-nano' },
         apiKey: 'sk-live-key',
       },
-      fetchFn: FETCH_FN,
       transcript: 'memo transcript',
       fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
     })
@@ -365,7 +363,6 @@ describe('reconcileAudioMemos', () => {
         config: { ...ANTHROPIC_CONFIG, model: 'claude-haiku-4-5' },
         apiKey: 'sk-ant-live-key',
       },
-      fetchFn: FETCH_FN,
       transcript: 'memo transcript',
       fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
     })
@@ -641,27 +638,19 @@ describe('reconcileAudioMemos', () => {
     )
   })
 
-  it('the App Review demo key writes a canned transcript without any provider call', async () => {
+  it('sends the App Review demo key through the transcription service like any other key', async () => {
     listDirMock.mockResolvedValue([fileMeta(MEMO.audioPath)])
     await secrets.set(OPENAI_KEY, APP_REVIEW_STUB_KEY)
-    await secrets.set(ANTHROPIC_KEY, APP_REVIEW_STUB_KEY)
 
-    const outcome = await reconcile({ formatTranscript: true })
+    const outcome = await reconcile()
 
     expect(outcome).toEqual({ pending: 1, transcribed: 1, rejected: 0, stopped: null })
-    expect(transcribeMock).not.toHaveBeenCalled()
-    expect(generateAudioMemoTitleMock).not.toHaveBeenCalled()
-    expect(formatAudioMemoTranscriptMock).not.toHaveBeenCalled()
-    expect(writeNoteMock).toHaveBeenCalledWith(
-      MEMO.notePath,
-      expect.stringContaining('demo transcription'),
-      3,
+    expect(transcribeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'openai', apiKey: APP_REVIEW_STUB_KEY }),
     )
     expect(writeNoteMock).toHaveBeenCalledWith(
-      'daily/2026-06-11.md',
-      expect.stringContaining(
-        '- [[audio-memo-2026-06-11-153022-845|Audio memo 2026-06-11 15:30:22]]',
-      ),
+      MEMO.notePath,
+      expect.stringContaining('memo transcript'),
       3,
     )
   })

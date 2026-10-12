@@ -5,6 +5,31 @@ import {
 } from '../ai/ai-key-validation-service.ts'
 import { createAiPromptService, type AiPromptService } from '../ai/ai-prompt-service.ts'
 import {
+  createAiProviderConfigService,
+  type AiProviderConfigService,
+} from '../ai/ai-provider-config-service.ts'
+import {
+  createAssetDescriberService,
+  type AssetDescriberService,
+} from '../ai/asset-describer-service.ts'
+import {
+  createPageDescriberService,
+  type PageDescriberService,
+} from '../ai/page-describer-service.ts'
+import {
+  createSelectionTransformService,
+  type SelectionTransformService,
+} from '../ai/selection-transform-service.ts'
+import {
+  createTranscriptEnrichmentService,
+  type TranscriptEnrichmentService,
+} from '../ai/transcript-enrichment-service.ts'
+import {
+  createTranscriptionService,
+  withAppReviewDemoTranscription,
+  type TranscriptionService,
+} from '../ai/transcription-service.ts'
+import {
   createLanguageModelService,
   createLazyAiSdkLoader,
   withAppReviewDemo,
@@ -115,6 +140,10 @@ import {
   createSecretStoreService,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
+import {
+  createNavigationService,
+  type NavigationService,
+} from '../navigation/navigation-service.ts'
 import { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
 import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
 import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
@@ -194,6 +223,8 @@ export interface AppServices {
   readonly embeddingRuntime: EmbeddingRuntimeService
   readonly chatHistory: ChatHistoryService
   readonly update: UpdateService
+  /** The webview's navigation history; a note window has its own webview, hence its own. */
+  readonly navigation: NavigationService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -242,6 +273,12 @@ export interface AppServices {
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly aiProviderConfig: AiProviderConfigService
+  readonly selectionTransform: SelectionTransformService
+  readonly pageDescriber: PageDescriberService
+  readonly assetDescriber: AssetDescriberService
+  readonly transcription: TranscriptionService
+  readonly transcriptEnrichment: TranscriptEnrichmentService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -386,6 +423,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
   const xArchive = createXArchiveService({ ipc })
+  const aiCredentials = createAiCredentialService({ secretStore })
+  const aiKeyValidation = createAiKeyValidationService({ http: adapters.http })
+  const languageModel = withAppReviewDemo(
+    createLanguageModelService({ http: adapters.http, sdk: createLazyAiSdkLoader() }),
+  )
+  const aiProviderConfig = createAiProviderConfigService({
+    settings,
+    credentials: aiCredentials,
+    keyValidation: aiKeyValidation,
+    id,
+  })
+  const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
   const indexLifecycle = createIndexLifecycleService({
@@ -437,6 +486,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexStore,
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
     chatHistory: createChatHistoryService({ ipc, database, logger }),
+    navigation: createNavigationService(),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,
@@ -479,7 +529,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     openDocuments,
     noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     ...indexReads,
-    ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
+    ...noteServices,
     indexLifecycle,
     graphSession: createGraphSessionService({
       ipc,
@@ -496,11 +546,22 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       mobileStorage,
       logger,
     }),
-    aiCredentials: createAiCredentialService({ secretStore }),
-    aiKeyValidation: createAiKeyValidationService({ http: adapters.http }),
-    languageModel: withAppReviewDemo(
-      createLanguageModelService({ http: adapters.http, sdk: createLazyAiSdkLoader() }),
-    ),
+    aiCredentials,
+    aiKeyValidation,
+    languageModel,
     aiPrompts: createAiPromptService({ settings, id }),
+    aiProviderConfig,
+    selectionTransform: createSelectionTransformService({
+      languageModel,
+      providerConfig: aiProviderConfig,
+      credentials: aiCredentials,
+      privacy: noteServices.privacy,
+    }),
+    pageDescriber: createPageDescriberService({ languageModel }),
+    assetDescriber: createAssetDescriberService({ languageModel }),
+    transcription: withAppReviewDemoTranscription(
+      createTranscriptionService({ http: adapters.http }),
+    ),
+    transcriptEnrichment: createTranscriptEnrichmentService({ languageModel }),
   }
 }
