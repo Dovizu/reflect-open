@@ -46,6 +46,7 @@ import {
   createSecretStoreService,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
+import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import type { ClipboardService } from './clipboard-service.ts'
@@ -108,6 +109,7 @@ export interface AppServices {
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly operations: OperationsService
+  readonly settings: SettingsService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
   readonly indexStore: IndexStoreService
@@ -170,6 +172,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const windowService = createWindowService({ ipc, host: adapters.window, logger })
   const mobile =
     isMobilePlatform(adapters.platform.appPlatform) || adapters.platform.surface.mobileApp
+  const operations = createOperationsService({ clock })
   const fileChanges = createFileChangeService(
     { ipc, logger },
     { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
@@ -201,7 +204,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
-    operations: createOperationsService({ clock }),
+    operations,
+    settings: createSettingsService({ ipc, operations }),
     database,
     indexStore: createIndexStoreService({ ipc, database }),
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),

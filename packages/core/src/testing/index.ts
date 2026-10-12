@@ -129,6 +129,7 @@ export {
   type OperationSnapshot,
   type TestOperationsService,
 } from './operations.ts'
+export { createTestSettingsService, type TestSettingsService } from './settings.ts'
 export {
   createTestFileChangeService,
   type TestFileChangeService,

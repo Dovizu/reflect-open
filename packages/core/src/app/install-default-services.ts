@@ -20,6 +20,7 @@ import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
+import { setDefaultSettings } from '../settings/settings-service.ts'
 import { setDefaultAgentSkill } from './agent-skill-service.ts'
 import { setDefaultAppInfo } from './app-info-service.ts'
 import { setDefaultClipboard } from './clipboard-service.ts'
@@ -65,6 +66,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultImageCodec(services.imageCodec)
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
   setDefaultOperations(services.operations)
+  setDefaultSettings(services.settings)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
   setDefaultIndexStore(services.indexStore)
@@ -110,6 +112,7 @@ export function resetDefaultServices(): void {
   setDefaultImageCodec(null)
   setDefaultExceptionTelemetry(null)
   setDefaultOperations(null)
+  setDefaultSettings(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
   setDefaultIndexStore(null)

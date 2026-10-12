@@ -8,6 +8,7 @@ import {
   setDefaultSecretStore,
   setDefaultStorage,
   type AppPlatform,
+  setDefaultSettings,
 } from '@reflect/core'
 import {
   createTestSecretStoreService,
@@ -124,6 +125,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false, retryDelay: 0, staleTime: Infinity } },
   })
   installFakeBridge()
+  setDefaultSettings(null)
 })
 
 afterEach(async () => {
@@ -134,6 +136,7 @@ afterEach(async () => {
   await Promise.resolve()
   focusManager.setFocused(undefined)
   setBridge(null)
+  setDefaultSettings(null)
   setDefaultSecretStore(null)
   queryClient.clear()
   setDefaultStorage(null)

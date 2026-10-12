@@ -11,6 +11,7 @@ import {
   setDefaultDialog,
   setDefaultPlatform,
   setDefaultWindow,
+  setDefaultSettings,
 } from '@reflect/core'
 import {
   createTestDialogService,
@@ -177,6 +178,7 @@ let dialog: TestDialogService
 
 beforeEach(() => {
   installFakeBridge()
+  setDefaultSettings(null)
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   dialog = createTestDialogService()
   setDefaultDialog(dialog)
@@ -192,6 +194,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setBridge(null)
+  setDefaultSettings(null)
 })
 
 describe('GraphProvider open sequencing', () => {

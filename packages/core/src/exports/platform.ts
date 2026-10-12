@@ -577,7 +577,14 @@ export {
   type AiPrompt,
   type AiPromptMode,
 } from '../settings/schema.ts'
-export { loadSettings, saveSettings } from '../settings/commands.ts'
+export {
+  createSettingsService,
+  defaultSettings,
+  setDefaultSettings,
+  type SettingsLoadOutcome,
+  type SettingsService,
+  type SettingsStatus,
+} from '../settings/settings-service.ts'
 export {
   contactsAuthorizationSchema,
   contactMatchSchema,

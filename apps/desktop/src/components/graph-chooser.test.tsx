@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultSettings } from '@reflect/core'
 import { GraphProvider } from '@/providers/graph-provider.tsx'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import '@/test-utils/locator.ts'
@@ -38,6 +38,7 @@ beforeEach(() => {
     { root: '/graphs/personal', name: 'personal', openedMs: 1 },
   ]
   storedSettings = {}
+  setDefaultSettings(null)
   icloudStatusResponse = { available: false, documentsRoot: null, existingGraphRoots: [] }
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -77,6 +78,7 @@ afterEach(async () => {
   await cleanup()
   vi.unstubAllEnvs()
   setBridge(null)
+  setDefaultSettings(null)
   queryClient.clear()
 })
 
