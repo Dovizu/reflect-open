@@ -59,8 +59,14 @@ function upsert(path: string): FileChange {
   return { path, kind: 'upsert', modifiedMs: 1 }
 }
 
-function flush(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+/**
+ * Lets a pass settle. A pass hashes on the Web Crypto thread pool, so its
+ * answer can land after one timer tick; a few ticks give it room.
+ */
+async function flush(): Promise<void> {
+  for (let i = 0; i < 5; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
 }
 
 /**
