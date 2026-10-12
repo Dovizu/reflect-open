@@ -38,7 +38,7 @@ export default defineDesktopProject({
             : {}),
         },
       }),
-      headless: !process.env.DEBUG,
+      headless: true,
       instances: [{ browser: browserName }],
     },
   },
