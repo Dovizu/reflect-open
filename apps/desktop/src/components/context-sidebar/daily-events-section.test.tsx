@@ -112,6 +112,8 @@ beforeEach(async () => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   installFakeBridge()
   setDefaultSettings(null)
+  // Already open: the attendee field ignores Enter while its suggestions
+  // load, and the default test database opens on its first query.
   database = await createWasmTestDatabaseService()
   const meetings = createTestMeetingService({ database, contacts, settings: defaultSettings() })
   addMeetingToDaily.mockReset().mockImplementation((input) => meetings.addMeetingToDaily(input))

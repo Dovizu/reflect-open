@@ -18,7 +18,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   getBacklinksWithContext: async () => ({ contexts: [], nextCursor: null, indexedLinkCount: 0 }),
-  relatedNotes: async () => [],
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({

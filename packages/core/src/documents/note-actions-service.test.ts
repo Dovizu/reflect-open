@@ -585,13 +585,12 @@ describe('trashMany', () => {
 describe('deepLinkFor', () => {
   it('addresses a daily note by date, touching nothing', async () => {
     const { actions, files } = setup()
-    const read = vi.spyOn(files, 'read')
 
     await expect(actions.deepLinkFor('daily/2026-07-01.md', 3)).resolves.toBe(
       'reflect://daily/2026-07-01',
     )
 
-    expect(read).not.toHaveBeenCalled()
+    expect(files.getReads()).toEqual([])
     expect(files.writes()).toEqual([])
   })
 

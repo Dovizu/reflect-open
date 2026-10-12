@@ -2,12 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver, WikilinkHoverHit } from '@meowdown/core'
-import {
-  createTestAppServices,
-  type TestAppServices,
-  type TestDatabaseService,
-} from '@reflect/core/testing'
-import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
+import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import { AppServicesProvider } from '@/services/services-provider.tsx'
 import { useWikiLinkHoverPreview } from './use-wiki-link-hover-preview.tsx'
 
@@ -32,7 +27,6 @@ function hoverHit(target: string): WikilinkHoverHit {
 }
 
 let app: TestAppServices
-let database: TestDatabaseService
 
 async function setupRenderer(
   overrides: Partial<Parameters<typeof useWikiLinkHoverPreview>[0]> = {},
@@ -55,14 +49,13 @@ async function setupRenderer(
 }
 
 describe('useWikiLinkHoverPreview', () => {
-  beforeEach(async () => {
-    database = await createWasmTestDatabaseService()
-    app = createTestAppServices({ database })
+  beforeEach(() => {
+    app = createTestAppServices()
     markdownPreview.mockReset()
   })
 
   afterEach(() => {
-    database.close()
+    app.database.close()
   })
 
   it('resolves null without touching the graph when no graph session is open', async () => {

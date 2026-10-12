@@ -81,8 +81,11 @@ export {
   type TestPersonNoteServiceOptions,
 } from './contacts.ts'
 export {
+  createLazyTestDatabaseService,
   createTestDatabaseService,
   seedNotes,
+  setTestDatabaseOpener,
+  type TestDatabaseOpener,
   type TestDatabaseQuery,
   type TestDatabaseService,
   type TestNote,
@@ -301,6 +304,7 @@ export {
   createTestNoteFileService,
   createTestNoteLinkResolverService,
   type AssetUpload,
+  type NoteFileRead,
   type NoteFileWrite,
   type NoteLinkResolution,
   type TestAssetStoreService,

@@ -52,6 +52,11 @@ export interface NoteFileWrite {
   generation: number
 }
 
+export interface NoteFileRead {
+  path: string
+  generation: number | undefined
+}
+
 export interface TestNoteFileService extends NoteFileService {
   /** Put a file into the graph without recording a write. */
   set(path: string, contents: string, options?: { modifiedMs?: number }): void
@@ -63,6 +68,8 @@ export interface TestNoteFileService extends NoteFileService {
   writes(): readonly NoteFileWrite[]
   /** The contents of every successful `write` and `create` of `path`, in order. */
   getWrites(path: string): readonly string[]
+  /** Every `read` call, in order, including the ones that rejected. */
+  getReads(): readonly NoteFileRead[]
   /** Every path moved to the trash, in order. */
   trashed(): readonly string[]
 }
@@ -77,6 +84,7 @@ export function createTestNoteFileService(
   const files = new Map<string, { contents: string; modifiedMs: number }>()
   const evicted = new Set<string>(options?.evicted ?? [])
   const writeLog: NoteFileWrite[] = []
+  const readLog: NoteFileRead[] = []
   const trashLog: string[] = []
   const generation = options?.generation
   let tick = 0
@@ -114,6 +122,7 @@ export function createTestNoteFileService(
 
   return {
     async read(path, pinned) {
+      readLog.push({ path, generation: pinned })
       checkGeneration(generation, pinned)
       return contentsOf(path)
     },
@@ -180,6 +189,7 @@ export function createTestNoteFileService(
     writes: () => [...writeLog],
     getWrites: (path) =>
       writeLog.filter((write) => write.path === path).map((write) => write.contents),
+    getReads: () => readLog.map((read) => ({ ...read })),
     trashed: () => [...trashLog],
   }
 }
