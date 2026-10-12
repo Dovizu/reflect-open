@@ -423,7 +423,9 @@ export {
   createNoteDocumentService,
   defaultNoteDocuments,
   isOstensiblyEmptyNoteSource,
+  NoteBusyError,
   setDefaultNoteDocuments,
+  type CommitSourceEditOptions,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export {
@@ -875,15 +877,6 @@ export {
   listAttachments,
   vaultScanStats,
   type VaultScanStats,
-  captureHostRegister,
-  captureInboxList,
-  captureInboxRead,
-  captureInboxSpool,
-  captureInboxReject,
-  captureInboxRemove,
-  captureMetaFetch,
-  captureSharedInboxRelay,
-  promoteCaptureScreenshot,
 } from '../graph/commands.ts'
 export { fetchYouTubeVideo } from '../youtube-video.ts'
 export { createAsset, importAsset } from '../graph/assets.ts'

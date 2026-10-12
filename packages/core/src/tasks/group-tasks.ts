@@ -1,7 +1,7 @@
 import { DefaultMap } from '@ocavue/utils'
 import { displayNoteTitle } from '../markdown/note-title.ts'
 import { compareTaskPaths } from '../markdown/task-path.ts'
-import type { OpenTask } from './queries.ts'
+import type { OpenTask } from './open-task.ts'
 
 /**
  * Grouping for the Tasks view (Plan 18), faithful to V1's `task-view.ts`: open

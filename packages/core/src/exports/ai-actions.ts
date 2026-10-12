@@ -126,7 +126,6 @@ export {
   audioMemoPartFromPath,
   audioMemoPartPath,
   captureAudioMemoPart,
-  isSilentStop,
   listAudioMemoSegments,
   listPendingAudioMemoSessions,
   reconcileAudioMemos,
@@ -135,8 +134,8 @@ export {
   type CaptureAudioMemoPartInput,
   type ReconcileAudioMemosInput,
   type ReconcileAudioMemosOutcome,
-  type ReconcileStop,
 } from '../actions/audio-memo.ts'
+export { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
 export {
   AUDIO_MEMO_REMINDER_MS,
   AUDIO_MEMO_SEGMENT_MS,
@@ -165,22 +164,41 @@ export {
   captureFromPath,
   captureIdentity,
   captureNoteMeta,
-  drainCaptureInbox,
   appendXPost,
   type XPostEnvelope,
   isCaptureSpoolPath,
-  listPendingCaptures,
-  reconcileCaptureEnrichment,
   type CaptureIdentity,
   type CaptureNoteMeta,
   type CaptureStatus,
+} from '../actions/capture.ts'
+export {
+  createBacklinkTargetService,
+  defaultBacklinkTarget,
+  setDefaultBacklinkTarget,
+  type BacklinkTargetService,
+} from '../capture/backlink-target-service.ts'
+export {
+  createCaptureDrainService,
+  type CaptureDrainService,
   type DrainCaptureInboxInput,
   type DrainCaptureInboxOutcome,
+} from '../capture/capture-drain-service.ts'
+export {
+  createCaptureEnrichmentService,
+  type CaptureEnrichmentService,
   type ReconcileCaptureEnrichmentInput,
   type ReconcileCaptureEnrichmentOutcome,
-} from '../actions/capture.ts'
+} from '../capture/capture-enrichment-service.ts'
+export {
+  createCaptureService,
+  defaultCapture,
+  setDefaultCapture,
+  type CaptureService,
+  type CaptureSession,
+  type CaptureSessionOptions,
+} from '../capture/capture-service.ts'
+export { createPageMetaService, type PageMetaService } from '../capture/page-meta-service.ts'
 export { parsePageMeta, type PageMeta } from '../link-preview/metadata.ts'
-export { scrapePageMeta } from '../actions/meta-scrape.ts'
 export {
   calendarAuthorizationStatus,
   canReadCalendars,
@@ -213,11 +231,10 @@ export {
   type ResolvedMeetingAttendee,
 } from '../actions/resolve-attendees.ts'
 export {
-  describePage,
   isDescriptionRejected,
   DescriptionRejectedError,
   type DescribePageRequest,
-} from '../ai/describe-page.ts'
+} from '../ai/page-describer-service.ts'
 export {
   isAssetDescriptionRejected,
   AssetDescriptionRejectedError,

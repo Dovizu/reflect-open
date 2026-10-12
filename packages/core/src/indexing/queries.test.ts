@@ -1,7 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { setDefaultLogger } from '../app/logger-service.ts'
+import { describe, expect, it } from 'vitest'
 import type { NoteFileService } from '../graph/note-file-service.ts'
-import { parseNote } from '../markdown/index.ts'
 import {
   createTestDatabaseService,
   seedNotes,
@@ -9,12 +7,8 @@ import {
   type TestNote,
 } from '../testing/database.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
-import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createBacklinkService, type BacklinkService } from './backlink-service.ts'
-import { setDefaultDatabase } from './database-service.ts'
 import { createIndexQueryService } from './index-query-service.ts'
-import { buildIndexedNote } from './indexed-note.ts'
-import { getOpenTasks } from './queries.ts'
 import { createSuggestionService } from './suggestion-service.ts'
 import { createWikiResolverService } from './wiki-resolver-service.ts'
 
@@ -541,101 +535,5 @@ describe('suggestWikiTargets', () => {
     const result = await createSuggestionService({ database }).suggestWikiTargets('journal')
 
     expect(result.map((row) => row.path)).toEqual(['notes/journal-log.md'])
-  })
-})
-
-describe('getOpenTasks', () => {
-  let database: TestDatabaseService
-  let logger: TestLoggerService
-
-  beforeEach(() => {
-    database = createTestDatabaseService()
-    logger = createTestLoggerService()
-    setDefaultDatabase(database)
-    setDefaultLogger(logger)
-  })
-
-  afterEach(() => {
-    setDefaultDatabase(null)
-    setDefaultLogger(null)
-  })
-
-  it('parses task breadcrumbs and normalizes boolean note context', async () => {
-    seedNotes(database, [
-      {
-        path: 'notes/project.md',
-        markdown:
-          '---\npinned: 2\n---\n# Project\n\n- StartupToolbox\n  - *Reflections*\n    + [ ] ship [[it]] **now**\n    + [x] shipped\n',
-        mtime: 123,
-      },
-    ])
-
-    await expect(getOpenTasks()).resolves.toEqual([
-      expect.objectContaining({
-        notePath: 'notes/project.md',
-        markdown: 'ship [[it]] **now**',
-        text: 'ship it now',
-        checked: false,
-        dueDate: null,
-        noteTitle: 'Project',
-        dailyDate: null,
-        isPinned: true,
-        pinnedOrder: 2,
-        updatedAt: 123,
-      }),
-    ])
-    const [task] = await getOpenTasks()
-    expect(task!.breadcrumbs.at(-2)).toBe('StartupToolbox')
-    expect(task!.breadcrumbs.at(-1)).toBe('Reflections')
-  })
-
-  it('sorts rows by note path, then by their place in the note', async () => {
-    seedNotes(database, [
-      { path: 'notes/b.md', markdown: '+ [ ] b first\n' },
-      { path: 'notes/a.md', markdown: '+ [ ] a first\n  + [ ] a nested\n\npara\n\n+ [ ] a last\n' },
-    ])
-
-    const tasks = await getOpenTasks()
-    expect(tasks.map((task) => [task.notePath, task.markdown])).toEqual([
-      ['notes/a.md', 'a first'],
-      ['notes/a.md', 'a nested'],
-      ['notes/a.md', 'a last'],
-      ['notes/b.md', 'b first'],
-    ])
-  })
-
-  it('skips a row whose stored path does not decode', async () => {
-    const source = '+ [ ] x\n'
-    const note = buildIndexedNote(parseNote({ path: 'notes/a.md', source }), {
-      fileHash: 'hash',
-      mtime: 0,
-      source,
-    })
-    const task = note.tasks[0]!
-    database.applyProjection({
-      ...note,
-      tasks: [
-        { ...task, astPath: 'not json' },
-        { ...task, astPath: '[1]' },
-        { ...task, astPath: '[]' },
-      ],
-    })
-
-    const tasks = await getOpenTasks()
-    expect(tasks.map((row) => row.astPath)).toEqual([[1]])
-    expect(logger.getErrors().map((entry) => entry.message)).toEqual([
-      'tasks: skipping an unreadable row in notes/a.md (not json)',
-      'tasks: skipping an unreadable row in notes/a.md ([])',
-    ])
-  })
-
-  it('never surfaces template checkboxes — boilerplate, not real tasks', async () => {
-    seedNotes(database, [
-      { path: 'templates/todo.md', markdown: '+ [ ] template task\n' },
-      { path: 'notes/a.md', markdown: '+ [ ] real task\n' },
-    ])
-
-    const tasks = await getOpenTasks()
-    expect(tasks.map((task) => task.notePath)).toEqual(['notes/a.md'])
   })
 })

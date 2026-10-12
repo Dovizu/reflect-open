@@ -77,6 +77,7 @@ const SERVICE_KEYS = [
   'noteMove',
   'titleRename',
   'noteDocuments',
+  'tasks',
   'noteActions',
   'noteRows',
   'dailyNotes',
@@ -109,6 +110,8 @@ const SERVICE_KEYS = [
   'assetDescriber',
   'transcription',
   'transcriptEnrichment',
+  'backlinkTarget',
+  'capture',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

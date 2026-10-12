@@ -2,7 +2,6 @@ import { defaultWebFetch } from '../app/web-fetch-service.ts'
 import { defaultWindow } from '../app/window-service.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import { defaultAssetStore } from './asset-store-service.ts'
-import { defaultCaptureInbox } from './capture-inbox-service.ts'
 import { defaultNoteFile, type LocalNoteRead, type VaultScanStats } from './note-file-service.ts'
 import type { FileMeta, NoteCreateOutcome, WindowBootstrap } from './schemas.ts'
 
@@ -138,101 +137,10 @@ export async function vaultScanStats(generation?: number): Promise<VaultScanStat
 }
 
 /**
- * Point the capture host at the active graph (pointer file + inbox dir) and
- * rewrite native-messaging manifests for detected browsers. Called after
- * every graph open — rewriting self-heals app moves (Plan 11).
- */
-export async function captureHostRegister(): Promise<void> {
-  await defaultCaptureInbox().registerHost()
-}
-
-/**
- * List the capture inbox (`.reflect/inbox/`): spooled `.json` envelopes and
- * their screenshot siblings. A missing inbox lists as empty. Pinned to
- * `generation` like every background-pass read.
- */
-export async function captureInboxList(generation: number): Promise<FileMeta[]> {
-  return await defaultCaptureInbox().list(generation)
-}
-
-/** Read one spooled envelope's JSON text by spool filename (e.g. `<id>.json`). */
-export async function captureInboxRead(name: string, generation: number): Promise<string> {
-  return await defaultCaptureInbox().read(name, generation)
-}
-
-/**
- * Spool an envelope this app produced (deep-link text captures) into the
- * inbox, atomically — it then flows through the same watcher-triggered drain
- * as browser captures. The caller validates the envelope shape; the Rust side
- * only moves bytes (with a defensive size cap).
- */
-export async function captureInboxSpool(
-  name: string,
-  json: string,
-  generation: number,
-): Promise<void> {
-  await defaultCaptureInbox().spool(name, json, generation)
-}
-
-/** Remove a spool file by filename. Idempotent — crash re-drains re-remove. */
-export async function captureInboxRemove(name: string, generation: number): Promise<void> {
-  await defaultCaptureInbox().remove(name, generation)
-}
-
-/**
- * Relay envelopes the iOS share extension spooled into the App Group inbox
- * into the graph's capture inbox, returning how many moved. iOS-only in
- * effect (elsewhere there is no shared container and the relay is zero);
- * called by the mobile capture controller before every drain pass.
- */
-export async function captureSharedInboxRelay(generation: number): Promise<number> {
-  return await defaultCaptureInbox().relaySharedInbox(generation)
-}
-
-/**
- * Quarantine an unparseable spool file into `.reflect/inbox-rejected/` —
- * moved, never deleted: "the raw link is never lost" holds even for an
- * envelope a newer extension wrote that this app version can't read yet.
- */
-export async function captureInboxReject(name: string, generation: number): Promise<void> {
-  await defaultCaptureInbox().reject(name, generation)
-}
-
-/**
- * Copy a spooled screenshot into the graph as a downscaled JPEG asset (the
- * spool file stays until the drain removes it — crash-safe copy semantics).
- */
-export async function promoteCaptureScreenshot(
-  spoolName: string,
-  assetPath: string,
-  maxDim: number,
-  generation: number,
-): Promise<void> {
-  await defaultCaptureInbox().promoteScreenshot(spoolName, assetPath, maxDim, generation)
-}
-
-/**
- * Ask the native platform for one representative image for a captured URL.
- * Returns a base64-encoded normalized JPEG, or `null` when unavailable.
- */
-export async function captureLinkPreview(url: string): Promise<string | null> {
-  return await defaultWebFetch().fetchLinkPreviewImage(url as CloudSafe<string>)
-}
-
-/**
- * Fetch a captured page's HTML for meta-tag scraping — the Rust side caps
- * scheme/timeout/size/redirects, so arbitrary capture URLs never widen the
- * webview's own HTTP capability. The privacy gate runs before any call here.
- */
-export async function captureMetaFetch(url: string): Promise<string> {
-  return await defaultWebFetch().fetchMeta(url as CloudSafe<string>)
-}
-
-/**
  * Fetch an oEmbed endpoint's JSON answer as text. The Rust side only bounds
  * the transport (https only, JSON only, a small byte cap, no redirects);
  * which URLs are oEmbed endpoints is policy in `actions/oembed`. The privacy
- * gate runs before any call here, exactly as for {@link captureMetaFetch}.
+ * gate runs before any call here.
  */
 export async function captureOEmbedFetch(url: string): Promise<string> {
   return await defaultWebFetch().fetchOembed(url as CloudSafe<string>)

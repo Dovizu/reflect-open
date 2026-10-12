@@ -8,7 +8,7 @@ import { ASSETS_DIR, descriptionPathFor } from '../graph/paths.ts'
 import type { FileMeta } from '../graph/schemas.ts'
 import { hashContent } from '../indexing/hash.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
-import type { ReconcileStop } from './audio-memo.ts'
+import type { ReconcileStop } from '../app/reconcile.ts'
 import {
   assetTypeFor,
   base64ByteLength,
