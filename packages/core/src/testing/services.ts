@@ -63,8 +63,20 @@ import {
 } from './sync.ts'
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
+import { createTestDailyNoteService } from './daily.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
-import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
+import {
+  createTestChatEngineService,
+  createTestChatGraphContextService,
+  createTestChatHistoryService,
+  createTestChatSessionService,
+  createTestNoteToolsService,
+  type TestChatEngineService,
+  type TestChatGraphContextService,
+  type TestChatHistoryService,
+} from './chat.ts'
+import type { ChatSessionService } from '../ai/chat/chat-session-service.ts'
+import type { NoteToolsService } from '../ai/chat/note-tools-service.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
 import {
   createTestEmbeddingIndexService,
@@ -85,6 +97,7 @@ import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestNoteActionsService,
+  createTestTemplateService,
   createTestNoteMoveService,
   createTestNoteSessionService,
   createTestNoteDocumentService,
@@ -190,6 +203,12 @@ import {
   type TestNativeMenuService,
 } from './commands.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
+import type { AssetPrivacyService } from '../assets/asset-privacy-service.ts'
+import {
+  createTestAssetDescriptionService,
+  createTestAssetPrivacyService,
+  type TestAssetDescriptionService,
+} from './assets.ts'
 import type { CommandService } from '../commands/command-service.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 
@@ -273,8 +292,14 @@ export interface TestAppServices extends AppServices {
   readonly assetDescriber: TestAssetDescriberService
   readonly transcription: TestTranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly noteTools: NoteToolsService
+  readonly chatEngine: TestChatEngineService
+  readonly chatGraphContext: TestChatGraphContextService
+  readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: TestCaptureService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescription: TestAssetDescriptionService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -401,6 +426,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const storage = createTestStorageService()
+  const chatHistory = createTestChatHistoryService()
+  const chatEngine = createTestChatEngineService()
+  const chatGraphContext = createTestChatGraphContextService()
+  const imageCodec = createTestImageCodec()
   const services: TestAppServices = {
     ipc,
     logger: testLogger,
@@ -422,7 +451,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     contacts: createTestContactsService(),
     agentSkill: createTestAgentSkillService(),
     mobileStorage,
-    imageCodec: createTestImageCodec(),
+    imageCodec,
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
     settings,
@@ -432,7 +461,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     fileChanges,
     indexStore,
     embeddingRuntime,
-    chatHistory: createTestChatHistoryService(),
+    chatHistory,
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
     deepLink: createTestDeepLinkService({
@@ -541,6 +570,19 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       id: overrides?.id ?? id,
     }),
     noteRows: createNoteRowService(),
+    templates: createTestTemplateService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
+      notePath: overrides?.notePath ?? indexReads.notePath,
+      noteMove: overrides?.noteMove ?? noteMove,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      operations: overrides?.operations ?? operations,
+    }),
+    dailyNotes: createTestDailyNoteService({
+      database: overrides?.database ?? database,
+      clock: overrides?.clock ?? clock,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+    }),
     ...indexReads,
     noteLinkResolver,
     noteCreation,
@@ -596,11 +638,39 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     transcriptEnrichment: createTestTranscriptEnrichmentService({
       languageModel: overrides?.languageModel ?? languageModel,
     }),
+    noteTools: createTestNoteToolsService({
+      retrieval: overrides?.retrieval ?? retrieval,
+      noteFile: overrides?.noteFile ?? noteFile,
+      noteList: overrides?.noteList ?? indexReads.noteList,
+      xArchive: overrides?.xArchive ?? xArchive,
+      privacy: overrides?.privacy ?? privacy,
+    }),
+    chatEngine,
+    chatGraphContext,
+    chatSessions: createTestChatSessionService({
+      chatEngine: overrides?.chatEngine ?? chatEngine,
+      chatHistory: overrides?.chatHistory ?? chatHistory,
+      chatGraphContext: overrides?.chatGraphContext ?? chatGraphContext,
+      settings: overrides?.settings ?? settings,
+      credentials: overrides?.aiCredentials ?? aiCredentials,
+      providerConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
+      embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
+      graphSession: overrides?.graphSession ?? graphSession,
+      clock: overrides?.clock ?? clock,
+      id: overrides?.id ?? id,
+      imageCodec: overrides?.imageCodec ?? imageCodec,
+      logger,
+    }),
     backlinkTarget: createTestBacklinkTargetService({
       noteFile: overrides?.noteFile ?? noteFile,
       noteCreation: overrides?.noteCreation ?? noteCreation,
     }),
     capture: createTestCaptureService(),
+    assetPrivacy: createTestAssetPrivacyService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      xArchive: overrides?.xArchive ?? xArchive,
+    }),
+    assetDescription: createTestAssetDescriptionService(),
   }
   return Object.assign(services, overrides)
 }

@@ -439,6 +439,57 @@ export {
   type NoteSessionStatus,
 } from '../documents/note-session.ts'
 export {
+  createDailyNoteService,
+  defaultDailyNotes,
+  setDefaultDailyNotes,
+  type DailyNoteService,
+} from '../daily/daily-note-service.ts'
+export {
+  dailyArrivalIntent,
+  type DailyArrival,
+  type DailyArrivalIntent,
+} from '../daily/daily-arrivals.ts'
+export {
+  createDayWindow,
+  dateAtIndex,
+  FUTURE_DAYS,
+  indexOfDate,
+  indexWithin,
+  neighborDate,
+  PAST_DAYS,
+  type DayWindow,
+  type DayWindowRadius,
+} from '../daily/day-window.ts'
+export {
+  addMonths,
+  buildMonthGrid,
+  monthLabel,
+  monthOf,
+  monthShortLabel,
+  weekdayLabels,
+  type MonthGrid,
+  type MonthGridCell,
+} from '../daily/month-grid.ts'
+export {
+  createWeekWindow,
+  monthPickTarget,
+  WEEK_WINDOW_RADIUS,
+  weekAtIndex,
+  weekIndexOf,
+  weekOf,
+  weekStartOf,
+  type WeekWindow,
+} from '../daily/week-window.ts'
+export {
+  createTemplateService,
+  defaultTemplates,
+  setDefaultTemplates,
+  type TemplateInsertTarget,
+  type TemplateService,
+  type TemplateServiceDeps,
+  type TemplateSlashItem,
+} from '../documents/template-service.ts'
+export {
   createNoteDocumentService,
   defaultNoteDocuments,
   isOstensiblyEmptyNoteSource,
@@ -770,6 +821,25 @@ export {
   type ChatHistoryService,
   type SaveChatTurnInput,
 } from '../ai/chat/chat-history-service.ts'
+export {
+  createNoteToolsService,
+  type BuildNoteToolsOptions,
+  type DailyNoteQueries,
+  type NoteToolsService,
+} from '../ai/chat/note-tools-service.ts'
+export {
+  createChatEngineService,
+  type ChatEngineService,
+  type FitToContextWindow,
+} from '../ai/chat/chat-engine-service.ts'
+export {
+  createChatGraphContextService,
+  type ChatGraphContextService,
+} from '../ai/chat/chat-graph-context-service.ts'
+export {
+  createChatSessionService,
+  type ChatSessionService,
+} from '../ai/chat/chat-session-service.ts'
 export { chunkNote, type NoteChunk } from '../embeddings/chunk.ts'
 export {
   embedStatus,

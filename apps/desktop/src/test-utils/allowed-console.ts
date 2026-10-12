@@ -13,7 +13,6 @@ export const ALLOWED_CONSOLE_PATTERNS: RegExp[] = [
   /^Index rebuild skipped /,
   /^iCloud conflict sweep failed:/,
   /^haptics unavailable:/,
-  /^chat graph context failed:/,
   /^An empty string \(""\) was passed to the src attribute/,
   /^The current testing environment is not configured to support act/,
   /^the native-action handshake is unavailable:/,

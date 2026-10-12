@@ -22,7 +22,6 @@ export {
   type FileChange,
   type FileChangeSource,
 } from './file-change-service.ts'
-export { subscribeIndexApplied, type IndexAppliedListener } from './index-applied.ts'
 export { INDEX_WRITTEN_EVENT, subscribeIndexWritten } from './index-written.ts'
 export type { ApplyErrorHandler, MovedHandler } from './live.ts'
 export { hashContent } from './hash.ts'
@@ -43,12 +42,7 @@ export {
   type IndexedTag,
   type IndexedAlias,
 } from './indexed-note.ts'
-export {
-  indexNote,
-  reindexNotesReferencing,
-  PROJECTION_VERSION_KEY,
-  type IndexPassOptions,
-} from './indexer.ts'
+export { indexNote, PROJECTION_VERSION_KEY, type IndexPassOptions } from './indexer.ts'
 export {
   dailyDatesInRange,
   getBacklinks,

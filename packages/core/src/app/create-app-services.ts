@@ -35,15 +35,36 @@ import {
   withAppReviewDemo,
   type LanguageModelService,
 } from '../ai/language-model-service.ts'
+import { createChatEngineService, type ChatEngineService } from '../ai/chat/chat-engine-service.ts'
+import {
+  createChatGraphContextService,
+  type ChatGraphContextService,
+} from '../ai/chat/chat-graph-context-service.ts'
 import {
   createChatHistoryService,
   type ChatHistoryService,
 } from '../ai/chat/chat-history-service.ts'
 import {
+  createChatSessionService,
+  type ChatSessionService,
+} from '../ai/chat/chat-session-service.ts'
+import { fitToContextWindow } from '../ai/chat/context-window.ts'
+import { createNoteToolsService, type NoteToolsService } from '../ai/chat/note-tools-service.ts'
+import { createAssetReferences } from '../indexing/asset-refs.ts'
+import { listDailyNotes } from '../indexing/queries.ts'
+import {
   createBacklinkTargetService,
   type BacklinkTargetService,
 } from '../capture/backlink-target-service.ts'
 import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
+import {
+  createAssetDescriptionService,
+  type AssetDescriptionService,
+} from '../assets/asset-description-service.ts'
+import {
+  createAssetPrivacyService,
+  type AssetPrivacyService,
+} from '../assets/asset-privacy-service.ts'
 import {
   createCaptureInboxService,
   type CaptureInboxService,
@@ -115,6 +136,7 @@ import {
   createMobileOnboardingService,
   type MobileOnboardingService,
 } from '../graph/mobile-onboarding-service.ts'
+import { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
 import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
@@ -128,6 +150,7 @@ import {
   type NoteActionsService,
 } from '../documents/note-actions-service.ts'
 import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
+import { createTemplateService, type TemplateService } from '../documents/template-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -339,6 +362,8 @@ export interface AppServices {
   readonly tasks: TaskService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
+  readonly dailyNotes: DailyNoteService
+  readonly templates: TemplateService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -372,8 +397,15 @@ export interface AppServices {
   readonly assetDescriber: AssetDescriberService
   readonly transcription: TranscriptionService
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly noteTools: NoteToolsService
+  readonly chatEngine: ChatEngineService
+  readonly chatGraphContext: ChatGraphContextService
+  /** Creates the chat session of an open graph; the workspace owns the session. */
+  readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: CaptureService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescription: AssetDescriptionService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -542,6 +574,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const captureInbox = createCaptureInboxService({ ipc })
   const webFetch = createWebFetchService({ ipc })
   const pageDescriber = createPageDescriberService({ languageModel })
+  const reconcilers = createBackgroundReconcilerFactory({ lifecycle })
+  const assetPrivacy = createAssetPrivacyService({
+    noteFile,
+    xArchive,
+    assetReferences: createAssetReferences({ database, xArchive }),
+  })
+  const assetDescriber = createAssetDescriberService({ languageModel })
   const backlinkTarget = createBacklinkTargetService({
     noteCreation: noteServices.noteCreation,
     noteFile,
@@ -601,6 +640,22 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexLifecycle,
     logger,
   })
+  const chatHistory = createChatHistoryService({ ipc, database, logger })
+  const noteTools = createNoteToolsService({
+    retrieval,
+    noteFile,
+    noteList: indexReads.noteList,
+    dailyNotes: { listDailyNotes },
+    assetReferences: createAssetReferences({ database, xArchive }),
+    xArchive,
+    privacy: noteServices.privacy,
+  })
+  const chatEngine = createChatEngineService({ languageModel, noteTools, fitToContextWindow })
+  const chatGraphContext = createChatGraphContextService({
+    graphStats: indexReads.graphStats,
+    privacy: noteServices.privacy,
+  })
+  const imageCodec = adapters.imageCodec ?? createUnavailableImageCodec()
   return {
     ipc,
     logger,
@@ -622,7 +677,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     contacts: createContactsService({ ipc }),
     agentSkill: createAgentSkillService({ ipc }),
     mobileStorage,
-    imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
+    imageCodec,
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
     settings,
@@ -631,7 +686,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     database,
     indexStore,
     embeddingRuntime,
-    chatHistory: createChatHistoryService({ ipc, database, logger }),
+    chatHistory,
     navigation: createNavigationService(),
     deepLink: createDeepLinkService({
       source: adapters.deepLink ?? createNoDeepLinkSource(),
@@ -737,6 +792,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       id,
     }),
     noteRows: createNoteRowService(),
+    dailyNotes: createDailyNoteService({ database, clock, lifecycle }),
+    templates: createTemplateService({
+      noteFile,
+      indexQuery: indexReads.indexQuery,
+      notePath: indexReads.notePath,
+      noteMove,
+      openDocuments,
+      operations,
+    }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,
@@ -784,11 +848,28 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       privacy: noteServices.privacy,
     }),
     pageDescriber,
-    assetDescriber: createAssetDescriberService({ languageModel }),
+    assetDescriber,
     transcription: withAppReviewDemoTranscription(
       createTranscriptionService({ http: adapters.http }),
     ),
     transcriptEnrichment: createTranscriptEnrichmentService({ languageModel }),
+    noteTools,
+    chatEngine,
+    chatGraphContext,
+    chatSessions: createChatSessionService({
+      chatEngine,
+      chatHistory,
+      chatGraphContext,
+      providerConfig: aiProviderConfig,
+      credentials: aiCredentials,
+      embeddingRuntime,
+      settings,
+      graphSession,
+      clock,
+      id,
+      imageCodec,
+      logger,
+    }),
     backlinkTarget,
     capture: createCaptureService({
       captureInbox,
@@ -804,11 +885,26 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       privacy: noteServices.privacy,
       hash,
       clock,
-      reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
+      reconcilers,
       lifecycle,
       fileChanges,
       operations,
       platform,
+      logger,
+    }),
+    assetPrivacy,
+    assetDescription: createAssetDescriptionService({
+      assetStore,
+      noteFile,
+      assetPrivacy,
+      assetDescriber,
+      aiProviderConfig,
+      aiCredentials,
+      hash,
+      clock,
+      reconcilers,
+      indexLifecycle,
+      operations,
       logger,
     }),
   }

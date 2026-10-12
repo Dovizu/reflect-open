@@ -87,6 +87,8 @@ const SERVICE_KEYS = [
   'tasks',
   'noteActions',
   'noteRows',
+  'dailyNotes',
+  'templates',
   'indexQuery',
   'wikiResolver',
   'backlinks',
@@ -115,8 +117,14 @@ const SERVICE_KEYS = [
   'assetDescriber',
   'transcription',
   'transcriptEnrichment',
+  'noteTools',
+  'chatEngine',
+  'chatGraphContext',
+  'chatSessions',
   'backlinkTarget',
   'capture',
+  'assetPrivacy',
+  'assetDescription',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

@@ -8,7 +8,7 @@ import { defaultXArchive, type XArchiveService } from '../x-archive.ts'
 import { createAssetDescriptionText } from './asset-description-text.ts'
 import { createAssetReferences } from './asset-refs.ts'
 import { defaultDatabase, type DatabaseService } from './database-service.ts'
-import { emitIndexApplied } from './index-applied.ts'
+import type { FileChange } from './file-change-service.ts'
 import { defaultIndexQuery, type IndexQueryService } from './index-query-service.ts'
 import {
   defaultIndexStore,
@@ -49,6 +49,13 @@ export interface IndexingDeps {
   readonly clock: ClockService
   readonly logger: LoggerService
 }
+
+/**
+ * Reports a batch of file changes after the index applied it at `generation`.
+ * The lifecycle that owns the indexer supplies it and forwards each batch to
+ * its `onChangesApplied` listeners.
+ */
+export type ChangesAppliedEmitter = (changes: readonly FileChange[], generation: number) => void
 
 /** {@link IndexingDeps} from the process-wide default services. */
 export function defaultIndexingDeps(): IndexingDeps {
@@ -149,7 +156,7 @@ export interface NoteIndexer {
    * unconditionally. A note removed since it referenced the asset is
    * skipped. Pinned to `generation`.
    *
-   * The re-applied notes broadcast through {@link emitIndexApplied}, the same
+   * The re-applied notes broadcast through `emitChangesApplied`, the same
    * post-apply signal the live indexer emits, because these writes bypass the
    * watcher pipeline entirely (`.reflect.md` files are untracked by design).
    * Without it, subscribers that follow the index (the embedding sync above
@@ -199,8 +206,10 @@ export interface NoteIndexer {
   reconcile(options: IndexPassOptions): Promise<void>
 }
 
-export function createNoteIndexer(deps: IndexingDeps): NoteIndexer {
-  const { indexStore: store, noteFile, hash, clock, logger } = deps
+export function createNoteIndexer(
+  deps: IndexingDeps & { readonly emitChangesApplied: ChangesAppliedEmitter },
+): NoteIndexer {
+  const { indexStore: store, noteFile, hash, clock, logger, emitChangesApplied } = deps
   const assetText = createAssetDescriptionText(deps)
   const assetReferences = createAssetReferences(deps)
   const moveHealing = createMoveHealing(deps)
@@ -261,7 +270,7 @@ export function createNoteIndexer(deps: IndexingDeps): NoteIndexer {
       // real, and unnotified followers would serve stale vectors until the
       // next backfill.
       if (applied.length > 0) {
-        emitIndexApplied(
+        emitChangesApplied(
           applied.map((path) => ({ path, kind: 'upsert' as const })),
           generation,
         )
@@ -502,13 +511,9 @@ export async function indexNote(
   path: string,
   options: { generation: number; content?: string | undefined; mtime?: number | undefined },
 ): Promise<void> {
-  await createNoteIndexer(defaultIndexingDeps()).indexNote(path, options)
-}
-
-/** {@link NoteIndexer.reindexNotesReferencing} over the default services. */
-export async function reindexNotesReferencing(
-  assetPaths: readonly string[],
-  generation: number,
-): Promise<void> {
-  await createNoteIndexer(defaultIndexingDeps()).reindexNotesReferencing(assetPaths, generation)
+  // `indexNote` reports no batch, so this indexer needs no listeners.
+  await createNoteIndexer({ ...defaultIndexingDeps(), emitChangesApplied: () => {} }).indexNote(
+    path,
+    options,
+  )
 }
