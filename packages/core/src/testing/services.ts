@@ -1,4 +1,4 @@
-import type { AppServices } from '../app/create-app-services.ts'
+import { createIndexReadServices, type AppServices } from '../app/create-app-services.ts'
 import {
   createGraphServices,
   type GraphRole,
@@ -134,6 +134,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const testLogger = createTestLoggerService()
   const logger = overrides?.logger ?? testLogger
   const clock = createTestClockService()
+  const database = createTestDatabaseService()
+  const noteFile = createTestNoteFileService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
@@ -158,7 +160,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations: createTestOperationsService(clock),
-    database: createTestDatabaseService(),
+    database,
     fileChanges: createTestFileChangeService(),
     update: createTestUpdateService(),
     gitRepository: createTestGitRepositoryService(),
@@ -171,8 +173,12 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     iap: createTestIapService(),
     appStore: createTestAppStoreService(),
     webAuth: createTestWebAuthService(null),
-    noteFile: createTestNoteFileService(),
+    noteFile,
     assetStore: createTestAssetStoreService(),
+    ...createIndexReadServices({
+      database: overrides?.database ?? database,
+      noteFile: overrides?.noteFile ?? noteFile,
+    }),
   }
   return Object.assign(services, overrides)
 }

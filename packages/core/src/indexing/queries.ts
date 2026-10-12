@@ -1,14 +1,7 @@
-import { sql } from 'kysely'
-import {
-  foldTag,
-  normalizeWikiTarget,
-  resolved,
-  unresolved,
-  type Resolution,
-} from '../markdown/index.ts'
-import { db } from './db.ts'
-import { inClauseChunks } from './query-utils.ts'
 import { isNotNullish } from '@ocavue/utils'
+import { db } from './db.ts'
+import { defaultIndexQuery, type IndexQueryService } from './index-query-service.ts'
+import { defaultWikiResolver, type WikiResolverService } from './wiki-resolver-service.ts'
 export {
   getBacklinks,
   getBacklinksWithContext,
@@ -32,6 +25,14 @@ export {
   type TagSuggestion,
   type WikiLinkSuggestionResult,
 } from './queries-suggestions.ts'
+export type {
+  ConflictedNote,
+  DuplicateIdGroup,
+  IndexedFileFacts,
+  NoteRow,
+  PinnedNote,
+} from './index-query-service.ts'
+export { UNCLAIMED_TIER, type WikiTargetMatch } from './wiki-resolver-service.ts'
 
 /**
  * Index read getters (Plan 04). Queries are built with Kysely and execute over
@@ -39,155 +40,42 @@ export {
  * re-validated per row (see Plan 04 §2).
  */
 
-/** Distinct source paths of links whose folded target key is `targetKey`. */
-/** Distinct source paths of links that name a file by folded vault path. */
-export async function getPathLinkSources(targetPathKey: string): Promise<string[]> {
-  const rows = await db
-    .selectFrom('links')
-    .where('targetPathKey', '=', targetPathKey)
-    .select('sourcePath')
-    .distinct()
-    .orderBy('sourcePath')
-    .execute()
-  return rows.map((row) => row.sourcePath)
-}
+export const getPathLinkSources: WikiResolverService['getPathLinkSources'] = (...args) =>
+  defaultWikiResolver().getPathLinkSources(...args)
 
-export async function getLinkSources(targetKey: string): Promise<string[]> {
-  const rows = await db
-    .selectFrom('links')
-    .where('targetKey', '=', targetKey)
-    .select('sourcePath')
-    .distinct()
-    .orderBy('sourcePath')
-    .execute()
-  return rows.map((row) => row.sourcePath)
-}
+export const getLinkSources: WikiResolverService['getLinkSources'] = (...args) =>
+  defaultWikiResolver().getLinkSources(...args)
 
-/** One pinned note, as the sidebar's Pinned section lists it. */
-export interface PinnedNote {
-  path: string
-  title: string
-  dailyDate: string | null
-  pinnedOrder?: number | null
-}
+export const findWikiTargetMatch: WikiResolverService['findWikiTargetMatch'] = (...args) =>
+  defaultWikiResolver().findWikiTargetMatch(...args)
 
-/**
- * Every pinned note, in shelf order: explicit `pinned: <n>` orders first
- * (ascending — what pinned shelf reorder writes), bare `pinned: true` after,
- * alphabetically by case-folded title (path as the tiebreak). Stable order is
- * the point of pinning: the list must not reshuffle as notes are edited.
- */
-export async function getPinnedNotes(): Promise<PinnedNote[]> {
-  return await db
-    .selectFrom('notes')
-    .where('isPinned', '=', 1)
-    .where('kind', '!=', 'template')
-    .select(['path', 'title', 'dailyDate', 'pinnedOrder'])
-    .orderBy(sql`pinned_order IS NULL`)
-    .orderBy('pinnedOrder')
-    .orderBy('titleKey')
-    .orderBy('path')
-    .execute()
-}
+export const findNotesByPathKey: WikiResolverService['findNotesByPathKey'] = (...args) =>
+  defaultWikiResolver().findNotesByPathKey(...args)
 
-/** Core fields of one note row: identity path, title, daily date, privacy flag. */
-export interface NoteRow {
-  path: string
-  title: string
-  dailyDate: string | null
-  /**
-   * The `private: true` frontmatter flag — a hard block on sending content to
-   * external services. SQLite stores it as `0|1`; this getter maps it to a real
-   * boolean at the read boundary so privacy checks can't be tripped up by a
-   * truthy number.
-   */
-  isPrivate: boolean
-  /** The file carries sync conflict markers (Plan 12) — surface `Needs review`. */
-  hasConflict: boolean
-  /** The published gist's html url, or null when the note has none. */
-  gistUrl: string | null
-  /** The body changed since it was last published — the "Republish" nudge. */
-  gistStale: boolean
-}
+export const resolveWikiTarget: WikiResolverService['resolveWikiTarget'] = (...args) =>
+  defaultWikiResolver().resolveWikiTarget(...args)
 
-/** Fetch a single note's row by graph-relative path, or `undefined` if absent. */
-export async function getNote(path: string): Promise<NoteRow | undefined> {
-  const row = await db
-    .selectFrom('notes')
-    .where('path', '=', path)
-    .select(['path', 'title', 'dailyDate', 'isPrivate', 'hasConflict', 'gistUrl', 'gistStale'])
-    .executeTakeFirst()
-  return row
-    ? {
-        ...row,
-        isPrivate: row.isPrivate !== 0,
-        hasConflict: row.hasConflict !== 0,
-        gistStale: row.gistStale !== 0,
-      }
-    : undefined
-}
+export const getPinnedNotes: IndexQueryService['getPinnedNotes'] = (...args) =>
+  defaultIndexQuery().getPinnedNotes(...args)
 
-/** A note flagged `Needs review`: its file carries sync conflict markers. */
-export interface ConflictedNote {
-  path: string
-  title: string
-}
+export const getNote: IndexQueryService['getNote'] = (...args) =>
+  defaultIndexQuery().getNote(...args)
 
-/** Every note whose file carries sync conflict markers, ordered by path. */
-export async function getConflictedNotes(): Promise<ConflictedNote[]> {
-  return await db
-    .selectFrom('notes')
-    .where('hasConflict', '=', 1)
-    .select(['path', 'title'])
-    .orderBy('path')
-    .execute()
-}
+export const getConflictedNotes: IndexQueryService['getConflictedNotes'] = (...args) =>
+  defaultIndexQuery().getConflictedNotes(...args)
 
-/** Notes sharing one frontmatter `id` — a sync fork (Plan 17). */
-export interface DuplicateIdGroup {
-  id: string
-  /** Every path claiming the id, ordered (the first is resolution's winner). */
-  paths: string[]
-}
+export const getDuplicateNoteIds: IndexQueryService['getDuplicateNoteIds'] = (...args) =>
+  defaultIndexQuery().getDuplicateNoteIds(...args)
 
-/**
- * Frontmatter `id`s claimed by more than one note. Two files claiming one
- * identity means a sync fork (e.g. rename/rename divergence) — surfaced for
- * review like conflicts; repair is deliberately not automatic.
- */
-export async function getDuplicateNoteIds(): Promise<DuplicateIdGroup[]> {
-  const duplicated = await db
-    .selectFrom('notes')
-    .where('id', 'is not', null)
-    .select('id')
-    .groupBy('id')
-    .having(sql<number>`count(*)`, '>', 1)
-    .execute()
-  // Sorted before chunking so group order stays deterministic across chunks.
-  const ids = duplicated
-    .map((row) => row.id)
-    .filter(isNotNullish)
-    .sort()
-  const groups = new Map<string, string[]>()
-  for (const chunk of inClauseChunks(ids)) {
-    const rows = await db
-      .selectFrom('notes')
-      .where('id', 'in', chunk)
-      .select(['id', 'path'])
-      .orderBy('id')
-      .orderBy('path')
-      .execute()
-    for (const row of rows) {
-      if (row.id === null) {
-        continue
-      }
-      const paths = groups.get(row.id) ?? []
-      paths.push(row.path)
-      groups.set(row.id, paths)
-    }
-  }
-  return [...groups].map(([id, paths]) => ({ id, paths }))
-}
+export const getIndexMeta: IndexQueryService['getIndexMeta'] = (...args) =>
+  defaultIndexQuery().getIndexMeta(...args)
+
+export const getIndexedFileFactsByPath: IndexQueryService['getIndexedFileFactsByPath'] = (
+  ...args
+) => defaultIndexQuery().getIndexedFileFactsByPath(...args)
+
+export const getNoteIdsByPath: IndexQueryService['getNoteIdsByPath'] = (...args) =>
+  defaultIndexQuery().getNoteIdsByPath(...args)
 
 /**
  * ISO dates within `[start, end]` (inclusive) whose daily note has content,
@@ -251,164 +139,4 @@ export async function listDailyNotes(range: DailyNotesRange): Promise<DailyNoteR
         : { ...row, dailyDate: row.dailyDate, isPrivate: row.isPrivate !== 0 }
     })
     .filter(isNotNullish)
-}
-
-/** Graph-relative paths of every note carrying `tag` (case-insensitive), ordered by path. */
-export async function getNotesByTag(tag: string): Promise<string[]> {
-  const rows = await db
-    .selectFrom('tags')
-    .innerJoin('notes', 'notes.path', 'tags.notePath')
-    .where('tagKey', '=', foldTag(tag))
-    .where('notes.kind', '!=', 'template')
-    .select('notePath')
-    .orderBy('notePath')
-    .execute()
-  return rows.map((row) => row.notePath)
-}
-
-/** One `index_meta` value, or `null` when the key has never been written. */
-export async function getIndexMeta(key: string): Promise<string | null> {
-  const row = await db
-    .selectFrom('indexMeta')
-    .where('key', '=', key)
-    .select('value')
-    .executeTakeFirst()
-  return row?.value ?? null
-}
-
-/** What a pass knows about an indexed note without reading its file. */
-export interface IndexedFileFacts {
-  /** Content hash the row was built from — the authority for "changed". */
-  readonly fileHash: string
-  /** The mtime stamped on the row — lets a pass skip reading untouched files. */
-  readonly mtime: number
-}
-
-/**
- * Stored `path → {fileHash, mtime}` map, for reconciliation on open. Loads
- * every note's facts into memory — fine at first-wave graph sizes; revisit with
- * a streamed/keyset scan if graphs grow large (tracked with the Plan 04b
- * watcher).
- */
-export async function getIndexedFileFacts(): Promise<Map<string, IndexedFileFacts>> {
-  const rows = await db.selectFrom('notes').select(['path', 'fileHash', 'mtime']).execute()
-  return new Map(rows.map((row) => [row.path, { fileHash: row.fileHash, mtime: row.mtime }]))
-}
-
-/**
- * {@link getIndexedFileFacts} for a specific path set — the live watcher-batch
- * variant, so applying a large `index:changed` batch (e.g. the metadata
- * query's initial gather) can skip already-indexed files without a full-table
- * load. Chunked past SQLite's bound-variable budget.
- */
-export async function getIndexedFileFactsByPath(
-  paths: string[],
-): Promise<Map<string, IndexedFileFacts>> {
-  const facts = new Map<string, IndexedFileFacts>()
-  for (const chunk of inClauseChunks(paths)) {
-    const rows = await db
-      .selectFrom('notes')
-      .where('path', 'in', chunk)
-      .select(['path', 'fileHash', 'mtime'])
-      .execute()
-    for (const row of rows) {
-      facts.set(row.path, { fileHash: row.fileHash, mtime: row.mtime })
-    }
-  }
-  return facts
-}
-
-/**
- * Frontmatter `id`s of the given indexed paths (a path with no row is simply
- * absent; a row without an id maps to `null`). The move-detection input: both
- * the reconcile pass and the watcher batch handler pair vanished rows with
- * appeared files through this. Chunked — a mass external move can orphan
- * thousands of paths at once, beyond SQLite's bound-variable budget.
- */
-export async function getNoteIdsByPath(paths: string[]): Promise<Map<string, string | null>> {
-  const ids = new Map<string, string | null>()
-  for (const chunk of inClauseChunks(paths)) {
-    const rows = await db
-      .selectFrom('notes')
-      .where('path', 'in', chunk)
-      .select(['path', 'id'])
-      .execute()
-    for (const row of rows) {
-      ids.set(row.path, row.id)
-    }
-  }
-  return ids
-}
-
-/** The winning tier's claimants for a folded key, preserving ambiguity. */
-export interface WikiTargetMatch {
-  /** One of `CLAIM_TIER`, or {@link UNCLAIMED_TIER} with no paths. */
-  readonly tier: number
-  readonly paths: readonly string[]
-}
-
-/** `WikiTargetMatch.tier` when nothing claims the key (never stored). */
-export const UNCLAIMED_TIER = 0
-
-/**
- * Look up one folded spelling. `note_claims` already encodes the precedence
- * (templates claim nothing), so this is a single indexed read rather than one
- * query per tier. Unlike {@link resolveWikiTarget}, this does not collapse a
- * tier to its first path; callers that may create on a miss need to
- * distinguish one existing note from several notes claiming the same
- * spelling.
- */
-export async function findWikiTargetMatch(key: string): Promise<WikiTargetMatch> {
-  if (key === '') {
-    return { tier: UNCLAIMED_TIER, paths: [] }
-  }
-  const rows = await db
-    .selectFrom('noteClaims')
-    .where('key', '=', key)
-    .select(['notePath', 'tier'])
-    .orderBy('tier')
-    .orderBy('notePath')
-    .execute()
-  const tier = rows[0]?.tier
-  return tier === undefined
-    ? { tier: UNCLAIMED_TIER, paths: [] }
-    : {
-        tier,
-        paths: [...new Set(rows.filter((row) => row.tier === tier).map((row) => row.notePath))],
-      }
-}
-
-/** Every indexed note whose folded path matches, sorted. */
-export async function findNotesByPathKey(pathKey: string): Promise<string[]> {
-  if (pathKey === '') {
-    return []
-  }
-  const rows = await db
-    .selectFrom('notes')
-    .where('pathKey', '=', pathKey)
-    .select('path')
-    .distinct()
-    .orderBy('path')
-    .execute()
-  return rows.map((row) => row.path)
-}
-
-/**
- * Resolve a `[[target]]` against the index, returning the note ref (its path).
- * `note_keys` is the canonical resolved-address map: it contains exactly one
- * winning path per folded textual key after applying daily-date, title, alias,
- * and path precedence. Navigation and backlinks therefore cannot drift onto
- * different claimants.
- */
-export async function resolveWikiTarget(target: string): Promise<Resolution> {
-  const normalized = normalizeWikiTarget(target)
-  if (normalized.key === '') {
-    return unresolved(normalized.raw)
-  }
-  const winner = await db
-    .selectFrom('noteKeys')
-    .where('key', '=', normalized.key)
-    .select('notePath')
-    .executeTakeFirst()
-  return winner?.notePath ? resolved(winner.notePath) : unresolved(normalized.raw)
 }

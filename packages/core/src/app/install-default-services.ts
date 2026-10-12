@@ -9,7 +9,15 @@ import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
+import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
+import { setDefaultGraphStats } from '../indexing/graph-stats-service.ts'
+import { setDefaultIndexQuery } from '../indexing/index-query-service.ts'
+import { setDefaultNoteList } from '../indexing/note-list-service.ts'
+import { setDefaultNotePath } from '../indexing/note-path-service.ts'
+import { setDefaultSearch } from '../indexing/search-service.ts'
+import { setDefaultSuggestions } from '../indexing/suggestion-service.ts'
+import { setDefaultWikiResolver } from '../indexing/wiki-resolver-service.ts'
 import { setDefaultAppStore } from '../ipc/app-store-plugin.ts'
 import { setDefaultIpc } from '../ipc/bridge.ts'
 import { setDefaultIap } from '../ipc/iap-plugin.ts'
@@ -77,6 +85,14 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultWebAuth(services.webAuth ?? null)
   setDefaultNoteFile(services.noteFile)
   setDefaultAssetStore(services.assetStore)
+  setDefaultIndexQuery(services.indexQuery)
+  setDefaultWikiResolver(services.wikiResolver)
+  setDefaultBacklinks(services.backlinks)
+  setDefaultSearch(services.search)
+  setDefaultSuggestions(services.suggestions)
+  setDefaultNoteList(services.noteList)
+  setDefaultGraphStats(services.graphStats)
+  setDefaultNotePath(services.notePath)
   setDefaultIpc(services.ipc)
 }
 
@@ -119,5 +135,13 @@ export function resetDefaultServices(): void {
   setDefaultWebAuth(null)
   setDefaultNoteFile(null)
   setDefaultAssetStore(null)
+  setDefaultIndexQuery(null)
+  setDefaultWikiResolver(null)
+  setDefaultBacklinks(null)
+  setDefaultSearch(null)
+  setDefaultSuggestions(null)
+  setDefaultNoteList(null)
+  setDefaultGraphStats(null)
+  setDefaultNotePath(null)
   setDefaultIpc(null)
 }
