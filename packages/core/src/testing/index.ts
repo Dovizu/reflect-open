@@ -84,6 +84,15 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestCaptureInboxService,
+  createTestWebFetchService,
+  createTestXArchiveService,
+  type TestCaptureInboxService,
+  type TestWebFetchService,
+  type TestXArchiveService,
+  type WebFetchKind,
+} from './capture.ts'
+export {
   createTestAppInfoService,
   createTestSecretStoreService,
   type TestSecretStoreService,
