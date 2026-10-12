@@ -20,7 +20,6 @@ export {
   saveHostCredential,
   githubCredential,
   gitDisconnect,
-  gitClone,
   parseGithubRemote,
   githubRemoteUrl,
   newRepoUrl,

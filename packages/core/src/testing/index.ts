@@ -59,3 +59,12 @@ export {
   type ExceptionReportSource,
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
+export {
+  createTestGitRepositoryService,
+  createTestICloudNativeService,
+  type GitRepositoryCall,
+  type GitRepositoryHandler,
+  type ICloudNativeCall,
+  type TestGitRepositoryService,
+  type TestICloudNativeService,
+} from './sync.ts'
