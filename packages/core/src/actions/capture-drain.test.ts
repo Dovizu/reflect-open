@@ -4,7 +4,8 @@ vi.mock('../x-archive', async (importOriginal) => ({
 }))
 import { drainCaptureInbox } from './capture-drain.ts'
 import fixtures from './bookmark-envelope.fixtures.json' with { type: 'json' }
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import {
   addSpool,
   CAPTURED_AT,
@@ -46,9 +47,6 @@ vi.mock('../ai/describe-page', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ai/describe-page.ts')>()),
   describePage: vi.fn(),
 }))
-vi.mock('../secrets/keychain', () => ({
-  getSecret: vi.fn(),
-}))
 vi.mock('./backlink-target', () => ({
   ensureBacklinkTarget: ensureBacklinkTargetMock,
 }))
@@ -56,6 +54,10 @@ vi.mock('./backlink-target', () => ({
 beforeEach(() => {
   wireCaptureMocks()
   ensureBacklinkTargetMock.mockResolvedValue('Links')
+})
+
+afterEach(() => {
+  setDefaultSecretStore(null)
 })
 
 describe('drainCaptureInbox', () => {

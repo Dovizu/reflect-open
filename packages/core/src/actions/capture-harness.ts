@@ -1,7 +1,12 @@
 import { vi } from 'vitest'
-import { createTestHttpService } from '../testing/index.ts'
+import {
+  createTestHttpService,
+  createTestSecretStoreService,
+  type TestSecretStoreService,
+} from '../testing/index.ts'
 import { describePage } from '../ai/describe-page.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
+import { aiKeySecretName } from '../ai/secrets.ts'
 import {
   captureInboxList,
   captureInboxRead,
@@ -15,7 +20,7 @@ import {
   writeAsset,
   writeNote,
 } from '../graph/commands.ts'
-import { getSecret } from '../secrets/keychain.ts'
+import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import {
   captureIdentity,
   drainCaptureInbox,
@@ -34,7 +39,7 @@ import { scrapePageMeta } from './meta-scrape.ts'
  *
  * `vi.mock(...)` calls are hoisted per test file and cannot live here: each
  * test file declares its own mock blocks for `../graph/commands`,
- * `./meta-scrape`, `../ai/describe-page`, and `../secrets/keychain`, then
+ * `./meta-scrape`, and `../ai/describe-page`, then
  * calls {@link wireCaptureMocks} from `beforeEach`.
  */
 
@@ -51,13 +56,32 @@ export const writeAssetMock = vi.mocked(writeAsset)
 export const writeNoteMock = vi.mocked(writeNote)
 export const scrapeMock = vi.mocked(scrapePageMeta)
 export const describeMock = vi.mocked(describePage)
-export const getSecretMock = vi.mocked(getSecret)
 
 export const PROVIDERS: AiProvidersState = {
   providers: [{ id: 'cfg-openai', provider: 'openai', model: 'gpt-5.5', keyHint: 'wxyz1' }],
   defaultProviderId: 'cfg-openai',
 }
 export const NO_PROVIDERS: AiProvidersState = { providers: [], defaultProviderId: null }
+
+/** The keychain entry holding the API key of the provider in {@link PROVIDERS}. */
+export const API_KEY_SECRET = aiKeySecretName('cfg-openai')
+
+/** Install a fresh in-memory keychain holding `initial` and return it. */
+export function installSecrets(initial: Record<string, string> = {}): TestSecretStoreService {
+  const store = createTestSecretStoreService(initial)
+  setDefaultSecretStore(store)
+  return store
+}
+
+/** Install a keychain whose reads reject with `error`. */
+export function installFailingSecrets(error: Error): void {
+  setDefaultSecretStore({
+    ...createTestSecretStoreService(),
+    get: async () => {
+      throw error
+    },
+  })
+}
 
 /** 2026-06-11 15:30:22.845 local — every derived name is asserted from it. */
 export const CAPTURED_AT = new Date(2026, 5, 11, 15, 30, 22, 845)
@@ -165,7 +189,7 @@ export function wireCaptureMocks(): void {
     files.set(path, contentsBase64)
   })
   linkPreviewMock.mockResolvedValue(null)
-  getSecretMock.mockResolvedValue('sk-live-key')
+  installSecrets({ [API_KEY_SECRET]: 'sk-live-key' })
   scrapeMock.mockResolvedValue({ title: 'An article', description: null, siteName: null })
   describeMock.mockResolvedValue({ title: null, description: 'An AI description of the page.' })
 }

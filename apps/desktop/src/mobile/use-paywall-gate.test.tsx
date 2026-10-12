@@ -5,10 +5,15 @@ import type { ReactNode } from 'react'
 import {
   CLASSIC_ACCESS_SECRET,
   setBridge,
+  setDefaultSecretStore,
   setDefaultStorage,
   type AppPlatform,
 } from '@reflect/core'
-import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
+import {
+  createTestSecretStoreService,
+  createTestStorageService,
+  type TestStorageService,
+} from '@reflect/core/testing'
 import { usePaywallRequested } from '@/hooks/use-paywall-requested.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
@@ -61,6 +66,10 @@ async function runLaunch(gate: PaywallGate): Promise<void> {
 }
 
 function installFakeBridge(): void {
+  setDefaultSecretStore({
+    ...createTestSecretStoreService(),
+    get: async (name) => (name === CLASSIC_ACCESS_SECRET ? await classicAccess() : null),
+  })
   setBridge({
     invoke: async (command, args) => {
       switch (command) {
@@ -68,8 +77,6 @@ function installFakeBridge(): void {
           return stored
         case 'settings_save':
           return null
-        case 'secret_get':
-          return args['name'] === CLASSIC_ACCESS_SECRET ? await classicAccess() : null
         case 'plugin:app-store|get_environment':
           return { environment: await environment() }
         case 'plugin:iap|get_product_status': {
@@ -127,6 +134,7 @@ afterEach(async () => {
   await Promise.resolve()
   focusManager.setFocused(undefined)
   setBridge(null)
+  setDefaultSecretStore(null)
   queryClient.clear()
   setDefaultStorage(null)
 })

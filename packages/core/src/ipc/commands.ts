@@ -1,16 +1,10 @@
 import { z } from 'zod'
+import { defaultAppInfo } from '../app/app-info-service.ts'
 import { call } from './invoke.ts'
 
-const appVersionSchema = z.string()
-
-/**
- * Returns the desktop application version reported by the Rust shell.
- *
- * Serves as the canonical round-trip example for the IPC boundary: a real
- * `#[tauri::command]`, a zod-validated response, no direct `invoke` in the UI.
- */
+/** Returns the application version reported by the native shell. */
 export async function getAppVersion(): Promise<string> {
-  return await call('app_version', {}, appVersionSchema)
+  return await defaultAppInfo().version()
 }
 
 const mobileStorageInfoSchema = z.object({

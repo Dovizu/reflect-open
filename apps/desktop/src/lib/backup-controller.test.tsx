@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ReflectError,
   setDefaultHttp,
   setDefaultPlatform,
+  setDefaultSecretStore,
   emitFileChanges,
   setBridge,
   subscribeFileChanges,
@@ -11,6 +13,7 @@ import {
 import {
   createTestHttpService,
   createTestPlatformService,
+  createTestSecretStoreService,
   type TestHttpService,
 } from '@reflect/core/testing'
 import { flushBackup } from '@/lib/backup-flush.ts'
@@ -30,6 +33,7 @@ beforeEach(() => {
 afterEach(() => {
   setDefaultPlatform(null)
   setDefaultHttp(null)
+  setDefaultSecretStore(null)
   setBridge(null)
 })
 
@@ -65,7 +69,7 @@ interface FakeOptions {
   failStatus?: boolean
   /** Make the keychain read throw (locked keychain, stale ACL after re-signing). */
   failSecretGet?: boolean
-  /** A stored sign-in for a non-GitHub host (`git-host:<host>`), as JSON. */
+  /** A stored sign-in for the origin's non-GitHub host (`git-host:<host>`), as JSON. */
   hostSecret?: string | null
   /** Scripted `git_merge_remote` outcome (defaults to up-to-date). */
   mergeOutcome?: unknown
@@ -85,7 +89,7 @@ interface FakeOptions {
 function fakeBridge(options: FakeOptions = {}) {
   const calls: string[] = []
   const invocations: Array<{ command: string; args: Record<string, unknown> }> = []
-  let auth = options.auth === undefined ? AUTH : options.auth
+  const auth = options.auth === undefined ? AUTH : options.auth
   const status = {
     initialized: options.initialized ?? true,
     branch: 'main',
@@ -106,6 +110,24 @@ function fakeBridge(options: FakeOptions = {}) {
   let indexApplyCount = 0
   const mergeOutcomes = [...(options.mergeOutcomes ?? [])]
   const pushOutcomes = [...(options.pushOutcomes ?? [])]
+  const initialSecrets: Record<string, string> = {}
+  if (auth !== null) {
+    initialSecrets['github-auth'] = auth
+  }
+  const hostSecret = options.hostSecret ?? null
+  if (hostSecret !== null && status.remoteUrl !== null) {
+    initialSecrets[`git-host:${new URL(status.remoteUrl).hostname}`] = hostSecret
+  }
+  const secrets = createTestSecretStoreService(initialSecrets)
+  setDefaultSecretStore({
+    ...secrets,
+    get: async (name) => {
+      if (options.failSecretGet === true) {
+        throw new ReflectError('io', 'keychain unavailable')
+      }
+      return await secrets.get(name)
+    },
+  })
   setBridge({
     invoke: async (command, args) => {
       calls.push(command)
@@ -120,17 +142,6 @@ function fakeBridge(options: FakeOptions = {}) {
           status.initialized = true
           status.remoteUrl = typeof args['remoteUrl'] === 'string' ? args['remoteUrl'] : null
           return status
-        case 'secret_get':
-          if (options.failSecretGet === true) {
-            throw { kind: 'io', message: 'keychain unavailable' }
-          }
-          if (String(args['name']).startsWith('git-host:')) {
-            return options.hostSecret ?? null
-          }
-          return auth
-        case 'secret_delete':
-          auth = null
-          return null
         case 'git_commit_all':
           commitInvocations += 1
           if (options.gateSecondCommit === true && commitInvocations === 2) {
@@ -189,6 +200,7 @@ function fakeBridge(options: FakeOptions = {}) {
   return {
     calls,
     invocations,
+    secrets,
     status,
     releaseListen: () => listenGate.resolve(),
     releaseIndexApply: () => indexApplyGate.resolve(),
@@ -590,14 +602,14 @@ describe('createBackupController', () => {
   })
 
   it('signOut clears the machine credential and lands on disconnected', async () => {
-    const { calls } = fakeBridge()
+    const { secrets } = fakeBridge()
     const controller = createBackupController({ graph: GRAPH, indexGeneration: 1 })
     await controller.start()
     expect(controller.getState()).toMatchObject({ phase: 'connected' })
 
     await controller.signOut()
 
-    expect(calls).toContain('secret_delete')
+    expect(secrets.snapshot()).not.toHaveProperty('github-auth')
     expect(controller.getState()).toEqual({ phase: 'disconnected' })
     controller.dispose()
   })

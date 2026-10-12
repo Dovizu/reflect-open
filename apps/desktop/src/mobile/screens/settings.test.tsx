@@ -5,11 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_SETTINGS,
   getConflictedNotes,
+  setDefaultAppInfo,
   setDefaultOpener,
   type GraphInfo,
   type Settings,
 } from '@reflect/core'
-import { createTestOpenerService, type TestOpenerService } from '@reflect/core/testing'
+import {
+  createTestAppInfoService,
+  createTestOpenerService,
+  type TestOpenerService,
+} from '@reflect/core/testing'
 import type { BackupState } from '@/lib/backup-controller.ts'
 import '@/test-utils/locator.ts'
 import { MobileSettings } from './settings.tsx'
@@ -38,7 +43,6 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
     mobileStorageKind: graphState.mobileStorageKind,
   }),
 }))
-vi.mock('@/hooks/use-app-version.ts', () => ({ useAppVersion: () => '1.2.3-beta.4' }))
 
 let opener: TestOpenerService
 
@@ -99,6 +103,7 @@ beforeEach(async () => {
   await page.viewport(375, 700)
   opener = createTestOpenerService()
   setDefaultOpener(opener)
+  setDefaultAppInfo(createTestAppInfoService('1.2.3-beta.4'))
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   settingsState.current = { ...DEFAULT_SETTINGS }
   graphState.mobileStorageKind = 'icloud'
@@ -116,6 +121,7 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.useRealTimers()
   await cleanup()
+  setDefaultAppInfo(null)
   queryClient.clear()
   vi.clearAllMocks()
 })

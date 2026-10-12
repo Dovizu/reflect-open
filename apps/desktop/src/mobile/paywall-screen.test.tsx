@@ -1,16 +1,19 @@
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
   CLASSIC_ACCESS_SECRET,
   IAP_PRODUCT_IDS,
   setBridge,
+  setDefaultSecretStore,
   type signInWithClassic,
   type ClassicSignInResult,
   type IapProduct,
   type IpcBridge,
+  type SecretStoreService,
 } from '@reflect/core'
+import { createTestSecretStoreService, type TestSecretStoreService } from '@reflect/core/testing'
 import { mutationKeys, mutationScopeIds } from '@/lib/query-client.ts'
 import { PaywallScreen } from './paywall-screen.tsx'
 
@@ -53,7 +56,8 @@ let getProducts: () => Promise<{ products: IapProduct[] }>
 let purchase: () => Promise<null>
 let sync: () => Promise<null>
 let redeem: () => Promise<null>
-let classicRecord: string | null
+let secrets: TestSecretStoreService
+let getSecret: MockInstance<SecretStoreService['get']>
 let webAuthCallback: string | null
 let invoke = vi.fn<IpcBridge['invoke']>()
 let queryClient: QueryClient
@@ -67,7 +71,9 @@ beforeEach(() => {
   purchase = async () => null
   sync = async () => null
   redeem = async () => null
-  classicRecord = null
+  secrets = createTestSecretStoreService()
+  getSecret = vi.spyOn(secrets, 'get')
+  setDefaultSecretStore(secrets)
   webAuthCallback = null
   queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false }, queries: { retry: false } },
@@ -82,8 +88,6 @@ beforeEach(() => {
         return await sync()
       case 'plugin:app-store|present_offer_code_redeem_sheet':
         return await redeem()
-      case 'secret_get':
-        return classicRecord
       case 'plugin:web-auth|start':
         return { url: webAuthCallback }
       default:
@@ -100,6 +104,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   setBridge(null)
+  setDefaultSecretStore(null)
   queryClient.clear()
   await cleanup()
 })
@@ -392,7 +397,7 @@ describe('PaywallScreen Reflect Classic verification', () => {
     await expect.element(view.getByText('Checking your subscription…')).toBeVisible()
     await expect.element(view.getByText('Working out your access')).toBeVisible()
 
-    classicRecord = JSON.stringify(signedIn('a@example.com').access)
+    await secrets.set(CLASSIC_ACCESS_SECRET, JSON.stringify(signedIn('a@example.com').access))
     check.resolve(signedIn('a@example.com'))
 
     await expect.element(view.getByText('Reflect Pro is unlocked')).toBeVisible()
@@ -400,7 +405,7 @@ describe('PaywallScreen Reflect Classic verification', () => {
     await expect.element(view.getByText(/^Free until /)).toBeVisible()
     await view.getByRole('button', { name: 'Start writing' }).click()
     await vi.waitFor(() => expect(progressScreen()).toBeNull())
-    expect(invoke).toHaveBeenCalledWith('secret_get', { name: CLASSIC_ACCESS_SECRET })
+    expect(getSecret).toHaveBeenCalledWith(CLASSIC_ACCESS_SECRET)
   })
 
   it('offers a different account in a private session when not eligible', async () => {
@@ -440,17 +445,20 @@ describe('PaywallScreen Reflect Classic verification', () => {
   })
 
   it('says when the Reflect Classic access has ended', async () => {
-    classicRecord = JSON.stringify({
-      token: 'token',
-      email: 'a@example.com',
-      expiresAt: Date.now() - 60_000,
-      checkedAt: Date.now(),
-    })
+    await secrets.set(
+      CLASSIC_ACCESS_SECRET,
+      JSON.stringify({
+        token: 'token',
+        email: 'a@example.com',
+        expiresAt: Date.now() - 60_000,
+        checkedAt: Date.now(),
+      }),
+    )
     const view = await render(<PaywallScreen />, { wrapper })
 
     await expect
       .element(view.getByText('Your Reflect Classic access to Reflect Open has ended.'))
       .toBeVisible()
-    expect(invoke).toHaveBeenCalledWith('secret_get', { name: CLASSIC_ACCESS_SECRET })
+    expect(getSecret).toHaveBeenCalledWith(CLASSIC_ACCESS_SECRET)
   })
 })

@@ -59,3 +59,8 @@ export {
   type ExceptionReportSource,
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
+export {
+  createTestAppInfoService,
+  createTestSecretStoreService,
+  type TestSecretStoreService,
+} from './secrets.ts'

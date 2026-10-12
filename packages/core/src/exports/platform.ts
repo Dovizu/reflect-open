@@ -175,6 +175,19 @@ export {
   type HttpService,
 } from '../app/http-service.ts'
 export {
+  createAppInfoService,
+  defaultAppInfo,
+  marketingVersion,
+  setDefaultAppInfo,
+  type AppInfoService,
+} from '../app/app-info-service.ts'
+export {
+  createSecretStoreService,
+  defaultSecretStore,
+  setDefaultSecretStore,
+  type SecretStoreService,
+} from '../secrets/secret-store-service.ts'
+export {
   createWebStorageService,
   defaultStorage,
   getJson,

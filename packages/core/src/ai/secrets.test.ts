@@ -1,11 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import type { HostedAiProviderConfig, OpenAiCompatibleProviderConfig } from '../settings/schema.ts'
-
-const getSecret = vi.hoisted(() => vi.fn<(name: string) => Promise<string | null>>())
-
-vi.mock('../secrets/keychain', () => ({ getSecret }))
-
-const { aiApiKeyForConfig } = await import('./secrets.ts')
+import { createTestSecretStoreService } from '../testing/index.ts'
+import { aiApiKeyForConfig } from './secrets.ts'
 
 function hostedConfig(overrides: Partial<HostedAiProviderConfig>): HostedAiProviderConfig {
   return {
@@ -30,23 +27,23 @@ function openAiCompatibleConfig(
   }
 }
 
-beforeEach(() => {
-  getSecret.mockReset()
+afterEach(() => {
+  setDefaultSecretStore(null)
 })
 
 describe('aiApiKeyForConfig', () => {
   it('returns stored keys for configured providers', async () => {
-    getSecret.mockResolvedValue('sk-live')
+    setDefaultSecretStore(createTestSecretStoreService({ 'ai-api-key:cfg': 'sk-live' }))
     await expect(aiApiKeyForConfig(hostedConfig({}))).resolves.toBe('sk-live')
   })
 
   it('allows a no-key OpenAI-compatible endpoint', async () => {
-    getSecret.mockResolvedValue(null)
+    setDefaultSecretStore(createTestSecretStoreService())
     await expect(aiApiKeyForConfig(openAiCompatibleConfig({ keyHint: '' }))).resolves.toBe('')
   })
 
   it('reports a missing key when an OpenAI-compatible entry was saved with one', async () => {
-    getSecret.mockResolvedValue(null)
+    setDefaultSecretStore(createTestSecretStoreService())
     await expect(
       aiApiKeyForConfig(openAiCompatibleConfig({ keyHint: '12345' })),
     ).resolves.toBeNull()
