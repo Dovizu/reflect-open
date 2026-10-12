@@ -294,11 +294,13 @@ export {
 } from './privacy.ts'
 export {
   createTestDeepLinkService,
+  createTestLinkNavigationService,
   createTestDeepLinkSource,
   createTestNavigationService,
   type TestDeepLinkService,
   type TestDeepLinkServiceOptions,
   type TestDeepLinkSource,
+  type TestLinkNavigationServiceOptions,
   type TestNavigateCall,
   type TestNavigationService,
   type TestNavigationServiceOptions,
@@ -314,6 +316,7 @@ export { createTestTaskService, makeOpenTask, type TestTaskServiceOptions } from
 export {
   createTestNoteActionsService,
   createTestNoteDocumentService,
+  createTestNotePreviewService,
   createTestNoteSession,
   createTestNoteSessionService,
   createTestOpenDocumentsService,
@@ -322,6 +325,7 @@ export {
   type TestNoteActionsService,
   type TestNoteActionsServiceOptions,
   type TestNoteDocumentServiceOptions,
+  type TestNotePreviewServiceOptions,
   type TestNoteSession,
   type TestNoteSessionOptions,
   type TestNoteSessionService,

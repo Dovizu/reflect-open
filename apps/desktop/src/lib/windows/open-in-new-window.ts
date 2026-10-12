@@ -1,8 +1,4 @@
-import { defaultWindow } from '@reflect/core'
-import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
-import { parseDeepLink } from '@/lib/deep-links/parse.ts'
-import { isNativeShell } from '@/lib/platform.ts'
-import { isMobileSurface } from '@/lib/platform-surface.ts'
+import { defaultLinkNavigation } from '@reflect/core'
 import type { Route } from '@/routing/route.ts'
 
 /**
@@ -19,36 +15,12 @@ export interface ModClickEvent {
   ctrlKey: boolean
 }
 
-/**
- * Open `route` in a secondary note window. False — never a throw — when this
- * surface can't (no shell, mobile, a route the deep-link grammar doesn't
- * name, or a failed command). Modifier-click callers then navigate in place,
- * so the gesture degrades to a plain click instead of doing nothing.
- */
+/** Open `route` in a secondary note window: `LinkNavigationService.openRouteInNewWindow`. */
 export async function openRouteInNewWindow(route: Route): Promise<boolean> {
-  if (!isNativeShell() || isMobileSurface()) {
-    return false
-  }
-  const link = deepLinkForRoute(route)
-  if (link === null) {
-    return false
-  }
-  return await defaultWindow().openNoteWindow(link)
+  return await defaultLinkNavigation().openRouteInNewWindow(route)
 }
 
-/**
- * Open an in-note `reflect://` link in a secondary window — only links that
- * *address* something (navigate / openNote). Capture links (append, task)
- * are writes, not places: a modifier click still dispatches them normally.
- * Same false-not-throw contract as {@link openRouteInNewWindow}.
- */
+/** Open an in-note `reflect://` link in a secondary window: `LinkNavigationService.openDeepLinkInNewWindow`. */
 export async function openDeepLinkInNewWindow(href: string): Promise<boolean> {
-  if (!isNativeShell() || isMobileSurface()) {
-    return false
-  }
-  const link = parseDeepLink(href)
-  if (link === null || link.kind === 'capture') {
-    return false
-  }
-  return await defaultWindow().openNoteWindow(href)
+  return await defaultLinkNavigation().openDeepLinkInNewWindow(href)
 }

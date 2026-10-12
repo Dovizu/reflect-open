@@ -42,6 +42,7 @@ import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
 import { setDefaultNoteActions } from '../documents/note-actions-service.ts'
 import { setDefaultNoteDocuments } from '../documents/note-document-service.ts'
+import { setDefaultNotePreview } from '../documents/note-preview-service.ts'
 import { setDefaultNoteRows } from '../documents/note-row-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
 import { setDefaultNoteMove } from '../documents/note-move-service.ts'
@@ -73,6 +74,7 @@ import { setDefaultKeyboard } from '../mobile/keyboard-service.ts'
 import { setDefaultShare } from '../mobile/share-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultDeepLink } from '../navigation/deep-link-service.ts'
+import { setDefaultLinkNavigation } from '../navigation/link-navigation-service.ts'
 import { setDefaultNavigation } from '../navigation/navigation-service.ts'
 import { setDefaultPrivacy } from '../privacy/privacy-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -139,6 +141,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultUpdate(services.update)
   setDefaultNavigation(services.navigation)
   setDefaultDeepLink(services.deepLink)
+  setDefaultLinkNavigation(services.linkNavigation)
   setDefaultGitRepository(services.gitRepository)
   setDefaultGithubAuth(services.githubAuth)
   setDefaultGitHostCredentials(services.gitHostCredentials)
@@ -169,6 +172,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultKeyboard(services.keyboard)
   setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
+  setDefaultNotePreview(services.notePreview)
   setDefaultTasks(services.tasks)
   setDefaultNoteActions(services.noteActions)
   setDefaultNoteRows(services.noteRows)
@@ -247,6 +251,7 @@ export function resetDefaultServices(): void {
   setDefaultUpdate(null)
   setDefaultNavigation(null)
   setDefaultDeepLink(null)
+  setDefaultLinkNavigation(null)
   setDefaultGitRepository(null)
   setDefaultGithubAuth(null)
   setDefaultGitHostCredentials(null)
@@ -277,6 +282,7 @@ export function resetDefaultServices(): void {
   setDefaultKeyboard(null)
   setDefaultShare(null)
   setDefaultNoteDocuments(null)
+  setDefaultNotePreview(null)
   setDefaultTasks(null)
   setDefaultNoteActions(null)
   setDefaultNoteRows(null)

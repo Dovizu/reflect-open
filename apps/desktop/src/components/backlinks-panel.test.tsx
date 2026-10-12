@@ -7,6 +7,8 @@ import type { ReactNode } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { BacklinksPanel } from './backlinks-panel.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 
 const { getBacklinksWithContext, getBacklinksPage } = vi.hoisted(() => {
   const getBacklinksWithContext = vi.fn()
@@ -19,21 +21,18 @@ const { getBacklinksWithContext, getBacklinksPage } = vi.hoisted(() => {
   return { getBacklinksWithContext, getBacklinksPage }
 })
 const resolveOrCreateNoteWithTitle = vi.hoisted(() => vi.fn())
-const resolveExistingMarkdownTarget = vi.hoisted(() => vi.fn())
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
+const resolveMarkdownHref = vi.hoisted(() => vi.fn())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   getBacklinksWithContext: getBacklinksPage,
-  resolveOrCreateNoteWithTitle,
-  resolveExistingMarkdownTarget,
 }))
+const { openNoteWindow } = installTestLinkNavigation({
+  noteCreation: { resolveOrCreateNoteWithTitle },
+  noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
+})
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 
 function RouteProbe(): ReactNode {
@@ -62,8 +61,7 @@ beforeEach(() => {
   getBacklinksWithContext.mockReset()
   getBacklinksPage.mockClear()
   resolveOrCreateNoteWithTitle.mockReset()
-  resolveExistingMarkdownTarget.mockReset()
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
+  resolveMarkdownHref.mockReset()
 })
 
 afterEach(() => {
@@ -156,7 +154,7 @@ describe('BacklinksPanel', () => {
         tasks: [],
       },
     ])
-    resolveExistingMarkdownTarget.mockResolvedValue({
+    resolveMarkdownHref.mockResolvedValue({
       kind: 'resolved',
       path: 'projects/roadmap/plan.md',
     })
@@ -165,11 +163,7 @@ describe('BacklinksPanel', () => {
     await view.getByRole('link', { name: 'plan' }).click()
 
     await vi.waitFor(() =>
-      expect(resolveExistingMarkdownTarget).toHaveBeenCalledWith(
-        './roadmap/plan.md',
-        'projects/TASKS.md',
-        1,
-      ),
+      expect(resolveMarkdownHref).toHaveBeenCalledWith('projects/TASKS.md', './roadmap/plan.md', 1),
     )
     await expect
       .element(view.getByTestId('route'))
@@ -235,10 +229,12 @@ describe('BacklinksPanel', () => {
     await view.getByText('Meeting Notes').click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/meeting.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/meeting.md',
+        }),
+      ),
     )
     await expect.element(view.getByTestId('route')).toMatchTextContent('"today"')
     await view.unmount()

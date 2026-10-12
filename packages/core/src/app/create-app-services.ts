@@ -147,6 +147,10 @@ import {
   createNoteDocumentService,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
+import {
+  createNotePreviewService,
+  type NotePreviewService,
+} from '../documents/note-preview-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
   createOpenDocumentsService,
@@ -210,6 +214,10 @@ import {
   type DeepLinkService,
   type DeepLinkSource,
 } from '../navigation/deep-link-service.ts'
+import {
+  createLinkNavigationService,
+  type LinkNavigationService,
+} from '../navigation/link-navigation-service.ts'
 import {
   createNavigationService,
   type NavigationService,
@@ -307,6 +315,8 @@ export interface AppServices {
   readonly navigation: NavigationService
   /** The `reflect://` intake of this webview and the handler behind it. */
   readonly deepLink: DeepLinkService
+  /** Turns an activated link into a navigation, a new window, or a refusal. */
+  readonly linkNavigation: LinkNavigationService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -344,6 +354,7 @@ export interface AppServices {
   readonly noteMove: NoteMoveService
   readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
+  readonly notePreview: NotePreviewService
   readonly tasks: TaskService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
@@ -609,6 +620,25 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage,
     logger,
   })
+  const opener = createOpenerService({ transport: adapters.opener, logger })
+  const deepLink = createDeepLinkService({
+    source: adapters.deepLink ?? createNoDeepLinkSource(),
+    indexQuery: indexReads.indexQuery,
+    captureInbox,
+    operations,
+    id,
+    clock,
+    logger,
+  })
+  const attachments = createAttachmentService({
+    assetStore,
+    noteFile,
+    fileChanges,
+    dialog: adapters.dialog,
+    operations,
+    clock,
+    platform,
+  })
   const persistenceFlush = createPersistenceFlushService({
     lifecycle,
     window: windowService,
@@ -687,7 +717,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     http: adapters.http,
     dialog: adapters.dialog,
     clipboard: adapters.clipboard,
-    opener: createOpenerService({ transport: adapters.opener, logger }),
+    opener,
     path,
     window: windowService,
     lifecycle,
@@ -708,13 +738,17 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     embeddingRuntime,
     chatHistory,
     navigation: createNavigationService(),
-    deepLink: createDeepLinkService({
-      source: adapters.deepLink ?? createNoDeepLinkSource(),
-      indexQuery: indexReads.indexQuery,
-      captureInbox,
+    deepLink,
+    linkNavigation: createLinkNavigationService({
+      noteLinkResolver: noteServices.noteLinkResolver,
+      noteCreation: noteServices.noteCreation,
+      wikiResolver: indexReads.wikiResolver,
+      window: windowService,
+      platform,
+      opener,
+      deepLink,
+      attachments,
       operations,
-      id,
-      clock,
       logger,
     }),
     update: adapters.updater
@@ -756,15 +790,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     fileChanges,
     noteFile,
     assetStore,
-    attachments: createAttachmentService({
-      assetStore,
-      noteFile,
-      fileChanges,
-      dialog: adapters.dialog,
-      operations,
-      clock,
-      platform,
-    }),
+    attachments,
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
     noteMove,
@@ -782,6 +808,11 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
     noteDocuments,
+    notePreview: createNotePreviewService({
+      noteLinkResolver: noteServices.noteLinkResolver,
+      noteDocuments,
+      attachments,
+    }),
     tasks: createTaskService({ database, noteDocuments, operations, clock, logger }),
     noteActions: createNoteActionsService({
       noteDocuments,
