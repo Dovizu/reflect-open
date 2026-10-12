@@ -1,6 +1,7 @@
+import { createTestOperationsService } from '@reflect/core/testing'
+import { setDefaultOperations } from '@reflect/core'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EmbedStatus } from '@reflect/core'
-import { resetOperations } from '@/lib/operations.ts'
 
 const rebuildIndex = vi.hoisted(() =>
   vi.fn<
@@ -22,11 +23,12 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 const { rebuildIndexVisibly } = await import('./rebuild-index.ts')
 
 beforeEach(() => {
+  setDefaultOperations(createTestOperationsService())
   rebuildIndex.mockClear()
 })
 
 afterEach(() => {
-  resetOperations()
+  setDefaultOperations(null)
 })
 
 describe('rebuildIndexVisibly', () => {

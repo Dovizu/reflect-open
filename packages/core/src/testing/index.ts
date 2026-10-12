@@ -88,3 +88,8 @@ export {
   createTestSecretStoreService,
   type TestSecretStoreService,
 } from './secrets.ts'
+export {
+  createTestOperationsService,
+  type OperationSnapshot,
+  type TestOperationsService,
+} from './operations.ts'

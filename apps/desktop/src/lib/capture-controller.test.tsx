@@ -6,8 +6,12 @@ import type {
   ReconcileCaptureEnrichmentInput,
   ReconcileCaptureEnrichmentOutcome,
 } from '@reflect/core'
-import { setDefaultHttp } from '@reflect/core'
-import { createTestHttpService } from '@reflect/core/testing'
+import { setDefaultHttp, setDefaultOperations } from '@reflect/core'
+import {
+  createTestHttpService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import type { XPost } from '@post-embed/types'
 import { createXPostResolver, xPostQueryOptions } from '@/editor/use-x-post-resolver.ts'
 import { createCaptureController, type CaptureController } from './capture-controller.ts'
@@ -22,7 +26,6 @@ const reconcileCaptureEnrichment = vi.hoisted(() =>
 const subscribeFileChanges = vi.hoisted(() =>
   vi.fn<(handler: (changes: readonly FileChange[]) => void) => Promise<() => void>>(),
 )
-const failOperation = vi.hoisted(() => vi.fn<(message: string) => void>())
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
@@ -31,15 +34,17 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   subscribeFileChanges,
   hasBridge: () => true,
 }))
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   setDefaultHttp(createTestHttpService())
 })
 afterEach(() => {
+  setDefaultOperations(null)
   setDefaultHttp(null)
 })
-vi.mock('@/lib/operations.ts', () => ({
-  startOperation: () => ({ progress: vi.fn(), done: vi.fn(), fail: failOperation }),
-}))
 
 const NO_PROVIDERS = { providers: [], defaultProviderId: null }
 
@@ -110,13 +115,13 @@ describe('createCaptureController (shared-inbox relay)', () => {
     await flush()
 
     expect(drainCaptureInbox).toHaveBeenCalledTimes(1)
-    expect(failOperation).toHaveBeenCalledTimes(1)
+    expect(operations.getAll()).toHaveLength(1)
 
     // The same failure on a retry pass must not re-toast.
     controller?.schedule()
     await flush()
     expect(drainCaptureInbox).toHaveBeenCalledTimes(2)
-    expect(failOperation).toHaveBeenCalledTimes(1)
+    expect(operations.getAll()).toHaveLength(1)
   })
 
   it('without a relay, passes run drain-then-enrich only', async () => {
@@ -125,7 +130,7 @@ describe('createCaptureController (shared-inbox relay)', () => {
 
     expect(drainCaptureInbox).toHaveBeenCalledTimes(1)
     expect(reconcileCaptureEnrichment).toHaveBeenCalledTimes(1)
-    expect(failOperation).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
   })
 
   it('schedules a pass when the app becomes visible again (mobile resume)', async () => {

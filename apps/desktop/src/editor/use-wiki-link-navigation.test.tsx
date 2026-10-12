@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { setDefaultOperations } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
@@ -8,8 +10,6 @@ const resolveWikiTarget = vi.hoisted(() => vi.fn())
 const resolveExistingWikiTarget = vi.hoisted(() => vi.fn())
 const resolveOrCreateNoteWithTitle = vi.hoisted(() => vi.fn())
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() => vi.fn(() => ({ fail: operationFail })))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   resolveWikiTarget,
@@ -20,7 +20,6 @@ vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
   openRouteInNewWindow,
 }))
-vi.mock('@/lib/operations.ts', () => ({ startOperation }))
 
 let lastHandler: ((options: { target: string; openInNewWindow: boolean }) => void) | null = null
 let navigate: ReturnType<typeof useRouter>['navigate'] | null = null
@@ -53,16 +52,22 @@ function currentRoute(view: Awaited<ReturnType<typeof renderHost>>): string {
   return view.getByTestId('route').element().textContent ?? ''
 }
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   resolveWikiTarget.mockReset()
   resolveExistingWikiTarget.mockReset()
   resolveOrCreateNoteWithTitle.mockReset()
   openRouteInNewWindow.mockReset()
   openRouteInNewWindow.mockResolvedValue(true)
-  operationFail.mockReset()
-  startOperation.mockClear()
   lastHandler = null
   navigate = null
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 describe('useWikiLinkNavigation', () => {
@@ -139,7 +144,9 @@ describe('useWikiLinkNavigation', () => {
 
     lastHandler?.({ target: '2026-06-09', openInNewWindow: false })
 
-    await vi.waitFor(() => expect(operationFail).toHaveBeenCalled())
+    await vi.waitFor(() =>
+      expect(operations.snapshot()).toContainEqual(expect.objectContaining({ status: 'failed' })),
+    )
     expect(currentRoute(view)).toContain('"today"')
     expect(resolveOrCreateNoteWithTitle).not.toHaveBeenCalled()
     await view.unmount()
@@ -155,7 +162,12 @@ describe('useWikiLinkNavigation', () => {
     lastHandler?.({ target: '2026-06-09', openInNewWindow: false })
 
     await vi.waitFor(() =>
-      expect(operationFail).toHaveBeenCalledWith(expect.stringContaining('currently unavailable')),
+      expect(operations.snapshot()).toContainEqual(
+        expect.objectContaining({
+          status: 'failed',
+          message: expect.stringContaining('currently unavailable'),
+        }),
+      ),
     )
     expect(currentRoute(view)).toContain('"today"')
     await view.unmount()
@@ -247,10 +259,11 @@ describe('useWikiLinkNavigation', () => {
     await vi.waitFor(() => expect(resolveOrCreateNoteWithTitle).toHaveBeenCalled())
     expect(currentRoute(view)).toContain('"today"')
     expect(resolveWikiTarget).not.toHaveBeenCalled()
-    expect(startOperation).toHaveBeenCalledWith('Opening link')
-    expect(operationFail).toHaveBeenCalledWith(
-      'Couldn’t safely choose one note matching “Business ideas”. Rename conflicting notes or wait for unavailable notes to become available, then try again.',
-    )
+    expect(operations.findByLabel('Opening link')).toMatchObject({
+      status: 'failed',
+      message:
+        'Couldn’t safely choose one note matching “Business ideas”. Rename conflicting notes or wait for unavailable notes to become available, then try again.',
+    })
     await view.unmount()
   })
 
@@ -264,7 +277,12 @@ describe('useWikiLinkNavigation', () => {
     lastHandler?.({ target: 'Business ideas', openInNewWindow: false })
 
     await vi.waitFor(() =>
-      expect(operationFail).toHaveBeenCalledWith(expect.stringContaining('currently unavailable')),
+      expect(operations.snapshot()).toContainEqual(
+        expect.objectContaining({
+          status: 'failed',
+          message: expect.stringContaining('currently unavailable'),
+        }),
+      ),
     )
     expect(currentRoute(view)).toContain('"today"')
     expect(resolveWikiTarget).not.toHaveBeenCalled()
@@ -278,8 +296,12 @@ describe('useWikiLinkNavigation', () => {
 
     lastHandler?.({ target: 'Business ideas', openInNewWindow: false })
 
-    await vi.waitFor(() => expect(operationFail).toHaveBeenCalledWith('index unavailable'))
-    expect(startOperation).toHaveBeenCalledWith('Opening link')
+    await vi.waitFor(() =>
+      expect(operations.findByLabel('Opening link')).toMatchObject({
+        status: 'failed',
+        message: 'index unavailable',
+      }),
+    )
     expect(currentRoute(view)).toContain('"today"')
     consoleError.mockRestore()
     await view.unmount()

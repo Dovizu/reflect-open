@@ -1,7 +1,7 @@
 import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_SETTINGS,
   setDefaultOpener,
@@ -9,8 +9,14 @@ import {
   type GraphInfo,
   type PinnedNote,
   type Settings,
+  setDefaultOperations,
 } from '@reflect/core'
-import { createTestOpenerService, type TestOpenerService } from '@reflect/core/testing'
+import {
+  createTestOpenerService,
+  type TestOpenerService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import type { NoteRoute, Route } from '@/routing/route.ts'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
@@ -37,12 +43,6 @@ const openNativeContextMenu = vi.hoisted(() =>
     options.items[0]?.action()
   }),
 )
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() => vi.fn(() => ({ fail: operationFail })))
-vi.mock('@/lib/operations.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/operations.ts')>()),
-  startOperation,
-}))
 const commitNoteFrontmatter = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('@/lib/note-frontmatter.ts', () => ({
   commitNoteFrontmatter,
@@ -120,7 +120,11 @@ registerAppCommands()
 
 let opener: TestOpenerService
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   // The hoisted mock is shared module state — restore it so mic-related cases
   // can't inherit mutations from earlier tests.
   getPinnedNotes.mockReset().mockResolvedValue([])
@@ -135,9 +139,11 @@ beforeEach(() => {
   chooseGraph.mockClear()
   updateSettingsWith.mockClear()
   openNativeContextMenu.mockClear()
-  operationFail.mockClear()
-  startOperation.mockClear()
   commitNoteFrontmatter.mockClear()
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?: Route) {
@@ -380,8 +386,9 @@ describe('Sidebar', () => {
       expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/rust.md', { pinned: false }, 1),
     )
     await expect.element(view.getByRole('button', { name: 'Rust' })).toBeInTheDocument()
-    expect(startOperation).toHaveBeenCalledExactlyOnceWith('Updating pin')
-    expect(operationFail).toHaveBeenCalledExactlyOnceWith('disk failed')
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Updating pin', status: 'failed', message: 'disk failed' },
+    ])
   })
 
   it('history arrows walk the router stack and disable at its edges', async () => {

@@ -1,5 +1,7 @@
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { setDefaultOperations } from '@reflect/core'
 import { QueryClient } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteRow } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
 import { createNoteSession } from '@/editor/note-session.ts'
@@ -19,20 +21,25 @@ vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
 const { toggleNotePrivate } = await import('./note-private.ts')
 
 let client: QueryClient
-const operationFail = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/operations.ts', () => ({ startOperation: () => ({ fail: operationFail }) }))
 
 function input(path = 'notes/a.md') {
   return { queryClient: client, root: '/g', generation: 3, path }
 }
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   client = new QueryClient()
-  operationFail.mockClear()
   readNote.mockReset()
   writeNote.mockClear()
   openSession.mockReset()
   openSession.mockReturnValue(null)
+})
+
+afterEach(() => {
+  setDefaultOperations(null)
 })
 
 function fakeSession(content: string, canCommit = true, liveContent: string | null = content) {
@@ -110,7 +117,9 @@ describe('toggleNotePrivate', () => {
     readNote.mockRejectedValue({ kind: 'io', message: 'disk on fire' })
     await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
     expect(writeNote).not.toHaveBeenCalled()
-    expect(operationFail).toHaveBeenCalledExactlyOnceWith('disk on fire')
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Updating privacy', status: 'failed', message: 'disk on fire' },
+    ])
   })
 })
 
@@ -186,7 +195,9 @@ describe('privacy feedback', () => {
       session.editorChanged('# Typed while locking\n')
       write.reject(new Error('disk full'))
       await action
-      expect(operationFail).toHaveBeenCalledExactlyOnceWith('disk full')
+      expect(operations.snapshot()).toMatchObject([
+        { label: 'Updating privacy', status: 'failed', message: 'disk full' },
+      ])
       expect(session.content()).toBe('# Typed while locking\n')
       expect(client.getQueryState(queryKey)?.isInvalidated).toBe(true)
       // The next attempt must reach the writer again, rather than stay guarded.

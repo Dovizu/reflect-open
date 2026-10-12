@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createTestOperationsService } from '@reflect/core/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultOperations } from '@reflect/core'
 
 // jsdom has no Tauri runtime; mirror the macOS/iOS URL shape the injected
 // `convertFileSrc` produces (one percent-encoded path segment).
@@ -8,7 +9,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (filePath: string, protocol = 'asset') =>
     `${protocol}://localhost/${encodeURIComponent(filePath)}`,
 }))
-import { resetOperations, useOperations, type Operation } from '@/lib/operations.ts'
+import { useOperations, type Operation } from '@/lib/operations.ts'
 import { queryClient } from '@/lib/query-client.ts'
 import {
   LARGE_FILE_BYTES,
@@ -17,7 +18,7 @@ import {
 } from './use-asset-persistence.ts'
 
 let persistence: AssetPersistence | null = null
-let operations: Operation[] = []
+let operations: readonly Operation[] = []
 
 function renderPersistence({
   generation,
@@ -59,10 +60,14 @@ function fileOf(name: string, type: string, size = 16): File {
   return file
 }
 
+beforeEach(() => {
+  setDefaultOperations(createTestOperationsService())
+})
+
 afterEach(() => {
   setBridge(null)
   persistence = null
-  resetOperations()
+  setDefaultOperations(null)
   operations = []
   queryClient.clear()
 })

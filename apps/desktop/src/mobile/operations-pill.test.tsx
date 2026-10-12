@@ -2,7 +2,9 @@ import { act } from 'react'
 import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { resetOperations, startOperation, type OperationHandle } from '@/lib/operations.ts'
+import { LINGER_MS, MIN_VISIBLE_MS, setDefaultOperations } from '@reflect/core'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import { startOperation, type OperationHandle } from '@/lib/operations.ts'
 import { publishKeyboardHeight } from '@/mobile/use-keyboard.ts'
 import { MobileOperationsPills } from './operations-pill.tsx'
 import { MobileStatusLayer } from './status-layer.tsx'
@@ -17,15 +19,17 @@ import { MobileStatusLayer } from './status-layer.tsx'
 // operation pills (its own behavior is covered in sync-status-pill.test.tsx).
 vi.mock('@/mobile/use-sync-status.ts', () => ({ useMobileSyncStatus: () => null }))
 
+let operations: TestOperationsService
+
 beforeEach(() => {
-  vi.useFakeTimers()
-  resetOperations()
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
 })
 
 afterEach(async () => {
   await cleanup()
   publishKeyboardHeight(0)
-  vi.useRealTimers()
+  setDefaultOperations(null)
 })
 
 /** Start an operation inside act so the store emit lands in a React batch. */
@@ -79,7 +83,7 @@ describe('MobileOperationsPills', () => {
     const handle = operate(() => startOperation('Completing task'))
     act(() => handle.fail('The note is busy.'))
 
-    act(() => vi.runAllTimers())
+    await act(() => operations.clock.advance(LINGER_MS + MIN_VISIBLE_MS))
 
     expect(page.getByRole('alert').query()).toBeNull()
   })

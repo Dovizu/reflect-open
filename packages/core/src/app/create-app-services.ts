@@ -32,6 +32,7 @@ import {
   type LifecycleDomAdapter,
 } from './lifecycle-service.ts'
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
+import { createOperationsService, type OperationsService } from './operations-service.ts'
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
@@ -66,6 +67,7 @@ export interface AppServices {
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
+  readonly operations: OperationsService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -126,5 +128,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
+    operations: createOperationsService({ clock }),
   }
 }

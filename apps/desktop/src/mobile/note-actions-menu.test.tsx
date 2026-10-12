@@ -1,4 +1,10 @@
-import { upsertFrontmatter, type GraphInfo, type PinnedNote } from '@reflect/core'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
+import {
+  upsertFrontmatter,
+  type GraphInfo,
+  type PinnedNote,
+  setDefaultOperations,
+} from '@reflect/core'
 import { frontmatterPatchToYaml, type FrontmatterPatch } from '@/editor/note-session.ts'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-client.ts'
@@ -16,16 +22,6 @@ const commitNoteFrontmatter = vi.hoisted(() =>
 vi.mock('@/lib/note-frontmatter.ts', () => ({ readNoteSource, commitNoteFrontmatter }))
 const deleteOpenNote = vi.hoisted(() => vi.fn(async () => {}))
 const shareNote = vi.hoisted(() => vi.fn(async () => {}))
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() =>
-  vi.fn(() => ({
-    progress: vi.fn(),
-    done: vi.fn(),
-    warn: vi.fn(),
-    dismiss: vi.fn(),
-    fail: operationFail,
-  })),
-)
 
 /**
  * The mobile note actions drawer: pin/share/delete already live here; this
@@ -129,7 +125,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 }))
 vi.mock('@/lib/note-delete.ts', () => ({ deleteOpenNote }))
 vi.mock('@/mobile/share.ts', () => ({ shareNote }))
-vi.mock('@/lib/operations.ts', () => ({ startOperation }))
 
 const { NoteActionsMenu } = await import('./note-actions-menu.tsx')
 
@@ -145,7 +140,11 @@ function noteRow(path: string, isPrivate: boolean, title = 'Meeting') {
   return { path, title, dailyDate: null, isPrivate }
 }
 
+let operations: TestOperationsService
+
 beforeEach(() => {
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
   graphStore.set({ root: '/g', name: 'g', generation: 7 })
   currentNoteRow = noteRow('notes/meeting.md', false)
   currentNoteRowSettled = true
@@ -161,11 +160,10 @@ beforeEach(() => {
   })
   deleteOpenNote.mockReset().mockResolvedValue(undefined)
   shareNote.mockReset().mockResolvedValue(undefined)
-  startOperation.mockClear()
-  operationFail.mockClear()
 })
 
 afterEach(async () => {
+  setDefaultOperations(null)
   await cleanup()
 })
 
@@ -260,8 +258,12 @@ describe('NoteActionsMenu', () => {
     await openActions()
     await view.getByRole('button', { name: 'Lock note' }).click()
 
-    await vi.waitFor(() => expect(startOperation).toHaveBeenCalledWith('Updating privacy'))
-    await vi.waitFor(() => expect(operationFail).toHaveBeenCalledWith('disk on fire'))
+    await vi.waitFor(() =>
+      expect(operations.findByLabel('Updating privacy')).toMatchObject({
+        status: 'failed',
+        message: 'disk on fire',
+      }),
+    )
     await expect.element(view.getByRole('button', { name: 'Lock note' })).not.toBeInTheDocument()
 
     await openActions()

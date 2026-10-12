@@ -16,6 +16,7 @@ import { setDefaultIdService } from './id-service.ts'
 import { setDefaultImageCodec } from './image-codec-service.ts'
 import { setDefaultLifecycle } from './lifecycle-service.ts'
 import { setDefaultLogger } from './logger-service.ts'
+import { setDefaultOperations } from './operations-service.ts'
 import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
 import { setDefaultPlatform } from './platform-service.ts'
@@ -45,6 +46,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultMobileStorage(services.mobileStorage)
   setDefaultImageCodec(services.imageCodec)
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
+  setDefaultOperations(services.operations)
   setDefaultIpc(services.ipc)
 }
 
@@ -71,5 +73,6 @@ export function resetDefaultServices(): void {
   setDefaultMobileStorage(null)
   setDefaultImageCodec(null)
   setDefaultExceptionTelemetry(null)
+  setDefaultOperations(null)
   setDefaultIpc(null)
 }

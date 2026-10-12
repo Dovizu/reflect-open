@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultPlatform, type EmbedStatus } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import { setDefaultPlatform, type EmbedStatus, setDefaultOperations } from '@reflect/core'
+import {
+  createTestPlatformService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
 import { notePathForRoute, type Route } from '@/routing/route.ts'
 import type { NavigateOptions } from '@/routing/router.tsx'
-import { resetOperations } from '@/lib/operations.ts'
 import type { CommandContext } from './types.ts'
 
 const TODAY = '2026-06-09'
@@ -18,10 +21,6 @@ const runCopyDeepLink = vi.hoisted(() => vi.fn(async () => undefined))
 const runCopyNotePath = vi.hoisted(() => vi.fn(async () => undefined))
 const toggleDevtools = vi.hoisted(() => vi.fn(async () => undefined))
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
-const operationFail = vi.hoisted(() => vi.fn())
-const startOperation = vi.hoisted(() =>
-  vi.fn(() => ({ progress: vi.fn(), done: vi.fn(), fail: operationFail })),
-)
 vi.mock('@/lib/semantic.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/semantic.ts')>()),
   backfillEmbeddingsVisibly,
@@ -29,10 +28,6 @@ vi.mock('@/lib/semantic.ts', async (importOriginal) => ({
 vi.mock('@/lib/note-deep-link.ts', () => ({ runCopyDeepLink }))
 vi.mock('@/lib/note-copy-path.ts', () => ({ runCopyNotePath }))
 vi.mock('@/lib/windows/open-in-new-window.ts', () => ({ openRouteInNewWindow }))
-vi.mock('@/lib/operations.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/operations.ts')>()),
-  startOperation,
-}))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   randomNotePath,
@@ -44,12 +39,17 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 // Importing registers the commands (module side effect, like production).
 const { APP_COMMANDS, keybindingFor } = await import('./app-commands.ts')
 
+let operations: TestOperationsService
+
 beforeEach(() => {
   setDefaultPlatform(createTestPlatformService())
+  operations = createTestOperationsService()
+  setDefaultOperations(operations)
 })
 
 afterEach(() => {
   setDefaultPlatform(null)
+  setDefaultOperations(null)
 })
 
 function command(id: string) {
@@ -351,37 +351,30 @@ describe('app commands', () => {
   })
 
   it('index.rebuild runs at the open generation and reports as an operation', async () => {
-    try {
-      rebuildIndex.mockResolvedValueOnce(undefined)
-      const { context } = fakeContext()
-      await command('index.rebuild').run(context)
-      expect(rebuildIndex).toHaveBeenCalledWith(
-        expect.objectContaining({ generation: 7, onSkippedNote: expect.any(Function) }),
-      )
+    rebuildIndex.mockResolvedValueOnce(undefined)
+    const { context } = fakeContext()
+    await command('index.rebuild').run(context)
+    expect(rebuildIndex).toHaveBeenCalledWith(
+      expect.objectContaining({ generation: 7, onSkippedNote: expect.any(Function) }),
+    )
+    expect(operations.findByLabel('Rebuilding search index')?.status).toBe('running')
 
-      // No graph open → no rebuild.
-      rebuildIndex.mockClear()
-      const { context: noGraph } = fakeContext({ generation: () => null })
-      await command('index.rebuild').run(noGraph)
-      expect(rebuildIndex).not.toHaveBeenCalled()
-    } finally {
-      resetOperations()
-    }
+    // No graph open → no rebuild.
+    rebuildIndex.mockClear()
+    const { context: noGraph } = fakeContext({ generation: () => null })
+    await command('index.rebuild').run(noGraph)
+    expect(rebuildIndex).not.toHaveBeenCalled()
   })
 
   it('index.rebuild re-runs the embedding backfill when the model is ready', async () => {
-    try {
-      rebuildIndex.mockResolvedValueOnce(undefined)
-      embedStatus.mockResolvedValueOnce({ status: 'ready', model: 'all-MiniLM-L6-v2' })
-      const { context } = fakeContext()
-      await command('index.rebuild').run(context)
-      // index_clear wiped the embedding tables; rebuild must repopulate them.
-      expect(backfillEmbeddingsVisibly).toHaveBeenCalledWith({
-        generation: 7,
-        modelId: 'all-MiniLM-L6-v2',
-      })
-    } finally {
-      resetOperations()
-    }
+    rebuildIndex.mockResolvedValueOnce(undefined)
+    embedStatus.mockResolvedValueOnce({ status: 'ready', model: 'all-MiniLM-L6-v2' })
+    const { context } = fakeContext()
+    await command('index.rebuild').run(context)
+    // index_clear wiped the embedding tables; rebuild must repopulate them.
+    expect(backfillEmbeddingsVisibly).toHaveBeenCalledWith({
+      generation: 7,
+      modelId: 'all-MiniLM-L6-v2',
+    })
   })
 })

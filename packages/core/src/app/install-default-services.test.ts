@@ -18,6 +18,7 @@ import { defaultImageCodec } from './image-codec-service.ts'
 import { installDefaultServices, resetDefaultServices } from './install-default-services.ts'
 import { defaultLifecycle } from './lifecycle-service.ts'
 import { defaultLogger } from './logger-service.ts'
+import { defaultOperations } from './operations-service.ts'
 import { defaultOpener } from './opener-service.ts'
 import { defaultPath } from './path-service.ts'
 import { defaultPlatform } from './platform-service.ts'
@@ -55,6 +56,7 @@ describe('installDefaultServices', () => {
     expect(defaultMobileStorage()).toBe(services.mobileStorage)
     expect(defaultImageCodec()).toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
+    expect(defaultOperations()).toBe(services.operations)
   })
 })
 
@@ -71,6 +73,7 @@ describe('resetDefaultServices', () => {
     expect(defaultCalendar()).not.toBe(services.calendar)
     expect(defaultImageCodec()).not.toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
+    expect(defaultOperations()).not.toBe(services.operations)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

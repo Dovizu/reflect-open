@@ -27,6 +27,7 @@ import { createTestImageCodec, type TestImageCodecService } from './image-codec.
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
+import { createTestOperationsService, type TestOperationsService } from './operations.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
 import {
   createTestAppInfoService,
@@ -72,6 +73,7 @@ export interface TestAppServices extends AppServices {
   readonly mobileStorage: TestMobileStorageService
   readonly imageCodec: TestImageCodecService
   readonly exceptionTelemetry: TestExceptionTelemetryService
+  readonly operations: TestOperationsService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -82,10 +84,11 @@ export function createTestAppServices<Overrides extends Partial<AppServices>>(
 export function createTestAppServices(overrides?: Partial<AppServices>): AppServices {
   const testLogger = createTestLoggerService()
   const logger = overrides?.logger ?? testLogger
+  const clock = createTestClockService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
-    clock: createTestClockService(),
+    clock,
     id: createTestIdService(),
     hash: createTestHashService(),
     platform: createTestPlatformService(),
@@ -105,6 +108,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: createTestMobileStorageService(),
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
+    operations: createTestOperationsService(clock),
   }
   return Object.assign(services, overrides)
 }
