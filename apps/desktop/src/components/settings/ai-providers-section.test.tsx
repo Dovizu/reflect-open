@@ -11,6 +11,7 @@ import {
   type HostedAiProviderConfig,
   type Settings,
   setDefaultOperations,
+  setDefaultSettings,
 } from '@reflect/core'
 import {
   createTestHttpService,
@@ -116,6 +117,7 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
   installFakeBridge()
+  setDefaultSettings(null)
   http = createTestHttpService([{ method: '*', url: () => true, reply: { status: 200 } }])
   setDefaultHttp(http)
 })
@@ -123,6 +125,7 @@ beforeEach(() => {
 afterEach(() => {
   setDefaultOperations(null)
   setBridge(null)
+  setDefaultSettings(null)
   setDefaultSecretStore(null)
   setDefaultHttp(null)
   queryClient.clear()

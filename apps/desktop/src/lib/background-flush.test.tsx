@@ -20,9 +20,9 @@ const seams = vi.hoisted(() => ({
 vi.mock('@reflect/core', () => ({
   beginBackgroundTask: seams.beginBackgroundTask,
   endBackgroundTask: seams.endBackgroundTask,
+  defaultSettings: () => ({ flush: seams.flushSettings }),
 }))
 vi.mock('@/editor/open-documents.ts', () => ({ flushOpenDocuments: seams.flushOpenDocuments }))
-vi.mock('@/lib/settings-flush.ts', () => ({ flushSettings: seams.flushSettings }))
 vi.mock('@/lib/backup-flush.ts', () => ({ flushBackup: seams.flushBackup }))
 
 let visibility: DocumentVisibilityState

@@ -1,94 +1,50 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import { foldKey } from '../markdown/index.ts'
-import { resolveNoteTarget } from './resolve-target.ts'
+import { describe, expect, it } from 'vitest'
+import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
+import { createIndexQueryService, type IndexQueryService } from './index-query-service.ts'
 
-// Same fake-bridge harness as queries.test: `db_query` resolves against the
-// mock, so the tests pin the real compiled SQL and the resolution order.
-const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
-
-beforeEach(() => {
-  mockInvoke.mockReset()
-  setBridge({ invoke: mockInvoke, listen: async () => () => {} })
-})
-
-afterEach(() => {
-  setBridge(null)
-})
-
-function queryCalls(): { sql: string; params: unknown[] }[] {
-  return mockInvoke.mock.calls.map(([, args]) => ({
-    sql: String(args['sql']),
-    params: args['params'] as unknown[],
-  }))
+function setup(): IndexQueryService {
+  const database = createTestDatabaseService()
+  seedNotes(database, [
+    {
+      path: 'notes/project-x.md',
+      markdown: '---\nid: 01hzy3v9k2m4n6p8q0r2s4t6vw\n---\n# Project X\n',
+    },
+    { path: 'notes/project-x-2.md', markdown: '# Project X\n' },
+    { path: 'notes/foo.md', markdown: '# Something Else\n' },
+    { path: 'notes/aliased.md', markdown: '---\naliases: [PX]\n---\n# Aliased\n' },
+    { path: 'notes/zz-id-title.md', markdown: '# 01hzy3v9k2m4n6p8q0r2s4t6vw\n' },
+  ])
+  return createIndexQueryService({ database })
 }
 
 describe('resolveNoteTarget', () => {
-  it('resolves a frontmatter id first, without falling through', async () => {
-    mockInvoke.mockResolvedValueOnce([{ path: 'notes/project-x.md' }])
-
-    await expect(resolveNoteTarget('01hzy3v9k2m4n6p8q0r2s4t6vw')).resolves.toBe(
+  it('resolves a frontmatter id first, ahead of a title spelled the same', async () => {
+    await expect(setup().resolveNoteTarget('01hzy3v9k2m4n6p8q0r2s4t6vw')).resolves.toBe(
       'notes/project-x.md',
     )
-
-    const calls = queryCalls()
-    expect(calls).toHaveLength(1)
-    expect(calls[0]!.sql).toContain('"id" = ?')
-    expect(calls[0]!.sql).toContain('order by "path"')
-    expect(calls[0]!.params).toEqual(['01hzy3v9k2m4n6p8q0r2s4t6vw'])
   })
 
   it('resolves a calendar date to the daily path even when the file does not exist', async () => {
-    mockInvoke.mockResolvedValueOnce([]) // no id match
-
-    await expect(resolveNoteTarget('2026-07-01')).resolves.toBe('daily/2026-07-01.md')
-    expect(queryCalls()).toHaveLength(1)
+    await expect(setup().resolveNoteTarget('2026-07-01')).resolves.toBe('daily/2026-07-01.md')
   })
 
   it('does not treat an impossible date as a daily note', async () => {
-    mockInvoke.mockResolvedValue([])
-
-    await expect(resolveNoteTarget('2026-02-31')).resolves.toBeNull()
+    await expect(setup().resolveNoteTarget('2026-02-31')).resolves.toBeNull()
   })
 
   it('resolves an explicit graph-relative path when the index knows it', async () => {
-    mockInvoke.mockResolvedValueOnce([]) // id
-    mockInvoke.mockResolvedValueOnce([{ path: 'notes/foo.md' }]) // path
-
-    await expect(resolveNoteTarget('notes/foo.md')).resolves.toBe('notes/foo.md')
-
-    const calls = queryCalls()
-    expect(calls[1]!.sql).toContain('"path" = ?')
-    expect(calls[1]!.params).toEqual(['notes/foo.md'])
+    const service = setup()
+    await expect(service.resolveNoteTarget('notes/foo.md')).resolves.toBe('notes/foo.md')
+    await expect(service.resolveNoteTarget('notes/missing.md')).resolves.toBeNull()
   })
 
   it('falls back to a case-folded title match, first path alphabetically', async () => {
-    mockInvoke.mockResolvedValueOnce([]) // id
-    mockInvoke.mockResolvedValueOnce([]) // path
-    mockInvoke.mockResolvedValueOnce([{ path: 'notes/project-x.md' }]) // title
-
-    await expect(resolveNoteTarget('Project X')).resolves.toBe('notes/project-x.md')
-
-    const calls = queryCalls()
-    expect(calls[2]!.sql).toContain('"title_key" = ?')
-    expect(calls[2]!.sql).toContain('order by "path"')
-    expect(calls[2]!.params).toEqual([foldKey('Project X')])
+    await expect(setup().resolveNoteTarget('PROJECT x')).resolves.toBe('notes/project-x-2.md')
   })
 
   it('falls back to an alias match last, and to null when nothing matches', async () => {
-    mockInvoke.mockResolvedValueOnce([]) // id
-    mockInvoke.mockResolvedValueOnce([]) // path
-    mockInvoke.mockResolvedValueOnce([]) // title
-    mockInvoke.mockResolvedValueOnce([{ note_path: 'notes/aliased.md' }]) // alias
-
-    await expect(resolveNoteTarget('PX')).resolves.toBe('notes/aliased.md')
-
-    const calls = queryCalls()
-    expect(calls[3]!.sql).toContain('"alias_key" = ?')
-    expect(calls[3]!.params).toEqual([foldKey('PX')])
-
-    mockInvoke.mockReset()
-    mockInvoke.mockResolvedValue([])
-    await expect(resolveNoteTarget('nothing matches this')).resolves.toBeNull()
+    const service = setup()
+    await expect(service.resolveNoteTarget('px')).resolves.toBe('notes/aliased.md')
+    await expect(service.resolveNoteTarget('nothing matches this')).resolves.toBeNull()
   })
 })

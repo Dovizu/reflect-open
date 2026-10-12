@@ -10,6 +10,7 @@ import {
   setDefaultPlatform,
   setDefaultStorage,
   type CalendarEvent,
+  setDefaultSettings,
 } from '@reflect/core'
 import {
   createTestCalendarService,
@@ -121,11 +122,13 @@ beforeEach(() => {
   setDefaultStorage(createTestStorageService())
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   installFakeBridge()
+  setDefaultSettings(null)
 })
 
 afterEach(() => {
   setDefaultStorage(null)
   setBridge(null)
+  setDefaultSettings(null)
   setDefaultCalendar(null)
   setDefaultContacts(null)
   queryClient.clear()

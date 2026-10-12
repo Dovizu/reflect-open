@@ -18,10 +18,19 @@ import { defaultAssetStore } from '../graph/asset-store-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
 import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
+import { defaultBacklinks } from '../indexing/backlink-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
+import { defaultGraphStats } from '../indexing/graph-stats-service.ts'
+import { defaultIndexQuery } from '../indexing/index-query-service.ts'
+import { defaultNoteList } from '../indexing/note-list-service.ts'
+import { defaultNotePath } from '../indexing/note-path-service.ts'
+import { defaultSearch } from '../indexing/search-service.ts'
+import { defaultSuggestions } from '../indexing/suggestion-service.ts'
+import { defaultWikiResolver } from '../indexing/wiki-resolver-service.ts'
 import { defaultIndexStore } from '../indexing/index-store-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
+import { defaultTheme } from '../settings/theme-service.ts'
 import { createTestAppServices } from '../testing/services.ts'
 import { defaultAgentSkill } from './agent-skill-service.ts'
 import { defaultAppInfo } from './app-info-service.ts'
@@ -76,6 +85,7 @@ describe('installDefaultServices', () => {
     expect(defaultImageCodec()).toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultOperations()).toBe(services.operations)
+    expect(defaultTheme()).toBe(services.theme)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
     expect(defaultIndexStore()).toBe(services.indexStore)
@@ -95,6 +105,14 @@ describe('installDefaultServices', () => {
     expect(defaultNoteFile()).toBe(services.noteFile)
     expect(defaultAssetStore()).toBe(services.assetStore)
     expect(defaultAttachments()).toBe(services.attachments)
+    expect(defaultIndexQuery()).toBe(services.indexQuery)
+    expect(defaultWikiResolver()).toBe(services.wikiResolver)
+    expect(defaultBacklinks()).toBe(services.backlinks)
+    expect(defaultSearch()).toBe(services.search)
+    expect(defaultSuggestions()).toBe(services.suggestions)
+    expect(defaultNoteList()).toBe(services.noteList)
+    expect(defaultGraphStats()).toBe(services.graphStats)
+    expect(defaultNotePath()).toBe(services.notePath)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
@@ -121,6 +139,7 @@ describe('resetDefaultServices', () => {
     expect(defaultImageCodec()).not.toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultOperations()).not.toBe(services.operations)
+    expect(defaultTheme()).not.toBe(services.theme)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
     expect(defaultIndexStore()).not.toBe(services.indexStore)
@@ -140,6 +159,14 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteFile()).not.toBe(services.noteFile)
     expect(defaultAssetStore()).not.toBe(services.assetStore)
     expect(defaultAttachments()).not.toBe(services.attachments)
+    expect(defaultIndexQuery()).not.toBe(services.indexQuery)
+    expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
+    expect(defaultBacklinks()).not.toBe(services.backlinks)
+    expect(defaultSearch()).not.toBe(services.search)
+    expect(defaultSuggestions()).not.toBe(services.suggestions)
+    expect(defaultNoteList()).not.toBe(services.noteList)
+    expect(defaultGraphStats()).not.toBe(services.graphStats)
+    expect(defaultNotePath()).not.toBe(services.notePath)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

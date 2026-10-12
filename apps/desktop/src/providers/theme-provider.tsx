@@ -1,22 +1,24 @@
 import {
   createContext,
-  useCallback,
   use,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { defaultPlatform, type ThemePreference } from '@reflect/core'
-import { writeCachedThemePreference } from '@/lib/theme-cache.ts'
-import { useSettings, type SettingsLoadOutcome } from '@/providers/settings-provider.tsx'
+import {
+  defaultTheme,
+  type ResolvedTheme as CoreResolvedTheme,
+  type ThemePreference,
+} from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /** User-selectable theme; `system` follows the OS preference. */
 export type Theme = ThemePreference
 
 /** The concrete theme actually applied to the document. */
-export type ResolvedTheme = 'light' | 'dark'
+export type ResolvedTheme = CoreResolvedTheme
 
 interface ThemeContextValue {
   theme: Theme
@@ -26,73 +28,38 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
-function getSystemTheme(): ResolvedTheme {
-  return defaultPlatform().colorScheme()
-}
-
 interface ThemeProviderProps {
   children: ReactNode
 }
 
 /**
  * Provides the app theme and applies it by toggling the design-system `.dark`
- * scope on the document root. The preference lives in the settings document
- * (the `theme` key), so a choice made anywhere — settings screen, palette
- * command — persists across launches; `system` reacts to live OS changes.
+ * scope on the document root.
  *
- * Applying the theme waits for the settings load to settle. Until then
- * `settings.theme` is the `system` default rather than the user's choice, and
- * `public/theme-init.js` has already painted the cached preference — writing the
+ * Applying the theme waits for the settings load to settle. Until then the
+ * preference is the `system` default rather than the user's choice, and
+ * `public/theme-init.js` has already painted the cached preference. Writing the
  * default over it would flash a pinned-light user on a dark OS to dark and
  * straight back.
  */
 export function ThemeProvider({ children }: ThemeProviderProps): ReactElement {
-  const { settings, updateSettings, whenSettingsLoaded } = useSettings()
-  const theme = settings.theme
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(getSystemTheme)
-  const [loadOutcome, setLoadOutcome] = useState<SettingsLoadOutcome | null>(null)
+  const service = useAppServices({ optional: true })?.theme ?? defaultTheme()
+  const theme = useSyncExternalStore(service.subscribe, service.preference)
+  const resolvedTheme = useSyncExternalStore(service.subscribe, service.resolved)
+  const settled = useSyncExternalStore(service.subscribe, service.settled)
 
   useEffect(() => {
-    let active = true
-    void (async () => {
-      const outcome = await whenSettingsLoaded()
-      if (active) {
-        setLoadOutcome(outcome)
-      }
-    })()
-    return () => {
-      active = false
-    }
-  }, [whenSettingsLoaded])
-
-  useEffect(() => defaultPlatform().subscribeColorScheme(setSystemTheme), [])
-
-  const resolvedTheme: ResolvedTheme = theme === 'system' ? systemTheme : theme
-
-  useEffect(() => {
-    if (loadOutcome === null) {
+    if (!settled) {
       return
     }
     const root = document.documentElement
     root.classList.toggle('dark', resolvedTheme === 'dark')
     root.style.colorScheme = resolvedTheme
-  }, [loadOutcome, resolvedTheme])
-
-  // Only a loaded document is worth caching: after a failed load changes apply
-  // for the session only, so mirroring them would have the next launch paint a
-  // preference that was never persisted. The last cached value stays instead.
-  useEffect(() => {
-    if (loadOutcome !== 'loaded') {
-      return
-    }
-    writeCachedThemePreference(theme)
-  }, [loadOutcome, theme])
-
-  const setTheme = useCallback((next: Theme) => updateSettings({ theme: next }), [updateSettings])
+  }, [settled, resolvedTheme])
 
   const value = useMemo<ThemeContextValue>(
-    () => ({ theme, resolvedTheme, setTheme }),
-    [theme, resolvedTheme, setTheme],
+    () => ({ theme, resolvedTheme, setTheme: service.setPreference }),
+    [theme, resolvedTheme, service],
   )
 
   return <ThemeContext value={value}>{children}</ThemeContext>
