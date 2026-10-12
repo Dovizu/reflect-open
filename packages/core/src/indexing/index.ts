@@ -24,7 +24,6 @@ export {
 } from './file-change-service.ts'
 export { subscribeOwnWrites } from './local-write-echo.ts'
 export { subscribeIcloudConflicts, subscribeIcloudWatchFailed } from './icloud-conflicts.ts'
-export { subscribeIndexApplied, type IndexAppliedListener } from './index-applied.ts'
 export { INDEX_WRITTEN_EVENT, subscribeIndexWritten } from './index-written.ts'
 export { applyIndexChanges, type ApplyErrorHandler, type MovedHandler } from './live.ts'
 export { hashContent } from './hash.ts'
@@ -45,12 +44,7 @@ export {
   type IndexedTag,
   type IndexedAlias,
 } from './indexed-note.ts'
-export {
-  indexNote,
-  reindexNotesReferencing,
-  PROJECTION_VERSION_KEY,
-  type IndexPassOptions,
-} from './indexer.ts'
+export { indexNote, PROJECTION_VERSION_KEY, type IndexPassOptions } from './indexer.ts'
 export {
   dailyDatesInRange,
   getBacklinks,

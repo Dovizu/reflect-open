@@ -113,6 +113,15 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestAssetDescriptionService,
+  createTestAssetPrivacyService,
+  createTestAssetReferences,
+  type TestAssetDescriptionService,
+  type TestAssetDescriptionSessionState,
+  type TestAssetPrivacyServiceOptions,
+  type TestAssetReferences,
+} from './assets.ts'
+export {
   createTestBacklinkTargetService,
   createTestCaptureInboxService,
   createTestCaptureService,

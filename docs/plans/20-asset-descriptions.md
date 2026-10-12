@@ -1,14 +1,16 @@
 # Plan 20 — Asset Descriptions
 
 > **Status (2026-06-16): Implemented.** Built end-to-end against the contracts
-> below: the AI call (`packages/core/src/ai/describe-asset.ts`), the reconcile +
-> privacy gate (`packages/core/src/actions/asset-description.ts`,
+> below: the AI call (`packages/core/src/ai/asset-describer-service.ts`), the
+> reconcile, session loop and backfill
+> (`packages/core/src/assets/asset-description-service.ts`), the privacy gate
+> (`packages/core/src/assets/asset-privacy-service.ts`,
 > `packages/core/src/indexing/asset-refs.ts`), the watcher carve-out
-> (`apps/desktop/src-tauri/src/watcher.rs`), the single-flight controller
-> (`apps/desktop/src/lib/asset-describe-controller.ts`) mounted by
+> (`apps/desktop/src-tauri/src/watcher.rs`), the session mounted by
 > `apps/desktop/src/providers/asset-describe-provider.tsx`, and the Settings
 > control (`describeAssets` setting + `apps/desktop/src/components/settings/
-> describe-assets-field.tsx` + `apps/desktop/src/lib/asset-backfill.ts`).
+> describe-assets-field.tsx`). The sections below keep the file and function
+> names of the original implementation.
 > Decisions D1 (auto-describe **on** for new assets) and D5 (index-candidate +
 > live recheck) landed as recommended. A post-release add-on in the spirit of
 > [Plan 18 — Tasks](18-tasks.md): an opt-in enrichment layer on top of the

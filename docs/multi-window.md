@@ -109,7 +109,7 @@ screen — never the chooser, which could re-root every other window.
 
 All cross-window signals are **Tauri events emitted from Rust**; the
 frontends never talk to each other directly. In-process signals
-(`emitIndexApplied`, `emitNoteMoved`) do not cross webviews — that
+(`IndexLifecycleService.onChangesApplied`, `emitNoteMoved`) do not cross webviews — that
 asymmetry is what each broadcast below exists to bridge.
 
 | Event | Emitted by | Consumed by | Purpose |

@@ -245,6 +245,28 @@ describe('createIndexLifecycleService', () => {
     expect(batches).toHaveLength(1)
   })
 
+  it('reports the notes a description re-index applied, to its own listeners only', async () => {
+    const REFERENCING = '# Hello\n\n![pic](assets/pic.png)\n'
+    const { index } = setup({
+      files: { 'notes/a.md': REFERENCING },
+      indexed: [{ path: 'notes/a.md', markdown: REFERENCING }],
+    })
+    const other = setup()
+    const batches: IndexChangesAppliedEvent[] = []
+    const otherBatches: IndexChangesAppliedEvent[] = []
+    index.onChangesApplied((event) => {
+      batches.push(event)
+    })
+    other.index.onChangesApplied((event) => {
+      otherBatches.push(event)
+    })
+
+    await index.reindexNotesReferencing(['assets/pic.png'], 7)
+
+    expect(batches).toEqual([{ generation: 7, changes: [{ path: 'notes/a.md', kind: 'upsert' }] }])
+    expect(otherBatches).toEqual([]) // the signal is per lifecycle, not process-wide
+  })
+
   it('reports a move healed by the reconcile', async () => {
     const OLD = 'notes/01arz3ndektsv4rrffq69g5fav.md'
     const NEW = 'notes/meeting-notes.md'

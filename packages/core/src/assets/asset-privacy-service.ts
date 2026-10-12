@@ -1,0 +1,135 @@
+import { isAppError } from '../errors.ts'
+import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import {
+  assetReferenceMatches,
+  assetReferencingNotePaths,
+  type AssetReferences,
+} from '../indexing/asset-refs.ts'
+import { parseNote } from '../markdown/extract.ts'
+import { defaultXArchive, type XArchiveService } from '../x-archive.ts'
+
+/** Outcome of the privacy gate for one asset. */
+export type AssetVerdict = 'send' | 'skip-unreferenced' | 'skip-private'
+
+/**
+ * The asset privacy verdict both asset-description consumers share: the
+ * generation pass (`AssetDescriptionService`) decides whether an asset's
+ * bytes may be sent to a provider, and the chat read_assets tool decides
+ * whether its stored description may be — the sidecar on disk can predate a
+ * note turning private, so the read path re-runs the same verdict live.
+ *
+ * The contract: sendable only when the asset is referenced by ≥1 non-private
+ * note and by **0** private notes. Candidates come from the index, but the
+ * verdict is made from each candidate's live markdown, failing closed.
+ */
+export interface AssetPrivacyService {
+  /**
+   * Decide whether an asset may be sent: referenced by ≥1 non-private note and by
+   * **0** private notes (unreferenced → skip). Candidate notes come from the
+   * index, but the verdict is made from each candidate's **live** markdown — the
+   * private flag and a re-confirmation that the body still references the asset.
+   * Fails closed: an unreadable candidate blocks the asset.
+   */
+  classifyAsset(assetPath: string, generation: number): Promise<AssetVerdict>
+  /**
+   * The verdict core of {@link AssetPrivacyService.classifyAsset}, over an
+   * explicit candidate list and note reader. The chat tools reuse it with
+   * unpinned reads and an injectable candidate query; the description pass
+   * wraps it with generation-pinned reads.
+   */
+  classifyAssetFromNotes(
+    assetPath: string,
+    candidates: readonly string[],
+    readSource: (notePath: string) => Promise<string>,
+    knownOwners?: readonly string[],
+  ): Promise<AssetVerdict>
+}
+
+export function createAssetPrivacyService(deps: {
+  noteFile: Pick<NoteFileService, 'read'>
+  xArchive: Pick<XArchiveService, 'owners'>
+  assetReferences: AssetReferences
+}): AssetPrivacyService {
+  const { noteFile, xArchive, assetReferences } = deps
+
+  async function classifyAssetFromNotes(
+    assetPath: string,
+    candidates: readonly string[],
+    readSource: (notePath: string) => Promise<string>,
+    knownOwners?: readonly string[],
+  ): Promise<AssetVerdict> {
+    if (candidates.length === 0) {
+      return 'skip-unreferenced'
+    }
+    const owners = knownOwners ?? (await xArchive.owners(assetPath))
+    const references = [assetPath, ...owners]
+    let publicRefs = 0
+    for (const notePath of candidates) {
+      let source: string
+      try {
+        source = await readSource(notePath)
+      } catch (cause) {
+        if (isAppError(cause) && cause.kind === 'notFound') {
+          continue
+        }
+        return 'skip-private'
+      }
+      const parsed = parseNote({ path: notePath, source })
+      if (
+        !parsed.assets.some((ref) =>
+          references.some((path) => assetReferenceMatches(ref.path, path)),
+        )
+      ) {
+        continue
+      }
+      if (parsed.frontmatter.private) {
+        return 'skip-private'
+      }
+      publicRefs += 1
+    }
+    return publicRefs > 0 ? 'send' : 'skip-unreferenced'
+  }
+
+  return {
+    async classifyAsset(assetPath, generation) {
+      const owners = await xArchive.owners(assetPath, generation)
+      const candidates = await assetReferences.notePaths(assetPath, owners)
+      return await classifyAssetFromNotes(
+        assetPath,
+        candidates,
+        (notePath) => noteFile.read(notePath, generation),
+        owners,
+      )
+    },
+    classifyAssetFromNotes,
+  }
+}
+
+let installedService: AssetPrivacyService | null = null
+let fallback: AssetPrivacyService | null = null
+
+/**
+ * The process-wide `AssetPrivacyService`. Unless
+ * {@link setDefaultAssetPrivacy} installed one, a service that reads the
+ * process-wide note files, X archive and index at every call.
+ */
+export function defaultAssetPrivacy(): AssetPrivacyService {
+  if (installedService !== null) {
+    return installedService
+  }
+  fallback ??= createAssetPrivacyService({
+    noteFile: { read: (path, generation) => defaultNoteFile().read(path, generation) },
+    xArchive: {
+      owners: (assetPath, generation) => defaultXArchive().owners(assetPath, generation),
+    },
+    assetReferences: {
+      notePaths: (assetPath, knownOwners) => assetReferencingNotePaths(assetPath, knownOwners),
+    },
+  })
+  return fallback
+}
+
+/** Install the process-wide `AssetPrivacyService`; `null` restores the one over the default services. */
+export function setDefaultAssetPrivacy(service: AssetPrivacyService | null): void {
+  installedService = service
+}

@@ -45,6 +45,15 @@ import {
 } from '../capture/backlink-target-service.ts'
 import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
 import {
+  createAssetDescriptionService,
+  type AssetDescriptionService,
+} from '../assets/asset-description-service.ts'
+import {
+  createAssetPrivacyService,
+  type AssetPrivacyService,
+} from '../assets/asset-privacy-service.ts'
+import { createAssetReferences } from '../indexing/asset-refs.ts'
+import {
   createCaptureInboxService,
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
@@ -344,6 +353,8 @@ export interface AppServices {
   readonly transcriptEnrichment: TranscriptEnrichmentService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: CaptureService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescription: AssetDescriptionService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -512,6 +523,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const captureInbox = createCaptureInboxService({ ipc })
   const webFetch = createWebFetchService({ ipc })
   const pageDescriber = createPageDescriberService({ languageModel })
+  const reconcilers = createBackgroundReconcilerFactory({ lifecycle })
+  const assetPrivacy = createAssetPrivacyService({
+    noteFile,
+    xArchive,
+    assetReferences: createAssetReferences({ database, xArchive }),
+  })
+  const assetDescriber = createAssetDescriberService({ languageModel })
   const backlinkTarget = createBacklinkTargetService({
     noteCreation: noteServices.noteCreation,
     noteFile,
@@ -719,7 +737,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       privacy: noteServices.privacy,
     }),
     pageDescriber,
-    assetDescriber: createAssetDescriberService({ languageModel }),
+    assetDescriber,
     transcription: withAppReviewDemoTranscription(
       createTranscriptionService({ http: adapters.http }),
     ),
@@ -739,11 +757,26 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       privacy: noteServices.privacy,
       hash,
       clock,
-      reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
+      reconcilers,
       lifecycle,
       fileChanges,
       operations,
       platform,
+      logger,
+    }),
+    assetPrivacy,
+    assetDescription: createAssetDescriptionService({
+      assetStore,
+      noteFile,
+      assetPrivacy,
+      assetDescriber,
+      aiProviderConfig,
+      aiCredentials,
+      hash,
+      clock,
+      reconcilers,
+      indexLifecycle,
+      operations,
       logger,
     }),
   }
