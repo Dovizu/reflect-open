@@ -1,4 +1,4 @@
-import { defaultHaptics } from '@reflect/core'
+import type { MobileAppServices } from '@/mobile/mobile-services.ts'
 
 /**
  * Fire a light impact haptic: V1 parity for calendar-strip date taps and
@@ -7,8 +7,6 @@ import { defaultHaptics } from '@reflect/core'
  * plugin (`plugins/tauri-plugin-mobile-haptics`). Fire-and-forget and
  * fail-soft; see `HapticsService.impactLight`.
  */
-export function hapticImpactLight(): void {
-  void defaultHaptics()
-    .impactLight()
-    .catch(() => {})
+export function hapticImpactLight({ haptics }: Pick<MobileAppServices, 'haptics'>): void {
+  void haptics.impactLight().catch(() => {})
 }

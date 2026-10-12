@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ReactElement } from 'react'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { useRouter } from '@/routing/router.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { useWakeToToday } from './use-wake-to-today.ts'
 
 /**
@@ -18,11 +18,7 @@ function Probe(): ReactElement {
 }
 
 async function mountOn(date: string) {
-  const view = await renderWithServices(
-    <RouterProvider initialRoute={{ kind: 'daily', date }}>
-      <Probe />
-    </RouterProvider>,
-  )
+  const view = await renderInApp(<Probe />, { route: { kind: 'daily', date } })
   view.app.clock.setNow(new Date(2026, 5, 12, 22, 0, 0).getTime()) // 2026-06-12, late evening
   return view
 }

@@ -1,24 +1,20 @@
 import { focusManager } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
-import type { ReactNode } from 'react'
 import {
   IAP_PRODUCT_IDS,
   createAppStoreEnvironmentService,
   createClassicAccessService,
   createPaywallService,
   createSubscriptionService,
-  type AppServices,
 } from '@reflect/core'
 import {
   createTestAppServices,
   createTestAppStoreService,
   createTestIapService,
   createTestPlatformService,
-  installTestServices,
 } from '@reflect/core/testing'
 import { usePaywallRequested } from '@/hooks/use-paywall-requested.ts'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { usePaywallGate } from './use-paywall-gate.ts'
 
 /**
@@ -26,32 +22,19 @@ import { usePaywallGate } from './use-paywall-gate.ts'
  * checks the gate depends on. The gate's decisions live with the service.
  */
 
-let restore: (() => void) | null = null
-
 afterEach(() => {
   focusManager.setFocused(undefined)
-  restore?.()
-  restore = null
 })
 
 function iosServices() {
   return createTestAppServices({ platform: createTestPlatformService({ appPlatform: 'ios' }) })
 }
 
-function wrapperFor(services: AppServices) {
-  restore = installTestServices(services)
-  return function wrapper({ children }: { children: ReactNode }) {
-    return <AppServicesProvider services={services}>{children}</AppServicesProvider>
-  }
-}
-
 describe('usePaywallGate', () => {
   it('follows the paywall service gate', async () => {
     const services = iosServices()
     services.paywall.setGate('show')
-    const { result, act } = await renderHook(() => usePaywallGate(), {
-      wrapper: wrapperFor(services),
-    })
+    const { result, act } = await renderHookInApp(() => usePaywallGate(), { app: services })
     expect(result.current).toBe('show')
 
     await act(() => {
@@ -62,7 +45,7 @@ describe('usePaywallGate', () => {
 
   it('starts the subscription, Reflect Classic, and install-channel checks', async () => {
     const services = iosServices()
-    await renderHook(() => usePaywallGate(), { wrapper: wrapperFor(services) })
+    await renderHookInApp(() => usePaywallGate(), { app: services })
 
     await vi.waitFor(() => {
       expect(services.subscription.calls()).toContain('activeSubscription')
@@ -73,7 +56,7 @@ describe('usePaywallGate', () => {
 
   it('looks the subscription up again on window focus', async () => {
     const services = iosServices()
-    await renderHook(() => usePaywallGate(), { wrapper: wrapperFor(services) })
+    await renderHookInApp(() => usePaywallGate(), { app: services })
 
     focusManager.setFocused(false)
     focusManager.setFocused(true)
@@ -86,7 +69,7 @@ describe('usePaywallGate', () => {
     services.classicAccess.setState({
       access: { token: 'token', email: null, expiresAt: 1, checkedAt: 0 },
     })
-    await renderHook(() => usePaywallGate(), { wrapper: wrapperFor(services) })
+    await renderHookInApp(() => usePaywallGate(), { app: services })
     await vi.waitFor(() => expect(services.classicAccess.calls()).toContain('load'))
     const loads = services.classicAccess.calls().filter((call) => call === 'load').length
 
@@ -98,7 +81,7 @@ describe('usePaywallGate', () => {
 
   it('leaves Reflect Classic alone off iOS', async () => {
     const services = createTestAppServices()
-    await renderHook(() => usePaywallGate(), { wrapper: wrapperFor(services) })
+    await renderHookInApp(() => usePaywallGate(), { app: services })
     expect(services.classicAccess.calls()).toEqual([])
   })
 
@@ -152,9 +135,9 @@ describe('usePaywallGate', () => {
 
     it('shows the paywall on request outside the App Store, and lifts it after a purchase', async () => {
       const { iap, services } = realServices()
-      const { result, act } = await renderHook(
+      const { result, act } = await renderHookInApp(
         () => ({ gate: usePaywallGate(), requested: usePaywallRequested() }),
-        { wrapper: wrapperFor(services) },
+        { app: services },
       )
       await vi.waitFor(() => expect(services.appStoreEnvironment.getState().value).toBe('Sandbox'))
       expect(result.current.gate).toBe('hide')

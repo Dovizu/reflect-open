@@ -1,26 +1,22 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import type { AppStoreEnvironment } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
-import { useAppStoreEnvironmentService } from '@/services/use-monetization-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 
 export type { AppStoreEnvironment } from '@reflect/core'
 
-/** The live or startup-seeded App Store install channel, verified once the bridge is ready. */
+/** The live or startup-seeded App Store install channel, verified on mount. */
 export function useAppStoreEnvironment(): {
   value: AppStoreEnvironment
   isLoading: boolean
   isError: boolean
   invalidate: VoidFunction
 } {
-  const environment = useAppStoreEnvironmentService()
-  const bridgeReady = useBridgeReady()
+  const { appStoreEnvironment: environment } = useMobileAppServices()
   const state = useSyncExternalStore(environment.subscribe, environment.getState)
 
   useEffect(() => {
-    if (bridgeReady) {
-      void environment.environment()
-    }
-  }, [environment, bridgeReady])
+    void environment.environment()
+  }, [environment])
 
   return {
     value: state.value,

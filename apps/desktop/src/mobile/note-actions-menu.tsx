@@ -11,6 +11,7 @@ import { toggleNotePrivate } from '@/lib/note-private.ts'
 import { NoteDeleteDrawer } from '@/mobile/note-delete-drawer.tsx'
 import { shareNote } from '@/mobile/share.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface NoteActionsMenuProps {
   /** Graph-relative path of the note the actions operate on. */
@@ -30,6 +31,7 @@ interface NoteActionsMenuProps {
  */
 export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): ReactElement {
   const { graph } = useGraph()
+  const { share: shareService } = useAppServices()
   const queryClient = useQueryClient()
   const isPinned = usePinnedNotes().some((note) => note.path === path)
   const { row: noteRow, settled: privacyReady } = useNoteRowState(path)
@@ -60,7 +62,9 @@ export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): Reac
   }
 
   const share = (): void => {
-    void shareNote(path).catch((cause) => console.error('share failed:', errorMessage(cause)))
+    void shareNote({ share: shareService }, path).catch((cause) =>
+      console.error('share failed:', errorMessage(cause)),
+    )
   }
 
   return (
