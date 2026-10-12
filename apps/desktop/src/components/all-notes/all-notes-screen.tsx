@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { canTrashNote, foldTag, listNotes, listNoteTags } from '@reflect/core'
+import { canTrashNote, foldTag } from '@reflect/core'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
@@ -12,6 +12,7 @@ import { useScrollToIndexBridge } from '@/lib/use-scroll-to-index-bridge.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { routeForPath } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { AllNotesFilters } from './all-notes-filters.tsx'
 import { AllNotesTable } from './all-notes-table.tsx'
 import { AllNotesTrashDialog } from './all-notes-trash-dialog.tsx'
@@ -42,6 +43,7 @@ interface AllNotesScreenProps {
  */
 export function AllNotesScreen({ tag }: AllNotesScreenProps): ReactElement {
   const { graph } = useGraph()
+  const { noteList } = useAppServices()
   const { navigate } = useRouter()
   const navigateNoteLink = useNoteLinkNavigation()
   // The scroll container lives in state, not a ref, so scroll restoration
@@ -57,12 +59,12 @@ export function AllNotesScreen({ tag }: AllNotesScreenProps): ReactElement {
 
   const { data: notes } = useQuery({
     queryKey: queryKeys.index.allNotesWithTag(graph?.root, tag === null ? null : foldTag(tag)),
-    queryFn: () => listNotes({ tag }),
+    queryFn: () => noteList.listNotes({ tag }),
     enabled,
   })
   const { data: facets } = useQuery({
     queryKey: queryKeys.index.allNotesTags(graph?.root),
-    queryFn: () => listNoteTags(),
+    queryFn: () => noteList.listNoteTags(),
     enabled,
   })
 

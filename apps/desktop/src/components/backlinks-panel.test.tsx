@@ -1,39 +1,45 @@
-import { render } from 'vitest-browser-react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultStorage } from '@reflect/core'
-import { createTestStorageService } from '@reflect/core/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  BacklinkContextPage,
+  BacklinkService,
+  NoteCreationService,
+  NoteLinkResolverService,
+} from '@reflect/core'
+import { createTestAppServices, createTestWindowService } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { BacklinksPanel } from './backlinks-panel.tsx'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 
-const { getBacklinksWithContext, getBacklinksPage } = vi.hoisted(() => {
-  const getBacklinksWithContext = vi.fn()
-  const getBacklinksPage = vi.fn(async (path: string, options: unknown) => {
-    const result: unknown = await getBacklinksWithContext(path, options)
-    return Array.isArray(result)
-      ? { contexts: result, nextCursor: null, indexedLinkCount: result.length }
-      : result
+// What the app's fakes answer; each test sets them before `renderPanel`.
+const getBacklinksWithContext = vi.fn()
+const resolveOrCreateNoteWithTitle = vi.fn<NoteCreationService['resolveOrCreateNoteWithTitle']>()
+const resolveMarkdownHref = vi.fn<NoteLinkResolverService['resolveMarkdownHref']>()
+const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
+
+const getBacklinksPage: BacklinkService['getBacklinksWithContext'] = async (path, options) => {
+  const result: unknown = await getBacklinksWithContext(path, options)
+  return Array.isArray(result)
+    ? { contexts: result, nextCursor: null, indexedLinkCount: result.length }
+    : (result as BacklinkContextPage)
+}
+
+function createApp() {
+  const services = createTestAppServices({
+    window: createTestWindowService({ openNoteWindow }),
   })
-  return { getBacklinksWithContext, getBacklinksPage }
-})
-const resolveOrCreateNoteWithTitle = vi.hoisted(() => vi.fn())
-const resolveMarkdownHref = vi.hoisted(() => vi.fn())
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-  getBacklinksWithContext: getBacklinksPage,
-}))
-const { openNoteWindow } = installTestLinkNavigation({
-  noteCreation: { resolveOrCreateNoteWithTitle },
-  noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
-})
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
-}))
+  vi.spyOn(services.backlinks, 'getBacklinksWithContext').mockImplementation(getBacklinksPage)
+  vi.spyOn(services.noteCreation, 'resolveOrCreateNoteWithTitle').mockImplementation(
+    resolveOrCreateNoteWithTitle,
+  )
+  vi.spyOn(services.noteLinkResolver, 'resolveMarkdownHref').mockImplementation(resolveMarkdownHref)
+  return services
+}
+
+// One app per test, so a panel rendered twice shares its session storage.
+let app: ReturnType<typeof createApp>
 
 function RouteProbe(): ReactNode {
   const { route, arrivalFocusEditor } = useRouter()
@@ -44,28 +50,25 @@ function RouteProbe(): ReactNode {
   )
 }
 
+function renderInGraph(ui: ReactNode) {
+  return renderInApp(ui, { app, graph: { root: '/g', name: 'g', generation: 1 } })
+}
+
 function renderPanel(path: string) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <RouterProvider>
-        <BacklinksPanel path={path} />
-        <RouteProbe />
-      </RouterProvider>
-    </QueryClientProvider>,
+  return renderInGraph(
+    <>
+      <BacklinksPanel path={path} />
+      <RouteProbe />
+    </>,
   )
 }
 
 beforeEach(() => {
-  setDefaultStorage(createTestStorageService())
   getBacklinksWithContext.mockReset()
-  getBacklinksPage.mockClear()
   resolveOrCreateNoteWithTitle.mockReset()
   resolveMarkdownHref.mockReset()
-})
-
-afterEach(() => {
-  setDefaultStorage(null)
+  openNoteWindow.mockReset().mockResolvedValue(true)
+  app = createApp()
 })
 
 describe('BacklinksPanel', () => {
@@ -279,21 +282,13 @@ describe('BacklinksPanel', () => {
         tasks: [],
       },
     ])
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const panelFor = (path: string) => (
-      <QueryClientProvider client={client}>
-        <RouterProvider>
-          <BacklinksPanel path={path} />
-        </RouterProvider>
-      </QueryClientProvider>
-    )
-    const view = await render(panelFor('notes/a.md'))
+    const view = await renderInGraph(<BacklinksPanel path="notes/a.md" />)
 
     await expect.element(view.getByText(/links/)).toBeInTheDocument()
     await view.getByRole('button', { name: 'Collapse references from Shared Source' }).click()
     expect(view.getByText(/links/).query()).toBeNull()
 
-    await view.rerender(panelFor('notes/b.md'))
+    await view.rerender(<BacklinksPanel path="notes/b.md" />)
     await expect.element(view.getByText(/links/)).toBeInTheDocument()
     await view.unmount()
   })
@@ -308,14 +303,11 @@ describe('BacklinksPanel', () => {
         tasks: [],
       },
     ])
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const view = await render(
-      <QueryClientProvider client={client}>
-        <RouterProvider>
-          <BacklinksPanel path="daily/2026-06-09.md" />
-          <BacklinksPanel path="daily/2026-06-10.md" />
-        </RouterProvider>
-      </QueryClientProvider>,
+    const view = await renderInGraph(
+      <>
+        <BacklinksPanel path="daily/2026-06-09.md" />
+        <BacklinksPanel path="daily/2026-06-10.md" />
+      </>,
     )
 
     const headers = view.getByRole('button', { name: /Incoming backlink \(1\)/ })

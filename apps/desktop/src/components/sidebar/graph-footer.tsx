@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactElement } from 'react'
-import { defaultOpener, type GraphInfo } from '@reflect/core'
+import type { GraphInfo } from '@reflect/core'
 import { FolderOpen, GraduationCap, LocateFixed, PanelsTopLeft, Settings } from 'lucide-react'
 import { GraphSwatch } from '@/components/graph-swatch.tsx'
 import { ReflectAppsDialog } from '@/components/reflect-apps-dialog.tsx'
@@ -18,12 +18,11 @@ import { useGraphColors } from '@/hooks/use-graph-colors.ts'
 import { keybindingFor } from '@/lib/commands/app-commands.ts'
 import { runCommand } from '@/lib/commands/registry.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import { openUrlSync } from '@/lib/open-url.ts'
 import { cn } from '@/lib/utils.ts'
-import { isMainWindow } from '@/lib/windows/window-role.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSync, type BackupState } from '@/providers/sync-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 const MENU_ITEM_CLASS = 'h-8 gap-2 px-2 py-0 text-[13px] text-text-secondary'
 const SETTINGS_BINDING = keybindingFor('settings.open')
@@ -67,6 +66,7 @@ interface GraphFooterProps {
 export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement {
   const [appsOpen, setAppsOpen] = useState(false)
   const graphTriggerRef = useRef<HTMLButtonElement>(null)
+  const { opener, window: appWindow } = useAppServices()
   const { recents, indexing, openRecent, chooseGraph } = useGraph()
   const { colorFor } = useGraphColors()
   const { backup } = useSync()
@@ -136,11 +136,9 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
           {recents.length > 0 ? <DropdownMenuSeparator /> : null}
           <DropdownMenuItem
             onClick={() => {
-              void defaultOpener()
-                .revealInFileManager(graph.root)
-                .catch((cause: unknown) => {
-                  console.error('open graph folder failed:', cause)
-                })
+              void opener.revealInFileManager(graph.root).catch((cause: unknown) => {
+                console.error('open graph folder failed:', cause)
+              })
             }}
             className={MENU_ITEM_CLASS}
           >
@@ -148,7 +146,7 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
             <span className="min-w-0 flex-1 truncate">Reveal graph in Finder</span>
           </DropdownMenuItem>
           {/* Graph switching re-roots every window; note windows hide it. */}
-          {isMainWindow() ? (
+          {appWindow.isMainWindow() ? (
             <DropdownMenuItem onClick={() => void chooseGraph()} className={MENU_ITEM_CLASS}>
               <FolderOpen aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
               <span className="min-w-0 flex-1 truncate">Open another graph…</span>
@@ -171,7 +169,7 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
             <span className="min-w-0 flex-1 truncate">Get Reflect apps…</span>
           </DropdownMenuItem>
           <DropdownMenuItem
-            onClick={() => openUrlSync('https://reflect.academy')}
+            onClick={() => opener.openUrlSync('https://reflect.academy')}
             className={MENU_ITEM_CLASS}
           >
             <GraduationCap aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
