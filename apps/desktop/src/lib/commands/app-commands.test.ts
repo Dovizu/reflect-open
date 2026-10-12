@@ -1,14 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  setDefaultEmbeddingIndex,
+  setDefaultEmbeddingRuntime,
   setDefaultIndexLifecycle,
   setDefaultPlatform,
-  type EmbedStatus,
   setDefaultOperations,
 } from '@reflect/core'
 import {
+  createTestEmbeddingIndexService,
+  createTestEmbeddingRuntimeService,
   createTestIndexLifecycleService,
   createTestPlatformService,
   createTestOperationsService,
+  type TestEmbeddingIndexService,
   type TestIndexLifecycleService,
   type TestOperationsService,
 } from '@reflect/core/testing'
@@ -19,25 +23,16 @@ import type { CommandContext } from './types.ts'
 const TODAY = '2026-06-09'
 
 const randomNotePath = vi.hoisted(() => vi.fn())
-const embedStatus = vi.hoisted(() =>
-  vi.fn<() => Promise<EmbedStatus>>(async () => ({ status: 'uninitialized' })),
-)
-const backfillEmbeddingsVisibly = vi.hoisted(() => vi.fn(async () => 'completed'))
 const runCopyDeepLink = vi.hoisted(() => vi.fn(async () => undefined))
 const runCopyNotePath = vi.hoisted(() => vi.fn(async () => undefined))
 const toggleDevtools = vi.hoisted(() => vi.fn(async () => undefined))
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
-vi.mock('@/lib/semantic.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/semantic.ts')>()),
-  backfillEmbeddingsVisibly,
-}))
 vi.mock('@/lib/note-deep-link.ts', () => ({ runCopyDeepLink }))
 vi.mock('@/lib/note-copy-path.ts', () => ({ runCopyNotePath }))
 vi.mock('@/lib/windows/open-in-new-window.ts', () => ({ openRouteInNewWindow }))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   randomNotePath,
-  embedStatus,
   toggleDevtools,
 }))
 
@@ -46,6 +41,7 @@ const { APP_COMMANDS, keybindingFor } = await import('./app-commands.ts')
 
 let operations: TestOperationsService
 let indexLifecycle: TestIndexLifecycleService
+let embeddingIndex: TestEmbeddingIndexService
 
 beforeEach(() => {
   setDefaultPlatform(createTestPlatformService())
@@ -53,12 +49,19 @@ beforeEach(() => {
   setDefaultOperations(operations)
   indexLifecycle = createTestIndexLifecycleService({ operations })
   setDefaultIndexLifecycle(indexLifecycle)
+  embeddingIndex = createTestEmbeddingIndexService({ backfill: async () => 'completed' })
+  setDefaultEmbeddingIndex(embeddingIndex)
+  setDefaultEmbeddingRuntime(
+    createTestEmbeddingRuntimeService({ status: { status: 'uninitialized' } }),
+  )
 })
 
 afterEach(() => {
   setDefaultPlatform(null)
   setDefaultOperations(null)
   setDefaultIndexLifecycle(null)
+  setDefaultEmbeddingIndex(null)
+  setDefaultEmbeddingRuntime(null)
 })
 
 function command(id: string) {
@@ -372,13 +375,12 @@ describe('app commands', () => {
   })
 
   it('index.rebuild re-runs the embedding backfill when the model is ready', async () => {
-    embedStatus.mockResolvedValueOnce({ status: 'ready', model: 'all-MiniLM-L6-v2' })
+    setDefaultEmbeddingRuntime(
+      createTestEmbeddingRuntimeService({ status: { status: 'ready', model: 'all-MiniLM-L6-v2' } }),
+    )
     const { context } = fakeContext()
     await command('index.rebuild').run(context)
     // index_clear wiped the embedding tables; rebuild must repopulate them.
-    expect(backfillEmbeddingsVisibly).toHaveBeenCalledWith({
-      generation: 7,
-      modelId: 'all-MiniLM-L6-v2',
-    })
+    expect(embeddingIndex.backfills()).toEqual([{ generation: 7, modelId: 'all-MiniLM-L6-v2' }])
   })
 })

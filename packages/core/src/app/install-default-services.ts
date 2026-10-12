@@ -32,7 +32,10 @@ import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
 import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
+import { setDefaultEmbeddingIndex } from '../embeddings/embedding-index-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
+import { setDefaultRetrieval } from '../embeddings/retrieval-service.ts'
+import { setDefaultSemanticSearch } from '../embeddings/semantic-search-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
@@ -147,6 +150,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteCreation(services.noteCreation)
   setDefaultPrivacy(services.privacy)
   setDefaultIndexLifecycle(services.indexLifecycle)
+  setDefaultRetrieval(services.retrieval)
+  setDefaultEmbeddingIndex(services.embeddingIndex)
+  setDefaultSemanticSearch(services.semanticSearch)
   setDefaultAiCredentials(services.aiCredentials)
   setDefaultAiKeyValidation(services.aiKeyValidation)
   setDefaultLanguageModel(services.languageModel)
@@ -229,6 +235,9 @@ export function resetDefaultServices(): void {
   setDefaultNoteCreation(null)
   setDefaultPrivacy(null)
   setDefaultIndexLifecycle(null)
+  setDefaultRetrieval(null)
+  setDefaultEmbeddingIndex(null)
+  setDefaultSemanticSearch(null)
   setDefaultAiCredentials(null)
   setDefaultAiKeyValidation(null)
   setDefaultLanguageModel(null)

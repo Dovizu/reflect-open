@@ -56,8 +56,14 @@ import { createTestContactsService, type TestContactsService } from './contacts.
 import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
 import {
+  createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
+  createTestRetrievalService,
+  createTestSemanticSearchService,
+  type TestEmbeddingIndexService,
   type TestEmbeddingRuntimeService,
+  type TestRetrievalService,
+  type TestSemanticSearchService,
 } from './embeddings.ts'
 import {
   createTestExceptionTelemetry,
@@ -206,6 +212,9 @@ export interface TestAppServices extends AppServices {
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
   readonly graphSession: TestGraphSessionService
+  readonly retrieval: TestRetrievalService
+  readonly embeddingIndex: TestEmbeddingIndexService
+  readonly semanticSearch: TestSemanticSearchService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
@@ -278,6 +287,31 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
     operations: overrides?.operations ?? operations,
   })
+  const graphSession = createTestGraphSessionService({
+    ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
+    indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+    indexStore: overrides?.indexStore ?? indexStore,
+    noteFile: overrides?.noteFile ?? noteFile,
+    id: overrides?.id ?? id,
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+    window: overrides?.window ?? windowService,
+    dialog: overrides?.dialog ?? dialog,
+    path: overrides?.path ?? path,
+    platform: overrides?.platform ?? platform,
+    lifecycle: overrides?.lifecycle ?? lifecycle,
+    mobileStorage: overrides?.mobileStorage ?? mobileStorage,
+    logger,
+  })
+  const embeddingRuntime = createTestEmbeddingRuntimeService()
+  const retrieval = createTestRetrievalService()
+  const embeddingIndex = createTestEmbeddingIndexService({
+    embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
+    noteFile: overrides?.noteFile ?? noteFile,
+    database: overrides?.database ?? database,
+    indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+    logger,
+  })
+  const storage = createTestStorageService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
@@ -285,7 +319,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     id,
     hash,
     platform,
-    storage: createTestStorageService(),
+    storage,
     http,
     dialog,
     clipboard: createTestClipboardService(),
@@ -308,7 +342,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     database,
     fileChanges,
     indexStore,
-    embeddingRuntime: createTestEmbeddingRuntimeService(),
+    embeddingRuntime,
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
@@ -354,19 +388,18 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     privacy,
     indexLifecycle,
-    graphSession: createTestGraphSessionService({
-      ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
-      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-      indexStore: overrides?.indexStore ?? indexStore,
-      noteFile: overrides?.noteFile ?? noteFile,
-      id: overrides?.id ?? id,
-      fileChanges: overrides?.fileChanges ?? fileChanges,
+    graphSession,
+    retrieval,
+    embeddingIndex,
+    semanticSearch: createTestSemanticSearchService({
+      embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
+      embeddingIndex: overrides?.embeddingIndex ?? embeddingIndex,
+      retrieval: overrides?.retrieval ?? retrieval,
+      settings: overrides?.settings ?? settings,
+      storage: overrides?.storage ?? storage,
       window: overrides?.window ?? windowService,
-      dialog: overrides?.dialog ?? dialog,
-      path: overrides?.path ?? path,
-      platform: overrides?.platform ?? platform,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
-      mobileStorage: overrides?.mobileStorage ?? mobileStorage,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      graphSession: overrides?.graphSession ?? graphSession,
       logger,
     }),
     aiCredentials,

@@ -1,10 +1,11 @@
 import { useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { isDaily, relatedNotes, type RetrievalHit } from '@reflect/core'
+import { isDaily, type RetrievalHit } from '@reflect/core'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { readNoteSource } from '@/lib/note-frontmatter.ts'
 import { isOstensiblyEmptyNoteSource } from '@/lib/note-emptiness.ts'
 import { queryKeys } from '@/lib/query-client.ts'
+import { useSemanticSearch } from '@/lib/semantic.ts'
 import { useEmbedStatus } from '@/lib/use-embed-status.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
@@ -45,6 +46,7 @@ export function useSimilarNotes(path: string): RetrievalHit[] {
   const { graph } = useGraph()
   const { settings } = useSettings()
   const queryClient = useQueryClient()
+  const semanticSearch = useSemanticSearch()
   const bridgeAvailable = useBridgeReady()
   const dailyNote = isDaily(path)
   const embedStatus = useEmbedStatus()
@@ -76,7 +78,7 @@ export function useSimilarNotes(path: string): RetrievalHit[] {
     (!dailyNote || dailyNoteIsEmpty === false)
   const { data } = useQuery({
     queryKey: queryKeys.similar.note(graph?.root, path),
-    queryFn: () => relatedNotes(path, SIMILAR_NOTES_LIMIT),
+    queryFn: () => semanticSearch.similarNotes(path),
     enabled,
     staleTime: (query) => ((query.state.data?.length ?? 0) > 0 ? Infinity : 0),
     // Held for the session so revisiting a note is free; dropped wholesale on

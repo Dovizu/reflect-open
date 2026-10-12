@@ -1,0 +1,284 @@
+import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import { defaultStorage, type StorageService } from '../app/storage-service.ts'
+import { defaultWindow, type WindowService } from '../app/window-service.ts'
+import type { GraphSessionState } from '../graph/graph-session-service.ts'
+import {
+  defaultIndexLifecycle,
+  type IndexLifecycleService,
+} from '../indexing/index-lifecycle-service.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
+import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
+import { defaultEmbeddingIndex, type EmbeddingIndexService } from './embedding-index-service.ts'
+import {
+  defaultEmbeddingRuntime,
+  type EmbeddingRuntimeService,
+  type EmbedStatus,
+} from './embedding-runtime-service.ts'
+import { defaultRetrieval, type RetrievalHit, type RetrievalService } from './retrieval-service.ts'
+
+/** Where the opt-in lived before it moved into the settings document. */
+const LEGACY_ENABLED_KEY = 'reflect.semantic.enabled'
+
+const SIMILAR_NOTES_LIMIT = 6
+
+/** The open graph as {@link SemanticSearchService} reads it; a `GraphSessionService` is one. */
+export interface SemanticSearchGraphSource {
+  getState: () => Pick<GraphSessionState, 'graph' | 'indexGeneration'>
+  subscribe: (listener: () => void) => Unlisten
+}
+
+/**
+ * The user-facing side of the optional local semantic search (Plan 09). The
+ * model is ~90MB and downloads from the network, so it is **opt-in**: the
+ * `semanticSearchEnabled` setting is the persisted opt-in, and a started
+ * service kicks the first download; later launches auto-load from the local
+ * cache because the flag is set. Acceptance: "first semantic use downloads
+ * the model with progress; later uses are instant."
+ *
+ * From its creation the service also re-embeds after each requested index
+ * rebuild (`IndexLifecycleService.onReconciled` with `source: 'rebuild'`):
+ * `index_clear` wiped the embedding tables with everything else, and semantic
+ * search would otherwise stay silently empty until some other trigger
+ * re-embedded. The rebuild request stays in flight until that backfill ends.
+ */
+export interface SemanticSearchService {
+  /**
+   * Keep embeddings in sync with the open graph until the returned function
+   * is called. Three jobs:
+   *
+   * - load the model whenever `semanticSearchEnabled` is on and the runtime is
+   *   untouched — at launch for users who opted in earlier (the cache makes
+   *   that instant) and the moment the setting flips on (the one place the
+   *   first download starts). Deliberately not retried on `failed`: an
+   *   automatic loop would hammer a broken download — recovery rides the
+   *   explicit enable/retry actions instead (see
+   *   {@link SemanticSearchService.retryFailedModel});
+   * - run one incremental backfill per (graph, model) once `ready` (hash-skip
+   *   makes this cheap when nothing changed);
+   * - follow the index: changed notes re-embed, deleted notes drop vectors.
+   *
+   * Backfill and follow work need the runtime `ready` *and* the setting on:
+   * disabling semantic search pauses embedding work immediately (the loaded
+   * model just idles for the rest of the session), and re-enabling catches up
+   * via the cheap hash-skip backfill. Main window only: a secondary note
+   * window loading the model and re-embedding on the same watcher stream
+   * would duplicate every write.
+   *
+   * Starting also carries the opt-in over from where it lived before the
+   * settings document (`localStorage`), once, so those users keep semantic
+   * search across the move.
+   */
+  start(): Unlisten
+  /** Load (downloading if needed) the model. Resolves with the outcome. */
+  ensureModel(): Promise<EmbedStatus>
+  /**
+   * Re-kick a `failed` model load; a no-op for every other status. The explicit
+   * enable actions (settings button, `semantic.enable` command) run this so
+   * opting back in after a failure retries the download — a started service
+   * itself only loads an `uninitialized` runtime, because reacting to `failed`
+   * would loop a broken download forever.
+   */
+  retryFailedModel(): Promise<void>
+  /**
+   * The semantic neighbors of the note at `path` ("Similar notes"), at most
+   * six. A costly read (see `RetrievalService.relatedNotes`): callers own
+   * their refresh cadence.
+   */
+  similarNotes(path: string): Promise<RetrievalHit[]>
+  /** Stop re-embedding after index rebuilds. The service is unusable afterwards. */
+  dispose(): void
+}
+
+export interface SemanticSearchServiceDeps {
+  embeddingRuntime: EmbeddingRuntimeService
+  embeddingIndex: EmbeddingIndexService
+  retrieval: RetrievalService
+  settings: SettingsService
+  storage: StorageService
+  window: WindowService
+  indexLifecycle: IndexLifecycleService
+  graphSession: SemanticSearchGraphSource
+  logger: LoggerService
+}
+
+export function createSemanticSearchService(
+  deps: SemanticSearchServiceDeps,
+): SemanticSearchService {
+  const {
+    embeddingRuntime,
+    embeddingIndex,
+    retrieval,
+    settings,
+    storage,
+    window,
+    indexLifecycle,
+    graphSession,
+    logger,
+  } = deps
+
+  const stopFollowingRebuilds = indexLifecycle.onReconciled(async ({ generation, source }) => {
+    if (source !== 'rebuild') {
+      return
+    }
+    const embed = await embeddingRuntime.status()
+    if (embed.status === 'ready') {
+      await embeddingIndex.backfill({ generation, modelId: embed.model })
+    }
+  })
+
+  /**
+   * Read-and-clear the pre-settings localStorage opt-in. Returns true exactly
+   * once for a user who enabled semantic search before the flag moved into
+   * settings — the caller persists it there and the key never matters again.
+   */
+  function consumeLegacyOptIn(): boolean {
+    const local = storage.local
+    const enabled = local.get(LEGACY_ENABLED_KEY) === 'true'
+    local.set(LEGACY_ENABLED_KEY, null)
+    return enabled
+  }
+
+  async function ensureModel(): Promise<EmbedStatus> {
+    try {
+      return await embeddingRuntime.awaitTerminalStatus(await embeddingRuntime.ensure())
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      return { status: 'failed', message }
+    }
+  }
+
+  function start(): Unlisten {
+    if (consumeLegacyOptIn()) {
+      settings.update({ semanticSearchEnabled: true })
+    }
+
+    let stopped = false
+    // What each reaction last ran for: a reaction reruns only when its own
+    // inputs change, not on every notification of every source.
+    let loadGate: string | null = null
+    let followed: string | null = null
+    let stopFollowing: Unlisten | null = null
+
+    function react(): void {
+      if (stopped) {
+        return
+      }
+      const enabled = settings.get().semanticSearchEnabled && window.isMainWindow()
+      const status = embeddingRuntime.lastStatus()
+
+      const nextLoadGate = `${enabled} ${status.status}`
+      if (nextLoadGate !== loadGate) {
+        loadGate = nextLoadGate
+        if (enabled && status.status === 'uninitialized') {
+          void ensureModel()
+        }
+      }
+
+      // embed_apply/embed_remove are gated on the INDEX session generation, not
+      // the file-write generation in GraphInfo — the counters are independent.
+      const { graph, indexGeneration: generation } = graphSession.getState()
+      const target =
+        enabled && status.status === 'ready' && generation !== null && graph !== null
+          ? { generation, modelId: status.model, root: graph.root }
+          : null
+      const next = target === null ? null : JSON.stringify(target)
+      if (next !== followed) {
+        // `enabled` is part of the gate so a mid-session disable tears the
+        // follow down: its queued work skips and its subscription drops.
+        followed = next
+        stopFollowing?.()
+        stopFollowing =
+          target === null
+            ? null
+            : embeddingIndex.follow({ generation: target.generation, modelId: target.modelId })
+      }
+    }
+
+    const unlisteners = [
+      settings.subscribe(react),
+      embeddingRuntime.subscribe(react),
+      graphSession.subscribe(react),
+    ]
+    // A later start reads the last status the runtime observed; the first one polls.
+    embeddingRuntime.status().catch((cause: unknown) => {
+      logger.warn('failed to poll the embedding runtime status', cause)
+    })
+    react()
+
+    return () => {
+      stopped = true
+      for (const unlisten of unlisteners) {
+        unlisten()
+      }
+      stopFollowing?.()
+      stopFollowing = null
+    }
+  }
+
+  return {
+    start,
+    ensureModel,
+    async retryFailedModel() {
+      await embeddingRuntime.retry()
+    },
+    similarNotes: (path) => retrieval.relatedNotes(path, SIMILAR_NOTES_LIMIT),
+    dispose: stopFollowingRebuilds,
+  }
+}
+
+/** No graph is ever open: the process-wide services include no `GraphSessionService`. */
+const NO_GRAPH: SemanticSearchGraphSource = {
+  getState: () => ({ graph: null, indexGeneration: null }),
+  subscribe: () => () => {},
+}
+
+type FallbackDeps = Omit<SemanticSearchServiceDeps, 'graphSession'>
+
+let installedService: SemanticSearchService | null = null
+let fallback: { service: SemanticSearchService; deps: FallbackDeps } | null = null
+
+function sameDeps(left: FallbackDeps, right: FallbackDeps): boolean {
+  return (
+    left.embeddingRuntime === right.embeddingRuntime &&
+    left.embeddingIndex === right.embeddingIndex &&
+    left.retrieval === right.retrieval &&
+    left.settings === right.settings &&
+    left.storage === right.storage &&
+    left.window === right.window &&
+    left.indexLifecycle === right.indexLifecycle &&
+    left.logger === right.logger
+  )
+}
+
+/**
+ * The process-wide `SemanticSearchService`; one over the default services
+ * unless {@link setDefaultSemanticSearch} installed another. The
+ * default-backed one sees no open graph, so its
+ * {@link SemanticSearchService.start} loads the model but never embeds.
+ */
+export function defaultSemanticSearch(): SemanticSearchService {
+  if (installedService !== null) {
+    return installedService
+  }
+  const deps: FallbackDeps = {
+    embeddingRuntime: defaultEmbeddingRuntime(),
+    embeddingIndex: defaultEmbeddingIndex(),
+    retrieval: defaultRetrieval(),
+    settings: defaultSettings(),
+    storage: defaultStorage(),
+    window: defaultWindow(),
+    indexLifecycle: defaultIndexLifecycle(),
+    logger: defaultLogger(),
+  }
+  if (fallback === null || !sameDeps(fallback.deps, deps)) {
+    // The replaced service must stop answering rebuilds of a lifecycle it shares.
+    fallback?.service.dispose()
+    fallback = { service: createSemanticSearchService({ ...deps, graphSession: NO_GRAPH }), deps }
+  }
+  return fallback.service
+}
+
+/** Install the process-wide `SemanticSearchService`; `null` restores the default-backed one. */
+export function setDefaultSemanticSearch(service: SemanticSearchService | null): void {
+  installedService = service
+}
