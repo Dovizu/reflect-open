@@ -64,7 +64,8 @@ jobs:
           exit ${code:-0}
         env:
           REFLECT_TEST_BROWSER: chromium
-          DEBUG: pw:browser
+          DEBUG: "vitest:browser:*,pw:api"
+          VITEST_PW_DEBUG: "1"
 
   # Not part of `all-green`: a WebKit failure does not block merging.
   # Disabled on the `service` branch while the service refactor is in progress;
