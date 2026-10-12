@@ -80,6 +80,9 @@ import { setDefaultPlatform } from './platform-service.ts'
 import { setDefaultStorage } from './storage-service.ts'
 import { setDefaultUpdate } from './update-service.ts'
 import { setDefaultWindow } from './window-service.ts'
+import { setDefaultCommands } from '../commands/command-service.ts'
+import { setDefaultKeymap } from '../commands/keymap-service.ts'
+import { setDefaultNativeMenu } from '../commands/native-menu-service.ts'
 
 /** Point every process-wide `defaultXxx()` at the matching service of `services`. */
 export function installDefaultServices(services: AppServices): void {
@@ -157,6 +160,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAiKeyValidation(services.aiKeyValidation)
   setDefaultLanguageModel(services.languageModel)
   setDefaultAiPrompts(services.aiPrompts)
+  setDefaultKeymap(services.keymap)
+  setDefaultCommands(services.commands)
+  setDefaultNativeMenu(services.nativeMenu)
   setDefaultAiProviderConfig(services.aiProviderConfig)
   setDefaultSelectionTransform(services.selectionTransform)
   setDefaultPageDescriber(services.pageDescriber)
@@ -242,6 +248,9 @@ export function resetDefaultServices(): void {
   setDefaultAiKeyValidation(null)
   setDefaultLanguageModel(null)
   setDefaultAiPrompts(null)
+  setDefaultKeymap(null)
+  setDefaultCommands(null)
+  setDefaultNativeMenu(null)
   setDefaultAiProviderConfig(null)
   setDefaultSelectionTransform(null)
   setDefaultPageDescriber(null)

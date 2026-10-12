@@ -1,6 +1,9 @@
-import { defaultWindow, MAIN_WINDOW_LABEL, type Unlisten } from '@reflect/core'
-import { z } from 'zod'
-import { isNativeShell } from '@/lib/platform.ts'
+import {
+  defaultNativeMenu,
+  type FocusedNoteMenuCommand,
+  type MenuCommandDispatch,
+  type Unlisten,
+} from '@reflect/core'
 
 /**
  * Native menu → command registry hand-off. The menu is built once at startup,
@@ -13,50 +16,11 @@ import { isNativeShell } from '@/lib/platform.ts'
  * command to act on, which is the same answer the keydown path gives there.
  */
 
-type MenuCommandDispatch = (commandId: string) => void
-
-let current: MenuCommandDispatch | null = null
-
-const FocusedNoteMenuCommandSchema = z.enum(['note.find', 'note.findNext', 'note.findPrevious'])
-
-/** Native menu commands whose target is the focused note webview. */
-export type FocusedNoteMenuCommand = z.infer<typeof FocusedNoteMenuCommandSchema>
-
-const FOCUSED_NOTE_MENU_EVENT = 'reflect://focused-note-menu-command'
+export type { FocusedNoteMenuCommand }
 
 /** Publish (or with `null`, withdraw) the active menu-command dispatcher. */
 export function setMenuCommandDispatch(dispatch: MenuCommandDispatch | null): void {
-  current = dispatch
-}
-
-async function dispatchToFocusedWindow(commandId: FocusedNoteMenuCommand): Promise<void> {
-  const windows = defaultWindow()
-  let focusedLabel: string | null = null
-  try {
-    focusedLabel = await windows.focusedWindowLabel()
-  } catch (cause) {
-    console.error('focused window lookup failed:', cause)
-    return
-  }
-
-  if (focusedLabel === null) {
-    // A menu activation can briefly leave macOS without a focused webview.
-    // Never guess `main`: acting on the wrong note is worse than leaving this
-    // one activation inert.
-    return
-  }
-
-  if (focusedLabel !== MAIN_WINDOW_LABEL) {
-    try {
-      await windows.emitTo(focusedLabel, FOCUSED_NOTE_MENU_EVENT, commandId)
-    } catch (cause) {
-      // Never fall through to the main note: the command belongs to the
-      // focused detached window, even if its event channel just disappeared.
-      console.error('focused note menu dispatch failed:', cause)
-    }
-    return
-  }
-  current?.(commandId)
+  defaultNativeMenu().setCommandDispatch(dispatch)
 }
 
 /**
@@ -64,22 +28,12 @@ async function dispatchToFocusedWindow(commandId: FocusedNoteMenuCommand): Promi
  * note-window-local; all other commands retain the main workspace dispatcher.
  */
 export function dispatchMenuCommand(commandId: string): void {
-  const focusedNoteCommand = FocusedNoteMenuCommandSchema.safeParse(commandId)
-  if (isNativeShell() && focusedNoteCommand.success) {
-    void dispatchToFocusedWindow(focusedNoteCommand.data)
-    return
-  }
-  current?.(commandId)
+  defaultNativeMenu().dispatchCommand(commandId)
 }
 
 /** Listen for native Find menu commands routed to this focused note window. */
 export function listenForFocusedNoteMenuCommands(
   dispatch: (commandId: FocusedNoteMenuCommand) => void,
 ): Unlisten {
-  return defaultWindow().subscribeWindowEvent(FOCUSED_NOTE_MENU_EVENT, (payload) => {
-    const command = FocusedNoteMenuCommandSchema.safeParse(payload)
-    if (command.success) {
-      dispatch(command.data)
-    }
-  })
+  return defaultNativeMenu().subscribeFocusedNoteCommands(dispatch)
 }

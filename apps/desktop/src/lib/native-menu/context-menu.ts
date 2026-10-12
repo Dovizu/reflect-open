@@ -1,30 +1,9 @@
-import { isNativeShell } from '@/lib/platform.ts'
-import { Menu, MenuItem } from '@tauri-apps/api/menu'
-
-export interface NativeContextMenuItem {
-  /** Visible native menu item label. */
-  text: string
-  /** Invoked when the native menu item is selected. */
-  action: () => void
-}
-
-export interface NativeContextMenuOptions {
-  /** Menu items to render in order. */
-  items: readonly NativeContextMenuItem[]
-}
+import { defaultNativeMenu, type NativeContextMenuOptions } from '@reflect/core'
 
 /**
  * Open a Tauri native context menu. Outside Tauri, this is a no-op so browser
  * and test shells can call the same path without platform guards.
  */
 export async function openNativeContextMenu(options: NativeContextMenuOptions): Promise<void> {
-  if (!isNativeShell()) {
-    return
-  }
-
-  const items = await Promise.all(
-    options.items.map((item) => MenuItem.new({ text: item.text, action: item.action })),
-  )
-  const menu = await Menu.new({ items })
-  await menu.popup()
+  await defaultNativeMenu().openContextMenu(options)
 }
