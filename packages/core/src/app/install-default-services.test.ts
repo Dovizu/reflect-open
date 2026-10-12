@@ -7,6 +7,8 @@ import { defaultAppStore } from '../ipc/app-store-plugin.ts'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
 import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { defaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
+import { defaultBacklinkTarget } from '../capture/backlink-target-service.ts'
+import { defaultCapture } from '../capture/capture-service.ts'
 import { defaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { defaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { defaultGists } from '../sync/gist-service.ts'
@@ -36,6 +38,7 @@ import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultNoteSessions } from '../documents/note-session.ts'
 import { defaultNoteMove } from '../documents/note-move-service.ts'
 import { defaultNoteDocuments } from '../documents/note-document-service.ts'
+import { defaultTasks } from '../tasks/task-service.ts'
 import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { defaultTitleRename } from '../documents/title-rename-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
@@ -126,6 +129,8 @@ describe('installDefaultServices', () => {
     expect(defaultBackups()).toBe(services.backups)
     expect(defaultICloudNative()).toBe(services.icloudNative)
     expect(defaultCaptureInbox()).toBe(services.captureInbox)
+    expect(defaultBacklinkTarget()).toBe(services.backlinkTarget)
+    expect(defaultCapture()).toBe(services.capture)
     expect(defaultWebFetch()).toBe(services.webFetch)
     expect(defaultXArchive()).toBe(services.xArchive)
     expect(defaultAudioRecorder()).toBe(services.audioRecorder)
@@ -145,6 +150,7 @@ describe('installDefaultServices', () => {
     expect(defaultNoteMove()).toBe(services.noteMove)
     expect(defaultTitleRename()).toBe(services.titleRename)
     expect(defaultNoteDocuments()).toBe(services.noteDocuments)
+    expect(defaultTasks()).toBe(services.tasks)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
     expect(defaultBacklinks()).toBe(services.backlinks)
@@ -215,6 +221,8 @@ describe('resetDefaultServices', () => {
     expect(defaultBackups()).not.toBe(services.backups)
     expect(defaultICloudNative()).not.toBe(services.icloudNative)
     expect(defaultCaptureInbox()).not.toBe(services.captureInbox)
+    expect(defaultBacklinkTarget()).not.toBe(services.backlinkTarget)
+    expect(defaultCapture()).not.toBe(services.capture)
     expect(defaultWebFetch()).not.toBe(services.webFetch)
     expect(defaultXArchive()).not.toBe(services.xArchive)
     expect(defaultAudioRecorder()).not.toBe(services.audioRecorder)
@@ -234,6 +242,7 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteMove()).not.toBe(services.noteMove)
     expect(defaultTitleRename()).not.toBe(services.titleRename)
     expect(defaultNoteDocuments()).not.toBe(services.noteDocuments)
+    expect(defaultTasks()).not.toBe(services.tasks)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
     expect(defaultBacklinks()).not.toBe(services.backlinks)

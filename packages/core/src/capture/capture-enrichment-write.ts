@@ -1,11 +1,4 @@
-import { isAppError } from '../errors.ts'
-import { readNote, writeNote } from '../graph/commands.ts'
-import { dailyPath } from '../graph/paths.ts'
-import { hashContent } from '../indexing/hash.ts'
-import { parseNote } from '../markdown/extract.ts'
-import { parseFrontmatter, splitFrontmatter, upsertFrontmatter } from '../markdown/frontmatter.ts'
-import type { AiProviderConfig } from '../settings/schema.ts'
-import type { CaptureIdentity } from './capture-identity.ts'
+import type { CaptureIdentity } from '../actions/capture-identity.ts'
 import {
   captureNoteMeta,
   notePrivate,
@@ -13,7 +6,20 @@ import {
   retitleDailyEntry,
   type CaptureNoteMeta,
   type CaptureStatus,
-} from './capture-note.ts'
+} from '../actions/capture-note.ts'
+import type { HashService } from '../app/hash-service.ts'
+import { isAppError } from '../errors.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import { dailyPath } from '../graph/paths.ts'
+import { parseNote } from '../markdown/extract.ts'
+import { parseFrontmatter, splitFrontmatter, upsertFrontmatter } from '../markdown/frontmatter.ts'
+import type { AiProviderConfig } from '../settings/schema.ts'
+
+/** The services the capture note writes go through. */
+export interface CaptureWriteContext {
+  noteFile: Pick<NoteFileService, 'read' | 'write'>
+  hash: HashService
+}
 
 export interface PendingCaptureSnapshot {
   /** Full source, including frontmatter, used to preserve unrelated keys. */
@@ -49,12 +55,13 @@ interface CaptureWriteTransaction {
 
 /** Read the current pending form of a capture, or `null` if it moved on. */
 export async function readPendingCaptureSnapshot(
+  ctx: CaptureWriteContext,
   identity: CaptureIdentity,
   generation: number,
 ): Promise<PendingCaptureSnapshot | null> {
   let source: string
   try {
-    source = await readNote(identity.notePath, generation)
+    source = await ctx.noteFile.read(identity.notePath, generation)
   } catch (cause) {
     if (isAppError(cause) && cause.kind === 'notFound') {
       return null
@@ -98,10 +105,11 @@ export function hasCaptureWriteTransaction(meta: CaptureNoteMeta): boolean {
  * write fails without re-scraping or guessing whether Daily text was user-made.
  */
 export async function finishCaptureWrite(
+  ctx: CaptureWriteContext,
   identity: CaptureIdentity,
   generation: number,
 ): Promise<Exclude<CaptureStatus, 'skipped'> | null> {
-  let snapshot = await readPendingCaptureSnapshot(identity, generation)
+  let snapshot = await readPendingCaptureSnapshot(ctx, identity, generation)
   if (snapshot === null) {
     return null
   }
@@ -111,11 +119,11 @@ export async function finishCaptureWrite(
   }
   const expectedHash = snapshot.meta.captureHash
   const dailyNotePath = dailyPath(identity.date)
-  let dailySource = await noteSource(dailyNotePath, generation)
+  let dailySource = await noteSource(ctx.noteFile, dailyNotePath, generation)
   if (
     snapshot.isPrivate ||
     notePrivate(dailySource) ||
-    (await hashContent(snapshot.body)) !== expectedHash
+    (await ctx.hash.sha256Hex(snapshot.body)) !== expectedHash
   ) {
     return null
   }
@@ -126,11 +134,11 @@ export async function finishCaptureWrite(
     snapshot.title,
   )
   if (retitled !== dailySource) {
-    await writeNote(dailyNotePath, retitled, generation)
+    await ctx.noteFile.write(dailyNotePath, retitled, generation)
   }
 
-  snapshot = await readPendingCaptureSnapshot(identity, generation)
-  dailySource = await noteSource(dailyNotePath, generation)
+  snapshot = await readPendingCaptureSnapshot(ctx, identity, generation)
+  dailySource = await noteSource(ctx.noteFile, dailyNotePath, generation)
   const currentTransaction = snapshot === null ? null : captureWriteTransaction(snapshot.meta)
   if (
     snapshot === null ||
@@ -139,11 +147,11 @@ export async function finishCaptureWrite(
     currentTransaction.status !== transaction.status ||
     snapshot.isPrivate ||
     notePrivate(dailySource) ||
-    (await hashContent(snapshot.body)) !== expectedHash
+    (await ctx.hash.sha256Hex(snapshot.body)) !== expectedHash
   ) {
     return null
   }
-  await writeNote(
+  await ctx.noteFile.write(
     identity.notePath,
     upsertFrontmatter(snapshot.source, {
       captureStatus: transaction.status,
@@ -161,23 +169,28 @@ export async function finishCaptureWrite(
  * two-file change recoverable on the next pass.
  */
 export async function persistCaptureEnrichment(
+  ctx: CaptureWriteContext,
   input: PersistCaptureEnrichmentInput,
 ): Promise<string | null> {
-  const captureHash = await hashContent(input.body)
-  const snapshot = await readPendingCaptureSnapshot(input.identity, input.generation)
-  const dailySource = await noteSource(dailyPath(input.identity.date), input.generation)
+  const captureHash = await ctx.hash.sha256Hex(input.body)
+  const snapshot = await readPendingCaptureSnapshot(ctx, input.identity, input.generation)
+  const dailySource = await noteSource(
+    ctx.noteFile,
+    dailyPath(input.identity.date),
+    input.generation,
+  )
   if (
     snapshot === null ||
     snapshot.title !== input.fromTitle ||
     snapshot.isPrivate ||
     notePrivate(dailySource) ||
-    (await hashContent(snapshot.body)) !== input.expectedHash
+    (await ctx.hash.sha256Hex(snapshot.body)) !== input.expectedHash
   ) {
     return null
   }
   const reassembled = snapshot.source.slice(0, snapshot.bodyOffset) + input.body
   const titleChanged = input.toTitle !== input.fromTitle
-  await writeNote(
+  await ctx.noteFile.write(
     input.identity.notePath,
     upsertFrontmatter(reassembled, {
       captureStatus: titleChanged ? 'pending' : input.status,
@@ -191,7 +204,7 @@ export async function persistCaptureEnrichment(
     }),
     input.generation,
   )
-  if (titleChanged && (await finishCaptureWrite(input.identity, input.generation)) === null) {
+  if (titleChanged && (await finishCaptureWrite(ctx, input.identity, input.generation)) === null) {
     return null
   }
   return captureHash

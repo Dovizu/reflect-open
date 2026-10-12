@@ -1,27 +1,19 @@
 import { useMutation } from '@tanstack/react-query'
-import type { OpenTask, TaskEditResult } from '@reflect/core'
-import { continueTaskInContext, insertTask, writeTask } from '@/lib/note-task.ts'
+import type { OpenTask, TaskAction } from '@reflect/core'
 import { mutationKeys } from '@/lib/query-client.ts'
-import {
-  archiveRecentlyCompleted,
-  forgetRecentlyCompleted,
-  hasRecentlyCompleted,
-  markRecentlyCompleted,
-  relocateRecentlyCompleted,
-} from '@/lib/tasks/recently-completed.ts'
 import { getScheduledMarkdown } from '@/lib/tasks/task-schedule-content.ts'
 import {
   asCompleted,
   asOpen,
   withEditedTask,
   withoutTasks,
-  withRelocatedTasks,
   type TaskMoves,
 } from '@/lib/tasks/task-cache.ts'
 import { getTaskKey } from '@/lib/tasks/task-identity.ts'
 import { createInsertedTaskRow, type InsertTaskTarget } from '@/lib/tasks/task-insert-target.ts'
 import { useTaskCacheWriter, type TaskCacheSnapshot } from '@/lib/tasks/use-task-cache.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useTaskService } from '@/services/use-task-service.ts'
 
 /**
  * Bulk task actions for the Tasks view's keyboard shortcuts (Plan 18): complete
@@ -98,29 +90,26 @@ export function useTaskActions(): TaskActions {
   const { graph } = useGraph()
   const root = graph?.root ?? null
   const cache = useTaskCacheWriter()
+  const taskService = useTaskService()
 
   /** Re-key the cached rows and the session's struck set from a write's `moved` map. */
   const relocate = (notePath: string, moved: TaskMoves): void => {
     cache.relocate(notePath, moved)
-    relocateRecentlyCompleted(root, notePath, moved)
+    taskService.relocateRecentlyCompleted(root, notePath, moved)
   }
 
   /**
-   * Write `tasks` one at a time. Tasks can share a note, and a removal moves
-   * the items below it, so after each write the rest of the batch is
-   * re-addressed from the write's `moved` map before its own write.
+   * Write `tasks` one at a time (`TaskService.writeTasks`), re-keying the
+   * cached rows from each write's `moved` map before the next write.
    */
-  async function writeEach(
+  function writeEach(
     tasks: readonly OpenTask[],
-    write: (task: OpenTask) => Promise<TaskEditResult>,
+    generation: number,
+    actionsFor: (task: OpenTask) => readonly TaskAction[],
   ): Promise<void> {
-    let pending: readonly OpenTask[] = tasks
-    for (let task = pending[0]; task !== undefined; task = pending[0]) {
-      const result = await write(task)
+    return taskService.writeTasks(tasks, actionsFor, generation, (task, result) => {
       relocate(task.notePath, result.moved)
-      const rest: readonly OpenTask[] = pending.slice(1)
-      pending = withRelocatedTasks(rest, task.notePath, result.moved)
-    }
+    })
   }
 
   const completeMutation = useMutation({
@@ -130,7 +119,7 @@ export function useTaskActions(): TaskActions {
       if (generation === undefined) {
         throw new Error('No graph is open.')
       }
-      await writeEach(tasks, (task) => writeTask(task, [{ kind: 'toggle' }], generation))
+      await writeEach(tasks, generation, () => [{ kind: 'toggle' }])
     },
     onMutate: async (tasks: OpenTask[]) => {
       const snapshot = await cache.snapshot()
@@ -141,14 +130,14 @@ export function useTaskActions(): TaskActions {
         (rows) => asCompleted(rows, tasks),
       )
       // Keep them showing struck (V1's middle state) until archived.
-      markRecentlyCompleted(root, tasks)
+      taskService.markRecentlyCompleted(root, tasks)
       return snapshot
     },
     onError: (cause, tasks) => {
       // A batch can fail after earlier writes landed — refetch truth rather than
       // restore a snapshot that would un-do the ones that persisted.
       cache.reconcile('Completing tasks', cause)
-      forgetRecentlyCompleted(root, tasks.map(getTaskKey))
+      taskService.forgetRecentlyCompleted(root, tasks.map(getTaskKey))
     },
   })
 
@@ -159,7 +148,7 @@ export function useTaskActions(): TaskActions {
       if (generation === undefined) {
         throw new Error('No graph is open.')
       }
-      await writeEach(tasks, (task) => writeTask(task, [{ kind: 'toggle' }], generation)) // [x] → [ ]
+      await writeEach(tasks, generation, () => [{ kind: 'toggle' }]) // [x] → [ ]
     },
     onMutate: async (tasks: OpenTask[]) => {
       const snapshot = await cache.snapshot()
@@ -169,7 +158,7 @@ export function useTaskActions(): TaskActions {
         (rows) => asOpen(rows, tasks),
         (rows) => withoutTasks(rows, tasks),
       )
-      forgetRecentlyCompleted(root, tasks.map(getTaskKey))
+      taskService.forgetRecentlyCompleted(root, tasks.map(getTaskKey))
       return snapshot
     },
     onError: (cause) => cache.reconcile('Reopening tasks', cause),
@@ -182,7 +171,7 @@ export function useTaskActions(): TaskActions {
       if (generation === undefined) {
         throw new Error('No graph is open.')
       }
-      await writeEach(tasks, (task) => writeTask(task, [{ kind: 'remove' }], generation))
+      await writeEach(tasks, generation, () => [{ kind: 'remove' }])
     },
     onMutate: async (tasks: OpenTask[]) => {
       const snapshot = await cache.snapshot()
@@ -192,7 +181,7 @@ export function useTaskActions(): TaskActions {
         (rows) => withoutTasks(rows, tasks),
       )
       // A deleted task must not linger struck in the session's completed set.
-      forgetRecentlyCompleted(root, tasks.map(getTaskKey))
+      taskService.forgetRecentlyCompleted(root, tasks.map(getTaskKey))
       return snapshot
     },
     onError: (cause, tasks) => {
@@ -200,7 +189,7 @@ export function useTaskActions(): TaskActions {
       // The delete dropped checked rows from the session's struck set; if it
       // failed they're still `[x]` on disk, so restore them or they'd vanish from
       // the default list (gone from open, struck-set, and the unloaded archived query).
-      markRecentlyCompleted(
+      taskService.markRecentlyCompleted(
         root,
         tasks.filter((task) => task.checked),
       )
@@ -214,7 +203,7 @@ export function useTaskActions(): TaskActions {
       if (generation === undefined) {
         throw new Error('No graph is open.')
       }
-      return writeTask(task, [{ kind: 'setMarkdown', markdown: content }], generation)
+      return taskService.writeTask(task, [{ kind: 'setMarkdown', markdown: content }], generation)
     },
     onMutate: async ({ task, content }: { task: OpenTask; content: string }) => {
       const snapshot = await cache.snapshot()
@@ -236,13 +225,9 @@ export function useTaskActions(): TaskActions {
       if (generation === undefined) {
         throw new Error('No graph is open.')
       }
-      await writeEach(tasks, (task) =>
-        writeTask(
-          task,
-          [{ kind: 'setMarkdown', markdown: getScheduledMarkdown(task, isoDate) }],
-          generation,
-        ),
-      )
+      await writeEach(tasks, generation, (task) => [
+        { kind: 'setMarkdown', markdown: getScheduledMarkdown(task, isoDate) },
+      ])
     },
     onMutate: async ({ tasks, isoDate }: { tasks: OpenTask[]; isoDate: string | null }) => {
       const snapshot = await cache.snapshot()
@@ -266,7 +251,7 @@ export function useTaskActions(): TaskActions {
       if (generation === undefined) {
         throw new Error('No graph is open.')
       }
-      await writeEach(tasks, (task) => writeTask(task, [{ kind: 'toBullet' }], generation))
+      await writeEach(tasks, generation, () => [{ kind: 'toBullet' }])
     },
     onMutate: async (tasks: OpenTask[]) => {
       const snapshot = await cache.snapshot()
@@ -277,7 +262,7 @@ export function useTaskActions(): TaskActions {
         (rows) => withoutTasks(rows, tasks),
       )
       // A converted task must not linger struck in the session's completed set.
-      forgetRecentlyCompleted(root, tasks.map(getTaskKey))
+      taskService.forgetRecentlyCompleted(root, tasks.map(getTaskKey))
       return snapshot
     },
     onError: (cause, tasks) => {
@@ -285,7 +270,7 @@ export function useTaskActions(): TaskActions {
       // The convert dropped checked rows from the session's struck set; if it
       // failed they're still `[x]` on disk, so restore them or they'd vanish from
       // the default list (gone from open, struck-set, and the unloaded archived query).
-      markRecentlyCompleted(
+      taskService.markRecentlyCompleted(
         root,
         tasks.filter((task) => task.checked),
       )
@@ -299,7 +284,7 @@ export function useTaskActions(): TaskActions {
       if (generation === undefined) {
         throw new Error('No graph is open.')
       }
-      const result = await writeTask(
+      const result = await taskService.writeTask(
         task,
         [{ kind: 'setMarkdown', markdown: content }, { kind: 'toBullet' }],
         generation,
@@ -314,13 +299,13 @@ export function useTaskActions(): TaskActions {
         (rows) => withoutTasks(rows, [task]),
         (rows) => withoutTasks(rows, [task]),
       )
-      forgetRecentlyCompleted(root, [getTaskKey(task)])
+      taskService.forgetRecentlyCompleted(root, [getTaskKey(task)])
       return snapshot
     },
     onError: (cause, { task }, context) => {
       cache.rollback(context, 'Converting task', cause)
       if (task.checked) {
-        markRecentlyCompleted(root, [task])
+        taskService.markRecentlyCompleted(root, [task])
       }
     },
   })
@@ -333,8 +318,8 @@ export function useTaskActions(): TaskActions {
         throw new Error('No graph is open.')
       }
       return after === undefined
-        ? insertTask(target.notePath, generation)
-        : continueTaskInContext(after.task, after.content, generation)
+        ? taskService.insertTask(target.notePath, generation)
+        : taskService.continueTaskInContext(after.task, after.content, generation)
     },
     onMutate: async ({ after }: InsertInput): Promise<TaskCacheSnapshot | undefined> => {
       if (after === undefined) {
@@ -368,7 +353,7 @@ export function useTaskActions(): TaskActions {
       if (generation === undefined) {
         throw new Error('No graph is open.')
       }
-      await writeTask(
+      await taskService.writeTask(
         task,
         content === null
           ? [{ kind: 'toggle' }]
@@ -379,13 +364,13 @@ export function useTaskActions(): TaskActions {
     onMutate: async ({ task, content }: { task: OpenTask; content: string | null }) => {
       const snapshot = await cache.snapshot()
       const edited = content === null ? task : (withEditedTask([task], task, content)?.[0] ?? task)
-      const wasRecentlyCompleted = hasRecentlyCompleted(root, getTaskKey(task))
+      const wasRecentlyCompleted = taskService.hasRecentlyCompleted(root, getTaskKey(task))
       if (task.checked) {
         cache.patch(
           (rows) => asOpen(rows, [edited]),
           (rows) => withoutTasks(rows, [task]),
         )
-        forgetRecentlyCompleted(root, [getTaskKey(task)])
+        taskService.forgetRecentlyCompleted(root, [getTaskKey(task)])
       } else {
         // Surface the *edited* row struck (its new text), in both the completed
         // cache (archived on) and the session set (off) — not the pre-edit task.
@@ -393,7 +378,7 @@ export function useTaskActions(): TaskActions {
           (rows) => withoutTasks(rows, [task]),
           (rows) => asCompleted(rows, [edited]),
         )
-        markRecentlyCompleted(root, [edited])
+        taskService.markRecentlyCompleted(root, [edited])
       }
       return { snapshot, wasRecentlyCompleted }
     },
@@ -401,9 +386,9 @@ export function useTaskActions(): TaskActions {
       // One write: nothing landed, so the pre-write lists are the truth.
       cache.rollback(context?.snapshot, task.checked ? 'Reopening task' : 'Completing task', cause)
       if (task.checked && context?.wasRecentlyCompleted) {
-        markRecentlyCompleted(root, [task])
+        taskService.markRecentlyCompleted(root, [task])
       } else if (!task.checked) {
-        forgetRecentlyCompleted(root, [getTaskKey(task)])
+        taskService.forgetRecentlyCompleted(root, [getTaskKey(task)])
       }
     },
   })
@@ -421,7 +406,7 @@ export function useTaskActions(): TaskActions {
     try {
       const result = await insertMutation.mutateAsync({ target, after })
       relocate(target.notePath, result.moved)
-      const created = createInsertedTaskRow(target, result.created)
+      const created = createInsertedTaskRow(target, result.created, result.updatedAt)
       cache.addOpen(created)
       return created
     } catch {
@@ -529,6 +514,6 @@ export function useTaskActions(): TaskActions {
         editAndConvertMutation.mutate({ task, content })
       }
     },
-    archive: () => archiveRecentlyCompleted(root),
+    archive: () => taskService.archiveRecentlyCompleted(root),
   }
 }

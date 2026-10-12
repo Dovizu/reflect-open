@@ -6,7 +6,7 @@ import {
   taskDateBucket,
   visibleTaskBreadcrumbs,
 } from './group-tasks.ts'
-import type { OpenTask } from './queries.ts'
+import type { OpenTask } from './open-task.ts'
 
 const TODAY = '2026-06-14'
 const PAST = '2026-06-10'

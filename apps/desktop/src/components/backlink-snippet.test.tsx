@@ -1,15 +1,16 @@
-import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
-import { setDefaultOperations } from '@reflect/core'
+import {
+  createTestOperationsService,
+  createTestTaskService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
+import { setDefaultOperations, setDefaultTasks, type TaskService } from '@reflect/core'
 import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { SnippetTask } from '@reflect/core'
 import { RouterProvider } from '@/routing/router.tsx'
 import { BacklinkSnippet } from './backlink-snippet.tsx'
-
-const writeTask = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/note-task.ts', () => ({ writeTask }))
 
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 7 } }),
@@ -61,16 +62,21 @@ function renderSnippet(tasks: SnippetTask[] = anchors()) {
 }
 
 let operations: TestOperationsService
+let writeTask: MockInstance<TaskService['writeTask']>
 
 beforeEach(() => {
   operations = createTestOperationsService()
   setDefaultOperations(operations)
-  writeTask.mockReset()
-  writeTask.mockResolvedValue(undefined)
+  const tasks = createTestTaskService({ operations })
+  writeTask = vi
+    .spyOn(tasks, 'writeTask')
+    .mockResolvedValue({ source: '', moved: [], inserted: [], tasks: [], updatedAt: 0 })
+  setDefaultTasks(tasks)
 })
 
 afterEach(() => {
   setDefaultOperations(null)
+  setDefaultTasks(null)
 })
 
 describe('BacklinkSnippet task checkboxes', () => {

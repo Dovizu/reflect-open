@@ -1,49 +1,50 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { resolveOrCreateNoteWithTitle } from '../graph/create-note.ts'
-import { setDefaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import type { NoteCreationService } from '../graph/note-creation-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/index.ts'
-import { ensureBacklinkTarget } from './backlink-target.ts'
+import {
+  createBacklinkTargetService,
+  type BacklinkTargetService,
+} from './backlink-target-service.ts'
 
-vi.mock('../graph/create-note', () => ({ resolveOrCreateNoteWithTitle: vi.fn() }))
-
-const resolveOrCreateMock = vi.mocked(resolveOrCreateNoteWithTitle)
+const resolveOrCreateMock = vi.fn<NoteCreationService['resolveOrCreateNoteWithTitle']>()
 let noteFile: TestNoteFileService
 let readNoteMock: MockInstance<NoteFileService['read']>
+let backlinkTarget: BacklinkTargetService
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  resolveOrCreateMock.mockReset()
   resolveOrCreateMock.mockResolvedValue({ kind: 'resolved', path: 'notes/links.md' })
   noteFile = createTestNoteFileService({
     files: { 'notes/links.md': '# Links\n', 'notes/links-2.md': '# Links\n' },
   })
   readNoteMock = vi.spyOn(noteFile, 'read')
-  setDefaultNoteFile(noteFile)
+  backlinkTarget = createBacklinkTargetService({
+    noteCreation: { resolveOrCreateNoteWithTitle: resolveOrCreateMock },
+    noteFile,
+  })
 })
 
-afterEach(() => {
-  setDefaultNoteFile(null)
-})
-
-describe('ensureBacklinkTarget', () => {
+describe('BacklinkTargetService', () => {
   it('returns the existing note title so renamed categories keep one section', async () => {
     resolveOrCreateMock.mockResolvedValue({ kind: 'resolved', path: 'notes/bookmarks.md' })
     noteFile.set('notes/bookmarks.md', '# Bookmarks\n')
 
-    await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Bookmarks')
+    await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Bookmarks')
     expect(readNoteMock).toHaveBeenCalledWith('notes/bookmarks.md', 3)
   })
 
   it('returns the canonical title of a newly created target', async () => {
     resolveOrCreateMock.mockResolvedValue({ kind: 'created', path: 'notes/links.md' })
 
-    await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Links')
+    await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Links')
   })
 
   it('keeps the resolvable alias when the current title is unsafe in wiki syntax', async () => {
     resolveOrCreateMock.mockResolvedValue({ kind: 'resolved', path: 'notes/saved-links.md' })
     noteFile.set('notes/saved-links.md', '# Saved | Links\n')
 
-    await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Links')
+    await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Links')
   })
 
   it('uses the read-only wiki-link winner when duplicate targets already exist', async () => {
@@ -52,7 +53,7 @@ describe('ensureBacklinkTarget', () => {
       paths: ['notes/links.md', 'notes/links-2.md'],
     })
 
-    await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Links')
+    await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Links')
     expect(readNoteMock).toHaveBeenCalledWith('notes/links-2.md', 3)
   })
 
@@ -63,7 +64,7 @@ describe('ensureBacklinkTarget', () => {
     })
     noteFile.set('notes/bookmarks.md', '# Bookmarks\n')
 
-    await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Bookmarks')
+    await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Bookmarks')
     expect(readNoteMock).toHaveBeenCalledWith('notes/bookmarks.md', 3)
   })
 
@@ -74,7 +75,7 @@ describe('ensureBacklinkTarget', () => {
     })
     readNoteMock.mockRejectedValue({ kind: 'io', message: 'not downloaded' })
 
-    await expect(ensureBacklinkTarget('Links', 3)).rejects.toMatchObject({
+    await expect(backlinkTarget.ensure('Links', 3)).rejects.toMatchObject({
       kind: 'io',
       message: 'not downloaded',
     })
@@ -88,14 +89,14 @@ describe('ensureBacklinkTarget', () => {
       paths: ['notes/links.md'],
     })
 
-    await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Links')
+    await expect(backlinkTarget.ensure('Links', 3)).resolves.toBe('Links')
     expect(readNoteMock).not.toHaveBeenCalled()
   })
 
   it('rejects an impossible ambiguous result without any target paths', async () => {
     resolveOrCreateMock.mockResolvedValue({ kind: 'ambiguous', paths: [] })
 
-    await expect(ensureBacklinkTarget('Links', 3)).rejects.toMatchObject({
+    await expect(backlinkTarget.ensure('Links', 3)).rejects.toMatchObject({
       kind: 'unknown',
       message: expect.stringContaining('could not be resolved'),
     })

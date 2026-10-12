@@ -61,8 +61,6 @@ export {
   getLinkSources,
   getPathLinkSources,
   getNote,
-  getOpenTasks,
-  getCompletedTasks,
   getPinnedNotes,
   getWikiAddressForPath,
   suggestWikiTargets,
@@ -81,20 +79,11 @@ export {
   type DailyNotesRange,
   type DuplicateIdGroup,
   type NoteRow,
-  type OpenTask,
   type PinnedNote,
   type TagSuggestion,
   type WikiLinkSuggestionResult,
 } from './queries.ts'
 export { resolveNoteTarget } from './resolve-target.ts'
-export {
-  groupTaskContexts,
-  groupTasks,
-  taskDateBucket,
-  type TaskContext,
-  type TaskGroup,
-  type TaskGroupKind,
-} from './group-tasks.ts'
 export {
   listNotes,
   listNoteTags,

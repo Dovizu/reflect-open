@@ -113,10 +113,15 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestBacklinkTargetService,
   createTestCaptureInboxService,
+  createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
+  type TestBacklinkTargetServiceOptions,
   type TestCaptureInboxService,
+  type TestCaptureService,
+  type TestCaptureSessionState,
   type TestWebFetchService,
   type TestXArchiveService,
   type WebFetchKind,
@@ -277,6 +282,7 @@ export {
   type TestAttachmentService,
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
+export { createTestTaskService, makeOpenTask, type TestTaskServiceOptions } from './tasks.ts'
 export {
   createTestNoteActionsService,
   createTestNoteDocumentService,
