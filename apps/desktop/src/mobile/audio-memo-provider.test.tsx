@@ -7,11 +7,14 @@ import {
   setBridge,
   setDefaultPlatform,
   setDefaultOperations,
+  setDefaultHaptics,
 } from '@reflect/core'
 import {
   createTestPlatformService,
   createTestOperationsService,
   type TestOperationsService,
+  createTestHapticsService,
+  type TestHapticsService,
 } from '@reflect/core/testing'
 import type {
   AiProvidersState,
@@ -22,6 +25,17 @@ import type {
   Settings,
 } from '@reflect/core'
 import type { NativeRecordingPart } from '@/mobile/use-native-audio-recorder.ts'
+
+let haptics: TestHapticsService
+
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
 
 const captureAudioMemoPart = vi.hoisted(() =>
   vi.fn<(input: CaptureAudioMemoPartInput) => Promise<CaptureAudioMemoOutcome>>(),
@@ -112,10 +126,6 @@ afterEach(() => {
 
 vi.mock('@/lib/transcription-reconciler.ts', () => ({
   createTranscriptionReconciler,
-}))
-
-vi.mock('@/mobile/haptics.ts', () => ({
-  hapticImpactLight: vi.fn(),
 }))
 
 vi.mock('@/mobile/use-native-audio-recorder.ts', () => ({

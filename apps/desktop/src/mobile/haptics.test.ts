@@ -1,56 +1,34 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultHaptics } from '@reflect/core'
+import { createTestHapticsService, type TestHapticsService } from '@reflect/core/testing'
+import { hapticImpactLight } from './haptics.ts'
 
-/**
- * `hapticImpactLight` is fire-and-forget over the haptics plugin's
- * `impact_light` command, and must fail soft where the plugin isn't
- * registered (desktop, browser dev): one warning, then no further IPC.
- */
-
-const invokeMock = vi.fn<(command: string) => Promise<unknown>>()
-
-async function loadHaptics(): Promise<() => void> {
-  // resetModules gives this test a fresh latch and a fresh @reflect/core —
-  // install the fake bridge on the same instance the module under test sees.
-  const core = await import('@reflect/core')
-  core.setBridge({
-    invoke: (command) => invokeMock(command),
-    listen: async () => () => {},
-  })
-  const module = await import('./haptics.ts')
-  return module.hapticImpactLight
-}
+let haptics: TestHapticsService
 
 beforeEach(() => {
-  vi.resetModules()
-  invokeMock.mockReset()
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
 })
 
 describe('hapticImpactLight', () => {
-  it('fires the plugin impact command on every call while the bridge works', async () => {
-    invokeMock.mockResolvedValue(null)
-    const hapticImpactLight = await loadHaptics()
-
+  it('fires a light impact on every call', () => {
     hapticImpactLight()
     hapticImpactLight()
 
-    expect(invokeMock).toHaveBeenCalledTimes(2)
-    expect(invokeMock).toHaveBeenCalledWith('plugin:mobile-haptics|impact_light')
+    expect(haptics.impacts()).toBe(2)
   })
 
-  it('warns once and stops invoking after the bridge rejects', async () => {
-    invokeMock.mockRejectedValue(new Error('plugin mobile-haptics not found'))
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const hapticImpactLight = await loadHaptics()
-
-    // Two taps with both invokes in flight: only the first rejection warns.
-    hapticImpactLight()
-    hapticImpactLight()
-    expect(invokeMock).toHaveBeenCalledTimes(2)
-    await vi.waitFor(() => expect(warn).toHaveBeenCalledOnce())
+  it('swallows a failing haptic engine', async () => {
+    const failing = createTestHapticsService({ fail: true })
+    setDefaultHaptics(failing)
 
     hapticImpactLight()
-    expect(invokeMock).toHaveBeenCalledTimes(2)
-    expect(warn).toHaveBeenCalledOnce()
-    warn.mockRestore()
+    await Promise.resolve()
+
+    expect(failing.impacts()).toBe(1)
   })
 })

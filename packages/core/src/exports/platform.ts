@@ -34,7 +34,29 @@ export {
   type StagedRecordingFile,
   type StartRecordingOptions,
 } from '../ipc/recording-plugin.ts'
-export { impactLight } from '../ipc/mobile-haptics-plugin.ts'
+export {
+  createHapticsService,
+  defaultHaptics,
+  setDefaultHaptics,
+  type HapticsService,
+} from '../ipc/mobile-haptics-plugin.ts'
+export {
+  MIN_RECORDING_DURATION_MS,
+  type AudioRecorderFinalSegment,
+  type AudioRecorderSegment,
+  type AudioRecorderService,
+  type AudioRecorderState,
+  type AudioRecorderStopped,
+  type RecordedAudio,
+} from '../audio/audio-recorder-service.ts'
+export { createNativeAudioRecorder, NATIVE_RECORDING_MIME } from '../audio/native-audio-recorder.ts'
+export {
+  createWebAudioRecorder,
+  type WebMediaDevices,
+  type WebMediaRecorder,
+  type WebMediaRecorderConstructor,
+} from '../audio/web-audio-recorder.ts'
+export { defaultAudioRecorder, setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 export {
   getAppVersion,
   mobileStorage,
@@ -574,15 +596,29 @@ export {
 } from '../classic/classic-access.ts'
 export {
   IAP_PRODUCT_IDS,
+  createIapService,
+  defaultIap,
   iapGetProducts,
   iapPurchase,
   iapIsOwned,
-  subscribeIapPurchaseUpdated,
+  setDefaultIap,
   type IapProduct,
+  type IapService,
 } from '../ipc/iap-plugin.ts'
 export {
+  createAppStoreService,
+  defaultAppStore,
   getAppStoreEnvironment,
   presentOfferCodeRedeemSheet,
+  setDefaultAppStore,
   syncAppStore,
+  type AppStoreService,
 } from '../ipc/app-store-plugin.ts'
-export { startWebAuth, type WebAuthOptions } from '../ipc/web-auth-plugin.ts'
+export {
+  createWebAuthService,
+  defaultWebAuth,
+  setDefaultWebAuth,
+  startWebAuth,
+  type WebAuthOptions,
+  type WebAuthService,
+} from '../ipc/web-auth-plugin.ts'

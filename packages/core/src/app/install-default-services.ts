@@ -3,12 +3,17 @@ import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
+import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
+import { setDefaultAppStore } from '../ipc/app-store-plugin.ts'
 import { setDefaultIpc } from '../ipc/bridge.ts'
+import { setDefaultIap } from '../ipc/iap-plugin.ts'
+import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
+import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import { setDefaultAgentSkill } from './agent-skill-service.ts'
 import { setDefaultAppInfo } from './app-info-service.ts'
@@ -63,6 +68,11 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultCaptureInbox(services.captureInbox)
   setDefaultWebFetch(services.webFetch)
   setDefaultXArchive(services.xArchive)
+  setDefaultAudioRecorder(services.audioRecorder)
+  setDefaultHaptics(services.haptics ?? null)
+  setDefaultIap(services.iap ?? null)
+  setDefaultAppStore(services.appStore ?? null)
+  setDefaultWebAuth(services.webAuth ?? null)
   setDefaultIpc(services.ipc)
 }
 
@@ -98,5 +108,10 @@ export function resetDefaultServices(): void {
   setDefaultCaptureInbox(null)
   setDefaultWebFetch(null)
   setDefaultXArchive(null)
+  setDefaultAudioRecorder(null)
+  setDefaultHaptics(null)
+  setDefaultIap(null)
+  setDefaultAppStore(null)
+  setDefaultWebAuth(null)
   setDefaultIpc(null)
 }

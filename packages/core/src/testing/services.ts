@@ -8,6 +8,7 @@ import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 import { installDefaultServices, resetDefaultServices } from '../app/install-default-services.ts'
 import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
+import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 import {
   createTestCaptureInboxService,
@@ -45,6 +46,16 @@ import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
+import {
+  createTestAppStoreService,
+  createTestHapticsService,
+  createTestIapService,
+  createTestWebAuthService,
+  type TestAppStoreService,
+  type TestHapticsService,
+  type TestIapService,
+  type TestWebAuthService,
+} from './plugins.ts'
 import {
   createTestAppInfoService,
   createTestSecretStoreService,
@@ -99,6 +110,11 @@ export interface TestAppServices extends AppServices {
   readonly captureInbox: TestCaptureInboxService
   readonly webFetch: TestWebFetchService
   readonly xArchive: TestXArchiveService
+  readonly audioRecorder: TestAudioRecorderService
+  readonly haptics: TestHapticsService
+  readonly iap: TestIapService
+  readonly appStore: TestAppStoreService
+  readonly webAuth: TestWebAuthService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -142,6 +158,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     captureInbox: createTestCaptureInboxService(),
     webFetch: createTestWebFetchService(),
     xArchive: createTestXArchiveService(),
+    audioRecorder: createTestAudioRecorderService(),
+    haptics: createTestHapticsService(),
+    iap: createTestIapService(),
+    appStore: createTestAppStoreService(),
+    webAuth: createTestWebAuthService(null),
   }
   return Object.assign(services, overrides)
 }

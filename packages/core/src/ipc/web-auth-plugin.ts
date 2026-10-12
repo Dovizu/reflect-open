@@ -1,5 +1,7 @@
 import { z } from 'zod'
-import { defaultIpc } from './bridge.ts'
+import type { StartWebAuth } from '../classic/classic-access.ts'
+import { currentIpc } from './bridge.ts'
+import type { IpcBridgeService } from './ipc-service.ts'
 import { definePluginCommand } from './plugin.ts'
 
 /**
@@ -22,10 +24,41 @@ const startCommand = definePluginCommand<
   { url?: string | null | undefined }
 >('web-auth', 'start', z.object({ url: z.string().nullish() }))
 
-/**
- * Open `url` in the system web sign-in session and resolve the callback URL it
- * redirects to, or `null` when the user cancels.
- */
-export async function startWebAuth(options: WebAuthOptions): Promise<string | null> {
-  return (await startCommand(defaultIpc(), { payload: options })).url ?? null
+/** The system web sign-in session. */
+export interface WebAuthService {
+  /**
+   * Open `url` in the system web sign-in session and resolve the callback URL
+   * it redirects to, or `null` when the user cancels.
+   */
+  start: StartWebAuth
 }
+
+export function createWebAuthService(deps: { ipc: IpcBridgeService }): WebAuthService {
+  const { ipc } = deps
+  return {
+    async start(options) {
+      const payload: WebAuthOptions = {
+        url: options.url,
+        callbackScheme: options.callbackScheme,
+        ephemeral: options.ephemeral,
+      }
+      return (await startCommand(ipc, { payload })).url ?? null
+    },
+  }
+}
+
+let defaultService: WebAuthService | null = null
+
+/** The process-wide `WebAuthService`; one over the installed bridge unless replaced. */
+export function defaultWebAuth(): WebAuthService {
+  defaultService ??= createWebAuthService({ ipc: currentIpc() })
+  return defaultService
+}
+
+/** Install the process-wide `WebAuthService`; `null` restores the bridge-backed one. */
+export function setDefaultWebAuth(service: WebAuthService | null): void {
+  defaultService = service
+}
+
+/** {@link WebAuthService.start} on the process-wide service. */
+export const startWebAuth: StartWebAuth = async (options) => await defaultWebAuth().start(options)

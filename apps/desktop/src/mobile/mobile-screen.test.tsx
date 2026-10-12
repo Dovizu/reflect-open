@@ -3,7 +3,8 @@ import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, StrictMode, type ReactElement } from 'react'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultHaptics } from '@reflect/core'
+import { createTestHapticsService, type TestHapticsService } from '@reflect/core/testing'
 import {
   clearFormattingToolbar,
   publishFormattingToolbar,
@@ -17,6 +18,17 @@ import '@/test-utils/locator.ts'
 import { createWeekWindow, weekOf } from './calendar.ts'
 import { MobileShell } from './mobile-shell.tsx'
 import { publishKeyboardHeight } from './use-keyboard.ts'
+
+let haptics: TestHapticsService
+
+beforeEach(() => {
+  haptics = createTestHapticsService()
+  setDefaultHaptics(haptics)
+})
+
+afterEach(() => {
+  setDefaultHaptics(null)
+})
 
 const waitFor = vi.waitFor
 
@@ -32,8 +44,6 @@ const editorProbe = vi.hoisted(() => ({
   focusCalls: 0,
   selectionCalls: [] as Array<'start' | 'end'>,
 }))
-const hapticImpactLight = vi.hoisted(() => vi.fn())
-
 vi.mock('@/editor/note-editor.tsx', async () => {
   const { useEffect, useRef } = await import('react')
   return {
@@ -87,10 +97,6 @@ vi.mock('@/editor/note-editor.tsx', async () => {
     },
   }
 })
-vi.mock('@/mobile/haptics.ts', () => ({
-  hapticImpactLight,
-}))
-
 const indexFns = vi.hoisted(() => ({
   dailyDatesInRange: vi.fn(async () => [] as string[]),
   getBacklinksWithContext: vi.fn(async () => ({
@@ -181,7 +187,6 @@ beforeEach(async () => {
   editorProbe.focusCalls = 0
   editorProbe.selectionCalls = []
   mockInvoke.mockReset()
-  hapticImpactLight.mockClear()
   indexFns.dailyDatesInRange.mockReset().mockResolvedValue([])
   mockInvoke.mockImplementation(async (command, args) => {
     if (command === 'note_read') {
@@ -458,13 +463,13 @@ describe('MobileShell', () => {
     const view = await mount({ kind: 'today' })
 
     await user.click(view.getByRole('button', { name: dayCellLabel(other) }))
-    hapticImpactLight.mockClear()
+    haptics.reset()
 
     await user.click(view.getByRole('button', { name: 'Today' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(1)
+    expect(haptics.impacts()).toBe(1)
 
     await user.click(view.getByRole('button', { name: 'Settings' }))
-    expect(hapticImpactLight).toHaveBeenCalledTimes(2)
+    expect(haptics.impacts()).toBe(2)
     await expect.element(view.getByRole('heading', { name: 'Settings' })).toBeVisible()
   })
 

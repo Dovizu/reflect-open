@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
-import { IAP_PRODUCT_IDS, iapIsOwned, subscribeIapPurchaseUpdated } from '@reflect/core'
+import { IAP_PRODUCT_IDS, defaultIap, iapIsOwned } from '@reflect/core'
 import { z } from 'zod'
 import { getLocalStorageStore } from '@/lib/local-storage.ts'
 import { queryKeys } from '@/lib/query-client.ts'
@@ -160,13 +160,9 @@ export function useActiveSubscription(): {
     if (!enabled) {
       return
     }
-    const subscription = subscribeIapPurchaseUpdated(() => {
+    return defaultIap().subscribePurchaseUpdated(() => {
       void invalidateEntitlements(queryClient)
     })
-    subscription.ready.catch((error: unknown) => {
-      console.error('subscribing to purchaseUpdated failed', error)
-    })
-    return subscription.unlisten
   }, [enabled, queryClient])
 
   return {
