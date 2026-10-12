@@ -85,7 +85,7 @@ function keyProbe(input: ApiKeyValidationInput): KeyProbe | null {
  */
 export async function validateApiKey(
   input: ApiKeyValidationInput,
-  fetchFn: typeof fetch = fetch,
+  fetchFn: typeof fetch,
 ): Promise<ApiKeyValidation> {
   // Providers know nothing about the App Review demo key, so a probe would
   // reject it; accept it here so it can be saved and reach the canned

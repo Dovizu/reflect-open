@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import { APICallError } from '@reflect/modules/ai'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3CallOptions, LanguageModelV3Usage } from '@ai-sdk/provider'
@@ -73,6 +74,7 @@ function request(overrides: Partial<Parameters<typeof describePage>[0]> = {}) {
     apiKey: 'sk-live-key',
     url: 'https://example.com/article',
     title: 'An article',
+    fetchFn: createTestHttpService().fetchFn,
     ...overrides,
   })
 }

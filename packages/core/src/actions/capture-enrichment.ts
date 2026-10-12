@@ -80,7 +80,7 @@ export interface ReconcileCaptureEnrichmentInput {
   /** `GraphInfo.generation` — pins every read and write to the issuing graph. */
   generation: number
   /** Transport for the provider call (the Tauri HTTP plugin's fetch). */
-  fetchFn?: typeof fetch
+  fetchFn: typeof fetch
   /** Abort gate, checked between notes and after every slow await. */
   isStale?: () => boolean
   /** Observes how many captures need enrichment, before work starts. */
@@ -101,7 +101,7 @@ export interface ReconcileCaptureEnrichmentOutcome {
 interface GenerateEnrichmentInput {
   config: AiProviderConfig
   apiKey: string
-  fetchFn?: typeof fetch | undefined
+  fetchFn: typeof fetch
   /** The pending capture's frontmatter keys (URL, screenshot asset). */
   meta: CaptureNoteMeta
   /** The note's current display title. */

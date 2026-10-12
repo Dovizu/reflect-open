@@ -29,7 +29,7 @@ export interface DescribePageRequest {
   /** The BYOK API key, or an empty string for no-key compatible endpoints. */
   apiKey: string
   /** Host transport (the Tauri HTTP plugin's fetch; tests pass a stub). */
-  fetchFn?: typeof fetch | undefined
+  fetchFn: typeof fetch
   /** The captured page. */
   url: string
   title: string
@@ -163,7 +163,7 @@ export async function describePage(request: DescribePageRequest): Promise<PageEn
   }
   try {
     const result = await sdk.generateObject({
-      model: await languageModel(request.config, request.apiKey, request.fetchFn ?? fetch),
+      model: await languageModel(request.config, request.apiKey, request.fetchFn),
       schema: pageDescriptionSchema,
       messages: [{ role: 'user', content }],
       abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),

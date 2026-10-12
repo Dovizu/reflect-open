@@ -1,10 +1,13 @@
 import { initializeExceptionTelemetry } from '@/lib/exception-telemetry.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
+import { createTauriHttpService } from '@/services/tauri-http.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
 import {
+  createBrowserHttpService,
   createPlatformService,
   defaultPlatform,
   setBridge,
+  setDefaultHttp,
   setDefaultPlatform,
 } from '@reflect/core'
 import { isTauri } from '@tauri-apps/api/core'
@@ -23,3 +26,7 @@ initializeExceptionTelemetry()
 if (defaultPlatform().isNativeShell) {
   setBridge(createTauriIpcTransport())
 }
+
+setDefaultHttp(
+  defaultPlatform().isNativeShell ? createTauriHttpService() : createBrowserHttpService(),
+)

@@ -4,19 +4,20 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   setBridge,
+  setDefaultHttp,
   settingsSchema,
   type HostedAiProviderConfig,
   type Settings,
 } from '@reflect/core'
+import { createTestHttpService, type TestHttpService } from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { resetOperations } from '@/lib/operations.ts'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { AiProvidersSection } from './ai-providers-section.tsx'
 
-// The dialog verifies keys against the provider through this transport; the
-// default per-test behavior is "key accepted".
-const { providerFetchMock } = vi.hoisted(() => ({ providerFetchMock: vi.fn() }))
-vi.mock('@/lib/provider-fetch.ts', () => ({ providerFetch: providerFetchMock }))
+// The dialog verifies keys against the provider through the default HTTP
+// service; the default per-test behavior is "key accepted".
+let http: TestHttpService
 
 let stored: Record<string, unknown>
 let saved: unknown[]
@@ -106,12 +107,13 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
   installFakeBridge()
-  providerFetchMock.mockReset()
-  providerFetchMock.mockResolvedValue(new Response(null, { status: 200 }))
+  http = createTestHttpService([{ method: '*', url: () => true, reply: { status: 200 } }])
+  setDefaultHttp(http)
 })
 
 afterEach(() => {
   setBridge(null)
+  setDefaultHttp(null)
   queryClient.clear()
   resetOperations()
 })
@@ -159,9 +161,8 @@ describe('AiProvidersSection', () => {
     // The first entry becomes the default automatically.
     expect(doc.defaultAiProviderId).toBe(added!.id)
     // The key was verified against the provider before being stored.
-    expect(providerFetchMock).toHaveBeenCalledWith(
-      'https://api.anthropic.com/v1/models',
-      expect.objectContaining({ method: 'GET' }),
+    expect(http.requests()).toContainEqual(
+      expect.objectContaining({ method: 'GET', url: 'https://api.anthropic.com/v1/models' }),
     )
     // The full key reached the keychain (and only the keychain).
     expect(secrets.get(`ai-api-key:${added!.id}`)).toBe('sk-ant-test-wxyz1')
@@ -202,17 +203,16 @@ describe('AiProvidersSection', () => {
       baseUrl: 'http://localhost:1234/v1',
       keyHint: '',
     })
-    expect(providerFetchMock).toHaveBeenCalledWith(
-      'http://localhost:1234/v1/models',
-      expect.objectContaining({ method: 'GET', headers: {} }),
-    )
+    const [probe] = http.requests()
+    expect(probe).toMatchObject({ method: 'GET', url: 'http://localhost:1234/v1/models' })
+    expect([...(probe?.headers.keys() ?? [])]).toEqual([])
     expect(secrets.size).toBe(0)
     expect(JSON.stringify(saved)).not.toContain('localhost:1234/v1/')
     await expectLocatorToHaveCount(page.getByRole('dialog'), 0)
   })
 
   it('rejects a key the provider turns down, storing nothing', async () => {
-    providerFetchMock.mockResolvedValue(new Response(null, { status: 401 }))
+    http.on('*', () => true, { status: 401 })
     await renderSection()
     await expect.element(page.getByText(/No AI providers configured/)).toBeInTheDocument()
 
@@ -226,7 +226,13 @@ describe('AiProvidersSection', () => {
   })
 
   it('offers save-anyway when the provider cannot be reached', async () => {
-    providerFetchMock.mockRejectedValue(new TypeError('offline'))
+    http.on(
+      '*',
+      () => true,
+      () => {
+        throw new TypeError('offline')
+      },
+    )
     await renderSection()
     await expect.element(page.getByText(/No AI providers configured/)).toBeInTheDocument()
 

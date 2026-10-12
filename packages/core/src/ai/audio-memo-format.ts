@@ -64,7 +64,7 @@ export interface FormatAudioMemoTranscriptRequest {
   /** Small-model credentials selected from the user's BYOK providers. */
   readonly credentials: AudioMemoEnrichmentCredentials
   /** Host transport (the Tauri HTTP plugin's fetch; tests pass a stub). */
-  readonly fetchFn?: typeof fetch | undefined
+  readonly fetchFn: typeof fetch
   /** The complete raw provider transcript. */
   readonly transcript: string
   /** Timestamp-derived fallback when the transcript cannot produce a title. */
@@ -96,7 +96,7 @@ export async function formatAudioMemoTranscript(
   try {
     const { generateText, Output } = await import('@reflect/modules/ai')
     const result = await generateText({
-      model: await languageModel(config, request.credentials.apiKey, request.fetchFn ?? fetch),
+      model: await languageModel(config, request.credentials.apiKey, request.fetchFn),
       output: Output.object({ schema: formattedAudioMemoSchema }),
       instructions: FORMAT_SYSTEM_PROMPT,
       prompt: `Transcript JSON string:\n${JSON.stringify(request.transcript)}`,

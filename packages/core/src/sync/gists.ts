@@ -47,7 +47,7 @@ export interface GistFile {
 export async function createGist(
   token: string,
   file: GistFile,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn,
 ): Promise<PublishedGist> {
   const response = await fetchFn('https://api.github.com/gists', {
     method: 'POST',
@@ -87,7 +87,7 @@ export async function updateGist(
   gistId: string,
   previousFilename: string,
   file: GistFile,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn,
 ): Promise<PublishedGist | null> {
   const response = await fetchFn(`https://api.github.com/gists/${gistId}`, {
     method: 'PATCH',
@@ -115,11 +115,7 @@ export async function updateGist(
  * orphaned on GitHub — and re-created on the next publish. A 404 counts as
  * success (already gone is the goal state).
  */
-export async function deleteGist(
-  token: string,
-  gistId: string,
-  fetchFn: FetchFn = fetch,
-): Promise<void> {
+export async function deleteGist(token: string, gistId: string, fetchFn: FetchFn): Promise<void> {
   const response = await fetchFn(`https://api.github.com/gists/${gistId}`, {
     method: 'DELETE',
     headers: apiHeaders(token),

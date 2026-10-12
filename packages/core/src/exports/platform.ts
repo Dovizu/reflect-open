@@ -87,6 +87,12 @@ export { createSystemIdService, type IdService, type PkcePair } from '../app/id-
 export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export {
+  createBrowserHttpService,
+  defaultHttp,
+  setDefaultHttp,
+  type HttpService,
+} from '../app/http-service.ts'
+export {
   agentSkillStatus,
   agentSkillInstall,
   agentSkillUninstall,

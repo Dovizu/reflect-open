@@ -1,5 +1,5 @@
 import { useState, type ReactElement, type ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import type {
   AiProvidersState,
@@ -9,6 +9,8 @@ import type {
   GraphInfo,
   Settings,
 } from '@reflect/core'
+import { setDefaultHttp } from '@reflect/core'
+import { createTestHttpService } from '@reflect/core/testing'
 import type { UseAudioRecorderOptions } from '@/hooks/use-audio-recorder.ts'
 
 const captureAudioMemoPart = vi.hoisted(() =>
@@ -145,9 +147,12 @@ vi.mock('@/providers/settings-provider.tsx', () => ({
 vi.mock('@/providers/sidebar-provider.tsx', () => ({
   useSidebar: () => ({ collapsed: sidebarState.collapsed, toggleSidebar }),
 }))
-vi.mock('@/lib/provider-fetch.ts', () => ({
-  providerFetch: vi.fn(),
-}))
+beforeEach(() => {
+  setDefaultHttp(createTestHttpService())
+})
+afterEach(() => {
+  setDefaultHttp(null)
+})
 vi.mock('@/lib/operations.ts', () => ({
   startOperation: () => ({ progress: vi.fn(), done: vi.fn(), fail: failOperation }),
 }))

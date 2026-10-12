@@ -69,9 +69,9 @@ function toRepo(parsed: z.infer<typeof repoResponseSchema>): GithubRepo {
 export async function createGithubRepo(
   token: string,
   name: string,
-  options: { isPrivate?: boolean; fetchFn?: FetchFn } = {},
+  options: { isPrivate?: boolean; fetchFn: FetchFn },
 ): Promise<GithubRepo | null> {
-  const fetchFn = options.fetchFn ?? fetch
+  const { fetchFn } = options
   const response = await fetchFn('https://api.github.com/user/repos', {
     method: 'POST',
     headers: { ...apiHeaders(token), 'Content-Type': 'application/json' },
@@ -103,7 +103,7 @@ export async function createGithubRepo(
 export async function getGithubRepo(
   token: string,
   ref: GithubRepoRef,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn,
 ): Promise<GithubRepo | null> {
   const response = await fetchFn(`https://api.github.com/repos/${ref.owner}/${ref.name}`, {
     headers: apiHeaders(token),

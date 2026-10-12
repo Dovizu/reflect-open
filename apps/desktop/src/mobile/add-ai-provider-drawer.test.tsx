@@ -3,6 +3,8 @@ import { page, type Locator } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { ApiKeyValidation, ApiKeyValidationInput } from '@reflect/core'
+import { setDefaultHttp } from '@reflect/core'
+import { createTestHttpService } from '@reflect/core/testing'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 
 /**
@@ -13,13 +15,18 @@ import { fireEvent } from '@/test-utils/fire-event.ts'
  */
 
 const validateApiKey = vi.hoisted(() =>
-  vi.fn<(input: ApiKeyValidationInput, fetchFn?: typeof fetch) => Promise<ApiKeyValidation>>(),
+  vi.fn<(input: ApiKeyValidationInput, fetchFn: typeof fetch) => Promise<ApiKeyValidation>>(),
 )
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   validateApiKey,
 }))
-vi.mock('@/lib/provider-fetch.ts', () => ({ providerFetch: vi.fn() }))
+beforeEach(() => {
+  setDefaultHttp(createTestHttpService())
+})
+afterEach(() => {
+  setDefaultHttp(null)
+})
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn(() => Promise.resolve()) }))
 
 // Keep the sheet content inline so this suite exercises its state flow
