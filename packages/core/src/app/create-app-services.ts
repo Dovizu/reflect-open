@@ -56,7 +56,6 @@ import {
 import { createGitRepositoryService } from '../sync/git-repository-service.ts'
 import { createGistService } from '../sync/gist-service.ts'
 import { createGistPublishService, type GistPublishService } from '../sync/gist-publish-service.ts'
-import { createGitHostCredentialService } from '../sync/git-host-credential-service.ts'
 import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
 import { createGithubRepoService } from '../sync/github-repo-service.ts'
 import { createSyncEngineFactory } from '../sync/engine.ts'
@@ -614,6 +613,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
   })
   const opener = createOpenerService({ transport: adapters.opener, logger })
+  const navigation = createNavigationService()
   const deepLink = createDeepLinkService({
     source: adapters.deepLink ?? createNoDeepLinkSource(),
     indexQuery: indexReads.indexQuery,
@@ -637,11 +637,11 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     window: windowService,
     platform,
     settings,
+    openDocuments,
     logger,
   })
   const gitRepository = createGitRepositoryService({ ipc })
   const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
-  const gitHostCredentials = createGitHostCredentialService({ secretStore })
   const githubRepos = createGithubRepoService({ http: adapters.http })
   const gists = createGistService({ http: adapters.http })
   const noteRows = createNoteRowService()
@@ -755,7 +755,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     persistenceFlush,
     embeddingRuntime,
     chatHistory,
-    navigation: createNavigationService(),
+    navigation,
     deepLink,
     linkNavigation: createLinkNavigationService({
       noteLinkResolver: noteServices.noteLinkResolver,
@@ -765,6 +765,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
       opener,
       deepLink,
+      navigation,
       attachments,
       operations,
       logger,
@@ -784,7 +785,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       syncEngines,
       githubAuth,
       githubRepos,
-      gitHostCredentials,
       fileChanges,
       indexLifecycle,
       operations,
@@ -895,6 +895,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       graphSession,
       platform,
       clock,
+      lifecycle,
       logger,
     }),
     aiPrompts: createAiPromptService({ settings, id }),

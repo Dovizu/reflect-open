@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { IndexStoreService } from '../indexing/index-store-service.ts'
-import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
+import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
 import type { OpenDocumentsService } from './open-documents-service.ts'
 
 /** Event name the Rust move commands emit after their rows commit. */
@@ -67,14 +67,14 @@ export interface NoteMoveService {
    * resurrect the dead file at the old path. The origin window also followed
    * in-process; the echo is idempotent.
    */
-  followNativeMoves(): Promise<Unlisten>
+  followNativeMoves(): Unlisten
 }
 
 export interface NoteMoveServiceDeps {
   ipc: Pick<IpcBridgeService, 'listen'>
   indexStore: Pick<IndexStoreService, 'moveIndexed'>
   openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
-  logger: Pick<LoggerService, 'error'>
+  logger: Pick<LoggerService, 'error' | 'warn'>
 }
 
 export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveService {
@@ -133,16 +133,22 @@ export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveServic
       }
     },
     followNativeMoves() {
-      return ipc.listen(NOTE_MOVED_EVENT, (payload) => {
-        const parsed = noteMovedSchema.safeParse(payload)
-        if (parsed.success) {
-          followHealedMove(parsed.data.from, parsed.data.to)
-        } else {
-          // Contract drift between Rust and TS must be loud — a silently dropped
-          // move leaves an open editor writing to a dead path.
-          logger.error('invalid note:moved payload:', parsed.error)
-        }
-      })
+      return listenNow(
+        () =>
+          ipc.listen(NOTE_MOVED_EVENT, (payload) => {
+            const parsed = noteMovedSchema.safeParse(payload)
+            if (parsed.success) {
+              followHealedMove(parsed.data.from, parsed.data.to)
+            } else {
+              // Contract drift between Rust and TS must be loud — a silently dropped
+              // move leaves an open editor writing to a dead path.
+              logger.error('invalid note:moved payload:', parsed.error)
+            }
+          }),
+        (cause) => {
+          logger.warn(`failed to listen for "${NOTE_MOVED_EVENT}"`, cause)
+        },
+      )
     },
   }
 }

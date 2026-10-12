@@ -142,7 +142,6 @@ describe('createAppServices', () => {
     expect(services.clock).toBe(adapters.clock)
     expect(services.dialog).toBe(adapters.dialog)
     expect(services.clipboard).toBe(adapters.clipboard)
-    expect(services.ipc.transport).toBe(adapters.ipc)
     await expect(services.ipc.call('app_version', {}, z.string())).resolves.toBe('1.2.3')
     expect(services.platform.appVersion).toBe('0.0.0-test')
     await expect(services.path.homeDir()).resolves.toBe('/home/test')

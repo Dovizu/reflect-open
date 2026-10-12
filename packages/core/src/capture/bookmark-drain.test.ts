@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi, type MockInstance } from 'vitest'
-import { appendXPost } from '../actions/bookmark-capture.ts'
-import type { XPostEnvelope } from '../actions/bookmark-envelope.ts'
+import { appendXPost } from './bookmark-capture.ts'
+import type { XPostEnvelope } from './bookmark-envelope.ts'
 import type { XArchiveService } from '../x-archive.ts'
 import type { DrainCaptureInboxInput } from './capture-drain-service.ts'
 import { createCaptureTestKit, type CaptureTestKit } from './capture-test-kit.ts'

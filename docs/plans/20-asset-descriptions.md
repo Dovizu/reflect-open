@@ -33,7 +33,7 @@ almost verbatim.
 **Architecture:** all policy (eligibility, privacy, AI calls, description writes)
 lives in `@reflect/core`; the desktop app owns the watcher trigger, the
 single-flight controller, and the Settings UI. This mirrors capture
-([`actions/capture.ts`](../../packages/core/src/actions/capture.ts) +
+([`capture/capture-note.ts`](../../packages/core/src/capture/capture-note.ts) +
 `lib/capture-controller.ts`, today
 [`capture/capture-service.ts`](../../packages/core/src/capture/capture-service.ts))
 and audio memos
@@ -177,7 +177,7 @@ async function classifyAsset(assetPath: string, generation: number): Promise<Ass
 
 Implementation (reusing the established live-recheck pattern from
 [`ai/chat/note-tools-service.ts`](../../packages/core/src/ai/chat/note-tools-service.ts) and
-[`actions/capture.ts` `notePrivate`](../../packages/core/src/actions/capture.ts)):
+[`capture/capture-note.ts` `notePrivate`](../../packages/core/src/capture/capture-note.ts)):
 
 1. **Candidate set** from the index `assets` join (already populated by the
    indexer — `crates/index-schema/migrations/0001_initial.sql`, surfaced as

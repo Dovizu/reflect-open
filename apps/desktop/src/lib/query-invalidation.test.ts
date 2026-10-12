@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createTestCaptureService, createTestEmbedMediaService } from '@reflect/core/testing'
+import {
+  createTestAssetDescriptionService,
+  createTestCaptureService,
+  createTestEmbedMediaService,
+  createTestGithubAuthService,
+} from '@reflect/core/testing'
 import type { XPost } from '@post-embed/types'
 import { createXPostResolver, xPostQueryOptions } from '@/editor/use-x-post-resolver.ts'
-import { watchCaptureXPosts } from './capture-x-posts.ts'
 import { queryClient } from './query-client.ts'
+import { installQueryInvalidation } from './query-invalidation.ts'
 
 const app = { embedMedia: createTestEmbedMediaService() }
 const url = 'https://x.com/jack/status/123'
@@ -14,6 +19,14 @@ const post: XPost = {
   body: [{ type: 'text', text: 'Saved tweet' }],
 }
 
+function install(capture: ReturnType<typeof createTestCaptureService>): () => void {
+  return installQueryInvalidation({
+    capture,
+    assetDescription: createTestAssetDescriptionService(),
+    githubAuth: createTestGithubAuthService(),
+  })
+}
+
 function cachePost(): void {
   queryClient.setQueryData(xPostQueryOptions(app, 3, '123').queryKey, post)
 }
@@ -22,11 +35,11 @@ afterEach(() => {
   queryClient.clear()
 })
 
-describe('watchCaptureXPosts', () => {
+describe('installQueryInvalidation', () => {
   it('re-reads cached X posts after a capture pass wrote X posts', async () => {
     cachePost()
     const capture = createTestCaptureService()
-    const stop = watchCaptureXPosts(capture)
+    const stop = install(capture)
     const resolveXPost = createXPostResolver(app, 3)
     expect(resolveXPost(url)).toBe(post)
 
@@ -40,7 +53,7 @@ describe('watchCaptureXPosts', () => {
 
   it('keeps cached X posts while no pass reports a write', () => {
     cachePost()
-    const stop = watchCaptureXPosts(createTestCaptureService())
+    const stop = install(createTestCaptureService())
     const resolveXPost = createXPostResolver(app, 3)
 
     expect(resolveXPost(url)).toBe(post)
@@ -50,7 +63,7 @@ describe('watchCaptureXPosts', () => {
   it('stops re-reading once unsubscribed', () => {
     cachePost()
     const capture = createTestCaptureService()
-    watchCaptureXPosts(capture)()
+    install(capture)()
     const resolveXPost = createXPostResolver(app, 3)
 
     capture.emitXPostsWritten()

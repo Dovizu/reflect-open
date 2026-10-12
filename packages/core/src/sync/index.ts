@@ -36,6 +36,7 @@ export {
 } from './github-auth-service.ts'
 export {
   parseGithubRemote,
+  remoteHost,
   parseRepoInput,
   suggestRepoName,
   githubRemoteUrl,
@@ -45,7 +46,6 @@ export {
   type GithubRepo,
 } from './github-repo-service.ts'
 export type { PublishedGist, GistFile } from './gist-service.ts'
-export { remoteHost } from './git-host-credential-service.ts'
 export {
   isSyncError,
   type SyncEngine,

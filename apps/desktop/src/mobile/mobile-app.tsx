@@ -1,5 +1,4 @@
 import { useEffect, type ReactElement } from 'react'
-import { installBackgroundFlush } from '@/lib/background-flush.ts'
 import { MobileAudioMemoProvider } from '@/mobile/audio-memo-provider.tsx'
 import { AppErrorBoundary } from '@/components/app-error-boundary.tsx'
 import { MobileOnboardingScreen } from '@/mobile/onboarding-screen.tsx'
@@ -54,7 +53,7 @@ export function MobileApp(): ReactElement {
   // (each flush is a no-op with nothing open) — the mobile leg of desktop's
   // quit-flush.
   useEffect(() => {
-    return installBackgroundFlush(services)
+    return services.persistenceFlush.installMobileBackgroundPolicy()
   }, [services])
 
   // Subscription verification runs beside startup, never in its critical

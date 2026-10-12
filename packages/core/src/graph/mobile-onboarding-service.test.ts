@@ -8,6 +8,7 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestMobileStorageService } from '../testing/mobile-storage.ts'
 import { createTestPlatformService, type TestPlatformOptions } from '../testing/platform.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
+import { createTestLifecycleService } from '../testing/shell.ts'
 import { createMobileOnboardingService } from './mobile-onboarding-service.ts'
 
 /** The fixed mobile roots the test storage reports. */
@@ -66,18 +67,28 @@ function setup(options?: SetupOptions) {
   }
   const settings = createTestSettingsService(options?.settings)
   const graphSession = createTestGraphSessionService({ ipc, platform, mobileStorage, logger })
+  const lifecycle = createTestLifecycleService()
+  let focusSubscriptions = 0
+  const subscribeFocus = lifecycle.subscribeFocus.bind(lifecycle)
+  lifecycle.subscribeFocus = (listener) => {
+    focusSubscriptions += 1
+    return subscribeFocus(listener)
+  }
   const service = createMobileOnboardingService({
     mobileStorage,
     settings,
     graphSession,
     platform,
     clock,
+    lifecycle,
     logger,
   })
   return {
     service,
     graphSession,
     settings,
+    lifecycle,
+    focusSubscriptions: () => focusSubscriptions,
     storage,
     clock,
     logger,
@@ -308,6 +319,73 @@ describe('MobileOnboardingService boot', () => {
     await expect.poll(() => context.graphSession.getState().status).toBe('choosing')
     expect(context.graphSession.getState().error).toBe('Couldn’t load your settings.')
     expect(context.service.getState().needsOnboarding).toBe(false)
+  })
+
+  it('reloads failed settings when the app is focused, then shows onboarding', async () => {
+    const context = setup()
+    context.settings.failLoad()
+    context.service.boot()
+    await expect
+      .poll(() => context.graphSession.getState().error)
+      .toBe('Couldn’t load your settings.')
+
+    context.settings.ipc.onCommand('settings_load', () => ({}))
+    context.lifecycle.emitFocus()
+
+    await expect.poll(() => context.service.getState().needsOnboarding).toBe(true)
+    expect(context.settings.status()).toBe('loaded')
+  })
+
+  it('reloads failed settings when the app turns visible, then opens the graph', async () => {
+    const context = setup()
+    context.settings.failLoad()
+    context.service.boot()
+    await expect
+      .poll(() => context.graphSession.getState().error)
+      .toBe('Couldn’t load your settings.')
+
+    context.settings.ipc.onCommand('settings_load', () => ({
+      mobileOnboarded: true,
+      mobileStorage: 'local',
+    }))
+    context.lifecycle.emitVisible()
+    context.lifecycle.emitFocus()
+
+    await expect.poll(() => context.opened).toEqual([MOBILE_ROOT])
+    expect(context.service.getState().kind).toBe('local')
+  })
+
+  it('keeps retrying on each return while the settings still fail to load', async () => {
+    const context = setup()
+    context.settings.failLoad()
+    context.service.boot()
+    const loads = () =>
+      context.settings.ipc.calls().filter((call) => call.command === 'settings_load').length
+    await expect.poll(context.focusSubscriptions).toBe(1)
+    expect(loads()).toBe(1)
+
+    context.lifecycle.emitFocus()
+    await expect.poll(context.focusSubscriptions).toBe(2)
+    context.lifecycle.emitFocus()
+    await expect.poll(context.focusSubscriptions).toBe(3)
+    expect(loads()).toBe(3)
+    expect(context.graphSession.getState().error).toBe('Couldn’t load your settings.')
+  })
+
+  it('stops retrying failed settings once the boot is stopped', async () => {
+    const context = setup()
+    context.settings.failLoad()
+    const stop = context.service.boot()
+    await expect
+      .poll(() => context.graphSession.getState().error)
+      .toBe('Couldn’t load your settings.')
+    stop()
+
+    context.settings.ipc.onCommand('settings_load', () => ({}))
+    context.lifecycle.emitFocus()
+    await context.clock.advance(0)
+
+    expect(context.settings.status()).toBe('failed')
   })
 
   it('opens nothing once the boot is stopped', async () => {

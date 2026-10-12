@@ -1,16 +1,16 @@
-import type { XPostEnvelope } from '../actions/bookmark-envelope.ts'
+import type { XPostEnvelope } from './bookmark-envelope.ts'
 import {
   inboxEnvelopeSchema,
   type InboxEnvelope,
   type TextCaptureEnvelope,
-} from '../actions/capture-envelope.ts'
+} from './capture-envelope.ts'
 import {
   captureFromPath,
   captureIdentity,
   captureLocalDate,
   captureSpoolName,
   type CaptureIdentity,
-} from '../actions/capture-identity.ts'
+} from './capture-identity.ts'
 import {
   captureNoteMeta,
   captureNoteSource,
@@ -19,7 +19,7 @@ import {
   noteSource,
   retitleDailyEntry,
   type CaptureStatus,
-} from '../actions/capture-note.ts'
+} from './capture-note.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'

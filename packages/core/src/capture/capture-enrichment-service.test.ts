@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CaptureEnvelope } from '../actions/capture-envelope.ts'
-import { captureIdentity } from '../actions/capture-identity.ts'
+import type { CaptureEnvelope } from './capture-envelope.ts'
+import { captureIdentity } from './capture-identity.ts'
 import { DescriptionRejectedError } from '../ai/page-describer-service.ts'
 import { ReflectError } from '../errors.ts'
 import {

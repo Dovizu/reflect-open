@@ -10,7 +10,6 @@ import {
   DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog.tsx'
-import { deleteOpenNote } from '@/lib/note-delete.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
@@ -46,7 +45,7 @@ export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | 
     setIsTrashing(true)
     setError(null)
     try {
-      await deleteOpenNote({ noteActions }, path, generation)
+      await noteActions.trashOne(path, generation)
       operation.done()
       setConfirmingTrash(false)
       navigate({ kind: 'today' })

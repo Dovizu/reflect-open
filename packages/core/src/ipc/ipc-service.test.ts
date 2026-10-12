@@ -116,7 +116,6 @@ describe('listenPlugin', () => {
   it('rejects with an io AppError when the transport has no plugin events', async () => {
     const { ipc } = serviceOver({ invoke: async () => null, listen: async () => () => {} })
 
-    expect(ipc.hasPluginEvents).toBe(false)
     await expect(ipc.listenPlugin('demo', 'demoEvent', () => {})).rejects.toMatchObject({
       kind: 'io',
     })

@@ -3,6 +3,12 @@ import { useLinkNavigationHost } from '@/hooks/use-link-navigation-host.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
 import type { NoteRoute } from '@/routing/route.ts'
 
+/** The modifier fields meowdown's `isModEvent` reads off a link-like control's click. */
+export interface ModClickEvent {
+  metaKey: boolean
+  ctrlKey: boolean
+}
+
 /** Open one concrete note from a link-like UI control. */
 export type NoteLinkNavigation = (options: { target: NoteRoute; openInNewWindow: boolean }) => void
 

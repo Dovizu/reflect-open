@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { audioMemoIdentity, audioMemoPartPath } from '../actions/audio-memo.ts'
+import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import { AUDIO_MEMOS_DIR } from '../graph/paths.ts'
 import {

@@ -72,9 +72,9 @@ describe('createTestIpcBridgeService', () => {
     expect(seen).toEqual([1, 2])
   })
 
-  it('can omit the binary and plugin-event transports', () => {
+  it('can omit the binary and plugin-event transports', async () => {
     const ipc = createTestIpcBridgeService({ binary: false, pluginEvents: false })
     expect(ipc.hasBinaryTransport).toBe(false)
-    expect(ipc.hasPluginEvents).toBe(false)
+    await expect(ipc.listenPlugin('demo', 'tick', () => {})).rejects.toMatchObject({ kind: 'io' })
   })
 })

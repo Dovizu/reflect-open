@@ -173,7 +173,6 @@ export {
   createTestGistPublishService,
   createTestConflictResolutionService,
   createTestGistService,
-  createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,

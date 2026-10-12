@@ -33,7 +33,7 @@ export {
   type ChatTurn,
 } from '../ai/chat/transcript.ts'
 export { type ChatConversation } from '../ai/chat/chat-history-service.ts'
-export { audioMemoIdentity, audioMemoPartPath } from '../actions/audio-memo.ts'
+export { audioMemoIdentity, audioMemoPartPath } from '../audio/audio-memo.ts'
 export {
   type AudioMemoPhase,
   type AudioMemoService,
@@ -49,7 +49,7 @@ export {
   captureAckSchema,
   captureWireMessageSchema,
   type CaptureWireMessage,
-} from '../actions/capture-envelope.ts'
+} from '../capture/capture-envelope.ts'
 export { type CaptureService } from '../capture/capture-service.ts'
 export {
   canReadCalendars,

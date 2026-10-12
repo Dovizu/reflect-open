@@ -31,7 +31,6 @@ import type { PrivacyService } from '../privacy/privacy-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type { SyncEngineFactory } from '../sync/engine.ts'
 import type { GistService } from '../sync/gist-service.ts'
-import type { GitHostCredentialService } from '../sync/git-host-credential-service.ts'
 import type { GitRepositoryService } from '../sync/git-repository-service.ts'
 import type { GithubRepoService } from '../sync/github-repo-service.ts'
 import type { XArchiveService } from '../x-archive.ts'
@@ -88,7 +87,6 @@ import {
   createTestGistPublishService,
   createTestConflictResolutionService,
   createTestGistService,
-  createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
@@ -278,7 +276,6 @@ export interface InternalServices {
   readonly database: DatabaseService
   readonly indexStore: IndexStoreService
   readonly gitRepository: GitRepositoryService
-  readonly gitHostCredentials: GitHostCredentialService
   readonly githubRepos: GithubRepoService
   readonly gists: GistService
   readonly syncEngines: SyncEngineFactory
@@ -522,6 +519,7 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
     logger,
   })
   const opener = createTestOpenerService({ logger })
+  const navigation = createTestNavigationService()
   const deepLink = createTestDeepLinkService({
     indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
     captureInbox: overrides?.captureInbox ?? captureInbox,
@@ -531,15 +529,14 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
     logger,
   })
   const attachments = createTestAttachmentService()
-  const persistenceFlush = createTestPersistenceFlushService()
+  const persistenceFlush = createTestPersistenceFlushService({
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+  })
   const gitRepository = createTestGitRepositoryService()
   const githubAuth = createTestGithubAuthService({
     secretStore: overrides?.secretStore ?? secretStore,
     http: overrides?.http ?? http,
     clock: overrides?.clock ?? clock,
-  })
-  const gitHostCredentials = createTestGitHostCredentialService({
-    secretStore: overrides?.secretStore ?? secretStore,
   })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
   const gists = createTestGistService({ http: overrides?.http ?? http })
@@ -655,7 +652,7 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
     embeddingRuntime,
     chatHistory,
     update: createTestUpdateService(),
-    navigation: createTestNavigationService(),
+    navigation,
     deepLink,
     linkNavigation: createTestLinkNavigationService({
       noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
@@ -665,13 +662,13 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
       platform: overrides?.platform ?? platform,
       opener: overrides?.opener ?? opener,
       deepLink: overrides?.deepLink ?? deepLink,
+      navigation,
       attachments: overrides?.attachments ?? attachments,
       operations: overrides?.operations ?? operations,
       logger,
     }),
     gitRepository,
     githubAuth,
-    gitHostCredentials,
     githubRepos,
     syncEngines,
     backups: createTestBackupServiceFactory({
@@ -679,7 +676,6 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
       syncEngines: overrides?.syncEngines ?? syncEngines,
       githubAuth: overrides?.githubAuth ?? githubAuth,
       githubRepos: overrides?.githubRepos ?? githubRepos,
-      gitHostCredentials: overrides?.gitHostCredentials ?? gitHostCredentials,
       fileChanges: overrides?.fileChanges ?? fileChanges,
       indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
       operations: overrides?.operations ?? operations,
@@ -827,6 +823,7 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
       graphSession: overrides?.graphSession ?? graphSession,
       platform: overrides?.platform ?? platform,
       clock: overrides?.clock ?? clock,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
       logger,
     }),
     aiCredentials,
