@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { AssetDescriptionRejectedError } from '../ai/asset-describer-service.ts'
 import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import { ReflectError } from '../errors.ts'
+import type { HashService } from '../app/hash-service.ts'
 import { descriptionPathFor } from '../graph/paths.ts'
 import type { FileChange } from '../indexing/file-change-service.ts'
 import type { IndexChangesAppliedEvent } from '../indexing/index-lifecycle-service.ts'
@@ -43,7 +44,20 @@ const PROVIDER: AiProviderConfig = {
 const GENERATION = 7
 const NOW = Date.parse('2026-06-16T00:00:00.000Z')
 
-const hashService = createTestHashService()
+const realHashService = createTestHashService()
+let hashing = 0
+
+/** The test hash service, counting digests in flight so {@link flush} can wait for them. */
+const hashService: HashService = {
+  async sha256Hex(text) {
+    hashing += 1
+    try {
+      return await realHashService.sha256Hex(text)
+    } finally {
+      hashing -= 1
+    }
+  },
+}
 
 /** A public note referencing `assetPath`. */
 function publicNote(assetPath: string): string {
@@ -59,8 +73,17 @@ function upsert(path: string): FileChange {
   return { path, kind: 'upsert', modifiedMs: 1 }
 }
 
-function flush(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0))
+/**
+ * Wait until the work in flight has settled. A pass hashes through WebCrypto,
+ * which resolves off the timer queue, so one timer turn is not enough: wait
+ * for two consecutive turns with no digest in flight.
+ */
+async function flush(): Promise<void> {
+  let quietTurns = 0
+  while (quietTurns < 2) {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    quietTurns = hashing === 0 ? quietTurns + 1 : 0
+  }
 }
 
 /**
