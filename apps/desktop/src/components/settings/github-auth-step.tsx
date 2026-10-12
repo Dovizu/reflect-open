@@ -1,16 +1,11 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
-import {
-  defaultClipboard,
-  defaultGithubAuth,
-  isDeviceFlowConfigured,
-  type GithubUser,
-} from '@reflect/core'
+import { isDeviceFlowConfigured, type GithubUser } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { useAsyncAction } from '@/hooks/use-async-action.ts'
 import { useDeviceFlowAuth } from '@/hooks/use-device-flow-auth.ts'
-import { openUrl } from '@/lib/open-url.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface GithubAuthStepProps {
   /**
@@ -38,6 +33,7 @@ const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
  * wizard uses to connect `owner/name` without ever asking for the owner.
  */
 export function GithubAuthStep({ onAuthed, repoName }: GithubAuthStepProps): ReactElement {
+  const { clipboard, githubAuth, opener } = useAppServices()
   const deviceFlow = useDeviceFlowAuth()
   const pat = useAsyncAction()
   const [patValue, setPatValue] = useState('')
@@ -65,7 +61,7 @@ export function GithubAuthStep({ onAuthed, repoName }: GithubAuthStepProps): Rea
   // getSignedInUser, so the step stays visible and explains itself.
   useEffect(() => {
     let cancelled = false
-    void defaultGithubAuth()
+    void githubAuth
       .getSignedInUser()
       .then((user) => {
         if (!cancelled && user !== null) {
@@ -83,7 +79,7 @@ export function GithubAuthStep({ onAuthed, repoName }: GithubAuthStepProps): Rea
   }, [])
 
   async function verifyAndFinish(): Promise<void> {
-    const user = await defaultGithubAuth().getSignedInUser()
+    const user = await githubAuth.getSignedInUser()
     if (user === null) {
       throw new Error('GitHub rejected that token — check it and try again.')
     }
@@ -110,7 +106,7 @@ export function GithubAuthStep({ onAuthed, repoName }: GithubAuthStepProps): Rea
   }): Promise<void> {
     if (copyState !== 'failed') {
       try {
-        await defaultClipboard().writeText(flow.userCode)
+        await clipboard.writeText(flow.userCode)
         setCopyState('copied')
       } catch {
         setCopyState('failed')
@@ -120,7 +116,7 @@ export function GithubAuthStep({ onAuthed, repoName }: GithubAuthStepProps): Rea
     setOpenFailed(false)
     const uri = flow.verificationUri
     if (uri.startsWith('https://') || uri.startsWith('http://')) {
-      void openUrl(uri).catch(() => {
+      void opener.openUrl(uri).catch(() => {
         setOpenFailed(true)
       })
     }
@@ -135,7 +131,7 @@ export function GithubAuthStep({ onAuthed, repoName }: GithubAuthStepProps): Rea
     // Keychain writes can fail (locked keychain, denied access) and GitHub
     // can reject the token — the action envelope surfaces both inline.
     await pat.run(async () => {
-      await defaultGithubAuth().save({ kind: 'pat', token })
+      await githubAuth.save({ kind: 'pat', token })
       await verifyAndFinish()
     })
   }

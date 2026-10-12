@@ -1,67 +1,36 @@
-import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Settings } from '@reflect/core'
 import {
-  setDefaultContacts,
-  setDefaultOpener,
-  setDefaultPlatform,
-  setDefaultSettings,
-  type Settings,
-} from '@reflect/core'
-import {
+  createTestAppServices,
   createTestContactsService,
-  createTestIpcBridgeService,
-  createTestOpenerService,
   createTestPlatformService,
-  createTestSettingsService,
-  installTestBridge,
   type TestContactsService,
   type TestOpenerService,
+  type TestPlatformOptions,
   type TestSettingsService,
 } from '@reflect/core/testing'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { IntegrationsSection } from './integrations-section.tsx'
 
-let opener: TestOpenerService
-
-vi.mock('./calendar-integration-field', () => ({
-  CalendarIntegrationField: () => <div>Calendar events</div>,
-}))
-
-let settings: TestSettingsService
 let contacts: TestContactsService
-let removeBridge: () => void
+// Where the section runs; the calendar field exists on macOS desktop only.
+let platform: TestPlatformOptions
+
+// The services of the rendered app; set by `renderSection`.
+let opener: TestOpenerService
+let settings: TestSettingsService
 
 /** Render the section over a settings document that starts as `stored`. */
 async function renderSection(stored: Partial<Settings> = {}): Promise<void> {
-  settings = createTestSettingsService(stored)
-  setDefaultSettings(settings)
-  await settings.whenLoaded()
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  await render(
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <IntegrationsSection />
-      </SettingsProvider>
-    </QueryClientProvider>,
-  )
+  const app = createTestAppServices({ contacts, platform: createTestPlatformService(platform) })
+  ;({ opener, settings } = app)
+  await renderInApp(<IntegrationsSection />, { app, settings: stored })
 }
 
 beforeEach(() => {
-  setDefaultPlatform(createTestPlatformService({ isMacosDesktop: false }))
+  platform = { isMacosDesktop: false }
   contacts = createTestContactsService({ status: 'notDetermined' })
-  setDefaultContacts(contacts)
-  removeBridge = installTestBridge(createTestIpcBridgeService())
-  opener = createTestOpenerService()
-  setDefaultOpener(opener)
-})
-
-afterEach(() => {
-  removeBridge()
-  setDefaultContacts(null)
-  setDefaultPlatform(null)
-  setDefaultSettings(null)
 })
 
 describe('IntegrationsSection', () => {
@@ -111,7 +80,7 @@ describe('IntegrationsSection', () => {
 
 describe('IntegrationsSection on macOS', () => {
   it('keeps calendar visible on macOS when contacts are unavailable', async () => {
-    setDefaultPlatform(createTestPlatformService())
+    platform = {}
     contacts.setStatus('unavailable')
     await renderSection()
 
