@@ -10,24 +10,16 @@ import {
   type TestAttachmentService,
   type TestOpenerService,
 } from '@reflect/core/testing'
-import { dispatchDeepLink } from '@/lib/deep-links/intake.ts'
 import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
 
-const openDeepLinkInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
-const resolveExistingMarkdownTarget = vi.hoisted(() => vi.fn())
-
-vi.mock('@/lib/deep-links/intake.ts', () => ({
-  dispatchDeepLink: vi.fn(),
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openDeepLinkInNewWindow,
-}))
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  resolveExistingMarkdownTarget,
-}))
+const dispatchDeepLink = vi.fn<(url: string) => void>()
+const resolveMarkdownHref = vi.fn()
+const { openNoteWindow } = installTestLinkNavigation({
+  deepLink: { dispatch: dispatchDeepLink },
+  noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
+})
 
 function RouteProbe(): ReactNode {
   const { route } = useRouter()
@@ -69,8 +61,7 @@ beforeEach(async () => {
   setDefaultOpener(opener)
   attachments = createTestAttachmentService()
   setDefaultAttachments(attachments)
-  openDeepLinkInNewWindow.mockResolvedValue(true)
-  resolveExistingMarkdownTarget.mockResolvedValue({ kind: 'missing' })
+  resolveMarkdownHref.mockResolvedValue({ kind: 'missing' })
   await mount(7, 'projects/TASKS.md')
 })
 
@@ -97,9 +88,7 @@ describe('useMarkdownLinkClick', () => {
   it('⌘-clicks a rendered reflect:// link into a secondary window', async () => {
     click('reflect://note/abc123', true)
 
-    await vi.waitFor(() =>
-      expect(openDeepLinkInNewWindow).toHaveBeenCalledWith('reflect://note/abc123'),
-    )
+    await vi.waitFor(() => expect(openNoteWindow).toHaveBeenCalledWith('reflect://note/abc123'))
     expect(dispatchDeepLink).not.toHaveBeenCalled()
   })
 
@@ -127,17 +116,13 @@ describe('useMarkdownLinkClick', () => {
   })
 
   it('opens a relative note link from the source note', async () => {
-    resolveExistingMarkdownTarget.mockResolvedValue({
+    resolveMarkdownHref.mockResolvedValue({
       kind: 'resolved',
       path: 'projects/roadmap/plan.md',
     })
     const event = click('./roadmap/plan.md')
 
-    expect(resolveExistingMarkdownTarget).toHaveBeenCalledWith(
-      './roadmap/plan.md',
-      'projects/TASKS.md',
-      7,
-    )
+    expect(resolveMarkdownHref).toHaveBeenCalledWith('projects/TASKS.md', './roadmap/plan.md', 7)
     await expect
       .element(route)
       .toMatchTextContent('{"kind":"note","path":"projects/roadmap/plan.md"}')
@@ -150,7 +135,7 @@ describe('useMarkdownLinkClick', () => {
 
     await vi.waitFor(() => expect(attachments.opened()).toEqual(['assets/cat.png']))
     expect(opener.openedUrls()).toEqual([])
-    expect(resolveExistingMarkdownTarget).not.toHaveBeenCalled()
+    expect(resolveMarkdownHref).not.toHaveBeenCalled()
   })
 
   it('drops attachment and note links when the Markdown belongs to no note', async () => {
@@ -160,7 +145,7 @@ describe('useMarkdownLinkClick', () => {
     const note = click('notes/foo.md')
 
     expect(attachments.opened()).toEqual([])
-    expect(resolveExistingMarkdownTarget).not.toHaveBeenCalled()
+    expect(resolveMarkdownHref).not.toHaveBeenCalled()
     expect(opener.openedUrls()).toEqual([])
     expect(dispatchDeepLink).not.toHaveBeenCalled()
     expect(asset.defaultPrevented).toBe(true)

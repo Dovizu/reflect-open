@@ -9,35 +9,33 @@ import {
   createTestNoteFileService,
   createTestRetrievalService,
   createTestSettingsService,
+  createTestWindowService,
   installTestServices,
 } from '@reflect/core/testing'
 import { registerAppCommands } from '@/lib/commands/app-commands.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { formatBinding, isApplePlatform } from '@/lib/keybindings.ts'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
-import type { NoteRoute } from '@/routing/route.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { CommandPalette } from './command-palette.tsx'
 import { PaletteProvider, usePalette } from './palette-provider.tsx'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 
 // The palette runs on the real `PaletteSearchService` of the test app
 // services; each test scripts the index reads below it.
 const suggestWikiTargets = vi.fn<SuggestionService['suggestWikiTargets']>()
 const searchWithFilters = vi.fn<SearchService['searchWithFilters']>()
 const retrieve = vi.fn<RetrievalService['retrieve']>()
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<(route: NoteRoute) => Promise<boolean>>())
+/** Receives the `reflect://` link of every note window a test opens. */
+const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 // The preview keeps the stub from the route-content tests: hosting the real
 // ProseMirror editor is out of scope here; the preview's data path stays real.
 vi.mock('@/editor/markdown-preview.tsx', () => ({
   MarkdownPreview: ({ content }: { content: string }) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
@@ -58,7 +56,7 @@ beforeEach(() => {
   suggestWikiTargets.mockReset().mockResolvedValue([])
   searchWithFilters.mockReset().mockResolvedValue([])
   retrieve.mockReset().mockResolvedValue([])
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
+  openNoteWindow.mockReset().mockResolvedValue(true)
 })
 
 /** A search hit with the fields the palette does not read filled in. */
@@ -142,6 +140,7 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
         : { status: 'uninitialized' },
     }),
     noteFile: createTestNoteFileService({ files }),
+    window: createTestWindowService({ openNoteWindow }),
   })
   // The palette lists the registry of the installed services, so the app's
   // commands register into it before the first render.
@@ -221,7 +220,7 @@ describe('CommandPalette', () => {
 
     await userEvent.keyboard('{Enter}')
     await expect.element(view.getByTestId('route')).toMatchTextContent('notes/rust.md')
-    expect(openRouteInNewWindow).not.toHaveBeenCalled()
+    expect(openNoteWindow).not.toHaveBeenCalled()
     expect(view.getByTestId('palette-overlay').query()).toBeNull()
   })
 
@@ -231,18 +230,20 @@ describe('CommandPalette', () => {
       hit({ path: 'notes/rust.md', title: 'Rust Notes', snippet: null, dailyDate: null }),
     ])
     const pendingOpen = Promise.withResolvers<boolean>()
-    openRouteInNewWindow.mockReturnValue(pendingOpen.promise)
+    openNoteWindow.mockReturnValue(pendingOpen.promise)
     const { view } = await renderPalette('rust')
     const result = view.getByText('Rust Notes')
 
     await result.click({ modifiers: ['ControlOrMeta'] })
 
     expect(view.getByTestId('palette-overlay').query()).toBeNull()
-    expect(openRouteInNewWindow).toHaveBeenCalledTimes(1)
-    expect(openRouteInNewWindow).toHaveBeenCalledWith({
-      kind: 'note',
-      path: 'notes/rust.md',
-    })
+    expect(openNoteWindow).toHaveBeenCalledTimes(1)
+    expect(openNoteWindow).toHaveBeenCalledWith(
+      deepLinkForRoute({
+        kind: 'note',
+        path: 'notes/rust.md',
+      }),
+    )
     expect(view.getByTestId('route').element().textContent).toBe(JSON.stringify({ kind: 'today' }))
     pendingOpen.resolve(true)
   })
@@ -252,7 +253,7 @@ describe('CommandPalette', () => {
     searchWithFilters.mockResolvedValue([
       hit({ path: 'notes/rust.md', title: 'Rust Notes', snippet: null, dailyDate: null }),
     ])
-    openRouteInNewWindow.mockResolvedValue(false)
+    openNoteWindow.mockResolvedValue(false)
     const { view } = await renderPalette('rust')
     const result = view.getByText('Rust Notes')
 
@@ -273,11 +274,13 @@ describe('CommandPalette', () => {
     await userEvent.keyboard('{ControlOrMeta>}{Enter}{/ControlOrMeta}')
 
     expect(view.getByTestId('palette-overlay').query()).toBeNull()
-    expect(openRouteInNewWindow).toHaveBeenCalledTimes(1)
-    expect(openRouteInNewWindow).toHaveBeenCalledWith({
-      kind: 'note',
-      path: 'notes/rust.md',
-    })
+    expect(openNoteWindow).toHaveBeenCalledTimes(1)
+    expect(openNoteWindow).toHaveBeenCalledWith(
+      deepLinkForRoute({
+        kind: 'note',
+        path: 'notes/rust.md',
+      }),
+    )
     expect(view.getByTestId('route').element().textContent).toBe(JSON.stringify({ kind: 'today' }))
   })
 
@@ -286,7 +289,7 @@ describe('CommandPalette', () => {
     searchWithFilters.mockResolvedValue([
       hit({ path: 'notes/rust.md', title: 'Rust Notes', snippet: null, dailyDate: null }),
     ])
-    openRouteInNewWindow.mockResolvedValue(false)
+    openNoteWindow.mockResolvedValue(false)
     const { view } = await renderPalette('rust')
     await expect.element(view.getByText('Rust Notes')).toBeInTheDocument()
 

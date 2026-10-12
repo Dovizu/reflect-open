@@ -18,6 +18,11 @@ import {
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 import {
+  createNotePreviewService,
+  type NotePreviewService,
+  type NotePreviewServiceDeps,
+} from '../documents/note-preview-service.ts'
+import {
   createNoteSessionService,
   frontmatterPatchToYaml,
   type NoteSession,
@@ -47,9 +52,10 @@ import { createNotePathService } from '../indexing/note-path-service.ts'
 import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { appendBlock } from '../markdown/append-section.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
+import { createTestAttachmentService } from './attachments.ts'
 import { createTestClockService } from './clock.ts'
 import { createTestDatabaseService } from './database.ts'
-import { createTestNoteFileService } from './graph.ts'
+import { createTestNoteFileService, createTestNoteLinkResolverService } from './graph.ts'
 import { createTestIdService } from './id.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestOperationsService } from './operations.ts'
@@ -320,6 +326,26 @@ export function createTestNoteDocumentService(
   return createNoteDocumentService({
     openDocuments: options?.openDocuments ?? createTestOpenDocumentsService(),
     noteFile: options?.noteFile ?? createTestNoteFileService(),
+  })
+}
+
+export interface TestNotePreviewServiceOptions extends Partial<NotePreviewServiceDeps> {
+  /** The files behind the default link resolver and note documents; empty by default. */
+  noteFile?: NoteFileService
+}
+
+/**
+ * The real {@link NotePreviewService} over test doubles: a link resolver and
+ * note documents over `noteFile`, and a {@link createTestAttachmentService}.
+ */
+export function createTestNotePreviewService(
+  options?: TestNotePreviewServiceOptions,
+): NotePreviewService {
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  return createNotePreviewService({
+    noteLinkResolver: options?.noteLinkResolver ?? createTestNoteLinkResolverService({ noteFile }),
+    noteDocuments: options?.noteDocuments ?? createTestNoteDocumentService({ noteFile }),
+    attachments: options?.attachments ?? createTestAttachmentService(),
   })
 }
 

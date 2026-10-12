@@ -1,10 +1,6 @@
 import { useCallback } from 'react'
-import { errorMessage, resolveExistingMarkdownTarget } from '@reflect/core'
-import { reportAmbiguousNoteTitle } from '@/editor/ambiguous-note-feedback.ts'
-import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
-import { startOperation } from '@/lib/operations.ts'
-import { useLinkIntentGuard } from '@/lib/windows/use-link-intent-guard.ts'
-import { routeForPath } from '@/routing/route.ts'
+import { useLinkNavigationHost } from '@/hooks/use-link-navigation-host.ts'
+import { useLinkNavigationService } from '@/hooks/use-link-navigation-service.ts'
 
 /**
  * Navigation for a clicked Markdown note link (`[Plan](./Plan.md)`), the
@@ -18,36 +14,13 @@ export function useMarkdownLinkNavigation(
   generation: number | null,
   sourcePath: string,
 ): (options: { href: string; openInNewWindow: boolean }) => void {
-  const navigateNoteLink = useNoteLinkNavigation()
-  const beginLinkIntent = useLinkIntentGuard()
+  const linkNavigation = useLinkNavigationService()
+  const host = useLinkNavigationHost()
 
   return useCallback(
     ({ href, openInNewWindow }: { href: string; openInNewWindow: boolean }) => {
-      if (generation === null) {
-        return
-      }
-      const isStale = beginLinkIntent()
-      void (async () => {
-        try {
-          const resolution = await resolveExistingMarkdownTarget(href, sourcePath, generation)
-          if (isStale()) {
-            return
-          }
-          if (resolution.kind === 'resolved') {
-            navigateNoteLink({ target: routeForPath(resolution.path), openInNewWindow })
-          } else if (resolution.kind === 'ambiguous') {
-            reportAmbiguousNoteTitle('Opening link', href)
-          } else if (resolution.kind === 'unavailable') {
-            startOperation('Opening link').fail(
-              `Couldn’t open “${href}” because a matching note is currently unavailable. Try again when it is available on this device.`,
-            )
-          }
-        } catch (err) {
-          console.error('markdown-link resolution failed:', err)
-          startOperation('Opening link').fail(errorMessage(err))
-        }
-      })()
+      linkNavigation.followMarkdownNoteLink({ href, sourcePath, openInNewWindow, generation }, host)
     },
-    [beginLinkIntent, generation, navigateNoteLink, sourcePath],
+    [generation, host, linkNavigation, sourcePath],
   )
 }
