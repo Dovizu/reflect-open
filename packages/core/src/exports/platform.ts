@@ -447,6 +447,18 @@ export {
   type SkippedIndexedNote,
 } from '../indexing/index-store-service.ts'
 export {
+  createIndexLifecycleService,
+  defaultIndexLifecycle,
+  setDefaultIndexLifecycle,
+  type IndexAppliedEvent,
+  type IndexFileProgress,
+  type IndexLifecycleDeps,
+  type IndexLifecycleProgress,
+  type IndexLifecycleService,
+  type IndexLifecycleStage,
+  type IndexReconciledEvent,
+} from '../indexing/index-lifecycle-service.ts'
+export {
   createEmbeddingRuntimeService,
   defaultEmbeddingRuntime,
   setDefaultEmbeddingRuntime,

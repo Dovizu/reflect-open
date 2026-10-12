@@ -1,6 +1,7 @@
+import { setDefaultIndexLifecycle, type IndexFileProgress } from '@reflect/core'
+import { createTestIndexLifecycleService } from '@reflect/core/testing'
 import { render } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { setIndexProgress } from '@/lib/index-progress.ts'
 import { publishKeyboardHeight } from '@/mobile/use-keyboard.ts'
 import { IndexProgressPill } from './index-progress-pill.tsx'
 
@@ -11,12 +12,17 @@ import { IndexProgressPill } from './index-progress-pill.tsx'
  * pill every single time even when everything skips read-free.
  */
 
+let setIndexProgress: (progress: IndexFileProgress | null) => void
+
 beforeEach(() => {
   publishKeyboardHeight(0)
+  const lifecycle = createTestIndexLifecycleService()
+  setDefaultIndexLifecycle(lifecycle)
+  setIndexProgress = lifecycle.setFileProgress
 })
 
 afterEach(() => {
-  setIndexProgress(null)
+  setDefaultIndexLifecycle(null)
 })
 
 describe('IndexProgressPill', () => {

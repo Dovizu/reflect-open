@@ -45,7 +45,7 @@ import { serializeWikiSuggestionAddress } from './suggest.ts'
 /**
  * Version of the projection {@link buildIndexedNote} produces. Bump it whenever
  * the rows derived from an *unchanged* file change — a new column, a changed
- * derivation — so `syncIndex` rebuilds graphs whose rows predate it. The
+ * derivation — so `NoteIndexer.sync` rebuilds graphs whose rows predate it. The
  * hash-based reconcile alone would never re-index an unchanged file, leaving
  * new columns at their migration defaults forever.
  *
