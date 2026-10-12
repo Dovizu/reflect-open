@@ -8,7 +8,9 @@ import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
+import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
+import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
@@ -27,6 +29,7 @@ import { setDefaultIap } from '../ipc/iap-plugin.ts'
 import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
+import { setDefaultPrivacy } from '../privacy/privacy-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import { setDefaultSettings } from '../settings/settings-service.ts'
 import { setDefaultAgentSkill } from './agent-skill-service.ts'
@@ -101,6 +104,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteList(services.noteList)
   setDefaultGraphStats(services.graphStats)
   setDefaultNotePath(services.notePath)
+  setDefaultNoteLinkResolver(services.noteLinkResolver)
+  setDefaultNoteCreation(services.noteCreation)
+  setDefaultPrivacy(services.privacy)
   setDefaultIpc(services.ipc)
 }
 
@@ -155,5 +161,8 @@ export function resetDefaultServices(): void {
   setDefaultNoteList(null)
   setDefaultGraphStats(null)
   setDefaultNotePath(null)
+  setDefaultNoteLinkResolver(null)
+  setDefaultNoteCreation(null)
+  setDefaultPrivacy(null)
   setDefaultIpc(null)
 }

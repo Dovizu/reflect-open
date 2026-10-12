@@ -13,14 +13,13 @@ import { isTagName } from '../../markdown/extract.ts'
 import { buildReadOneAsset, readAssetsInput, type ReadAssetsOutput } from './read-assets.ts'
 import { buildReadOneNote, readNotesInput, type ReadNotesOutput } from './read-notes.ts'
 import {
-  cloudSafeNoteListings,
-  cloudSafeSearchHits,
-  notePrivate,
+  createPrivacyService,
+  defaultPrivacy,
   type CloudNoteListing,
   type CloudSafe,
   type CloudSearchHit,
   type CloudSendable,
-} from '../../privacy/checkers.ts'
+} from '../../privacy/privacy-service.ts'
 
 /**
  * The read-only note tools the chat model can call (Plan 10, first wave),
@@ -32,7 +31,7 @@ import {
  * nothing else switches on tool names.
  *
  * Note content enters tool outputs only as {@link CloudSafe} values, minted
- * by the privacy gate in `../../privacy/checkers` — search drops private hits entirely,
+ * by the privacy gate in `../../privacy/privacy-service` — search drops private hits entirely,
  * and reads re-check the live frontmatter before any content is minted.
  */
 
@@ -151,17 +150,10 @@ export function buildNoteTools(options: BuildNoteToolsOptions = {}): NoteTools {
   const searchMode: RetrieveOptions['mode'] =
     options.semanticSearchEnabled === false ? 'lexical' : 'hybrid'
 
-  // The gate's live privacy probe: the index flag on a hit can lag a
-  // just-saved `private: true`, so each candidate's frontmatter is re-read
-  // from disk. Fail closed — a note that can't be read can't be cleared
-  // for sending.
-  const isPrivateLive = async (path: string): Promise<boolean> => {
-    try {
-      return notePrivate(await readNoteFn(path))
-    } catch {
-      return true
-    }
-  }
+  const privacy =
+    options.readNoteFn === undefined
+      ? defaultPrivacy()
+      : createPrivacyService({ noteFile: { read: options.readNoteFn } })
 
   const readOneNote = buildReadOneNote({ readNoteFn })
 
@@ -180,7 +172,7 @@ export function buildNoteTools(options: BuildNoteToolsOptions = {}): NoteTools {
           mode: searchMode,
           excludePrivateContent: true,
         })
-        return { hits: await cloudSafeSearchHits(hits, isPrivateLive) }
+        return { hits: await privacy.cloudSafeSearchHits(hits) }
       },
     },
 
@@ -201,7 +193,7 @@ export function buildNoteTools(options: BuildNoteToolsOptions = {}): NoteTools {
         })
         return {
           ok: true,
-          notes: await cloudSafeNoteListings(rows.map(listingCandidate), isPrivateLive),
+          notes: await privacy.cloudSafeNoteListings(rows.map(listingCandidate)),
         }
       },
     },
@@ -218,7 +210,7 @@ export function buildNoteTools(options: BuildNoteToolsOptions = {}): NoteTools {
         const truncated = rows.length > MAX_DAILY_NOTE_DAYS
         const kept = truncated ? rows.slice(0, MAX_DAILY_NOTE_DAYS) : rows
         return {
-          days: await cloudSafeNoteListings(kept.map(listingCandidate), isPrivateLive),
+          days: await privacy.cloudSafeNoteListings(kept.map(listingCandidate)),
           truncated,
         }
       },
