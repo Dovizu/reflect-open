@@ -397,6 +397,57 @@ export {
   type NoteSessionStatus,
 } from '../documents/note-session.ts'
 export {
+  createDailyNoteService,
+  defaultDailyNotes,
+  setDefaultDailyNotes,
+  type DailyNoteService,
+} from '../daily/daily-note-service.ts'
+export {
+  dailyArrivalIntent,
+  type DailyArrival,
+  type DailyArrivalIntent,
+} from '../daily/daily-arrivals.ts'
+export {
+  createDayWindow,
+  dateAtIndex,
+  FUTURE_DAYS,
+  indexOfDate,
+  indexWithin,
+  neighborDate,
+  PAST_DAYS,
+  type DayWindow,
+  type DayWindowRadius,
+} from '../daily/day-window.ts'
+export {
+  addMonths,
+  buildMonthGrid,
+  monthLabel,
+  monthOf,
+  monthShortLabel,
+  weekdayLabels,
+  type MonthGrid,
+  type MonthGridCell,
+} from '../daily/month-grid.ts'
+export {
+  createWeekWindow,
+  monthPickTarget,
+  WEEK_WINDOW_RADIUS,
+  weekAtIndex,
+  weekIndexOf,
+  weekOf,
+  weekStartOf,
+  type WeekWindow,
+} from '../daily/week-window.ts'
+export {
+  createTemplateService,
+  defaultTemplates,
+  setDefaultTemplates,
+  type TemplateInsertTarget,
+  type TemplateService,
+  type TemplateServiceDeps,
+  type TemplateSlashItem,
+} from '../documents/template-service.ts'
+export {
   createNoteDocumentService,
   defaultNoteDocuments,
   isOstensiblyEmptyNoteSource,

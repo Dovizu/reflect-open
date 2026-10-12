@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import {
   createTestDatabaseService,
@@ -8,9 +8,7 @@ import {
 } from '../testing/database.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createBacklinkService, type BacklinkService } from './backlink-service.ts'
-import { setDefaultDatabase } from './database-service.ts'
 import { createIndexQueryService } from './index-query-service.ts'
-import { dailyDatesInRange, listDailyNotes } from './queries.ts'
 import { createSuggestionService } from './suggestion-service.ts'
 import { createWikiResolverService } from './wiki-resolver-service.ts'
 
@@ -19,41 +17,6 @@ function seeded(notes: readonly TestNote[]): TestDatabaseService {
   seedNotes(database, notes)
   return database
 }
-
-describe('dailyDatesInRange', () => {
-  let database: TestDatabaseService
-
-  beforeEach(() => {
-    database = createTestDatabaseService()
-    setDefaultDatabase(database)
-  })
-
-  afterEach(() => {
-    setDefaultDatabase(null)
-  })
-
-  it('lists the dates with content within inclusive bounds', async () => {
-    seedNotes(database, [
-      { path: 'daily/2026-05-31.md', markdown: 'Before\n' },
-      { path: 'daily/2026-06-01.md', markdown: 'Bought milk\n' },
-      { path: 'daily/2026-06-09.md', markdown: 'Standup\n' },
-      { path: 'daily/2026-06-15.md', markdown: '\n' },
-      { path: 'daily/2026-06-30.md', markdown: 'Last day\n' },
-      { path: 'daily/2026-07-01.md', markdown: 'After\n' },
-    ])
-
-    await expect(dailyDatesInRange('2026-06-01', '2026-06-30')).resolves.toEqual([
-      '2026-06-01',
-      '2026-06-09',
-      '2026-06-30',
-    ])
-  })
-
-  it('returns an empty list when no daily notes exist in the range', async () => {
-    seedNotes(database, [{ path: 'daily/2026-06-01.md', markdown: 'Bought milk\n' }])
-    await expect(dailyDatesInRange('2025-01-01', '2025-01-31')).resolves.toEqual([])
-  })
-})
 
 describe('getWikiAddressForPath', () => {
   it('uses the note_keys winner for the canonical title address', async () => {
@@ -194,47 +157,6 @@ describe('getLinkSources and getPathLinkSources', () => {
     await expect(wikiResolver.getPathLinkSources('notes/target.md')).resolves.toEqual([
       'notes/c.md',
     ])
-  })
-})
-
-describe('listDailyNotes', () => {
-  afterEach(() => {
-    setDefaultDatabase(null)
-  })
-
-  it('selects public dailies in the inclusive range, most recent first, capped', async () => {
-    setDefaultDatabase(
-      seeded([
-        { path: 'daily/2026-06-01.md', markdown: 'Older.\n', mtime: 1000 },
-        { path: 'daily/2026-06-09.md', markdown: 'Stand-up notes.\n', mtime: 2000 },
-        { path: 'daily/2026-06-10.md', markdown: '---\nprivate: true\n---\nSecret.\n' },
-        { path: 'daily/2026-07-01.md', markdown: 'Out of range.\n' },
-        { path: 'notes/a.md', markdown: '# A\n' },
-      ]),
-    )
-
-    await expect(
-      listDailyNotes({ start: '2026-06-01', end: '2026-06-30', limit: 1 }),
-    ).resolves.toEqual([
-      {
-        path: 'daily/2026-06-09.md',
-        title: '2026-06-09',
-        dailyDate: '2026-06-09',
-        preview: 'Stand-up notes.',
-        mtime: 2000,
-        isPrivate: false,
-      },
-    ])
-    await expect(
-      listDailyNotes({ start: '2026-06-01', end: '2026-06-30', limit: 32 }),
-    ).resolves.toMatchObject([{ path: 'daily/2026-06-09.md' }, { path: 'daily/2026-06-01.md' }])
-  })
-
-  it('returns an empty list when no daily notes exist in the range', async () => {
-    setDefaultDatabase(seeded([{ path: 'daily/2026-06-01.md', markdown: 'Older.\n' }]))
-    await expect(
-      listDailyNotes({ start: '2025-01-01', end: '2025-01-31', limit: 32 }),
-    ).resolves.toEqual([])
   })
 })
 

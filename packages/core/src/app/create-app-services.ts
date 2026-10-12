@@ -98,6 +98,7 @@ import {
   createMobileOnboardingService,
   type MobileOnboardingService,
 } from '../graph/mobile-onboarding-service.ts'
+import { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
 import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
@@ -111,6 +112,7 @@ import {
   type NoteActionsService,
 } from '../documents/note-actions-service.ts'
 import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
+import { createTemplateService, type TemplateService } from '../documents/template-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -315,6 +317,8 @@ export interface AppServices {
   readonly tasks: TaskService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
+  readonly dailyNotes: DailyNoteService
+  readonly templates: TemplateService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -699,6 +703,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       id,
     }),
     noteRows: createNoteRowService(),
+    dailyNotes: createDailyNoteService({ database, clock, lifecycle }),
+    templates: createTemplateService({
+      noteFile,
+      indexQuery: indexReads.indexQuery,
+      notePath: indexReads.notePath,
+      noteMove,
+      openDocuments,
+      operations,
+    }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

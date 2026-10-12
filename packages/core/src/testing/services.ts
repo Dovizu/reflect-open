@@ -58,6 +58,7 @@ import {
 } from './sync.ts'
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
+import { createTestDailyNoteService } from './daily.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
 import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
@@ -80,6 +81,7 @@ import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestNoteActionsService,
+  createTestTemplateService,
   createTestNoteMoveService,
   createTestNoteSessionService,
   createTestNoteDocumentService,
@@ -511,6 +513,19 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       id: overrides?.id ?? id,
     }),
     noteRows: createNoteRowService(),
+    templates: createTestTemplateService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
+      notePath: overrides?.notePath ?? indexReads.notePath,
+      noteMove: overrides?.noteMove ?? noteMove,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      operations: overrides?.operations ?? operations,
+    }),
+    dailyNotes: createTestDailyNoteService({
+      database: overrides?.database ?? database,
+      clock: overrides?.clock ?? clock,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+    }),
     ...indexReads,
     noteLinkResolver,
     noteCreation,

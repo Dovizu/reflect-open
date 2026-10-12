@@ -3,7 +3,8 @@ import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, useEffect, useState, type ReactElement, type ReactNode } from 'react'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultClock } from '@reflect/core'
+import { createTestClockService } from '@reflect/core/testing'
 import { FocusedDailyProvider, useFocusedDailyDate } from '@/providers/focused-daily-provider.tsx'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { formatDayLabel, todayIso } from '@/lib/dates.ts'
@@ -54,8 +55,15 @@ setBridge({
 
 afterEach(async () => {
   await cleanup()
-  vi.useRealTimers()
+  setDefaultClock(null)
 })
+
+/** Installs a test clock at 23:59 on 2026-06-27 as the process-wide clock. */
+function installClockBeforeMidnight(): ReturnType<typeof createTestClockService> {
+  const clock = createTestClockService({ now: new Date(2026, 5, 27, 23, 59, 0).getTime() })
+  setDefaultClock(clock)
+  return clock
+}
 
 function StreamProviders({ children }: { children: ReactNode }): ReactElement {
   const [client] = useState(
@@ -103,8 +111,7 @@ describe('DailyStream', () => {
   })
 
   it('re-anchors a today arrival to the stream-local day after midnight', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 5, 27, 23, 59, 0))
+    const clock = installClockBeforeMidnight()
     let navigateToday: () => void = () => {
       throw new Error('navigate not ready')
     }
@@ -121,7 +128,7 @@ describe('DailyStream', () => {
 
     const dayWindow = createDayWindow('2026-06-27')
     await act(async () => {
-      vi.advanceTimersByTime(2 * 60 * 1000)
+      await clock.advance(2 * 60 * 1000)
     })
     await act(async () => {
       navigateToday()
@@ -138,8 +145,7 @@ describe('DailyStream', () => {
   })
 
   it('anchors a today arrival to the real day after a slept-through midnight', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date(2026, 5, 27, 23, 59, 0))
+    const clock = installClockBeforeMidnight()
     let navigateToday: () => void = () => {
       throw new Error('navigate not ready')
     }
@@ -155,12 +161,9 @@ describe('DailyStream', () => {
     )
 
     // Simulated sleep: the wall clock jumps but no timer fires (DOM timers
-    // run on a monotonic clock that pauses while the machine sleeps). The
-    // midnight timeout is now hours away in timer time; the store's
-    // heartbeat is what notices the new date.
-    vi.setSystemTime(new Date(2026, 5, 28, 9, 0, 0))
+    // run on a monotonic clock that pauses while the machine sleeps).
     await act(async () => {
-      vi.advanceTimersByTime(60_000)
+      clock.setNow(new Date(2026, 5, 28, 9, 0, 0).getTime())
     })
     await act(async () => {
       navigateToday()
