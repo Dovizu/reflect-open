@@ -1,7 +1,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { getSessionStorageStore } from '@/lib/session-storage.ts'
 import { cn } from '@/lib/utils.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface SidebarSectionProps {
   /** Session-storage key suffix persisting this section's open state. */
@@ -12,10 +12,6 @@ interface SidebarSectionProps {
 
 const STORAGE_PREFIX = 'reflect.context-sidebar.'
 
-function readOpenState(storageKey: string): boolean {
-  return getSessionStorageStore(STORAGE_PREFIX + storageKey).get() !== 'closed'
-}
-
 /**
  * One collapsible sidebar section (the old app's `SidebarItem` shape): a
  * quiet sentence-case header whose disclosure chevron sits on the right and —
@@ -24,12 +20,15 @@ function readOpenState(storageKey: string): boolean {
  * section stays collapsed while navigating between days and notes.
  */
 export function SidebarSection({ storageKey, title, children }: SidebarSectionProps): ReactElement {
-  const [open, setOpen] = useState(() => readOpenState(storageKey))
+  const { storage } = useAppServices()
+  const [open, setOpen] = useState(
+    () => storage.session.get(STORAGE_PREFIX + storageKey) !== 'closed',
+  )
 
   const toggle = (): void => {
     const next = !open
     setOpen(next)
-    getSessionStorageStore(STORAGE_PREFIX + storageKey).set(next ? 'open' : 'closed')
+    storage.session.set(STORAGE_PREFIX + storageKey, next ? 'open' : 'closed')
   }
 
   const Chevron = open ? ChevronDown : ChevronRight

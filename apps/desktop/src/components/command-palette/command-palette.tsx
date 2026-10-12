@@ -6,7 +6,6 @@ import { getIsComposing, isModEvent } from '@meowdown/core'
 import { Kbd } from '@/components/kbd.tsx'
 import { ShortcutKeys } from '@/components/shortcut-keys.tsx'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
-import { runCommand } from '@/lib/commands/registry.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { formatDayLabel } from '@/lib/dates.ts'
 import { cn } from '@/lib/utils.ts'
@@ -257,7 +256,7 @@ export function CommandPalette({ context }: CommandPaletteProps): ReactElement |
                         onSelect={() => {
                           pendingNoteOpenRef.current = null
                           closePalette()
-                          void runCommand(command.id, context)
+                          void context.services.commands.run(command.id, context)
                         }}
                         className="reflect-palette-item"
                       >
