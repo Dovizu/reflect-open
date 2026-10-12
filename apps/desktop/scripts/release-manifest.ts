@@ -10,10 +10,7 @@ import { parseArgs } from 'node:util'
 import { exec } from 'tinyexec'
 import { INHERIT, log, runWithTempDir } from './helpers.ts'
 
-/**
- * The updater looks up `<os>-<arch>` in the manifest. An optional platform
- * without a signature is left out. Intel Macs get the universal app.
- */
+/** The updater looks up `<os>-<arch>` in the manifest. An optional platform without a signature is left out. */
 const PLATFORMS = [
   { platform: 'darwin-aarch64', suffix: '_aarch64.app.tar.gz.sig', required: true },
   { platform: 'darwin-x86_64', suffix: '_universal.app.tar.gz.sig', required: true },

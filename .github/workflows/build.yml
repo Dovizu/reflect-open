@@ -27,7 +27,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The universal build compiles both macOS architectures.
           - name: macos
             os: macos-26
             target: x86_64-apple-darwin

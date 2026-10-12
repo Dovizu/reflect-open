@@ -33,8 +33,6 @@ jobs:
             runner: macos-26
             target: aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin
-          # One app for Intel and Apple Silicon. It is not a rustup target:
-          # Tauri compiles both architectures and joins them.
           - name: Universal
             runner: macos-26
             target: universal-apple-darwin
