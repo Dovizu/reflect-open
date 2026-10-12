@@ -4,7 +4,7 @@ import type { SnippetTask, TaskLocator } from '@reflect/core'
 import type { TaskClickHandler } from '@meowdown/react'
 import { mutationKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useTaskService } from '@/services/use-task-service.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface SnippetToggleInput {
   notePath: string
@@ -30,7 +30,7 @@ export function useSnippetTaskToggle(
   tasks: readonly SnippetTask[],
 ): TaskClickHandler | undefined {
   const { graph } = useGraph()
-  const taskService = useTaskService()
+  const { tasks: taskService } = useAppServices()
 
   const { mutate, isPending } = useMutation({
     mutationKey: mutationKeys.tasks.snippetToggle(graph?.root),

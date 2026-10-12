@@ -6,7 +6,6 @@ import {
   type BacklinkContextPage,
   type BacklinkSourceCursor,
 } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { groupBacklinksBySource, type BacklinkSource } from '@/lib/group-backlinks.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
@@ -70,7 +69,6 @@ function groupLoadedBacklinks(pages: readonly BacklinkContextPage[]): BacklinkSo
  */
 export function useBacklinkSources(path: string): BacklinkSources {
   const { graph } = useGraph()
-  const bridgeReady = useBridgeReady()
   const {
     data,
     fetchNextPage,
@@ -88,7 +86,7 @@ export function useBacklinkSources(path: string): BacklinkSources {
       }),
     initialPageParam: null as BacklinkSourceCursor | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    enabled: bridgeReady && graph !== null,
+    enabled: graph !== null,
   })
   const groups = useMemo(() => groupLoadedBacklinks(data?.pages ?? []), [data])
   const loadMore = useCallback(() => {

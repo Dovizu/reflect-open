@@ -1,10 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import {
-  defaultAiProviderConfig,
-  type AiProviderConfig,
-  type AiProviderConfigService,
-  type NewAiProvider,
-} from '@reflect/core'
+import type { AiProviderConfig, NewAiProvider } from '@reflect/core'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 export type { NewAiProvider } from '@reflect/core'
@@ -29,14 +24,9 @@ interface UseAiProvidersValue {
   setDefaultModel: (id: string, model: string) => void
 }
 
-/** The {@link AiProviderConfigService} of the nearest `AppServicesProvider`, else the process-wide one. */
-export function useAiProviderConfigService(): AiProviderConfigService {
-  return useAppServices({ optional: true })?.aiProviderConfig ?? defaultAiProviderConfig()
-}
-
 /** The configured-AI-providers surface (Plan 10), over the `AiProviderConfigService`. */
 export function useAiProviders(): UseAiProvidersValue {
-  const service = useAiProviderConfigService()
+  const { aiProviderConfig: service } = useAppServices()
   const providers = useSyncExternalStore(service.subscribe, service.list)
   const defaultProvider = useSyncExternalStore(service.subscribe, service.defaultProvider)
   return {

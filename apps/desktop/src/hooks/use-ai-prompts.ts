@@ -1,10 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import {
-  defaultAiPrompts,
-  type AiPrompt,
-  type AiPromptDraft,
-  type AiPromptService,
-} from '@reflect/core'
+import type { AiPrompt, AiPromptDraft } from '@reflect/core'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 export type { AiPromptDraft } from '@reflect/core'
@@ -16,14 +11,9 @@ interface UseAiPromptsValue {
   removePrompt: (id: string) => void
 }
 
-/** The {@link AiPromptService} of the nearest `AppServicesProvider`, else the process-wide one. */
-function useAiPromptService(): AiPromptService {
-  return useAppServices({ optional: true })?.aiPrompts ?? defaultAiPrompts()
-}
-
 /** The saved-AI-prompts surface (the editor AI menu's user library), over the `AiPromptService`. */
 export function useAiPrompts(): UseAiPromptsValue {
-  const service = useAiPromptService()
+  const { aiPrompts: service } = useAppServices()
   const prompts = useSyncExternalStore(service.subscribe, service.list)
   return {
     prompts,

@@ -5,6 +5,7 @@ import {
   type NoteRowOverlay,
   type NoteRowOverlayPatch,
 } from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /*
  * The optimistic read overlay for note index rows lives in `@reflect/core`
@@ -50,7 +51,7 @@ export function useNoteRowOverlay(
   path: string,
   generation: number | undefined,
 ): NoteRowOverlay | null {
-  const noteRows = defaultNoteRows()
+  const { noteRows } = useAppServices()
   const subscribe = useCallback((listener: () => void) => noteRows.subscribe(listener), [noteRows])
   const getSnapshot = useCallback(
     () => noteRows.getOverlay(path, generation),

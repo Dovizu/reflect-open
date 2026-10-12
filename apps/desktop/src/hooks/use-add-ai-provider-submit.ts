@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { errorMessage } from '@reflect/core'
-import { useAiProviderConfigService, type NewAiProvider } from '@/hooks/use-ai-providers.ts'
+import type { NewAiProvider } from '@/hooks/use-ai-providers.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface UseAddAiProviderSubmitOptions {
   /** Persists the new provider (keychain + settings); rejects on failure. */
@@ -35,7 +36,7 @@ export function useAddAiProviderSubmit({
   onAdd,
   onDone,
 }: UseAddAiProviderSubmitOptions): UseAddAiProviderSubmitValue {
-  const service = useAiProviderConfigService()
+  const { aiProviderConfig: service } = useAppServices()
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [unverified, setUnverified] = useState(false)
 

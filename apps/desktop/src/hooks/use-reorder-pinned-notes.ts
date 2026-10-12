@@ -1,10 +1,10 @@
-import { reorderPinnedNotes } from '@/lib/note-pin.ts'
 import {
   invalidatePinnedNotesCache,
   updatePinnedNotesCache,
 } from '@/lib/notes/pinned-notes-cache.ts'
 import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { arrayMove } from '@dnd-kit/sortable'
 import { updatePinOrder, type PinnedNote } from '@reflect/core'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -20,12 +20,13 @@ export function useReorderPinnedNotes(
   pinned: readonly PinnedNote[],
 ): (activePath: string, overPath: string) => void {
   const { graph } = useGraph()
+  const { noteActions } = useAppServices()
   const queryClient = useQueryClient()
   const { mutate } = useMutation({
     mutationKey: mutationKeys.pinnedNotes.reorder(graph?.root),
     scope: { id: mutationScopeIds.pinnedNotesReorder(graph?.root) },
     mutationFn: (variables: ReorderPinnedNotesVariables) =>
-      reorderPinnedNotes(variables.notes, variables.generation),
+      noteActions.reorderPinned(variables.notes, variables.generation),
     onError: (_error, variables) => {
       if (
         queryClient.isMutating({

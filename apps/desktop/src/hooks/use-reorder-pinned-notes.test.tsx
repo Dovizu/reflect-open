@@ -1,20 +1,19 @@
-import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
-import { cleanup, renderHook } from 'vitest-browser-react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PinnedNote } from '@reflect/core'
+import { QueryClient, useQuery } from '@tanstack/react-query'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import type { NoteActionsService, NotePinOrderWrite, PinnedNote } from '@reflect/core'
+import {
+  createTestAppServices,
+  type TestAppServices,
+  type TestOpenGraph,
+} from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useReorderPinnedNotes } from './use-reorder-pinned-notes.ts'
 
-const reorderPinnedNotes = vi.hoisted(() =>
-  vi.fn<(notes: readonly PinnedNote[], generation: number) => Promise<void>>(),
-)
-vi.mock('@/lib/note-pin.ts', () => ({ reorderPinnedNotes }))
+const GRAPH: TestOpenGraph = { generation: 7, root: '/graphs/personal' }
 
-const graphState: {
-  graph: { generation: number; root: string } | null
-} = vi.hoisted(() => ({ graph: { generation: 7, root: '/graphs/personal' } }))
-vi.mock('@/providers/graph-provider.tsx', () => ({ useGraph: () => graphState }))
+let app: TestAppServices
+let reorderPinnedNotes: MockInstance<NoteActionsService['reorderPinned']>
 
 const NOTE_A = { dailyDate: null, path: 'a.md', title: 'A', pinnedOrder: 1024 } satisfies PinnedNote
 const NOTE_B = { dailyDate: null, path: 'b.md', title: 'B', pinnedOrder: 2048 } satisfies PinnedNote
@@ -28,23 +27,20 @@ const THIRD_ORDER = [NOTE_C, { ...NOTE_A, pinnedOrder: 4096 }, { ...NOTE_B, pinn
 
 let queryClient: QueryClient
 
-function wrapper({ children }: { children: ReactNode }): ReactNode {
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-}
-
 function renderReorder(pinned: readonly PinnedNote[] = NOTES) {
-  return renderHook(
+  return renderHookInApp(
     (
       { pinned }: { pinned: readonly PinnedNote[] } = {
         pinned: NOTES,
       },
     ) => useReorderPinnedNotes(pinned),
-    { initialProps: { pinned }, wrapper },
+    { initialProps: { pinned }, app, graph: GRAPH, queryClient },
   )
 }
 
 beforeEach(() => {
-  graphState.graph = { generation: 7, root: '/graphs/personal' }
+  app = createTestAppServices()
+  reorderPinnedNotes = vi.spyOn(app.noteActions, 'reorderPinned').mockResolvedValue([])
   queryClient = new QueryClient({
     defaultOptions: {
       mutations: { retry: false },
@@ -52,12 +48,6 @@ beforeEach(() => {
     },
   })
   queryClient.setQueryData(queryKeys.index.pinnedNotes('/graphs/personal'), NOTES)
-  reorderPinnedNotes.mockReset()
-})
-
-afterEach(async () => {
-  queryClient.clear()
-  await cleanup()
 })
 
 describe('useReorderPinnedNotes', () => {
@@ -66,8 +56,7 @@ describe('useReorderPinnedNotes', () => {
 
     await hook.act(() => hook.result.current('missing.md', 'b.md'))
     await hook.act(() => hook.result.current('a.md', 'a.md'))
-    graphState.graph = null
-    await hook.rerender({ pinned: NOTES })
+    await hook.act(() => app.graphSession.setGraph(null))
     await hook.act(() => hook.result.current('a.md', 'b.md'))
 
     expect(reorderPinnedNotes).not.toHaveBeenCalled()
@@ -75,9 +64,9 @@ describe('useReorderPinnedNotes', () => {
   })
 
   it('updates optimistically and serializes disk writes after an earlier failure', async () => {
-    const first = Promise.withResolvers<void>()
-    const second = Promise.withResolvers<void>()
-    const third = Promise.withResolvers<void>()
+    const first = Promise.withResolvers<NotePinOrderWrite[]>()
+    const second = Promise.withResolvers<NotePinOrderWrite[]>()
+    const third = Promise.withResolvers<NotePinOrderWrite[]>()
     reorderPinnedNotes
       .mockImplementationOnce(() => first.promise)
       .mockImplementationOnce(() => second.promise)
@@ -101,11 +90,11 @@ describe('useReorderPinnedNotes', () => {
     )
     expect(reorderPinnedNotes).toHaveBeenCalledTimes(1)
 
-    first.resolve()
+    first.resolve([])
     await vi.waitFor(() => expect(reorderPinnedNotes).toHaveBeenCalledTimes(2))
     second.reject(new Error('second write failed'))
     await vi.waitFor(() => expect(reorderPinnedNotes).toHaveBeenCalledTimes(3))
-    third.resolve()
+    third.resolve([])
     await vi.waitFor(() => expect(queryClient.isMutating()).toBe(0))
 
     expect(reorderPinnedNotes.mock.calls).toEqual([
@@ -142,7 +131,7 @@ describe('useReorderPinnedNotes', () => {
     const diskTruth = [NOTE_A, NOTE_C, NOTE_B]
     const readPinnedNotes = vi.fn<() => Promise<PinnedNote[]>>().mockResolvedValue(diskTruth)
     reorderPinnedNotes.mockRejectedValue(new Error('write failed'))
-    const hook = await renderHook(
+    const hook = await renderHookInApp(
       () => {
         useQuery({
           queryFn: readPinnedNotes,
@@ -150,7 +139,7 @@ describe('useReorderPinnedNotes', () => {
         })
         return useReorderPinnedNotes(NOTES)
       },
-      { wrapper },
+      { app, graph: GRAPH, queryClient },
     )
 
     await hook.act(() => hook.result.current('a.md', 'b.md'))

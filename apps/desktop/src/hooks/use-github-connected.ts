@@ -1,8 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { defaultGithubAuth } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { queryKeys } from '@/lib/query-client.ts'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Whether a GitHub credential is stored on this machine (keychain presence,
@@ -12,12 +10,10 @@ import { useOptionalAppServices } from '@/services/services-provider.tsx'
  * the `GithubAuthService` saves or clears the credential.
  */
 export function useGithubConnected(): boolean {
-  const githubAuth = useOptionalAppServices()?.githubAuth ?? defaultGithubAuth()
-  const bridgeReady = useBridgeReady()
+  const { githubAuth } = useAppServices()
   const { data } = useQuery({
     queryKey: queryKeys.github.authentication,
     queryFn: async () => await githubAuth.isConnected(),
-    enabled: bridgeReady,
   })
   return data ?? false
 }
