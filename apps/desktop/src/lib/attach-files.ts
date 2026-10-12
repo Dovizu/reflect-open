@@ -1,4 +1,3 @@
-import { defaultAttachments } from '@reflect/core'
 import { noteEditorHandleFor } from '@/editor/editor-handle-registry.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 
@@ -13,7 +12,7 @@ export async function attachFilesToNote(context: CommandContext): Promise<void> 
   if (generation === null || notePath === null) {
     return
   }
-  await defaultAttachments().attachFilesToNote({
+  await context.services.attachments.attachFilesToNote({
     generation,
     findEditor: () => noteEditorHandleFor(notePath),
   })

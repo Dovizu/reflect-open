@@ -91,6 +91,9 @@ function RouteProbe(): ReactNode {
 async function renderPalette(query: string, context?: Partial<CommandContext>) {
   const navigate = vi.fn()
   const fullContext: CommandContext = {
+    get services() {
+      return app
+    },
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,

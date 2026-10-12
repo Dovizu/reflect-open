@@ -89,6 +89,9 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
   const navigate = vi.fn()
   const openPalette = vi.fn()
   const context: CommandContext = {
+    get services() {
+      return app
+    },
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,

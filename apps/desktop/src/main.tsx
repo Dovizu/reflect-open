@@ -19,7 +19,7 @@ import '@/styles/index.css'
 // Start the platform root's boot-critical work (on mobile, the
 // iCloud-container resolve) now, ahead of React's first render.
 warmPlatformRoot()
-registerAppCommands()
+registerAppCommands(appServices.commands)
 installNativeMenu().catch((cause: unknown) => {
   console.error('failed to install the native menu', cause)
 })

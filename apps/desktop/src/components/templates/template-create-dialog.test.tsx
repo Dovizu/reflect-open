@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { page } from 'vitest/browser'
 import { expect, it, vi } from 'vitest'
-import type { TestAppServices } from '@reflect/core/testing'
+import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { NoteTemplatesProvider, useNoteTemplates } from '@/providers/note-templates-provider.tsx'
 import { renderWithServices } from '@/test-utils/render-with-services.tsx'
@@ -17,7 +17,9 @@ function Opener(): ReactElement {
 }
 
 async function renderDialog(): Promise<{ context: CommandContext; app: TestAppServices }> {
+  const app = createTestAppServices()
   const context: CommandContext = {
+    services: app,
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => null,
@@ -42,11 +44,12 @@ async function renderDialog(): Promise<{ context: CommandContext; app: TestAppSe
     openTemplateCreate: vi.fn(),
     enableSemanticSearch: vi.fn(),
   }
-  const { app } = await renderWithServices(
+  await renderWithServices(
     <NoteTemplatesProvider>
       <Opener />
       <TemplateCreateDialog context={context} />
     </NoteTemplatesProvider>,
+    { app },
   )
   return { context, app }
 }

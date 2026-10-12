@@ -25,6 +25,7 @@ import { useSettings } from '@/providers/settings-provider.tsx'
 import { useShortcuts } from '@/providers/shortcuts-provider.tsx'
 import { useSidebar } from '@/providers/sidebar-provider.tsx'
 import { useTheme } from '@/providers/theme-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { focusedNotePathForRoute } from './route.ts'
 import { useRouter } from './router.tsx'
 
@@ -73,6 +74,7 @@ function isNativeMacosMenuCommand(commandId: string): boolean {
  * mounted (`setMenuCommandDispatch`).
  */
 export function useAppShortcuts(): CommandContext {
+  const services = useAppServices()
   const { route, navigate, back, forward, clearScrollState } = useRouter()
   const queryClient = useQueryClient()
   const focusedDailyDate = useFocusedDailyDate()
@@ -129,6 +131,7 @@ export function useAppShortcuts(): CommandContext {
 
   const context = useMemo<CommandContext>(
     () => ({
+      services,
       navigate,
       route: () => routeRef.current,
       // Resolve through the focused stream day so a note-scoped command targets
@@ -195,6 +198,7 @@ export function useAppShortcuts(): CommandContext {
       },
     }),
     [
+      services,
       queryClient,
       navigate,
       back,
