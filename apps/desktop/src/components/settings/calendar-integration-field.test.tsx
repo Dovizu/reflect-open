@@ -1,71 +1,34 @@
-import { render } from 'vitest-browser-react'
 import { page, type Locator } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Settings } from '@reflect/core'
 import {
-  setBridge,
-  setDefaultCalendar,
-  setDefaultOpener,
-  setDefaultPlatform,
-  setDefaultSettings,
-} from '@reflect/core'
-import {
+  createTestAppServices,
   createTestCalendarService,
-  createTestOpenerService,
-  createTestPlatformService,
   type TestCalendarService,
   type TestOpenerService,
+  type TestSettingsService,
 } from '@reflect/core/testing'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { CalendarIntegrationField } from './calendar-integration-field.tsx'
-
-// The section renders only in the macOS desktop webview; jsdom is neither.
-beforeEach(() => {
-  setDefaultPlatform(createTestPlatformService())
-})
-
-afterEach(() => {
-  setDefaultPlatform(null)
-})
-
-let opener: TestOpenerService
 
 const CALENDARS = [
   { id: 'cal-work', title: 'Work', source: 'Google', color: '#ff0000' },
   { id: 'cal-home', title: 'Home', source: 'iCloud', color: null },
 ]
 
-let stored: Record<string, unknown>
-let saved: Array<Record<string, unknown>>
+let stored: Partial<Settings>
 let calendar: TestCalendarService
 
-function installFakeBridge(): void {
-  setBridge({
-    invoke: async (command, args) => {
-      switch (command) {
-        case 'settings_load':
-          return stored
-        case 'settings_save':
-          saved.push(args['settings'] as Record<string, unknown>)
-          return null
-        default:
-          return null
-      }
-    },
-    listen: async () => () => {},
-  })
-}
+// The services of the rendered app; set by `renderSection`.
+let opener: TestOpenerService
+let settings: TestSettingsService
 
-let queryClient: QueryClient
-
+// The field renders only on macOS desktop, which is the test platform.
 async function renderSection(): Promise<void> {
-  await render(
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <CalendarIntegrationField />
-      </SettingsProvider>
-    </QueryClientProvider>,
-  )
+  const app = createTestAppServices({ calendar })
+  opener = app.opener
+  settings = app.settings
+  await renderInApp(<CalendarIntegrationField />, { app, settings: stored })
 }
 
 function calendarSwitch(): Locator {
@@ -74,21 +37,7 @@ function calendarSwitch(): Locator {
 
 beforeEach(() => {
   stored = {}
-  saved = []
   calendar = createTestCalendarService({ status: 'notDetermined', calendars: CALENDARS })
-  setDefaultCalendar(calendar)
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  opener = createTestOpenerService()
-  setDefaultOpener(opener)
-  installFakeBridge()
-  setDefaultSettings(null)
-})
-
-afterEach(() => {
-  setBridge(null)
-  setDefaultSettings(null)
-  setDefaultCalendar(null)
-  queryClient.clear()
 })
 
 describe('CalendarIntegrationField', () => {
@@ -105,7 +54,7 @@ describe('CalendarIntegrationField', () => {
     await calendarSwitch().click()
 
     await vi.waitFor(() =>
-      expect(saved.at(-1)).toMatchObject({ calendarEnabled: true, calendarIds: [] }),
+      expect(settings.saves().at(-1)).toMatchObject({ calendarEnabled: true, calendarIds: [] }),
     )
     await expect.element(page.getByText('0/2 calendars selected')).toBeInTheDocument()
     expect(page.getByText('Google').query()).toBeNull()
@@ -123,7 +72,7 @@ describe('CalendarIntegrationField', () => {
   it('shows nothing (not "No calendars found") while the list is still loading', async () => {
     stored = { calendarEnabled: true }
     calendar.setStatus('fullAccess')
-    setDefaultCalendar({ ...calendar, listCalendars: () => new Promise(() => {}) })
+    vi.spyOn(calendar, 'listCalendars').mockReturnValue(new Promise(() => {}))
     await renderSection()
 
     await expect.element(calendarSwitch()).toHaveAttribute('aria-checked', 'true')
@@ -148,7 +97,9 @@ describe('CalendarIntegrationField', () => {
 
     await page.getByRole('checkbox', { name: 'Work' }).click()
 
-    await vi.waitFor(() => expect(saved.at(-1)).toMatchObject({ calendarIds: ['cal-work'] }))
+    await vi.waitFor(() =>
+      expect(settings.saves().at(-1)).toMatchObject({ calendarIds: ['cal-work'] }),
+    )
     await expect.element(page.getByText('1/2 calendars selected')).toBeInTheDocument()
   })
 

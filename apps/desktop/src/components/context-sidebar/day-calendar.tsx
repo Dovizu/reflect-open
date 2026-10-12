@@ -6,7 +6,6 @@ import { ChevronLeftIcon } from '@/components/icons/chevron-left-icon.tsx'
 import { ChevronRightIcon } from '@/components/icons/chevron-right-icon.tsx'
 import { ShortcutKeys } from '@/components/shortcut-keys.tsx'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
 import { keybindingFor } from '@/lib/commands/app-commands.ts'
 import { formatDayLabel } from '@/lib/dates.ts'
@@ -57,10 +56,9 @@ export function DayCalendar({ selectedDate, today }: DayCalendarProps): ReactEle
   }
 
   const grid = buildMonthGrid(month, weekStartsOn)
-  const bridgeReady = useBridgeReady()
   const { data: notedDates } = useQuery({
     ...createDailyDatesQueryOptions(graph?.root, grid.start, grid.end),
-    enabled: bridgeReady && graph !== null,
+    enabled: graph !== null,
   })
   // The sidebar re-renders as the focused day scrolls through the stream; with
   // the query result reference-stable (structural sharing), rebuild the lookup

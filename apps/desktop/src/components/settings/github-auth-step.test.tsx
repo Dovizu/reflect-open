@@ -1,54 +1,60 @@
-import { cleanup, render } from 'vitest-browser-react'
+import type { ReactNode } from 'react'
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import type { GithubAuthService } from '@reflect/core'
 import {
-  defaultClock,
-  setDefaultClipboard,
-  setDefaultGithubAuth,
-  setDefaultHttp,
-  setDefaultOpener,
-  setDefaultPlatform,
-  setDefaultSecretStore,
-  type GithubAuthService,
-} from '@reflect/core'
-import {
+  createTestAppServices,
   createTestClipboardService,
-  createTestGithubAuthService,
   createTestHttpService,
   createTestOpenerService,
   createTestPlatformService,
   createTestSecretStoreService,
   type TestClipboardService,
   type TestHttpService,
+  type TestOpenerService,
   type TestSecretStoreService,
 } from '@reflect/core/testing'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import '@/test-utils/locator.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { GithubAuthStep } from './github-auth-step.tsx'
 
 // The Reflect GitHub App is registered, so the device flow leads and the PAT
 // path sits behind a "use a personal access token instead" toggle. The
 // keychain is the in-memory secret store; GET /user (instant token validation) goes
-// through the fake HTTP service. The device-flow tests script the fake
+// through the fake HTTP service. The device-flow tests script the app's
 // GithubAuthService's runDeviceFlow (polling policy is unit-tested in core)
 // to drive the code-handoff view.
 
 const USER_URL = 'https://api.github.com/user'
 let http: TestHttpService
+let clipboard: TestClipboardService
+let opener: TestOpenerService
+let openedUrls: MockInstance<(url: string) => Promise<void>>
+let keychain: TestSecretStoreService
+const mockFlow = vi.fn<GithubAuthService['runDeviceFlow']>()
 
 beforeEach(() => {
-  setDefaultPlatform(
-    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
-  )
   http = createTestHttpService()
-  setDefaultHttp(http)
+  clipboard = createTestClipboardService()
+  opener = createTestOpenerService()
+  openedUrls = vi.spyOn(opener, 'openUrl')
+  keychain = createTestSecretStoreService()
+  mockFlow.mockReset()
 })
 
-afterEach(() => {
-  setDefaultPlatform(null)
-  setDefaultHttp(null)
-})
-const mockFlow = vi.fn<GithubAuthService['runDeviceFlow']>()
+/** Render the step in an app over the test's keychain, HTTP, clipboard and opener. */
+async function renderStep(step: ReactNode): Promise<void> {
+  const app = createTestAppServices({
+    http,
+    clipboard,
+    opener,
+    secretStore: keychain,
+    platform: createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  })
+  app.githubAuth.onRunDeviceFlow(mockFlow)
+  await renderInApp(step, { app })
+}
 
 /** Switch the step from the device-flow lead to PAT entry. */
 async function switchToPat(): Promise<void> {
@@ -63,41 +69,15 @@ async function renderCodeView(): Promise<void> {
     options.onCode({ userCode: 'ABCD-1234', verificationUri: 'https://github.com/login/device' })
     return await new Promise(() => {}) // polling stays in flight
   })
-  await render(<GithubAuthStep onAuthed={vi.fn()} />)
+  await renderStep(<GithubAuthStep onAuthed={vi.fn()} />)
   await userEvent.click(page.getByRole('button', { name: 'Sign in with GitHub' }))
   await expect.element(page.getByText('ABCD-1234')).toBeVisible()
 }
 
-let clipboard: TestClipboardService
-let openedUrls: MockInstance<(url: string) => Promise<void>>
-
-beforeEach(() => {
-  clipboard = createTestClipboardService()
-  setDefaultClipboard(clipboard)
-  const opener = createTestOpenerService()
-  setDefaultOpener(opener)
-  openedUrls = vi.spyOn(opener, 'openUrl')
-})
-
-afterEach(async () => {
-  await cleanup()
-  setDefaultSecretStore(null)
-  setDefaultGithubAuth(null)
-  mockFlow.mockReset()
-})
-
-/** An in-memory keychain, and a GitHub auth service over it whose device flow is `mockFlow`. */
+/** The in-memory keychain of the app under test, holding `initial`. */
 function fakeKeychain(initial: Record<string, string> = {}): TestSecretStoreService {
-  const store = createTestSecretStoreService(initial)
-  setDefaultSecretStore(store)
-  const githubAuth = createTestGithubAuthService({
-    secretStore: store,
-    http,
-    clock: defaultClock(),
-  })
-  githubAuth.onRunDeviceFlow(mockFlow)
-  setDefaultGithubAuth(githubAuth)
-  return store
+  keychain = createTestSecretStoreService(initial)
+  return keychain
 }
 
 function githubAccepts(login: string): void {
@@ -113,7 +93,7 @@ describe('GithubAuthStep', () => {
     fakeKeychain({ 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_abc' }) })
     githubAccepts('alex')
     const onAuthed = vi.fn()
-    await render(<GithubAuthStep onAuthed={onAuthed} />)
+    await renderStep(<GithubAuthStep onAuthed={onAuthed} />)
 
     await vi.waitFor(() =>
       expect(onAuthed).toHaveBeenCalledWith({ login: 'alex', avatarUrl: null }),
@@ -124,7 +104,7 @@ describe('GithubAuthStep', () => {
     const store = fakeKeychain()
     githubAccepts('alex')
     const onAuthed = vi.fn()
-    await render(<GithubAuthStep onAuthed={onAuthed} />)
+    await renderStep(<GithubAuthStep onAuthed={onAuthed} />)
     await switchToPat()
 
     fireEvent.change(page.getByLabelText('Personal access token'), {
@@ -148,7 +128,7 @@ describe('GithubAuthStep', () => {
     const store = fakeKeychain()
     githubRejects()
     const onAuthed = vi.fn()
-    await render(<GithubAuthStep onAuthed={onAuthed} />)
+    await renderStep(<GithubAuthStep onAuthed={onAuthed} />)
     await switchToPat()
 
     fireEvent.change(page.getByLabelText('Personal access token'), {
@@ -164,7 +144,7 @@ describe('GithubAuthStep', () => {
   it('rejects an empty token with an inline message', async () => {
     fakeKeychain()
     const onAuthed = vi.fn()
-    await render(<GithubAuthStep onAuthed={onAuthed} />)
+    await renderStep(<GithubAuthStep onAuthed={onAuthed} />)
     await switchToPat()
 
     await userEvent.click(page.getByRole('button', { name: 'Save token' }))
@@ -175,7 +155,7 @@ describe('GithubAuthStep', () => {
 
   it('names the backup repository in the token instructions when known', async () => {
     fakeKeychain()
-    await render(<GithubAuthStep onAuthed={vi.fn()} repoName="my-notes-backup" />)
+    await renderStep(<GithubAuthStep onAuthed={vi.fn()} repoName="my-notes-backup" />)
     await switchToPat()
 
     await expect.element(page.getByText('my-notes-backup')).toBeVisible()
@@ -195,7 +175,7 @@ describe('GithubAuthStep', () => {
         : Response.json({ login: 'alex' })
     })
     const onAuthed = vi.fn()
-    await render(<GithubAuthStep onAuthed={onAuthed} />)
+    await renderStep(<GithubAuthStep onAuthed={onAuthed} />)
     await switchToPat()
 
     fireEvent.change(page.getByLabelText('Personal access token'), {

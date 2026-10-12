@@ -1,55 +1,30 @@
-import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
   calendarEventSchema,
-  defaultSettings,
-  setBridge,
-  setDefaultCalendar,
-  setDefaultContacts,
-  setDefaultMeetings,
-  setDefaultPlatform,
-  setDefaultStorage,
   type CalendarEvent,
   type MeetingService,
-  setDefaultSettings,
+  type Settings,
 } from '@reflect/core'
 import {
+  createTestAppServices,
   createTestCalendarService,
   createTestContactsService,
-  createTestMeetingService,
-  createTestPlatformService,
-  createTestStorageService,
   seedNotes,
+  type TestAppServices,
   type TestCalendarService,
   type TestContactsService,
   type TestDatabaseService,
 } from '@reflect/core/testing'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 import { DailyEventsSection } from './daily-events-section.tsx'
-
-// The calendar queries only run in the macOS desktop webview; the test
-// browser is not it either, so the platform check is mocked on.
-beforeEach(() => {
-  setDefaultPlatform(createTestPlatformService())
-})
-
-afterEach(() => {
-  setDefaultPlatform(null)
-})
-
-// The add-meeting dialog reads the write generation from the graph provider.
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/graph', generation: 3 } }),
-}))
 
 // The action itself is covered in @reflect/core; here it is the seam the
 // dialog submits through: the real `MeetingService` over an empty index and
 // in-memory note files, with the submit observed.
-const addMeetingToDaily = vi.fn<MeetingService['addMeetingToDaily']>()
+let addMeetingToDaily: MockInstance<MeetingService['addMeetingToDaily']>
 
 const DATE = '2026-07-01'
 
@@ -69,66 +44,32 @@ function eventAt(hour: number, overrides: Record<string, unknown> = {}): Calenda
   })
 }
 
-let stored: Record<string, unknown>
+let stored: Partial<Settings>
 let calendar: TestCalendarService
 let contacts: TestContactsService
 let database: TestDatabaseService
+let app: TestAppServices
 
-function installFakeBridge(): void {
-  setBridge({
-    invoke: async (command) => {
-      switch (command) {
-        case 'settings_load':
-          return stored
-        case 'settings_save':
-          return null
-        default:
-          return null
-      }
-    },
-    listen: async () => () => {},
+// The add-meeting dialog reads the write generation from the open graph.
+async function renderSection(): Promise<HTMLElement> {
+  const { container } = await renderInApp(<DailyEventsSection date={DATE} />, {
+    app,
+    graph: { root: '/graph', generation: 3 },
+    settings: stored,
   })
-}
-
-let queryClient: QueryClient
-
-async function renderSection(): Promise<void> {
-  await render(
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <DailyEventsSection date={DATE} />
-      </SettingsProvider>
-    </QueryClientProvider>,
-  )
+  return container
 }
 
 beforeEach(async () => {
   stored = { calendarEnabled: true, calendarIds: ['cal-work'] }
   calendar = createTestCalendarService()
-  setDefaultCalendar(calendar)
   contacts = createTestContactsService({ status: 'unavailable' })
-  setDefaultContacts(contacts)
-  setDefaultStorage(createTestStorageService())
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  installFakeBridge()
-  setDefaultSettings(null)
   // Already open: the attendee field ignores Enter while its suggestions
   // load, and the default test database opens on its first query.
   database = await createWasmTestDatabaseService()
-  const meetings = createTestMeetingService({ database, contacts, settings: defaultSettings() })
-  addMeetingToDaily.mockReset().mockImplementation((input) => meetings.addMeetingToDaily(input))
-  setDefaultMeetings({ ...meetings, addMeetingToDaily })
-})
-
-afterEach(() => {
-  setDefaultMeetings(null)
-  database.close()
-  setDefaultStorage(null)
-  setBridge(null)
-  setDefaultSettings(null)
-  setDefaultCalendar(null)
-  setDefaultContacts(null)
-  queryClient.clear()
+  app = createTestAppServices({ calendar, contacts, database })
+  addMeetingToDaily = vi.spyOn(app.meetings, 'addMeetingToDaily')
+  return () => database.close()
 })
 
 describe('DailyEventsSection', () => {
@@ -164,13 +105,7 @@ describe('DailyEventsSection', () => {
   it('renders nothing while the integration is off', async () => {
     stored = { calendarEnabled: false, calendarIds: ['cal-work'] }
     calendar.setEvents([eventAt(9)])
-    const { container } = await render(
-      <QueryClientProvider client={queryClient}>
-        <SettingsProvider>
-          <DailyEventsSection date={DATE} />
-        </SettingsProvider>
-      </QueryClientProvider>,
-    )
+    const container = await renderSection()
 
     await vi.waitFor(() => expect(container.textContent).toBe(''))
   })

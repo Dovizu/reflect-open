@@ -1,11 +1,6 @@
 import { useMemo, type ReactElement, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  canReadCalendars,
-  countSelectedCalendars,
-  defaultOpener,
-  groupCalendarsBySource,
-} from '@reflect/core'
+import { canReadCalendars, countSelectedCalendars, groupCalendarsBySource } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
@@ -25,7 +20,7 @@ import {
   useCalendars,
 } from '@/lib/use-calendar.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useCalendarEventsService } from '@/services/use-contacts-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { SettingsSwitchField } from './switch-field.tsx'
 
 const ACTION_BUTTON_CLASS =
@@ -43,7 +38,7 @@ const ACTION_BUTTON_CLASS =
 export function CalendarIntegrationField(): ReactElement | null {
   const { settings } = useSettings()
   const queryClient = useQueryClient()
-  const calendarEvents = useCalendarEventsService()
+  const { calendarEvents, opener } = useAppServices()
   const status = useCalendarAuthorization(settings.calendarEnabled)
   const canRead = status !== undefined && canReadCalendars(status)
   const { calendars, isLoaded } = useCalendars(settings.calendarEnabled && canRead)
@@ -91,7 +86,7 @@ export function CalendarIntegrationField(): ReactElement | null {
             <button
               type="button"
               onClick={() => {
-                defaultOpener().openSystemSettings('calendar')
+                opener.openSystemSettings('calendar')
               }}
               className={ACTION_BUTTON_CLASS}
             >
