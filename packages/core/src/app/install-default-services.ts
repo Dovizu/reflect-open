@@ -15,7 +15,15 @@ import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
+import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
+import { setDefaultGraphStats } from '../indexing/graph-stats-service.ts'
+import { setDefaultIndexQuery } from '../indexing/index-query-service.ts'
+import { setDefaultNoteList } from '../indexing/note-list-service.ts'
+import { setDefaultNotePath } from '../indexing/note-path-service.ts'
+import { setDefaultSearch } from '../indexing/search-service.ts'
+import { setDefaultSuggestions } from '../indexing/suggestion-service.ts'
+import { setDefaultWikiResolver } from '../indexing/wiki-resolver-service.ts'
 import { setDefaultIndexStore } from '../indexing/index-store-service.ts'
 import { setDefaultAppStore } from '../ipc/app-store-plugin.ts'
 import { setDefaultIpc } from '../ipc/bridge.ts'
@@ -24,6 +32,8 @@ import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
+import { setDefaultSettings } from '../settings/settings-service.ts'
+import { setDefaultTheme } from '../settings/theme-service.ts'
 import { setDefaultAgentSkill } from './agent-skill-service.ts'
 import { setDefaultAppInfo } from './app-info-service.ts'
 import { setDefaultClipboard } from './clipboard-service.ts'
@@ -40,6 +50,7 @@ import { setDefaultLogger } from './logger-service.ts'
 import { setDefaultOperations } from './operations-service.ts'
 import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
+import { setDefaultPersistenceFlush } from './persistence-flush-service.ts'
 import { setDefaultPlatform } from './platform-service.ts'
 import { setDefaultStorage } from './storage-service.ts'
 import { setDefaultUpdate } from './update-service.ts'
@@ -69,6 +80,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultImageCodec(services.imageCodec)
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
   setDefaultOperations(services.operations)
+  setDefaultSettings(services.settings)
+  setDefaultTheme(services.theme)
+  setDefaultPersistenceFlush(services.persistenceFlush)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
   setDefaultIndexStore(services.indexStore)
@@ -91,6 +105,14 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultPaywall(services.paywall ?? null)
   setDefaultNoteFile(services.noteFile)
   setDefaultAssetStore(services.assetStore)
+  setDefaultIndexQuery(services.indexQuery)
+  setDefaultWikiResolver(services.wikiResolver)
+  setDefaultBacklinks(services.backlinks)
+  setDefaultSearch(services.search)
+  setDefaultSuggestions(services.suggestions)
+  setDefaultNoteList(services.noteList)
+  setDefaultGraphStats(services.graphStats)
+  setDefaultNotePath(services.notePath)
   setDefaultIpc(services.ipc)
 }
 
@@ -118,6 +140,9 @@ export function resetDefaultServices(): void {
   setDefaultImageCodec(null)
   setDefaultExceptionTelemetry(null)
   setDefaultOperations(null)
+  setDefaultSettings(null)
+  setDefaultTheme(null)
+  setDefaultPersistenceFlush(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
   setDefaultIndexStore(null)
@@ -140,5 +165,13 @@ export function resetDefaultServices(): void {
   setDefaultPaywall(null)
   setDefaultNoteFile(null)
   setDefaultAssetStore(null)
+  setDefaultIndexQuery(null)
+  setDefaultWikiResolver(null)
+  setDefaultBacklinks(null)
+  setDefaultSearch(null)
+  setDefaultSuggestions(null)
+  setDefaultNoteList(null)
+  setDefaultGraphStats(null)
+  setDefaultNotePath(null)
   setDefaultIpc(null)
 }

@@ -1,35 +1,26 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import { loadGraphStats } from './graph-stats.ts'
-
-// A fake bridge resolves `db_query` so the tests exercise the real compiled
-// SQL (snake_case columns, parameters) — the same harness note-list.test uses.
-const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
-
-beforeEach(() => {
-  mockInvoke.mockReset()
-  setBridge({ invoke: mockInvoke, listen: async () => () => {} })
-})
-
-afterEach(() => {
-  setBridge(null)
-})
+import { describe, expect, it } from 'vitest'
+import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
+import { createGraphStatsService } from './graph-stats-service.ts'
 
 describe('loadGraphStats', () => {
-  it('computes counts, daily span, and tag facets — every query private-excluded', async () => {
-    mockInvoke
-      .mockResolvedValueOnce([{ count: 5 }])
-      .mockResolvedValueOnce([{ count: 3, earliest: '2026-01-02', latest: '2026-06-01' }])
-      .mockResolvedValueOnce([
-        { tag: 'Book', count: 2 },
-        { tag: 'health', count: 1 },
-      ])
+  it('computes counts, daily span, and tag facets, excluding private notes throughout', async () => {
+    const database = createTestDatabaseService()
+    seedNotes(database, [
+      { path: 'notes/a.md', markdown: '# A\n#Book #health\n' },
+      { path: 'notes/b.md', markdown: '# B\n#book\n' },
+      { path: 'notes/c.md', markdown: '# C\n' },
+      { path: 'notes/secret.md', markdown: '---\nprivate: true\n---\n# Secret\n#book #hidden\n' },
+      { path: 'daily/2026-01-02.md', markdown: 'Started #journal\n' },
+      { path: 'daily/2026-06-01.md', markdown: 'Later\n' },
+      { path: 'daily/2025-12-31.md', markdown: '---\nprivate: true\n---\nPrivate day\n' },
+      { path: 'templates/journal.md', markdown: '# Journal\n#template-tag\n' },
+    ])
 
-    const stats = await loadGraphStats({ tagLimit: 40 })
-
-    expect(stats).toEqual({
-      noteCount: 5,
-      dailyNoteCount: 3,
+    await expect(
+      createGraphStatsService({ database }).loadGraphStats({ tagLimit: 40 }),
+    ).resolves.toEqual({
+      noteCount: 3,
+      dailyNoteCount: 2,
       earliestDailyDate: '2026-01-02',
       latestDailyDate: '2026-06-01',
       tags: [
@@ -38,45 +29,17 @@ describe('loadGraphStats', () => {
       ],
       tagsTruncated: false,
     })
-
-    expect(mockInvoke).toHaveBeenCalledTimes(3)
-    for (const [command, args] of mockInvoke.mock.calls) {
-      expect(command).toBe('db_query')
-      // The hard block: every aggregate is computed over public rows only.
-      expect(String(args['sql'])).toContain('"is_private" = ?')
-      expect(args['params']).toContain(0)
-    }
-
-    const [, noteArgs] = mockInvoke.mock.calls[0]!
-    // `kind = 'note'` excludes dailies and templates from the note count.
-    expect(String(noteArgs['sql'])).toContain('"kind" = ?')
-
-    const [, dailyArgs] = mockInvoke.mock.calls[1]!
-    const dailySql = String(dailyArgs['sql'])
-    expect(dailySql).toContain('"daily_date" is not null')
-    expect(dailySql).toContain('min(daily_date)')
-    expect(dailySql).toContain('max(daily_date)')
-
-    const [, tagArgs] = mockInvoke.mock.calls[2]!
-    const tagSql = String(tagArgs['sql'])
-    expect(tagSql).toContain('inner join "notes"')
-    expect(tagSql).toContain('group by "tags"."tag_key"')
-    expect(tagSql).toContain('order by count(*) desc')
-    // One row past the cap, so truncation is detectable.
-    expect(tagArgs['params']).toContain(41)
   })
 
-  it('caps the facets at the limit and flags the truncation', async () => {
-    mockInvoke
-      .mockResolvedValueOnce([{ count: 9 }])
-      .mockResolvedValueOnce([{ count: 0, earliest: null, latest: null }])
-      .mockResolvedValueOnce([
-        { tag: 'a', count: 3 },
-        { tag: 'b', count: 2 },
-        { tag: 'c', count: 1 },
-      ])
+  it('caps the facets at the limit, most-used first, and flags the truncation', async () => {
+    const database = createTestDatabaseService()
+    seedNotes(database, [
+      { path: 'notes/one.md', markdown: '# One\n#a #b #c\n' },
+      { path: 'notes/two.md', markdown: '# Two\n#a #b\n' },
+      { path: 'notes/three.md', markdown: '# Three\n#a\n' },
+    ])
 
-    const stats = await loadGraphStats({ tagLimit: 2 })
+    const stats = await createGraphStatsService({ database }).loadGraphStats({ tagLimit: 2 })
 
     expect(stats.tags).toEqual([
       { tag: 'a', count: 3 },
@@ -86,14 +49,11 @@ describe('loadGraphStats', () => {
   })
 
   it('maps an empty graph to zero counts, a null span, and no tags', async () => {
-    mockInvoke
-      .mockResolvedValueOnce([{ count: 0 }])
-      .mockResolvedValueOnce([{ count: 0, earliest: null, latest: null }])
-      .mockResolvedValueOnce([])
+    const database = createTestDatabaseService()
 
-    const stats = await loadGraphStats({ tagLimit: 40 })
-
-    expect(stats).toEqual({
+    await expect(
+      createGraphStatsService({ database }).loadGraphStats({ tagLimit: 40 }),
+    ).resolves.toEqual({
       noteCount: 0,
       dailyNoteCount: 0,
       earliestDailyDate: null,

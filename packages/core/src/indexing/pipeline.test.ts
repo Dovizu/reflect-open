@@ -7,7 +7,6 @@ import {
   type TestIndexStoreServiceOptions,
 } from '../testing/index-store.ts'
 import { getBacklinks, resolveWikiTarget } from './queries.ts'
-import { searchNotes } from './filtered-search.ts'
 import { hashContent } from './hash.ts'
 import { PROJECTION_VERSION } from './indexed-note.ts'
 import {
@@ -72,20 +71,6 @@ beforeEach(() => {
       case 'db_query':
         if (sql.includes('from "assets"')) return [{ note_path: 'notes/a.md' }]
         if (sql.includes('note_keys')) return [{ note_path: 'notes/a.md' }]
-        if (sql.includes('search_fts')) {
-          return [
-            {
-              path: 'notes/a.md',
-              title: 'A',
-              daily_date: null,
-              preview: 'Hello',
-              mtime: 5,
-              is_pinned: 0,
-              fts_highlighted_title: 'A',
-              snippet: '\u{1}Hello\u{2}',
-            },
-          ]
-        }
         if (sql.includes('backlinks')) {
           return [
             { source_path: 'notes/b.md', target_raw: 'A', alias: null, pos_from: 0, pos_to: 3 },
@@ -470,37 +455,6 @@ describe('applyIndexChanges (watcher dispatch)', () => {
 })
 
 describe('Kysely → db_query bridge', () => {
-  it('searchNotes compiles an FTS MATCH query', async () => {
-    const hits = await searchNotes('hello')
-    const query = mockInvoke.mock.calls.find(([cmd]) => cmd === 'db_query')
-    const sql = (query![1] as { sql: string }).sql
-    expect(sql).toContain('search_fts')
-    expect(sql.toLowerCase()).toContain('match')
-    expect(hits).toEqual([{ path: 'notes/a.md', title: 'A' }])
-  })
-
-  it('searchNotes returns [] for a blank query without touching the DB', async () => {
-    const before = mockInvoke.mock.calls.length
-    expect(await searchNotes('   ')).toEqual([])
-    expect(mockInvoke.mock.calls.length).toBe(before)
-  })
-
-  it('searchNotes runs the palette ranked query (title match, bm25, pinned, recency)', async () => {
-    await searchNotes('hello')
-    const query = mockInvoke.mock.calls.find(([cmd]) => cmd === 'db_query')
-    const sql = (query![1] as { sql: string }).sql.toLowerCase()
-    // searchNotes delegates to `searchWithFilters`, so it emits the palette's
-    // ranked query verbatim — one search path, orderings can't drift.
-    expect(sql).toContain('with "lexical" as materialized')
-    expect(sql).toContain('left join "lexical"')
-    expect(sql).toContain('when "filtered_notes"."title_key" =')
-    expect(sql).toContain(`instr(' ' || "filtered_notes"."title_key"`)
-    expect(sql).toContain('bm25(search_fts, 0, 10.0, 1.0)')
-    expect(sql).toContain('"filtered_notes"."is_pinned" desc')
-    expect(sql).toContain('"filtered_notes"."mtime" desc')
-    expect(sql).toContain('"filtered_notes"."path" asc')
-  })
-
   it('getBacklinks maps snake_case rows back to camelCase', async () => {
     const backlinks = await getBacklinks('notes/a.md')
     expect(backlinks).toEqual([

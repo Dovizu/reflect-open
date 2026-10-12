@@ -1,4 +1,4 @@
-import type { AppServices } from '../app/create-app-services.ts'
+import { createIndexReadServices, type AppServices } from '../app/create-app-services.ts'
 import {
   createGraphServices,
   type GraphRole,
@@ -96,7 +96,13 @@ import {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
+import { createTestSettingsService, type TestSettingsService } from './settings.ts'
+import {
+  createTestPersistenceFlushService,
+  type TestPersistenceFlushService,
+} from './persistence-flush.ts'
 import { createTestStorageService, type TestStorageService } from './storage.ts'
+import { createTestThemeService, type TestThemeService } from './theme.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
@@ -124,6 +130,9 @@ export interface TestAppServices extends AppServices {
   readonly imageCodec: TestImageCodecService
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly operations: TestOperationsService
+  readonly settings: TestSettingsService
+  readonly theme: TestThemeService
+  readonly persistenceFlush: TestPersistenceFlushService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
   readonly indexStore: TestIndexStoreService
@@ -157,6 +166,9 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const testLogger = createTestLoggerService()
   const logger = overrides?.logger ?? testLogger
   const clock = createTestClockService()
+  const operations = createTestOperationsService(clock)
+  const database = createTestDatabaseService()
+  const noteFile = createTestNoteFileService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
@@ -180,8 +192,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: createTestMobileStorageService(),
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
-    operations: createTestOperationsService(clock),
-    database: createTestDatabaseService(),
+    operations,
+    settings: createTestSettingsService({}, { operations: overrides?.operations ?? operations }),
+    theme: createTestThemeService(),
+    persistenceFlush: createTestPersistenceFlushService(),
+    database,
     fileChanges: createTestFileChangeService(),
     indexStore: createTestIndexStoreService(),
     embeddingRuntime: createTestEmbeddingRuntimeService(),
@@ -201,8 +216,12 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     subscription: createTestSubscriptionService(),
     appStoreEnvironment: createTestAppStoreEnvironmentService(),
     paywall: createTestPaywallService(),
-    noteFile: createTestNoteFileService(),
+    noteFile,
     assetStore: createTestAssetStoreService(),
+    ...createIndexReadServices({
+      database: overrides?.database ?? database,
+      noteFile: overrides?.noteFile ?? noteFile,
+    }),
   }
   return Object.assign(services, overrides)
 }

@@ -73,7 +73,6 @@ export {
   getLinkSources,
   getPathLinkSources,
   getNote,
-  getNotesByTag,
   getOpenTasks,
   getCompletedTasks,
   getPinnedNotes,
@@ -81,7 +80,6 @@ export {
   suggestWikiTargets,
   suggestWikiLinkTargets,
   suggestTags,
-  getIndexedFileFacts,
   getIndexedFileFactsByPath,
   listDailyNotes,
   resolveWikiTarget,
@@ -148,11 +146,9 @@ export {
 export { extractSnippetTasks, type SnippetTask } from './snippet-tasks.ts'
 export { parseSearchQuery, type ParsedSearchQuery, type SearchFilters } from './filter-query.ts'
 export {
-  searchNotes,
   searchWithFilters,
   type FilteredSearchHit,
   type FilteredSearchOptions,
-  type SearchHit,
 } from './filtered-search.ts'
 export {
   rewriteLinksForTitleChange,

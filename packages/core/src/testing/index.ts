@@ -65,7 +65,13 @@ export {
   type TestContactsService,
   type TestContactsServiceOptions,
 } from './contacts.ts'
-export { createTestDatabaseService, type TestDatabaseService } from './database.ts'
+export {
+  createTestDatabaseService,
+  seedNotes,
+  type TestDatabaseQuery,
+  type TestDatabaseService,
+  type TestNote,
+} from './database.ts'
 export {
   createTestEmbeddingRuntimeService,
   type TestEmbeddingRuntimeService,
@@ -129,6 +135,12 @@ export {
   type OperationSnapshot,
   type TestOperationsService,
 } from './operations.ts'
+export { createTestSettingsService, type TestSettingsService } from './settings.ts'
+export { createTestThemeService, type TestThemeService } from './theme.ts'
+export {
+  createTestPersistenceFlushService,
+  type TestPersistenceFlushService,
+} from './persistence-flush.ts'
 export {
   createTestFileChangeService,
   type TestFileChangeService,

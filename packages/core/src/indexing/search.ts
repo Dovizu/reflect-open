@@ -1,5 +1,4 @@
-import { sql } from 'kysely'
-import { db } from './db.ts'
+import { defaultIndexQuery, type IndexQueryService } from './index-query-service.ts'
 
 /**
  * Search-highlight plumbing for indexed snippets and query-matched titles.
@@ -41,10 +40,5 @@ export function parseHighlights(snippet: string): HighlightSegment[] {
   return segments
 }
 
-/** A uniformly random note path, or null on an empty graph (Plan 08 command). */
-export async function randomNotePath(): Promise<string | null> {
-  const result = await sql<{ path: string }>`
-    SELECT path FROM notes ORDER BY random() LIMIT 1
-  `.execute(db)
-  return result.rows[0]?.path ?? null
-}
+export const randomNotePath: IndexQueryService['randomNotePath'] = (...args) =>
+  defaultIndexQuery().randomNotePath(...args)

@@ -2,7 +2,13 @@ import { render } from 'vitest-browser-react'
 import { page, type Locator } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultCalendar, setDefaultOpener, setDefaultPlatform } from '@reflect/core'
+import {
+  setBridge,
+  setDefaultCalendar,
+  setDefaultOpener,
+  setDefaultPlatform,
+  setDefaultSettings,
+} from '@reflect/core'
 import {
   createTestCalendarService,
   createTestOpenerService,
@@ -75,10 +81,12 @@ beforeEach(() => {
   opener = createTestOpenerService()
   setDefaultOpener(opener)
   installFakeBridge()
+  setDefaultSettings(null)
 })
 
 afterEach(() => {
   setBridge(null)
+  setDefaultSettings(null)
   setDefaultCalendar(null)
   queryClient.clear()
 })

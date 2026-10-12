@@ -10,6 +10,7 @@ import {
   setDefaultPlatform,
   setDefaultOperations,
   setDefaultUpdate,
+  setDefaultSettings,
 } from '@reflect/core'
 import {
   createTestEmbeddingRuntimeService,
@@ -157,11 +158,13 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
   installFakeBridge()
+  setDefaultSettings(null)
 })
 
 afterEach(() => {
   vi.useRealTimers()
   setBridge(null)
+  setDefaultSettings(null)
   setDefaultEmbeddingRuntime(null)
   queryClient.clear()
 })

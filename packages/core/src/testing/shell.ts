@@ -15,6 +15,7 @@ import {
 } from '../app/lifecycle-service.ts'
 import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
 import { createOpenerService, setDefaultOpener, type OpenerService } from '../app/opener-service.ts'
+import { setDefaultPersistenceFlush } from '../app/persistence-flush-service.ts'
 import {
   createPathService,
   createPosixPathTransport,
@@ -372,8 +373,8 @@ export function createTestLifecycleService(options?: {
 
 /**
  * Install fresh dialog, clipboard, opener, and path fakes, the single-window
- * `WindowService`, and an `AppLifecycleService` over `dom` (none without it)
- * as the process-wide defaults.
+ * `WindowService`, an `AppLifecycleService` over `dom` (none without it), and
+ * a `PersistenceFlushService` over them as the process-wide defaults.
  */
 export function installTestShellServices(options?: { dom?: LifecycleDomAdapter }): void {
   setDefaultDialog(createTestDialogService())
@@ -381,6 +382,7 @@ export function installTestShellServices(options?: { dom?: LifecycleDomAdapter }
   setDefaultOpener(createTestOpenerService())
   setDefaultPath(createTestPathService())
   setDefaultWindow(null)
+  setDefaultPersistenceFlush(null)
   setDefaultLifecycle(
     options?.dom === undefined
       ? null
