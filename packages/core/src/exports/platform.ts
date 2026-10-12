@@ -487,6 +487,7 @@ export {
   createAppServices,
   type AppAdapters,
   type AppServices,
+  type MobileServices,
 } from '../app/create-app-services.ts'
 export {
   createGraphServices,

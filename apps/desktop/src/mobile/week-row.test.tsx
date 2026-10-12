@@ -26,7 +26,7 @@ describe('WeekRow', () => {
     await expect.element(page.getByTestId('note-dot-2026-07-14')).not.toBeInTheDocument()
 
     await userEvent.click(selected)
-    expect(app.haptics.impacts()).toBe(1)
+    expect(app.mobile.haptics.impacts()).toBe(1)
     expect(onSelect).toHaveBeenCalledWith('2026-07-16')
   })
 })

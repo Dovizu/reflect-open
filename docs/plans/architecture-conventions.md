@@ -155,8 +155,8 @@ The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
   ```
 
   `useAppServices()` throws outside a provider. Do not add per-service hooks. The
-  mobile tree uses `useMobileAppServices()` (`mobile/mobile-services.ts`), which types
-  the mobile-only services as present.
+  mobile tree uses `useMobileAppServices()` (`mobile/mobile-services.ts`), which adds
+  `app.mobile` and throws when it is `null`.
 - **Non-React desktop modules** (`lib/`, `providers/*.ts`): the first parameter is
   `ctx`, typed as the `Pick` of `AppServices` the function uses. The React caller
   passes `useAppServices()`:

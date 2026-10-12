@@ -152,9 +152,15 @@ In `packages/core/src/app/create-app-services.ts`:
    `packages/core/src/exports/` (`NoteMoveService` is in `platform.ts`). The apps
    import only from the package root.
 
-A service that only a mobile platform needs is an optional field
-(`readonly haptics?: HapticsService`). `createAppServices` builds it in
-`createMobileServices()`, which runs only on a mobile platform.
+`AppServices` holds only the services that the app reads. A service that only
+other services use stays a local in `createAppServices`; list it in
+`InternalServices` (`testing/services.ts`) instead, so tests still reach its
+double through `TestAppServices`.
+
+A service that only a mobile platform needs goes in `MobileServices`, which
+`AppServices.mobile` holds (`null` off mobile). `createAppServices` builds it in
+`createMobileServices()`, which runs only on a mobile platform. The mobile tree
+reads it with `useMobileAppServices()`.
 
 ## 6. The test double
 

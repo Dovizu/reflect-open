@@ -96,19 +96,20 @@ beforeEach(() => {
   }
   services = {
     ...base,
-    iap,
-    appStore,
-    subscription,
     classicAccess,
-    paywall: createPaywallService({
+    mobile: {
+      ...base.mobile,
       subscription,
-      classicAccess,
-      appStoreEnvironment: base.appStoreEnvironment,
-      iap,
-      appStore,
-      platform: base.platform,
-      storage: base.storage,
-    }),
+      paywall: createPaywallService({
+        subscription,
+        classicAccess,
+        appStoreEnvironment: base.mobile.appStoreEnvironment,
+        iap,
+        appStore,
+        platform: base.platform,
+        storage: base.storage,
+      }),
+    },
   }
 })
 
