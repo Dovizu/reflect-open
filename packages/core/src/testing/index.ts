@@ -67,8 +67,11 @@ export {
   type TestContactsServiceOptions,
 } from './contacts.ts'
 export {
+  createLazyTestDatabaseService,
   createTestDatabaseService,
   seedNotes,
+  setTestDatabaseOpener,
+  type TestDatabaseOpener,
   type TestDatabaseQuery,
   type TestDatabaseService,
   type TestNote,

@@ -26,7 +26,7 @@ const MIGRATIONS_DIRECTORY = new URL('../../../../crates/index-schema/migrations
 function nodeBuiltins(): Pick<NodeJS.Process, 'getBuiltinModule'> {
   if (typeof process === 'undefined' || typeof process.getBuiltinModule !== 'function') {
     throw new TypeError(
-      'createTestDatabaseService needs Node.js; browser tests use the wasm test database in apps/desktop',
+      'createTestDatabaseService needs Node.js; browser tests install a backend with setTestDatabaseOpener',
     )
   }
   return process
@@ -177,13 +177,99 @@ function insertProjection(database: DatabaseSync, indexed: IndexedNote): void {
     .run(indexed.path, indexed.title, searchBody)
 }
 
+/** Opens the database behind a {@link createLazyTestDatabaseService}. */
+export type TestDatabaseOpener = () => Promise<TestDatabaseService>
+
+let installedOpener: TestDatabaseOpener | null = null
+
+/**
+ * Make {@link createTestDatabaseService} return a lazy database over `open`
+ * instead of the Node.js one; `null` restores the Node.js database. A browser
+ * test setup installs its wasm backend here, so every test double that
+ * defaults to a test database works there too.
+ */
+export function setTestDatabaseOpener(open: TestDatabaseOpener | null): void {
+  installedOpener = open
+}
+
+/**
+ * A {@link TestDatabaseService} that calls `open` on its first query and
+ * never when nothing queries it. Projections applied before that are held
+ * and written, in order, as soon as the database opens, so a projection
+ * that the database refuses rejects the queries instead of the apply.
+ */
+export function createLazyTestDatabaseService(open: TestDatabaseOpener): TestDatabaseService {
+  let opened: TestDatabaseService | null = null
+  let opening: Promise<TestDatabaseService> | null = null
+  let closed = false
+  const queries: TestDatabaseQuery[] = []
+  const held: IndexedNote[] = []
+
+  function assertOpen(): void {
+    if (closed) {
+      throw new Error('the test database is closed')
+    }
+  }
+
+  function ensureOpened(): Promise<TestDatabaseService> {
+    opening ??= open().then((database) => {
+      if (closed) {
+        database.close()
+        assertOpen()
+      }
+      for (const note of held.splice(0)) {
+        database.applyProjection(note)
+      }
+      opened = database
+      return database
+    })
+    return opening
+  }
+
+  const runQuery = async (sql: string, params: readonly unknown[]): Promise<unknown> => {
+    queries.push({ sql, params: [...params] })
+    try {
+      assertOpen()
+      const database = opened ?? (await ensureOpened())
+      return await database.runQuery(sql, params)
+    } catch (error) {
+      throw toAppError(error)
+    }
+  }
+
+  return {
+    db: createDb(runQuery),
+    runQuery,
+    applyProjection(note) {
+      assertOpen()
+      if (opened === null) {
+        held.push(note)
+      } else {
+        opened.applyProjection(note)
+      }
+    },
+    getQueries() {
+      return [...queries]
+    },
+    close() {
+      closed = true
+      opened?.close()
+      opened = null
+    },
+  }
+}
+
 /**
  * A {@link DatabaseService} over a real in-memory SQLite index built from the
  * production migration chain. The database opens on first use, so building
- * one is cheap. Node.js only (`node:sqlite`); the browser backend lives in
- * the desktop app because its wasm asset loading is Vite-specific.
+ * one is cheap. Node.js only (`node:sqlite`) unless a browser backend is
+ * installed with {@link setTestDatabaseOpener}; that backend lives in the
+ * desktop app because its wasm asset loading is Vite-specific.
  */
 export function createTestDatabaseService(): TestDatabaseService {
+  if (installedOpener !== null) {
+    return createLazyTestDatabaseService(installedOpener)
+  }
   let database: DatabaseSync | null = null
   let closed = false
   const queries: TestDatabaseQuery[] = []

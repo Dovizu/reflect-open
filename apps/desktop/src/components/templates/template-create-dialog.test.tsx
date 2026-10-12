@@ -1,11 +1,10 @@
 import type { ReactElement } from 'react'
 import { page } from 'vitest/browser'
-import { expect, it, onTestFinished, vi } from 'vitest'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { expect, it, vi } from 'vitest'
+import type { TestAppServices } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { NoteTemplatesProvider, useNoteTemplates } from '@/providers/note-templates-provider.tsx'
 import { renderWithServices } from '@/test-utils/render-with-services.tsx'
-import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 import { TemplateCreateDialog } from './template-create-dialog.tsx'
 
 function Opener(): ReactElement {
@@ -43,18 +42,11 @@ async function renderDialog(): Promise<{ context: CommandContext; app: TestAppSe
     openTemplateCreate: vi.fn(),
     enableSemanticSearch: vi.fn(),
   }
-  // The path probe reads the index, and the Node.js test database cannot run here.
-  const database = await createWasmTestDatabaseService()
-  onTestFinished(() => {
-    database.close()
-  })
-  const app = createTestAppServices({ database })
-  await renderWithServices(
+  const { app } = await renderWithServices(
     <NoteTemplatesProvider>
       <Opener />
       <TemplateCreateDialog context={context} />
     </NoteTemplatesProvider>,
-    { app },
   )
   return { context, app }
 }

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildIndexedNote, parseNote, setDefaultDatabase, suggestWikiTargets } from '@reflect/core'
+import { createTestAppServices, seedNotes } from '@reflect/core/testing'
 import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 
 afterEach(() => {
@@ -32,5 +33,20 @@ describe('createWasmTestDatabaseService', () => {
     const database = await createWasmTestDatabaseService()
     database.close()
     await expect(database.runQuery('select 1', [])).rejects.toMatchObject({ kind: 'unknown' })
+  })
+})
+
+describe('createTestAppServices in the browser', () => {
+  it('reads the index through the wasm database by default', async () => {
+    const app = createTestAppServices()
+    seedNotes(app.database, [{ path: 'notes/hub.md', markdown: '# Hub\n' }])
+    try {
+      await expect(app.wikiResolver.resolveWikiTarget('Hub')).resolves.toEqual({
+        kind: 'resolved',
+        ref: 'notes/hub.md',
+      })
+    } finally {
+      app.database.close()
+    }
   })
 })
