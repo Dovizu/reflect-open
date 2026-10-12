@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultAudioRecorder } from '../audio/default-audio-recorder.ts'
+import { defaultCommands } from '../commands/command-service.ts'
+import { defaultKeymap } from '../commands/keymap-service.ts'
+import { defaultNativeMenu } from '../commands/native-menu-service.ts'
 import { defaultAppStore } from '../ipc/app-store-plugin.ts'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
 import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
@@ -29,6 +32,7 @@ import { defaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { defaultPrivacy } from '../privacy/privacy-service.ts'
 import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultNoteSessions } from '../documents/note-session.ts'
+import { defaultNoteDocuments } from '../documents/note-document-service.ts'
 import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultBacklinks } from '../indexing/backlink-service.ts'
@@ -132,6 +136,7 @@ describe('installDefaultServices', () => {
     expect(defaultAttachments()).toBe(services.attachments)
     expect(defaultNoteSessions()).toBe(services.noteSessions)
     expect(defaultOpenDocuments()).toBe(services.openDocuments)
+    expect(defaultNoteDocuments()).toBe(services.noteDocuments)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
     expect(defaultBacklinks()).toBe(services.backlinks)
@@ -143,6 +148,9 @@ describe('installDefaultServices', () => {
     expect(defaultNoteLinkResolver()).toBe(services.noteLinkResolver)
     expect(defaultNoteCreation()).toBe(services.noteCreation)
     expect(defaultPrivacy()).toBe(services.privacy)
+    expect(defaultKeymap()).toBe(services.keymap)
+    expect(defaultCommands()).toBe(services.commands)
+    expect(defaultNativeMenu()).toBe(services.nativeMenu)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
@@ -213,6 +221,7 @@ describe('resetDefaultServices', () => {
     expect(defaultAttachments()).not.toBe(services.attachments)
     expect(defaultNoteSessions()).not.toBe(services.noteSessions)
     expect(defaultOpenDocuments()).not.toBe(services.openDocuments)
+    expect(defaultNoteDocuments()).not.toBe(services.noteDocuments)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
     expect(defaultBacklinks()).not.toBe(services.backlinks)
@@ -227,5 +236,8 @@ describe('resetDefaultServices', () => {
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)
+    expect(defaultKeymap()).not.toBe(services.keymap)
+    expect(defaultCommands()).not.toBe(services.commands)
+    expect(defaultNativeMenu()).not.toBe(services.nativeMenu)
   })
 })

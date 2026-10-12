@@ -1,19 +1,17 @@
 import { useEffect, useRef, type ReactElement, type ReactNode } from 'react'
-import type { GraphInfo } from '@reflect/core'
-import { handleDeepLink, type DeepLinkIo } from '@/lib/deep-links/handle.ts'
-import { setDeepLinkHandler } from '@/lib/deep-links/intake.ts'
-import { parseDeepLink } from '@/lib/deep-links/parse.ts'
+import { defaultDeepLink, type GraphInfo } from '@reflect/core'
 import {
   beginLinkNavigationIntent,
   isCurrentLinkNavigationIntent,
 } from '@/lib/windows/link-navigation-intent.ts'
 import { useRouter } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
- * Routes incoming `reflect://` URLs into the open graph session: attaches
- * this workspace's handler to the app-lifetime intake (`intake.ts`), which
- * replays anything that arrived before a graph was open. No UI — outcomes
- * surface as navigation or a toast inside {@link handleDeepLink}.
+ * Routes incoming `reflect://` URLs into the open graph session: has the
+ * app-lifetime `DeepLinkService` serve this workspace, which replays anything
+ * that arrived before a graph was open. No UI — outcomes surface as
+ * navigation or a toast inside the service's handler.
  */
 
 interface DeepLinkProviderProps {
@@ -23,6 +21,7 @@ interface DeepLinkProviderProps {
 
 export function DeepLinkProvider({ graph, children }: DeepLinkProviderProps): ReactElement {
   const { navigate, navigationRevision } = useRouter()
+  const deepLink = useAppServices({ optional: true })?.deepLink ?? defaultDeepLink()
 
   // The graph session this provider instance currently serves. Staleness must
   // mean "the session changed", NOT "the effect re-ran": StrictMode's probe
@@ -36,41 +35,20 @@ export function DeepLinkProvider({ graph, children }: DeepLinkProviderProps): Re
 
   useEffect(() => {
     sessionRef.current = graph.generation
-    const issued = graph.generation
-    setDeepLinkHandler((url) => {
-      const link = parseDeepLink(url)
-      // Capture and rejected URLs do not express a navigation intent, so they
-      // must not supersede a note target that is still resolving.
-      const io =
-        link !== null && link.kind !== 'capture'
-          ? createNavigationIo(navigate, navigationRevision, sessionRef, issued)
-          : { navigate, generation: issued }
-      handleDeepLink(url, io).catch((cause: unknown) => {
-        console.error('deep link failed:', url, cause)
-      })
+    const generation = graph.generation
+    return deepLink.serve({
+      navigate,
+      generation,
+      beginNavigationIntent: () => {
+        const linkIntent = beginLinkNavigationIntent()
+        const issuedAtRevision = navigationRevision()
+        return () =>
+          sessionRef.current !== generation ||
+          navigationRevision() !== issuedAtRevision ||
+          !isCurrentLinkNavigationIntent(linkIntent)
+      },
     })
-    return () => {
-      setDeepLinkHandler(null)
-    }
-  }, [navigate, navigationRevision, graph.generation])
+  }, [deepLink, navigate, navigationRevision, graph.generation])
 
   return <>{children}</>
-}
-
-function createNavigationIo(
-  navigate: DeepLinkIo['navigate'],
-  navigationRevision: () => number,
-  sessionRef: { readonly current: number },
-  generation: number,
-): DeepLinkIo {
-  const linkIntent = beginLinkNavigationIntent()
-  const issuedAtRevision = navigationRevision()
-  return {
-    navigate,
-    generation,
-    isStale: () =>
-      sessionRef.current !== generation ||
-      navigationRevision() !== issuedAtRevision ||
-      !isCurrentLinkNavigationIntent(linkIntent),
-  }
 }

@@ -7,14 +7,13 @@ import { createTestRetrievalService, createTestStorageService } from '@reflect/c
 import type { ReactNode } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { SimilarNotesSection } from './similar-notes-section.tsx'
+import { installTestNoteFile } from '@/test-utils/note-file.ts'
 
 const relatedNotes = vi.hoisted(() => vi.fn())
-const readNote = vi.hoisted(() => vi.fn())
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-  readNote,
 }))
 vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
@@ -51,10 +50,12 @@ function renderSimilar(path: string, probe: boolean = true) {
   )
 }
 
+const noteFile = installTestNoteFile()
+
 beforeEach(() => {
   setDefaultStorage(createTestStorageService())
   semanticSetting.enabled = true
-  readNote.mockReset().mockResolvedValue('- daily entry\n')
+  noteFile.read().mockResolvedValue('- daily entry\n')
   relatedNotes.mockReset().mockResolvedValue([])
   setDefaultRetrieval(createTestRetrievalService({ relatedNotes }))
   openRouteInNewWindow.mockReset().mockResolvedValue(true)

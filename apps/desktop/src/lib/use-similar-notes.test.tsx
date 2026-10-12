@@ -6,13 +6,12 @@ import { setDefaultRetrieval, type EmbedStatus, type RetrievalHit } from '@refle
 import { createTestRetrievalService } from '@reflect/core/testing'
 import { queryKeys } from './query-client.ts'
 import { useSimilarNotes } from './use-similar-notes.ts'
+import { installTestNoteFile } from '@/test-utils/note-file.ts'
 
 const relatedNotes = vi.hoisted(() => vi.fn())
-const readNote = vi.hoisted(() => vi.fn())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-  readNote,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
@@ -37,10 +36,12 @@ function wrapper(client: QueryClient) {
   }
 }
 
+const noteFile = installTestNoteFile()
+
 beforeEach(() => {
   semanticSetting.enabled = true
   embedState.status = { status: 'uninitialized' }
-  readNote.mockReset().mockResolvedValue('- real entry\n')
+  noteFile.read().mockResolvedValue('- real entry\n')
   relatedNotes.mockReset().mockResolvedValue([hit('notes/a.md'), hit('notes/b.md')])
   setDefaultRetrieval(createTestRetrievalService({ relatedNotes }))
 })
@@ -96,13 +97,13 @@ describe('useSimilarNotes', () => {
   })
 
   it('returns an empty array and never queries related notes for an empty daily note', async () => {
-    readNote.mockResolvedValue('- \n')
+    noteFile.read().mockResolvedValue('- \n')
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = await renderHook(() => useSimilarNotes('daily/2026-06-09.md'), {
       wrapper: wrapper(client),
     })
 
-    await vi.waitFor(() => expect(readNote).toHaveBeenCalledWith('daily/2026-06-09.md'))
+    await vi.waitFor(() => expect(noteFile.read()).toHaveBeenCalledWith('daily/2026-06-09.md'))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(relatedNotes).not.toHaveBeenCalled()
     expect(result.current).toEqual([])
@@ -166,7 +167,7 @@ describe('useSimilarNotes', () => {
 
     // The daily's body is wiped: the emptiness gate closes, and the cached
     // neighbors — they describe the deleted content — must be dropped with it.
-    readNote.mockResolvedValue('- \n')
+    noteFile.read().mockResolvedValue('- \n')
     const cleared = await renderHook(() => useSimilarNotes('daily/2026-06-09.md'), {
       wrapper: wrapper(client),
     })
@@ -177,7 +178,7 @@ describe('useSimilarNotes', () => {
 
     // New content arrives: the refill computes fresh instead of serving the
     // old note's neighbors from the session cache.
-    readNote.mockResolvedValue('- rewritten entry\n')
+    noteFile.read().mockResolvedValue('- rewritten entry\n')
     relatedNotes.mockResolvedValue([hit('notes/c.md')])
     const refilled = await renderHook(() => useSimilarNotes('daily/2026-06-09.md'), {
       wrapper: wrapper(client),
@@ -189,14 +190,14 @@ describe('useSimilarNotes', () => {
   })
 
   it('queries related notes for a daily note once it has authored content', async () => {
-    readNote.mockResolvedValue('- real entry\n')
+    noteFile.read().mockResolvedValue('- real entry\n')
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { result } = await renderHook(() => useSimilarNotes('daily/2026-06-09.md'), {
       wrapper: wrapper(client),
     })
 
     await vi.waitFor(() => expect(result.current.length).toBe(2))
-    expect(readNote).toHaveBeenCalledWith('daily/2026-06-09.md')
+    expect(noteFile.read()).toHaveBeenCalledWith('daily/2026-06-09.md')
     expect(relatedNotes).toHaveBeenCalledWith('daily/2026-06-09.md', 6)
   })
 })

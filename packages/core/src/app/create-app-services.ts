@@ -87,7 +87,17 @@ import {
   createGraphSessionService,
   type GraphSessionService,
 } from '../graph/graph-session-service.ts'
+import {
+  createMobileOnboardingService,
+  type MobileOnboardingService,
+} from '../graph/mobile-onboarding-service.ts'
+import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
+import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import {
+  createNoteDocumentService,
+  type NoteDocumentService,
+} from '../documents/note-document-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
   createOpenDocumentsService,
@@ -146,6 +156,12 @@ import {
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
 import {
+  createDeepLinkService,
+  createNoDeepLinkSource,
+  type DeepLinkService,
+  type DeepLinkSource,
+} from '../navigation/deep-link-service.ts'
+import {
   createNavigationService,
   type NavigationService,
 } from '../navigation/navigation-service.ts'
@@ -193,6 +209,14 @@ import {
   type UpdateService,
 } from './update-service.ts'
 import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
+import { createCommandService, type CommandService } from '../commands/command-service.ts'
+import { createKeymapService, type KeymapService } from '../commands/keymap-service.ts'
+import {
+  createNativeMenuService,
+  createUnsupportedNativeMenuHost,
+  type NativeMenuHost,
+  type NativeMenuService,
+} from '../commands/native-menu-service.ts'
 
 /** The app-scoped services: one instance each for the lifetime of the webview. */
 export interface AppServices {
@@ -230,6 +254,8 @@ export interface AppServices {
   readonly update: UpdateService
   /** The webview's navigation history; a note window has its own webview, hence its own. */
   readonly navigation: NavigationService
+  /** The `reflect://` intake of this webview and the handler behind it. */
+  readonly deepLink: DeepLinkService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -260,6 +286,7 @@ export interface AppServices {
   readonly attachments: AttachmentService
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
+  readonly noteDocuments: NoteDocumentService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -276,10 +303,17 @@ export interface AppServices {
   readonly retrieval: RetrievalService
   readonly embeddingIndex: EmbeddingIndexService
   readonly semanticSearch: SemanticSearchService
+  readonly mobileOnboarding: MobileOnboardingService
+  readonly keyboard: KeyboardService
+  readonly share: ShareService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly keymap: KeymapService
+  /** The command registry. The app decides the context type that its commands run with. */
+  readonly commands: CommandService
+  readonly nativeMenu: NativeMenuService
   readonly aiProviderConfig: AiProviderConfigService
   readonly selectionTransform: SelectionTransformService
   readonly pageDescriber: PageDescriberService
@@ -363,8 +397,12 @@ export interface AppAdapters {
   readonly exceptionTelemetry?: ExceptionTelemetryService
   /** The native updater; without one, updates are unsupported. */
   readonly updater?: UpdaterAdapter
+  /** The native menus; without a host, every menu operation rejects. */
+  readonly nativeMenu?: NativeMenuHost
   /** Defaults to the URL shape of Apple webviews. */
   readonly convertFileSrc?: FileSrcConverter
+  /** The system's `reflect://` delivery; without one, no URL arrives. */
+  readonly deepLink?: DeepLinkSource
 }
 
 export function createAppServices(adapters: AppAdapters): AppServices {
@@ -425,10 +463,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   }
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
+  const openDocuments = createOpenDocumentsService()
   const indexReads = createIndexReadServices({ database, noteFile })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
   const xArchive = createXArchiveService({ ipc })
+  const commands = createCommandService({ platform, logger })
   const aiCredentials = createAiCredentialService({ secretStore })
   const aiKeyValidation = createAiKeyValidationService({ http: adapters.http })
   const languageModel = withAppReviewDemo(
@@ -443,6 +483,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const captureInbox = createCaptureInboxService({ ipc })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
     noteFile,
@@ -523,6 +564,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     embeddingRuntime,
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     navigation: createNavigationService(),
+    deepLink: createDeepLinkService({
+      source: adapters.deepLink ?? createNoDeepLinkSource(),
+      indexQuery: indexReads.indexQuery,
+      captureInbox,
+      operations,
+      id,
+      clock,
+      logger,
+    }),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,
@@ -538,7 +588,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     githubRepos: createGithubRepoService({ http: adapters.http }),
     gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
-    captureInbox: createCaptureInboxService({ ipc }),
+    captureInbox,
     webFetch: createWebFetchService({ ipc }),
     xArchive,
     audioRecorder: createPlatformAudioRecorder({
@@ -562,7 +612,10 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
-    openDocuments: createOpenDocumentsService(),
+    openDocuments,
+    keyboard: createKeyboardService(),
+    share: createShareService({ openDocuments }),
+    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,
@@ -580,10 +633,28 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       graphSession,
       logger,
     }),
+    mobileOnboarding: createMobileOnboardingService({
+      mobileStorage,
+      settings,
+      graphSession,
+      platform,
+      clock,
+      logger,
+    }),
     aiCredentials,
     aiKeyValidation,
     languageModel,
     aiPrompts: createAiPromptService({ settings, id }),
+    keymap: createKeymapService({ platform }),
+    commands,
+    nativeMenu: createNativeMenuService({
+      commands,
+      window: windowService,
+      platform,
+      ipc,
+      logger,
+      host: adapters.nativeMenu ?? createUnsupportedNativeMenuHost(),
+    }),
     aiProviderConfig,
     selectionTransform: createSelectionTransformService({
       languageModel,

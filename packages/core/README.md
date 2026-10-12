@@ -81,6 +81,12 @@ window adopts the main window's sessions. Read it with `getState()` /
 `subscribe()`. `getState().session` is the open graph as one `GraphSession`
 object; its `signal` aborts when the graph closes or another open is requested.
 
+**`MobileOnboardingService`** (`AppServices.mobileOnboarding`) is the mobile
+boot path over that session: `boot()` parks a fresh install on onboarding or
+opens the graph of the persisted storage kind, and `completeOnboarding()`
+opens and persists a storage choice. Storage roots are resolved fresh every
+launch, never persisted.
+
 ## Conventions
 
 - zod-validate everything that crosses an external boundary (IPC responses,

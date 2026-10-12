@@ -4,10 +4,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toggleNotePinned } from '@/lib/note-pin.ts'
 import { toggleNotePrivate } from '@/lib/note-private.ts'
 import { getIsComposing } from '@meowdown/core'
+import { defaultCommands } from '@reflect/core'
 import { usePalette } from '@/components/command-palette/palette-provider.tsx'
 import { registerKeymap } from '@/editor/keymap.ts'
 import { APP_COMMANDS } from '@/lib/commands/app-commands.ts'
-import { isApplePlatform, normalizeBinding } from '@/lib/keybindings.ts'
 import { runCommand } from '@/lib/commands/registry.ts'
 import { todayIso } from '@/lib/dates.ts'
 import { setMenuCommandDispatch } from '@/lib/native-menu/dispatch.ts'
@@ -45,14 +45,6 @@ export const APP_BINDINGS = registerKeymap(
   Object.fromEntries(BOUND_COMMANDS.map(({ binding, command }) => [binding, command.title])),
 )
 
-function bindingToId(apple: boolean): Map<string, string> {
-  return new Map(
-    BOUND_COMMANDS.map(({ binding, command }) => [normalizeBinding(binding, apple), command.id]),
-  )
-}
-
-const APPLE_BINDING_TO_ID = bindingToId(true)
-const OTHER_BINDING_TO_ID = bindingToId(false)
 const HISTORY_COMMAND_IDS = new Set(['history.back', 'history.forward'])
 
 // AppKit owns this key equivalent on macOS. Keep it in the registry for
@@ -65,92 +57,8 @@ const NATIVE_MACOS_MENU_COMMAND_IDS = new Set([
   'note.findPrevious',
 ])
 
-const CODE_TO_BINDING_KEY: Record<string, string> = {
-  BracketLeft: '[',
-  BracketRight: ']',
-}
-
-interface BindingKeyLookup {
-  key: string
-  shift: boolean
-}
-
-function bindingKeyFor(event: KeyboardEvent): string {
-  if (!event.altKey && event.key.length === 1) {
-    return event.key.toLowerCase()
-  }
-  const fromCode = CODE_TO_BINDING_KEY[event.code]
-  if (fromCode !== undefined) {
-    return fromCode
-  }
-  // Alt rewrites `event.key` on macOS (⌥L reports "Ò"), so alt chords match
-  // letters and digits by physical code instead.
-  if (event.altKey) {
-    const code = /^(?:Key([A-Z])|Digit(\d))$/.exec(event.code)
-    if (code !== null) {
-      return (code[1] ?? code[2] ?? '').toLowerCase()
-    }
-  }
-  return event.key.toLowerCase()
-}
-
-function physicalDigitKeyFor(event: KeyboardEvent): string | null {
-  if (event.altKey) {
-    return null
-  }
-  const match = /^Digit(\d)$/.exec(event.code)
-  if (match === null) {
-    return null
-  }
-  const digit = match[1]!
-  // Some layouts type number-row digits with Shift. Treat that as the same
-  // graph-switch shortcut, but don't make US-style Cmd+Shift+@ mean Cmd+2.
-  if (event.shiftKey && event.key !== digit) {
-    return null
-  }
-  return digit
-}
-
-function addBindingLookup(lookups: BindingKeyLookup[], lookup: BindingKeyLookup): void {
-  if (lookups.some((existing) => existing.key === lookup.key && existing.shift === lookup.shift)) {
-    return
-  }
-  lookups.push(lookup)
-}
-
-function bindingLookupsFor(event: KeyboardEvent): BindingKeyLookup[] {
-  const lookups: BindingKeyLookup[] = []
-  addBindingLookup(lookups, { key: bindingKeyFor(event), shift: event.shiftKey })
-
-  const digit = physicalDigitKeyFor(event)
-  if (digit !== null) {
-    addBindingLookup(lookups, { key: digit, shift: false })
-  }
-
-  return lookups
-}
-
 function idForKeyDown(event: KeyboardEvent): string | null {
-  if ((!event.metaKey && !event.ctrlKey) || event.repeat) {
-    return null // held keys must not spam navigations (e.g. a stack of new notes)
-  }
-  const apple = isApplePlatform()
-  const ids = apple ? APPLE_BINDING_TO_ID : OTHER_BINDING_TO_ID
-  for (const { key, shift } of bindingLookupsFor(event)) {
-    // Every held modifier is part of the lookup, so `Mod-Alt-l` can bind while
-    // an alt chord still never fires a plain `Mod-` command.
-    const modifiers = [
-      event.ctrlKey ? 'Ctrl' : null,
-      event.metaKey ? 'Meta' : null,
-      event.altKey ? 'Alt' : null,
-      shift ? 'Shift' : null,
-    ].filter((modifier): modifier is string => modifier !== null)
-    const id = ids.get(normalizeBinding([...modifiers, key].join('-'), apple))
-    if (id !== undefined) {
-      return id
-    }
-  }
-  return null
+  return defaultCommands().commandForKeyDown(event)
 }
 
 function isNativeMacosMenuCommand(commandId: string): boolean {

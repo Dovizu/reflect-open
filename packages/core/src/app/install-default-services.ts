@@ -30,6 +30,7 @@ import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
+import { setDefaultNoteDocuments } from '../documents/note-document-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
 import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { setDefaultEmbeddingIndex } from '../embeddings/embedding-index-service.ts'
@@ -53,7 +54,10 @@ import { setDefaultIpc } from '../ipc/bridge.ts'
 import { setDefaultIap } from '../ipc/iap-plugin.ts'
 import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
+import { setDefaultKeyboard } from '../mobile/keyboard-service.ts'
+import { setDefaultShare } from '../mobile/share-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
+import { setDefaultDeepLink } from '../navigation/deep-link-service.ts'
 import { setDefaultNavigation } from '../navigation/navigation-service.ts'
 import { setDefaultPrivacy } from '../privacy/privacy-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -80,6 +84,9 @@ import { setDefaultPlatform } from './platform-service.ts'
 import { setDefaultStorage } from './storage-service.ts'
 import { setDefaultUpdate } from './update-service.ts'
 import { setDefaultWindow } from './window-service.ts'
+import { setDefaultCommands } from '../commands/command-service.ts'
+import { setDefaultKeymap } from '../commands/keymap-service.ts'
+import { setDefaultNativeMenu } from '../commands/native-menu-service.ts'
 
 /** Point every process-wide `defaultXxx()` at the matching service of `services`. */
 export function installDefaultServices(services: AppServices): void {
@@ -115,6 +122,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultChatHistory(services.chatHistory)
   setDefaultUpdate(services.update)
   setDefaultNavigation(services.navigation)
+  setDefaultDeepLink(services.deepLink)
   setDefaultGitRepository(services.gitRepository)
   setDefaultGithubAuth(services.githubAuth)
   setDefaultGitHostCredentials(services.gitHostCredentials)
@@ -138,6 +146,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAttachments(services.attachments)
   setDefaultNoteSessions(services.noteSessions)
   setDefaultOpenDocuments(services.openDocuments)
+  setDefaultKeyboard(services.keyboard)
+  setDefaultShare(services.share)
+  setDefaultNoteDocuments(services.noteDocuments)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -157,6 +168,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAiKeyValidation(services.aiKeyValidation)
   setDefaultLanguageModel(services.languageModel)
   setDefaultAiPrompts(services.aiPrompts)
+  setDefaultKeymap(services.keymap)
+  setDefaultCommands(services.commands)
+  setDefaultNativeMenu(services.nativeMenu)
   setDefaultAiProviderConfig(services.aiProviderConfig)
   setDefaultSelectionTransform(services.selectionTransform)
   setDefaultPageDescriber(services.pageDescriber)
@@ -200,6 +214,7 @@ export function resetDefaultServices(): void {
   setDefaultChatHistory(null)
   setDefaultUpdate(null)
   setDefaultNavigation(null)
+  setDefaultDeepLink(null)
   setDefaultGitRepository(null)
   setDefaultGithubAuth(null)
   setDefaultGitHostCredentials(null)
@@ -223,6 +238,9 @@ export function resetDefaultServices(): void {
   setDefaultAttachments(null)
   setDefaultNoteSessions(null)
   setDefaultOpenDocuments(null)
+  setDefaultKeyboard(null)
+  setDefaultShare(null)
+  setDefaultNoteDocuments(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)
@@ -242,6 +260,9 @@ export function resetDefaultServices(): void {
   setDefaultAiKeyValidation(null)
   setDefaultLanguageModel(null)
   setDefaultAiPrompts(null)
+  setDefaultKeymap(null)
+  setDefaultCommands(null)
+  setDefaultNativeMenu(null)
   setDefaultAiProviderConfig(null)
   setDefaultSelectionTransform(null)
   setDefaultPageDescriber(null)

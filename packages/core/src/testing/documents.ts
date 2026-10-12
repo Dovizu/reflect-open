@@ -1,6 +1,10 @@
 import type { ClockService } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import {
+  createNoteDocumentService,
+  type NoteDocumentService,
+} from '../documents/note-document-service.ts'
+import {
   createNoteSessionService,
   frontmatterPatchToYaml,
   type NoteSession,
@@ -185,4 +189,24 @@ export function createTestOpenDocumentsService(options?: {
     service.register({ session })
   }
   return service
+}
+
+export interface TestNoteDocumentServiceOptions {
+  /** Defaults to an empty {@link createTestOpenDocumentsService}. */
+  openDocuments?: OpenDocumentsService
+  /** Defaults to an empty {@link createTestNoteFileService}. */
+  noteFile?: NoteFileService
+}
+
+/**
+ * The real {@link NoteDocumentService} over `openDocuments` and `noteFile`
+ * (fresh test doubles by default).
+ */
+export function createTestNoteDocumentService(
+  options?: TestNoteDocumentServiceOptions,
+): NoteDocumentService {
+  return createNoteDocumentService({
+    openDocuments: options?.openDocuments ?? createTestOpenDocumentsService(),
+    noteFile: options?.noteFile ?? createTestNoteFileService(),
+  })
 }
