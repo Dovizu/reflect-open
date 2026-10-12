@@ -1,4 +1,4 @@
-import { once } from '@ocavue/utils'
+import type { ExceptionErrorHandler, ExceptionTelemetryService, LoggerService } from '@reflect/core'
 import {
   dedupeIntegration,
   globalHandlersIntegration,
@@ -7,7 +7,6 @@ import {
   reactErrorHandler,
 } from '@sentry/react'
 import type { BrowserOptions, ErrorEvent, Exception, StackFrame } from '@sentry/react'
-import type { RootOptions } from 'react-dom/client'
 import { z } from 'zod'
 
 const REDACTED_VALUE = '[redacted]'
@@ -240,44 +239,58 @@ export function createExceptionTelemetryOptions(dsn: string, release: string): B
   }
 }
 
-const getDsn = once(function getDsn(): string | null {
-  if (import.meta.env.PROD) {
-    return parseExceptionTelemetryDsn(import.meta.env.VITE_SENTRY_DSN)
-  } else {
-    return null
-  }
-})
-
-/**
- * Start production exception telemetry before app bootstrap.
- */
-export function initializeExceptionTelemetry(): void {
-  const dsn = getDsn()
-  if (!dsn) return
-
-  try {
-    init(createExceptionTelemetryOptions(dsn, `reflect@${__REFLECT_VERSION__}`))
-  } catch (error) {
-    console.error('[reflect-open] Failed to initialize exception telemetry', error)
-  }
+/** The Sentry entry points {@link createExceptionTelemetry} drives. */
+export interface ExceptionTelemetrySdk {
+  init(options: BrowserOptions): void
+  reactErrorHandler: typeof reactErrorHandler
 }
 
-/**
- * Return React 19 root handlers which capture render and recovery failures.
- */
-export function getExceptionReactRootOptions(): RootOptions {
-  if (!getDsn()) return {}
+export const sentryExceptionTelemetrySdk: ExceptionTelemetrySdk = { init, reactErrorHandler }
+
+/** The production DSN baked into this build, or `null` for development builds. */
+export function buildExceptionTelemetryDsn(): string | null {
+  return import.meta.env.PROD ? parseExceptionTelemetryDsn(import.meta.env.VITE_SENTRY_DSN) : null
+}
+
+/** Exception telemetry over Sentry; disabled when `dsn` is `null`. */
+export function createExceptionTelemetry(deps: {
+  dsn: string | null
+  release: string
+  sdk: ExceptionTelemetrySdk
+  logger: LoggerService
+}): ExceptionTelemetryService {
+  const { dsn, release, sdk, logger } = deps
+  let installed = false
 
   const adaptReactErrorHandler = (
     handler: ReturnType<typeof reactErrorHandler>,
-  ): ((error: unknown, errorInfo: { componentStack?: string | undefined }) => void) => {
+  ): ExceptionErrorHandler => {
     return (error, errorInfo): void => {
       handler(error, { componentStack: errorInfo.componentStack ?? null })
     }
   }
+
   return {
-    onCaughtError: adaptReactErrorHandler(reactErrorHandler(() => {})),
-    onRecoverableError: adaptReactErrorHandler(reactErrorHandler(() => {})),
-    onUncaughtError: adaptReactErrorHandler(reactErrorHandler()),
+    install() {
+      if (dsn === null || installed) {
+        return
+      }
+      installed = true
+      try {
+        sdk.init(createExceptionTelemetryOptions(dsn, release))
+      } catch (error) {
+        logger.error('[reflect-open] Failed to initialize exception telemetry', error)
+      }
+    },
+    reactRootOptions() {
+      if (dsn === null) {
+        return {}
+      }
+      return {
+        onCaughtError: adaptReactErrorHandler(sdk.reactErrorHandler(() => {})),
+        onRecoverableError: adaptReactErrorHandler(sdk.reactErrorHandler(() => {})),
+        onUncaughtError: adaptReactErrorHandler(sdk.reactErrorHandler()),
+      }
+    },
   }
 }

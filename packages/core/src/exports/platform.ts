@@ -136,7 +136,38 @@ export {
 } from '../app/lifecycle-service.ts'
 export { createSystemIdService, type IdService, type PkcePair } from '../app/id-service.ts'
 export { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
-export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
+export {
+  createConsoleLogger,
+  defaultLogger,
+  setDefaultLogger,
+  type LoggerService,
+} from '../app/logger-service.ts'
+export {
+  createBackgroundReconcilerFactory,
+  defaultBackgroundReconcilerFactory,
+  setDefaultBackgroundReconcilerFactory,
+  type BackgroundReconciler,
+  type BackgroundReconcilerFactory,
+  type BackgroundReconcilerOptions,
+  type ReconcilePass,
+} from '../app/background-reconciler.ts'
+export {
+  createUnavailableImageCodec,
+  defaultImageCodec,
+  setDefaultImageCodec,
+  type DecodedImage,
+  type ImageCodecService,
+  type ImageEncodeOptions,
+} from '../app/image-codec-service.ts'
+export {
+  createDisabledExceptionTelemetry,
+  defaultExceptionTelemetry,
+  setDefaultExceptionTelemetry,
+  type ExceptionErrorHandler,
+  type ExceptionErrorInfo,
+  type ExceptionRootOptions,
+  type ExceptionTelemetryService,
+} from '../app/exception-telemetry-service.ts'
 export {
   createBrowserHttpService,
   defaultHttp,

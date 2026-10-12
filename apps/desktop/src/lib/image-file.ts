@@ -1,3 +1,5 @@
+import { defaultImageCodec } from '@reflect/core'
+
 /** JPEG quality for a transcoded photo: visually lossless at a sane size. */
 const JPEG_QUALITY = 0.92
 
@@ -28,32 +30,20 @@ function withJpegExtension(name: string): string {
  * the format question surfaces where it can be seen.
  */
 export async function toPortableImageFile(file: File): Promise<File> {
-  if (!isAppleImageFormat(file) || typeof createImageBitmap !== 'function') {
+  if (!isAppleImageFormat(file)) {
     return file
   }
-  let bitmap: ImageBitmap
-  try {
-    bitmap = await createImageBitmap(file)
-  } catch {
+  const image = await defaultImageCodec().decode(file)
+  if (image === null) {
     return file
   }
   try {
-    const canvas = document.createElement('canvas')
-    canvas.width = bitmap.width
-    canvas.height = bitmap.height
-    const context = canvas.getContext('2d')
-    if (context === null) {
-      return file
-    }
-    context.drawImage(bitmap, 0, 0)
-    const encoded = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY)
-    })
+    const encoded = await image.encode({ type: 'image/jpeg', quality: JPEG_QUALITY })
     if (encoded === null) {
       return file
     }
     return new File([encoded], withJpegExtension(file.name), { type: 'image/jpeg' })
   } finally {
-    bitmap.close()
+    image.close()
   }
 }
