@@ -1,7 +1,6 @@
 export {
   isDeviceFlowConfigured,
   githubAppInstallUrl,
-  getGithubToken,
   remoteHost,
   githubCredential,
   parseGithubRemote,
@@ -9,9 +8,6 @@ export {
   suggestRepoName,
   githubRemoteUrl,
   newRepoUrl,
-  createGist,
-  updateGist,
-  deleteGist,
   isSyncError,
   type GitCredential,
   type GitStatus,

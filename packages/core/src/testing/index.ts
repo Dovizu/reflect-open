@@ -149,6 +149,7 @@ export {
 export {
   createTestBackupService,
   createTestBackupServiceFactory,
+  createTestGistPublishService,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
@@ -161,6 +162,7 @@ export {
   type GitRepositoryHandler,
   type ICloudNativeCall,
   type TestBackupService,
+  type TestGistPublishServiceOptions,
   type TestGitRepositoryService,
   type TestGithubAuthOptions,
   type TestGithubAuthService,

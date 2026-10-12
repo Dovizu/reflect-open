@@ -16,6 +16,7 @@ import { setDefaultAssetPrivacy } from '../assets/asset-privacy-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { setDefaultGists } from '../sync/gist-service.ts'
+import { setDefaultGistPublish } from '../sync/gist-publish-service.ts'
 import { setDefaultGitHostCredentials } from '../sync/git-host-credential-service.ts'
 import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
 import { setDefaultGithubAuth } from '../sync/github-auth-service.ts'
@@ -143,6 +144,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultSyncEngines(services.syncEngines)
   setDefaultBackups(services.backups)
   setDefaultGists(services.gists)
+  setDefaultGistPublish(services.gistPublish)
   setDefaultICloudNative(services.icloudNative)
   setDefaultCaptureInbox(services.captureInbox)
   setDefaultWebFetch(services.webFetch)
@@ -248,6 +250,7 @@ export function resetDefaultServices(): void {
   setDefaultSyncEngines(null)
   setDefaultBackups(null)
   setDefaultGists(null)
+  setDefaultGistPublish(null)
   setDefaultICloudNative(null)
   setDefaultCaptureInbox(null)
   setDefaultWebFetch(null)

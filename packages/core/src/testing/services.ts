@@ -45,6 +45,7 @@ import {
 } from './capture.ts'
 import {
   createTestBackupServiceFactory,
+  createTestGistPublishService,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
@@ -406,6 +407,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     secretStore: overrides?.secretStore ?? secretStore,
   })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
+  const gists = createTestGistService({ http: overrides?.http ?? http })
+  const noteRows = createNoteRowService()
   const syncEngines = createTestSyncEngineFactory({
     git: overrides?.gitRepository ?? gitRepository,
     clock: overrides?.clock ?? clock,
@@ -485,7 +488,16 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       persistenceFlush: overrides?.persistenceFlush ?? persistenceFlush,
       logger,
     }),
-    gists: createTestGistService({ http: overrides?.http ?? http }),
+    gists,
+    gistPublish: createTestGistPublishService({
+      gists: overrides?.gists ?? gists,
+      githubAuth: overrides?.githubAuth ?? githubAuth,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      noteRows: overrides?.noteRows ?? noteRows,
+      privacy: overrides?.privacy ?? privacy,
+      operations: overrides?.operations ?? operations,
+      clipboard: overrides?.clipboard ?? clipboard,
+    }),
     icloudNative: createTestICloudNativeService(),
     captureInbox,
     webFetch: createTestWebFetchService(),
@@ -539,7 +551,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       path: overrides?.path ?? path,
       id: overrides?.id ?? id,
     }),
-    noteRows: createNoteRowService(),
+    noteRows,
     templates: createTestTemplateService({
       noteFile: overrides?.noteFile ?? noteFile,
       indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,

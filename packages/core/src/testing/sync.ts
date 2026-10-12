@@ -18,6 +18,14 @@ import {
 import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import { createGistService, type GistService } from '../sync/gist-service.ts'
+import { createGistPublishService, type GistPublishService } from '../sync/gist-publish-service.ts'
+import type { ClipboardService } from '../app/clipboard-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { NoteDocumentService } from '../documents/note-document-service.ts'
+import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
+import type { PrivacyService } from '../privacy/privacy-service.ts'
+import { createTestNoteDocumentService } from './documents.ts'
+import { createTestPrivacyService } from './privacy.ts'
 import {
   createGitHostCredentialService,
   type GitHostCredentialService,
@@ -51,7 +59,7 @@ import { createTestOperationsService } from './operations.ts'
 import { createTestPersistenceFlushService } from './persistence-flush.ts'
 import { createTestPlatformService } from './platform.ts'
 import { createTestSecretStoreService } from './secrets.ts'
-import { createTestLifecycleService } from './shell.ts'
+import { createTestClipboardService, createTestLifecycleService } from './shell.ts'
 
 type GitMethod = keyof GitRepositoryService
 
@@ -374,6 +382,34 @@ export function createTestGithubRepoService(options?: { http?: HttpService }): G
 /** The real {@link GistService} over `http`, an HTTP fake with no routes by default. */
 export function createTestGistService(options?: { http?: HttpService }): GistService {
   return createGistService({ http: options?.http ?? createTestHttpService() })
+}
+
+export interface TestGistPublishServiceOptions {
+  /** Defaults to the real service over an HTTP fake with no routes. */
+  gists?: GistService
+  /** Defaults to a GitHub sign-in with no stored credential. */
+  githubAuth?: Pick<GithubAuthService, 'getToken'>
+  /** Defaults to the real service over empty test doubles. */
+  noteDocuments?: Pick<NoteDocumentService, 'readSource' | 'commitFrontmatter'>
+  noteRows?: Pick<NoteRowService, 'setOverlay'>
+  privacy?: Pick<PrivacyService, 'assertCloudAllowed'>
+  operations?: Pick<OperationsService, 'start'>
+  clipboard?: ClipboardService
+}
+
+/** The real {@link GistPublishService} over test doubles (fresh ones by default). */
+export function createTestGistPublishService(
+  options?: TestGistPublishServiceOptions,
+): GistPublishService {
+  return createGistPublishService({
+    gists: options?.gists ?? createTestGistService(),
+    githubAuth: options?.githubAuth ?? createTestGithubAuthService(),
+    noteDocuments: options?.noteDocuments ?? createTestNoteDocumentService(),
+    noteRows: options?.noteRows ?? createNoteRowService(),
+    privacy: options?.privacy ?? createTestPrivacyService(),
+    operations: options?.operations ?? createTestOperationsService(),
+    clipboard: options?.clipboard ?? createTestClipboardService(),
+  })
 }
 
 /** The real {@link SyncEngineFactory} over `git` and `clock`; each defaults to a fresh test double. */

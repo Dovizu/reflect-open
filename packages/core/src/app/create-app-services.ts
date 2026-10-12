@@ -78,6 +78,7 @@ import {
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
 import { createGistService, type GistService } from '../sync/gist-service.ts'
+import { createGistPublishService, type GistPublishService } from '../sync/gist-publish-service.ts'
 import {
   createGitHostCredentialService,
   type GitHostCredentialService,
@@ -303,6 +304,7 @@ export interface AppServices {
   readonly gitHostCredentials: GitHostCredentialService
   readonly githubRepos: GithubRepoService
   readonly gists: GistService
+  readonly gistPublish: GistPublishService
   /** Builds the sync engine of one graph session. */
   readonly syncEngines: SyncEngineFactory
   /** Builds the backup lifecycle of one (graph, index session) pair. */
@@ -599,6 +601,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
   const gitHostCredentials = createGitHostCredentialService({ secretStore })
   const githubRepos = createGithubRepoService({ http: adapters.http })
+  const gists = createGistService({ http: adapters.http })
+  const noteRows = createNoteRowService()
   const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
   const retrieval = createRetrievalService({
@@ -700,7 +704,16 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       persistenceFlush,
       logger,
     }),
-    gists: createGistService({ http: adapters.http }),
+    gists,
+    gistPublish: createGistPublishService({
+      gists,
+      githubAuth,
+      noteDocuments,
+      noteRows,
+      privacy: noteServices.privacy,
+      operations,
+      clipboard: adapters.clipboard,
+    }),
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox,
     webFetch,
@@ -753,7 +766,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       path,
       id,
     }),
-    noteRows: createNoteRowService(),
+    noteRows,
     dailyNotes: createDailyNoteService({ database, clock, lifecycle }),
     templates: createTemplateService({
       noteFile,
