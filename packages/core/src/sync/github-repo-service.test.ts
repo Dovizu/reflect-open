@@ -6,6 +6,7 @@ import {
   newRepoUrl,
   parseGithubRemote,
   parseRepoInput,
+  remoteHost,
   suggestRepoName,
 } from './github-repo-service.ts'
 
@@ -44,6 +45,20 @@ describe('parseGithubRemote', () => {
     const url = githubRemoteUrl({ owner: 'alex', name: 'notes' })
     expect(url).toBe('https://github.com/alex/notes.git')
     expect(parseGithubRemote(url)).toEqual({ owner: 'alex', name: 'notes' })
+  })
+})
+
+describe('remoteHost', () => {
+  it('names the host of an HTTPS remote, lowercase, with its port', () => {
+    expect(remoteHost('https://GitLab.com/alex/notes.git')).toBe('gitlab.com')
+    expect(remoteHost('https://git.example.org:8443/team/notes')).toBe('git.example.org:8443')
+    expect(remoteHost('http://alex@gitea.local/notes.git')).toBe('gitea.local')
+  })
+
+  it('is null for ssh and path remotes', () => {
+    expect(remoteHost('git@gitlab.com:alex/notes.git')).toBeNull()
+    expect(remoteHost('ssh://git@gitlab.com/alex/notes.git')).toBeNull()
+    expect(remoteHost('/Volumes/NAS/notes.git')).toBeNull()
   })
 })
 

@@ -52,7 +52,6 @@ import {
   createTestGistPublishService,
   createTestConflictResolutionService,
   createTestGistService,
-  createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
@@ -451,9 +450,6 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     http: overrides?.http ?? http,
     clock: overrides?.clock ?? clock,
   })
-  const gitHostCredentials = createTestGitHostCredentialService({
-    secretStore: overrides?.secretStore ?? secretStore,
-  })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
   const gists = createTestGistService({ http: overrides?.http ?? http })
   const noteRows = createNoteRowService()
@@ -584,7 +580,6 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     gitRepository,
     githubAuth,
-    gitHostCredentials,
     githubRepos,
     syncEngines,
     backups: createTestBackupServiceFactory({
@@ -592,7 +587,6 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       syncEngines: overrides?.syncEngines ?? syncEngines,
       githubAuth: overrides?.githubAuth ?? githubAuth,
       githubRepos: overrides?.githubRepos ?? githubRepos,
-      gitHostCredentials: overrides?.gitHostCredentials ?? gitHostCredentials,
       fileChanges: overrides?.fileChanges ?? fileChanges,
       indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
       operations: overrides?.operations ?? operations,

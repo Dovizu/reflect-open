@@ -61,7 +61,6 @@ const SERVICE_KEYS = [
   'linkNavigation',
   'gitRepository',
   'githubAuth',
-  'gitHostCredentials',
   'githubRepos',
   'gists',
   'gistPublish',
