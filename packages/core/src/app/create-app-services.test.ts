@@ -41,6 +41,8 @@ const SERVICE_KEYS = [
   'exceptionTelemetry',
   'database',
   'fileChanges',
+  'embeddingRuntime',
+  'chatHistory',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

@@ -1,5 +1,13 @@
+import {
+  createChatHistoryService,
+  type ChatHistoryService,
+} from '../ai/chat/chat-history-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import {
+  createEmbeddingRuntimeService,
+  type EmbeddingRuntimeService,
+} from '../embeddings/embedding-runtime-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
 import {
@@ -71,6 +79,8 @@ export interface AppServices {
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
+  readonly embeddingRuntime: EmbeddingRuntimeService
+  readonly chatHistory: ChatHistoryService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -104,6 +114,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
+  const database = createDatabaseService({ ipc })
   return {
     ipc,
     logger,
@@ -131,10 +142,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
-    database: createDatabaseService({ ipc }),
+    database,
     fileChanges: createFileChangeService(
       { ipc, logger },
       { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
     ),
+    embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
+    chatHistory: createChatHistoryService({ ipc, database, logger }),
   }
 }

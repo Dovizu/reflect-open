@@ -284,6 +284,19 @@ export {
   setDefaultDatabase,
   type DatabaseService,
 } from '../indexing/database-service.ts'
+export {
+  createEmbeddingRuntimeService,
+  defaultEmbeddingRuntime,
+  setDefaultEmbeddingRuntime,
+  type EmbeddingRuntimeService,
+} from '../embeddings/embedding-runtime-service.ts'
+export {
+  createChatHistoryService,
+  defaultChatHistory,
+  setDefaultChatHistory,
+  type ChatHistoryService,
+  type SaveChatTurnInput,
+} from '../ai/chat/chat-history-service.ts'
 export { chunkNote, type NoteChunk } from '../embeddings/chunk.ts'
 export {
   embedStatus,

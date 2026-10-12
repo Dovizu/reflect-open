@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
+import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
+import { defaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
@@ -59,6 +61,8 @@ describe('installDefaultServices', () => {
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
+    expect(defaultEmbeddingRuntime()).toBe(services.embeddingRuntime)
+    expect(defaultChatHistory()).toBe(services.chatHistory)
   })
 })
 
@@ -77,6 +81,8 @@ describe('resetDefaultServices', () => {
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
+    expect(defaultEmbeddingRuntime()).not.toBe(services.embeddingRuntime)
+    expect(defaultChatHistory()).not.toBe(services.chatHistory)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

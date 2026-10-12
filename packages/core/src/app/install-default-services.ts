@@ -1,5 +1,7 @@
+import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
+import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
 import { setDefaultIpc } from '../ipc/bridge.ts'
@@ -49,6 +51,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
+  setDefaultEmbeddingRuntime(services.embeddingRuntime)
+  setDefaultChatHistory(services.chatHistory)
   setDefaultIpc(services.ipc)
 }
 
@@ -77,5 +81,7 @@ export function resetDefaultServices(): void {
   setDefaultExceptionTelemetry(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
+  setDefaultEmbeddingRuntime(null)
+  setDefaultChatHistory(null)
   setDefaultIpc(null)
 }

@@ -3,8 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { Locator } from 'vitest/browser'
 import { render } from 'vitest-browser-react'
-import { setBridge, type EmbedStatus, type GraphInfo, setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import {
+  setBridge,
+  setDefaultEmbeddingRuntime,
+  type GraphInfo,
+  setDefaultPlatform,
+} from '@reflect/core'
+import {
+  createTestEmbeddingRuntimeService,
+  createTestPlatformService,
+  type TestEmbeddingRuntimeService,
+} from '@reflect/core/testing'
 import { formatFullDate } from '@/lib/dates.ts'
 import { resetOperations } from '@/lib/operations.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
@@ -67,7 +76,7 @@ vi.mock('@/providers/v1-import-provider.tsx', () => ({
 let stored: Record<string, unknown>
 let saved: unknown[]
 let invoked: string[]
-let embedStatus: EmbedStatus
+let embedRuntime: TestEmbeddingRuntimeService
 
 function installFakeBridge(): void {
   saved = []
@@ -81,9 +90,6 @@ function installFakeBridge(): void {
         case 'settings_save':
           saved.push(args['settings'])
           return null
-        case 'embed_status':
-        case 'embed_ensure':
-          return embedStatus
         case 'list_files':
           return []
         case 'db_query':
@@ -134,7 +140,8 @@ async function pickRadio(name: RegExp): Promise<void> {
 
 beforeEach(() => {
   stored = {}
-  embedStatus = { status: 'uninitialized' }
+  embedRuntime = createTestEmbeddingRuntimeService({ status: { status: 'uninitialized' } })
+  setDefaultEmbeddingRuntime(embedRuntime)
   graph.current = null
   graph.indexGeneration = 7
   graph.forget.mockClear()
@@ -148,6 +155,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   setBridge(null)
+  setDefaultEmbeddingRuntime(null)
   queryClient.clear()
 })
 
@@ -1015,7 +1023,10 @@ describe('SettingsScreen', () => {
 
   it('shows byte-level progress while the model downloads', async () => {
     stored = { semanticSearchEnabled: true }
-    embedStatus = { status: 'loading', progress: { downloaded: 45_000_000, total: 90_000_000 } }
+    embedRuntime.setStatus({
+      status: 'loading',
+      progress: { downloaded: 45_000_000, total: 90_000_000 },
+    })
     await renderScreen()
 
     const bar = page.getByRole('progressbar', { name: /model download/i })
@@ -1027,7 +1038,7 @@ describe('SettingsScreen', () => {
 
   it('shows the downloaded model once ready and persists a disable', async () => {
     stored = { semanticSearchEnabled: true }
-    embedStatus = { status: 'ready', model: 'all-MiniLM-L6-v2' }
+    embedRuntime.setStatus({ status: 'ready', model: 'all-MiniLM-L6-v2' })
     await renderScreen()
 
     await expect
@@ -1083,7 +1094,7 @@ describe('SettingsScreen', () => {
 
   it('offers no semantic search control without an embedding runtime', async () => {
     stored = { semanticSearchEnabled: true }
-    embedStatus = { status: 'unsupported' }
+    embedRuntime.setStatus({ status: 'unsupported' })
     await renderScreen()
 
     await expect
@@ -1094,7 +1105,7 @@ describe('SettingsScreen', () => {
   })
 
   it('re-enabling after a failed load retries the download', async () => {
-    embedStatus = { status: 'failed', message: 'offline' }
+    embedRuntime.setStatus({ status: 'failed', message: 'offline' })
     await renderScreen()
     const enable = page.getByRole('button', { name: /enable semantic search/i })
 
@@ -1103,7 +1114,7 @@ describe('SettingsScreen', () => {
     // The opt-in persists AND the broken runtime gets a fresh embed_ensure —
     // EmbeddingsSync only loads `uninitialized` runtimes, so the explicit
     // action carries the retry.
-    await vi.waitFor(() => expect(invoked).toContain('embed_ensure'))
+    await vi.waitFor(() => expect(embedRuntime.ensureCalls()).toBeGreaterThan(0))
     await vi.waitFor(() =>
       expect(saved).toEqual([
         {
@@ -1144,7 +1155,7 @@ describe('SettingsScreen', () => {
 
   it('surfaces a failed load with retry and disable affordances', async () => {
     stored = { semanticSearchEnabled: true }
-    embedStatus = { status: 'failed', message: 'no disk space' }
+    embedRuntime.setStatus({ status: 'failed', message: 'no disk space' })
     await renderScreen()
 
     await expect.element(page.getByRole('alert')).toBeInTheDocument()

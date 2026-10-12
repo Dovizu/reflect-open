@@ -66,6 +66,17 @@ export {
   type TestContactsServiceOptions,
 } from './contacts.ts'
 export { createTestDatabaseService, type TestDatabaseService } from './database.ts'
+export {
+  createTestEmbeddingRuntimeService,
+  type TestEmbeddingRuntimeService,
+  type TestEmbeddingRuntimeServiceOptions,
+} from './embeddings.ts'
+export {
+  createTestChatHistoryService,
+  type TestChatConversation,
+  type TestChatHistoryService,
+  type TestChatHistoryServiceOptions,
+} from './chat.ts'
 export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 export {
   createTestMobileStorageService,

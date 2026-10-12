@@ -1,9 +1,7 @@
 import {
   backfillEmbeddings,
+  defaultEmbeddingRuntime,
   defaultStorage,
-  embedEnsure,
-  embedStatus,
-  subscribeEmbedStatus,
   type EmbedStatus,
 } from '@reflect/core'
 
@@ -31,42 +29,6 @@ export function consumeLegacySemanticOptIn(): boolean {
   return enabled
 }
 
-function isTerminalStatus(status: EmbedStatus): boolean {
-  return status.status !== 'uninitialized' && status.status !== 'loading'
-}
-
-/**
- * Resolve once the runtime reaches a terminal state. `embed_ensure` returns
- * `loading` to a caller that raced an in-flight load — the event stream (plus
- * a re-poll, in case the terminal event fired between the two) carries the
- * real outcome.
- */
-async function awaitTerminalStatus(initial: EmbedStatus): Promise<EmbedStatus> {
-  if (isTerminalStatus(initial)) {
-    return initial
-  }
-  return await new Promise((resolve) => {
-    let unlisten: (() => void) | null = null
-    let settled = false
-    const settle = (status: EmbedStatus): void => {
-      if (!settled && isTerminalStatus(status)) {
-        settled = true
-        unlisten?.()
-        resolve(status)
-      }
-    }
-    void subscribeEmbedStatus(settle).then((fn) => {
-      if (settled) {
-        fn()
-        return
-      }
-      unlisten = fn
-      // The terminal event may have fired before the subscription landed.
-      void embedStatus().then(settle)
-    })
-  })
-}
-
 /**
  * Re-kick a `failed` model load; a no-op for every other status. The explicit
  * enable actions (settings button, `semantic.enable` command) run this so
@@ -75,16 +37,14 @@ async function awaitTerminalStatus(initial: EmbedStatus): Promise<EmbedStatus> {
  * loop a broken download forever.
  */
 export async function retryFailedEmbeddings(): Promise<void> {
-  const status = await embedStatus()
-  if (status.status === 'failed') {
-    await ensureEmbeddingsVisibly()
-  }
+  await defaultEmbeddingRuntime().retry()
 }
 
 /** Load (downloading if needed) the model. Resolves with the outcome. */
 export async function ensureEmbeddingsVisibly(): Promise<EmbedStatus> {
+  const runtime = defaultEmbeddingRuntime()
   try {
-    return await awaitTerminalStatus(await embedEnsure())
+    return await runtime.awaitTerminalStatus(await runtime.ensure())
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause)
     return { status: 'failed', message }

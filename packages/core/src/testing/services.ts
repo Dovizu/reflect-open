@@ -12,7 +12,12 @@ import { createTestAgentSkillService, type TestAgentSkillService } from './agent
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
+import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
+import {
+  createTestEmbeddingRuntimeService,
+  type TestEmbeddingRuntimeService,
+} from './embeddings.ts'
 import {
   createTestExceptionTelemetry,
   type TestExceptionTelemetryService,
@@ -76,6 +81,8 @@ export interface TestAppServices extends AppServices {
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
+  readonly embeddingRuntime: TestEmbeddingRuntimeService
+  readonly chatHistory: TestChatHistoryService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -111,6 +118,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     exceptionTelemetry: createTestExceptionTelemetry(),
     database: createTestDatabaseService(),
     fileChanges: createTestFileChangeService(),
+    embeddingRuntime: createTestEmbeddingRuntimeService(),
+    chatHistory: createTestChatHistoryService(),
   }
   return Object.assign(services, overrides)
 }
