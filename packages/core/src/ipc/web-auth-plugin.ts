@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { StartWebAuth } from '../classic/classic-access.ts'
 import { currentIpc } from './bridge.ts'
 import type { IpcBridgeService } from './ipc-service.ts'
 import { definePluginCommand } from './plugin.ts'
@@ -17,6 +16,9 @@ export interface WebAuthOptions {
   /** When true, the session shares no cookies or website data with the system browser. */
   ephemeral: boolean
 }
+
+/** Opens the system web sign-in and resolves its callback URL, or `null` when cancelled. */
+export type StartWebAuth = (options: WebAuthOptions) => Promise<string | null>
 
 // iOS omits `url` on cancel and the desktop stub sends `null`; accept both.
 const startCommand = definePluginCommand<

@@ -104,6 +104,7 @@ export {
   platformFacts,
   setDefaultPlatform,
   type ColorScheme,
+  type FileSrcConverter,
   type PlatformFacts,
   type PlatformMedia,
   type PlatformService,
@@ -167,6 +168,14 @@ export {
   type LifecycleDomAdapter,
   type LifecyclePageEvent,
 } from '../app/lifecycle-service.ts'
+export {
+  createPersistenceFlushService,
+  defaultPersistenceFlush,
+  setDefaultPersistenceFlush,
+  type PersistenceFlusher,
+  type PersistenceFlusherKind,
+  type PersistenceFlushService,
+} from '../app/persistence-flush-service.ts'
 export {
   createSystemIdService,
   defaultIdService,
@@ -243,11 +252,42 @@ export {
   type NoteFileService,
 } from '../graph/note-file-service.ts'
 export {
+  createNoteLinkResolverService,
+  defaultNoteLinkResolver,
+  setDefaultNoteLinkResolver,
+  type NoteLinkResolverService,
+} from '../graph/note-link-resolver-service.ts'
+export {
+  createNoteCreationService,
+  defaultNoteCreation,
+  setDefaultNoteCreation,
+  type NoteCreationService,
+} from '../graph/note-creation-service.ts'
+export {
+  createPrivacyService,
+  defaultPrivacy,
+  setDefaultPrivacy,
+  type PrivacyService,
+} from '../privacy/privacy-service.ts'
+export {
   createAssetStoreService,
   defaultAssetStore,
   setDefaultAssetStore,
   type AssetStoreService,
 } from '../graph/asset-store-service.ts'
+export {
+  LARGE_FILE_BYTES,
+  createAttachmentService,
+  defaultAttachments,
+  setDefaultAttachments,
+  type AssetSaveError,
+  type AssetSaveResult,
+  type AttachFilesRequest,
+  type AttachmentInsertTarget,
+  type AttachmentSaveScope,
+  type AttachmentService,
+  type WikiEmbedDisplay,
+} from '../documents/attachment-service.ts'
 export {
   createXArchiveService,
   defaultXArchive,
@@ -552,10 +592,11 @@ export { createAsset, importAsset } from '../graph/assets.ts'
 export { assetFileName } from '../graph/asset-names.ts'
 export {
   newNoteId,
-  newNoteSource,
   untitledNoteSeed,
   untitledNotePath,
   isUntitledNotePath,
+  deferredCreationPolicy,
+  type DeferredCreationPolicy,
   createNoteWithTitle,
   resolveOrCreateNoteWithTitle,
   type ResolveOrCreateNoteResult,
@@ -640,6 +681,14 @@ export {
   type SettingsStatus,
 } from '../settings/settings-service.ts'
 export {
+  createThemeService,
+  defaultTheme,
+  setDefaultTheme,
+  THEME_PREFERENCE_CACHE_KEY,
+  type ResolvedTheme,
+  type ThemeService,
+} from '../settings/theme-service.ts'
+export {
   contactsAuthorizationSchema,
   contactMatchSchema,
   contactsAuthorizationStatus,
@@ -689,8 +738,38 @@ export {
   type ClassicAccess,
   type ClassicInvoice,
   type ClassicSignInResult,
-  type StartWebAuth,
 } from '../classic/classic-access.ts'
+export {
+  createClassicAccessService,
+  defaultClassicAccess,
+  setDefaultClassicAccess,
+  type ClassicAccessService,
+  type ClassicAccessState,
+  type ClassicSignInOptions,
+} from '../classic/classic-access-service.ts'
+export {
+  createSubscriptionService,
+  defaultSubscription,
+  setDefaultSubscription,
+  type ActiveSubscription,
+  type SubscriptionService,
+  type SubscriptionState,
+} from '../monetization/subscription-service.ts'
+export {
+  createAppStoreEnvironmentService,
+  defaultAppStoreEnvironment,
+  setDefaultAppStoreEnvironment,
+  type AppStoreEnvironment,
+  type AppStoreEnvironmentService,
+  type AppStoreEnvironmentState,
+} from '../monetization/app-store-environment-service.ts'
+export {
+  createPaywallService,
+  defaultPaywall,
+  setDefaultPaywall,
+  type PaywallGate,
+  type PaywallService,
+} from '../monetization/paywall-service.ts'
 export {
   IAP_PRODUCT_IDS,
   createIapService,
@@ -716,6 +795,7 @@ export {
   defaultWebAuth,
   setDefaultWebAuth,
   startWebAuth,
+  type StartWebAuth,
   type WebAuthOptions,
   type WebAuthService,
 } from '../ipc/web-auth-plugin.ts'

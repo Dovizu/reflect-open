@@ -9,6 +9,7 @@ import {
   type IpcBridge,
   type PlatformFacts,
 } from '@reflect/core'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import {
   buildExceptionTelemetryDsn,
   createExceptionTelemetry,
@@ -59,6 +60,7 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): App
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
       updater: createTauriUpdaterAdapter(),
+      convertFileSrc,
     }
   }
   return {

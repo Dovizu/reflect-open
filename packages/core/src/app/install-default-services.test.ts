@@ -12,10 +12,18 @@ import { defaultWebFetch } from './web-fetch-service.ts'
 import { defaultIap } from '../ipc/iap-plugin.ts'
 import { defaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { defaultWebAuth } from '../ipc/web-auth-plugin.ts'
+import { defaultClassicAccess } from '../classic/classic-access-service.ts'
+import { defaultAppStoreEnvironment } from '../monetization/app-store-environment-service.ts'
+import { defaultPaywall } from '../monetization/paywall-service.ts'
+import { defaultSubscription } from '../monetization/subscription-service.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultAssetStore } from '../graph/asset-store-service.ts'
+import { defaultNoteCreation } from '../graph/note-creation-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
+import { defaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
+import { defaultPrivacy } from '../privacy/privacy-service.ts'
+import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultBacklinks } from '../indexing/backlink-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
@@ -29,6 +37,7 @@ import { defaultWikiResolver } from '../indexing/wiki-resolver-service.ts'
 import { defaultIndexStore } from '../indexing/index-store-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
+import { defaultTheme } from '../settings/theme-service.ts'
 import { createTestAppServices } from '../testing/services.ts'
 import { defaultAgentSkill } from './agent-skill-service.ts'
 import { defaultAppInfo } from './app-info-service.ts'
@@ -46,6 +55,7 @@ import { defaultLogger } from './logger-service.ts'
 import { defaultOperations } from './operations-service.ts'
 import { defaultOpener } from './opener-service.ts'
 import { defaultPath } from './path-service.ts'
+import { defaultPersistenceFlush } from './persistence-flush-service.ts'
 import { defaultPlatform } from './platform-service.ts'
 import { defaultStorage } from './storage-service.ts'
 import { defaultUpdate } from './update-service.ts'
@@ -83,6 +93,8 @@ describe('installDefaultServices', () => {
     expect(defaultImageCodec()).toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultOperations()).toBe(services.operations)
+    expect(defaultTheme()).toBe(services.theme)
+    expect(defaultPersistenceFlush()).toBe(services.persistenceFlush)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
     expect(defaultIndexStore()).toBe(services.indexStore)
@@ -99,8 +111,13 @@ describe('installDefaultServices', () => {
     expect(defaultIap()).toBe(services.iap)
     expect(defaultAppStore()).toBe(services.appStore)
     expect(defaultWebAuth()).toBe(services.webAuth)
+    expect(defaultClassicAccess()).toBe(services.classicAccess)
+    expect(defaultSubscription()).toBe(services.subscription)
+    expect(defaultAppStoreEnvironment()).toBe(services.appStoreEnvironment)
+    expect(defaultPaywall()).toBe(services.paywall)
     expect(defaultNoteFile()).toBe(services.noteFile)
     expect(defaultAssetStore()).toBe(services.assetStore)
+    expect(defaultAttachments()).toBe(services.attachments)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
     expect(defaultBacklinks()).toBe(services.backlinks)
@@ -109,15 +126,30 @@ describe('installDefaultServices', () => {
     expect(defaultNoteList()).toBe(services.noteList)
     expect(defaultGraphStats()).toBe(services.graphStats)
     expect(defaultNotePath()).toBe(services.notePath)
+    expect(defaultNoteLinkResolver()).toBe(services.noteLinkResolver)
+    expect(defaultNoteCreation()).toBe(services.noteCreation)
+    expect(defaultPrivacy()).toBe(services.privacy)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
-    const { haptics, iap, appStore, webAuth, ...desktop } = createTestAppServices()
+    const {
+      haptics,
+      iap,
+      appStore,
+      webAuth,
+      subscription,
+      appStoreEnvironment,
+      paywall,
+      ...desktop
+    } = createTestAppServices()
     installDefaultServices(desktop)
     expect(defaultHaptics()).not.toBe(haptics)
     expect(defaultIap()).not.toBe(iap)
     expect(defaultAppStore()).not.toBe(appStore)
     expect(defaultWebAuth()).not.toBe(webAuth)
+    expect(defaultSubscription()).not.toBe(subscription)
+    expect(defaultAppStoreEnvironment()).not.toBe(appStoreEnvironment)
+    expect(defaultPaywall()).not.toBe(paywall)
   })
 })
 
@@ -135,6 +167,8 @@ describe('resetDefaultServices', () => {
     expect(defaultImageCodec()).not.toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultOperations()).not.toBe(services.operations)
+    expect(defaultTheme()).not.toBe(services.theme)
+    expect(defaultPersistenceFlush()).not.toBe(services.persistenceFlush)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
     expect(defaultIndexStore()).not.toBe(services.indexStore)
@@ -151,8 +185,13 @@ describe('resetDefaultServices', () => {
     expect(defaultIap()).not.toBe(services.iap)
     expect(defaultAppStore()).not.toBe(services.appStore)
     expect(defaultWebAuth()).not.toBe(services.webAuth)
+    expect(defaultClassicAccess()).not.toBe(services.classicAccess)
+    expect(defaultSubscription()).not.toBe(services.subscription)
+    expect(defaultAppStoreEnvironment()).not.toBe(services.appStoreEnvironment)
+    expect(defaultPaywall()).not.toBe(services.paywall)
     expect(defaultNoteFile()).not.toBe(services.noteFile)
     expect(defaultAssetStore()).not.toBe(services.assetStore)
+    expect(defaultAttachments()).not.toBe(services.attachments)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
     expect(defaultBacklinks()).not.toBe(services.backlinks)
@@ -161,6 +200,9 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteList()).not.toBe(services.noteList)
     expect(defaultGraphStats()).not.toBe(services.graphStats)
     expect(defaultNotePath()).not.toBe(services.notePath)
+    expect(defaultNoteLinkResolver()).not.toBe(services.noteLinkResolver)
+    expect(defaultNoteCreation()).not.toBe(services.noteCreation)
+    expect(defaultPrivacy()).not.toBe(services.privacy)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

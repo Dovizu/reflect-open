@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ReflectError,
+  defaultPersistenceFlush,
   setDefaultHttp,
   setDefaultPlatform,
   setDefaultSecretStore,
@@ -16,7 +17,6 @@ import {
   createTestSecretStoreService,
   type TestHttpService,
 } from '@reflect/core/testing'
-import { flushBackup } from '@/lib/backup-flush.ts'
 import { setPlatformSurface } from '@/lib/platform-surface.ts'
 import { createBackupController, type BackupState } from './backup-controller.ts'
 
@@ -704,9 +704,11 @@ describe('createBackupController', () => {
       expect(commitCount(calls)).toBe(1) // the launch cycle's own commit
 
       let flushResolved = false
-      const flushed = flushBackup().then(() => {
-        flushResolved = true
-      })
+      const flushed = defaultPersistenceFlush()
+        .flushAll()
+        .then(() => {
+          flushResolved = true
+        })
       await Promise.resolve()
       // The pull is still between fetch and merge: no second commit may run yet.
       expect(commitCount(calls)).toBe(1)
@@ -743,7 +745,7 @@ describe('createBackupController', () => {
       const before = commitCount(calls)
 
       visibility.mockReturnValue('hidden')
-      await flushBackup()
+      await defaultPersistenceFlush().flushAll()
       expect(commitCount(calls)).toBe(before + 1)
     } finally {
       controller.dispose()

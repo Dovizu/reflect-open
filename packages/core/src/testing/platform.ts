@@ -1,8 +1,9 @@
-import type {
-  ColorScheme,
-  PlatformFacts,
-  PlatformService,
-  PlatformSurface,
+import {
+  appleFileSrc,
+  type ColorScheme,
+  type PlatformFacts,
+  type PlatformService,
+  type PlatformSurface,
 } from '../app/platform-service.ts'
 
 export interface TestPlatformOptions extends Partial<Omit<PlatformFacts, 'surface'>> {
@@ -37,6 +38,7 @@ export function createTestPlatformService(options: TestPlatformOptions = {}): Te
     },
     isDev: options.isDev ?? false,
     appVersion: options.appVersion ?? '0.0.0-test',
+    convertFileSrc: appleFileSrc,
     prefersReducedMotion: () => reducedMotion,
     subscribeReducedMotion(listener) {
       reducedMotionListeners.add(listener)

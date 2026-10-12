@@ -18,10 +18,32 @@ import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 import { createPlatformAudioRecorder } from '../audio/default-audio-recorder.ts'
+import {
+  createClassicAccessService,
+  type ClassicAccessService,
+} from '../classic/classic-access-service.ts'
+import {
+  createAppStoreEnvironmentService,
+  type AppStoreEnvironmentService,
+} from '../monetization/app-store-environment-service.ts'
+import { createPaywallService, type PaywallService } from '../monetization/paywall-service.ts'
+import {
+  createSubscriptionService,
+  type SubscriptionService,
+} from '../monetization/subscription-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
+import {
+  createNoteCreationService,
+  type NoteCreationService,
+} from '../graph/note-creation-service.ts'
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
+import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import {
+  createNoteLinkResolverService,
+  type NoteLinkResolverService,
+} from '../graph/note-link-resolver-service.ts'
 import {
   createEmbeddingRuntimeService,
   type EmbeddingRuntimeService,
@@ -57,7 +79,9 @@ import {
   createSecretStoreService,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
+import { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
 import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
+import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import type { ClipboardService } from './clipboard-service.ts'
@@ -82,7 +106,12 @@ import { createOperationsService, type OperationsService } from './operations-se
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
+  createPersistenceFlushService,
+  type PersistenceFlushService,
+} from './persistence-flush-service.ts'
+import {
   createPlatformService,
+  type FileSrcConverter,
   type PlatformFacts,
   type PlatformService,
 } from './platform-service.ts'
@@ -121,6 +150,8 @@ export interface AppServices {
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly operations: OperationsService
   readonly settings: SettingsService
+  readonly theme: ThemeService
+  readonly persistenceFlush: PersistenceFlushService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
   readonly indexStore: IndexStoreService
@@ -141,8 +172,16 @@ export interface AppServices {
   readonly appStore?: AppStoreService
   /** Mobile only. */
   readonly webAuth?: WebAuthService
+  readonly classicAccess: ClassicAccessService
+  /** Mobile only. */
+  readonly subscription?: SubscriptionService
+  /** Mobile only. */
+  readonly appStoreEnvironment?: AppStoreEnvironmentService
+  /** Mobile only. */
+  readonly paywall?: PaywallService
   readonly noteFile: NoteFileService
   readonly assetStore: AssetStoreService
+  readonly attachments: AttachmentService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -151,6 +190,9 @@ export interface AppServices {
   readonly noteList: NoteListService
   readonly graphStats: GraphStatsService
   readonly notePath: NotePathService
+  readonly noteLinkResolver: NoteLinkResolverService
+  readonly noteCreation: NoteCreationService
+  readonly privacy: PrivacyService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -184,6 +226,23 @@ export function createIndexReadServices(deps: {
   }
 }
 
+/** The link resolution, note creation and privacy services, as {@link AppServices} holds them. */
+export type NoteServices = Pick<AppServices, 'noteLinkResolver' | 'noteCreation' | 'privacy'>
+
+export function createNoteServices(deps: {
+  noteFile: NoteFileService
+  wikiResolver: WikiResolverService
+  id: IdService
+}): NoteServices {
+  const { noteFile, wikiResolver, id } = deps
+  const noteLinkResolver = createNoteLinkResolverService({ wikiResolver, noteFile })
+  return {
+    noteLinkResolver,
+    noteCreation: createNoteCreationService({ noteFile, noteLinkResolver, id }),
+    privacy: createPrivacyService({ noteFile }),
+  }
+}
+
 /** The host primitives that {@link createAppServices} builds the services on. */
 export interface AppAdapters {
   readonly ipc: IpcBridge
@@ -211,6 +270,8 @@ export interface AppAdapters {
   readonly exceptionTelemetry?: ExceptionTelemetryService
   /** The native updater; without one, updates are unsupported. */
   readonly updater?: UpdaterAdapter
+  /** Defaults to the URL shape of Apple webviews. */
+  readonly convertFileSrc?: FileSrcConverter
 }
 
 export function createAppServices(adapters: AppAdapters): AppServices {
@@ -218,36 +279,76 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
   const database = createDatabaseService({ ipc })
-  const platform = createPlatformService(adapters.platform)
+  const platform = createPlatformService(adapters.platform, undefined, adapters.convertFileSrc)
   const windowService = createWindowService({ ipc, host: adapters.window, logger })
   const mobile =
     isMobilePlatform(adapters.platform.appPlatform) || adapters.platform.surface.mobileApp
   const operations = createOperationsService({ clock })
+  const settings = createSettingsService({ ipc, operations })
+  const storage = createWebStorageService({
+    logger,
+    localStorage: adapters.storage.local,
+    sessionStorage: adapters.storage.session,
+  })
+  const lifecycle = createLifecycleService({ ipc, dom: adapters.lifecycle, clock, logger })
   const fileChanges = createFileChangeService(
     { ipc, logger },
     { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
   )
+  const id = adapters.id ?? createSystemIdService()
+  const secretStore = createSecretStoreService({ ipc })
+  // The desktop shell's web-auth plugin answers every sign-in as cancelled.
+  const webAuth = createWebAuthService({ ipc })
+  const classicAccess = createClassicAccessService({
+    secretStore,
+    http: adapters.http,
+    webAuth,
+    clock,
+    id,
+    logger,
+  })
+  const createMobileServices = () => {
+    const iap = createIapService({ ipc, logger })
+    const appStore = createAppStoreService({ ipc })
+    const subscription = createSubscriptionService({ iap, storage, clock, platform, logger })
+    const appStoreEnvironment = createAppStoreEnvironmentService({ appStore, storage, platform })
+    return {
+      haptics: createHapticsService({ ipc, logger }),
+      iap,
+      appStore,
+      webAuth,
+      subscription,
+      appStoreEnvironment,
+      paywall: createPaywallService({
+        subscription,
+        classicAccess,
+        appStoreEnvironment,
+        iap,
+        appStore,
+        platform,
+        storage,
+      }),
+    }
+  }
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
+  const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
+  const indexReads = createIndexReadServices({ database, noteFile })
   return {
     ipc,
     logger,
     clock,
-    id: adapters.id ?? createSystemIdService(),
+    id,
     hash: adapters.hash ?? createWebCryptoHashService(),
     platform,
-    storage: createWebStorageService({
-      logger,
-      localStorage: adapters.storage.local,
-      sessionStorage: adapters.storage.session,
-    }),
+    storage,
     http: adapters.http,
     dialog: adapters.dialog,
     clipboard: adapters.clipboard,
     opener: createOpenerService({ transport: adapters.opener, logger }),
     path: createPathService({ transport: adapters.path }),
     window: windowService,
-    lifecycle: createLifecycleService({ ipc, dom: adapters.lifecycle, clock, logger }),
-    secretStore: createSecretStoreService({ ipc }),
+    lifecycle,
+    secretStore,
     appInfo: createAppInfoService({ ipc }),
     calendar: createCalendarService({ ipc, logger }),
     contacts: createContactsService({ ipc }),
@@ -256,7 +357,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
-    settings: createSettingsService({ ipc, operations }),
+    settings,
+    theme: createThemeService({ settings, storage, platform }),
+    persistenceFlush: createPersistenceFlushService({
+      lifecycle,
+      window: windowService,
+      platform,
+      settings,
+      logger,
+    }),
     database,
     indexStore: createIndexStoreService({ ipc, database }),
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
@@ -281,17 +390,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clock,
       logger,
     }),
-    ...(mobile
-      ? {
-          haptics: createHapticsService({ ipc, logger }),
-          iap: createIapService({ ipc, logger }),
-          appStore: createAppStoreService({ ipc }),
-          webAuth: createWebAuthService({ ipc }),
-        }
-      : {}),
+    classicAccess,
+    ...(mobile ? createMobileServices() : {}),
     fileChanges,
     noteFile,
-    assetStore: createAssetStoreService({ ipc, clock, fileChanges }),
-    ...createIndexReadServices({ database, noteFile }),
+    assetStore,
+    attachments: createAttachmentService({
+      assetStore,
+      noteFile,
+      fileChanges,
+      dialog: adapters.dialog,
+      operations,
+      clock,
+      platform,
+    }),
+    ...indexReads,
+    ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
   }
 }

@@ -1,5 +1,11 @@
-import { setDefaultPlatform, type GraphInfo, type NoteRow, type PinnedNote } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import {
+  setDefaultPlatform,
+  setDefaultTheme,
+  type GraphInfo,
+  type NoteRow,
+  type PinnedNote,
+} from '@reflect/core'
+import { createTestPlatformService, createTestThemeService } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import {
   FocusedDailyProvider,
@@ -17,6 +23,7 @@ import { dispatchMenuCommand } from '@/lib/native-menu/dispatch.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
+import { ThemeProvider } from '@/providers/theme-provider.tsx'
 import { MOD_KEY, NON_MOD_KEY } from '@/test-utils/mod-key.ts'
 import { useAppShortcuts } from './app-shortcuts.ts'
 import { RouterProvider, useRouter } from './router.tsx'
@@ -63,9 +70,6 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
     openRecent,
   }),
 }))
-vi.mock('@/providers/theme-provider.tsx', () => ({
-  useTheme: () => ({ theme: 'light', resolvedTheme: 'light', setTheme: vi.fn() }),
-}))
 vi.mock('@/providers/settings-provider.tsx', () => ({
   useSettings: () => ({
     settings: { editorMarkdownSyntax: 'hide', semanticSearchEnabled: false, theme: 'system' },
@@ -82,6 +86,7 @@ vi.mock('@/providers/chat-provider.tsx', () => ({
 registerAppCommands() // production does this in main.tsx
 
 beforeEach(() => {
+  setDefaultTheme(createTestThemeService('light'))
   setDefaultPlatform(
     createTestPlatformService({
       isNativeShell: false,
@@ -101,6 +106,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  setDefaultTheme(null)
   setDefaultPlatform(null)
 })
 
@@ -120,17 +126,19 @@ function shortcutsHook(client = new QueryClient()) {
     {
       wrapper: ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={client}>
-          <RouterProvider>
-            <PaletteProvider>
-              <ShortcutsProvider>
-                <NoteTemplatesProvider>
-                  <SidebarProvider>
-                    <FocusedDailyProvider>{children}</FocusedDailyProvider>
-                  </SidebarProvider>
-                </NoteTemplatesProvider>
-              </ShortcutsProvider>
-            </PaletteProvider>
-          </RouterProvider>
+          <ThemeProvider>
+            <RouterProvider>
+              <PaletteProvider>
+                <ShortcutsProvider>
+                  <NoteTemplatesProvider>
+                    <SidebarProvider>
+                      <FocusedDailyProvider>{children}</FocusedDailyProvider>
+                    </SidebarProvider>
+                  </NoteTemplatesProvider>
+                </ShortcutsProvider>
+              </PaletteProvider>
+            </RouterProvider>
+          </ThemeProvider>
         </QueryClientProvider>
       ),
     },

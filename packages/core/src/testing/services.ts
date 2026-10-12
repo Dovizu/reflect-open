@@ -38,12 +38,18 @@ import {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
+import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestAssetStoreService,
+  createTestNoteCreationService,
   createTestNoteFileService,
+  createTestNoteLinkResolverService,
   type TestAssetStoreService,
+  type TestNoteCreationService,
   type TestNoteFileService,
+  type TestNoteLinkResolverService,
 } from './graph.ts'
+import { createTestPrivacyService, type TestPrivacyService } from './privacy.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
   createTestHashService,
@@ -57,6 +63,16 @@ import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
+import {
+  createTestAppStoreEnvironmentService,
+  createTestClassicAccessService,
+  createTestPaywallService,
+  createTestSubscriptionService,
+  type TestAppStoreEnvironmentService,
+  type TestClassicAccessService,
+  type TestPaywallService,
+  type TestSubscriptionService,
+} from './monetization.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
 import {
   createTestAppStoreService,
@@ -87,7 +103,12 @@ import {
   type TestWindowService,
 } from './shell.ts'
 import { createTestSettingsService, type TestSettingsService } from './settings.ts'
+import {
+  createTestPersistenceFlushService,
+  type TestPersistenceFlushService,
+} from './persistence-flush.ts'
 import { createTestStorageService, type TestStorageService } from './storage.ts'
+import { createTestThemeService, type TestThemeService } from './theme.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
@@ -116,6 +137,8 @@ export interface TestAppServices extends AppServices {
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly operations: TestOperationsService
   readonly settings: TestSettingsService
+  readonly theme: TestThemeService
+  readonly persistenceFlush: TestPersistenceFlushService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
   readonly indexStore: TestIndexStoreService
@@ -132,8 +155,16 @@ export interface TestAppServices extends AppServices {
   readonly iap: TestIapService
   readonly appStore: TestAppStoreService
   readonly webAuth: TestWebAuthService
+  readonly classicAccess: TestClassicAccessService
+  readonly subscription: TestSubscriptionService
+  readonly appStoreEnvironment: TestAppStoreEnvironmentService
+  readonly paywall: TestPaywallService
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
+  readonly attachments: TestAttachmentService
+  readonly noteLinkResolver: TestNoteLinkResolverService
+  readonly noteCreation: TestNoteCreationService
+  readonly privacy: TestPrivacyService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -148,11 +179,20 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const operations = createTestOperationsService(clock)
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
+  const id = createTestIdService()
+  const indexReads = createIndexReadServices({
+    database: overrides?.database ?? database,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
+  const noteLinkResolver = createTestNoteLinkResolverService({
+    wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
     clock,
-    id: createTestIdService(),
+    id,
     hash: createTestHashService(),
     platform: createTestPlatformService(),
     storage: createTestStorageService(),
@@ -173,6 +213,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
     settings: createTestSettingsService({}, { operations: overrides?.operations ?? operations }),
+    theme: createTestThemeService(),
+    persistenceFlush: createTestPersistenceFlushService(),
     database,
     fileChanges: createTestFileChangeService(),
     indexStore: createTestIndexStoreService(),
@@ -189,12 +231,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     iap: createTestIapService(),
     appStore: createTestAppStoreService(),
     webAuth: createTestWebAuthService(null),
+    classicAccess: createTestClassicAccessService(),
+    subscription: createTestSubscriptionService(),
+    appStoreEnvironment: createTestAppStoreEnvironmentService(),
+    paywall: createTestPaywallService(),
     noteFile,
     assetStore: createTestAssetStoreService(),
-    ...createIndexReadServices({
-      database: overrides?.database ?? database,
+    attachments: createTestAttachmentService(),
+    ...indexReads,
+    noteLinkResolver,
+    noteCreation: createTestNoteCreationService({
       noteFile: overrides?.noteFile ?? noteFile,
+      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+      id: overrides?.id ?? id,
     }),
+    privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
   }
   return Object.assign(services, overrides)
 }

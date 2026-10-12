@@ -35,6 +35,11 @@ export function useAppServices(options?: { optional: true }): AppServices | null
   return services
 }
 
+/** The {@link AppServices} of the nearest `AppServicesProvider`, or `null` outside one. */
+export function useOptionalAppServices(): AppServices | null {
+  return use(AppServicesContext)
+}
+
 /** The {@link GraphServices} of the nearest `GraphServicesProvider`. */
 export function useGraphServices(): GraphServices {
   const services = use(GraphServicesContext)

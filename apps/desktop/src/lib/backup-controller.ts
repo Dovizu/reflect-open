@@ -29,7 +29,7 @@ import {
   type SyncStatus,
   type Unlisten,
 } from '@reflect/core'
-import { setBackupFlusher } from '@/lib/backup-flush.ts'
+import { registerBackupFlusher } from '@/lib/backup-flush.ts'
 import { invalidateGithubAuth } from '@/lib/github-auth-state.ts'
 import { startOperation } from '@/lib/operations.ts'
 import { isNativeShell } from '@/lib/platform.ts'
@@ -131,6 +131,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
   let engine: SyncEngine | null = null
   let unlisten: Unlisten | null = null
   const domDisposers: Array<() => void> = []
+  let unregisterBackupFlusher: (() => void) | null = null
   /** Serializes direct index writes without delaying synchronous file-change fanout. */
   let remoteIndexTail: Promise<void> = Promise.resolve()
   /** Invalidates index work that was queued before a controller teardown/restart. */
@@ -156,7 +157,8 @@ export function createBackupController(options: BackupControllerOptions): Backup
     for (const dispose of domDisposers.splice(0)) {
       dispose()
     }
-    setBackupFlusher(null)
+    unregisterBackupFlusher?.()
+    unregisterBackupFlusher = null
   }
 
   function onRemoteChanges(changes: ChangedFile[]): void | Promise<void> {
@@ -228,7 +230,7 @@ export function createBackupController(options: BackupControllerOptions): Backup
     // Quit-time commit (local only — never a network push on the way out),
     // queued behind any running cycle so it can never land between a pull's
     // ref move and its checkout.
-    setBackupFlusher(() => next.commitNow())
+    unregisterBackupFlusher = registerBackupFlusher(() => next.commitNow())
     return true
   }
 

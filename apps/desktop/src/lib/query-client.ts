@@ -121,12 +121,6 @@ export const queryKeys = {
       return [...this.all, root, 'conversations'] as const
     },
   },
-  attachments: {
-    all: ['attachments'] as const,
-    catalog(generation: number) {
-      return [...this.all, generation] as const
-    },
-  },
   calendar: {
     all: ['calendar'] as const,
     get authorization() {
@@ -166,28 +160,10 @@ export const queryKeys = {
       return [...this.all, root, 'status'] as const
     },
   },
-  appStore: {
-    all: ['app-store'] as const,
-    get environment() {
-      return [...this.all, 'environment'] as const
-    },
-  },
-  classic: {
-    all: ['classic'] as const,
-    get access() {
-      return [...this.all, 'access'] as const
-    },
-    get recheck() {
-      return [...this.all, 'recheck'] as const
-    },
-  },
   iap: {
     all: ['iap'] as const,
     get products() {
       return [...this.all, 'products'] as const
-    },
-    get entitlements() {
-      return [...this.all, 'entitlement'] as const
     },
   },
   mobile: {
@@ -376,14 +352,6 @@ export function dropIcloudStatusQuery(): void {
 /** Refetch chat-history queries; called after a turn save or a delete. */
 export function invalidateChatQueries(): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.chat.all })
-}
-
-/**
- * Re-list the vault's attachments; called when the watcher reports an
- * attachment file (or a folder) appearing, moving, or disappearing.
- */
-export function invalidateAttachmentCatalog(): void {
-  void queryClient.invalidateQueries({ queryKey: queryKeys.attachments.all })
 }
 
 /** Re-read archived X posts; called after a capture pass writes archive JSON. */

@@ -136,6 +136,11 @@ export {
   type TestOperationsService,
 } from './operations.ts'
 export { createTestSettingsService, type TestSettingsService } from './settings.ts'
+export { createTestThemeService, type TestThemeService } from './theme.ts'
+export {
+  createTestPersistenceFlushService,
+  type TestPersistenceFlushService,
+} from './persistence-flush.ts'
 export {
   createTestFileChangeService,
   type TestFileChangeService,
@@ -168,11 +173,44 @@ export {
 } from './audio-recorder.ts'
 export {
   createTestAssetStoreService,
+  createTestNoteCreationService,
   createTestNoteFileService,
+  createTestNoteLinkResolverService,
   type AssetUpload,
   type NoteFileWrite,
+  type NoteLinkResolution,
   type TestAssetStoreService,
   type TestAssetStoreServiceOptions,
+  type TestNoteCreationService,
+  type TestNoteCreationServiceOptions,
   type TestNoteFileService,
   type TestNoteFileServiceOptions,
+  type TestNoteLinkResolverService,
+  type TestNoteLinkResolverServiceOptions,
 } from './graph.ts'
+export {
+  createTestPrivacyService,
+  type TestPrivacyService,
+  type TestPrivacyServiceOptions,
+} from './privacy.ts'
+export {
+  createTestAttachmentService,
+  type AttachmentSave,
+  type TestAttachmentEntry,
+  type TestAttachmentService,
+  type TestAttachmentServiceOptions,
+} from './attachments.ts'
+export {
+  createTestAppStoreEnvironmentService,
+  createTestClassicAccessService,
+  createTestPaywallService,
+  createTestSubscriptionService,
+  type AppStoreEnvironmentCall,
+  type ClassicAccessCall,
+  type PaywallAction,
+  type SubscriptionCall,
+  type TestAppStoreEnvironmentService,
+  type TestClassicAccessService,
+  type TestPaywallService,
+  type TestSubscriptionService,
+} from './monetization.ts'
