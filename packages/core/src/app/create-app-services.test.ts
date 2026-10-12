@@ -63,6 +63,8 @@ const SERVICE_KEYS = [
   'gitHostCredentials',
   'githubRepos',
   'gists',
+  'syncEngines',
+  'backups',
   'icloudNative',
   'captureInbox',
   'webFetch',
@@ -77,6 +79,7 @@ const SERVICE_KEYS = [
   'noteMove',
   'titleRename',
   'noteDocuments',
+  'tasks',
   'noteActions',
   'noteRows',
   'indexQuery',
@@ -111,6 +114,8 @@ const SERVICE_KEYS = [
   'chatEngine',
   'chatGraphContext',
   'chatSessions',
+  'backlinkTarget',
+  'capture',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

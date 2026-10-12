@@ -33,21 +33,27 @@ import {
 import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 import {
+  createTestBacklinkTargetService,
   createTestCaptureInboxService,
+  createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
   type TestCaptureInboxService,
+  type TestCaptureService,
   type TestWebFetchService,
   type TestXArchiveService,
 } from './capture.ts'
 import {
+  createTestBackupServiceFactory,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
   createTestICloudNativeService,
+  createTestSyncEngineFactory,
   type TestGitRepositoryService,
+  type TestGithubAuthService,
   type TestICloudNativeService,
 } from './sync.ts'
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
@@ -129,6 +135,7 @@ import {
 } from './mobile-onboarding.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
+import { createTestTaskService } from './tasks.ts'
 import {
   createTestAppStoreEnvironmentService,
   createTestClassicAccessService,
@@ -188,6 +195,7 @@ import {
   createTestNativeMenuService,
   type TestNativeMenuService,
 } from './commands.ts'
+import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import type { CommandService } from '../commands/command-service.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 
@@ -228,6 +236,7 @@ export interface TestAppServices extends AppServices {
   readonly navigation: TestNavigationService
   readonly deepLink: TestDeepLinkService
   readonly gitRepository: TestGitRepositoryService
+  readonly githubAuth: TestGithubAuthService
   readonly icloudNative: TestICloudNativeService
   readonly captureInbox: TestCaptureInboxService
   readonly webFetch: TestWebFetchService
@@ -274,6 +283,8 @@ export interface TestAppServices extends AppServices {
   readonly chatEngine: TestChatEngineService
   readonly chatGraphContext: TestChatGraphContextService
   readonly chatSessions: ChatSessionService
+  readonly backlinkTarget: BacklinkTargetService
+  readonly capture: TestCaptureService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -302,6 +313,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const noteLinkResolver = createTestNoteLinkResolverService({
     wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
     noteFile: overrides?.noteFile ?? noteFile,
+  })
+  const noteCreation = createTestNoteCreationService({
+    noteFile: overrides?.noteFile ?? noteFile,
+    noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+    id: overrides?.id ?? id,
   })
   const http = createTestHttpService()
   const fileChanges = createTestFileChangeService()
@@ -369,6 +385,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: overrides?.mobileStorage ?? mobileStorage,
     logger,
   })
+  const persistenceFlush = createTestPersistenceFlushService()
+  const gitRepository = createTestGitRepositoryService()
+  const githubAuth = createTestGithubAuthService({
+    secretStore: overrides?.secretStore ?? secretStore,
+    http: overrides?.http ?? http,
+    clock: overrides?.clock ?? clock,
+  })
+  const gitHostCredentials = createTestGitHostCredentialService({
+    secretStore: overrides?.secretStore ?? secretStore,
+  })
+  const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
+  const syncEngines = createTestSyncEngineFactory({
+    git: overrides?.gitRepository ?? gitRepository,
+    clock: overrides?.clock ?? clock,
+  })
   const embeddingRuntime = createTestEmbeddingRuntimeService()
   const retrieval = createTestRetrievalService()
   const embeddingIndex = createTestEmbeddingIndexService({
@@ -409,7 +440,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     operations,
     settings,
     theme: createTestThemeService(),
-    persistenceFlush: createTestPersistenceFlushService(),
+    persistenceFlush,
     database,
     fileChanges,
     indexStore,
@@ -425,16 +456,25 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
     }),
-    gitRepository: createTestGitRepositoryService(),
-    githubAuth: createTestGithubAuthService({
-      secretStore: overrides?.secretStore ?? secretStore,
-      http: overrides?.http ?? http,
-      clock: overrides?.clock ?? clock,
+    gitRepository,
+    githubAuth,
+    gitHostCredentials,
+    githubRepos,
+    syncEngines,
+    backups: createTestBackupServiceFactory({
+      git: overrides?.gitRepository ?? gitRepository,
+      syncEngines: overrides?.syncEngines ?? syncEngines,
+      githubAuth: overrides?.githubAuth ?? githubAuth,
+      githubRepos: overrides?.githubRepos ?? githubRepos,
+      gitHostCredentials: overrides?.gitHostCredentials ?? gitHostCredentials,
+      fileChanges: overrides?.fileChanges ?? fileChanges,
+      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+      operations: overrides?.operations ?? operations,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      platform: overrides?.platform ?? platform,
+      persistenceFlush: overrides?.persistenceFlush ?? persistenceFlush,
+      logger,
     }),
-    gitHostCredentials: createTestGitHostCredentialService({
-      secretStore: overrides?.secretStore ?? secretStore,
-    }),
-    githubRepos: createTestGithubRepoService({ http: overrides?.http ?? http }),
     gists: createTestGistService({ http: overrides?.http ?? http }),
     icloudNative: createTestICloudNativeService(),
     captureInbox,
@@ -473,6 +513,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     keyboard: createTestKeyboardService(),
     share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
     noteDocuments,
+    tasks: createTestTaskService({
+      database: overrides?.database ?? database,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      operations: overrides?.operations ?? operations,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
     noteActions: createTestNoteActionsService({
       noteDocuments: overrides?.noteDocuments ?? noteDocuments,
       noteFile: overrides?.noteFile ?? noteFile,
@@ -485,11 +532,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     noteRows: createNoteRowService(),
     ...indexReads,
     noteLinkResolver,
-    noteCreation: createTestNoteCreationService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
-      id: overrides?.id ?? id,
-    }),
+    noteCreation,
     privacy,
     indexLifecycle,
     graphSession,
@@ -565,6 +608,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       imageCodec: overrides?.imageCodec ?? imageCodec,
       logger,
     }),
+    backlinkTarget: createTestBacklinkTargetService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      noteCreation: overrides?.noteCreation ?? noteCreation,
+    }),
+    capture: createTestCaptureService(),
   }
   return Object.assign(services, overrides)
 }

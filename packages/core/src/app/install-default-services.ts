@@ -9,6 +9,8 @@ import { setDefaultSelectionTransform } from '../ai/selection-transform-service.
 import { setDefaultTranscriptEnrichment } from '../ai/transcript-enrichment-service.ts'
 import { setDefaultTranscription } from '../ai/transcription-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
+import { setDefaultBacklinkTarget } from '../capture/backlink-target-service.ts'
+import { setDefaultCapture } from '../capture/capture-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { setDefaultGists } from '../sync/gist-service.ts'
@@ -16,6 +18,8 @@ import { setDefaultGitHostCredentials } from '../sync/git-host-credential-servic
 import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
 import { setDefaultGithubAuth } from '../sync/github-auth-service.ts'
 import { setDefaultGithubRepos } from '../sync/github-repo-service.ts'
+import { setDefaultSyncEngines } from '../sync/engine.ts'
+import { setDefaultBackups } from '../sync/backup-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
@@ -81,6 +85,7 @@ import { setDefaultImageCodec } from './image-codec-service.ts'
 import { setDefaultLifecycle } from './lifecycle-service.ts'
 import { setDefaultLogger } from './logger-service.ts'
 import { setDefaultOperations } from './operations-service.ts'
+import { setDefaultTasks } from '../tasks/task-service.ts'
 import { setDefaultOpener } from './opener-service.ts'
 import { setDefaultPath } from './path-service.ts'
 import { setDefaultPersistenceFlush } from './persistence-flush-service.ts'
@@ -131,6 +136,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultGithubAuth(services.githubAuth)
   setDefaultGitHostCredentials(services.gitHostCredentials)
   setDefaultGithubRepos(services.githubRepos)
+  setDefaultSyncEngines(services.syncEngines)
+  setDefaultBackups(services.backups)
   setDefaultGists(services.gists)
   setDefaultICloudNative(services.icloudNative)
   setDefaultCaptureInbox(services.captureInbox)
@@ -155,6 +162,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultKeyboard(services.keyboard)
   setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
+  setDefaultTasks(services.tasks)
   setDefaultNoteActions(services.noteActions)
   setDefaultNoteRows(services.noteRows)
   setDefaultIndexQuery(services.indexQuery)
@@ -185,6 +193,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAssetDescriber(services.assetDescriber)
   setDefaultTranscription(services.transcription)
   setDefaultTranscriptEnrichment(services.transcriptEnrichment)
+  setDefaultBacklinkTarget(services.backlinkTarget)
+  setDefaultCapture(services.capture)
   setDefaultIpc(services.ipc)
 }
 
@@ -227,6 +237,8 @@ export function resetDefaultServices(): void {
   setDefaultGithubAuth(null)
   setDefaultGitHostCredentials(null)
   setDefaultGithubRepos(null)
+  setDefaultSyncEngines(null)
+  setDefaultBackups(null)
   setDefaultGists(null)
   setDefaultICloudNative(null)
   setDefaultCaptureInbox(null)
@@ -251,6 +263,7 @@ export function resetDefaultServices(): void {
   setDefaultKeyboard(null)
   setDefaultShare(null)
   setDefaultNoteDocuments(null)
+  setDefaultTasks(null)
   setDefaultNoteActions(null)
   setDefaultNoteRows(null)
   setDefaultIndexQuery(null)
@@ -281,5 +294,7 @@ export function resetDefaultServices(): void {
   setDefaultAssetDescriber(null)
   setDefaultTranscription(null)
   setDefaultTranscriptEnrichment(null)
+  setDefaultBacklinkTarget(null)
+  setDefaultCapture(null)
   setDefaultIpc(null)
 }

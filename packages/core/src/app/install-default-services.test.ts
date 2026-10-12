@@ -7,6 +7,8 @@ import { defaultAppStore } from '../ipc/app-store-plugin.ts'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
 import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { defaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
+import { defaultBacklinkTarget } from '../capture/backlink-target-service.ts'
+import { defaultCapture } from '../capture/capture-service.ts'
 import { defaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { defaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { defaultGists } from '../sync/gist-service.ts'
@@ -14,6 +16,8 @@ import { defaultGitHostCredentials } from '../sync/git-host-credential-service.t
 import { defaultGitRepository } from '../sync/git-repository-service.ts'
 import { defaultGithubAuth } from '../sync/github-auth-service.ts'
 import { defaultGithubRepos } from '../sync/github-repo-service.ts'
+import { defaultSyncEngines } from '../sync/engine.ts'
+import { defaultBackups } from '../sync/backup-service.ts'
 import { defaultXArchive } from '../x-archive.ts'
 import { defaultWebFetch } from './web-fetch-service.ts'
 import { defaultIap } from '../ipc/iap-plugin.ts'
@@ -34,6 +38,7 @@ import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultNoteSessions } from '../documents/note-session.ts'
 import { defaultNoteMove } from '../documents/note-move-service.ts'
 import { defaultNoteDocuments } from '../documents/note-document-service.ts'
+import { defaultTasks } from '../tasks/task-service.ts'
 import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { defaultTitleRename } from '../documents/title-rename-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
@@ -120,8 +125,12 @@ describe('installDefaultServices', () => {
     expect(defaultGitHostCredentials()).toBe(services.gitHostCredentials)
     expect(defaultGithubRepos()).toBe(services.githubRepos)
     expect(defaultGists()).toBe(services.gists)
+    expect(defaultSyncEngines()).toBe(services.syncEngines)
+    expect(defaultBackups()).toBe(services.backups)
     expect(defaultICloudNative()).toBe(services.icloudNative)
     expect(defaultCaptureInbox()).toBe(services.captureInbox)
+    expect(defaultBacklinkTarget()).toBe(services.backlinkTarget)
+    expect(defaultCapture()).toBe(services.capture)
     expect(defaultWebFetch()).toBe(services.webFetch)
     expect(defaultXArchive()).toBe(services.xArchive)
     expect(defaultAudioRecorder()).toBe(services.audioRecorder)
@@ -141,6 +150,7 @@ describe('installDefaultServices', () => {
     expect(defaultNoteMove()).toBe(services.noteMove)
     expect(defaultTitleRename()).toBe(services.titleRename)
     expect(defaultNoteDocuments()).toBe(services.noteDocuments)
+    expect(defaultTasks()).toBe(services.tasks)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
     expect(defaultBacklinks()).toBe(services.backlinks)
@@ -207,8 +217,12 @@ describe('resetDefaultServices', () => {
     expect(defaultGitHostCredentials()).not.toBe(services.gitHostCredentials)
     expect(defaultGithubRepos()).not.toBe(services.githubRepos)
     expect(defaultGists()).not.toBe(services.gists)
+    expect(defaultSyncEngines()).not.toBe(services.syncEngines)
+    expect(defaultBackups()).not.toBe(services.backups)
     expect(defaultICloudNative()).not.toBe(services.icloudNative)
     expect(defaultCaptureInbox()).not.toBe(services.captureInbox)
+    expect(defaultBacklinkTarget()).not.toBe(services.backlinkTarget)
+    expect(defaultCapture()).not.toBe(services.capture)
     expect(defaultWebFetch()).not.toBe(services.webFetch)
     expect(defaultXArchive()).not.toBe(services.xArchive)
     expect(defaultAudioRecorder()).not.toBe(services.audioRecorder)
@@ -228,6 +242,7 @@ describe('resetDefaultServices', () => {
     expect(defaultNoteMove()).not.toBe(services.noteMove)
     expect(defaultTitleRename()).not.toBe(services.titleRename)
     expect(defaultNoteDocuments()).not.toBe(services.noteDocuments)
+    expect(defaultTasks()).not.toBe(services.tasks)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
     expect(defaultBacklinks()).not.toBe(services.backlinks)

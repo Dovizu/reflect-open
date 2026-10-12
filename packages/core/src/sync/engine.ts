@@ -1,13 +1,12 @@
+import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
 import { isAppError } from '../errors.ts'
 import {
-  gitCommitAll,
-  gitFetch,
-  gitMergeRemote,
-  gitPush,
+  defaultGitRepository,
   type ChangedFile,
   type GitCredential,
+  type GitRepositoryService,
   type SkippedFile,
-} from './commands.ts'
+} from './git-repository-service.ts'
 
 /**
  * The sync engine (Plan 12): debounced commit→push on edit, pull/merge/retry
@@ -60,7 +59,7 @@ export interface SyncEngineOptions {
    * side): every git command this engine issues is pinned to it, so a
    * command that lands after the user switches graphs fails instead of
    * touching the wrong repository. The engine never refreshes it — the
-   * owner (the backup controller) builds a new engine per graph session.
+   * owner (the backup service) builds a new engine per graph session.
    */
   generation: number
   /**
@@ -155,20 +154,36 @@ class PushRejectedError extends Error {}
 /** Internal control flow: the owner suspended cycles while one command was in flight. */
 class CycleSuppressedError extends Error {}
 
-/**
- * Build a sync engine for one graph session. The engine starts idle and does
- * nothing until `noteChanged()` (debounced commit→push) or `syncNow()` (full
- * commit→pull/merge→push) is called; all output flows through the
- * {@link SyncEngineOptions} callbacks. `stop()` is terminal — build a new
- * engine to resume.
- */
-export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
+/** Builds the {@link SyncEngine} of one graph session. */
+export interface SyncEngineFactory {
+  /**
+   * Build a sync engine for one graph session. The engine starts idle and does
+   * nothing until `noteChanged()` (debounced commit→push) or `syncNow()` (full
+   * commit→pull/merge→push) is called; all output flows through the
+   * {@link SyncEngineOptions} callbacks. `stop()` is terminal — build a new
+   * engine to resume.
+   */
+  create(options: SyncEngineOptions): SyncEngine
+}
+
+export function createSyncEngineFactory(deps: {
+  git: GitRepositoryService
+  clock: ClockService
+}): SyncEngineFactory {
+  return { create: (options) => createSyncEngine(deps, options) }
+}
+
+function createSyncEngine(
+  deps: { git: GitRepositoryService; clock: ClockService },
+  options: SyncEngineOptions,
+): SyncEngine {
+  const { git, clock } = deps
   const idleMs = options.idleMs ?? DEFAULT_IDLE_MS
   const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS
 
   const abort = new AbortController()
   const signal = abort.signal
-  let timer: ReturnType<typeof setTimeout> | null = null
+  let timer: TimerHandle | null = null
   /** Hard deadline (first unflushed edit + maxWaitMs); null = nothing pending. */
   let deadline: number | null = null
   let running: Promise<void> | null = null
@@ -259,9 +274,9 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   function schedule(delayMs: number): void {
     if (timer !== null) {
-      clearTimeout(timer)
+      clock.clearTimeout(timer)
     }
-    timer = setTimeout(() => {
+    timer = clock.setTimeout(() => {
       timer = null
       void run(PUSH)
     }, delayMs)
@@ -271,7 +286,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     if (signal.aborted) {
       return
     }
-    const now = Date.now()
+    const now = clock.now()
     if (deadline === null) {
       deadline = now + maxWaitMs
     }
@@ -313,7 +328,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       // This cycle commits everything dirty so far — a pending debounce pass
       // (e.g. queued before a launch/focus/manual sync) would only duplicate it.
       if (timer !== null) {
-        clearTimeout(timer)
+        clock.clearTimeout(timer)
         timer = null
       }
       deadline = null
@@ -370,7 +385,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   ): Promise<void> {
     if (!request.network) {
       // One command, no gate: the flush's commit must finish even hidden.
-      const flushed = await gitCommitAll('Update notes', options.generation)
+      const flushed = await git.commitAll('Update notes', options.generation)
       signal.throwIfAborted()
       if (flushed.skippedLargeFiles.length > 0) {
         options.onLargeFilesSkipped?.(flushed.skippedLargeFiles)
@@ -381,7 +396,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
     // The commit comes first: it is the part of every cycle a flush is owed,
     // and it must land even if the owner gates the network work that follows
     // (the credential resolution is the first point a gate can interrupt).
-    const commit = await step(gitCommitAll('Update notes', options.generation))
+    const commit = await step(git.commitAll('Update notes', options.generation))
     if (commit.skippedLargeFiles.length > 0) {
       options.onLargeFilesSkipped?.(commit.skippedLargeFiles)
     }
@@ -399,7 +414,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       }
     } else {
       // Launch/focus: pick up other devices' changes even with nothing to push.
-      const delta = await step(gitFetch(credential, options.generation))
+      const delta = await step(git.fetch(credential, options.generation))
       const merged = await merge(remoteChanges)
       const localOnly = commit.committed || delta.ahead > 0
       if (!localOnly && (merged.kind === 'upToDate' || merged.kind === 'fastForward')) {
@@ -407,7 +422,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       }
     }
     for (let attempt = 0; attempt < MAX_PUSH_ATTEMPTS; attempt++) {
-      const push = await step(gitPush(credential, options.generation))
+      const push = await step(git.push(credential, options.generation))
       if (push.pushed) {
         return
       }
@@ -416,7 +431,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
       }
       // The normal two-device race: another device pushed first. Converge and
       // retry — a conflicted merge still commits (markers in the note).
-      await step(gitFetch(credential, options.generation))
+      await step(git.fetch(credential, options.generation))
       await merge(remoteChanges)
     }
     throw new PushRejectedError(
@@ -426,7 +441,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
 
   /** Merge fetched changes and start any changed-file notification. */
   async function merge(remoteChanges: (changes: ChangedFile[]) => void): Promise<{ kind: string }> {
-    return await step(gitMergeRemote(options.generation), (outcome) => {
+    return await step(git.mergeRemote(options.generation), (outcome) => {
       // The command may already have rewritten files before suspension. Fan
       // those changes out before the boundary gate stops subsequent Git work.
       if (outcome.changedFiles.length > 0) {
@@ -447,7 +462,7 @@ export function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   function stop(): void {
     abort.abort()
     if (timer !== null) {
-      clearTimeout(timer)
+      clock.clearTimeout(timer)
       timer = null
     }
   }
@@ -476,4 +491,31 @@ function statusForError(error: unknown): SyncStatus {
     errorKind: 'other',
     message: error instanceof Error ? error.message : String(error),
   }
+}
+
+let installedFactory: SyncEngineFactory | null = null
+let fallback: { factory: SyncEngineFactory; deps: readonly unknown[] } | null = null
+
+/**
+ * The process-wide `SyncEngineFactory`. Unless one is installed, it runs over
+ * the current default git repository and clock services, and is rebuilt when
+ * either of them is replaced.
+ */
+export function defaultSyncEngines(): SyncEngineFactory {
+  if (installedFactory !== null) {
+    return installedFactory
+  }
+  const git = defaultGitRepository()
+  const clock = defaultClock()
+  const deps = [git, clock]
+  if (fallback === null || fallback.deps.some((dep, index) => dep !== deps[index])) {
+    fallback = { factory: createSyncEngineFactory({ git, clock }), deps }
+  }
+  return fallback.factory
+}
+
+/** Install the process-wide `SyncEngineFactory`; `null` restores the one over the defaults. */
+export function setDefaultSyncEngines(factory: SyncEngineFactory | null): void {
+  installedFactory = factory
+  fallback = null
 }

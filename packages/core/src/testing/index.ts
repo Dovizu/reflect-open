@@ -123,26 +123,37 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestBacklinkTargetService,
   createTestCaptureInboxService,
+  createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
+  type TestBacklinkTargetServiceOptions,
   type TestCaptureInboxService,
+  type TestCaptureService,
+  type TestCaptureSessionState,
   type TestWebFetchService,
   type TestXArchiveService,
   type WebFetchKind,
 } from './capture.ts'
 export {
+  createTestBackupService,
+  createTestBackupServiceFactory,
   createTestGistService,
   createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
   createTestICloudNativeService,
+  createTestSyncEngineFactory,
+  type BackupCall,
   type GitRepositoryCall,
   type GitRepositoryHandler,
   type ICloudNativeCall,
+  type TestBackupService,
   type TestGitRepositoryService,
   type TestGithubAuthOptions,
+  type TestGithubAuthService,
   type TestICloudNativeService,
 } from './sync.ts'
 export {
@@ -281,6 +292,7 @@ export {
   type TestAttachmentService,
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
+export { createTestTaskService, makeOpenTask, type TestTaskServiceOptions } from './tasks.ts'
 export {
   createTestNoteActionsService,
   createTestNoteDocumentService,

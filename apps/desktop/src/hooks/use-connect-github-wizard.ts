@@ -1,46 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
-  githubAppInstallUrl,
-  loadGithubAuth,
-  newRepoUrl,
-  parseRepoInput,
-  type GithubRepoRef,
+  createConnectGithubWizardService,
+  defaultClock,
+  defaultGithubAuth,
+  defaultLifecycle,
+  defaultOpener,
+  type ConnectAuthKind,
+  type ConnectFinishView,
+  type ConnectGithubWizardOptions,
+  type ConnectWizardStep,
   type GithubUser,
 } from '@reflect/core'
-import { useAsyncAction } from '@/hooks/use-async-action.ts'
-import { usePoll } from '@/hooks/use-poll.ts'
-import { openUrl } from '@/lib/open-url.ts'
 import { useSync } from '@/providers/sync-provider.tsx'
+import { useOptionalAppServices } from '@/services/services-provider.tsx'
 
-export type ConnectWizardStep = 'repo' | 'auth' | 'finish'
-
-/** Which credential the sign-in stored — decides the can't-find-repo remedy. */
-export type ConnectAuthKind = 'app' | 'pat' | null
-
-/**
- * What the finish step shows — exactly one at a time, precedence encoded
- * here so no shell can order the branches differently. `publicConfirm` is
- * the consent gate for a public repo; `createGuide` is the github.com/new
- * handoff (a poll connects once the repo exists); `grantAccess` is the
- * GitHub-App installation handoff (same poll); `connecting` is the in-flight
- * connect; `idle` is where a failure's inline error (and its escape back to
- * the repo step) renders.
- */
-export type ConnectFinishView =
-  | { kind: 'publicConfirm'; repo: GithubRepoRef }
-  | { kind: 'createGuide'; owner: string; name: string }
-  | { kind: 'grantAccess'; repo: GithubRepoRef }
-  | { kind: 'connecting' }
-  | { kind: 'idle' }
-
-export interface ConnectGithubWizardOptions {
-  /** A suggested name for a newly created backup repo. */
-  suggestedRepoName: string
-  /** Called once the repository is connected (the surface dismisses itself). */
-  onClose: () => void
-  /** Delay between repo-existence polls on the create/grant handoffs (test hook). */
-  pollIntervalMs?: number | undefined
-}
+export type {
+  ConnectAuthKind,
+  ConnectFinishView,
+  ConnectGithubWizardOptions,
+  ConnectWizardStep,
+} from '@reflect/core'
 
 export interface ConnectGithubWizard {
   step: ConnectWizardStep
@@ -72,214 +51,69 @@ export interface ConnectGithubWizard {
 }
 
 /**
- * The "Connect GitHub" wizard state machine: repository first (creating one
- * needs no credential), then the sign-in (whose instructions can name that
- * exact repository), then the connection — built from the verified sign-in,
- * so the owner is never asked for. Extracted from rendering so desktop's
- * dialog and mobile's drawer drive the identical flow.
+ * The "Connect GitHub" wizard for one mounted surface: a thin React shell
+ * over core's `ConnectGithubWizardService`, which owns the whole state
+ * machine (repo → sign-in → connect, with the create-handoff/grant-access
+ * polls and the public-repo consent gate). Desktop's dialog and mobile's
+ * drawer drive the identical flow through it.
  *
- * Tokens that can create repositories (classic PATs, app tokens) connect in
- * one step: the finish step API-creates silently. Tokens that can't are
- * handed the prefilled github.com/new page while the wizard polls for the
- * repository and connects the moment it exists — there is no "I created it"
- * button to click. Connecting a public repo demands explicit confirmation:
- * every note in the graph, including `private: true` ones, would be
- * world-readable.
- *
- * Granting repository access is a first-class step, not an error. A GitHub App
- * user token only reaches repositories the app is installed on (authorization
- * ≠ installation), and a fresh install is on zero repos — so an app sign-in
- * that can't yet see the repo lands on a plain "grant access" step that polls
- * and connects the moment access is granted (no retry button to press). The
- * step is skipped whenever the repo is already visible, so a graph whose repo
- * the install already covers connects with no detour. PAT users reach repos
- * by token scope, not an installation, so they get token-scope guidance.
+ * The connect actions are the ones of {@link useSync}. The other services
+ * come from the nearest `AppServicesProvider`, else the process-wide ones.
  */
 export function useConnectGithubWizard({
   suggestedRepoName,
   onClose,
   pollIntervalMs = 3000,
 }: ConnectGithubWizardOptions): ConnectGithubWizard {
-  const { connectNewRepo, connectExistingRepo } = useSync()
-  const action = useAsyncAction()
-  const [step, setStep] = useState<ConnectWizardStep>('repo')
-  const [mode, setMode] = useState<'create' | 'existing'>('create')
-  const [repoName, setRepoName] = useState(suggestedRepoName)
-  const [existingRepo, setExistingRepo] = useState('')
-  const [user, setUser] = useState<GithubUser | null>(null)
-  const [authKind, setAuthKind] = useState<ConnectAuthKind>(null)
-  const [publicConfirm, setPublicConfirm] = useState<GithubRepoRef | null>(null)
-  const [showCreateGuide, setShowCreateGuide] = useState(false)
-  const [showGrantAccess, setShowGrantAccess] = useState(false)
-
-  function targetRef(forUser: GithubUser): GithubRepoRef | null {
-    if (mode === 'existing') {
-      return parseRepoInput(existingRepo)
-    }
-    const name = repoName.trim()
-    return name.length === 0 ? null : { owner: forUser.login, name }
-  }
-
-  // The repo we're trying to reach, resolved from the verified sign-in (the
-  // owner is never typed). Drives both the poll and the grant-access copy.
-  const targetForUser = user !== null ? targetRef(user) : null
-
-  // While the create handoff or the grant-access step is showing, poll for the
-  // repository instead of making the user click a button: the connect fires the
-  // moment the repo exists and the app can see it. A 404 just keeps waiting; a
-  // public repo stops the poll for consent.
-  const pollTarget =
-    (showCreateGuide || showGrantAccess) && publicConfirm === null ? targetForUser : null
-  usePoll(pollTarget !== null, pollIntervalMs, async () => {
-    if (pollTarget === null) {
-      return 'stop'
-    }
-    const result = await connectExistingRepo(pollTarget, { allowPublic: false })
-    if (result === 'connected') {
-      onClose()
-      return 'stop'
-    }
-    if (result === 'needsPublicConfirm') {
-      setPublicConfirm(pollTarget)
-      return 'stop'
-    }
-    return 'continue'
+  const sync = useSync()
+  const services = useOptionalAppServices()
+  // The wizard lives as long as the surface; it always calls the latest
+  // actions and `onClose` without being rebuilt every render.
+  const latest = useRef({ sync, onClose })
+  useEffect(() => {
+    latest.current = { sync, onClose }
   })
 
-  async function finish(
-    forUser: GithubUser,
-    options: { allowPublic?: boolean; kind?: ConnectAuthKind } = {},
-  ): Promise<void> {
-    // The credential kind is passed in on the first run — its setter fires
-    // in the same tick as the call, before the state commits.
-    const kind = options.kind ?? authKind
-    await action.run(async () => {
-      // Each attempt re-derives the guidance from its own outcome — a stale
-      // create guide or grant-access step from an earlier path must not outlive
-      // the detour (e.g. consent → choose another repo).
-      setShowCreateGuide(false)
-      setShowGrantAccess(false)
-      const ref = publicConfirm ?? targetRef(forUser)
-      if (ref === null) {
-        action.setError(
-          mode === 'existing'
-            ? 'Enter the repository as owner/name or a GitHub URL.'
-            : 'Name the repository.',
-        )
-        setStep('repo')
-        return
-      }
-      const result = await connectExistingRepo(ref, { allowPublic: options.allowPublic ?? false })
-      if (result === 'connected') {
-        onClose()
-        return
-      }
-      if (result === 'needsPublicConfirm') {
-        setPublicConfirm(ref)
-        return
-      }
-      if (mode === 'existing') {
-        // GitHub's 404 can't distinguish "doesn't exist" from "no access". App
-        // sign-ins almost always mean the latter — the app isn't installed on
-        // the repo yet — so granting access is the expected next step, not an
-        // error: show it plainly and let the poll connect the moment access
-        // lands. PAT users reach repos by token scope, not an installation, so
-        // they get token-scope guidance instead.
-        if (kind === 'app') {
-          setShowGrantAccess(true)
-        } else {
-          action.setError(
-            'Repository not found. Check the name and your token’s repository access.',
-          )
-        }
-        return
-      }
-      // A new repo that doesn't exist yet: create it — by API when the token
-      // can, by the guided handoff (plus polling) otherwise.
-      const created = await connectNewRepo(ref.name)
-      if (created === 'connected') {
-        onClose()
-        return
-      }
-      setShowCreateGuide(true)
-    })
-  }
+  const [wizard] = useState(() =>
+    createConnectGithubWizardService(
+      {
+        backup: {
+          connectNewRepo: (name) => latest.current.sync.connectNewRepo(name),
+          connectExistingRepo: (ref, options) =>
+            latest.current.sync.connectExistingRepo(ref, options),
+        },
+        githubAuth: { load: () => (services?.githubAuth ?? defaultGithubAuth()).load() },
+        opener: { openUrl: (url) => (services?.opener ?? defaultOpener()).openUrl(url) },
+        lifecycle: services?.lifecycle ?? defaultLifecycle(),
+        clock: services?.clock ?? defaultClock(),
+      },
+      { suggestedRepoName, onClose: () => latest.current.onClose(), pollIntervalMs },
+    ),
+  )
 
-  function continueFromRepo(): void {
-    action.setError(null)
-    if (mode === 'create' && repoName.trim().length === 0) {
-      action.setError('Name the repository.')
-      return
-    }
-    if (mode === 'existing' && parseRepoInput(existingRepo) === null) {
-      action.setError('Enter the repository as owner/name or a GitHub URL.')
-      return
-    }
-    setStep('auth')
-  }
+  // The repo-existence poll only runs while the surface is mounted.
+  useEffect(() => wizard.attach(), [wizard])
 
-  function onAuthed(authedUser: GithubUser): void {
-    setUser(authedUser)
-    setStep('finish')
-    void loadGithubAuth().then((auth) => {
-      const kind = auth?.kind ?? null
-      setAuthKind(kind)
-      return finish(authedUser, { kind })
-    })
-  }
-
-  function confirmPublic(): void {
-    if (user !== null) {
-      void finish(user, { allowPublic: true })
-    }
-  }
-
-  function backToRepo(): void {
-    action.setError(null)
-    setPublicConfirm(null)
-    setShowCreateGuide(false)
-    setShowGrantAccess(false)
-    setStep('repo')
-  }
-
-  /** Open in the browser; an opener failure surfaces the URL to visit by hand. */
-  function openExternal(url: string): void {
-    void openUrl(url).catch(() => {
-      action.setError(`Couldn’t open the browser — visit ${url} yourself.`)
-    })
-  }
-
-  // The parked handoffs outrank the transient states: a consent question or
-  // an open poll must never be painted over by "Connecting…".
-  const finishView: ConnectFinishView =
-    publicConfirm !== null
-      ? { kind: 'publicConfirm', repo: publicConfirm }
-      : showCreateGuide && user !== null
-        ? { kind: 'createGuide', owner: user.login, name: repoName.trim() }
-        : showGrantAccess && targetForUser !== null
-          ? { kind: 'grantAccess', repo: targetForUser }
-          : action.pending
-            ? { kind: 'connecting' }
-            : { kind: 'idle' }
+  const state = useSyncExternalStore(wizard.subscribe, wizard.getState)
 
   return {
-    step,
-    mode,
-    setMode,
-    repoName,
-    setRepoName,
-    existingRepo,
-    setExistingRepo,
-    user,
-    authKind,
-    finishView,
-    pending: action.pending,
-    error: action.error,
-    continueFromRepo,
-    onAuthed,
-    confirmPublic,
-    backToRepo,
-    openCreatePage: () => openExternal(newRepoUrl(repoName.trim())),
-    openInstallPage: () => openExternal(githubAppInstallUrl()),
+    step: state.step,
+    mode: state.mode,
+    setMode: wizard.setMode,
+    repoName: state.repoName,
+    setRepoName: wizard.setRepoName,
+    existingRepo: state.existingRepo,
+    setExistingRepo: wizard.setExistingRepo,
+    user: state.user,
+    authKind: state.authKind,
+    finishView: state.finishView,
+    pending: state.pending,
+    error: state.error,
+    continueFromRepo: wizard.continueFromRepo,
+    onAuthed: wizard.onAuthed,
+    confirmPublic: wizard.confirmPublic,
+    backToRepo: wizard.backToRepo,
+    openCreatePage: wizard.openCreatePage,
+    openInstallPage: wizard.openInstallPage,
   }
 }

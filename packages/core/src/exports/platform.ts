@@ -108,6 +108,34 @@ export {
   type GithubRepoService,
 } from '../sync/github-repo-service.ts'
 export {
+  createSyncEngineFactory,
+  defaultSyncEngines,
+  setDefaultSyncEngines,
+  type SyncEngineFactory,
+} from '../sync/engine.ts'
+export {
+  createBackupService,
+  createBackupServiceFactory,
+  defaultBackups,
+  setDefaultBackups,
+  type BackupService,
+  type BackupServiceDeps,
+  type BackupServiceFactory,
+  type BackupServiceOptions,
+  type BackupState,
+  type ConnectExistingResult,
+} from '../sync/backup-service.ts'
+export {
+  createConnectGithubWizardService,
+  type ConnectAuthKind,
+  type ConnectFinishView,
+  type ConnectGithubWizardDeps,
+  type ConnectGithubWizardOptions,
+  type ConnectGithubWizardService,
+  type ConnectGithubWizardState,
+  type ConnectWizardStep,
+} from '../sync/connect-github-wizard-service.ts'
+export {
   createGistService,
   defaultGists,
   setDefaultGists,
@@ -372,7 +400,9 @@ export {
   createNoteDocumentService,
   defaultNoteDocuments,
   isOstensiblyEmptyNoteSource,
+  NoteBusyError,
   setDefaultNoteDocuments,
+  type CommitSourceEditOptions,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export {
@@ -843,15 +873,6 @@ export {
   listAttachments,
   vaultScanStats,
   type VaultScanStats,
-  captureHostRegister,
-  captureInboxList,
-  captureInboxRead,
-  captureInboxSpool,
-  captureInboxReject,
-  captureInboxRemove,
-  captureMetaFetch,
-  captureSharedInboxRelay,
-  promoteCaptureScreenshot,
 } from '../graph/commands.ts'
 export { fetchYouTubeVideo } from '../youtube-video.ts'
 export { createAsset, importAsset } from '../graph/assets.ts'

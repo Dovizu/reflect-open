@@ -53,6 +53,11 @@ import { createNoteToolsService, type NoteToolsService } from '../ai/chat/note-t
 import { createAssetReferences } from '../indexing/asset-refs.ts'
 import { listDailyNotes } from '../indexing/queries.ts'
 import {
+  createBacklinkTargetService,
+  type BacklinkTargetService,
+} from '../capture/backlink-target-service.ts'
+import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
+import {
   createCaptureInboxService,
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
@@ -71,6 +76,8 @@ import {
 } from '../sync/git-host-credential-service.ts'
 import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
 import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
+import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
+import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
@@ -193,6 +200,7 @@ import { createSettingsService, type SettingsService } from '../settings/setting
 import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
+import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
 import type { ClipboardService } from './clipboard-service.ts'
 import { createSystemClock, type ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
@@ -212,6 +220,7 @@ import {
 } from './lifecycle-service.ts'
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
 import { createOperationsService, type OperationsService } from './operations-service.ts'
+import { createTaskService, type TaskService } from '../tasks/task-service.ts'
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
@@ -284,6 +293,10 @@ export interface AppServices {
   readonly gitHostCredentials: GitHostCredentialService
   readonly githubRepos: GithubRepoService
   readonly gists: GistService
+  /** Builds the sync engine of one graph session. */
+  readonly syncEngines: SyncEngineFactory
+  /** Builds the backup lifecycle of one (graph, index session) pair. */
+  readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
@@ -312,6 +325,7 @@ export interface AppServices {
   readonly noteMove: NoteMoveService
   readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
+  readonly tasks: TaskService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
   readonly indexQuery: IndexQueryService
@@ -352,6 +366,8 @@ export interface AppServices {
   readonly chatGraphContext: ChatGraphContextService
   /** Creates the chat session of an open graph; the workspace owns the session. */
   readonly chatSessions: ChatSessionService
+  readonly backlinkTarget: BacklinkTargetService
+  readonly capture: CaptureService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -518,6 +534,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
   const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const captureInbox = createCaptureInboxService({ ipc })
+  const webFetch = createWebFetchService({ ipc })
+  const pageDescriber = createPageDescriberService({ languageModel })
+  const backlinkTarget = createBacklinkTargetService({
+    noteCreation: noteServices.noteCreation,
+    noteFile,
+  })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
     noteFile,
@@ -545,6 +567,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage,
     logger,
   })
+  const persistenceFlush = createPersistenceFlushService({
+    lifecycle,
+    window: windowService,
+    platform,
+    settings,
+    logger,
+  })
+  const gitRepository = createGitRepositoryService({ ipc })
+  const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
+  const gitHostCredentials = createGitHostCredentialService({ secretStore })
+  const githubRepos = createGithubRepoService({ http: adapters.http })
+  const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
   const retrieval = createRetrievalService({
     database,
@@ -602,13 +636,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     operations,
     settings,
     theme: createThemeService({ settings, storage, platform }),
-    persistenceFlush: createPersistenceFlushService({
-      lifecycle,
-      window: windowService,
-      platform,
-      settings,
-      logger,
-    }),
+    persistenceFlush,
     database,
     indexStore,
     embeddingRuntime,
@@ -632,14 +660,29 @@ export function createAppServices(adapters: AppAdapters): AppServices {
           window: windowService,
         })
       : createUnsupportedUpdateService(),
-    gitRepository: createGitRepositoryService({ ipc }),
-    githubAuth: createGithubAuthService({ secretStore, http: adapters.http, clock }),
-    gitHostCredentials: createGitHostCredentialService({ secretStore }),
-    githubRepos: createGithubRepoService({ http: adapters.http }),
+    gitRepository,
+    githubAuth,
+    gitHostCredentials,
+    githubRepos,
+    syncEngines,
+    backups: createBackupServiceFactory({
+      git: gitRepository,
+      syncEngines,
+      githubAuth,
+      githubRepos,
+      gitHostCredentials,
+      fileChanges,
+      indexLifecycle,
+      operations,
+      lifecycle,
+      platform,
+      persistenceFlush,
+      logger,
+    }),
     gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox,
-    webFetch: createWebFetchService({ ipc }),
+    webFetch,
     xArchive,
     audioRecorder: createPlatformAudioRecorder({
       platform: adapters.platform,
@@ -678,6 +721,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
     noteDocuments,
+    tasks: createTaskService({ database, noteDocuments, operations, clock, logger }),
     noteActions: createNoteActionsService({
       noteDocuments,
       noteFile,
@@ -735,7 +779,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       credentials: aiCredentials,
       privacy: noteServices.privacy,
     }),
-    pageDescriber: createPageDescriberService({ languageModel }),
+    pageDescriber,
     assetDescriber: createAssetDescriberService({ languageModel }),
     transcription: withAppReviewDemoTranscription(
       createTranscriptionService({ http: adapters.http }),
@@ -756,6 +800,28 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clock,
       id,
       imageCodec,
+      logger,
+    }),
+    backlinkTarget,
+    capture: createCaptureService({
+      captureInbox,
+      noteFile,
+      assetStore,
+      openDocuments,
+      backlinkTarget,
+      xArchive,
+      webFetch,
+      pageDescriber,
+      aiProviderConfig,
+      aiCredentials,
+      privacy: noteServices.privacy,
+      hash,
+      clock,
+      reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
+      lifecycle,
+      fileChanges,
+      operations,
+      platform,
       logger,
     }),
   }

@@ -2,15 +2,18 @@ import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
-  runDeviceFlow,
+  defaultClock,
   setDefaultClipboard,
+  setDefaultGithubAuth,
   setDefaultHttp,
   setDefaultOpener,
   setDefaultPlatform,
   setDefaultSecretStore,
+  type GithubAuthService,
 } from '@reflect/core'
 import {
   createTestClipboardService,
+  createTestGithubAuthService,
   createTestHttpService,
   createTestOpenerService,
   createTestPlatformService,
@@ -26,9 +29,9 @@ import { GithubAuthStep } from './github-auth-step.tsx'
 // The Reflect GitHub App is registered, so the device flow leads and the PAT
 // path sits behind a "use a personal access token instead" toggle. The
 // keychain is the in-memory secret store; GET /user (instant token validation) goes
-// through the fake HTTP service. The device-flow tests stub core's
-// runDeviceFlow (polling policy is unit-tested in core) to drive the
-// code-handoff view.
+// through the fake HTTP service. The device-flow tests script the fake
+// GithubAuthService's runDeviceFlow (polling policy is unit-tested in core)
+// to drive the code-handoff view.
 
 const USER_URL = 'https://api.github.com/user'
 let http: TestHttpService
@@ -45,11 +48,7 @@ afterEach(() => {
   setDefaultPlatform(null)
   setDefaultHttp(null)
 })
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  runDeviceFlow: vi.fn(),
-}))
-const mockFlow = vi.mocked(runDeviceFlow)
+const mockFlow = vi.fn<GithubAuthService['runDeviceFlow']>()
 
 /** Switch the step from the device-flow lead to PAT entry. */
 async function switchToPat(): Promise<void> {
@@ -83,12 +82,21 @@ beforeEach(() => {
 afterEach(async () => {
   await cleanup()
   setDefaultSecretStore(null)
+  setDefaultGithubAuth(null)
   mockFlow.mockReset()
 })
 
+/** An in-memory keychain, and a GitHub auth service over it whose device flow is `mockFlow`. */
 function fakeKeychain(initial: Record<string, string> = {}): TestSecretStoreService {
   const store = createTestSecretStoreService(initial)
   setDefaultSecretStore(store)
+  const githubAuth = createTestGithubAuthService({
+    secretStore: store,
+    http,
+    clock: defaultClock(),
+  })
+  githubAuth.onRunDeviceFlow(mockFlow)
+  setDefaultGithubAuth(githubAuth)
   return store
 }
 
