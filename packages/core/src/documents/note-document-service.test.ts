@@ -5,7 +5,7 @@ import {
   type TestNoteSessionOptions,
 } from '../testing/documents.ts'
 import { createTestNoteFileService, type TestNoteFileServiceOptions } from '../testing/graph.ts'
-import { createNoteDocumentService } from './note-document-service.ts'
+import { createNoteDocumentService, NoteBusyError } from './note-document-service.ts'
 
 function setup(options?: {
   files?: TestNoteFileServiceOptions['files']
@@ -107,6 +107,90 @@ describe('commitFrontmatter', () => {
     await noteDocuments.commitFrontmatter('notes/a.md', { pinned: true }, 3)
 
     expect(noteFile.files().get('notes/a.md')).toContain('pinned: true')
+  })
+})
+
+describe('commitSourceEdit', () => {
+  const shout = (source: string): string => source.toUpperCase()
+
+  it('applies the transform through the live session and leaves disk alone', async () => {
+    const { noteDocuments, noteFile, session } = setup({
+      files: { 'notes/a.md': 'disk\n' },
+      session: { content: 'live\n' },
+    })
+    await noteDocuments.commitSourceEdit('notes/a.md', shout, { generation: 7 })
+    expect(session!.content()).toBe('LIVE\n')
+    expect(noteFile.writes()).toEqual([])
+  })
+
+  it('refuses with NoteBusyError when the session declines, without touching disk', async () => {
+    const { noteDocuments, noteFile } = setup({
+      files: { 'notes/a.md': 'disk\n' },
+      session: { content: 'live\n', accepts: false },
+    })
+    await expect(
+      noteDocuments.commitSourceEdit('notes/a.md', shout, { generation: 7 }),
+    ).rejects.toBeInstanceOf(NoteBusyError)
+    expect(noteFile.writes()).toEqual([])
+  })
+
+  it('reads, transforms and writes disk when no session is open', async () => {
+    const { noteDocuments, noteFile } = setup({ files: { 'notes/a.md': 'disk\n' } })
+    await noteDocuments.commitSourceEdit('notes/a.md', shout, { generation: 7 })
+    expect(noteFile.writes()).toEqual([{ path: 'notes/a.md', contents: 'DISK\n', generation: 7 }])
+  })
+
+  it('writes even when the transform changes nothing', async () => {
+    const { noteDocuments, noteFile } = setup({ files: { 'notes/a.md': 'disk\n' } })
+    await noteDocuments.commitSourceEdit('notes/a.md', (source) => source, { generation: 7 })
+    expect(noteFile.getWrites('notes/a.md')).toEqual(['disk\n'])
+  })
+
+  it('rejects a missing note unless createIfMissing is set', async () => {
+    const { noteDocuments, noteFile } = setup()
+    await expect(
+      noteDocuments.commitSourceEdit('notes/a.md', shout, { generation: 7 }),
+    ).rejects.toMatchObject({ kind: 'notFound' })
+    expect(noteFile.writes()).toEqual([])
+
+    await noteDocuments.commitSourceEdit('notes/a.md', (source) => `${source}new\n`, {
+      generation: 7,
+      createIfMissing: true,
+    })
+    expect(noteFile.getWrites('notes/a.md')).toEqual(['new\n'])
+  })
+
+  it('propagates a transform error and writes nothing', async () => {
+    const { noteDocuments, noteFile } = setup({ files: { 'notes/a.md': 'disk\n' } })
+    const fail = (): string => {
+      throw new Error('stale')
+    }
+    await expect(
+      noteDocuments.commitSourceEdit('notes/a.md', fail, { generation: 7 }),
+    ).rejects.toThrow('stale')
+    expect(noteFile.writes()).toEqual([])
+  })
+
+  it('serializes edits to one path, so the second reads what the first wrote', async () => {
+    const { noteDocuments, noteFile } = setup({ files: { 'notes/a.md': 'a' } })
+    const append = (source: string): string => `${source}+`
+    await Promise.all([
+      noteDocuments.commitSourceEdit('notes/a.md', append, { generation: 7 }),
+      noteDocuments.commitSourceEdit('notes/a.md', append, { generation: 7 }),
+    ])
+    expect(noteFile.getWrites('notes/a.md')).toEqual(['a+', 'a++'])
+  })
+
+  it('keeps the chain alive after a failed edit', async () => {
+    const { noteDocuments, noteFile } = setup({ files: { 'notes/a.md': 'a' } })
+    const fail = (): string => {
+      throw new Error('stale')
+    }
+    const first = noteDocuments.commitSourceEdit('notes/a.md', fail, { generation: 7 })
+    const second = noteDocuments.commitSourceEdit('notes/a.md', shout, { generation: 7 })
+    await expect(first).rejects.toThrow('stale')
+    await second
+    expect(noteFile.getWrites('notes/a.md')).toEqual(['A'])
   })
 })
 

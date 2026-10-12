@@ -105,6 +105,7 @@ import {
 } from './mobile-onboarding.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
+import { createTestTaskService } from './tasks.ts'
 import {
   createTestAppStoreEnvironmentService,
   createTestClassicAccessService,
@@ -255,6 +256,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
   const openDocuments = createTestOpenDocumentsService()
+  const noteDocuments = createTestNoteDocumentService({
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
   const id = createTestIdService()
   const secretStore = createTestSecretStoreService()
   const settings = createTestSettingsService(
@@ -400,9 +405,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     openDocuments,
     keyboard: createTestKeyboardService(),
     share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
-    noteDocuments: createTestNoteDocumentService({
-      openDocuments: overrides?.openDocuments ?? openDocuments,
-      noteFile: overrides?.noteFile ?? noteFile,
+    noteDocuments,
+    tasks: createTestTaskService({
+      database: overrides?.database ?? database,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      operations: overrides?.operations ?? operations,
+      clock: overrides?.clock ?? clock,
+      logger,
     }),
     ...indexReads,
     noteLinkResolver,

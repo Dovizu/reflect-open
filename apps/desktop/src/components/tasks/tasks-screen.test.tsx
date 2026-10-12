@@ -1,34 +1,30 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render } from 'vitest-browser-react'
 import { userEvent, type Locator } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultStorage, setDefaultOperations } from '@reflect/core'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
+  createTestAppServices,
   createTestStorageService,
   type TestStorageService,
   createTestOperationsService,
+  createTestTaskService,
+  type TestAppServices,
   type TestOperationsService,
 } from '@reflect/core/testing'
-import type { OpenTask } from '@reflect/core'
-import type { TaskAction } from '@/lib/note-task.ts'
+import type { OpenTask, TaskAction, TaskService, TaskWriteResult } from '@reflect/core'
 import { act, useEffect, useState, type MutableRefObject, type ReactNode } from 'react'
 import { queryKeys } from '@/lib/query-client.ts'
 import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
-import { resetRecentlyCompleted } from '@/lib/tasks/recently-completed.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { MOD_KEY } from '@/test-utils/mod-key.ts'
 import '@/test-utils/locator.ts'
+import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { TasksScreen } from './tasks-screen.tsx'
 
-const getOpenTasks = vi.hoisted(() => vi.fn())
-const getCompletedTasks = vi.hoisted(() => vi.fn())
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-  getOpenTasks,
-  getCompletedTasks,
 }))
 vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
@@ -63,17 +59,16 @@ vi.mock('@/editor/markdown-preview.tsx', () => ({
   },
 }))
 
-const insertTask = vi.hoisted(() => vi.fn())
-const continueTaskInContext = vi.hoisted(() => vi.fn())
-const writeTask = vi.hoisted(() => vi.fn())
-vi.mock('@/lib/note-task.ts', () => ({
-  writeTask,
-  insertTask,
-  continueTaskInContext,
-}))
+// The screen runs on the real `TaskService` of the test app services; each
+// test steers its reads and writes through these spies.
+let getOpenTasks: MockInstance<TaskService['getOpenTasks']>
+let getCompletedTasks: MockInstance<TaskService['getCompletedTasks']>
+let writeTask: MockInstance<TaskService['writeTask']>
+let insertTask: MockInstance<TaskService['insertTask']>
+let continueTaskInContext: MockInstance<TaskService['continueTaskInContext']>
 
 /** The result of a write that changed nothing the cache needs to re-address. */
-const WRITTEN = { source: '', moved: [], inserted: [], tasks: [] }
+const WRITTEN: TaskWriteResult = { source: '', moved: [], inserted: [], tasks: [], updatedAt: 0 }
 
 type TaskActionKind = TaskAction['kind']
 
@@ -83,12 +78,12 @@ function isWrite(actions: readonly TaskAction[], kinds: readonly TaskActionKind[
 
 /** The `writeTask` calls whose actions are exactly `kinds`, e.g. `('setMarkdown', 'toggle')`. */
 function writesOf(...kinds: TaskActionKind[]): unknown[][] {
-  return writeTask.mock.calls.filter((call: unknown[]) => isWrite(call[1] as TaskAction[], kinds))
+  return writeTask.mock.calls.filter((call) => isWrite(call[1], kinds))
 }
 
 /** Reject the writes whose actions are exactly `kinds`; every other write succeeds. */
 function failWrites(kinds: TaskActionKind[], cause: Error): void {
-  writeTask.mockImplementation((_task: unknown, actions: TaskAction[]) =>
+  writeTask.mockImplementation((_task, actions) =>
     isWrite(actions, kinds) ? Promise.reject(cause) : Promise.resolve(WRITTEN),
   )
 }
@@ -206,13 +201,14 @@ function RouteProbe(): ReactNode {
 }
 
 function renderScreen(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
-  return render(
+  return renderWithServices(
     <QueryClientProvider client={client}>
       <RouterProvider>
         <TasksScreen />
         <RouteProbe />
       </RouterProvider>
     </QueryClientProvider>,
+    { app },
   ).then((view) => {
     const find = async (locator: Locator): Promise<Element> => {
       await expect.element(locator).toBeInTheDocument()
@@ -254,34 +250,28 @@ let storage: TestStorageService
 
 let operations: TestOperationsService
 
+let app: Omit<TestAppServices, 'tasks'> & { tasks: TaskService }
+
 beforeEach(() => {
   operations = createTestOperationsService()
-  setDefaultOperations(operations)
   storage = createTestStorageService()
-  setDefaultStorage(storage)
-  getOpenTasks.mockReset()
-  getCompletedTasks.mockReset()
-  getCompletedTasks.mockResolvedValue([])
+  // A fresh service per test, so its recently-completed set starts empty.
+  const tasks = createTestTaskService({ operations })
+  getOpenTasks = vi.spyOn(tasks, 'getOpenTasks').mockResolvedValue([])
+  getCompletedTasks = vi.spyOn(tasks, 'getCompletedTasks').mockResolvedValue([])
+  writeTask = vi.spyOn(tasks, 'writeTask').mockResolvedValue(WRITTEN)
+  insertTask = vi.spyOn(tasks, 'insertTask').mockResolvedValue({
+    created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
+    moved: [],
+    updatedAt: 0,
+  })
+  continueTaskInContext = vi.spyOn(tasks, 'continueTaskInContext').mockResolvedValue({
+    created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
+    moved: [],
+    updatedAt: 0,
+  })
+  app = createTestAppServices({ operations, storage, tasks })
   openRouteInNewWindow.mockReset().mockResolvedValue(true)
-  writeTask.mockReset()
-  writeTask.mockResolvedValue(WRITTEN)
-  insertTask.mockReset()
-  insertTask.mockResolvedValue({
-    created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
-    moved: [],
-  })
-  continueTaskInContext.mockReset()
-  continueTaskInContext.mockResolvedValue({
-    created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
-    moved: [],
-  })
-  resetRecentlyCompleted()
-})
-
-afterEach(async () => {
-  setDefaultOperations(null)
-  await cleanup()
-  setDefaultStorage(null)
 })
 
 // Keep native browser navigation out of keyboard-handler tests in this suite.
@@ -883,6 +873,7 @@ describe('TasksScreen', () => {
     insertTask.mockResolvedValue({
       created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
       moved: [],
+      updatedAt: 0,
     })
     getOpenTasks.mockResolvedValue([
       task({
@@ -920,6 +911,7 @@ describe('TasksScreen', () => {
           to: { astPath: [2], markdown: 'later', breadcrumbs: [], checked: false },
         },
       ],
+      updatedAt: 0,
     })
     const view = await renderScreen()
 
@@ -1070,6 +1062,7 @@ describe('TasksScreen', () => {
     continueTaskInContext.mockResolvedValue({
       created: { astPath: [3], markdown: '', breadcrumbs: [], checked: false },
       moved: [],
+      updatedAt: 0,
     })
     getOpenTasks.mockResolvedValue([
       task({
@@ -1112,6 +1105,7 @@ describe('TasksScreen', () => {
           to: { astPath: [56], markdown: 'later', breadcrumbs: [], checked: false },
         },
       ],
+      updatedAt: 0,
     })
     getOpenTasks.mockResolvedValue([
       task({
@@ -1856,8 +1850,8 @@ describe('TasksScreen', () => {
     }
     writeTask.mockImplementation(
       () =>
-        new Promise<void>((resolve) => {
-          resolveToggle = resolve
+        new Promise<TaskWriteResult>((resolve) => {
+          resolveToggle = () => resolve(WRITTEN)
         }),
     )
     getOpenTasks.mockResolvedValue([])
@@ -1885,7 +1879,7 @@ describe('TasksScreen', () => {
   })
 
   it('restores a struck task when an unchanged editor checkbox reopen fails', async () => {
-    writeTask.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('stale index'))
+    writeTask.mockResolvedValueOnce(WRITTEN).mockRejectedValueOnce(new Error('stale index'))
     getOpenTasks.mockResolvedValue([
       task({
         notePath: 'notes/p.md',

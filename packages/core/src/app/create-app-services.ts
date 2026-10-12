@@ -180,6 +180,7 @@ import {
 } from './lifecycle-service.ts'
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
 import { createOperationsService, type OperationsService } from './operations-service.ts'
+import { createTaskService, type TaskService } from '../tasks/task-service.ts'
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
@@ -278,6 +279,7 @@ export interface AppServices {
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
   readonly noteDocuments: NoteDocumentService
+  readonly tasks: TaskService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -452,6 +454,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
   const openDocuments = createOpenDocumentsService()
+  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
   const indexReads = createIndexReadServices({ database, noteFile })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
@@ -588,7 +591,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     openDocuments,
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments,
+    tasks: createTaskService({ database, noteDocuments, operations, clock, logger }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

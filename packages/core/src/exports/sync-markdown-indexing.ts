@@ -171,11 +171,6 @@ export {
   getLinkSources,
   getPathLinkSources,
   getNote,
-  getOpenTasks,
-  getCompletedTasks,
-  groupTaskContexts,
-  groupTasks,
-  taskDateBucket,
   listDailyNotes,
   listNotes,
   listNoteTags,
@@ -216,10 +211,6 @@ export {
   type DailyNotesRange,
   type DuplicateIdGroup,
   type NoteRow,
-  type OpenTask,
-  type TaskContext,
-  type TaskGroup,
-  type TaskGroupKind,
   type NoteListEntry,
   type NoteListOptions,
   type NoteTagFacet,
@@ -245,3 +236,47 @@ export {
   type TitleRenameRewriteOptions,
   type TitleRenameRewriteResult,
 } from '../indexing/index.ts'
+export {
+  groupTaskContexts,
+  groupTasks,
+  taskDateBucket,
+  type TaskContext,
+  type TaskGroup,
+  type TaskGroupKind,
+} from '../tasks/group-tasks.ts'
+export { type OpenTask } from '../tasks/open-task.ts'
+export {
+  asCompleted,
+  asOpen,
+  withChecked,
+  withEditedTask,
+  withoutTasks,
+  withRelocatedTasks,
+  type TaskMoves,
+} from '../tasks/task-cache.ts'
+export { resolveTaskEdit, type TaskDraftResolution } from '../tasks/task-content.ts'
+export { getTaskKey, isSameTask } from '../tasks/task-identity.ts'
+export { createInsertedTaskRow, type InsertTaskTarget } from '../tasks/task-insert-target.ts'
+export { previousTaskKey, todaysDailyTarget } from '../tasks/task-navigation.ts'
+export { getScheduledMarkdown, withDraftDueDate } from '../tasks/task-schedule-content.ts'
+export {
+  createTaskService,
+  defaultTasks,
+  getCompletedTasks,
+  getOpenTasks,
+  setDefaultTasks,
+  withoutReopenedTasks,
+  type InsertedTask,
+  type SnippetTaskClick,
+  type TaskAction,
+  type TaskRef,
+  type TaskService,
+  type TaskWriteResult,
+  type WriteTaskEditsOptions,
+} from '../tasks/task-service.ts'
+export {
+  composeVisibleTaskGroups,
+  visibleGroups,
+  type TaskFilters,
+  type TaskListSources,
+} from '../tasks/task-visibility.ts'

@@ -260,6 +260,7 @@ export {
   type TestAttachmentService,
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
+export { createTestTaskService, makeOpenTask, type TestTaskServiceOptions } from './tasks.ts'
 export {
   createTestNoteDocumentService,
   createTestNoteSession,

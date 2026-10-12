@@ -372,7 +372,9 @@ export {
   createNoteDocumentService,
   defaultNoteDocuments,
   isOstensiblyEmptyNoteSource,
+  NoteBusyError,
   setDefaultNoteDocuments,
+  type CommitSourceEditOptions,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export {
