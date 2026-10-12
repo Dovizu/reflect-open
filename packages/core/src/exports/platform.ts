@@ -413,6 +413,24 @@ export {
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
 export {
+  createNoteMoveService,
+  defaultNoteMove,
+  setDefaultNoteMove,
+  NOTE_MOVED_EVENT,
+  type NoteMovedListener,
+  type NoteMoveService,
+  type NoteMoveServiceDeps,
+} from '../documents/note-move-service.ts'
+export {
+  createTitleRenameService,
+  defaultTitleRename,
+  setDefaultTitleRename,
+  type RenameCoordinator,
+  type RenameCoordinatorOptions,
+  type TitleRenameService,
+  type TitleRenameServiceDeps,
+} from '../documents/title-rename-service.ts'
+export {
   createDocumentBinding,
   type BindFactories,
   type BoundDocument,

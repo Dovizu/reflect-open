@@ -1,10 +1,10 @@
 import {
-  defaultClock,
   defaultNoteSessions,
   defaultOpenDocuments,
-  type ClockService,
+  defaultTitleRename,
   type NoteSessionService,
   type OpenDocumentsService,
+  type TitleRenameService,
 } from '@reflect/core'
 import { useOptionalAppServices } from '@/services/services-provider.tsx'
 
@@ -21,6 +21,6 @@ export function useOpenDocumentsService(): OpenDocumentsService {
   return useOptionalAppServices()?.openDocuments ?? defaultOpenDocuments()
 }
 
-export function useClockService(): ClockService {
-  return useOptionalAppServices()?.clock ?? defaultClock()
+export function useTitleRenameService(): TitleRenameService {
+  return useOptionalAppServices()?.titleRename ?? defaultTitleRename()
 }
