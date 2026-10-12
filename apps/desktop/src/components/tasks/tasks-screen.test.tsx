@@ -20,15 +20,11 @@ import { MOD_KEY } from '@/test-utils/mod-key.ts'
 import '@/test-utils/locator.ts'
 import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { TasksScreen } from './tasks-screen.tsx'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
@@ -271,7 +267,6 @@ beforeEach(() => {
     updatedAt: 0,
   })
   app = createTestAppServices({ operations, storage, tasks })
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
 
 // Keep native browser navigation out of keyboard-handler tests in this suite.
@@ -506,10 +501,12 @@ describe('TasksScreen', () => {
     })
 
     await waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/p.md',
-      }),
+      expect(app.window.openedNoteWindows()).toEqual([
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/p.md',
+        }),
+      ]),
     )
     expect(view.getByTestId('route').element().textContent).toBe('{"kind":"today"}')
     expect(view.queryByTestId('task-editor')).toBeNull()
@@ -528,10 +525,12 @@ describe('TasksScreen', () => {
     })
 
     await waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/p.md',
-      }),
+      expect(app.window.openedNoteWindows()).toEqual([
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/p.md',
+        }),
+      ]),
     )
     expect(view.getByTestId('route').element().textContent).toBe('{"kind":"today"}')
     await view.unmount()
@@ -779,7 +778,7 @@ describe('TasksScreen', () => {
       fireEvent.click(view.getByRole('button', { name: 'third' }), MOD_KEY)
     })
     expect([pressed('first'), pressed('second'), pressed('third')]).toEqual([true, false, true])
-    expect(openRouteInNewWindow).not.toHaveBeenCalled()
+    expect(app.window.openedNoteWindows()).toEqual([])
 
     // Shift-click from the anchor (third) back to first selects the whole range.
     act(() => {

@@ -19,6 +19,7 @@ import '@/test-utils/locator.ts'
 import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { swipe, translateX } from '@/test-utils/swipe.ts'
 import { MobileTasks } from './tasks.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
 
 let haptics: TestHapticsService
 
@@ -32,12 +33,14 @@ let haptics: TestHapticsService
  * rules are unit-tested in task-visibility.test.ts.
  */
 
-const resolveOrCreateNoteWithTitle = vi.hoisted(() => vi.fn())
+const resolveOrCreateNoteWithTitle = vi.fn()
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-  resolveOrCreateNoteWithTitle,
 }))
+const linkNavigation = installTestLinkNavigation({
+  noteCreation: { resolveOrCreateNoteWithTitle },
+})
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
 }))
@@ -270,7 +273,13 @@ beforeEach(async () => {
     moved: [],
     updatedAt: 0,
   })
-  app = createTestAppServices({ operations, storage, haptics, tasks })
+  app = createTestAppServices({
+    operations,
+    storage,
+    haptics,
+    tasks,
+    linkNavigation: linkNavigation.service(),
+  })
   resolveOrCreateNoteWithTitle.mockReset()
   resolveOrCreateNoteWithTitle.mockResolvedValue({
     kind: 'resolved',

@@ -9,27 +9,25 @@ import type { NoteRow } from '@reflect/core'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { formatDayLabel } from '@/lib/dates.ts'
 import { monthLabel, monthOf } from '@/lib/month-grid.ts'
-import type { NoteRoute } from '@/routing/route.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import '@/test-utils/locator.ts'
 import { DailyContextSidebar } from './daily-context-sidebar.tsx'
 import { installTestNoteFile } from '@/test-utils/note-file.ts'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+
+const { openNoteWindow } = installTestLinkNavigation()
 
 const dailyDatesInRange = vi.hoisted(() => vi.fn())
 const relatedNotes = vi.hoisted(() => vi.fn())
 const useNoteRow = vi.hoisted(() => vi.fn<(path: string) => NoteRow | null>(() => null))
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<(route: NoteRoute) => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   dailyDatesInRange,
 }))
 vi.mock('@/hooks/use-note-row.ts', () => ({ useNoteRow }))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
-}))
 vi.mock('@/lib/use-embed-status.ts', () => ({
   useEmbedStatus: () => ({ status: 'ready', model: 'all-MiniLM-L6-v2' }),
 }))
@@ -84,7 +82,6 @@ beforeEach(() => {
   relatedNotes.mockReset().mockResolvedValue([])
   setDefaultRetrieval(createTestRetrievalService({ relatedNotes }))
   useNoteRow.mockReset().mockReturnValue(null)
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
 
 afterEach(async () => {
@@ -123,12 +120,14 @@ describe('DailyContextSidebar calendar', () => {
     fireEvent.click(day, { metaKey: true, ctrlKey: true })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'daily',
-        date: '2026-06-18',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'daily',
+          date: '2026-06-18',
+        }),
+      ),
     )
-    expect(openRouteInNewWindow).toHaveBeenCalledTimes(1)
+    expect(openNoteWindow).toHaveBeenCalledTimes(1)
     await expect
       .element(page.getByTestId('route'))
       .toMatchTextContent(JSON.stringify({ kind: 'today' }))
@@ -137,12 +136,12 @@ describe('DailyContextSidebar calendar', () => {
 
   it('does not fall back after the calendar scope moves to another selected day', async () => {
     const pendingOpen = Promise.withResolvers<boolean>()
-    openRouteInNewWindow.mockReturnValue(pendingOpen.promise)
+    openNoteWindow.mockReturnValue(pendingOpen.promise)
     const view = await renderSidebar('2026-06-09')
     const day = page.getByRole('button', { name: formatDayLabel('2026-06-18', 'mdy') })
 
     fireEvent.click(day, { metaKey: true, ctrlKey: true })
-    await vi.waitFor(() => expect(openRouteInNewWindow).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(openNoteWindow).toHaveBeenCalledTimes(1))
     await view.rerender(
       <TooltipProvider>
         <QueryClientProvider

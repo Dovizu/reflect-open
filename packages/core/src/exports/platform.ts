@@ -386,6 +386,17 @@ export {
   type DeepLinkSource,
 } from '../navigation/deep-link-service.ts'
 export {
+  createDefaultLinkNavigationDeps,
+  createLinkNavigationService,
+  defaultLinkNavigation,
+  isOpenableExternalUrl,
+  routeForTag,
+  setDefaultLinkNavigation,
+  type LinkNavigationHost,
+  type LinkNavigationService,
+  type LinkNavigationServiceDeps,
+} from '../navigation/link-navigation-service.ts'
+export {
   createNavigationService,
   defaultNavigation,
   setDefaultNavigation,
@@ -498,6 +509,14 @@ export {
   type CommitSourceEditOptions,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
+export {
+  createNotePreviewService,
+  defaultNotePreview,
+  setDefaultNotePreview,
+  type NotePreview,
+  type NotePreviewService,
+  type NotePreviewServiceDeps,
+} from '../documents/note-preview-service.ts'
 export {
   canTrashNote,
   createNoteActionsService,

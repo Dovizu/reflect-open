@@ -9,7 +9,6 @@ import {
   createTestOperationsService,
   installTestServices,
 } from '@reflect/core/testing'
-import { beginLinkNavigationIntent } from '@/lib/windows/link-navigation-intent.ts'
 import { RouterProvider } from '@/routing/router.tsx'
 import { AppServicesProvider } from '@/services/services-provider.tsx'
 import { DeepLinkProvider } from './deep-link-provider.tsx'
@@ -110,11 +109,11 @@ describe('DeepLinkProvider', () => {
   })
 
   it('drops a note resolve when a newer note-link intent starts meanwhile', async () => {
-    const { tree, navigated, dispatchPendingNote } = setup()
+    const { app, tree, navigated, dispatchPendingNote } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
-    beginLinkNavigationIntent()
+    app.linkNavigation.beginIntent()
     await pending.resolve()
 
     expect(navigated()).toEqual([])

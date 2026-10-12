@@ -5,17 +5,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, type ReactNode } from 'react'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { formatBinding, isApplePlatform } from '@/lib/keybindings.ts'
-import type { NoteRoute } from '@/routing/route.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { CommandPalette } from './command-palette.tsx'
 import { PaletteProvider, usePalette } from './palette-provider.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+
+const { openNoteWindow } = installTestLinkNavigation()
 
 const suggestWikiTargets = vi.hoisted(() => vi.fn())
 const searchWithFilters = vi.hoisted(() => vi.fn())
 const retrieve = vi.hoisted(() => vi.fn())
 const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<(route: NoteRoute) => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
@@ -30,10 +32,6 @@ vi.mock('@/editor/markdown-preview.tsx', () => ({
   MarkdownPreview: ({ content }: { content: string }) => (
     <div data-testid="markdown-preview">{content}</div>
   ),
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 // The model is absent by default: the palette is exactly the lexical surface
 // it was before Plan 09 (hybrid mode is additive). The gating tests flip both
@@ -61,7 +59,6 @@ beforeEach(() => {
   embedReady.value = false
   semanticSetting.enabled = false
   readNote.mockReset().mockResolvedValue('')
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
 
 function OpenOnMount({ query }: { query: string }) {
@@ -176,7 +173,7 @@ describe('CommandPalette', () => {
 
     await userEvent.keyboard('{Enter}')
     await expect.element(view.getByTestId('route')).toMatchTextContent('notes/rust.md')
-    expect(openRouteInNewWindow).not.toHaveBeenCalled()
+    expect(openNoteWindow).not.toHaveBeenCalled()
     expect(view.getByTestId('palette-overlay').query()).toBeNull()
   })
 
@@ -186,18 +183,20 @@ describe('CommandPalette', () => {
       { path: 'notes/rust.md', title: 'Rust Notes', snippet: null, dailyDate: null },
     ])
     const pendingOpen = Promise.withResolvers<boolean>()
-    openRouteInNewWindow.mockReturnValue(pendingOpen.promise)
+    openNoteWindow.mockReturnValue(pendingOpen.promise)
     const { view } = await renderPalette('rust')
     const result = view.getByText('Rust Notes')
 
     await result.click({ modifiers: ['ControlOrMeta'] })
 
     expect(view.getByTestId('palette-overlay').query()).toBeNull()
-    expect(openRouteInNewWindow).toHaveBeenCalledTimes(1)
-    expect(openRouteInNewWindow).toHaveBeenCalledWith({
-      kind: 'note',
-      path: 'notes/rust.md',
-    })
+    expect(openNoteWindow).toHaveBeenCalledTimes(1)
+    expect(openNoteWindow).toHaveBeenCalledWith(
+      deepLinkForRoute({
+        kind: 'note',
+        path: 'notes/rust.md',
+      }),
+    )
     expect(view.getByTestId('route').element().textContent).toBe(JSON.stringify({ kind: 'today' }))
     pendingOpen.resolve(true)
   })
@@ -207,7 +206,7 @@ describe('CommandPalette', () => {
     searchWithFilters.mockResolvedValue([
       { path: 'notes/rust.md', title: 'Rust Notes', snippet: null, dailyDate: null },
     ])
-    openRouteInNewWindow.mockResolvedValue(false)
+    openNoteWindow.mockResolvedValue(false)
     const { view } = await renderPalette('rust')
     const result = view.getByText('Rust Notes')
 
@@ -228,11 +227,13 @@ describe('CommandPalette', () => {
     await userEvent.keyboard('{ControlOrMeta>}{Enter}{/ControlOrMeta}')
 
     expect(view.getByTestId('palette-overlay').query()).toBeNull()
-    expect(openRouteInNewWindow).toHaveBeenCalledTimes(1)
-    expect(openRouteInNewWindow).toHaveBeenCalledWith({
-      kind: 'note',
-      path: 'notes/rust.md',
-    })
+    expect(openNoteWindow).toHaveBeenCalledTimes(1)
+    expect(openNoteWindow).toHaveBeenCalledWith(
+      deepLinkForRoute({
+        kind: 'note',
+        path: 'notes/rust.md',
+      }),
+    )
     expect(view.getByTestId('route').element().textContent).toBe(JSON.stringify({ kind: 'today' }))
   })
 
@@ -241,7 +242,7 @@ describe('CommandPalette', () => {
     searchWithFilters.mockResolvedValue([
       { path: 'notes/rust.md', title: 'Rust Notes', snippet: null, dailyDate: null },
     ])
-    openRouteInNewWindow.mockResolvedValue(false)
+    openNoteWindow.mockResolvedValue(false)
     const { view } = await renderPalette('rust')
     await expect.element(view.getByText('Rust Notes')).toBeInTheDocument()
 

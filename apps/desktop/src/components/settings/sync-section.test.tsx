@@ -14,6 +14,10 @@ import type { BackupState } from '@reflect/core'
 import '@/test-utils/locator.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { SyncSection } from './sync-section.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+
+const { openNoteWindow } = installTestLinkNavigation()
 
 const core = vi.hoisted(() => ({
   status: {
@@ -38,8 +42,6 @@ const sync = vi.hoisted(() => ({
   backUpNow: vi.fn(async () => {}),
 }))
 
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
-
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
@@ -52,10 +54,6 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: graph.current, openRecent: graph.openRecent }),
 }))
 vi.mock('@/providers/sync-provider.tsx', () => ({ useSync: () => sync }))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
-}))
 
 async function renderSection(): Promise<void> {
   await render(
@@ -93,7 +91,6 @@ beforeEach(() => {
   core.conflictedNotes = []
   core.duplicateIds = []
   sync.backup = { phase: 'disconnected' }
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
 
 afterEach(() => {
@@ -190,10 +187,12 @@ describe('SyncSection', () => {
       .click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/conflicted.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/conflicted.md',
+        }),
+      ),
     )
     expect(page.getByTestId('route').element().textContent).toBe('settings')
   })
