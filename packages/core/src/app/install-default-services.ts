@@ -3,6 +3,11 @@ import { setDefaultAiKeyValidation } from '../ai/ai-key-validation-service.ts'
 import { setDefaultAiPrompts } from '../ai/ai-prompt-service.ts'
 import { setDefaultAiProviderConfig } from '../ai/ai-provider-config-service.ts'
 import { setDefaultLanguageModel } from '../ai/language-model-service.ts'
+import { setDefaultAssetDescriber } from '../ai/asset-describer-service.ts'
+import { setDefaultPageDescriber } from '../ai/page-describer-service.ts'
+import { setDefaultSelectionTransform } from '../ai/selection-transform-service.ts'
+import { setDefaultTranscriptEnrichment } from '../ai/transcript-enrichment-service.ts'
+import { setDefaultTranscription } from '../ai/transcription-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
@@ -141,6 +146,11 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultLanguageModel(services.languageModel)
   setDefaultAiPrompts(services.aiPrompts)
   setDefaultAiProviderConfig(services.aiProviderConfig)
+  setDefaultSelectionTransform(services.selectionTransform)
+  setDefaultPageDescriber(services.pageDescriber)
+  setDefaultAssetDescriber(services.assetDescriber)
+  setDefaultTranscription(services.transcription)
+  setDefaultTranscriptEnrichment(services.transcriptEnrichment)
   setDefaultIpc(services.ipc)
 }
 
@@ -215,5 +225,10 @@ export function resetDefaultServices(): void {
   setDefaultLanguageModel(null)
   setDefaultAiPrompts(null)
   setDefaultAiProviderConfig(null)
+  setDefaultSelectionTransform(null)
+  setDefaultPageDescriber(null)
+  setDefaultAssetDescriber(null)
+  setDefaultTranscription(null)
+  setDefaultTranscriptEnrichment(null)
   setDefaultIpc(null)
 }

@@ -517,6 +517,46 @@ export {
   type NewAiProvider,
 } from '../ai/ai-provider-config-service.ts'
 export {
+  createSelectionTransformService,
+  defaultSelectionTransform,
+  setDefaultSelectionTransform,
+  type SelectionTransformRequest,
+  type SelectionTransformService,
+  type TransformStreamEvent,
+} from '../ai/selection-transform-service.ts'
+export {
+  createPageDescriberService,
+  defaultPageDescriber,
+  setDefaultPageDescriber,
+  type PageDescriberService,
+  type PageEnrichment,
+} from '../ai/page-describer-service.ts'
+export {
+  createAssetDescriberService,
+  defaultAssetDescriber,
+  setDefaultAssetDescriber,
+  type AssetDescriberService,
+} from '../ai/asset-describer-service.ts'
+export {
+  createTranscriptionService,
+  defaultTranscription,
+  setDefaultTranscription,
+  withAppReviewDemoTranscription,
+  type TranscriptionService,
+} from '../ai/transcription-service.ts'
+export {
+  createTranscriptEnrichmentService,
+  defaultTranscriptEnrichment,
+  setDefaultTranscriptEnrichment,
+  type AudioMemoEnrichmentCredentials,
+  type EnrichedSessionTranscript,
+  type EnrichSessionTranscriptInput,
+  type FormatAudioMemoTranscriptRequest,
+  type FormattedAudioMemoTranscript,
+  type GenerateAudioMemoTitleRequest,
+  type TranscriptEnrichmentService,
+} from '../ai/transcript-enrichment-service.ts'
+export {
   createLanguageModelService,
   createLazyAiSdkLoader,
   defaultLanguageModel,

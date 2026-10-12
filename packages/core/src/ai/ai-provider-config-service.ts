@@ -10,7 +10,7 @@ import {
   type AiKeyReader,
 } from './ai-credential-service.ts'
 import { defaultAiKeyValidation, type AiKeyValidationService } from './ai-key-validation-service.ts'
-import { pickAudioMemoEnrichmentConfig } from './audio-memo-title.ts'
+import { pickAudioMemoEnrichmentConfig } from './transcript-enrichment-service.ts'
 import { chatModelOptions, resolveChatModel, type ChatModelOption } from './chat/model-options.ts'
 import { aiProvider, aiProviderRequiresApiKey } from './provider-catalog.ts'
 import {
