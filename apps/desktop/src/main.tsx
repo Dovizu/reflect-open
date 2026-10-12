@@ -1,5 +1,5 @@
 // Must stay the first import: see `boot.ts`.
-import '@/boot.ts'
+import { appServices } from '@/boot.ts'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -13,6 +13,7 @@ import { EditorFullWidthEffect } from '@/providers/editor-full-width.tsx'
 import { EditorTextSizeEffect } from '@/providers/editor-text-size.tsx'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { ThemeProvider } from '@/providers/theme-provider.tsx'
+import { AppServicesProvider } from '@/services/services-provider.tsx'
 import '@/styles/index.css'
 
 // Start the platform root's boot-critical work (on mobile, the
@@ -35,14 +36,16 @@ const reactRootOptions = defaultExceptionTelemetry().reactRootOptions()
 // platform root (Plan 19).
 createRoot(rootElement, reactRootOptions).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <EditorFullWidthEffect />
-        <EditorTextSizeEffect />
-        <ThemeProvider>
-          <PlatformRoot />
-        </ThemeProvider>
-      </SettingsProvider>
-    </QueryClientProvider>
+    <AppServicesProvider services={appServices}>
+      <QueryClientProvider client={queryClient}>
+        <SettingsProvider>
+          <EditorFullWidthEffect />
+          <EditorTextSizeEffect />
+          <ThemeProvider>
+            <PlatformRoot />
+          </ThemeProvider>
+        </SettingsProvider>
+      </QueryClientProvider>
+    </AppServicesProvider>
   </StrictMode>,
 )

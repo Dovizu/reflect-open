@@ -1,3 +1,4 @@
+import type { LoggerService } from '../app/logger-service.ts'
 import { createTestLoggerService } from './logger.ts'
 import { ReflectError } from '../errors.ts'
 import { setBridge } from '../ipc/bridge.ts'
@@ -12,8 +13,6 @@ type CommandHandler = (args: Record<string, unknown>) => unknown
 type BinaryCommandHandler = (body: Uint8Array, headers: Record<string, string>) => unknown
 
 export interface TestIpcBridgeService extends IpcBridgeService {
-  /** The fake transport the service wraps. */
-  readonly transport: IpcBridge
   onCommand(command: string, handler: (args: Record<string, unknown>) => unknown): void
   onBinaryCommand(
     command: string,
@@ -30,7 +29,7 @@ export interface TestIpcBridgeServiceOptions {
   binary?: boolean | undefined
   /** Give the transport plugin events. Defaults to `true`. */
   pluginEvents?: boolean | undefined
-  logger?: { warn(message: string, cause?: unknown): void } | undefined
+  logger?: LoggerService | undefined
 }
 
 /**
