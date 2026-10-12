@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 import { call } from '../ipc/invoke.ts'
+import { createLogger } from '../log.ts'
+
+const log = createLogger('embeddings')
 
 /** Typed bindings for the Rust embedding runtime + vector writes (Plan 09). */
 
@@ -74,7 +77,7 @@ export function subscribeEmbedStatus(handler: (status: EmbedStatus) => void): Pr
     if (parsed.success) {
       handler(parsed.data)
     } else {
-      console.error('invalid embed:status payload:', parsed.error)
+      log.error('invalid embed:status payload', { error: parsed.error.message })
     }
   })
 }

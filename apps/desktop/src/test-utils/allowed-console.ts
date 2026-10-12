@@ -7,7 +7,6 @@ export const ALLOWED_CONSOLE_PATTERNS: RegExp[] = [
   /^window label unavailable; assuming the main window:/,
   /^index: stored projection version /,
   /^failed to save note:/,
-  /^stored-facts prefetch failed; applying the batch without skips:/,
   /^reading a native-stopped recording failed:/,
   /^note file move failed:/,
   /^Index rebuild skipped /,

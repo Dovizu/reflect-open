@@ -2,9 +2,12 @@ import { readNoteLocal } from '../graph/commands.ts'
 import { isTemplatePath } from '../graph/paths.ts'
 import { gatherAssetDescriptionBodies } from '../indexing/asset-description-text.ts'
 import { db } from '../indexing/db.ts'
+import { createLogger, errorField } from '../log.ts'
 import { parseNote } from '../markdown/index.ts'
 import { chunkAssetDescriptions, chunkNote } from './chunk.ts'
 import { embedApply, embedRemove, embedTexts, type EmbedChunkPayload } from './commands.ts'
+
+const log = createLogger('embeddings')
 
 /**
  * The incremental embedding pass (Plan 09): chunk a note, diff chunk hashes
@@ -121,7 +124,9 @@ export async function embedNote(options: EmbedNoteOptions): Promise<number> {
 
 /**
  * Backfill every indexed note (initial enable, repair). Serialized; the
- * hash-skip makes re-runs cheap. Reports per-note progress.
+ * hash-skip makes re-runs cheap. Reports per-note progress, and logs one
+ * summary line at the end (`chunksEmbedded` is the number the hash-skip did
+ * not catch: a full graph here on a warm launch means the skip is broken).
  */
 export async function backfillEmbeddings(options: {
   generation: number
@@ -137,18 +142,42 @@ export async function backfillEmbeddings(options: {
     .select('path')
     .orderBy('path')
     .execute()
+  const startedAt = Date.now()
   let done = 0
+  let chunksEmbedded = 0
+  let notesEmbedded = 0
+  let failed = 0
+  const finish = (outcome: 'completed' | 'aborted'): 'completed' | 'aborted' => {
+    log.info('backfill finished', {
+      outcome,
+      model: modelId,
+      generation,
+      notes: rows.length,
+      done,
+      notesEmbedded,
+      chunksEmbedded,
+      failed,
+      elapsedMs: Date.now() - startedAt,
+    })
+    return outcome
+  }
   for (const row of rows) {
     if (isStale?.()) {
-      return 'aborted'
+      return finish('aborted')
     }
     try {
-      await embedNote({ path: row.path, generation, modelId })
+      const embedded = await embedNote({ path: row.path, generation, modelId })
+      if (embedded > 0) {
+        chunksEmbedded += embedded
+        notesEmbedded += 1
+        log.debug('note re-embedded', { path: row.path, chunks: embedded })
+      }
     } catch (cause) {
-      console.error(`embedding backfill failed for ${row.path}:`, cause)
+      failed += 1
+      log.error('backfill failed for a note', { path: row.path, ...errorField(cause) })
     }
     done += 1
     onProgress?.(done, rows.length)
   }
-  return 'completed'
+  return finish('completed')
 }

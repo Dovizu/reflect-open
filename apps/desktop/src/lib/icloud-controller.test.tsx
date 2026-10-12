@@ -80,6 +80,8 @@ beforeEach(() => {
         }
         case 'note_read':
           return '# merged\n'
+        case 'db_query':
+          return [] // nothing indexed yet: the reindex applies every change
         default:
           return null
       }

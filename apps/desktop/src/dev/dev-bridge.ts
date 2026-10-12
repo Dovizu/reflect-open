@@ -326,6 +326,9 @@ export function createDevBridge(backend: DevBridgeBackend): IpcBridge {
         return null
       }
 
+      case 'plugin:log|log':
+        return null // the console already has the line; there is no file here
+
       default:
         console.error(`[dev-bridge] unimplemented command "${command}"`, args)
         throw new ReflectError('unknown', `dev bridge: unimplemented command "${command}"`)
