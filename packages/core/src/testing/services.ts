@@ -67,6 +67,7 @@ import { createTestFileChangeService, type TestFileChangeService } from './file-
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestNoteSessionService,
+  createTestNoteDocumentService,
   createTestOpenDocumentsService,
   type TestNoteSessionService,
 } from './documents.ts'
@@ -230,6 +231,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const operations = createTestOperationsService(clock)
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
+  const openDocuments = createTestOpenDocumentsService()
   const id = createTestIdService()
   const secretStore = createTestSecretStoreService()
   const settings = createTestSettingsService(
@@ -344,7 +346,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
     }),
-    openDocuments: createTestOpenDocumentsService(),
+    openDocuments,
+    noteDocuments: createTestNoteDocumentService({
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      noteFile: overrides?.noteFile ?? noteFile,
+    }),
     ...indexReads,
     noteLinkResolver,
     noteCreation: createTestNoteCreationService({
