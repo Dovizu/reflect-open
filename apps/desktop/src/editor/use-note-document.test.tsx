@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
-import { setBridge, setDefaultClock, upsertFrontmatter } from '@reflect/core'
-import { createTestClockService, type TestClockService } from '@reflect/core/testing'
+import { setBridge, setDefaultClock, setDefaultLogger, upsertFrontmatter } from '@reflect/core'
+import {
+  createTestClockService,
+  createTestLoggerService,
+  type TestClockService,
+} from '@reflect/core/testing'
 import { onNoteMoved } from '@/lib/note-moves.ts'
 import { flushOpenDocuments } from './open-documents.ts'
 import type { NoteEditorHandle } from './note-editor.tsx'
@@ -61,6 +65,7 @@ function fakeEditor(): NoteEditorHandle & { applied: string[] } {
 
 afterEach(() => {
   setDefaultClock(null)
+  setDefaultLogger(null)
 })
 
 beforeEach(() => {
@@ -332,37 +337,39 @@ describe('useNoteDocument', () => {
   })
 
   it('a failed rewrite still records the alias (the resolve safety net)', async () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const files: Record<string, string> = {
-        'notes/a.md': managedNote('# Old Title\n'),
-        'notes/src.md': 'see [[Old Title]]\n',
-      }
-      installGraphFake({
-        files,
-        linkSources: () => {
-          throw new Error('index unavailable') // the rewrite cannot run
-        },
-      })
-
-      const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
-      await hook.act(() => clock.advance(0))
-      await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
-      await hook.act(() => clock.advance(1000))
-      await hook.act(() => {
-        window.dispatchEvent(new Event('blur'))
-      })
-      await hook.act(() => runAllTimers())
-
-      // The rewrite failed, the baseline has advanced — the alias is what
-      // keeps [[Old Title]] resolving here, so it must land regardless.
-      expect(files['notes/src.md']).toBe('see [[Old Title]]\n')
-      expect(files['notes/new-title.md']).toContain('aliases:')
-      expect(files['notes/new-title.md']).toContain('Old Title')
-      await hook.unmount()
-    } finally {
-      errorSpy.mockRestore()
+    const logger = createTestLoggerService()
+    setDefaultLogger(logger)
+    const files: Record<string, string> = {
+      'notes/a.md': managedNote('# Old Title\n'),
+      'notes/src.md': 'see [[Old Title]]\n',
     }
+    installGraphFake({
+      files,
+      linkSources: () => {
+        throw new Error('index unavailable') // the rewrite cannot run
+      },
+    })
+
+    const hook = await renderHook(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    await hook.act(() => clock.advance(0))
+    await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
+    await hook.act(() => clock.advance(1000))
+    await hook.act(() => {
+      window.dispatchEvent(new Event('blur'))
+    })
+    await hook.act(() => runAllTimers())
+
+    // The rewrite failed, the baseline has advanced — the alias is what
+    // keeps [[Old Title]] resolving here, so it must land regardless.
+    expect(files['notes/src.md']).toBe('see [[Old Title]]\n')
+    expect(files['notes/new-title.md']).toContain('aliases:')
+    expect(files['notes/new-title.md']).toContain('Old Title')
+    // The same broken link query also fails the path-link pass after the move.
+    expect(logger.getErrors().map((entry) => entry.message)).toEqual([
+      'rename link rewrite failed:',
+      'path link rewrite failed:',
+    ])
+    await hook.unmount()
   })
 
   it('a lazy note\u{2019}s first heading never fires a rename', async () => {
