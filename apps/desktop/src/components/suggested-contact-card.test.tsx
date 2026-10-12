@@ -1,25 +1,15 @@
-import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultContacts, setDefaultSettings } from '@reflect/core'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  createTestAppServices,
   createTestContactsService,
-  createTestIpcBridgeService,
-  createTestSettingsService,
-  installTestBridge,
+  createTestNoteFileService,
   type TestContactsService,
+  type TestNoteFileService,
 } from '@reflect/core/testing'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
-import { installTestNoteFile } from '@/test-utils/note-file.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { SuggestedContactCard } from './suggested-contact-card.tsx'
-
-// The card reads the write generation from the graph provider, which is
-// per-app plumbing the component test doesn't need.
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', generation: 3 } }),
-}))
 
 const PATH = 'notes/Ada Lovelace.md'
 
@@ -31,36 +21,23 @@ const ADA = {
   phones: ['+1 555 0100'],
 }
 
-const noteFile = installTestNoteFile()
+let noteFile: TestNoteFileService
 let contacts: TestContactsService
-let removeBridge: () => void
 
 /** Render the card with the contacts integration switched on or off. */
 async function renderCard(contactsEnabled = true): Promise<void> {
-  const settings = createTestSettingsService({ contactsEnabled })
-  setDefaultSettings(settings)
-  await settings.whenLoaded()
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  await render(
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <SuggestedContactCard path={PATH} />
-      </SettingsProvider>
-    </QueryClientProvider>,
-  )
+  await renderInApp(<SuggestedContactCard path={PATH} />, {
+    app: createTestAppServices({ noteFile, contacts }),
+    // The card writes with the generation of the open graph.
+    graph: { root: '/g', generation: 3 },
+    settings: { contactsEnabled },
+  })
 }
 
 beforeEach(() => {
-  noteFile.service().set(PATH, '# Ada Lovelace\n')
+  noteFile = createTestNoteFileService()
+  noteFile.set(PATH, '# Ada Lovelace\n')
   contacts = createTestContactsService({ contacts: [ADA] })
-  setDefaultContacts(contacts)
-  removeBridge = installTestBridge(createTestIpcBridgeService())
-})
-
-afterEach(() => {
-  removeBridge()
-  setDefaultContacts(null)
-  setDefaultSettings(null)
 })
 
 describe('SuggestedContactCard', () => {
@@ -75,8 +52,8 @@ describe('SuggestedContactCard', () => {
     await renderCard()
     await userEvent.click(page.getByRole('button', { name: 'Add' }))
 
-    await vi.waitFor(() => expect(noteFile.service().writes()).toHaveLength(1))
-    expect(noteFile.service().getWrites(PATH)).toEqual([
+    await vi.waitFor(() => expect(noteFile.writes()).toHaveLength(1))
+    expect(noteFile.getWrites(PATH)).toEqual([
       '# Ada Lovelace\n\n- Type: #person\n- Email: ada@example.com\n- Phone: +1 555 0100\n',
     ])
     await expectLocatorToHaveCount(page.getByText('Ada Lovelace'), 0)
@@ -86,22 +63,22 @@ describe('SuggestedContactCard', () => {
     await renderCard()
     await userEvent.click(page.getByRole('button', { name: 'Ignore' }))
 
-    await vi.waitFor(() => expect(noteFile.service().writes()).toHaveLength(1))
-    expect(noteFile.service().getWrites(PATH)).toEqual([
+    await vi.waitFor(() => expect(noteFile.writes()).toHaveLength(1))
+    expect(noteFile.getWrites(PATH)).toEqual([
       '---\nignoredContacts:\n  - Ada Lovelace\n---\n\n# Ada Lovelace\n',
     ])
     await expectLocatorToHaveCount(page.getByText('Ada Lovelace'), 0)
   })
 
   it('renders nothing when the body already carries contact details — no lookup', async () => {
-    noteFile.service().set(PATH, '# Ada Lovelace\n\n- Email: ada@example.com\n')
+    noteFile.set(PATH, '# Ada Lovelace\n\n- Email: ada@example.com\n')
     await renderCard()
     await vi.waitFor(() => expect(contacts.lookups()).toEqual([]))
     expect(page.getByText('Ada Lovelace').query()).toBeNull()
   })
 
   it('renders nothing for a contact dismissed on this note', async () => {
-    noteFile.service().set(PATH, '---\nignoredContacts:\n  - ada lovelace\n---\n# Ada Lovelace\n')
+    noteFile.set(PATH, '---\nignoredContacts:\n  - ada lovelace\n---\n# Ada Lovelace\n')
     await renderCard()
     // The dismissal check needs the match's name, so the lookup does run.
     await vi.waitFor(() =>

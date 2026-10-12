@@ -7,7 +7,7 @@ import { useSuggestedContact } from '@/hooks/use-suggested-contact.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useContactSuggestionService } from '@/services/use-contacts-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface SuggestedContactCardProps {
   /** Graph-relative path of the note the card sits above. */
@@ -30,7 +30,7 @@ export function SuggestedContactCard({
 }: SuggestedContactCardProps): ReactElement | null {
   const { graph } = useGraph()
   const queryClient = useQueryClient()
-  const contactSuggestions = useContactSuggestionService()
+  const { contactSuggestions } = useAppServices()
   const contact = useSuggestedContact(path)
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -1,22 +1,26 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, type ReactElement } from 'react'
-import { setBridge, upsertFrontmatter } from '@reflect/core'
+import { upsertFrontmatter } from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestIdService,
+  createTestNoteFileService,
+  createTestPlatformService,
+  type TestNoteFileService,
+  type TestPlatformOptions,
+} from '@reflect/core/testing'
 import { PaletteProvider, usePalette } from '@/components/command-palette/palette-provider.tsx'
-import { flushOpenDocuments } from '@/editor/open-documents.ts'
 import type { NoteEditorHandle } from '@/editor/note-editor.tsx'
-import { RouterProvider } from '@/routing/router.tsx'
 import type { Route } from '@/routing/route.ts'
-import { setPlatformSurface } from '@/lib/platform-surface.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import '@/test-utils/locator.ts'
 import { RouteContent } from './route-content.tsx'
 
 /**
  * The route → view seam (Plan 06): non-daily notes must be just as editable as
  * daily ones. These tests drive the real router → RouteContent → NotePane →
- * save-pipeline stack over a fake IPC bridge; only the ProseMirror view is
+ * save-pipeline stack over the test services; only the ProseMirror view is
  * stubbed because editor-DOM behavior lives in the dedicated editor tests.
  */
 
@@ -77,38 +81,6 @@ vi.mock('@/editor/note-editor.tsx', async () => {
   }
 })
 
-const indexFns = vi.hoisted(() => ({
-  getBacklinksWithContext: vi.fn(async () => ({
-    contexts: [],
-    nextCursor: null,
-    indexedLinkCount: 0,
-  })),
-}))
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-  getBacklinksWithContext: indexFns.getBacklinksWithContext,
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({
-    graph: { root: '/g', name: 'g', generation: 1 },
-    indexing: false,
-  }),
-}))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({
-    settings: {
-      editorMarkdownSyntax: 'hide',
-      allNotesFilterTags: ['book', 'link', 'person'],
-      aiProviders: [],
-      defaultAiProviderId: null,
-      chatSystemPrompt: '',
-      aiPrompts: [],
-    },
-    updateSettings: async () => {},
-    updateSettingsWith: () => {},
-  }),
-}))
 vi.mock('@/components/daily-stream.tsx', () => ({
   DailyStream: () => <div data-testid="daily-stream" />,
 }))
@@ -121,48 +93,17 @@ vi.mock('@/components/chat/chat-screen.tsx', () => ({
   ChatScreen: () => <div data-testid="chat-screen" />,
 }))
 
-/** The fake graph: files behind the IPC bridge + a write log. */
+/** The note files a test seeds before it renders. */
 let files: Record<string, string>
-let writes: Array<{ path: string; contents: string }>
-const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
+/** The graph of the last render: the seeded files plus every write. */
+let noteFile: TestNoteFileService
 const NEW_NOTE_PATH = 'notes/01arz3ndektsv4rrffq69g5fav.md'
-
-setBridge({
-  invoke: mockInvoke,
-  listen: async () => () => {},
-})
 
 beforeEach(() => {
   files = {}
-  writes = []
   editorProbe.onChange = null
   editorProbe.focusCalls.length = 0
   editorProbe.hoverRenderer = null
-  mockInvoke.mockReset()
-  mockInvoke.mockImplementation(async (command, args) => {
-    if (command === 'note_read') {
-      const content = files[(args as { path: string }).path]
-      if (content === undefined) {
-        throw { kind: 'notFound', message: 'missing' } // AppError shape
-      }
-      return content
-    }
-    if (command === 'note_write') {
-      const { path, contents } = args as { path: string; contents: string }
-      files[path] = contents
-      writes.push({ path, contents })
-      return null
-    }
-    if (command === 'db_query') {
-      return []
-    }
-    return null
-  })
-})
-
-afterEach(async () => {
-  await cleanup()
-  setPlatformSurface({ touchEditor: false, mobileApp: false })
 })
 
 function PaletteProbe(): ReactElement {
@@ -170,17 +111,25 @@ function PaletteProbe(): ReactElement {
   return <output data-testid="palette">{JSON.stringify({ open, query })}</output>
 }
 
-function renderRoute(route: Route) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <RouterProvider initialRoute={route}>
-        <PaletteProvider>
-          <RouteContent />
-          <PaletteProbe />
-        </PaletteProvider>
-      </RouterProvider>
-    </QueryClientProvider>,
+async function renderRoute(route: Route, platform?: TestPlatformOptions) {
+  noteFile = createTestNoteFileService({ files })
+  const app = createTestAppServices({
+    noteFile,
+    // A seeded id service mints note ids that read as ULIDs, not as numbers.
+    id: createTestIdService({ seed: 'route-content' }),
+    platform: createTestPlatformService(platform),
+  })
+  return await renderInApp(
+    <PaletteProvider>
+      <RouteContent />
+      <PaletteProbe />
+    </PaletteProvider>,
+    {
+      app,
+      graph: { root: '/g', name: 'g', generation: 1 },
+      settings: { editorMarkdownSyntax: 'hide', allNotesFilterTags: ['book', 'link', 'person'] },
+      route,
+    },
   )
 }
 
@@ -218,21 +167,23 @@ describe('RouteContent', () => {
     await expect.element(page.getByLabelText(`Editing ${path}`)).toBeVisible()
 
     act(() => editorProbe.onChange?.('# New Title\n'))
-    await act(() => flushOpenDocuments())
+    await act(() => view.app.openDocuments.flushAll())
 
-    expect(files[path]).toBe(
+    expect(noteFile.files().get(path)).toBe(
       upsertFrontmatter('# New Title\n', {
         aliases: ['Old Title'],
       }),
     )
-    expect(files['notes/new-title.md']).toBeUndefined()
+    expect(noteFile.files().get('notes/new-title.md')).toBeUndefined()
     await view.unmount()
   })
 
   it('omits the wiki-link hover renderer on a touch editor surface', async () => {
-    setPlatformSurface({ touchEditor: true })
     files['notes/exist.md'] = '# Hello\n'
-    const view = await renderRoute({ kind: 'note', path: 'notes/exist.md' })
+    const view = await renderRoute(
+      { kind: 'note', path: 'notes/exist.md' },
+      { surface: { touchEditor: true } },
+    )
 
     await expect.element(page.getByLabelText('Editing notes/exist.md')).toBeVisible()
     expect(editorProbe.hoverRenderer).toBe(false)
@@ -249,9 +200,9 @@ describe('RouteContent', () => {
     await vi.waitFor(() => expect(editorProbe.focusCalls).toContain('focus'))
 
     // Opening never litters the graph — even a forced flush writes nothing.
-    await act(() => flushOpenDocuments())
-    expect(writes).toEqual([])
-    expect(files[NEW_NOTE_PATH]).toBeUndefined()
+    await act(() => view.app.openDocuments.flushAll())
+    expect(noteFile.writes()).toEqual([])
+    expect(noteFile.files().get(NEW_NOTE_PATH)).toBeUndefined()
     await view.unmount()
   })
 
@@ -260,11 +211,13 @@ describe('RouteContent', () => {
     await expect.element(page.getByLabelText(`Editing ${NEW_NOTE_PATH}`)).toBeVisible()
 
     act(() => editorProbe.onChange?.('# Manifesto\n'))
-    await act(() => flushOpenDocuments())
+    await act(() => view.app.openDocuments.flushAll())
 
     // The seed's header rides along: the file is born with its identity
     // (`id:` frontmatter, Plan 17) plus exactly what the user typed.
-    expect(files[NEW_NOTE_PATH]).toMatch(/^---\nid: [0-9a-z]{26}\n---\n\n# Manifesto\n$/)
+    expect(noteFile.files().get(NEW_NOTE_PATH)).toMatch(
+      /^---\nid: [0-9a-z]{26}\n---\n\n# Manifesto\n$/,
+    )
     await view.unmount()
   })
 
@@ -272,12 +225,14 @@ describe('RouteContent', () => {
     const view = await renderRoute({ kind: 'note', path: 'Projects/missing.md' })
 
     await expect
-      .element(page.getByText(/Couldn’t open Projects\/missing\.md: missing/))
+      .element(
+        page.getByText(/Couldn’t open Projects\/missing\.md: Projects\/missing\.md not found/),
+      )
       .toBeVisible()
     await expect.element(page.getByTestId('fake-editor')).not.toBeInTheDocument()
-    await act(() => flushOpenDocuments())
-    expect(writes).toEqual([])
-    expect(files['Projects/missing.md']).toBeUndefined()
+    await act(() => view.app.openDocuments.flushAll())
+    expect(noteFile.writes()).toEqual([])
+    expect(noteFile.files().get('Projects/missing.md')).toBeUndefined()
     await view.unmount()
   })
 

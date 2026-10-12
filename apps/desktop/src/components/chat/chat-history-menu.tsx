@@ -9,7 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { createChatConversationsQueryOptions } from '@/lib/query-options.ts'
 import { useChatSession } from '@/providers/chat-provider.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
@@ -24,8 +23,7 @@ export function ChatHistoryMenu(): ReactElement | null {
   const { graph, indexGeneration } = useGraph()
   const { activeConversationId, openConversation, deleteConversation } = useChatSession()
 
-  const bridgeReady = useBridgeReady()
-  const enabled = bridgeReady && indexGeneration !== null
+  const enabled = indexGeneration !== null
   const { data: conversations } = useQuery({
     // The graph root is part of the key: conversations belong to one graph,
     // and a graph switch must never serve the previous graph's cached list.
