@@ -23,20 +23,17 @@ const SERVICE_KEYS = [
   'hash',
   'platform',
   'storage',
-  'http',
   'dialog',
   'clipboard',
   'opener',
   'path',
   'window',
   'lifecycle',
-  'secretStore',
   'appInfo',
   'calendar',
   'contacts',
   'calendarEvents',
   'contactSuggestions',
-  'personNotes',
   'meetings',
   'agentSkill',
   'mobileOnboarding',
@@ -49,22 +46,15 @@ const SERVICE_KEYS = [
   'settings',
   'theme',
   'persistenceFlush',
-  'database',
   'fileChanges',
-  'indexStore',
-  'embeddingIndex',
   'embeddingRuntime',
   'chatHistory',
   'update',
   'navigation',
   'deepLink',
   'linkNavigation',
-  'gitRepository',
   'githubAuth',
-  'githubRepos',
-  'gists',
   'gistPublish',
-  'syncEngines',
   'backups',
   'icloudNative',
   'icloudSyncs',
@@ -72,16 +62,11 @@ const SERVICE_KEYS = [
   'icloudMigration',
   'conflictResolution',
   'syncStatus',
-  'captureInbox',
-  'webFetch',
-  'xArchive',
   'embedMedia',
   'linkPreview',
-  'audioRecorder',
   'audioMemo',
   'classicAccess',
   'noteFile',
-  'assetStore',
   'attachments',
   'noteSessions',
   'openDocuments',
@@ -94,23 +79,14 @@ const SERVICE_KEYS = [
   'dailyNotes',
   'templates',
   'indexQuery',
-  'wikiResolver',
   'backlinks',
   'search',
-  'suggestions',
   'noteList',
-  'graphStats',
   'notePath',
   'notePreview',
-  'noteLinkResolver',
   'noteCreation',
-  'privacy',
-  'retrieval',
-  'aiCredentials',
-  'aiKeyValidation',
   'keyboard',
   'share',
-  'languageModel',
   'aiPrompts',
   'keymap',
   'commands',
@@ -118,20 +94,12 @@ const SERVICE_KEYS = [
   'aiProviderConfig',
   'selectionTransform',
   'semanticSearch',
-  'pageDescriber',
-  'assetDescriber',
-  'transcription',
-  'transcriptEnrichment',
-  'noteTools',
-  'chatEngine',
-  'chatGraphContext',
   'chatSessions',
-  'backlinkTarget',
   'capture',
-  'assetPrivacy',
   'assetDescription',
   'wikiLinkSuggestions',
   'paletteSearch',
+  'mobile',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
@@ -172,7 +140,6 @@ describe('createAppServices', () => {
     const { adapters, services } = setup()
     expect(services.logger).toBe(adapters.logger)
     expect(services.clock).toBe(adapters.clock)
-    expect(services.http).toBe(adapters.http)
     expect(services.dialog).toBe(adapters.dialog)
     expect(services.clipboard).toBe(adapters.clipboard)
     await expect(services.ipc.call('app_version', {}, z.string())).resolves.toBe('1.2.3')
@@ -197,17 +164,9 @@ describe('createAppServices', () => {
     expect(typeof services.logger.warn).toBe('function')
   })
 
-  it('composes the plugin services and the native recorder on mobile only', () => {
+  it('composes the mobile services on mobile only', () => {
     const desktop = createAppServices({ ...requiredAdapters(), logger: createTestLoggerService() })
-    expect(desktop.haptics).toBeUndefined()
-    expect(desktop.iap).toBeUndefined()
-    expect(desktop.appStore).toBeUndefined()
-    expect(desktop.webAuth).toBeUndefined()
-    expect(desktop.subscription).toBeUndefined()
-    expect(desktop.appStoreEnvironment).toBeUndefined()
-    expect(desktop.paywall).toBeUndefined()
-    expect(desktop.nativeAction).toBeUndefined()
-    expect(desktop.mobileAudioMemo).toBeUndefined()
+    expect(desktop.mobile).toBeNull()
     expect(desktop.audioMemo).toBeDefined()
     expect(desktop.classicAccess).toBeDefined()
 
@@ -216,17 +175,11 @@ describe('createAppServices', () => {
       logger: createTestLoggerService(),
       platform: createTestPlatformService({ appPlatform: 'ios' }),
     })
-    expect(mobile.haptics).toBeDefined()
-    expect(mobile.iap).toBeDefined()
-    expect(mobile.appStore).toBeDefined()
-    expect(mobile.webAuth).toBeDefined()
-    expect(mobile.subscription).toBeDefined()
-    expect(mobile.appStoreEnvironment).toBeDefined()
-    expect(mobile.paywall).toBeDefined()
-    expect(mobile.nativeAction).toBeDefined()
-    expect(mobile.mobileAudioMemo).toBeDefined()
-    // Only the native recorder is supported without `MediaRecorder`.
-    expect(mobile.audioRecorder.isSupported()).toBe(true)
+    expect(mobile.mobile?.haptics).toBeDefined()
+    expect(mobile.mobile?.subscription).toBeDefined()
+    expect(mobile.mobile?.appStoreEnvironment).toBeDefined()
+    expect(mobile.mobile?.paywall).toBeDefined()
+    expect(mobile.mobile?.mobileAudioMemo).toBeDefined()
   })
 
   it('echoes own writes onto the file-change stream on mobile only', () => {
@@ -248,9 +201,9 @@ describe('createAppServices', () => {
     }
   })
 
-  it('reports note and asset writes to the composed file-change service', async () => {
+  it('reports note writes to the composed file-change service', async () => {
     const ipc = createTestIpcBridgeService({
-      commands: { note_write: () => null, asset_write: () => null },
+      commands: { note_write: () => null },
     })
     const services = createAppServices({
       ...requiredAdapters(),
@@ -263,8 +216,7 @@ describe('createAppServices', () => {
       written.push(...paths)
     })
     await expect(services.noteFile.write('notes/a.md', 'a', 1)).resolves.toBe(5)
-    await services.assetStore.writeBase64('assets/a.png', 'AA==', 1)
-    expect(written).toEqual(['notes/a.md', 'assets/a.png'])
+    expect(written).toEqual(['notes/a.md'])
   })
 
   it('builds the index reads over the composed database', async () => {

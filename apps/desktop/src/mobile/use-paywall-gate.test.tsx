@@ -33,12 +33,12 @@ function iosServices() {
 describe('usePaywallGate', () => {
   it('follows the paywall service gate', async () => {
     const services = iosServices()
-    services.paywall.setGate('show')
+    services.mobile.paywall.setGate('show')
     const { result, act } = await renderHookInApp(() => usePaywallGate(), { app: services })
     expect(result.current).toBe('show')
 
     await act(() => {
-      services.paywall.setGate('hide')
+      services.mobile.paywall.setGate('hide')
     })
     expect(result.current).toBe('hide')
   })
@@ -48,9 +48,9 @@ describe('usePaywallGate', () => {
     await renderHookInApp(() => usePaywallGate(), { app: services })
 
     await vi.waitFor(() => {
-      expect(services.subscription.calls()).toContain('activeSubscription')
+      expect(services.mobile.subscription.calls()).toContain('activeSubscription')
       expect(services.classicAccess.calls()).toContain('read')
-      expect(services.appStoreEnvironment.calls()).toContain('environment')
+      expect(services.mobile.appStoreEnvironment.calls()).toContain('environment')
     })
   })
 
@@ -61,7 +61,7 @@ describe('usePaywallGate', () => {
     focusManager.setFocused(false)
     focusManager.setFocused(true)
 
-    expect(services.subscription.calls()).toContain('refetch')
+    expect(services.mobile.subscription.calls()).toContain('refetch')
   })
 
   it('rechecks a stored Reflect Classic token on mount and on window focus', async () => {
@@ -125,10 +125,8 @@ describe('usePaywallGate', () => {
           ...base,
           iap,
           appStore,
-          subscription,
           classicAccess,
-          appStoreEnvironment,
-          paywall,
+          mobile: { ...base.mobile, subscription, appStoreEnvironment, paywall },
         },
       }
     }
@@ -139,7 +137,9 @@ describe('usePaywallGate', () => {
         () => ({ gate: usePaywallGate(), requested: usePaywallRequested() }),
         { app: services },
       )
-      await vi.waitFor(() => expect(services.appStoreEnvironment.getState().value).toBe('Sandbox'))
+      await vi.waitFor(() =>
+        expect(services.mobile.appStoreEnvironment.getState().value).toBe('Sandbox'),
+      )
       expect(result.current.gate).toBe('hide')
 
       await act(() => {
@@ -147,7 +147,7 @@ describe('usePaywallGate', () => {
       })
       await vi.waitFor(() => expect(result.current.gate).toBe('show'))
 
-      await act(() => services.paywall.purchase(IAP_PRODUCT_IDS.monthly))
+      await act(() => services.mobile.paywall.purchase(IAP_PRODUCT_IDS.monthly))
       await vi.waitFor(() => expect(result.current.gate).toBe('hide'))
       expect(iap.purchases()).toEqual([IAP_PRODUCT_IDS.monthly])
     })

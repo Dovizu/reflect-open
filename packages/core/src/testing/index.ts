@@ -55,8 +55,11 @@ export { createTestStorageService, type TestStorageService } from './storage.ts'
 export {
   createTestAppServices,
   createTestGraphServices,
+  type InternalServices,
+  type TestAppServiceOverrides,
   type TestAppServices,
   type TestGraphServices,
+  type TestMobileServices,
 } from './services.ts'
 export {
   createTestCalendarEventsService,

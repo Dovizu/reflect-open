@@ -141,7 +141,7 @@ export function createNoteFileService(deps: {
   shared) — zod at the boundary, plain types inside.
 - A mutating method takes `generation: number` and passes it to the command
   (`write(path, contents, generation)`).
-- Export new public types (`NoteStat`) from a barrel in
+- Export the new types that the app imports from a barrel in
   `packages/core/src/exports/`; the apps only import from the package root.
 - **Update the service's test double.** `createTestNoteFileService`
   (`packages/core/src/testing/graph.ts`) is an in-memory implementation of the
@@ -210,7 +210,7 @@ the desktop render helpers.
 - [ ] TS: zod schema + typed method through `ipc.call()` on the service that
       owns the domain; `generation` parameter if mutating
 - [ ] TS: the service's test double in `packages/core/src/testing/` updated;
-      new public types exported from `packages/core/src/exports/`
+      new types the app imports exported from `packages/core/src/exports/`
 - [ ] TS: a new service only if no existing one owns the capability
       ([services.md](services.md))
 - [ ] TS: behavior covered over `createTestIpcBridgeService()` where it matters
