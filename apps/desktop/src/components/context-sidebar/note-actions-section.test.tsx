@@ -1,4 +1,9 @@
-import { setDefaultPlatform, setDefaultStorage, upsertFrontmatter, type PinnedNote } from '@reflect/core'
+import {
+  setDefaultPlatform,
+  setDefaultStorage,
+  upsertFrontmatter,
+  type PinnedNote,
+} from '@reflect/core'
 import { createTestPlatformService, createTestStorageService } from '@reflect/core/testing'
 import { frontmatterPatchToYaml, type FrontmatterPatch } from '@/editor/note-session.ts'
 import { render } from 'vitest-browser-react'
