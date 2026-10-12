@@ -112,7 +112,7 @@ export interface IpcBridgeService {
 
 interface SharedListener<Payload> {
   ready: Promise<void>
-  handlers: Set<(payload: Payload) => void>
+  fanOut: FanOut<Payload>
 }
 
 export function createIpcBridgeService(
@@ -153,7 +153,7 @@ export function createIpcBridgeService(
     plugin: string,
     event: string,
     schema: ZodType<Payload, unknown>,
-    handlers: Set<(payload: Payload) => void>,
+    emit: (payload: Payload) => void,
   ): Promise<void> {
     try {
       if (transport.listenPlugin === undefined) {
@@ -165,9 +165,7 @@ export function createIpcBridgeService(
           logger.warn(`dropping a malformed "${plugin}:${event}" payload`, parsed.error)
           return
         }
-        for (const handler of handlers) {
-          handler(parsed.data)
-        }
+        emit(parsed.data)
       })
     } catch (error) {
       pluginListeners.delete(key)
@@ -223,33 +221,73 @@ export function createIpcBridgeService(
       const key = `${plugin}:${event}`
       let entry = pluginListeners.get(key) as SharedListener<Payload> | undefined
       if (entry === undefined) {
-        const handlers = new Set<(payload: Payload) => void>()
+        const fanOut = createFanOut<Payload>()
         entry = {
-          handlers,
-          ready: registerSharedListener(key, plugin, event, schema, handlers),
+          fanOut,
+          ready: registerSharedListener(key, plugin, event, schema, fanOut.emit),
         }
         // A missing `listenPlugin` rejects before this line, so that
         // rejection stays cached: the transport will never gain plugin events.
         pluginListeners.set(key, entry as SharedListener<never>)
       }
-      // Wrapped for identity: two subscriptions sharing one handler function
-      // must detach independently.
-      const deliver = (payload: Payload): void => {
-        handler(payload)
-      }
-      const { handlers } = entry
-      handlers.add(deliver)
       return {
         ready: entry.ready,
-        unlisten: () => {
-          handlers.delete(deliver)
-        },
+        unlisten: entry.fanOut.subscribe(handler),
       }
     },
 
     transport,
     hasBinaryTransport: transport.invokeBinary !== undefined,
     hasPluginEvents: transport.listenPlugin !== undefined,
+  }
+}
+
+/** A set of handlers fed by one shared source. */
+export interface FanOut<T> {
+  /**
+   * Add a handler and return its detach. The first handler starts the source;
+   * the last detach stops it.
+   */
+  subscribe(handler: (value: T) => void): Unlisten
+  /** Deliver `value` to every current handler. */
+  emit(this: void, value: T): void
+}
+
+/**
+ * Create a {@link FanOut}. `start` registers the shared source, feeding it
+ * `emit`, and returns its teardown; without it, values arrive only through
+ * `emit`.
+ */
+export function createFanOut<T>(start?: (emit: (value: T) => void) => Unlisten): FanOut<T> {
+  const handlers = new Set<(value: T) => void>()
+  let stop: Unlisten | null = null
+
+  function emit(value: T): void {
+    for (const handler of handlers) {
+      handler(value)
+    }
+  }
+
+  return {
+    subscribe(handler) {
+      // Wrapped for identity, so one function added twice detaches independently.
+      const deliver = (value: T): void => {
+        handler(value)
+      }
+      handlers.add(deliver)
+      if (stop === null && start !== undefined) {
+        stop = start(emit)
+      }
+      return () => {
+        if (!handlers.delete(deliver) || handlers.size > 0 || stop === null) {
+          return
+        }
+        const teardown = stop
+        stop = null
+        teardown()
+      }
+    },
+    emit,
   }
 }
 
