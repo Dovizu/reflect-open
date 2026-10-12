@@ -34,8 +34,16 @@ import {
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
+import {
+  createNoteCreationService,
+  type NoteCreationService,
+} from '../graph/note-creation-service.ts'
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import {
+  createNoteLinkResolverService,
+  type NoteLinkResolverService,
+} from '../graph/note-link-resolver-service.ts'
 import {
   createEmbeddingRuntimeService,
   type EmbeddingRuntimeService,
@@ -71,6 +79,7 @@ import {
   createSecretStoreService,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
+import { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
 import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
 import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
@@ -181,6 +190,9 @@ export interface AppServices {
   readonly noteList: NoteListService
   readonly graphStats: GraphStatsService
   readonly notePath: NotePathService
+  readonly noteLinkResolver: NoteLinkResolverService
+  readonly noteCreation: NoteCreationService
+  readonly privacy: PrivacyService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -211,6 +223,23 @@ export function createIndexReadServices(deps: {
     noteList: createNoteListService({ database }),
     graphStats: createGraphStatsService({ database }),
     notePath: createNotePathService({ database, noteFile }),
+  }
+}
+
+/** The link resolution, note creation and privacy services, as {@link AppServices} holds them. */
+export type NoteServices = Pick<AppServices, 'noteLinkResolver' | 'noteCreation' | 'privacy'>
+
+export function createNoteServices(deps: {
+  noteFile: NoteFileService
+  wikiResolver: WikiResolverService
+  id: IdService
+}): NoteServices {
+  const { noteFile, wikiResolver, id } = deps
+  const noteLinkResolver = createNoteLinkResolverService({ wikiResolver, noteFile })
+  return {
+    noteLinkResolver,
+    noteCreation: createNoteCreationService({ noteFile, noteLinkResolver, id }),
+    privacy: createPrivacyService({ noteFile }),
   }
 }
 
@@ -303,6 +332,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   }
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
+  const indexReads = createIndexReadServices({ database, noteFile })
   return {
     ipc,
     logger,
@@ -374,6 +404,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clock,
       platform,
     }),
-    ...createIndexReadServices({ database, noteFile }),
+    ...indexReads,
+    ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
   }
 }

@@ -41,10 +41,15 @@ import { createTestFileChangeService, type TestFileChangeService } from './file-
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestAssetStoreService,
+  createTestNoteCreationService,
   createTestNoteFileService,
+  createTestNoteLinkResolverService,
   type TestAssetStoreService,
+  type TestNoteCreationService,
   type TestNoteFileService,
+  type TestNoteLinkResolverService,
 } from './graph.ts'
+import { createTestPrivacyService, type TestPrivacyService } from './privacy.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
   createTestHashService,
@@ -157,6 +162,9 @@ export interface TestAppServices extends AppServices {
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
+  readonly noteLinkResolver: TestNoteLinkResolverService
+  readonly noteCreation: TestNoteCreationService
+  readonly privacy: TestPrivacyService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -171,11 +179,20 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const operations = createTestOperationsService(clock)
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
+  const id = createTestIdService()
+  const indexReads = createIndexReadServices({
+    database: overrides?.database ?? database,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
+  const noteLinkResolver = createTestNoteLinkResolverService({
+    wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
     clock,
-    id: createTestIdService(),
+    id,
     hash: createTestHashService(),
     platform: createTestPlatformService(),
     storage: createTestStorageService(),
@@ -221,10 +238,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     noteFile,
     assetStore: createTestAssetStoreService(),
     attachments: createTestAttachmentService(),
-    ...createIndexReadServices({
-      database: overrides?.database ?? database,
+    ...indexReads,
+    noteLinkResolver,
+    noteCreation: createTestNoteCreationService({
       noteFile: overrides?.noteFile ?? noteFile,
+      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+      id: overrides?.id ?? id,
     }),
+    privacy: createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile }),
   }
   return Object.assign(services, overrides)
 }

@@ -45,8 +45,6 @@ export {
   cloudSafeAssetDescription,
   cloudSafeGraphContext,
   cloudSafeNoteContent,
-  cloudSafeNoteListings,
-  cloudSafeSearchHits,
   cloudSafeSelection,
   isPrivateNoteError,
   PrivateNoteError,

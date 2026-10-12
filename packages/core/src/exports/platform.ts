@@ -252,6 +252,24 @@ export {
   type NoteFileService,
 } from '../graph/note-file-service.ts'
 export {
+  createNoteLinkResolverService,
+  defaultNoteLinkResolver,
+  setDefaultNoteLinkResolver,
+  type NoteLinkResolverService,
+} from '../graph/note-link-resolver-service.ts'
+export {
+  createNoteCreationService,
+  defaultNoteCreation,
+  setDefaultNoteCreation,
+  type NoteCreationService,
+} from '../graph/note-creation-service.ts'
+export {
+  createPrivacyService,
+  defaultPrivacy,
+  setDefaultPrivacy,
+  type PrivacyService,
+} from '../privacy/privacy-service.ts'
+export {
   createAssetStoreService,
   defaultAssetStore,
   setDefaultAssetStore,
@@ -574,10 +592,11 @@ export { createAsset, importAsset } from '../graph/assets.ts'
 export { assetFileName } from '../graph/asset-names.ts'
 export {
   newNoteId,
-  newNoteSource,
   untitledNoteSeed,
   untitledNotePath,
   isUntitledNotePath,
+  deferredCreationPolicy,
+  type DeferredCreationPolicy,
   createNoteWithTitle,
   resolveOrCreateNoteWithTitle,
   type ResolveOrCreateNoteResult,

@@ -1,349 +1,285 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import {
-  createNoteWithTitle,
-  isUntitledNotePath,
-  resolveOrCreateNoteWithTitle,
-  untitledNotePath,
-  untitledNoteSeed,
-} from './create-note.ts'
+import { describe, expect, it, vi } from 'vitest'
+import { ReflectError } from '../errors.ts'
+import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
+import { createTestNoteFileService } from '../testing/graph.ts'
+import { createTestIdService } from '../testing/id.ts'
+import { deferredCreationPolicy, isUntitledNotePath } from './create-note.ts'
+import { createNoteCreationService } from './note-creation-service.ts'
+import { createNoteLinkResolverService } from './note-link-resolver-service.ts'
 
-afterEach(() => {
-  setBridge(null)
-})
-
-interface BridgeBehavior {
-  /** Paths the fake graph already has (indexed and on disk alike). */
-  occupied?: string[]
-  /** Markdown files visible to the disk-family fallback scan. */
-  files?: Record<string, string>
-  /** Evicted files whose title cannot currently be inspected. */
-  placeholders?: string[]
-  /** Listed files whose contents fail to read. */
-  readErrors?: string[]
-  /** Optional exact control over an index query's result rows. */
-  query?: (sql: string, params: unknown[]) => Array<Record<string, unknown>>
-  /** Override an atomic create attempt (for collision-race tests). */
-  create?: (
-    path: string,
-    contents: string,
-  ) => { kind: 'created'; modifiedMs: number | null } | { kind: 'collision' } | undefined
+interface Graph {
+  /** Notes projected into the index. */
+  readonly indexed?: readonly TestNote[]
+  /** Files on disk. */
+  readonly files?: Record<string, string>
+  /** On-disk paths listed as iCloud placeholders. */
+  readonly placeholders?: readonly string[]
+  /** Listed paths whose reads fail with an `io` error. */
+  readonly readErrors?: readonly string[]
 }
 
-/** A fake bridge whose atomic create records new files and never replaces one. */
-function bindBridge({
-  occupied = [],
-  files = {},
-  placeholders = [],
-  readErrors = [],
-  query,
-  create,
-}: BridgeBehavior = {}) {
-  const taken = new Set([...occupied, ...Object.keys(files), ...placeholders, ...readErrors])
-  const unreadable = new Set(readErrors)
-  const invoke = vi.fn(async (command: string, args?: Record<string, unknown>) => {
-    if (command === 'db_query') {
-      const sql = String(args?.['sql'] ?? '')
-      const params = (args?.['params'] as unknown[]) ?? []
-      if (query !== undefined) {
-        return query(sql, params)
-      }
-      const candidate = params[0]
-      return sql.includes('"path" = ?') && taken.has(String(candidate)) ? [{ path: candidate }] : []
+const ids = createTestIdService({ seed: 'create-note' })
+const FIRST_ID = ids.noteId()
+const SECOND_ID = ids.noteId()
+
+function setup({ indexed = [], files = {}, placeholders = [], readErrors = [] }: Graph = {}) {
+  const database = createTestDatabaseService()
+  seedNotes(database, indexed)
+  const noteFile = createTestNoteFileService({ files, evicted: placeholders })
+  for (const path of [...placeholders, ...readErrors]) {
+    noteFile.set(path, '')
+  }
+  const readFile = noteFile.read.bind(noteFile)
+  const read = vi.spyOn(noteFile, 'read').mockImplementation(async (path, generation) => {
+    if (readErrors.includes(path)) {
+      throw new ReflectError('io', `${path} is temporarily unreadable`)
     }
-    if (command === 'note_exists') {
-      return taken.has(String(args?.['path']))
-    }
-    if (command === 'list_files') {
-      return [
-        ...Object.entries(files).map(([path, value]) => ({
-          path,
-          size: value!.length,
-          modifiedMs: 1,
-        })),
-        ...placeholders.map((path) => ({
-          path,
-          size: 0,
-          modifiedMs: 1,
-          placeholder: true,
-        })),
-        ...readErrors.map((path) => ({ path, size: 1, modifiedMs: 1 })),
-      ]
-    }
-    if (command === 'note_read') {
-      const path = String(args?.['path'])
-      if (unreadable.has(path)) {
-        throw { kind: 'io', message: `${path} is temporarily unreadable` }
-      }
-      const source = files[path]
-      if (source === undefined) {
-        throw { kind: 'notFound', message: `${path} not found` }
-      }
-      return source
-    }
-    if (command === 'note_create') {
-      const path = String(args?.['path'])
-      const contents = String(args?.['contents'])
-      const overridden = create?.(path, contents)
-      if (overridden !== undefined) {
-        return overridden
-      }
-      if (taken.has(path) || files[path] !== undefined) {
-        return { kind: 'collision' }
-      }
-      taken.add(path)
-      files[path] = contents
-      return { kind: 'created', modifiedMs: 1 }
-    }
-    return null
+    return await readFile(path, generation)
   })
-  setBridge({ invoke, listen: async () => () => {} })
-  return invoke
+  const listNotes = vi.spyOn(noteFile, 'listNotes')
+  const createFile = noteFile.create.bind(noteFile)
+  const create = vi.spyOn(noteFile, 'create')
+  const noteLinkResolver = createNoteLinkResolverService({
+    wikiResolver: createWikiResolverService({ database }),
+    noteFile,
+  })
+  const creation = createNoteCreationService({
+    noteFile,
+    noteLinkResolver,
+    id: createTestIdService({ seed: 'create-note' }),
+  })
+  return {
+    database,
+    noteFile,
+    read,
+    listNotes,
+    create,
+    createFile,
+    creation,
+    /** How many `note_claims` lookups ran. */
+    claimLookups: () =>
+      database.getQueries().filter((query) => query.sql.includes('note_claims')).length,
+  }
 }
 
 describe('createNoteWithTitle', () => {
   it('writes a slug-named note with id frontmatter and the title as H1', async () => {
-    const invoke = bindBridge()
+    const graph = setup()
 
-    const path = await createNoteWithTitle('  New Idea ', 7)
+    const path = await graph.creation.createNoteWithTitle('  New Idea ', 7)
 
     expect(path).toBe('notes/new-idea.md')
-    const write = invoke.mock.calls.find(([command]) => command === 'note_create')
-    expect(write).toBeDefined()
-    const args = write?.[1] as { path: string; contents: string; generation: number }
-    expect(args.path).toBe(path)
-    expect(args.generation).toBe(7)
-    expect(args.contents).toMatch(/^---\nid: [0-9a-z]{26}\n---\n\n# New Idea\n$/)
+    expect(graph.noteFile.writes()).toEqual([
+      { path, contents: `---\nid: ${FIRST_ID}\n---\n\n# New Idea\n`, generation: 7 },
+    ])
   })
 
   it('drops a leading emoji from the filename slug but preserves it byte-exactly in the H1', async () => {
-    const invoke = bindBridge()
+    const graph = setup()
 
-    const path = await createNoteWithTitle('🧠 Business ideas', 7)
+    const path = await graph.creation.createNoteWithTitle('🧠 Business ideas', 7)
 
     expect(path).toBe('notes/business-ideas.md')
-    const write = invoke.mock.calls.find(([command]) => command === 'note_create')
-    const args = write?.[1] as { contents: string }
-    expect(args.contents).toMatch(/^---\nid: [0-9a-z]{26}\n---\n\n# 🧠 Business ideas\n$/)
+    expect(graph.noteFile.getWrites(path)).toEqual([
+      `---\nid: ${FIRST_ID}\n---\n\n# 🧠 Business ideas\n`,
+    ])
   })
 
   it('suffixes the slug when the bare path is taken', async () => {
-    bindBridge({ occupied: ['notes/new-idea.md'] })
+    const graph = setup({ files: { 'notes/new-idea.md': '# Older idea\n' } })
 
-    await expect(createNoteWithTitle('New Idea', 7)).resolves.toBe('notes/new-idea-2.md')
+    await expect(graph.creation.createNoteWithTitle('New Idea', 7)).resolves.toBe(
+      'notes/new-idea-2.md',
+    )
+    expect(graph.noteFile.files().get('notes/new-idea.md')).toBe('# Older idea\n')
   })
 
   it('places an optional body block under the H1', async () => {
-    const invoke = bindBridge()
+    const graph = setup()
 
-    await createNoteWithTitle('Ada Lovelace', 7, '- Type: #person')
+    await graph.creation.createNoteWithTitle('Ada Lovelace', 7, '- Type: #person')
 
-    const write = invoke.mock.calls.find(([command]) => command === 'note_create')
-    const args = write?.[1] as { contents: string }
-    expect(args.contents).toMatch(
-      /^---\nid: [0-9a-z]{26}\n---\n\n# Ada Lovelace\n\n- Type: #person\n$/,
+    expect(graph.noteFile.getWrites('notes/ada-lovelace.md')).toEqual([
+      `---\nid: ${FIRST_ID}\n---\n\n# Ada Lovelace\n\n- Type: #person\n`,
+    ])
+  })
+
+  it('fails loudly after 1000 taken paths instead of overwriting one', async () => {
+    const graph = setup()
+    graph.create.mockResolvedValue({ kind: 'collision' })
+
+    await expect(graph.creation.createNoteWithTitle('Busy', 7)).rejects.toThrow(
+      'no available note path for slug "busy" after 1000 attempts',
     )
+    expect(graph.create).toHaveBeenCalledTimes(1000)
+    expect(graph.create).toHaveBeenLastCalledWith('notes/busy-1000.md', expect.any(String), 7)
   })
 })
 
 describe('resolveOrCreateNoteWithTitle', () => {
   it('uses exact index resolution before reading the slug family', async () => {
-    const invoke = bindBridge({
-      query: (sql, params) =>
-        sql.includes('note_claims') && params[0] === 'business ideas'
-          ? [{ note_path: 'notes/indexed.md', tier: 2 }]
-          : [],
-    })
+    const graph = setup({ indexed: [{ path: 'notes/indexed.md', markdown: '# Business ideas\n' }] })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'notes/indexed.md',
-    })
-    expect(invoke).not.toHaveBeenCalledWith('list_files', expect.anything())
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'resolved', path: 'notes/indexed.md' },
+    )
+    expect(graph.listNotes).not.toHaveBeenCalled()
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('preserves indexed daily-date precedence over a regular title', async () => {
-    const invoke = bindBridge({
-      query: (sql) =>
-        sql.includes('note_claims')
-          ? [
-              { note_path: 'daily/2026-06-09.md', tier: 1 },
-              { note_path: 'notes/date-title.md', tier: 2 },
-            ]
-          : [],
+    const graph = setup({
+      indexed: [
+        { path: 'daily/2026-06-09.md', markdown: 'Daily contents\n' },
+        { path: 'notes/date-title.md', markdown: '# 2026-06-09\n' },
+      ],
     })
 
-    await expect(resolveOrCreateNoteWithTitle('2026-06-09', 7)).resolves.toEqual({
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('2026-06-09', 7)).resolves.toEqual({
       kind: 'resolved',
       path: 'daily/2026-06-09.md',
     })
     // The tier-1 daily claim resolves without a disk probe.
-    expect(invoke.mock.calls.some(([command]) => command === 'note_read')).toBe(false)
+    expect(graph.read).not.toHaveBeenCalled()
   })
 
   it('reuses an unindexed daily file instead of creating a regular date-titled note', async () => {
-    const invoke = bindBridge({
-      files: { 'daily/2026-06-09.md': 'Daily contents\n' },
-    })
+    const graph = setup({ files: { 'daily/2026-06-09.md': 'Daily contents\n' } })
 
-    await expect(resolveOrCreateNoteWithTitle('2026-06-09', 7)).resolves.toEqual({
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('2026-06-09', 7)).resolves.toEqual({
       kind: 'resolved',
       path: 'daily/2026-06-09.md',
     })
-    expect(invoke).toHaveBeenCalledWith('note_read', {
-      path: 'daily/2026-06-09.md',
-      generation: 7,
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    expect(graph.read).toHaveBeenCalledWith('daily/2026-06-09.md', 7)
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('refuses multiple indexed notes claiming the same exact title', async () => {
-    const invoke = bindBridge({
-      query: (sql, params) =>
-        sql.includes('note_claims') && params[0] === 'business ideas'
-          ? [
-              { note_path: 'notes/business-ideas-2.md', tier: 2 },
-              { note_path: 'notes/business-ideas.md', tier: 2 },
-            ]
-          : [],
+    const graph = setup({
+      indexed: [
+        { path: 'notes/business-ideas-2.md', markdown: '# Business ideas\n' },
+        { path: 'notes/business-ideas.md', markdown: '# Business ideas\n' },
+      ],
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'ambiguous',
-      paths: ['notes/business-ideas-2.md', 'notes/business-ideas.md'],
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'list_files')).toBe(false)
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'ambiguous', paths: ['notes/business-ideas-2.md', 'notes/business-ideas.md'] },
+    )
+    expect(graph.listNotes).not.toHaveBeenCalled()
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('prefers indexed title matches over aliases', async () => {
-    bindBridge({
-      query: (sql) =>
-        sql.includes('note_claims')
-          ? [
-              { note_path: 'notes/titled.md', tier: 2 },
-              { note_path: 'notes/alias-a.md', tier: 3 },
-              { note_path: 'notes/alias-b.md', tier: 3 },
-            ]
-          : [],
+    const graph = setup({
+      indexed: [
+        { path: 'notes/titled.md', markdown: '# Business ideas\n' },
+        { path: 'notes/alias-a.md', markdown: '---\naliases: [Business ideas]\n---\n# A\n' },
+        { path: 'notes/alias-b.md', markdown: '---\naliases: [Business ideas]\n---\n# B\n' },
+      ],
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'notes/titled.md',
-    })
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'resolved', path: 'notes/titled.md' },
+    )
   })
 
   it('refuses multiple indexed notes claiming the same exact alias', async () => {
-    const aliasInvoke = bindBridge({
-      query: (sql) =>
-        sql.includes('note_claims')
-          ? [
-              { note_path: 'notes/alias-a.md', tier: 3 },
-              { note_path: 'notes/alias-b.md', tier: 3 },
-            ]
-          : [],
+    const graph = setup({
+      indexed: [
+        { path: 'notes/alias-a.md', markdown: '---\naliases: [Business ideas]\n---\n# A\n' },
+        { path: 'notes/alias-b.md', markdown: '---\naliases: [Business ideas]\n---\n# B\n' },
+      ],
     })
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'ambiguous',
-      paths: ['notes/alias-a.md', 'notes/alias-b.md'],
-    })
-    expect(aliasInvoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'ambiguous', paths: ['notes/alias-a.md', 'notes/alias-b.md'] },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('reuses an exact title or alias from the on-disk slug family', async () => {
-    const invoke = bindBridge({
+    const graph = setup({
       files: {
         'notes/business-ideas.md': '# Business ideas\n',
         'notes/business-ideas-2.md': '---\naliases: [Side project]\n---\n# Incubator\n',
       },
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'notes/business-ideas.md',
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'resolved', path: 'notes/business-ideas.md' },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('prefers an exact on-disk title over an exact alias', async () => {
-    const invoke = bindBridge({
+    const graph = setup({
       files: {
         'notes/business-ideas.md': '# Business ideas\n',
         'notes/business-ideas-2.md': '---\naliases: [Business ideas]\n---\n# Incubator\n',
       },
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'notes/business-ideas.md',
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'resolved', path: 'notes/business-ideas.md' },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('reuses exactly one leading-emoji fallback match', async () => {
-    const invoke = bindBridge({
-      files: {
-        'notes/business-ideas.md': '# 🧠Business ideas\n',
-      },
-    })
+    const graph = setup({ files: { 'notes/business-ideas.md': '# 🧠Business ideas\n' } })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'notes/business-ideas.md',
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'resolved', path: 'notes/business-ideas.md' },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('prefers an on-disk fallback title over a fallback alias', async () => {
-    const invoke = bindBridge({
+    const graph = setup({
       files: {
         'notes/business-ideas.md': '# 🧠 Business ideas\n',
         'notes/business-ideas-2.md': '---\naliases: ["💡 Business ideas"]\n---\n# Incubator\n',
       },
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'notes/business-ideas.md',
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'resolved', path: 'notes/business-ideas.md' },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('includes parsed aliases in the fallback match', async () => {
-    const invoke = bindBridge({
+    const graph = setup({
       files: {
         'notes/business-ideas.md': '---\naliases: ["🧠Business ideas"]\n---\n# Incubator\n',
       },
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'notes/business-ideas.md',
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'resolved', path: 'notes/business-ideas.md' },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('refuses to pick between multiple exact-title matches', async () => {
     // The historic duplicate bug's own output: two files claiming the same
     // title. Sorted-first would even prefer the `-2` dupe over the original.
-    const invoke = bindBridge({
+    const graph = setup({
       files: {
         'notes/business-ideas.md': '# Business ideas\n',
         'notes/business-ideas-2.md': '# Business ideas\n',
       },
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'ambiguous',
-      paths: ['notes/business-ideas-2.md', 'notes/business-ideas.md'],
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'ambiguous', paths: ['notes/business-ideas-2.md', 'notes/business-ideas.md'] },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('reports an unavailable slug-family member instead of mislabeling it ambiguous', async () => {
-    const invoke = bindBridge({
+    const graph = setup({
       files: {
         'notes/business-ideas.md': '# 🧠 Business ideas\n',
         'notes/business-ideas-2.md': '# 💡 Business ideas\n',
@@ -351,11 +287,10 @@ describe('resolveOrCreateNoteWithTitle', () => {
       placeholders: ['notes/business-ideas-3.md'],
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'unavailable',
-      paths: ['notes/business-ideas-3.md'],
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'unavailable', paths: ['notes/business-ideas-3.md'] },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -368,148 +303,129 @@ describe('resolveOrCreateNoteWithTitle', () => {
       unavailable: { readErrors: ['notes/business-ideas-2.md'] },
     },
   ])('refuses an exact disk match beside an unreadable $label', async ({ unavailable }) => {
-    const invoke = bindBridge({
+    const graph = setup({
       files: { 'notes/business-ideas.md': '# Business ideas\n' },
       ...unavailable,
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'unavailable',
-      paths: ['notes/business-ideas-2.md'],
-    })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'unavailable', paths: ['notes/business-ideas-2.md'] },
+    )
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('re-resolves after the disk scan before creating', async () => {
-    let titleLookups = 0
-    const invoke = bindBridge({
-      query: (sql) => {
-        if (!sql.includes('note_claims')) {
-          return []
-        }
-        titleLookups += 1
-        return titleLookups === 2 ? [{ note_path: 'notes/synced.md', tier: 2 }] : []
-      },
+    const graph = setup()
+    graph.listNotes.mockImplementationOnce(async () => {
+      seedNotes(graph.database, [{ path: 'notes/synced.md', markdown: '# Synced\n' }])
+      return []
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Synced', 7)).resolves.toEqual({
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Synced', 7)).resolves.toEqual({
       kind: 'resolved',
       path: 'notes/synced.md',
     })
-    expect(titleLookups).toBe(2)
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    expect(graph.claimLookups()).toBe(2)
+    expect(graph.create).not.toHaveBeenCalled()
   })
 
   it('re-resolves an atomic-claim collision instead of creating a suffix', async () => {
-    const files: Record<string, string> = {}
-    let titleLookups = 0
-    const invoke = bindBridge({
-      files,
-      query: (sql) => {
-        if (!sql.includes('note_claims')) {
-          return []
-        }
-        titleLookups += 1
-        if (titleLookups === 2) {
-          files['notes/business-ideas.md'] = '# Business ideas\n'
-        }
-        return []
-      },
+    const graph = setup()
+    graph.create.mockImplementationOnce(async (path, contents, generation) => {
+      // A sync checkout lands the winner just before this claim.
+      graph.noteFile.set('notes/business-ideas.md', '# Business ideas\n')
+      return await graph.createFile(path, contents, generation)
     })
 
-    await expect(resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'notes/business-ideas.md',
-    })
-    expect(titleLookups).toBe(3)
-    expect(invoke.mock.calls.filter(([command]) => command === 'list_files')).toHaveLength(2)
-    expect(invoke.mock.calls.filter(([command]) => command === 'note_create')).toHaveLength(1)
-    expect(files['notes/business-ideas-2.md']).toBeUndefined()
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Business ideas', 7)).resolves.toEqual(
+      { kind: 'resolved', path: 'notes/business-ideas.md' },
+    )
+    expect(graph.claimLookups()).toBe(3)
+    expect(graph.listNotes).toHaveBeenCalledTimes(2)
+    expect(graph.create).toHaveBeenCalledTimes(1)
+    expect(graph.noteFile.files().has('notes/business-ideas-2.md')).toBe(false)
   })
 
   it('creates only after both index checks and the disk scan miss', async () => {
-    const invoke = bindBridge()
+    const graph = setup()
 
-    await expect(resolveOrCreateNoteWithTitle('Brand New', 7)).resolves.toMatchObject({
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('Brand New', 7)).resolves.toEqual({
       kind: 'created',
       path: 'notes/brand-new.md',
     })
-    expect(invoke.mock.calls.filter(([command]) => command === 'note_create')).toHaveLength(1)
+    expect(graph.claimLookups()).toBe(2)
+    expect(graph.create).toHaveBeenCalledTimes(1)
   })
 
   it('uses the optional body only when creating a missing note', async () => {
-    const invoke = bindBridge()
+    const graph = setup()
 
     await expect(
-      resolveOrCreateNoteWithTitle('Ada Lovelace', 7, '- Type: #person'),
-    ).resolves.toMatchObject({
-      kind: 'created',
-      path: 'notes/ada-lovelace.md',
-    })
-    const write = invoke.mock.calls.find(([command]) => command === 'note_create')
-    expect(write?.[1]?.['contents']).toMatch(
-      /^---\nid: [0-9a-z]{26}\n---\n\n# Ada Lovelace\n\n- Type: #person\n$/,
-    )
+      graph.creation.resolveOrCreateNoteWithTitle('Ada Lovelace', 7, '- Type: #person'),
+    ).resolves.toEqual({ kind: 'created', path: 'notes/ada-lovelace.md' })
+    expect(graph.noteFile.getWrites('notes/ada-lovelace.md')).toEqual([
+      `---\nid: ${FIRST_ID}\n---\n\n# Ada Lovelace\n\n- Type: #person\n`,
+    ])
   })
 
   it('creates a colon-prefixed title as an ordinary note', async () => {
-    const invoke = bindBridge()
+    const graph = setup()
+    const path = 'notes/test-long-with-parens-ampersand-follow-up.md'
 
     await expect(
-      resolveOrCreateNoteWithTitle('Test: Long With Parens & Ampersand Follow-up', 7),
-    ).resolves.toEqual({
-      kind: 'created',
-      path: 'notes/test-long-with-parens-ampersand-follow-up.md',
-    })
-    const write = invoke.mock.calls.find(([command]) => command === 'note_create')
-    const args = write?.[1] as { contents: string }
-    expect(args.contents).toContain('# Test: Long With Parens & Ampersand Follow-up\n')
+      graph.creation.resolveOrCreateNoteWithTitle(
+        'Test: Long With Parens & Ampersand Follow-up',
+        7,
+      ),
+    ).resolves.toEqual({ kind: 'created', path })
+    expect(graph.noteFile.files().get(path)).toContain(
+      '# Test: Long With Parens & Ampersand Follow-up\n',
+    )
   })
 
   it('creates a slashed title once both of its readings miss', async () => {
-    const invoke = bindBridge()
+    const graph = setup()
+    const path = 'notes/johnsally-meeting-notes.md'
 
-    await expect(resolveOrCreateNoteWithTitle('john/sally meeting notes', 7)).resolves.toEqual({
-      kind: 'created',
-      path: 'notes/johnsally-meeting-notes.md',
-    })
-    const write = invoke.mock.calls.find(([command]) => command === 'note_create')
-    const args = write?.[1] as { contents: string }
-    expect(args.contents).toContain('# john/sally meeting notes\n')
+    await expect(
+      graph.creation.resolveOrCreateNoteWithTitle('john/sally meeting notes', 7),
+    ).resolves.toEqual({ kind: 'created', path })
+    expect(graph.noteFile.files().get(path)).toContain('# john/sally meeting notes\n')
   })
 
   it('reuses the exact file instead of creating for a slashed spelling', async () => {
-    bindBridge({ files: { 'john/sally meeting notes.md': '# Whatever' } })
+    const graph = setup({ files: { 'john/sally meeting notes.md': '# Whatever' } })
 
-    await expect(resolveOrCreateNoteWithTitle('john/sally meeting notes', 7)).resolves.toEqual({
-      kind: 'resolved',
-      path: 'john/sally meeting notes.md',
-    })
+    await expect(
+      graph.creation.resolveOrCreateNoteWithTitle('john/sally meeting notes', 7),
+    ).resolves.toEqual({ kind: 'resolved', path: 'john/sally meeting notes.md' })
   })
 
   it('still refuses to create for a rooted path target', async () => {
-    const invoke = bindBridge()
+    const graph = setup()
 
-    await expect(resolveOrCreateNoteWithTitle('/Plan', 7)).resolves.toEqual({
+    await expect(graph.creation.resolveOrCreateNoteWithTitle('/Plan', 7)).resolves.toEqual({
       kind: 'unavailable',
       paths: ['Plan.md'],
     })
-    expect(invoke.mock.calls.some(([command]) => command === 'note_create')).toBe(false)
+    expect(graph.create).not.toHaveBeenCalled()
   })
 })
 
 describe('untitledNoteSeed', () => {
   it('is an empty H1 (the caret lands there) plus a fresh id, unique per call', () => {
-    const first = untitledNoteSeed()
-    const second = untitledNoteSeed()
-    expect(first).toMatch(/^---\nid: [0-9a-z]{26}\n---\n\n#\n$/)
-    expect(second).not.toBe(first)
+    const { creation } = setup()
+
+    expect(creation.untitledNoteSeed()).toBe(`---\nid: ${FIRST_ID}\n---\n\n#\n`)
+    expect(creation.untitledNoteSeed()).toBe(`---\nid: ${SECOND_ID}\n---\n\n#\n`)
   })
 })
 
 describe('isUntitledNotePath', () => {
   it('recognizes the ULID placeholder paths untitledNotePath mints', () => {
-    expect(isUntitledNotePath(untitledNotePath())).toBe(true)
+    const { creation } = setup()
+
+    expect(isUntitledNotePath(creation.untitledNotePath())).toBe(true)
   })
 
   it('rejects slug-named, daily, and near-miss paths', () => {
@@ -521,5 +437,39 @@ describe('isUntitledNotePath', () => {
     expect(isUntitledNotePath('notes/uuuuuuuuuuuuuuuuuuuuuuuuuu.md')).toBe(false)
     // A ULID-shaped name outside notes/ is not a placeholder.
     expect(isUntitledNotePath('01jxk2v9qz3m4n5p6r7s8t9vwx.md')).toBe(false)
+  })
+})
+
+describe('deferredCreationPolicy', () => {
+  it('lets a daily note be created lazily without a seed or rename tracking', () => {
+    expect(deferredCreationPolicy('daily/2026-06-12.md')).toEqual({
+      lazyCreatable: true,
+      seedsUntitled: false,
+      trackRenames: false,
+    })
+  })
+
+  it('lets an untitled ULID note be created lazily from the seed, tracking renames', () => {
+    expect(deferredCreationPolicy('notes/01jxk2v9qz3m4n5p6r7s8t9vwx.md')).toEqual({
+      lazyCreatable: true,
+      seedsUntitled: true,
+      trackRenames: true,
+    })
+  })
+
+  it('refuses lazy creation of a titled note but tracks its renames', () => {
+    expect(deferredCreationPolicy('notes/meeting-notes.md')).toEqual({
+      lazyCreatable: false,
+      seedsUntitled: false,
+      trackRenames: true,
+    })
+  })
+
+  it('refuses lazy creation of a template and never tracks its renames', () => {
+    expect(deferredCreationPolicy('templates/weekly.md')).toEqual({
+      lazyCreatable: false,
+      seedsUntitled: false,
+      trackRenames: false,
+    })
   })
 })

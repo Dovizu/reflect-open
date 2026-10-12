@@ -1,16 +1,17 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { RetrievalHit } from '../embeddings/retrieve.ts'
+import { createTestNoteFileService } from '../testing/graph.ts'
 import {
   assertCloudAllowed,
   cloudSafeAssetDescription,
   cloudSafeLinkHref,
   cloudSafeNoteContent,
-  cloudSafeSearchHits,
   cloudSafeSelection,
+  createPrivacyService,
   isPrivateNoteError,
   notePrivate,
   PrivateNoteError,
-} from './checkers.ts'
+} from './privacy-service.ts'
 
 // Sentinels no other string in the system (prompts included) can collide
 // with — a payload assertion against them can never pass vacuously.
@@ -68,6 +69,30 @@ describe('isPrivateNoteError', () => {
   })
 })
 
+function setup(files: Record<string, string>) {
+  const noteFile = createTestNoteFileService({ files })
+  const read = vi.spyOn(noteFile, 'read')
+  return { noteFile, read, privacy: createPrivacyService({ noteFile }) }
+}
+
+describe('isPrivateLive', () => {
+  it('reads the flag from the note on disk', async () => {
+    const { privacy } = setup({
+      'notes/a.md': '# Public\n',
+      [PRIVATE_PATH]: '---\nprivate: true\n---\n# Diary\n',
+    })
+
+    await expect(privacy.isPrivateLive('notes/a.md')).resolves.toBe(false)
+    await expect(privacy.isPrivateLive(PRIVATE_PATH)).resolves.toBe(true)
+  })
+
+  it('fails closed when the note cannot be read', async () => {
+    const { privacy } = setup({})
+
+    await expect(privacy.isPrivateLive('notes/missing.md')).resolves.toBe(true)
+  })
+})
+
 describe('cloudSafeSearchHits', () => {
   const PUBLIC: RetrievalHit = {
     path: 'notes/a.md',
@@ -86,10 +111,10 @@ describe('cloudSafeSearchHits', () => {
     isPrivate: true,
   }
 
-  const neverPrivate = async () => false
+  it('drops private hits entirely: not even the title survives', async () => {
+    const { privacy } = setup({ 'notes/a.md': '# Public\n', [PRIVATE_PATH]: '# Diary\n' })
 
-  it('drops private hits entirely — not even the title survives', async () => {
-    const safe = await cloudSafeSearchHits([PUBLIC, PRIVATE], neverPrivate)
+    const safe = await privacy.cloudSafeSearchHits([PUBLIC, PRIVATE])
     const payload = JSON.stringify(safe)
     expect(payload).not.toContain(PRIVATE_TITLE)
     expect(payload).not.toContain(PRIVATE_PATH)
@@ -97,32 +122,63 @@ describe('cloudSafeSearchHits', () => {
   })
 
   it('drops hits the live probe flags even when the index lags (TOCTOU)', async () => {
-    const justMarkedPrivate: RetrievalHit = {
-      ...PRIVATE,
-      isPrivate: false, // the stale index still says public
-    }
-    const safe = await cloudSafeSearchHits(
-      [PUBLIC, justMarkedPrivate],
-      async (path) => path === PRIVATE_PATH,
-    )
+    const { privacy } = setup({
+      'notes/a.md': '# Public\n',
+      [PRIVATE_PATH]: '---\nprivate: true\n---\n# Diary\n',
+    })
+    // The stale index still says public.
+    const justMarkedPrivate: RetrievalHit = { ...PRIVATE, isPrivate: false }
+
+    const safe = await privacy.cloudSafeSearchHits([PUBLIC, justMarkedPrivate])
     const payload = JSON.stringify(safe)
     expect(payload).not.toContain(PRIVATE_TITLE)
     expect(payload).not.toContain(PRIVATE_PATH)
     expect(safe).toHaveLength(1)
   })
 
+  it('drops a hit whose note cannot be read', async () => {
+    const { privacy } = setup({})
+
+    await expect(privacy.cloudSafeSearchHits([PUBLIC])).resolves.toEqual([])
+  })
+
   it('never probes hits the index already flags private', async () => {
-    const probed: string[] = []
-    await cloudSafeSearchHits([PUBLIC, PRIVATE], async (path) => {
-      probed.push(path)
-      return false
-    })
-    expect(probed).toEqual(['notes/a.md'])
+    const { privacy, read } = setup({ 'notes/a.md': '# Public\n' })
+
+    await privacy.cloudSafeSearchHits([PUBLIC, PRIVATE])
+    expect(read.mock.calls.map(([path]) => path)).toEqual(['notes/a.md'])
   })
 
   it('strips hits to the cloud-facing fields (no score, no flag)', async () => {
-    const [hit] = await cloudSafeSearchHits([PUBLIC], neverPrivate)
+    const { privacy } = setup({ 'notes/a.md': '# Public\n' })
+
+    const [hit] = await privacy.cloudSafeSearchHits([PUBLIC])
     expect(Object.keys(hit ?? {}).sort()).toEqual(['heading', 'path', 'snippet', 'title'])
+  })
+})
+
+describe('cloudSafeNoteListings', () => {
+  const listing = {
+    title: 'Public',
+    dailyDate: null,
+    snippet: 'body',
+    modifiedAt: '2026-06-12T00:00:00.000Z',
+  }
+
+  it('keeps public entries and drops indexed or live private ones', async () => {
+    const { privacy } = setup({
+      'notes/a.md': '# Public\n',
+      'notes/b.md': '---\nprivate: true\n---\n# Diary\n',
+    })
+
+    const safe = await privacy.cloudSafeNoteListings([
+      { ...listing, path: 'notes/a.md', isPrivate: false },
+      { ...listing, path: 'notes/b.md', isPrivate: false },
+      { ...listing, path: PRIVATE_PATH, isPrivate: true, title: PRIVATE_TITLE },
+      { ...listing, path: 'notes/missing.md', isPrivate: false },
+    ])
+    expect(JSON.stringify(safe)).not.toContain(PRIVATE_TITLE)
+    expect(safe).toEqual([{ ...listing, path: 'notes/a.md' }])
   })
 })
 
