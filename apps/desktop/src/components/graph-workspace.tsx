@@ -64,7 +64,7 @@ export function GraphWorkspace({ graph }: GraphWorkspaceProps): ReactElement {
                                   import; main window only — its dialog is the
                                   import's single face. */}
                               {isMainWindow() ? (
-                                <V1ImportProvider graph={graph}>
+                                <V1ImportProvider>
                                   <WorkspaceContent graph={graph} />
                                 </V1ImportProvider>
                               ) : (

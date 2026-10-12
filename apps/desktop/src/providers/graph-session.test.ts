@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultWindow, type WindowBootstrap } from '@reflect/core'
-import { createTestGraphSessionService, createTestWindowService } from '@reflect/core/testing'
+import { setDefaultDeepLink, setDefaultWindow, type WindowBootstrap } from '@reflect/core'
+import {
+  createTestDeepLinkService,
+  createTestGraphSessionService,
+  createTestWindowService,
+} from '@reflect/core/testing'
 import {
   getNoteRowOverlay,
   resetNoteRowOverlays,
   setNoteRowOverlay,
 } from '@/hooks/note-row-overlay.ts'
-import { resetDeepLinkIntakeForTests, setDeepLinkHandler } from '@/lib/deep-links/intake.ts'
 import { queryClient, queryKeys } from '@/lib/query-client.ts'
-import {
-  getInitialWindowRoute,
-  resetInitialWindowRouteForTests,
-} from '@/lib/windows/initial-window-route.ts'
+import { getInitialWindowRoute } from '@/lib/windows/initial-window-route.ts'
 import { bootGraphSession } from './graph-session.ts'
 
 // The session itself is covered in `@reflect/core`; these cover what the
@@ -27,15 +27,15 @@ let deepLinks: string[]
 
 beforeEach(() => {
   deepLinks = []
-  resetInitialWindowRouteForTests()
-  resetDeepLinkIntakeForTests()
-  setDeepLinkHandler((url) => {
+  const deepLink = createTestDeepLinkService()
+  setDefaultDeepLink(deepLink)
+  deepLink.setHandler((url) => {
     deepLinks.push(url)
   })
 })
 
 afterEach(() => {
-  setDeepLinkHandler(null)
+  setDefaultDeepLink(null)
   setDefaultWindow(null)
   resetNoteRowOverlays()
   queryClient.clear()

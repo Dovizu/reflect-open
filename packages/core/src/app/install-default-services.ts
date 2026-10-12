@@ -53,7 +53,10 @@ import { setDefaultIpc } from '../ipc/bridge.ts'
 import { setDefaultIap } from '../ipc/iap-plugin.ts'
 import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
+import { setDefaultKeyboard } from '../mobile/keyboard-service.ts'
+import { setDefaultShare } from '../mobile/share-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
+import { setDefaultDeepLink } from '../navigation/deep-link-service.ts'
 import { setDefaultNavigation } from '../navigation/navigation-service.ts'
 import { setDefaultPrivacy } from '../privacy/privacy-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -118,6 +121,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultChatHistory(services.chatHistory)
   setDefaultUpdate(services.update)
   setDefaultNavigation(services.navigation)
+  setDefaultDeepLink(services.deepLink)
   setDefaultGitRepository(services.gitRepository)
   setDefaultGithubAuth(services.githubAuth)
   setDefaultGitHostCredentials(services.gitHostCredentials)
@@ -143,6 +147,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultOpenDocuments(services.openDocuments)
   setDefaultNoteMove(services.noteMove)
   setDefaultTitleRename(services.titleRename)
+  setDefaultKeyboard(services.keyboard)
+  setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
@@ -206,6 +212,7 @@ export function resetDefaultServices(): void {
   setDefaultChatHistory(null)
   setDefaultUpdate(null)
   setDefaultNavigation(null)
+  setDefaultDeepLink(null)
   setDefaultGitRepository(null)
   setDefaultGithubAuth(null)
   setDefaultGitHostCredentials(null)
@@ -231,6 +238,8 @@ export function resetDefaultServices(): void {
   setDefaultOpenDocuments(null)
   setDefaultNoteMove(null)
   setDefaultTitleRename(null)
+  setDefaultKeyboard(null)
+  setDefaultShare(null)
   setDefaultNoteDocuments(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)

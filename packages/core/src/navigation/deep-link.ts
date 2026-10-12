@@ -1,10 +1,10 @@
-import { TEXT_CAPTURE_MAX_LENGTH, type TextCaptureKind } from '@reflect/core'
-import type { Route } from '@/routing/route.ts'
+import { TEXT_CAPTURE_MAX_LENGTH, type TextCaptureKind } from '../actions/capture-envelope.ts'
+import type { Route } from './route.ts'
 
 /**
  * The `reflect://` deep-link vocabulary (docs/deep-links.md). URLs are a codec
  * over the existing {@link Route} union plus two capture verbs — never a
- * second navigation grammar. `parse.ts` and `format.ts` are the only modules
+ * second navigation grammar. `deep-link-parse.ts` and `deep-link-format.ts` are the only modules
  * that read or write this syntax.
  */
 

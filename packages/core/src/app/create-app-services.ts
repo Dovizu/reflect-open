@@ -87,6 +87,12 @@ import {
   createGraphSessionService,
   type GraphSessionService,
 } from '../graph/graph-session-service.ts'
+import {
+  createMobileOnboardingService,
+  type MobileOnboardingService,
+} from '../graph/mobile-onboarding-service.ts'
+import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
+import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
 import {
@@ -145,6 +151,12 @@ import {
   createSecretStoreService,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
+import {
+  createDeepLinkService,
+  createNoDeepLinkSource,
+  type DeepLinkService,
+  type DeepLinkSource,
+} from '../navigation/deep-link-service.ts'
 import {
   createNavigationService,
   type NavigationService,
@@ -238,6 +250,8 @@ export interface AppServices {
   readonly update: UpdateService
   /** The webview's navigation history; a note window has its own webview, hence its own. */
   readonly navigation: NavigationService
+  /** The `reflect://` intake of this webview and the handler behind it. */
+  readonly deepLink: DeepLinkService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -284,6 +298,9 @@ export interface AppServices {
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
+  readonly mobileOnboarding: MobileOnboardingService
+  readonly keyboard: KeyboardService
+  readonly share: ShareService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
@@ -379,6 +396,8 @@ export interface AppAdapters {
   readonly nativeMenu?: NativeMenuHost
   /** Defaults to the URL shape of Apple webviews. */
   readonly convertFileSrc?: FileSrcConverter
+  /** The system's `reflect://` delivery; without one, no URL arrives. */
+  readonly deepLink?: DeepLinkSource
 }
 
 export function createAppServices(adapters: AppAdapters): AppServices {
@@ -460,6 +479,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
   const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
+  const captureInbox = createCaptureInboxService({ ipc })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
     noteFile,
@@ -471,6 +491,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     clock,
     logger,
     operations,
+  })
+  const graphSession = createGraphSessionService({
+    ipc,
+    indexLifecycle,
+    indexStore,
+    noteFile,
+    id,
+    fileChanges,
+    window: windowService,
+    dialog: adapters.dialog,
+    path,
+    platform,
+    lifecycle,
+    mobileStorage,
+    logger,
   })
   return {
     ipc,
@@ -510,6 +545,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     navigation: createNavigationService(),
+    deepLink: createDeepLinkService({
+      source: adapters.deepLink ?? createNoDeepLinkSource(),
+      indexQuery: indexReads.indexQuery,
+      captureInbox,
+      operations,
+      id,
+      clock,
+      logger,
+    }),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,
@@ -525,7 +569,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     githubRepos: createGithubRepoService({ http: adapters.http }),
     gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
-    captureInbox: createCaptureInboxService({ ipc }),
+    captureInbox,
     webFetch: createWebFetchService({ ipc }),
     xArchive,
     audioRecorder: createPlatformAudioRecorder({
@@ -562,23 +606,19 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clock,
       logger,
     }),
+    keyboard: createKeyboardService(),
+    share: createShareService({ openDocuments }),
     noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,
-    graphSession: createGraphSessionService({
-      ipc,
-      indexLifecycle,
-      indexStore,
-      noteFile,
-      id,
-      fileChanges,
-      window: windowService,
-      dialog: adapters.dialog,
-      path,
-      platform,
-      lifecycle,
+    graphSession,
+    mobileOnboarding: createMobileOnboardingService({
       mobileStorage,
+      settings,
+      graphSession,
+      platform,
+      clock,
       logger,
     }),
     aiCredentials,

@@ -1,25 +1,17 @@
 import {
   createContext,
-  useCallback,
   use,
   useEffect,
   useMemo,
-  useRef,
   useState,
+  useSyncExternalStore,
   type ReactElement,
   type ReactNode,
 } from 'react'
-import {
-  cancelReflectV1Import,
-  errorMessage,
-  importReflectV1Zip,
-  markReflectV1ImportOwnWrites,
-  subscribeImportProgress,
-  type GraphInfo,
-} from '@reflect/core'
+import { createV1ImportService } from '@reflect/core'
 import { V1ImportDialog } from '@/components/v1-import-dialog.tsx'
 import type { V1ImportState } from '@/lib/v1-import-state.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface V1ImportContextValue {
   state: V1ImportState
@@ -34,115 +26,40 @@ interface V1ImportContextValue {
 const V1ImportContext = createContext<V1ImportContextValue | null>(null)
 
 interface V1ImportProviderProps {
-  graph: GraphInfo
   children: ReactNode
 }
 
 /**
  * Owns the Reflect V1 import for the workspace: the settings section only
- * picks the zip; the import itself lives here so navigating away from
- * settings can't orphan it. Renders the modal progress dialog
- * ({@link V1ImportDialog}) above the routed views — the import is the only
- * activity until it finishes, errors, or is cancelled.
+ * picks the zip; the import itself lives in a `V1ImportService` of this
+ * workspace so navigating away from settings can't orphan it. Renders the
+ * modal progress dialog ({@link V1ImportDialog}) above the routed views — the
+ * import is the only activity until it finishes, errors, or is cancelled.
  */
-export function V1ImportProvider({ graph, children }: V1ImportProviderProps): ReactElement {
-  const { refreshIndex } = useGraph()
-  const [state, setState] = useState<V1ImportState>({ phase: 'idle' })
-  const runningRef = useRef(false)
-  const cancelRequestedRef = useRef(false)
-  const graphRef = useRef(graph)
-  useEffect(() => {
-    graphRef.current = graph
-  }, [graph])
-
-  // The native import keeps running without this window; if the workspace
-  // unmounts mid-import (graph switch, app teardown) nobody is left to show
-  // or apply the result, so stop the work too. `mountedRef` also gates the
-  // completion bookkeeping: cancellation only aborts before the write phase,
-  // so a near-finished import can still resolve after unmount — its
-  // own-write echoes and index refresh would then land on whatever graph is
-  // open now, not the one it imported into.
-  const mountedRef = useRef(true)
-  useEffect(() => {
-    mountedRef.current = true
-    return () => {
-      mountedRef.current = false
-      if (runningRef.current) {
-        void cancelReflectV1Import().catch(() => {})
-      }
-    }
-  }, [])
-
-  const startImport = useCallback(
-    (zipPath: string) => {
-      if (runningRef.current) {
-        return
-      }
-      runningRef.current = true
-      cancelRequestedRef.current = false
-      setState({ phase: 'running', progress: null, cancelling: false })
-      const startedFor = graphRef.current
-      const unlistenPromise = subscribeImportProgress((progress) => {
-        setState((previous) =>
-          previous.phase === 'running' ? { ...previous, progress } : previous,
-        )
-      })
-      void (async () => {
-        try {
-          const summary = await importReflectV1Zip(zipPath, startedFor.generation)
-          const current = graphRef.current
-          if (
-            mountedRef.current &&
-            current.root === startedFor.root &&
-            current.generation === startedFor.generation
-          ) {
-            markReflectV1ImportOwnWrites(summary)
-            refreshIndex()
-            setState({ phase: 'done', summary })
-          } else {
-            setState({ phase: 'idle' })
-          }
-        } catch (caught: unknown) {
-          // A rejection after the user hit Cancel is the cancellation itself,
-          // not a failure worth surfacing.
-          setState(
-            cancelRequestedRef.current
-              ? { phase: 'idle' }
-              : { phase: 'failed', message: errorMessage(caught) },
-          )
-        } finally {
-          runningRef.current = false
-          void unlistenPromise.then((unlisten) => unlisten()).catch(() => {})
-        }
-      })()
-    },
-    [refreshIndex],
+export function V1ImportProvider({ children }: V1ImportProviderProps): ReactElement {
+  const { ipc, fileChanges, graphSession, clock, logger } = useAppServices()
+  const [service] = useState(() =>
+    createV1ImportService({ ipc, fileChanges, graphSession, clock, logger }),
   )
+  const state = useSyncExternalStore(service.subscribe, service.getState)
 
-  const cancelImport = useCallback(() => {
-    if (!runningRef.current || cancelRequestedRef.current) {
-      return
-    }
-    cancelRequestedRef.current = true
-    setState((previous) =>
-      previous.phase === 'running' ? { ...previous, cancelling: true } : previous,
-    )
-    void cancelReflectV1Import().catch(() => {})
-  }, [])
-
-  const dismiss = useCallback(() => {
-    setState((previous) => (previous.phase === 'running' ? previous : { phase: 'idle' }))
-  }, [])
+  // Unmounting mid-import (graph switch, app teardown) cancels the import.
+  useEffect(() => service.attach(), [service])
 
   const value = useMemo(
-    () => ({ state, startImport, cancelImport, dismiss }),
-    [state, startImport, cancelImport, dismiss],
+    () => ({
+      state,
+      startImport: service.start,
+      cancelImport: service.cancel,
+      dismiss: service.dismiss,
+    }),
+    [state, service],
   )
 
   return (
     <V1ImportContext value={value}>
       {children}
-      <V1ImportDialog state={state} onCancel={cancelImport} onDismiss={dismiss} />
+      <V1ImportDialog state={state} onCancel={service.cancel} onDismiss={service.dismiss} />
     </V1ImportContext>
   )
 }

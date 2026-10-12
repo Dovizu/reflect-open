@@ -1,4 +1,5 @@
 export {
+  DEFAULT_GRAPH_NAME,
   cleanGraphName,
   graphNameFromRoot,
   graphRootForName,

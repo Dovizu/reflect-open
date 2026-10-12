@@ -1,98 +1,123 @@
-import { StrictMode } from 'react'
+import { StrictMode, type ReactElement } from 'react'
 import { render } from 'vitest-browser-react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { GraphInfo } from '@reflect/core'
-import type { DeepLinkIo } from '@/lib/deep-links/handle.ts'
+import {
+  createTestAppServices,
+  createTestCaptureInboxService,
+  createTestDeepLinkService,
+  createTestOperationsService,
+  installTestServices,
+} from '@reflect/core/testing'
 import { beginLinkNavigationIntent } from '@/lib/windows/link-navigation-intent.ts'
-
-const setDeepLinkHandler = vi.hoisted(() =>
-  vi.fn<(handler: ((url: string) => void) | null) => void>(),
-)
-const handleDeepLink = vi.hoisted(() =>
-  vi.fn<(url: string, io: DeepLinkIo) => Promise<void>>(async () => {}),
-)
-const navigate = vi.hoisted(() => vi.fn())
-const navigation = vi.hoisted(() => ({ revision: 0 }))
-
-vi.mock('@/lib/deep-links/intake.ts', () => ({ setDeepLinkHandler }))
-vi.mock('@/lib/deep-links/handle.ts', () => ({ handleDeepLink }))
-vi.mock('@/routing/router.tsx', () => ({
-  useRouter: () => ({ navigate, navigationRevision: () => navigation.revision }),
-}))
-
+import { RouterProvider } from '@/routing/router.tsx'
+import { AppServicesProvider } from '@/services/services-provider.tsx'
 import { DeepLinkProvider } from './deep-link-provider.tsx'
+
+// The handler itself is covered in `@reflect/core`; these cover how the
+// provider ties it to the router and to the graph session.
 
 const GRAPH: GraphInfo = { root: '/g', name: 'g', generation: 7 }
 
-function mount() {
-  return render(<DeepLinkProvider graph={GRAPH}>{null}</DeepLinkProvider>)
-}
+function setup() {
+  const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
+  const captureInbox = createTestCaptureInboxService()
+  const operations = createTestOperationsService()
+  const deepLink = createTestDeepLinkService({
+    indexQuery: { resolveNoteTarget },
+    captureInbox,
+    operations,
+  })
+  const app = createTestAppServices({ deepLink, captureInbox, operations })
+  onTestFinished(installTestServices(app))
 
-/** The handler the provider attached on its most recent effect run. */
-function attachedHandler(): (url: string) => void {
-  const handler = setDeepLinkHandler.mock.calls.at(-1)?.[0]
-  if (handler === null || handler === undefined) {
-    throw new Error('no handler attached')
+  function tree(graph: GraphInfo = GRAPH): ReactElement {
+    return (
+      <AppServicesProvider services={app}>
+        <RouterProvider>
+          <DeepLinkProvider graph={graph}>{null}</DeepLinkProvider>
+        </RouterProvider>
+      </AppServicesProvider>
+    )
   }
-  return handler
-}
 
-beforeEach(() => {
-  vi.clearAllMocks()
-  navigation.revision = 0
-})
+  /** The routes navigated to so far, in order. */
+  const navigated = () => app.navigation.navigations().map((call) => call.route)
+
+  /** Dispatch a note link whose resolution stays pending until it is resolved. */
+  function dispatchPendingNote(target: string) {
+    const pending = Promise.withResolvers<string | null>()
+    resolveNoteTarget.mockReturnValueOnce(pending.promise)
+    deepLink.dispatch(`reflect://note/${target}`)
+    return {
+      resolve: async () => {
+        pending.resolve(`notes/${target}.md`)
+        // Let the handler continue past the resolution.
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      },
+    }
+  }
+
+  return { app, deepLink, captureInbox, resolveNoteTarget, tree, navigated, dispatchPendingNote }
+}
 
 describe('DeepLinkProvider', () => {
-  it('attaches a handler on mount and detaches on unmount', async () => {
-    const view = await mount()
-    expect(setDeepLinkHandler).toHaveBeenLastCalledWith(expect.any(Function))
+  it('serves the intake on mount and stops on unmount', async () => {
+    const { deepLink, tree, navigated } = setup()
+    deepLink.dispatch('reflect://tasks')
+    expect(navigated()).toEqual([])
+
+    const view = await render(tree())
+    expect(navigated()).toEqual([{ kind: 'tasks' }])
 
     await view.unmount()
-    expect(setDeepLinkHandler).toHaveBeenLastCalledWith(null)
+    deepLink.dispatch('reflect://today')
+    expect(navigated()).toEqual([{ kind: 'tasks' }])
   })
 
-  it('routes URLs into handleDeepLink with the session io', async () => {
-    await mount()
+  it('routes URLs into the service with the router and the session generation', async () => {
+    const { deepLink, captureInbox, tree, navigated } = setup()
+    await render(tree())
 
-    attachedHandler()('reflect://today')
+    deepLink.dispatch('reflect://today')
+    deepLink.dispatch('reflect://append?text=x')
 
-    expect(handleDeepLink).toHaveBeenCalledTimes(1)
-    const [url, io] = handleDeepLink.mock.calls[0]!
-    expect(url).toBe('reflect://today')
-    expect(io.navigate).toBe(navigate)
-    expect(io.generation).toBe(7)
+    expect(navigated()).toEqual([{ kind: 'today' }])
+    await vi.waitFor(() => expect(captureInbox.spooled()).toHaveLength(1))
+    expect(captureInbox.spooled()[0]?.generation).toBe(7)
   })
 
-  it('reports stale when the graph session changes — an in-flight resolve must not navigate', async () => {
-    const view = await mount()
-    attachedHandler()('reflect://note/x')
-    const io = handleDeepLink.mock.calls[0]![1]
+  it('drops an in-flight resolve when the graph session changes', async () => {
+    const { tree, navigated, dispatchPendingNote } = setup()
+    const view = await render(tree())
+    const pending = dispatchPendingNote('x')
 
-    expect(io.isStale?.()).toBe(false)
-    await view.rerender(
-      <DeepLinkProvider graph={{ ...GRAPH, generation: 8 }}>{null}</DeepLinkProvider>,
-    )
-    expect(io.isStale?.()).toBe(true)
+    await view.rerender(tree({ ...GRAPH, generation: 8 }))
+    await pending.resolve()
+
+    expect(navigated()).toEqual([])
   })
 
-  it('reports stale when navigation changes while a note target resolves', async () => {
-    await mount()
-    attachedHandler()('reflect://note/x')
-    const io = handleDeepLink.mock.calls[0]![1]
+  it('drops a note resolve when navigation changes meanwhile', async () => {
+    const { app, tree, navigated, dispatchPendingNote } = setup()
+    await render(tree())
+    const pending = dispatchPendingNote('x')
 
-    expect(io.isStale?.()).toBe(false)
-    navigation.revision += 1
-    expect(io.isStale?.()).toBe(true)
+    app.navigation.navigate({ kind: 'tasks' })
+    await pending.resolve()
+
+    expect(navigated()).toEqual([{ kind: 'tasks' }])
   })
 
-  it('reports stale when a newer note-link intent starts during resolution', async () => {
-    await mount()
-    attachedHandler()('reflect://note/x')
-    const io = handleDeepLink.mock.calls[0]![1]
+  it('drops a note resolve when a newer note-link intent starts meanwhile', async () => {
+    const { tree, navigated, dispatchPendingNote } = setup()
+    await render(tree())
+    const pending = dispatchPendingNote('x')
 
-    expect(io.isStale?.()).toBe(false)
     beginLinkNavigationIntent()
-    expect(io.isStale?.()).toBe(true)
+    await pending.resolve()
+
+    expect(navigated()).toEqual([])
   })
 
   it.each([
@@ -100,68 +125,61 @@ describe('DeepLinkProvider', () => {
     'reflect://task?text=captured',
     'reflect://edit-notes?content=invalid',
   ])('does not stale a pending note resolve for non-navigation URL %s', async (url) => {
-    await mount()
-    attachedHandler()('reflect://note/x')
-    const pendingNoteIo = handleDeepLink.mock.calls[0]![1]
+    const { deepLink, tree, navigated, dispatchPendingNote } = setup()
+    await render(tree())
+    const pending = dispatchPendingNote('x')
 
-    attachedHandler()(url)
+    deepLink.dispatch(url)
+    await pending.resolve()
 
-    expect(pendingNoteIo.isStale?.()).toBe(false)
-    expect(handleDeepLink.mock.calls[1]![1].isStale).toBeUndefined()
+    expect(navigated()).toEqual([{ kind: 'note', path: 'notes/x.md' }])
   })
 
-  it.each(['reflect://today', 'reflect://note/y'])(
-    'stales a pending note resolve for newer navigation URL %s',
-    async (url) => {
-      await mount()
-      attachedHandler()('reflect://note/x')
-      const pendingNoteIo = handleDeepLink.mock.calls[0]![1]
+  it('stales a pending note resolve for a newer navigation URL', async () => {
+    const { deepLink, tree, navigated, dispatchPendingNote } = setup()
+    await render(tree())
+    const pending = dispatchPendingNote('x')
 
-      attachedHandler()(url)
+    deepLink.dispatch('reflect://today')
+    await pending.resolve()
 
-      expect(pendingNoteIo.isStale?.()).toBe(true)
-      expect(handleDeepLink.mock.calls[1]![1].isStale?.()).toBe(false)
-    },
-  )
+    expect(navigated()).toEqual([{ kind: 'today' }])
+  })
+
+  it('stales a pending note resolve for a newer note URL', async () => {
+    const { tree, navigated, dispatchPendingNote } = setup()
+    await render(tree())
+    const older = dispatchPendingNote('x')
+    const newer = dispatchPendingNote('y')
+
+    await older.resolve()
+    await newer.resolve()
+
+    expect(navigated()).toEqual([{ kind: 'note', path: 'notes/y.md' }])
+  })
 
   it('a StrictMode probe cycle does not stale a link the probe attach drained', async () => {
     // The note window's initial deep link buffers in the intake and is drained
     // by the FIRST attach — which in dev is StrictMode's probe run. Its async
     // note resolution must survive the probe's detach/reattach (same session),
     // or ⌘-clicked windows open on Today instead of the note.
-    await render(
-      <StrictMode>
-        <DeepLinkProvider graph={GRAPH}>{null}</DeepLinkProvider>
-      </StrictMode>,
-    )
-    const probeHandler = setDeepLinkHandler.mock.calls[0]?.[0]
-    expect(probeHandler).toEqual(expect.any(Function))
-    probeHandler?.('reflect://note/x')
+    const { tree, navigated, dispatchPendingNote } = setup()
+    const pending = dispatchPendingNote('x')
 
-    const io = handleDeepLink.mock.calls[0]![1]
-    expect(io.isStale?.()).toBe(false)
+    await render(<StrictMode>{tree()}</StrictMode>)
+    await pending.resolve()
+
+    expect(navigated()).toEqual([{ kind: 'note', path: 'notes/x.md' }])
   })
 
-  it('stays fresh after a plain unmount — the keyed remount makes the old router inert', async () => {
-    // Unmount alone is not a session change: on a graph switch the whole
-    // keyed workspace remounts, so a late navigate hits a torn-down router
-    // and no-ops. Staleness tracks the generation, nothing else.
-    const view = await mount()
-    attachedHandler()('reflect://note/x')
-    const io = handleDeepLink.mock.calls[0]![1]
+  it('stays fresh after a plain unmount — staleness tracks the session, not the mount', async () => {
+    const { tree, navigated, dispatchPendingNote } = setup()
+    const view = await render(tree())
+    const pending = dispatchPendingNote('x')
 
     await view.unmount()
-    expect(io.isStale?.()).toBe(false)
-  })
+    await pending.resolve()
 
-  it('logs a rejected handler instead of leaving an unhandled rejection', async () => {
-    handleDeepLink.mockRejectedValueOnce(new Error('spool failed'))
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-
-    await mount()
-    attachedHandler()('reflect://append?text=x')
-
-    await vi.waitFor(() => expect(errorSpy).toHaveBeenCalled())
-    errorSpy.mockRestore()
+    expect(navigated()).toEqual([{ kind: 'note', path: 'notes/x.md' }])
   })
 })

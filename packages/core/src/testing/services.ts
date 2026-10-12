@@ -102,6 +102,11 @@ import {
 import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
+import { createTestKeyboardService, createTestShareService } from './mobile.ts'
+import {
+  createTestMobileOnboardingService,
+  type TestMobileOnboardingService,
+} from './mobile-onboarding.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
 import {
@@ -143,7 +148,12 @@ import {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
-import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
+import {
+  createTestDeepLinkService,
+  createTestNavigationService,
+  type TestDeepLinkService,
+  type TestNavigationService,
+} from './navigation.ts'
 import { createTestSettingsService, type TestSettingsService } from './settings.ts'
 import {
   createTestPersistenceFlushService,
@@ -196,6 +206,7 @@ export interface TestAppServices extends AppServices {
   readonly chatHistory: TestChatHistoryService
   readonly update: TestUpdateService
   readonly navigation: TestNavigationService
+  readonly deepLink: TestDeepLinkService
   readonly gitRepository: TestGitRepositoryService
   readonly icloudNative: TestICloudNativeService
   readonly captureInbox: TestCaptureInboxService
@@ -221,6 +232,7 @@ export interface TestAppServices extends AppServices {
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
   readonly graphSession: TestGraphSessionService
+  readonly mobileOnboarding: TestMobileOnboardingService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
@@ -288,6 +300,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const dialog = createTestDialogService()
   const path = createTestPathService()
   const windowService = createTestWindowService()
+  const captureInbox = createTestCaptureInboxService()
   const lifecycle = createTestLifecycleService()
   const mobileStorage = createTestMobileStorageService()
   const indexLifecycle = createTestIndexLifecycleService({
@@ -306,6 +319,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     ipc: overrides?.ipc ?? ipc,
     indexStore: overrides?.indexStore ?? indexStore,
     openDocuments: overrides?.openDocuments ?? openDocuments,
+    logger,
+  })
+  const graphSession = createTestGraphSessionService({
+    ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
+    indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+    indexStore: overrides?.indexStore ?? indexStore,
+    noteFile: overrides?.noteFile ?? noteFile,
+    id: overrides?.id ?? id,
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+    window: overrides?.window ?? windowService,
+    dialog: overrides?.dialog ?? dialog,
+    path: overrides?.path ?? path,
+    platform: overrides?.platform ?? platform,
+    lifecycle: overrides?.lifecycle ?? lifecycle,
+    mobileStorage: overrides?.mobileStorage ?? mobileStorage,
     logger,
   })
   const services: TestAppServices = {
@@ -342,6 +370,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
+    deepLink: createTestDeepLinkService({
+      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
+      captureInbox: overrides?.captureInbox ?? captureInbox,
+      operations: overrides?.operations ?? operations,
+      id: overrides?.id ?? id,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
     gitRepository: createTestGitRepositoryService(),
     githubAuth: createTestGithubAuthService({
       secretStore: overrides?.secretStore ?? secretStore,
@@ -354,7 +390,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     githubRepos: createTestGithubRepoService({ http: overrides?.http ?? http }),
     gists: createTestGistService({ http: overrides?.http ?? http }),
     icloudNative: createTestICloudNativeService(),
-    captureInbox: createTestCaptureInboxService(),
+    captureInbox,
     webFetch: createTestWebFetchService(),
     xArchive,
     audioRecorder: createTestAudioRecorderService(),
@@ -387,6 +423,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
     }),
+    keyboard: createTestKeyboardService(),
+    share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
     noteDocuments: createTestNoteDocumentService({
       openDocuments: overrides?.openDocuments ?? openDocuments,
       noteFile: overrides?.noteFile ?? noteFile,
@@ -400,19 +438,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     privacy,
     indexLifecycle,
-    graphSession: createTestGraphSessionService({
-      ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
-      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-      indexStore: overrides?.indexStore ?? indexStore,
-      noteFile: overrides?.noteFile ?? noteFile,
-      id: overrides?.id ?? id,
-      fileChanges: overrides?.fileChanges ?? fileChanges,
-      window: overrides?.window ?? windowService,
-      dialog: overrides?.dialog ?? dialog,
-      path: overrides?.path ?? path,
-      platform: overrides?.platform ?? platform,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
+    graphSession,
+    mobileOnboarding: createTestMobileOnboardingService({
       mobileStorage: overrides?.mobileStorage ?? mobileStorage,
+      settings: overrides?.settings ?? settings,
+      graphSession: overrides?.graphSession ?? graphSession,
+      platform: overrides?.platform ?? platform,
+      clock: overrides?.clock ?? clock,
       logger,
     }),
     aiCredentials,
