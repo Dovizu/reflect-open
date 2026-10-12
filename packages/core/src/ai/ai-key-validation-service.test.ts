@@ -1,7 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createTestHttpService } from '../testing/index.ts'
 import { APP_REVIEW_STUB_KEY } from './app-review-demo.ts'
-import { validateApiKey } from './validate-key.ts'
+import {
+  createAiKeyValidationService,
+  type ApiKeyValidation,
+  type ApiKeyValidationInput,
+} from './ai-key-validation-service.ts'
+
+async function validateApiKey(
+  input: ApiKeyValidationInput,
+  fetchFn: typeof fetch,
+): Promise<ApiKeyValidation> {
+  return await createAiKeyValidationService({ http: { fetch: fetchFn } }).validate(input)
+}
 
 function fetchReturning(status: number): typeof fetch {
   return async () => new Response(null, { status })
@@ -11,7 +22,7 @@ const fetchThrowing: typeof fetch = async () => {
   throw new TypeError('network down')
 }
 
-describe('validateApiKey', () => {
+describe('AiKeyValidationService', () => {
   it('sends the provider-specific auth headers to the model-listing endpoint', async () => {
     const http = createTestHttpService()
 
@@ -98,13 +109,13 @@ describe('validateApiKey', () => {
   })
 
   it('reads an invalid OpenAI-compatible base URL as invalid without fetching', async () => {
-    const fetchFn = vi.fn<typeof fetch>()
+    const http = createTestHttpService()
     expect(
       await validateApiKey(
         { provider: 'openai-compatible', apiKey: '', baseUrl: 'file:///tmp/model.sock' },
-        fetchFn,
+        http.fetchFn,
       ),
     ).toBe('invalid')
-    expect(fetchFn).not.toHaveBeenCalled()
+    expect(http.requests()).toEqual([])
   })
 })

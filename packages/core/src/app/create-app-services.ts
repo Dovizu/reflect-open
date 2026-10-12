@@ -1,3 +1,15 @@
+import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
+import {
+  createAiKeyValidationService,
+  type AiKeyValidationService,
+} from '../ai/ai-key-validation-service.ts'
+import { createAiPromptService, type AiPromptService } from '../ai/ai-prompt-service.ts'
+import {
+  createLanguageModelService,
+  createLazyAiSdkLoader,
+  withAppReviewDemo,
+  type LanguageModelService,
+} from '../ai/language-model-service.ts'
 import {
   createChatHistoryService,
   type ChatHistoryService,
@@ -198,6 +210,10 @@ export interface AppServices {
   readonly noteCreation: NoteCreationService
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
+  readonly aiCredentials: AiCredentialService
+  readonly aiKeyValidation: AiKeyValidationService
+  readonly languageModel: LanguageModelService
+  readonly aiPrompts: AiPromptService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -426,5 +442,11 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       logger,
       operations,
     }),
+    aiCredentials: createAiCredentialService({ secretStore }),
+    aiKeyValidation: createAiKeyValidationService({ http: adapters.http }),
+    languageModel: withAppReviewDemo(
+      createLanguageModelService({ http: adapters.http, sdk: createLazyAiSdkLoader() }),
+    ),
+    aiPrompts: createAiPromptService({ settings, id }),
   }
 }

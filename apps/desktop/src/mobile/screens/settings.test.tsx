@@ -7,13 +7,16 @@ import {
   getConflictedNotes,
   setDefaultAppInfo,
   setDefaultOpener,
+  setDefaultSettings,
   type GraphInfo,
   type Settings,
 } from '@reflect/core'
 import {
   createTestAppInfoService,
   createTestOpenerService,
+  createTestSettingsService,
   type TestOpenerService,
+  type TestSettingsService,
 } from '@reflect/core/testing'
 import type { BackupState } from '@/lib/backup-controller.ts'
 import '@/test-utils/locator.ts'
@@ -46,10 +49,11 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
 
 let opener: TestOpenerService
 
+// The saved AI prompts live in this service; the other groups read the mocked provider below.
+let settingsService: TestSettingsService
+
 const settingsState = vi.hoisted(() => ({ current: {} as Settings }))
 const updateSettings = vi.hoisted(() => vi.fn())
-// Routed through the `updateSettings` spy (see beforeEach) so prompt-list
-// edits assert on the patch their functional update produces.
 const updateSettingsWith = vi.hoisted(() => vi.fn())
 vi.mock('@/providers/settings-provider.tsx', () => ({
   useSettings: () => ({ settings: settingsState.current, updateSettings, updateSettingsWith }),
@@ -104,6 +108,8 @@ beforeEach(async () => {
   opener = createTestOpenerService()
   setDefaultOpener(opener)
   setDefaultAppInfo(createTestAppInfoService('1.2.3-beta.4'))
+  settingsService = createTestSettingsService()
+  setDefaultSettings(settingsService)
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   settingsState.current = { ...DEFAULT_SETTINGS }
   graphState.mobileStorageKind = 'icloud'
@@ -122,6 +128,7 @@ afterEach(async () => {
   vi.useRealTimers()
   await cleanup()
   setDefaultAppInfo(null)
+  setDefaultSettings(null)
   queryClient.clear()
   vi.clearAllMocks()
 })
@@ -329,15 +336,13 @@ describe('MobileSettings', () => {
     await user.fill(sheet.getByRole('textbox', { name: 'Prompt' }), 'Shorten: {{selectedText}}')
     await user.click(sheet.getByRole('button', { name: 'Add prompt' }))
 
-    expect(updateSettings).toHaveBeenCalledWith({
-      aiPrompts: [
-        expect.objectContaining({
-          label: 'Shorten',
-          body: 'Shorten: {{selectedText}}',
-          mode: 'replace',
-        }),
-      ],
-    })
+    expect(settingsService.get().aiPrompts).toEqual([
+      expect.objectContaining({
+        label: 'Shorten',
+        body: 'Shorten: {{selectedText}}',
+        mode: 'replace',
+      }),
+    ])
   })
 
   it('edits a saved AI prompt through its row', async () => {
@@ -348,7 +353,8 @@ describe('MobileSettings', () => {
       body: 'Translate: {{selectedText}}',
       mode: 'replace' as const,
     }
-    settingsState.current = { ...settingsState.current, aiPrompts: [saved] }
+    settingsService = createTestSettingsService({ aiPrompts: [saved] })
+    setDefaultSettings(settingsService)
     await mount()
 
     await user.click(page.getByRole('button', { name: 'Translate to French' }))
@@ -356,23 +362,21 @@ describe('MobileSettings', () => {
     await user.fill(sheet.getByRole('textbox', { name: 'Label' }), 'Translate to German')
     await user.click(sheet.getByRole('button', { name: 'Save' }))
 
-    expect(updateSettings).toHaveBeenCalledWith({
-      aiPrompts: [{ ...saved, label: 'Translate to German' }],
-    })
+    expect(settingsService.get().aiPrompts).toEqual([{ ...saved, label: 'Translate to German' }])
   })
 
   it('removes a saved AI prompt from the edit sheet', async () => {
     const user = userEvent
-    settingsState.current = {
-      ...settingsState.current,
+    settingsService = createTestSettingsService({
       aiPrompts: [{ id: 'p1', label: 'Shorten', body: 'Shorten this.', mode: 'replace' }],
-    }
+    })
+    setDefaultSettings(settingsService)
     await mount()
 
     await user.click(page.getByRole('button', { name: 'Shorten' }))
     await user.click(page.getByTestId('drawer').getByRole('button', { name: 'Remove' }))
 
-    expect(updateSettings).toHaveBeenCalledWith({ aiPrompts: [] })
+    expect(settingsService.get().aiPrompts).toEqual([])
   })
 
   it('shows the connected repo and the live plain-language status', async () => {

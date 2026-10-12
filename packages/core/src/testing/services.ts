@@ -8,6 +8,16 @@ import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 import { installDefaultServices, resetDefaultServices } from '../app/install-default-services.ts'
 import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
+import type { AiCredentialService } from '../ai/ai-credential-service.ts'
+import type { AiPromptService } from '../ai/ai-prompt-service.ts'
+import {
+  createTestAiCredentialService,
+  createTestAiKeyValidationService,
+  createTestAiPromptService,
+  createTestLanguageModelService,
+  type TestAiKeyValidationService,
+  type TestLanguageModelService,
+} from './ai.ts'
 import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 import {
@@ -170,6 +180,10 @@ export interface TestAppServices extends AppServices {
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
+  readonly aiCredentials: AiCredentialService
+  readonly aiKeyValidation: TestAiKeyValidationService
+  readonly languageModel: TestLanguageModelService
+  readonly aiPrompts: AiPromptService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -185,6 +199,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
   const id = createTestIdService()
+  const secretStore = createTestSecretStoreService()
+  const settings = createTestSettingsService(
+    {},
+    { operations: overrides?.operations ?? operations },
+  )
   const indexReads = createIndexReadServices({
     database: overrides?.database ?? database,
     noteFile: overrides?.noteFile ?? noteFile,
@@ -212,7 +231,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     path: createTestPathService(),
     window: createTestWindowService(),
     lifecycle: createTestLifecycleService(),
-    secretStore: createTestSecretStoreService(),
+    secretStore,
     appInfo: createTestAppInfoService(),
     calendar: createTestCalendarService(),
     contacts: createTestContactsService(),
@@ -221,7 +240,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations,
-    settings: createTestSettingsService({}, { operations: overrides?.operations ?? operations }),
+    settings,
     theme: createTestThemeService(),
     persistenceFlush: createTestPersistenceFlushService(),
     database,
@@ -265,6 +284,15 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
       operations: overrides?.operations ?? operations,
+    }),
+    aiCredentials: createTestAiCredentialService({
+      secretStore: overrides?.secretStore ?? secretStore,
+    }),
+    aiKeyValidation: createTestAiKeyValidationService(),
+    languageModel: createTestLanguageModelService(),
+    aiPrompts: createTestAiPromptService({
+      settings: overrides?.settings ?? settings,
+      id: overrides?.id ?? id,
     }),
   }
   return Object.assign(services, overrides)

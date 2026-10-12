@@ -120,6 +120,18 @@ export {
   type TestICloudNativeService,
 } from './sync.ts'
 export {
+  createTestAiCredentialService,
+  createTestAiKeyValidationService,
+  createTestAiPromptService,
+  createTestLanguageModelService,
+  type TestAiCredentialServiceOptions,
+  type TestAiKeyValidationService,
+  type TestAiPromptServiceOptions,
+  type TestLanguageModelCall,
+  type TestLanguageModelService,
+  type TestLanguageModelSource,
+} from './ai.ts'
+export {
   createTestAppInfoService,
   createTestSecretStoreService,
   type TestSecretStoreService,

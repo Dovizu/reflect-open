@@ -1,10 +1,14 @@
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
-import { describe, expect, it, vi } from 'vitest'
+import type { LanguageModel } from '@reflect/modules/ai'
+import { afterEach, describe, expect, it } from 'vitest'
 import { cloudSafeSelection } from '../privacy/checkers.ts'
-import { languageModel } from './language-model.ts'
+import { createTestLanguageModelService } from '../testing/index.ts'
+import { setDefaultLanguageModel } from './language-model-service.ts'
 import { transformSelection, type TransformSelectionOptions } from './transform-selection.ts'
 
-vi.mock('./language-model', () => ({ languageModel: vi.fn() }))
+afterEach(() => {
+  setDefaultLanguageModel(null)
+})
 
 const options: TransformSelectionOptions = {
   config: { id: 'cfg', provider: 'openai', model: 'gpt-5.5', keyHint: 'test' },
@@ -17,8 +21,8 @@ const options: TransformSelectionOptions = {
 describe('selection model loading', () => {
   it('does not call the provider after aborting during model loading', async () => {
     const controller = new AbortController()
-    const loading = Promise.withResolvers<Awaited<ReturnType<typeof languageModel>>>()
-    vi.mocked(languageModel).mockReturnValueOnce(loading.promise)
+    const loading = Promise.withResolvers<LanguageModel>()
+    setDefaultLanguageModel(createTestLanguageModelService(() => loading.promise))
     const model = new MockLanguageModelV3()
     const next = transformSelection({ ...options, signal: controller.signal }).next()
     controller.abort()
@@ -29,7 +33,9 @@ describe('selection model loading', () => {
   })
 
   it('returns a terminal error event when the model chunk fails to load', async () => {
-    vi.mocked(languageModel).mockRejectedValueOnce(new Error('model chunk unavailable'))
+    setDefaultLanguageModel(
+      createTestLanguageModelService(() => Promise.reject(new Error('model chunk unavailable'))),
+    )
     const stream = transformSelection(options)
 
     expect(await stream.next()).toEqual({

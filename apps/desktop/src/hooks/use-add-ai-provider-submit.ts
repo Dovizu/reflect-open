@@ -7,7 +7,6 @@ import {
   normalizeOpenAICompatibleBaseUrl,
   validateApiKey,
 } from '@reflect/core'
-import { providerFetch } from '@/lib/provider-fetch.ts'
 import type { NewAiProvider } from '@/hooks/use-ai-providers.ts'
 
 interface UseAddAiProviderSubmitOptions {
@@ -73,10 +72,7 @@ export function useAddAiProviderSubmit({
       }
       try {
         if (!unverified) {
-          const validation = await validateApiKey(
-            { provider: draft.provider, apiKey, baseUrl },
-            providerFetch,
-          )
+          const validation = await validateApiKey({ provider: draft.provider, apiKey, baseUrl })
           if (validation === 'invalid') {
             setSubmitError(
               draft.provider === 'openai-compatible' && apiKey === ''

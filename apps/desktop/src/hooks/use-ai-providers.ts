@@ -1,12 +1,10 @@
 import { useCallback } from 'react'
 import {
-  aiKeySecretName,
   aiProviderRequiresApiKey,
   apiKeyHint,
+  defaultAiCredentials,
   defaultAiProvider,
-  deleteSecret,
   normalizeOpenAICompatibleBaseUrl,
-  setSecret,
   withAiProviderAdded,
   withAiProviderRemoved,
   type AiProviderConfig,
@@ -83,7 +81,7 @@ export function useAiProviders(): UseAiProvidersValue {
       const id = crypto.randomUUID()
       const apiKey = draft.apiKey.trim()
       if (apiKey !== '' || aiProviderRequiresApiKey(draft.provider)) {
-        await setSecret(aiKeySecretName(id), apiKey)
+        await defaultAiCredentials().store(id, apiKey)
       }
       updateSettingsWith((current) => {
         const entry: AiProviderConfig =
@@ -120,7 +118,7 @@ export function useAiProviders(): UseAiProvidersValue {
       // order would strand the credential invisibly in the keychain — the
       // keyring API can't enumerate entries, so it could never be swept.
       // The settings write itself is retried by the provider on failure.
-      await deleteSecret(aiKeySecretName(id))
+      await defaultAiCredentials().remove(id)
       updateSettingsWith((current) => {
         const next = withAiProviderRemoved(
           { providers: current.aiProviders, defaultProviderId: current.defaultAiProviderId },

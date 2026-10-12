@@ -90,7 +90,7 @@ export async function* streamChat(options: StreamChatOptions): AsyncGenerator<Ch
         customSystemPrompt: options.customSystemPrompt,
       }),
     })
-    const model = await languageModel(options.config, options.apiKey, options.fetchFn)
+    const model = await languageModel(options.config, options.apiKey)
     options.signal?.throwIfAborted()
     yield* streamChatTurn(model, {
       messages,
