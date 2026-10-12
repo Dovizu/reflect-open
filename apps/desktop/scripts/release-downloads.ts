@@ -14,17 +14,17 @@
 //
 //   node apps/desktop/scripts/release-downloads.ts \
 //     --repo=team-reflect/reflect-open \
-//     --tag=v0.15.0-beta.5 \
+//     --tag=v0.15.0-beta.8 \
 //     --asset=Reflect.Beta \
 //     latest.json \
-//     Reflect.Beta_0.15.0-beta.5_aarch64.app.tar.gz \
-//     Reflect.Beta_0.15.0-beta.5_aarch64.app.tar.gz.sig \
-//     Reflect.Beta_0.15.0-beta.5_arm64-setup.exe \
-//     Reflect.Beta_0.15.0-beta.5_arm64-setup.exe.sig \
-//     Reflect.Beta_0.15.0-beta.5_x64-setup.exe \
-//     Reflect.Beta_0.15.0-beta.5_x64-setup.exe.sig \
-//     Reflect.Beta_0.15.0-beta.5_universal.app.tar.gz \
-//     Reflect.Beta_0.15.0-beta.5_universal.app.tar.gz.sig \
+//     Reflect.Beta_0.15.0-beta.8_aarch64.app.tar.gz \
+//     Reflect.Beta_0.15.0-beta.8_aarch64.app.tar.gz.sig \
+//     Reflect.Beta_0.15.0-beta.8_arm64-setup.exe \
+//     Reflect.Beta_0.15.0-beta.8_arm64-setup.exe.sig \
+//     Reflect.Beta_0.15.0-beta.8_x64-setup.exe \
+//     Reflect.Beta_0.15.0-beta.8_x64-setup.exe.sig \
+//     Reflect.Beta_0.15.0-beta.8_universal.app.tar.gz \
+//     Reflect.Beta_0.15.0-beta.8_universal.app.tar.gz.sig \
 //     Reflect.Beta_aarch64.dmg \
 //     Reflect.Beta_universal.dmg
 //
@@ -33,21 +33,21 @@
 //
 //   node apps/desktop/scripts/release-downloads.ts \
 //     --repo=team-reflect/reflect-open \
-//     --tag=v0.14.0 \
+//     --tag=v0.15.0 \
 //     --asset=Reflect \
 //     latest.json \
-//     Reflect_0.14.0_aarch64.app.tar.gz \
-//     Reflect_0.14.0_aarch64.app.tar.gz.sig \
-//     Reflect_0.14.0_universal.app.tar.gz \
-//     Reflect_0.14.0_universal.app.tar.gz.sig \
+//     Reflect_0.15.0_aarch64.app.tar.gz \
+//     Reflect_0.15.0_aarch64.app.tar.gz.sig \
+//     Reflect_0.15.0_universal.app.tar.gz \
+//     Reflect_0.15.0_universal.app.tar.gz.sig \
 //     Reflect_aarch64.dmg \
 //     Reflect_universal.dmg
 //
 // The asset names of a published release, read with the GitHub CLI:
 //
 //   node apps/desktop/scripts/release-downloads.ts \
-//     --repo=team-reflect/reflect-open --tag=v0.14.0 --asset=Reflect \
-//     $(gh release view v0.14.0 --repo team-reflect/reflect-open --json assets --jq '.assets[].name')
+//     --repo=team-reflect/reflect-open --tag=v0.15.0 --asset=Reflect \
+//     $(gh release view v0.15.0 --repo team-reflect/reflect-open --json assets --jq '.assets[].name')
 
 import { parseArgs } from 'node:util'
 
