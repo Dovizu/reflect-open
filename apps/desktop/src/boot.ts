@@ -1,36 +1,27 @@
 import { initializeExceptionTelemetry } from '@/lib/exception-telemetry.ts'
+import { createDesktopAdapters } from '@/services/create-desktop-services.ts'
+import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
-import { createTauriHttpService } from '@/services/tauri-http.ts'
-import { installShellServices } from '@/services/shell-services.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
-import {
-  createBrowserHttpService,
-  createPlatformService,
-  defaultPlatform,
-  setBridge,
-  setDefaultHttp,
-  setDefaultPlatform,
-} from '@reflect/core'
+import { createAppServices, installDefaultServices } from '@reflect/core'
 import { isTauri } from '@tauri-apps/api/core'
 
-// Runs before every module imported after this one, so the platform facts,
-// exception telemetry, and the IPC bridge exist while the rest of the app's
-// modules evaluate.
-setDefaultPlatform(createPlatformService(detectPlatformFacts(isTauri())))
-initializeExceptionTelemetry()
+const facts = detectPlatformFacts(isTauri())
 
-// Install the Tauri bridge when running inside a Tauri webview. Plain-browser
-// dev (`pnpm dev` without the shell) installs nothing here — the platform
-// root later installs the in-memory dev bridge instead, and features that
-// need the real shell rather than just an answering bridge gate on
-// `isNativeShell()`.
-if (defaultPlatform().isNativeShell) {
-  setBridge(createTauriIpcTransport())
-}
+/**
+ * Plain-browser dev (`pnpm dev` without the shell) has no transport yet: the
+ * platform root connects the in-memory dev transport here once it is ready.
+ * `null` inside a Tauri webview. Features that need the real shell rather
+ * than an answering transport gate on `isNativeShell()`.
+ */
+export const pendingDevIpc = facts.isNativeShell ? null : createDeferredIpcTransport()
 
-setDefaultHttp(
-  defaultPlatform().isNativeShell ? createTauriHttpService() : createBrowserHttpService(),
+/** The app-scoped services of this webview. */
+export const appServices = createAppServices(
+  createDesktopAdapters(facts, pendingDevIpc?.transport ?? createTauriIpcTransport()),
 )
 
-// The dialog, clipboard, opener, path, window, and lifecycle services.
-installShellServices({ nativeShell: defaultPlatform().isNativeShell })
+// Runs before every module imported after this one, so the services and
+// exception telemetry exist while the rest of the app's modules evaluate.
+installDefaultServices(appServices)
+initializeExceptionTelemetry()

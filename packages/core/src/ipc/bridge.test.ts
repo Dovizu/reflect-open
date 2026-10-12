@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { currentIpc, setBridge } from './bridge.ts'
+import { currentIpc, defaultIpc, getBridge, hasBridge, setBridge, setDefaultIpc } from './bridge.ts'
 
 afterEach(() => {
   setBridge(null)
@@ -35,5 +35,16 @@ describe('currentIpc', () => {
     setBridge(createTestIpcBridgeService().transport)
     expect(ipc.hasBinaryTransport).toBe(true)
     expect(ipc.hasPluginEvents).toBe(true)
+  })
+})
+
+describe('setDefaultIpc', () => {
+  it('installs the service itself and its transport as the bridge', () => {
+    const service = createTestIpcBridgeService()
+    setDefaultIpc(service)
+    expect(defaultIpc()).toBe(service)
+    expect(getBridge()).toBe(service.transport)
+    setDefaultIpc(null)
+    expect(hasBridge()).toBe(false)
   })
 })
