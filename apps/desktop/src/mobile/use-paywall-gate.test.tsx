@@ -2,9 +2,14 @@ import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
-import { CLASSIC_ACCESS_SECRET, setBridge, type AppPlatform } from '@reflect/core'
+import {
+  CLASSIC_ACCESS_SECRET,
+  setBridge,
+  setDefaultStorage,
+  type AppPlatform,
+} from '@reflect/core'
+import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
 import { usePaywallRequested } from '@/hooks/use-paywall-requested.ts'
-import { resetLocalStorageStores } from '@/lib/local-storage.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { usePaywallGate, type PaywallGate } from './use-paywall-gate.ts'
@@ -96,6 +101,8 @@ function wrapper({ children }: { children: ReactNode }) {
   )
 }
 
+let storage: TestStorageService
+
 beforeEach(() => {
   graphState.platform = 'ios'
   bridgeState.ready = true
@@ -104,9 +111,8 @@ beforeEach(() => {
   classicAccess = () => Promise.resolve(null)
   stored = {}
   emitPurchaseUpdated = null
-  localStorage.clear()
-  resetLocalStorageStores()
-  sessionStorage.clear()
+  storage = createTestStorageService()
+  setDefaultStorage(storage)
   queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, retryDelay: 0, staleTime: Infinity } },
   })
@@ -122,6 +128,7 @@ afterEach(async () => {
   focusManager.setFocused(undefined)
   setBridge(null)
   queryClient.clear()
+  setDefaultStorage(null)
 })
 
 describe('usePaywallGate', () => {
@@ -479,8 +486,7 @@ describe('usePaywallGate', () => {
     it('does not answer from a channel an older build remembered as Production', async () => {
       // Written by hand: this build never remembers `Production`, because a
       // remembered `Production` reads exactly like no seed at all.
-      localStorage.setItem('reflect.app-store.environment', JSON.stringify('Production'))
-      resetLocalStorageStores()
+      storage.local.set('reflect.app-store.environment', JSON.stringify('Production'))
       environment = never
 
       await renderHook(() => usePaywallGate(), { wrapper })

@@ -31,3 +31,4 @@ export {
   type TestHttpRoute,
   type TestHttpService,
 } from './http.ts'
+export { createTestStorageService, type TestStorageService } from './storage.ts'

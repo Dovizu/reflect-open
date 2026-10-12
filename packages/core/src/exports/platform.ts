@@ -93,6 +93,15 @@ export {
   type HttpService,
 } from '../app/http-service.ts'
 export {
+  createWebStorageService,
+  defaultStorage,
+  getJson,
+  setDefaultStorage,
+  setJson,
+  type KeyValueStore,
+  type StorageService,
+} from '../app/storage-service.ts'
+export {
   agentSkillStatus,
   agentSkillInstall,
   agentSkillUninstall,

@@ -1,7 +1,9 @@
 import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultStorage } from '@reflect/core'
+import { createTestStorageService } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
@@ -46,8 +48,12 @@ function renderSidebar(path: string) {
 }
 
 beforeEach(() => {
-  window.sessionStorage.clear()
+  setDefaultStorage(createTestStorageService())
   relatedNotes.mockReset().mockResolvedValue([])
+})
+
+afterEach(() => {
+  setDefaultStorage(null)
 })
 
 describe('NoteContextSidebar', () => {

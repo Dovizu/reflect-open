@@ -2,8 +2,8 @@ import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import { setBridge, setDefaultPlatform, setDefaultStorage } from '@reflect/core'
+import { createTestPlatformService, createTestStorageService } from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { DailyEventsSection } from './daily-events-section.tsx'
@@ -105,12 +105,13 @@ beforeEach(() => {
   addMeetingToDaily.mockClear()
   addMeetingToDaily.mockResolvedValue({ appended: true, createdNotes: [] })
   resolveMeetingAttendees.mockClear()
-  window.sessionStorage.clear()
+  setDefaultStorage(createTestStorageService())
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   installFakeBridge()
 })
 
 afterEach(() => {
+  setDefaultStorage(null)
   setBridge(null)
   queryClient.clear()
 })

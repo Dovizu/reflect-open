@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent, type Locator } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultStorage } from '@reflect/core'
+import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
 import type { OpenTask } from '@reflect/core'
 import type { TaskAction } from '@/lib/note-task.ts'
 import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
@@ -257,9 +259,12 @@ async function revealSwipeActions(
   return surface
 }
 
+let storage: TestStorageService
+
 beforeEach(async () => {
   await page.viewport(375, 700)
-  window.sessionStorage.clear()
+  storage = createTestStorageService()
+  setDefaultStorage(storage)
   getOpenTasks.mockReset()
   getCompletedTasks.mockReset()
   getCompletedTasks.mockResolvedValue([])
@@ -289,6 +294,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await cleanup()
+  setDefaultStorage(null)
 })
 
 describe('MobileTasks', () => {
@@ -614,7 +620,7 @@ describe('MobileTasks', () => {
   })
 
   it('keeps open tasks visible while the archived history is still loading', async () => {
-    window.sessionStorage.setItem('reflect.tasks.filter.archived', 'true')
+    storage.session.set('reflect.tasks.filter.archived', 'true')
     getOpenTasks.mockResolvedValue([task({ text: 'still open' })])
     getCompletedTasks.mockReturnValue(new Promise<OpenTask[]>(() => {}))
     const view = await renderScreen()

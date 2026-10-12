@@ -1,33 +1,34 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createStorage } from '@/test-utils/storage.ts'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { setDefaultStorage } from '@reflect/core'
+import { createTestStorageService, type TestStorageService } from '@reflect/core/testing'
 import { getSessionStorageStore, resetSessionStorageStores } from './session-storage.ts'
 
+let storage: TestStorageService
+
 beforeEach(() => {
-  vi.stubGlobal('window', { sessionStorage: createStorage({ key: 'session' }) })
   resetSessionStorageStores()
+  storage = createTestStorageService({ session: { key: 'session' } })
+  setDefaultStorage(storage)
 })
 
 afterEach(() => {
-  vi.unstubAllGlobals()
+  setDefaultStorage(null)
 })
 
 describe('getSessionStorageStore', () => {
-  it('shares one store per key and reads sessionStorage', () => {
+  it('shares one store per key and reads the session area', () => {
     expect(getSessionStorageStore('key').get()).toBe('session')
     expect(getSessionStorageStore('key')).toBe(getSessionStorageStore('key'))
     expect(getSessionStorageStore('key')).not.toBe(getSessionStorageStore('other'))
   })
 
-  it('returns an empty store when sessionStorage is unavailable', () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    vi.stubGlobal('window', {
-      get sessionStorage(): Storage {
-        throw new Error('SecurityError')
-      },
-    })
-    resetSessionStorageStores()
+  it('writes to the current default storage', () => {
+    getSessionStorageStore('key').set('written')
+    expect(storage.dump().session).toEqual({ key: 'written' })
 
-    expect(getSessionStorageStore('key').get()).toBeNull()
-    expect(error).toHaveBeenCalledOnce()
+    const next = createTestStorageService()
+    setDefaultStorage(next)
+    getSessionStorageStore('key').set('again')
+    expect(next.dump().session).toEqual({ key: 'again' })
   })
 })

@@ -1,5 +1,5 @@
-import { setDefaultPlatform, upsertFrontmatter, type PinnedNote } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import { setDefaultPlatform, setDefaultStorage, upsertFrontmatter, type PinnedNote } from '@reflect/core'
+import { createTestPlatformService, createTestStorageService } from '@reflect/core/testing'
 import { frontmatterPatchToYaml, type FrontmatterPatch } from '@/editor/note-session.ts'
 import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
@@ -50,7 +50,7 @@ async function renderSection(path: string, showTrash = false) {
 }
 
 beforeEach(() => {
-  window.sessionStorage.clear()
+  setDefaultStorage(createTestStorageService())
   getPinnedNotes.mockReset().mockResolvedValue([])
   getNote.mockReset().mockResolvedValue(noteRow('notes/a.md', false))
   noteSource.value = '# A\n'
@@ -73,6 +73,10 @@ beforeEach(() => {
 
 afterEach(() => {
   setDefaultPlatform(null)
+})
+
+afterEach(() => {
+  setDefaultStorage(null)
 })
 
 function noteRow(path: string, isPrivate: boolean, title = 'A') {
