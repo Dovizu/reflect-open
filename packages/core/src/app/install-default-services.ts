@@ -1,6 +1,7 @@
 import { setDefaultAiCredentials } from '../ai/ai-credential-service.ts'
 import { setDefaultAiKeyValidation } from '../ai/ai-key-validation-service.ts'
 import { setDefaultAiPrompts } from '../ai/ai-prompt-service.ts'
+import { setDefaultAiProviderConfig } from '../ai/ai-provider-config-service.ts'
 import { setDefaultLanguageModel } from '../ai/language-model-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
@@ -139,6 +140,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAiKeyValidation(services.aiKeyValidation)
   setDefaultLanguageModel(services.languageModel)
   setDefaultAiPrompts(services.aiPrompts)
+  setDefaultAiProviderConfig(services.aiProviderConfig)
   setDefaultIpc(services.ipc)
 }
 
@@ -212,5 +214,6 @@ export function resetDefaultServices(): void {
   setDefaultAiKeyValidation(null)
   setDefaultLanguageModel(null)
   setDefaultAiPrompts(null)
+  setDefaultAiProviderConfig(null)
   setDefaultIpc(null)
 }

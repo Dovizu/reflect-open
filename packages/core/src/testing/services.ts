@@ -10,10 +10,12 @@ import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
 import type { AiPromptService } from '../ai/ai-prompt-service.ts'
+import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import {
   createTestAiCredentialService,
   createTestAiKeyValidationService,
   createTestAiPromptService,
+  createTestAiProviderConfigService,
   createTestLanguageModelService,
   type TestAiKeyValidationService,
   type TestLanguageModelService,
@@ -188,6 +190,7 @@ export interface TestAppServices extends AppServices {
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly aiProviderConfig: AiProviderConfigService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -221,6 +224,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
   const hash = createTestHashService()
+  const aiCredentials = createTestAiCredentialService({
+    secretStore: overrides?.secretStore ?? secretStore,
+  })
+  const aiKeyValidation = createTestAiKeyValidationService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
@@ -300,13 +307,17 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       logger,
       operations: overrides?.operations ?? operations,
     }),
-    aiCredentials: createTestAiCredentialService({
-      secretStore: overrides?.secretStore ?? secretStore,
-    }),
-    aiKeyValidation: createTestAiKeyValidationService(),
+    aiCredentials,
+    aiKeyValidation,
     languageModel: createTestLanguageModelService(),
     aiPrompts: createTestAiPromptService({
       settings: overrides?.settings ?? settings,
+      id: overrides?.id ?? id,
+    }),
+    aiProviderConfig: createTestAiProviderConfigService({
+      settings: overrides?.settings ?? settings,
+      credentials: overrides?.aiCredentials ?? aiCredentials,
+      keyValidation: overrides?.aiKeyValidation ?? aiKeyValidation,
       id: overrides?.id ?? id,
     }),
   }

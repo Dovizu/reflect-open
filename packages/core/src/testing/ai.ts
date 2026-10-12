@@ -7,6 +7,10 @@ import type {
   ApiKeyValidationInput,
 } from '../ai/ai-key-validation-service.ts'
 import { createAiPromptService, type AiPromptService } from '../ai/ai-prompt-service.ts'
+import {
+  createAiProviderConfigService,
+  type AiProviderConfigService,
+} from '../ai/ai-provider-config-service.ts'
 import type { LanguageModelService } from '../ai/language-model-service.ts'
 import type { IdService } from '../app/id-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
@@ -106,6 +110,29 @@ export interface TestAiPromptServiceOptions {
 export function createTestAiPromptService(options?: TestAiPromptServiceOptions): AiPromptService {
   return createAiPromptService({
     settings: options?.settings ?? createTestSettingsService(),
+    id: options?.id ?? createTestIdService(),
+  })
+}
+
+export interface TestAiProviderConfigServiceOptions {
+  /** The settings the entries live in; defaults to an empty test settings service. */
+  settings?: SettingsService
+  /** Holds the keys; defaults to a credential service over an empty test secret store. */
+  credentials?: AiCredentialService
+  /** Verifies the keys; defaults to a fake that answers `valid`. */
+  keyValidation?: AiKeyValidationService
+  /** Mints the entry ids; defaults to a test id service. */
+  id?: IdService
+}
+
+/** The real {@link AiProviderConfigService} over test settings, credentials, key validation and ids. */
+export function createTestAiProviderConfigService(
+  options?: TestAiProviderConfigServiceOptions,
+): AiProviderConfigService {
+  return createAiProviderConfigService({
+    settings: options?.settings ?? createTestSettingsService(),
+    credentials: options?.credentials ?? createTestAiCredentialService(),
+    keyValidation: options?.keyValidation ?? createTestAiKeyValidationService(),
     id: options?.id ?? createTestIdService(),
   })
 }

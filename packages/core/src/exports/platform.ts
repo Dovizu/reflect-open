@@ -509,6 +509,14 @@ export {
   type AiPromptService,
 } from '../ai/ai-prompt-service.ts'
 export {
+  createAiProviderConfigService,
+  defaultAiProviderConfig,
+  setDefaultAiProviderConfig,
+  type AiProviderConfigService,
+  type AiProviderDraftCheck,
+  type NewAiProvider,
+} from '../ai/ai-provider-config-service.ts'
+export {
   createLanguageModelService,
   createLazyAiSdkLoader,
   defaultLanguageModel,

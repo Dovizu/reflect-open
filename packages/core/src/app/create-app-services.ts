@@ -5,6 +5,10 @@ import {
 } from '../ai/ai-key-validation-service.ts'
 import { createAiPromptService, type AiPromptService } from '../ai/ai-prompt-service.ts'
 import {
+  createAiProviderConfigService,
+  type AiProviderConfigService,
+} from '../ai/ai-provider-config-service.ts'
+import {
   createLanguageModelService,
   createLazyAiSdkLoader,
   withAppReviewDemo,
@@ -225,6 +229,7 @@ export interface AppServices {
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly aiProviderConfig: AiProviderConfigService
 }
 
 /** The read-only services over the index, as {@link AppServices} holds them. */
@@ -368,6 +373,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
   const xArchive = createXArchiveService({ ipc })
+  const aiCredentials = createAiCredentialService({ secretStore })
+  const aiKeyValidation = createAiKeyValidationService({ http: adapters.http })
   return {
     ipc,
     logger,
@@ -457,11 +464,17 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       logger,
       operations,
     }),
-    aiCredentials: createAiCredentialService({ secretStore }),
-    aiKeyValidation: createAiKeyValidationService({ http: adapters.http }),
+    aiCredentials,
+    aiKeyValidation,
     languageModel: withAppReviewDemo(
       createLanguageModelService({ http: adapters.http, sdk: createLazyAiSdkLoader() }),
     ),
     aiPrompts: createAiPromptService({ settings, id }),
+    aiProviderConfig: createAiProviderConfigService({
+      settings,
+      credentials: aiCredentials,
+      keyValidation: aiKeyValidation,
+      id,
+    }),
   }
 }
