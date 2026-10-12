@@ -14,11 +14,13 @@ Every native call funnels through two seams:
   bridge installed, command bindings throw a descriptive error and
   `hasBridge()` returns `false` (used to gate native-only features in browser
   dev).
-- **`call(command, args, schema)`** is the single point where an untyped IPC
-  response becomes a typed value: every response is zod-validated, every
-  rejection is coerced to the shared `AppError` contract. Application code
-  never calls the bridge directly — it uses the typed per-domain bindings
-  below.
+- **`IpcBridgeService`** (`createIpcBridgeService(transport, { logger })`)
+  wraps a transport and is the single point where an untyped IPC response
+  becomes a typed value: every response is zod-validated, every rejection is
+  coerced to the shared `AppError` contract. `setBridge` builds one over the
+  installed transport, reachable as `defaultIpc()`; the free `call(command,
+  args, schema)` delegates to it. Application code never calls the bridge
+  directly: it uses the typed per-domain bindings below.
 
 ## Domains
 
@@ -27,7 +29,7 @@ Every native call funnels through two seams:
 | `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, and the typed file commands (`readNote`, `writeNote`, `listFiles`, recents). |
 | `markdown/` | The document model (Plan 03): frontmatter parsing, the canonical Lezer grammar with the `[[wiki link]]` extension, extraction (`parseNote`), source-level edits, and pure wiki-link resolution policy. |
 | `indexing/` | The SQLite projection pipeline (Plan 04): build/apply note projections, full rebuild and hash-based reconcile, the live watcher subscription, and the Kysely read getters. |
-| `ipc/` | The bridge + `call` seam described above. |
+| `ipc/` | The bridge, `IpcBridgeService`, and `call` seam described above. |
 | `errors.ts` | The `AppError` discriminated union shared with Rust. |
 
 ## Indexing: which entry point?

@@ -1,5 +1,11 @@
 import { z } from 'zod'
-import { definePluginCommand, definePluginEvent, ignoredResult } from './plugin.ts'
+import { defaultIpc } from './bridge.ts'
+import {
+  definePluginCommand,
+  definePluginEvent,
+  ignoredResult,
+  type PluginSubscription,
+} from './plugin.ts'
 
 /**
  * Typed bindings for `tauri-plugin-iap` — the StoreKit In-App Purchase
@@ -59,7 +65,9 @@ const getProductStatusCommand = definePluginCommand<
  * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/ios/Sources/IapPlugin.swift#L63).
  */
 export async function iapGetProducts(productIds: string[]): Promise<IapProduct[]> {
-  const { products } = await getProductsCommand({ payload: { productIds, productType: 'subs' } })
+  const { products } = await getProductsCommand(defaultIpc(), {
+    payload: { productIds, productType: 'subs' },
+  })
   return products
 }
 
@@ -74,7 +82,7 @@ export async function iapGetProducts(productIds: string[]): Promise<IapProduct[]
  * in-app purchase (see subscribeIapPurchaseUpdated).
  */
 export async function iapPurchase(productId: string): Promise<void> {
-  await purchaseCommand({ payload: { productId, productType: 'subs' } })
+  await purchaseCommand(defaultIpc(), { payload: { productId, productType: 'subs' } })
 }
 
 /**
@@ -85,7 +93,9 @@ export async function iapPurchase(productId: string): Promise<void> {
  * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/src/models.rs#L200).
  */
 export async function iapIsOwned(productId: string): Promise<boolean> {
-  const { isOwned } = await getProductStatusCommand({ payload: { productId, productType: 'subs' } })
+  const { isOwned } = await getProductStatusCommand(defaultIpc(), {
+    payload: { productId, productType: 'subs' },
+  })
   return isOwned
 }
 
@@ -96,4 +106,9 @@ export async function iapIsOwned(productId: string): Promise<boolean> {
  * The payload is the full Purchase object, but subscribers only treat the
  * event as a refetch signal, so it stays unparsed.
  */
-export const subscribeIapPurchaseUpdated = definePluginEvent('iap', 'purchaseUpdated', z.unknown())
+const purchaseUpdatedEvent = definePluginEvent('iap', 'purchaseUpdated', z.unknown())
+export function subscribeIapPurchaseUpdated(
+  handler: (payload: unknown) => void,
+): PluginSubscription {
+  return purchaseUpdatedEvent(defaultIpc(), handler)
+}

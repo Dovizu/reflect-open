@@ -8,10 +8,11 @@ and this guide walks the same path with a hypothetical `note_stat` command.
 ```text
 React component / hook
   └─ typed binding            packages/core/src/<domain>/commands.ts
-       └─ call()              packages/core/src/ipc/invoke.ts   (zod validation)
-            └─ bridge.invoke  packages/core/src/ipc/bridge.ts   (injected transport)
-                 └─ Tauri IPC apps/desktop/src/lib/tauri-bridge.ts
-                      └─ #[tauri::command]  apps/desktop/src-tauri/src/<module>.rs
+       └─ call()              packages/core/src/ipc/invoke.ts       (delegates to defaultIpc())
+            └─ ipc.call       packages/core/src/ipc/ipc-service.ts  (zod validation)
+                 └─ bridge.invoke  packages/core/src/ipc/bridge.ts  (injected transport)
+                      └─ Tauri IPC apps/desktop/src/services/tauri-ipc.ts
+                           └─ #[tauri::command]  apps/desktop/src-tauri/src/<module>.rs
 ```
 
 Before writing any Rust, check whether you actually need a new command. Per
@@ -109,8 +110,8 @@ export async function noteStat(path: string): Promise<NoteStat> {
 }
 ```
 
-- `call()` (`ipc/invoke.ts`) is the single boundary where the untyped IPC
-  response becomes a typed value: it validates with your schema (a mismatch
+- `IpcBridgeService.call` (`ipc/ipc-service.ts`, reached through `call()`)
+  is the single boundary where the untyped IPC response becomes a typed value: it validates with your schema (a mismatch
   throws a `parse` `AppError` naming the command) and coerces any rejection
   into an `AppError`. Your binding adds no error handling of its own.
 - Commands returning `()` from Rust serialize as `null`: validate with
@@ -133,9 +134,12 @@ setBridge({
 })
 ```
 
-`packages/core/src/ipc/invoke.test.ts` shows the full pattern, including the
-error paths (well-formed `AppError` pass-through, foreign rejection coercion,
-schema-mismatch → `parse`). Reset with `setBridge(null)` in `afterEach`. A
+`packages/core/src/ipc/ipc-service.test.ts` shows the full pattern, including
+the error paths (well-formed `AppError` pass-through, foreign rejection
+coercion, schema-mismatch → `parse`). Reset with `setBridge(null)` in
+`afterEach`. `createTestIpcBridgeService()` from `@reflect/core/testing` is an
+in-memory fake with `onCommand`, `emit`, and `calls()`; `installTestBridge()`
+installs it through `setBridge`. A
 binding that is a one-line `call()` needs no test of its own — cover the
 schema if it normalizes, and the behavior in whatever core/UI module consumes
 it.

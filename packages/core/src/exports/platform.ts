@@ -2,9 +2,11 @@ export {
   setBridge,
   hasBridge,
   subscribeBridgeChanges,
+  defaultIpc,
   type IpcBridge,
   type Unlisten,
 } from '../ipc/bridge.ts'
+export { createIpcBridgeService, type IpcBridgeService } from '../ipc/ipc-service.ts'
 export { call, callBinary } from '../ipc/invoke.ts'
 export { type PluginSubscription } from '../ipc/plugin.ts'
 export {

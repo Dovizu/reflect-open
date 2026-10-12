@@ -1,67 +1,55 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { isAppError } from '../errors.ts'
-import { setBridge } from './bridge.ts'
-import { call } from './invoke.ts'
+import { defaultIpc, setBridge } from './bridge.ts'
+import { call, callBinary } from './invoke.ts'
 
 afterEach(() => {
   setBridge(null)
 })
 
 describe('call', () => {
-  it('returns the schema-validated response', async () => {
-    const invoke = vi.fn().mockResolvedValue({ root: '/g', generation: 1 })
+  it('delegates to the service over the installed bridge', async () => {
+    const invoke = vi.fn().mockResolvedValue({ root: '/g' })
     setBridge({ invoke, listen: async () => () => {} })
 
-    const schema = z.object({ root: z.string(), generation: z.number() })
-    await expect(call('graph_open', { path: '/g' }, schema)).resolves.toEqual({
-      root: '/g',
-      generation: 1,
-    })
+    await expect(
+      call('graph_open', { path: '/g' }, z.object({ root: z.string() })),
+    ).resolves.toEqual({ root: '/g' })
     expect(invoke).toHaveBeenCalledWith('graph_open', { path: '/g' })
-  })
-
-  it('passes a well-formed Rust error through as an AppError', async () => {
-    setBridge({
-      invoke: async () => {
-        throw { kind: 'notFound', message: 'missing' }
-      },
-      listen: async () => () => {},
-    })
-
-    const error = await call('note_read', { path: 'x' }, z.string()).catch(
-      (caught: unknown) => caught,
-    )
-    expect(isAppError(error)).toBe(true)
-    expect(error).toEqual({ kind: 'notFound', message: 'missing' })
-  })
-
-  it('coerces a foreign rejection into an unknown AppError', async () => {
-    setBridge({
-      invoke: async () => {
-        throw new Error('socket closed')
-      },
-      listen: async () => () => {},
-    })
-
-    const error = await call('note_read', { path: 'x' }, z.string()).catch(
-      (caught: unknown) => caught,
-    )
-    expect(error).toEqual({ kind: 'unknown', message: 'socket closed' })
-  })
-
-  it('turns a response that fails validation into a parse error naming the command', async () => {
-    setBridge({ invoke: async () => ({ wrong: true }), listen: async () => () => {} })
-
-    const error = await call('graph_open', {}, z.string()).catch((caught: unknown) => caught)
-    expect(isAppError(error)).toBe(true)
-    if (isAppError(error)) {
-      expect(error.kind).toBe('parse')
-      expect(error.message).toContain('graph_open')
-    }
   })
 
   it('fails loudly when no bridge is installed', async () => {
     await expect(call('anything', {}, z.unknown())).rejects.toThrow(/no ipc bridge/i)
+  })
+})
+
+describe('callBinary', () => {
+  it('delegates to the service over the installed bridge', async () => {
+    const invokeBinary = vi.fn().mockResolvedValue(null)
+    setBridge({ invoke: async () => null, listen: async () => () => {}, invokeBinary })
+
+    const body = new Uint8Array([1])
+    await expect(callBinary('asset_write', body, { path: 'a' }, z.null())).resolves.toBeNull()
+    expect(invokeBinary).toHaveBeenCalledWith('asset_write', body, { path: 'a' })
+  })
+})
+
+describe('defaultIpc', () => {
+  it('throws when no bridge is installed', () => {
+    expect(() => defaultIpc()).toThrow(/no ipc bridge/i)
+  })
+
+  it('is rebuilt when the bridge is replaced', () => {
+    setBridge({ invoke: async () => null, listen: async () => () => {} })
+    const first = defaultIpc()
+    expect(first.hasBinaryTransport).toBe(false)
+
+    setBridge({
+      invoke: async () => null,
+      listen: async () => () => {},
+      invokeBinary: async () => null,
+    })
+    expect(defaultIpc()).not.toBe(first)
+    expect(defaultIpc().hasBinaryTransport).toBe(true)
   })
 })

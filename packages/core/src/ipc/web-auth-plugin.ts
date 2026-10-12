@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defaultIpc } from './bridge.ts'
 import { definePluginCommand } from './plugin.ts'
 
 /**
@@ -26,5 +27,5 @@ const startCommand = definePluginCommand<
  * redirects to, or `null` when the user cancels.
  */
 export async function startWebAuth(options: WebAuthOptions): Promise<string | null> {
-  return (await startCommand({ payload: options })).url ?? null
+  return (await startCommand(defaultIpc(), { payload: options })).url ?? null
 }
