@@ -34,7 +34,8 @@ closing on its own merits regardless of the write-path decision.
 through the **Rust** HTTP plugin, not webview `fetch`:
 
 - AI/provider calls go through `providerFetch`
-  ([`apps/desktop/src/lib/provider-fetch.ts`](../../apps/desktop/src/lib/provider-fetch.ts)),
+  (`apps/desktop/src/lib/provider-fetch.ts`; today the `HttpService` adapter in
+  [`apps/desktop/src/services/tauri-http.ts`](../../apps/desktop/src/services/tauri-http.ts)),
   which is `@tauri-apps/plugin-http`'s `fetch`, wired into the AI SDK as
   `fetchFn` ([`apps/desktop/src/providers/chat-provider.tsx:307`](../../apps/desktop/src/providers/chat-provider.tsx)
   → `createOpenAI/Anthropic/GoogleGenerativeAI({ fetch })`, with OpenRouter using
