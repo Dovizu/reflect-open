@@ -359,10 +359,6 @@ export function createLiveIndex(
   return { apply, subscribe }
 }
 
-function defaultLiveIndex(): LiveIndex {
-  return createLiveIndex({ ...defaultIndexingDeps(), fileChanges: defaultFileChanges() })
-}
-
 /** {@link LiveIndex.apply} over the default services. */
 export async function applyIndexChanges(
   changes: FileChange[],
@@ -371,15 +367,8 @@ export async function applyIndexChanges(
   onMoved?: MovedHandler,
   canApply?: () => boolean,
 ): Promise<number> {
-  return await defaultLiveIndex().apply(changes, generation, onError, onMoved, canApply)
-}
-
-/** {@link LiveIndex.subscribe} over the default services. */
-export async function subscribeIndexChanges(
-  generation: number,
-  onApplied?: (changes: FileChange[]) => void,
-  onMoved?: MovedHandler,
-  canApply?: () => boolean,
-): Promise<Unlisten> {
-  return defaultLiveIndex().subscribe(generation, onApplied, onMoved, canApply)
+  return await createLiveIndex({
+    ...defaultIndexingDeps(),
+    fileChanges: defaultFileChanges(),
+  }).apply(changes, generation, onError, onMoved, canApply)
 }

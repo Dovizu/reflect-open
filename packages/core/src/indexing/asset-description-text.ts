@@ -133,8 +133,3 @@ export async function gatherAssetDescriptionBodies(
 ): Promise<AssetDescriptionGather> {
   return await createAssetDescriptionText({ noteFile: defaultNoteFile() }).gatherBodies(assetPaths)
 }
-
-/** {@link AssetDescriptionText.gatherText} over the default `NoteFileService`. */
-export async function gatherAssetDescriptionText(assetPaths: readonly string[]): Promise<string> {
-  return await createAssetDescriptionText({ noteFile: defaultNoteFile() }).gatherText(assetPaths)
-}

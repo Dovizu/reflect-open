@@ -1,4 +1,3 @@
-import { defaultFileChanges } from './file-change-service.ts'
 import { defaultIndexStore, type IndexStoreService } from './index-store-service.ts'
 
 export type {
@@ -7,9 +6,6 @@ export type {
   ScanCandidate,
   ScanOrphan,
 } from './index-store-service.ts'
-
-/** `defaultIndexStore().open`. */
-export const openIndex: IndexStoreService['open'] = () => defaultIndexStore().open()
 
 /** `defaultIndexStore().apply`. */
 export const applyIndexedNote: IndexStoreService['apply'] = (note, generation) =>
@@ -46,13 +42,3 @@ export const clearIndex: IndexStoreService['clear'] = (generation) =>
 /** `defaultIndexStore().setMeta`. */
 export const setIndexMeta: IndexStoreService['setMeta'] = (key, value, generation) =>
   defaultIndexStore().setMeta(key, value, generation)
-
-/** `defaultFileChanges().startWatcher`. */
-export async function watchStart(): Promise<void> {
-  await defaultFileChanges().startWatcher()
-}
-
-/** `defaultFileChanges().stopWatcher`. */
-export async function watchStop(): Promise<void> {
-  await defaultFileChanges().stopWatcher()
-}

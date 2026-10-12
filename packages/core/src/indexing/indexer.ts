@@ -24,7 +24,7 @@ import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
  * (Plan 03) → hash → hand the flattened projection to Rust, which applies it in
  * one transaction. The index is a rebuildable cache.
  *
- * Every write carries the index `generation` returned by `openIndex`. Rust
+ * Every write carries the index `generation` returned by `IndexStoreService.open`. Rust
  * no-ops a write whose generation is stale, so a pass started for one graph can
  * never mutate a newly-opened index — cancellation is correct regardless of
  * caller timing (the watcher in Plan 04b indexes outside the serialized open
@@ -66,7 +66,7 @@ export function defaultIndexingDeps(): IndexingDeps {
 
 /** Options for the long-running index passes. */
 export interface IndexPassOptions {
-  /** The index generation from `openIndex`; stale writes are dropped by Rust. */
+  /** The index generation from `IndexStoreService.open`; stale writes are dropped by Rust. */
   generation: number
   /** Aborts the pass early when the active graph changes. */
   signal?: AbortSignal
@@ -511,19 +511,4 @@ export async function reindexNotesReferencing(
   generation: number,
 ): Promise<void> {
   await createNoteIndexer(defaultIndexingDeps()).reindexNotesReferencing(assetPaths, generation)
-}
-
-/** {@link NoteIndexer.rebuild} over the default services. */
-export async function rebuildIndex(options: IndexPassOptions): Promise<void> {
-  await createNoteIndexer(defaultIndexingDeps()).rebuild(options)
-}
-
-/** {@link NoteIndexer.sync} over the default services. */
-export async function syncIndex(options: IndexPassOptions): Promise<void> {
-  await createNoteIndexer(defaultIndexingDeps()).sync(options)
-}
-
-/** {@link NoteIndexer.reconcile} over the default services. */
-export async function reconcileIndex(options: IndexPassOptions): Promise<void> {
-  await createNoteIndexer(defaultIndexingDeps()).reconcile(options)
 }

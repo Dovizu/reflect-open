@@ -131,6 +131,11 @@ export {
   type TestIndexStoreServiceOptions,
 } from './index-store.ts'
 export {
+  createTestIndexLifecycleService,
+  type TestIndexLifecycleService,
+  type TestIndexLifecycleServiceOptions,
+} from './index-lifecycle.ts'
+export {
   createTestOperationsService,
   type OperationSnapshot,
   type TestOperationsService,

@@ -1,6 +1,6 @@
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { parseNote } from '../markdown/index.ts'
-import { defaultIndexQuery, type IndexQueryService } from './index-query-service.ts'
+import type { IndexQueryService } from './index-query-service.ts'
 import { pairMovesById, type DetectedMove } from './move-detection.ts'
 
 /**
@@ -20,7 +20,7 @@ import { pairMovesById, type DetectedMove } from './move-detection.ts'
  * `docs/readable-filenames.md`.
  */
 
-/** What {@link detectExternalMoves} found. */
+/** What {@link MoveHealing.detectExternalMoves} found. */
 export interface ExternalMoveScan {
   /** Orphan→arrival pairs whose frontmatter ids matched unambiguously. */
   moves: DetectedMove[]
@@ -75,16 +75,4 @@ export function createMoveHealing(deps: {
       return { moves: pairMovesById(orphanIds, arrivalIds), content }
     },
   }
-}
-
-/** {@link MoveHealing.detectExternalMoves} over the default services. */
-export async function detectExternalMoves(
-  orphanPaths: string[],
-  arrivalPaths: string[],
-  options?: { signal?: AbortSignal | undefined },
-): Promise<ExternalMoveScan> {
-  return await createMoveHealing({
-    noteFile: defaultNoteFile(),
-    indexQuery: defaultIndexQuery(),
-  }).detectExternalMoves(orphanPaths, arrivalPaths, options)
 }
