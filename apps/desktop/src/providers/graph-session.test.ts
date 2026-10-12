@@ -1,17 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultDeepLink, setDefaultWindow, type WindowBootstrap } from '@reflect/core'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { RecentGraph, WindowBootstrap } from '@reflect/core'
 import {
-  createTestDeepLinkService,
+  createTestAppServices,
   createTestGraphSessionService,
   createTestWindowService,
+  type TestWindowService,
 } from '@reflect/core/testing'
-import {
-  getNoteRowOverlay,
-  resetNoteRowOverlays,
-  setNoteRowOverlay,
-} from '@/hooks/note-row-overlay.ts'
 import { queryClient, queryKeys } from '@/lib/query-client.ts'
-import { getInitialWindowRoute } from '@/lib/windows/initial-window-route.ts'
 import { bootGraphSession } from './graph-session.ts'
 
 // The session itself is covered in `@reflect/core`; these cover what the
@@ -23,47 +18,47 @@ const BOOT: WindowBootstrap = {
   initialDeepLink: 'reflect://note/notes%2Ffoo.md',
 }
 
-let deepLinks: string[]
-
-beforeEach(() => {
-  deepLinks = []
-  const deepLink = createTestDeepLinkService()
-  setDefaultDeepLink(deepLink)
-  deepLink.setHandler((url) => {
-    deepLinks.push(url)
-  })
-})
+let closeDatabase: () => void = () => {}
 
 afterEach(() => {
-  setDefaultDeepLink(null)
-  setDefaultWindow(null)
-  resetNoteRowOverlays()
+  closeDatabase()
   queryClient.clear()
   vi.restoreAllMocks()
 })
 
-/** Boot a session in a note window whose bootstrap answers `boot`, or fails without one. */
-function bootNoteWindow(boot?: WindowBootstrap) {
-  const windowService = createTestWindowService({
-    label: 'note-1',
-    ...(boot === undefined ? {} : { bootstrap: boot }),
+/** Boot a session of `windowService` over test doubles; `deepLinks` collects what the intake hands on. */
+function boot(windowService: TestWindowService, recents: readonly RecentGraph[] = []) {
+  const session = createTestGraphSessionService({ window: windowService, recents })
+  const app = createTestAppServices({ window: windowService, graphSession: session })
+  closeDatabase = () => app.database.close()
+  const deepLinks: string[] = []
+  app.deepLink.setHandler((url) => {
+    deepLinks.push(url)
   })
-  setDefaultWindow(windowService)
-  const session = createTestGraphSessionService({ window: windowService })
-  const stop = bootGraphSession(session)
-  return { windowService, session, stop }
+  const stop = bootGraphSession(app)
+  return { app, windowService, session, deepLinks, stop }
+}
+
+/** Boot a session in a note window whose bootstrap answers `bootstrap`, or fails without one. */
+function bootNoteWindow(bootstrap?: WindowBootstrap) {
+  return boot(
+    createTestWindowService({
+      label: 'note-1',
+      ...(bootstrap === undefined ? {} : { bootstrap }),
+    }),
+  )
 }
 
 describe('bootGraphSession in a note window', () => {
   it('adopts the open sessions and seeds the router from a path-shaped link', async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    const { session, windowService } = bootNoteWindow(BOOT)
+    const { session, windowService, app, deepLinks } = bootNoteWindow(BOOT)
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
     expect(session.getState().graph).toEqual(BOOT.graph)
     expect(session.getState().indexGeneration).toBe(5)
     // ⌘-click links resolve synchronously: the route slot is seeded and the
     // intake is bypassed, so the window never flashes today's daily note.
-    expect(getInitialWindowRoute()).toEqual({
+    expect(app.deepLink.getInitialWindowRoute()).toEqual({
       kind: 'note',
       path: 'notes/foo.md',
     })
@@ -78,26 +73,26 @@ describe('bootGraphSession in a note window', () => {
   })
 
   it('falls back to the intake for a target only the index can answer', async () => {
-    const { session } = bootNoteWindow({
+    const { session, app, deepLinks } = bootNoteWindow({
       ...BOOT,
       initialDeepLink: 'reflect://note/Meeting%20Notes',
     })
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
-    expect(getInitialWindowRoute()).toBeNull()
+    expect(app.deepLink.getInitialWindowRoute()).toBeNull()
     expect(deepLinks).toEqual(['reflect://note/Meeting%20Notes'])
   })
 
   it('skips the deep-link dispatch when none is pending (a reload)', async () => {
-    const { session } = bootNoteWindow({ ...BOOT, initialDeepLink: null })
+    const { session, app, deepLinks } = bootNoteWindow({ ...BOOT, initialDeepLink: null })
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
-    expect(getInitialWindowRoute()).toBeNull()
+    expect(app.deepLink.getInitialWindowRoute()).toBeNull()
     expect(deepLinks).toEqual([])
   })
 
   it('acts on the drained deep link even when the boot was stopped meanwhile', async () => {
-    const { session, stop } = bootNoteWindow(BOOT)
+    const { session, stop, app } = bootNoteWindow(BOOT)
     stop()
-    await vi.waitFor(() => expect(getInitialWindowRoute()).not.toBeNull())
+    await vi.waitFor(() => expect(app.deepLink.getInitialWindowRoute()).not.toBeNull())
     expect(session.getState().status).toBe('loading')
   })
 
@@ -113,7 +108,7 @@ describe('bootGraphSession in a note window', () => {
 
   it('unsubscribes both listeners when stopped', async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    const { session, windowService, stop } = bootNoteWindow(BOOT)
+    const { session, windowService, stop, deepLinks } = bootNoteWindow(BOOT)
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
     stop()
     windowService.emitIndexWritten()
@@ -125,49 +120,42 @@ describe('bootGraphSession in a note window', () => {
 
 describe('bootGraphSession in the main window', () => {
   function bootMainWindow() {
-    const windowService = createTestWindowService()
-    setDefaultWindow(windowService)
-    const session = createTestGraphSessionService({
-      window: windowService,
-      recents: [{ root: '/known', name: 'known', openedMs: 1 }],
-    })
-    const stop = bootGraphSession(session)
-    return { windowService, session, stop }
+    return boot(createTestWindowService(), [{ root: '/known', name: 'known', openedMs: 1 }])
   }
 
   it('reopens the most recent graph and follows no note-window events', async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    const { session, windowService } = bootMainWindow()
+    const { session, windowService, app } = bootMainWindow()
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
     expect(session.getState().graph?.root).toBe('/known')
     windowService.emitIndexWritten()
     expect(invalidate).not.toHaveBeenCalled()
-    expect(getInitialWindowRoute()).toBeNull()
+    expect(app.deepLink.getInitialWindowRoute()).toBeNull()
   })
 
   it('drops the previous graph’s row overlays and similar notes on a switch', async () => {
-    const { session } = bootMainWindow()
+    const { session, app } = bootMainWindow()
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
-    setNoteRowOverlay('notes/a.md', 1, { gistStale: true })
+    app.noteRows.setOverlay('notes/a.md', 1, { gistStale: true })
     queryClient.setQueryData([...queryKeys.similar.all, '/known', 'notes/a.md'], [])
     queryClient.setQueryData(queryKeys.icloud.status, { available: true })
 
     await session.openRecent('/other')
 
-    expect(getNoteRowOverlay('notes/a.md', 1)).toBeNull()
+    expect(app.noteRows.getOverlay('notes/a.md', 1)).toBeNull()
     expect(queryClient.getQueriesData({ queryKey: queryKeys.similar.all })).toEqual([])
     expect(queryClient.getQueryData(queryKeys.icloud.status)).toEqual({ available: true })
   })
 
   it('keeps similar notes but drops row overlays when the graph closes', async () => {
-    const { session } = bootMainWindow()
+    const { session, app } = bootMainWindow()
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
-    setNoteRowOverlay('notes/a.md', 1, { gistStale: true })
+    app.noteRows.setOverlay('notes/a.md', 1, { gistStale: true })
     queryClient.setQueryData([...queryKeys.similar.all, '/known', 'notes/a.md'], [])
 
     await session.chooseGraph()
 
-    expect(getNoteRowOverlay('notes/a.md', 1)).toBeNull()
+    expect(app.noteRows.getOverlay('notes/a.md', 1)).toBeNull()
     expect(queryClient.getQueriesData({ queryKey: queryKeys.similar.all })).toHaveLength(1)
   })
 
@@ -189,13 +177,13 @@ describe('bootGraphSession in the main window', () => {
   })
 
   it('stops reacting once stopped', async () => {
-    const { session, stop } = bootMainWindow()
+    const { session, stop, app } = bootMainWindow()
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
     stop()
-    setNoteRowOverlay('notes/a.md', 1, { gistStale: true })
+    app.noteRows.setOverlay('notes/a.md', 1, { gistStale: true })
 
     await session.chooseGraph()
 
-    expect(getNoteRowOverlay('notes/a.md', 1)).not.toBeNull()
+    expect(app.noteRows.getOverlay('notes/a.md', 1)).not.toBeNull()
   })
 })

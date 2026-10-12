@@ -3,7 +3,6 @@ import { appServices } from '@/boot.ts'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { defaultExceptionTelemetry } from '@reflect/core'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/query-client.ts'
 import { registerAppCommands } from '@/lib/commands/app-commands.ts'
@@ -20,7 +19,7 @@ import '@/styles/index.css'
 // iCloud-container resolve) now, ahead of React's first render.
 warmPlatformRoot()
 registerAppCommands(appServices.commands)
-installNativeMenu().catch((cause: unknown) => {
+installNativeMenu(appServices.nativeMenu).catch((cause: unknown) => {
   console.error('failed to install the native menu', cause)
 })
 
@@ -29,7 +28,7 @@ if (!rootElement) {
   throw new Error('Root element #root was not found')
 }
 
-const reactRootOptions = defaultExceptionTelemetry().reactRootOptions()
+const reactRootOptions = appServices.exceptionTelemetry.reactRootOptions()
 
 // Platform-neutral providers only — everything desktop- or mobile-specific
 // (update checks, drag region, graph bootstrap mode) lives inside the

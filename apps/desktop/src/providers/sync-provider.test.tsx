@@ -1,25 +1,24 @@
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
-import type { BackupServiceOptions, GraphInfo, ICloudSyncServiceOptions } from '@reflect/core'
+import type { BackupServiceOptions, ICloudSyncServiceOptions } from '@reflect/core'
 import {
   createTestAppServices,
   createTestBackupService,
   createTestICloudSyncService,
   type TestBackupService,
   type TestICloudSyncService,
+  type TestOpenGraph,
 } from '@reflect/core/testing'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
-import { SyncProvider, useSync } from './sync-provider.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
+import { useSync } from './sync-provider.tsx'
 
-const graphState = vi.hoisted(() => ({ indexGeneration: 5 as number | null }))
-vi.mock('@/providers/graph-provider.tsx', () => ({ useGraph: () => graphState }))
-
-const GRAPH: GraphInfo = { root: '/g', name: 'G', generation: 3 }
-const ICLOUD_GRAPH: GraphInfo = {
+const GRAPH: TestOpenGraph = { root: '/g', name: 'G', generation: 3, indexGeneration: 5 }
+const ICLOUD_GRAPH: TestOpenGraph = {
   root: '/Users/alex/Library/Mobile Documents/iCloud~app/Documents/Notes',
   name: 'Notes',
   generation: 4,
+  indexGeneration: 5,
 }
 
 function Probe(): ReactElement {
@@ -54,15 +53,15 @@ function setup() {
   return { app, created, icloud }
 }
 
+/** Mount the real `SyncProvider` for `graph` around the probe. */
+async function renderSync(app: ReturnType<typeof setup>['app'], graph: TestOpenGraph = GRAPH) {
+  return await renderInApp(<Probe />, { app, graph, sync: true })
+}
+
 describe('SyncProvider', () => {
   it('creates and starts one backup service for the graph and index session', async () => {
     const { app, created } = setup()
-    await renderWithServices(
-      <SyncProvider graph={GRAPH}>
-        <Probe />
-      </SyncProvider>,
-      { app },
-    )
+    await renderSync(app)
 
     await vi.waitFor(() => expect(created).toHaveLength(1))
     expect(created[0]?.options).toEqual({ generation: 3, indexGeneration: 5 })
@@ -72,12 +71,7 @@ describe('SyncProvider', () => {
 
   it('publishes the service state and passes actions through', async () => {
     const { app, created } = setup()
-    await renderWithServices(
-      <SyncProvider graph={GRAPH}>
-        <Probe />
-      </SyncProvider>,
-      { app },
-    )
+    await renderSync(app)
     await vi.waitFor(() => expect(created).toHaveLength(1))
 
     created[0]?.service.setState({ phase: 'disconnected' })
@@ -88,12 +82,7 @@ describe('SyncProvider', () => {
 
   it('disposes the service when it unmounts', async () => {
     const { app, created } = setup()
-    const screen = await renderWithServices(
-      <SyncProvider graph={GRAPH}>
-        <Probe />
-      </SyncProvider>,
-      { app },
-    )
+    const screen = await renderSync(app)
     await vi.waitFor(() => expect(created).toHaveLength(1))
 
     await screen.unmount()
@@ -103,12 +92,7 @@ describe('SyncProvider', () => {
 
   it('mounts no iCloud sync for a graph outside iCloud Drive', async () => {
     const { app, created, icloud } = setup()
-    await renderWithServices(
-      <SyncProvider graph={GRAPH}>
-        <Probe />
-      </SyncProvider>,
-      { app },
-    )
+    await renderSync(app)
     await vi.waitFor(() => expect(created).toHaveLength(1))
 
     expect(icloud).toEqual([])
@@ -116,12 +100,7 @@ describe('SyncProvider', () => {
 
   it('runs one iCloud sync service for an iCloud graph and index session', async () => {
     const { app, icloud } = setup()
-    const screen = await renderWithServices(
-      <SyncProvider graph={ICLOUD_GRAPH}>
-        <Probe />
-      </SyncProvider>,
-      { app },
-    )
+    const screen = await renderSync(app, ICLOUD_GRAPH)
 
     await vi.waitFor(() => expect(icloud).toHaveLength(1))
     expect(icloud[0]?.options).toEqual({

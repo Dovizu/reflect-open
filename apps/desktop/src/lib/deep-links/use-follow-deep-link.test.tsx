@@ -1,14 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render } from 'vitest-browser-react'
-import type { ReactElement } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+import { createTestAppServices, createTestWindowService } from '@reflect/core/testing'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { useRouter } from '@/routing/router.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { type FollowDeepLink, useFollowDeepLink } from './use-follow-deep-link.ts'
 import { isModEvent } from '@meowdown/core'
 
 const dispatchDeepLink = vi.fn<(url: string) => void>()
-const { openNoteWindow } = installTestLinkNavigation({ deepLink: { dispatch: dispatchDeepLink } })
+const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
+
+/** Render over a native shell whose note windows and deep-link intake are the spies above. */
+async function render(ui: ReactNode) {
+  const app = createTestAppServices({ window: createTestWindowService({ openNoteWindow }) })
+  vi.spyOn(app.deepLink, 'dispatch').mockImplementation(dispatchDeepLink)
+  return await renderInApp(ui, { app })
+}
 
 const OLDER_LINK = 'reflect://note/older'
 const NEWER_NOTE_LINK = 'reflect://note/notes%2Fnewer-link.md'
@@ -44,10 +51,10 @@ function NavigateAway(): ReactElement {
 
 function Harness({ showHost = true }: { readonly showHost?: boolean }): ReactElement {
   return (
-    <RouterProvider>
+    <>
       {showHost ? <Host /> : null}
       <NavigateAway />
-    </RouterProvider>
+    </>
   )
 }
 
@@ -62,6 +69,7 @@ async function settle(): Promise<void> {
 
 beforeEach(() => {
   dispatchDeepLink.mockReset()
+  openNoteWindow.mockReset().mockResolvedValue(true)
   followDeepLink = null
 })
 

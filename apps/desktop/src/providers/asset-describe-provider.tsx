@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
-import { defaultAssetDescription, type GraphInfo } from '@reflect/core'
+import type { GraphInfo } from '@reflect/core'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
@@ -22,7 +22,7 @@ export function AssetDescribeProvider({
   graph,
   children,
 }: AssetDescribeProviderProps): ReactElement {
-  const assetDescription = useAppServices({ optional: true })?.assetDescription
+  const { assetDescription } = useAppServices()
   const { settings } = useSettings()
   const describeAssets = settings.describeAssets
 
@@ -31,7 +31,7 @@ export function AssetDescribeProvider({
     if (!describeAssets) {
       return
     }
-    const session = (assetDescription ?? defaultAssetDescription()).openSession({
+    const session = assetDescription.openSession({
       generation: graph.generation,
     })
     session.start()

@@ -1,202 +1,76 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, renderHook } from 'vitest-browser-react'
-import type { ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import {
-  createConsoleLogger,
-  createSingleWindowHost,
-  createWindowService,
-  currentIpc,
-  setBridge,
-  setDefaultDialog,
-  setDefaultPlatform,
-  setDefaultWindow,
-  setDefaultSettings,
-} from '@reflect/core'
+import { act, type ReactElement, type ReactNode } from 'react'
+import { describe, expect, it, vi } from 'vitest'
+import type { AppPlatform, AppServices, RecentGraph } from '@reflect/core'
 import {
   createTestAppServices,
   createTestDialogService,
+  createTestGraphSessionService,
+  createTestMobileStorageService,
   createTestPlatformService,
-  type TestAppServices,
-  type TestDialogService,
 } from '@reflect/core/testing'
-import { AppServicesProvider, useGraphServices } from '@/services/services-provider.tsx'
+import { useGraphServices } from '@/services/services-provider.tsx'
+import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { GraphProvider, useGraph } from './graph-provider.tsx'
 import { SettingsProvider } from './settings-provider.tsx'
 
-beforeEach(() => {
-  setDefaultPlatform(
-    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
-  )
-})
-
-afterEach(() => {
-  setDefaultPlatform(null)
-})
-
 /**
  * The graph session and the mobile onboarding are covered in `@reflect/core`.
- * These cover the provider as their React shell.
+ * These cover the provider as their React shell. They mount it themselves:
+ * `renderInApp` reports a graph over the session, which hides the opens.
  */
 
-let invokeLog: string[]
-/** Pending `graph_open` resolvers keyed by requested root. */
-let pendingOpens: Map<string, () => void>
-/** What `recent_graphs` returns — set before render to simulate prior opens. */
-let storedRecents: Array<{ root: string; name: string; openedMs: number }>
-/** What `list_files` returns — set before render to simulate existing notes. */
-let storedFiles: Array<{ path: string; size: number; modifiedMs: number }>
-/** The fake `index_meta` table (the welcome marker lives here). */
-let metaStore: Record<string, string>
-/** The fake settings document (`mobileOnboarded`/`mobileStorage` live here). */
-let settingsStore: Record<string, unknown>
-/** What the fake `mobile_storage` resolves to — set before render. */
-let storedStorage: {
-  localRoot: string
-  icloudDocumentsRoot: string | null
-  icloudGraphRoots: string[]
-}
-/** A fresh QueryClient per test — the settings provider reads through it. */
-let queryClient: QueryClient
-
-/** The fixed mobile roots the fake `mobile_storage` reports. */
+/** The fixed mobile roots the test storage reports. */
 const MOBILE_ROOT = '/Documents'
 const ICLOUD_ROOT = '/iCloud/Documents'
 
-function installFakeBridge(): void {
-  invokeLog = []
-  pendingOpens = new Map()
-  storedRecents = []
-  storedFiles = []
-  metaStore = {}
-  settingsStore = {}
-  storedStorage = { localRoot: MOBILE_ROOT, icloudDocumentsRoot: ICLOUD_ROOT, icloudGraphRoots: [] }
-  let generation = 0
-  setBridge({
-    invoke: async (command, args) => {
-      invokeLog.push(
-        command === 'graph_open' || command === 'graph_create'
-          ? `${command}:${String(args['path'])}`
-          : command,
-      )
-      switch (command) {
-        case 'graph_create': {
-          const root = String(args['path'])
-          generation += 1
-          return { root, name: root.split('/').findLast(Boolean) ?? '', generation }
+// Mirrors the main.tsx provider order: settings above the graph lifecycle.
+function tree(children: ReactNode, platform?: AppPlatform): ReactElement {
+  return (
+    <SettingsProvider>
+      <GraphProvider {...(platform === undefined ? {} : { platform })}>{children}</GraphProvider>
+    </SettingsProvider>
+  )
+}
+
+/** Mount the provider over `app` and read its context. */
+async function renderGraph<App extends AppServices>(app: App, platform?: AppPlatform) {
+  let current: ReturnType<typeof useGraph> | null = null
+  function Probe(): null {
+    current = useGraph()
+    return null
+  }
+  await renderWithServices(tree(<Probe />, platform), { app })
+  return {
+    app,
+    result: {
+      get current(): ReturnType<typeof useGraph> {
+        if (current === null) {
+          throw new Error('the graph context has not rendered')
         }
-        case 'graph_open': {
-          const root = String(args['path'])
-          await new Promise<void>((resolve) => {
-            pendingOpens.set(root, resolve)
-          })
-          generation += 1
-          return { root, name: root.split('/').findLast(Boolean) ?? '', generation }
-        }
-        case 'recent_graphs':
-          return storedRecents
-        case 'forget_recent':
-          storedRecents = storedRecents.filter((recent) => recent.root !== String(args['root']))
-          return null
-        case 'mobile_storage':
-          return storedStorage
-        case 'mobile_storage_local':
-          return storedStorage.localRoot
-        case 'settings_load':
-          return settingsStore
-        case 'settings_save':
-          settingsStore = args['settings'] as Record<string, unknown>
-          return null
-        case 'index_open':
-          return generation
-        case 'list_files':
-          return storedFiles
-        case 'vault_scan_stats':
-          return { notes: storedFiles.length, attachments: 0, skipped: 0 }
-        case 'index_meta_set':
-          metaStore[String(args['key'])] = String(args['value'])
-          return null
-        case 'db_query': {
-          // The only meta read the provider issues is the welcome marker.
-          const sql = String(args['sql'] ?? '')
-          if (/index_?meta/i.test(sql)) {
-            const key = String((args['params'] as unknown[])?.[0])
-            return key in metaStore ? [{ value: metaStore[key] }] : []
-          }
-          return []
-        }
-        default:
-          return null
-      }
+        return current
+      },
     },
-    listen: async () => () => {},
-  })
+  }
 }
 
-function resolveOpen(root: string): void {
-  pendingOpens.get(root)?.()
-  pendingOpens.delete(root)
-}
-
-function wrapper({ children }: { children: ReactNode }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <GraphProvider>{children}</GraphProvider>
-      </SettingsProvider>
-    </QueryClientProvider>
-  )
-}
-
-function mobileWrapper({ children }: { children: ReactNode }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
-        <GraphProvider platform="ios">{children}</GraphProvider>
-      </SettingsProvider>
-    </QueryClientProvider>
-  )
-}
-
-let dialog: TestDialogService
-
-beforeEach(() => {
-  installFakeBridge()
-  setDefaultSettings(null)
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  dialog = createTestDialogService()
-  setDefaultDialog(dialog)
-  // A desktop shell with note windows, so a graph switch closes them over the fake bridge.
-  setDefaultWindow(
-    createWindowService({
-      ipc: currentIpc(),
-      host: { ...createSingleWindowHost(), multiWindow: true },
-      logger: createConsoleLogger(),
-    }),
-  )
-})
-
-afterEach(() => {
-  setBridge(null)
-  setDefaultSettings(null)
-})
-
-describe('GraphProvider over the process-wide services', () => {
+describe('GraphProvider', () => {
   it('starts at the chooser when there are no recents', async () => {
-    const { result } = await renderHook(() => useGraph(), { wrapper })
+    const { result } = await renderGraph(createTestAppServices())
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
     expect(result.current.graph).toBeNull()
   })
 
   it('returns to the graph chooser without opening the folder picker', async () => {
-    storedRecents = [{ root: '/known', name: 'known', openedMs: 1 }]
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
-
-    await act(async () => {
-      await vi.waitFor(() => expect(pendingOpens.has('/known')).toBe(true))
-      resolveOpen('/known')
-    })
+    const recents: RecentGraph[] = [{ root: '/known', name: 'known', openedMs: 1 }]
+    const dialog = createTestDialogService()
+    const { result } = await renderGraph(
+      createTestAppServices({
+        dialog,
+        graphSession: createTestGraphSessionService({ dialog, recents }),
+      }),
+    )
     await vi.waitFor(() => expect(result.current.status).toBe('ready'))
+    expect(result.current.graph?.root).toBe('/known')
 
     await act(async () => {
       await result.current.chooseGraph()
@@ -206,45 +80,27 @@ describe('GraphProvider over the process-wide services', () => {
     expect(result.current.graph).toBeNull()
     expect(result.current.indexGeneration).toBeNull()
     expect(dialog.calls()).toEqual([])
-    expect(result.current.recents).toEqual(storedRecents)
+    expect(result.current.recents).toEqual(recents)
   })
 
   it('opens a picked folder and seeds the empty graph', async () => {
-    dialog.setFolder('/fresh')
-    const { result, act } = await renderHook(() => useGraph(), { wrapper })
+    const { app, result } = await renderGraph(createTestAppServices())
+    app.dialog.setFolder('/fresh')
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
     await act(async () => {
-      const picking = result.current.pickAndOpen()
-      await vi.waitFor(() => expect(pendingOpens.has('/fresh')).toBe(true))
-      resolveOpen('/fresh')
-      await picking
+      await result.current.pickAndOpen()
     })
 
     expect(result.current.status).toBe('ready')
-    expect(invokeLog).toContain('note_write')
-    expect(metaStore['welcomeSeeded']).toBe('true')
+    expect(result.current.graph?.root).toBe('/fresh')
+    // The welcome note is written, and the graph is marked as seeded.
+    expect(app.noteFile.writes()).toHaveLength(1)
+    await expect(app.indexStore.getMeta('welcomeSeeded')).resolves.toBe('true')
   })
-})
-
-describe('GraphProvider inside an AppServicesProvider', () => {
-  function servicesWrapper(app: TestAppServices) {
-    return function Wrapper({ children }: { children: ReactNode }) {
-      return (
-        <AppServicesProvider services={app}>
-          <QueryClientProvider client={queryClient}>
-            <SettingsProvider>
-              <GraphProvider>{children}</GraphProvider>
-            </SettingsProvider>
-          </QueryClientProvider>
-        </AppServicesProvider>
-      )
-    }
-  }
 
   it('boots the app’s graph session and passes its actions through', async () => {
-    const app = createTestAppServices()
-    const { result, act } = await renderHook(() => useGraph(), { wrapper: servicesWrapper(app) })
+    const { app, result } = await renderGraph(createTestAppServices())
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
     await act(async () => {
@@ -255,8 +111,6 @@ describe('GraphProvider inside an AppServicesProvider', () => {
     expect(result.current.graph).toEqual({ root: '/a', name: 'a', generation: 1 })
     expect(result.current.indexGeneration).toBe(1)
     expect(app.graphSession.getState().graph?.root).toBe('/a')
-    // The session lives in the service, not in the provider: no bridge call.
-    expect(invokeLog).toEqual([])
   })
 
   it('provides the open session’s graph services', async () => {
@@ -284,12 +138,7 @@ describe('GraphProvider inside an AppServicesProvider', () => {
       )
     }
     const app = createTestAppServices()
-    const Wrapper = servicesWrapper(app)
-    const screen = await render(
-      <Wrapper>
-        <Probe />
-      </Wrapper>,
-    )
+    const screen = await renderWithServices(tree(<Probe />), { app })
 
     await screen.getByRole('button', { name: 'Open' }).click()
 
@@ -299,38 +148,35 @@ describe('GraphProvider inside an AppServicesProvider', () => {
 })
 
 describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
-  it('boots the mobile onboarding over the process-wide services', async () => {
-    const { result } = await renderHook(() => useGraph(), { wrapper: mobileWrapper })
+  it('boots the app’s mobile onboarding and opens no graph before a choice', async () => {
+    const storage = {
+      localRoot: MOBILE_ROOT,
+      icloudDocumentsRoot: ICLOUD_ROOT,
+      icloudGraphRoots: [],
+    }
+    const { app, result } = await renderGraph(
+      createTestAppServices({
+        platform: createTestPlatformService({ appPlatform: 'ios' }),
+        mobileStorage: createTestMobileStorageService({ storage }),
+      }),
+      'ios',
+    )
 
     await vi.waitFor(() => expect(result.current.needsOnboarding).toBe(true))
     expect(result.current.status).toBe('choosing')
     expect(result.current.graph).toBeNull()
-    await vi.waitFor(() =>
-      expect(result.current.mobileStorageInfo).toEqual({
-        localRoot: MOBILE_ROOT,
-        icloudDocumentsRoot: ICLOUD_ROOT,
-        icloudGraphRoots: [],
-      }),
-    )
+    await vi.waitFor(() => expect(result.current.mobileStorageInfo).toEqual(storage))
     expect(result.current.mobileStorageResolving).toBe(false)
-    expect(invokeLog).not.toContain(`graph_open:${MOBILE_ROOT}`)
+    expect(app.graphSession.getState().graph).toBeNull()
   })
 
   it('publishes the app’s mobile onboarding and passes completeOnboarding through', async () => {
-    const app = createTestAppServices({
-      platform: createTestPlatformService({ appPlatform: 'ios' }),
-    })
-    const { result, act } = await renderHook(() => useGraph(), {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <AppServicesProvider services={app}>
-          <QueryClientProvider client={queryClient}>
-            <SettingsProvider>
-              <GraphProvider platform="ios">{children}</GraphProvider>
-            </SettingsProvider>
-          </QueryClientProvider>
-        </AppServicesProvider>
-      ),
-    })
+    const { app, result } = await renderGraph(
+      createTestAppServices({
+        platform: createTestPlatformService({ appPlatform: 'ios' }),
+      }),
+      'ios',
+    )
     await vi.waitFor(() => expect(result.current.needsOnboarding).toBe(true))
     await vi.waitFor(() => expect(result.current.mobileStorageResolving).toBe(false))
 

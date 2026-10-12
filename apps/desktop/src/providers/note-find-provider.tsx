@@ -1,13 +1,10 @@
 import { noteEditorHandleFor } from '@/editor/editor-handle-registry.ts'
-import {
-  listenForFocusedNoteMenuCommands,
-  type FocusedNoteMenuCommand,
-} from '@/lib/native-menu/dispatch.ts'
 import { useToday } from '@/lib/use-today.ts'
-import { isMainWindow } from '@/lib/windows/window-role.ts'
 import { useFocusedDailyDate } from '@/providers/focused-daily-provider.tsx'
 import { focusedNotePathForRoute } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
+import type { FocusedNoteMenuCommand } from '@reflect/core'
 import { getIsComposing, isModEvent, type SearchStatus } from '@meowdown/core'
 import {
   createContext,
@@ -58,6 +55,7 @@ const NoteFindReportContext = createContext<(path: string, status: SearchStatus)
 
 /** One note-local Find session for the current webview window. */
 export function NoteFindProvider({ children }: { children: ReactNode }): ReactElement {
+  const { nativeMenu, window: windowService } = useAppServices()
   const { route, arrivalSeq } = useRouter()
   const today = useToday()
   const focusedDailyDate = useFocusedDailyDate()
@@ -154,7 +152,7 @@ export function NoteFindProvider({ children }: { children: ReactNode }): ReactEl
   // A detached note window renders no command palette and installs no menu, so
   // it listens for the shortcuts and the routed menu events itself.
   useEffect(() => {
-    if (isMainWindow()) return
+    if (windowService.isMainWindow()) return
 
     function onMenuCommand(command: FocusedNoteMenuCommand): void {
       switch (command) {
@@ -170,7 +168,7 @@ export function NoteFindProvider({ children }: { children: ReactNode }): ReactEl
       }
     }
 
-    const unlistenMenu = listenForFocusedNoteMenuCommands(onMenuCommand)
+    const unlistenMenu = nativeMenu.subscribeFocusedNoteCommands(onMenuCommand)
 
     function onKeyDown(event: KeyboardEvent): void {
       if (event.defaultPrevented || event.altKey || event.repeat || getIsComposing()) return
@@ -191,7 +189,7 @@ export function NoteFindProvider({ children }: { children: ReactNode }): ReactEl
       unlistenMenu()
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [next, notePath, openForPath, previous, query, target])
+  }, [nativeMenu, next, notePath, openForPath, previous, query, target, windowService])
 
   const value = useMemo<NoteFindValue>(
     () => ({

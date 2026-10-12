@@ -6,9 +6,9 @@ import {
   type GraphStatus,
   type RecentGraph,
 } from '@reflect/core'
-import { GraphServicesProvider, useOptionalAppServices } from '@/services/services-provider.tsx'
-import { bindGraphIndex, useGraphIndex } from './graph-index.ts'
-import { bootGraphSession, useGraphSessionService } from './graph-session.ts'
+import { GraphServicesProvider, useAppServices } from '@/services/services-provider.tsx'
+import { bindGraphIndex } from './graph-index.ts'
+import { bootGraphSession } from './graph-session.ts'
 import { useMobileGraphBoot, type MobileGraphBoot } from './use-mobile-graph-boot.ts'
 
 export type { GraphStatus } from '@reflect/core'
@@ -90,9 +90,8 @@ export function GraphProvider({
   children: ReactNode
   platform?: AppPlatform
 }) {
-  // The active graph's index lifecycle (open → reconcile → subscribe → watch).
-  const index = useGraphIndex()
-  const session = useGraphSessionService(platform, index)
+  const app = useAppServices()
+  const session = app.graphSession
   const {
     status,
     graph,
@@ -103,10 +102,9 @@ export function GraphProvider({
     session: graphSession,
   } = useSyncExternalStore(session.subscribe, session.getState)
   // Graph-scoped services exist per open session, over the app services.
-  const app = useOptionalAppServices()
   const graphServices = useMemo(
     () =>
-      app === null || graphSession === null
+      graphSession === null
         ? null
         : createGraphServices(
             app,
@@ -116,12 +114,13 @@ export function GraphProvider({
     [app, graphSession],
   )
 
-  useEffect(() => bindGraphIndex(index), [index])
+  // What the app does when the active graph's index reports.
+  useEffect(() => bindGraphIndex(app), [app])
 
   // Desktop main-window boot reopens the most recent graph or shows the
   // chooser; a secondary note window adopts the main window's graph. Mobile
   // boots through its hook below.
-  useEffect(() => bootGraphSession(session), [session])
+  useEffect(() => bootGraphSession(app), [app])
 
   // The mobile bootstrap + onboarding slice (Plans 19/21) lives in its own
   // service; it opens and parks through the session.
@@ -131,7 +130,7 @@ export function GraphProvider({
     mobileStorageResolving,
     mobileStorageKind,
     completeOnboarding,
-  } = useMobileGraphBoot({ platform, session })
+  } = useMobileGraphBoot()
 
   const value = useMemo<GraphContextValue>(
     () => ({

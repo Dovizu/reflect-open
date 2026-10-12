@@ -1,24 +1,15 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import { StrictMode, type ReactNode } from 'react'
-import { setDefaultSettings } from '@reflect/core'
 import { createTestAppServices, createTestSettingsService } from '@reflect/core/testing'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { SettingsProvider, useSettings } from './settings-provider.tsx'
 
-function wrapper({ children }: { children: ReactNode }) {
-  return <SettingsProvider>{children}</SettingsProvider>
-}
-
-afterEach(() => {
-  setDefaultSettings(null)
-})
-
 describe('SettingsProvider', () => {
-  it('renders the process-wide settings and forwards updates', async () => {
+  it('renders the settings of the app services and forwards updates', async () => {
     const settings = createTestSettingsService({ editorMarkdownSyntax: 'show' })
-    setDefaultSettings(settings)
-    const { result, act } = await renderHook(() => useSettings(), { wrapper })
+    const app = createTestAppServices({ settings })
+    const { result, act } = await renderHookInApp(() => useSettings(), { app })
 
     await act(async () => {
       await expect(result.current.whenSettingsLoaded()).resolves.toBe('loaded')
@@ -41,29 +32,13 @@ describe('SettingsProvider', () => {
     expect(settings.saves().at(-1)).toBe(settings.get())
   })
 
-  it('prefers the settings of the enclosing app services', async () => {
-    setDefaultSettings(createTestSettingsService())
-    const app = createTestAppServices({
-      settings: createTestSettingsService({ editorFullWidth: true }),
-    })
-    const { result, act } = await renderHook(() => useSettings(), {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <AppServicesProvider services={app}>
-          <SettingsProvider>{children}</SettingsProvider>
-        </AppServicesProvider>
-      ),
-    })
-    await act(async () => {
-      await result.current.whenSettingsLoaded()
-    })
-    expect(result.current.settings.editorFullWidth).toBe(true)
-  })
-
   it('loads once in StrictMode', async () => {
     const settings = createTestSettingsService()
-    setDefaultSettings(settings)
-    const { result, act } = await renderHook(() => useSettings(), {
-      wrapper: ({ children }: { children: ReactNode }) => (
+    const app = createTestAppServices({ settings })
+    // The provider under test is the inner one, inside StrictMode.
+    const { result, act } = await renderHookInApp(() => useSettings(), {
+      app,
+      wrapper: (children: ReactNode) => (
         <StrictMode>
           <SettingsProvider>{children}</SettingsProvider>
         </StrictMode>

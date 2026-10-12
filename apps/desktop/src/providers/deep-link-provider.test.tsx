@@ -1,16 +1,13 @@
-import { StrictMode, type ReactElement } from 'react'
-import { render } from 'vitest-browser-react'
-import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { StrictMode, type ReactElement, type ReactNode } from 'react'
+import { describe, expect, it, vi } from 'vitest'
 import type { GraphInfo } from '@reflect/core'
 import {
   createTestAppServices,
   createTestCaptureInboxService,
   createTestDeepLinkService,
   createTestOperationsService,
-  installTestServices,
 } from '@reflect/core/testing'
-import { RouterProvider } from '@/routing/router.tsx'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { DeepLinkProvider } from './deep-link-provider.tsx'
 
 // The handler itself is covered in `@reflect/core`; these cover how the
@@ -28,16 +25,14 @@ function setup() {
     operations,
   })
   const app = createTestAppServices({ deepLink, captureInbox, operations })
-  onTestFinished(installTestServices(app))
 
   function tree(graph: GraphInfo = GRAPH): ReactElement {
-    return (
-      <AppServicesProvider services={app}>
-        <RouterProvider>
-          <DeepLinkProvider graph={graph}>{null}</DeepLinkProvider>
-        </RouterProvider>
-      </AppServicesProvider>
-    )
+    return <DeepLinkProvider graph={graph}>{null}</DeepLinkProvider>
+  }
+
+  /** Render under the app's router, as the workspace mounts the provider. */
+  async function render(ui: ReactNode) {
+    return await renderInApp(ui, { app })
   }
 
   /** The routes navigated to so far, in order. */
@@ -57,12 +52,21 @@ function setup() {
     }
   }
 
-  return { app, deepLink, captureInbox, resolveNoteTarget, tree, navigated, dispatchPendingNote }
+  return {
+    app,
+    deepLink,
+    captureInbox,
+    resolveNoteTarget,
+    tree,
+    render,
+    navigated,
+    dispatchPendingNote,
+  }
 }
 
 describe('DeepLinkProvider', () => {
   it('serves the intake on mount and stops on unmount', async () => {
-    const { deepLink, tree, navigated } = setup()
+    const { deepLink, tree, navigated, render } = setup()
     deepLink.dispatch('reflect://tasks')
     expect(navigated()).toEqual([])
 
@@ -75,7 +79,7 @@ describe('DeepLinkProvider', () => {
   })
 
   it('routes URLs into the service with the router and the session generation', async () => {
-    const { deepLink, captureInbox, tree, navigated } = setup()
+    const { deepLink, captureInbox, tree, navigated, render } = setup()
     await render(tree())
 
     deepLink.dispatch('reflect://today')
@@ -87,7 +91,7 @@ describe('DeepLinkProvider', () => {
   })
 
   it('drops an in-flight resolve when the graph session changes', async () => {
-    const { tree, navigated, dispatchPendingNote } = setup()
+    const { tree, navigated, dispatchPendingNote, render } = setup()
     const view = await render(tree())
     const pending = dispatchPendingNote('x')
 
@@ -98,7 +102,7 @@ describe('DeepLinkProvider', () => {
   })
 
   it('drops a note resolve when navigation changes meanwhile', async () => {
-    const { app, tree, navigated, dispatchPendingNote } = setup()
+    const { app, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
@@ -109,7 +113,7 @@ describe('DeepLinkProvider', () => {
   })
 
   it('drops a note resolve when a newer note-link intent starts meanwhile', async () => {
-    const { app, tree, navigated, dispatchPendingNote } = setup()
+    const { app, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
@@ -124,7 +128,7 @@ describe('DeepLinkProvider', () => {
     'reflect://task?text=captured',
     'reflect://edit-notes?content=invalid',
   ])('does not stale a pending note resolve for non-navigation URL %s', async (url) => {
-    const { deepLink, tree, navigated, dispatchPendingNote } = setup()
+    const { deepLink, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
@@ -135,7 +139,7 @@ describe('DeepLinkProvider', () => {
   })
 
   it('stales a pending note resolve for a newer navigation URL', async () => {
-    const { deepLink, tree, navigated, dispatchPendingNote } = setup()
+    const { deepLink, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
@@ -146,7 +150,7 @@ describe('DeepLinkProvider', () => {
   })
 
   it('stales a pending note resolve for a newer note URL', async () => {
-    const { tree, navigated, dispatchPendingNote } = setup()
+    const { tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const older = dispatchPendingNote('x')
     const newer = dispatchPendingNote('y')
@@ -162,7 +166,7 @@ describe('DeepLinkProvider', () => {
     // by the FIRST attach — which in dev is StrictMode's probe run. Its async
     // note resolution must survive the probe's detach/reattach (same session),
     // or ⌘-clicked windows open on Today instead of the note.
-    const { tree, navigated, dispatchPendingNote } = setup()
+    const { tree, navigated, dispatchPendingNote, render } = setup()
     const pending = dispatchPendingNote('x')
 
     await render(<StrictMode>{tree()}</StrictMode>)
@@ -172,7 +176,7 @@ describe('DeepLinkProvider', () => {
   })
 
   it('stays fresh after a plain unmount — staleness tracks the session, not the mount', async () => {
-    const { tree, navigated, dispatchPendingNote } = setup()
+    const { tree, navigated, dispatchPendingNote, render } = setup()
     const view = await render(tree())
     const pending = dispatchPendingNote('x')
 

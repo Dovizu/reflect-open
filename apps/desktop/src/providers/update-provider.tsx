@@ -6,9 +6,10 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { defaultPlatform, defaultUpdate, type UpdateState } from '@reflect/core'
+import type { UpdateState } from '@reflect/core'
 import { attachUpdateToasts } from '@/components/update-toasts.ts'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface UpdateContextValue {
   state: UpdateState
@@ -43,9 +44,9 @@ interface UpdateProviderProps {
  * from first launch, before any graph is open.
  */
 export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): ReactElement {
-  const update = defaultUpdate()
+  const { update, platform } = useAppServices()
   const supported = update.supported
-  const resolvedAutoCheck = autoCheck ?? !defaultPlatform().isDev
+  const resolvedAutoCheck = autoCheck ?? !platform.isDev
 
   // One checker per app: secondary note windows never poll for updates.
   useMainWindowEffect(() => {

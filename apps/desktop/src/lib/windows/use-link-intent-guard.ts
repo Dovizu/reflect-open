@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useLinkNavigationService } from '@/hooks/use-link-navigation-service.ts'
 import { useNavigationRevision } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /** Start one link activation; the returned probe answers "did it go stale?". */
 export type BeginLinkIntent = () => () => boolean
@@ -25,7 +25,7 @@ export type BeginLinkIntent = () => () => boolean
  * full router, where the unmount and intent-token legs still guard correctly.
  */
 export function useLinkIntentGuard(): BeginLinkIntent {
-  const linkNavigation = useLinkNavigationService()
+  const { linkNavigation } = useAppServices()
   const navigationRevision = useNavigationRevision()
 
   const unmountedRef = useRef(false)

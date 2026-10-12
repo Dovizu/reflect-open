@@ -1,9 +1,9 @@
 import { defaultSemanticSearch, type EmbedStatus, type SemanticSearchService } from '@reflect/core'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
-/** The {@link SemanticSearchService} of the nearest `AppServicesProvider`, else the process-wide one. */
+/** The {@link SemanticSearchService} of the nearest `AppServicesProvider`. */
 export function useSemanticSearch(): SemanticSearchService {
-  return useOptionalAppServices()?.semanticSearch ?? defaultSemanticSearch()
+  return useAppServices().semanticSearch
 }
 
 /** `defaultSemanticSearch().retryFailedModel`. */

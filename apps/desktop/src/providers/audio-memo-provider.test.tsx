@@ -1,6 +1,5 @@
-import type { ReactElement, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
 import {
   audioMemoIdentity,
   audioMemoPartPath,
@@ -15,7 +14,7 @@ import {
 } from '@reflect/core/testing'
 import { toast } from '@/components/ui/toast.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { AudioMemoProvider, useAudioMemo } from './audio-memo-provider.tsx'
 
 const GRAPH: GraphInfo = { root: '/notes', name: 'Notes', generation: 3 }
@@ -54,22 +53,18 @@ async function setup(provider: AiProviderConfig = OPENAI) {
   const app: TestAppServices = createTestAppServices({ settings })
   app.audioRecorder.setStopResult(RECORDING)
 
-  function wrapper({ children }: { children: ReactNode }): ReactElement {
-    return (
-      <AppServicesProvider services={app}>
-        <SidebarProvider>
-          <AudioMemoProvider graph={GRAPH}>{children}</AudioMemoProvider>
-        </SidebarProvider>
-      </AppServicesProvider>
-    )
-  }
-
-  const hook = await renderHook(() => ({ memo: useAudioMemo(), sidebar: useSidebar() }), {
-    wrapper,
+  const hook = await renderHookInApp(() => ({ memo: useAudioMemo(), sidebar: useSidebar() }), {
+    app,
+    graph: GRAPH,
+    wrapper: (children: ReactNode) => (
+      <SidebarProvider>
+        <AudioMemoProvider graph={GRAPH}>{children}</AudioMemoProvider>
+      </SidebarProvider>
+    ),
   })
   const cancels = (): number =>
     app.audioRecorder.calls().filter((call) => call.method === 'cancel').length
-  return { app, cancels, ...hook }
+  return { ...hook, app, cancels }
 }
 
 describe('AudioMemoProvider', () => {

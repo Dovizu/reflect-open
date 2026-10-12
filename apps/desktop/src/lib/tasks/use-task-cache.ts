@@ -1,10 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { errorMessage, type OpenTask } from '@reflect/core'
-import { startOperation } from '@/lib/operations.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { withRelocatedTasks, type TaskMoves } from '@/lib/tasks/task-cache.ts'
 import { isSameTask } from '@/lib/tasks/task-identity.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /** Updates a cached task list in place; returning the same `undefined` is a no-op. */
 type TaskListPatch = (rows: OpenTask[] | undefined) => OpenTask[] | undefined
@@ -54,6 +54,7 @@ export interface TaskCacheWriter {
  */
 export function useTaskCacheWriter(): TaskCacheWriter {
   const { graph } = useGraph()
+  const { operations } = useAppServices()
   const queryClient = useQueryClient()
   const openKey = queryKeys.index.openTasks(graph?.root)
   const completedKey = queryKeys.index.completedTasks(graph?.root)
@@ -97,13 +98,13 @@ export function useTaskCacheWriter(): TaskCacheWriter {
     if (captured?.completed !== undefined) {
       queryClient.setQueryData(completedKey, captured.completed)
     }
-    startOperation(label).fail(errorMessage(cause))
+    operations.start(label).fail(errorMessage(cause))
   }
 
   const reconcile = (label: string, cause: unknown): void => {
     void queryClient.invalidateQueries({ queryKey: openKey })
     void queryClient.invalidateQueries({ queryKey: completedKey })
-    startOperation(label).fail(errorMessage(cause))
+    operations.start(label).fail(errorMessage(cause))
   }
 
   return { snapshot, patch, addOpen, relocate, rollback, reconcile }

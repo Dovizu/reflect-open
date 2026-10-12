@@ -3,6 +3,7 @@ import {
   type AppMenuEntry,
   type AppSubmenuLayout,
   type NativeMenuPredefinedItem,
+  type NativeMenuService,
 } from '@reflect/core'
 
 /**
@@ -130,6 +131,6 @@ export function appMenuLayout(): AppSubmenuLayout[] {
  * deliberately exempted there so its key equivalent belongs to this native
  * macOS application menu.
  */
-export async function installNativeMenu(): Promise<void> {
-  await defaultNativeMenu().install(appMenuLayout())
+export async function installNativeMenu(nativeMenu: NativeMenuService): Promise<void> {
+  await nativeMenu.install(appMenuLayout())
 }
