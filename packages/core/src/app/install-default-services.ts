@@ -1,3 +1,8 @@
+import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
+import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
+import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
+import { setDefaultXArchive } from '../x-archive.ts'
+import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
@@ -51,6 +56,11 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultOperations(services.operations)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
+  setDefaultGitRepository(services.gitRepository)
+  setDefaultICloudNative(services.icloudNative)
+  setDefaultCaptureInbox(services.captureInbox)
+  setDefaultWebFetch(services.webFetch)
+  setDefaultXArchive(services.xArchive)
   setDefaultIpc(services.ipc)
 }
 
@@ -80,5 +90,10 @@ export function resetDefaultServices(): void {
   setDefaultOperations(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
+  setDefaultGitRepository(null)
+  setDefaultICloudNative(null)
+  setDefaultCaptureInbox(null)
+  setDefaultWebFetch(null)
+  setDefaultXArchive(null)
   setDefaultIpc(null)
 }

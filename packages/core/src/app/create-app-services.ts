@@ -1,3 +1,17 @@
+import {
+  createCaptureInboxService,
+  type CaptureInboxService,
+} from '../graph/capture-inbox-service.ts'
+import {
+  createICloudNativeService,
+  type ICloudNativeService,
+} from '../ipc/icloud-native-service.ts'
+import {
+  createGitRepositoryService,
+  type GitRepositoryService,
+} from '../sync/git-repository-service.ts'
+import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
+import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
@@ -73,6 +87,11 @@ export interface AppServices {
   readonly operations: OperationsService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
+  readonly gitRepository: GitRepositoryService
+  readonly icloudNative: ICloudNativeService
+  readonly captureInbox: CaptureInboxService
+  readonly webFetch: WebFetchService
+  readonly xArchive: XArchiveService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -139,5 +158,10 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       { ipc, logger },
       { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
     ),
+    gitRepository: createGitRepositoryService({ ipc }),
+    icloudNative: createICloudNativeService({ ipc, logger }),
+    captureInbox: createCaptureInboxService({ ipc }),
+    webFetch: createWebFetchService({ ipc }),
+    xArchive: createXArchiveService({ ipc }),
   }
 }

@@ -42,6 +42,11 @@ const SERVICE_KEYS = [
   'operations',
   'database',
   'fileChanges',
+  'gitRepository',
+  'icloudNative',
+  'captureInbox',
+  'webFetch',
+  'xArchive',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

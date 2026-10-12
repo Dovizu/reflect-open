@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
+import { defaultCaptureInbox } from '../graph/capture-inbox-service.ts'
+import { defaultICloudNative } from '../ipc/icloud-native-service.ts'
+import { defaultGitRepository } from '../sync/git-repository-service.ts'
+import { defaultXArchive } from '../x-archive.ts'
+import { defaultWebFetch } from './web-fetch-service.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
@@ -61,6 +66,11 @@ describe('installDefaultServices', () => {
     expect(defaultOperations()).toBe(services.operations)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
+    expect(defaultGitRepository()).toBe(services.gitRepository)
+    expect(defaultICloudNative()).toBe(services.icloudNative)
+    expect(defaultCaptureInbox()).toBe(services.captureInbox)
+    expect(defaultWebFetch()).toBe(services.webFetch)
+    expect(defaultXArchive()).toBe(services.xArchive)
   })
 })
 
@@ -80,6 +90,11 @@ describe('resetDefaultServices', () => {
     expect(defaultOperations()).not.toBe(services.operations)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
+    expect(defaultGitRepository()).not.toBe(services.gitRepository)
+    expect(defaultICloudNative()).not.toBe(services.icloudNative)
+    expect(defaultCaptureInbox()).not.toBe(services.captureInbox)
+    expect(defaultWebFetch()).not.toBe(services.webFetch)
+    expect(defaultXArchive()).not.toBe(services.xArchive)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)
