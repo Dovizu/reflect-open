@@ -232,6 +232,18 @@ export {
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
 export {
+  createNoteFileService,
+  defaultNoteFile,
+  setDefaultNoteFile,
+  type NoteFileService,
+} from '../graph/note-file-service.ts'
+export {
+  createAssetStoreService,
+  defaultAssetStore,
+  setDefaultAssetStore,
+  type AssetStoreService,
+} from '../graph/asset-store-service.ts'
+export {
   createXArchiveService,
   defaultXArchive,
   setDefaultXArchive,

@@ -50,6 +50,8 @@ const SERVICE_KEYS = [
   'webFetch',
   'xArchive',
   'audioRecorder',
+  'noteFile',
+  'assetStore',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
@@ -160,6 +162,25 @@ describe('createAppServices', () => {
       services.fileChanges.reportOwnWrite([{ path: 'notes/a.md', kind: 'upsert' }])
       expect(batches, appPlatform).toBe(echoed)
     }
+  })
+
+  it('reports note and asset writes to the composed file-change service', async () => {
+    const ipc = createTestIpcBridgeService({
+      commands: { note_write: () => null, asset_write: () => null },
+    })
+    const services = createAppServices({
+      ...requiredAdapters(),
+      ipc: ipc.transport,
+      logger: createTestLoggerService(),
+      clock: createTestClockService({ now: 5 }),
+    })
+    const written: string[] = []
+    services.fileChanges.subscribeOwnWrites((paths) => {
+      written.push(...paths)
+    })
+    await expect(services.noteFile.write('notes/a.md', 'a', 1)).resolves.toBe(5)
+    await services.assetStore.writeBase64('assets/a.png', 'AA==', 1)
+    expect(written).toEqual(['notes/a.md', 'assets/a.png'])
   })
 
   it('leaves every process-wide default alone', () => {

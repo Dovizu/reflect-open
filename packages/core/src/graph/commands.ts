@@ -6,13 +6,13 @@ import { echoLocalWrite } from '../indexing/local-write-echo.ts'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 import { call } from '../ipc/invoke.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
+import { defaultAssetStore } from './asset-store-service.ts'
 import { defaultCaptureInbox } from './capture-inbox-service.ts'
+import { defaultNoteFile, type LocalNoteRead, type VaultScanStats } from './note-file-service.ts'
 import {
-  fileMetaSchema,
   graphImportProgressSchema,
   graphImportSummarySchema,
   graphInfoSchema,
-  noteCreateOutcomeSchema,
   recentGraphSchema,
   type FileMeta,
   type GraphImportProgress,
@@ -22,6 +22,8 @@ import {
   type RecentGraph,
   type WindowBootstrap,
 } from './schemas.ts'
+
+export type { LocalNoteRead, VaultScanStats } from './note-file-service.ts'
 
 /** Commands that return `()` from Rust serialize as `null` over IPC. */
 const voidSchema = z.null()
@@ -102,238 +104,123 @@ export function markReflectV1ImportOwnWrites(summary: GraphImportSummary): void 
   }
 }
 
-/**
- * Read a note's markdown by graph-relative path. `generation`, when given,
- * pins the read to the issuing graph session — background passes that can
- * span a graph switch must pin every read; UI reads of the open graph omit it.
- */
+/** `defaultNoteFile().read`. */
 export async function readNote(path: string, generation?: number): Promise<string> {
-  return await call('note_read', { path, generation }, z.string())
+  return await defaultNoteFile().read(path, generation)
 }
 
-const localNoteReadSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('content'), content: z.string() }),
-  z.object({ kind: z.literal('evicted') }),
-])
-
-/** How a {@link readNoteLocal} request found the note on disk. */
-export type LocalNoteRead = z.infer<typeof localNoteReadSchema>
-
-/**
- * Read a note's markdown **only when its bytes are local**, reporting an
- * iCloud-evicted note as `{ kind: 'evicted' }` instead of reading it. Bulk
- * background passes (the embedding backfill, asset-description gathering)
- * must use this instead of {@link readNote}: reading an evicted note blocks
- * while the OS materializes it on demand, and a whole-graph pass over an
- * evicted iCloud graph becomes thousands of serial blocking downloads.
- * Missing files still reject with `notFound`, exactly like {@link readNote}.
- */
+/** `defaultNoteFile().readLocal`. */
 export async function readNoteLocal(path: string, generation?: number): Promise<LocalNoteRead> {
-  return await call('note_read_local', { path, generation }, localNoteReadSchema)
+  return await defaultNoteFile().readLocal(path, generation)
 }
 
-/**
- * Atomically write a note's markdown by graph-relative path. `generation` (from
- * `GraphInfo`) pins the write to the graph it was issued for — Rust rejects it
- * if the graph switched in between.
- *
- * `expectedContents` rejects a stale source revision; null requires a missing
- * file, while omission keeps an unconditional write.
- *
- * The echo carries the file's on-disk mtime, which Rust returns from the
- * write: the index row it produces must compare equal to a later `listFiles`
- * mtime, or the reconcile's read-free skip never fires and the note is
- * re-read on every pass. `Date.now()` is a fallback for a platform that
- * can't report one.
- */
+/** `defaultNoteFile().write`, without its result. */
 export async function writeNote(
   path: string,
   contents: string,
   generation: number,
   expectedContents?: string | null,
 ): Promise<void> {
-  const modifiedMs = await call(
-    'note_write',
-    {
-      path,
-      contents,
-      generation,
-      ...(expectedContents === undefined ? {} : { checkContents: true, expectedContents }),
-    },
-    z.number().nullable(),
-  )
-  echoLocalWrite({ path, kind: 'upsert', modifiedMs: modifiedMs ?? Date.now() })
+  await defaultNoteFile().write(path, contents, generation, expectedContents)
 }
 
-/**
- * Atomically create a note only if `path` is still unoccupied. A collision is
- * returned as data and never overwrites the winner, closing the race between a
- * caller's availability check and a concurrent sync checkout or creator.
- */
+/** `defaultNoteFile().create`. */
 export async function createNoteIfAbsent(
   path: string,
   contents: string,
   generation: number,
 ): Promise<NoteCreateOutcome> {
-  const outcome = await call('note_create', { path, contents, generation }, noteCreateOutcomeSchema)
-  if (outcome.kind === 'created') {
-    echoLocalWrite({ path, kind: 'upsert', modifiedMs: outcome.modifiedMs ?? Date.now() })
-  }
-  return outcome
+  return await defaultNoteFile().create(path, contents, generation)
 }
 
-/**
- * Atomically write a binary asset (pasted/dropped image) by graph-relative
- * path. `contentsBase64` is the file's bytes, base64-encoded for the JSON IPC.
- */
+/** `defaultAssetStore().writeBase64`. */
 export async function writeAsset(
   path: string,
   contentsBase64: string,
   generation: number,
 ): Promise<void> {
-  await call('asset_write', { path, contentsBase64, generation }, voidSchema)
-  echoLocalWrite({ path, kind: 'upsert', modifiedMs: Date.now() })
+  await defaultAssetStore().writeBase64(path, contentsBase64, generation)
 }
 
-/**
- * Read a binary asset's bytes by graph-relative path, base64-encoded (the IPC
- * is JSON). E.g. an audio memo read back for transcription. `generation` pins
- * the read: background passes can span a graph switch, and an unpinned read
- * would resolve against the new graph's same-named file.
- */
+/** `defaultAssetStore().readBase64`. */
 export async function readAsset(path: string, generation: number): Promise<string> {
-  return await call('asset_read', { path, generation }, z.string())
+  return await defaultAssetStore().readBase64(path, generation)
 }
 
-/**
- * {@link readAsset} without the base64 detour: the bytes come back as a raw
- * IPC response. For large reads (a meeting-length audio memo read back for
- * transcription) the base64 route would inflate the payload ~1.33× inside one
- * giant JSON string. Only on binary-capable bridges (see `hasBinaryIpc`).
- */
+/** `defaultAssetStore().readBytes`. */
 export async function readAssetBinary(
   path: string,
   generation: number,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const buffer = await call('asset_read_binary', { path, generation }, z.instanceof(ArrayBuffer))
-  return new Uint8Array(buffer)
+  return await defaultAssetStore().readBytes(path, generation)
 }
 
-/**
- * Per-segment transcript cache IO (`.reflect/transcripts/<name>`): derived
- * data outside the attachment fence, so it rides its own narrow commands.
- * The read throws `notFound` while nothing is cached.
- */
+/** `defaultAssetStore().readTranscriptCache`. */
 export async function readTranscriptCache(name: string, generation: number): Promise<string> {
-  return await call('transcript_cache_read', { name, generation }, z.string())
+  return await defaultAssetStore().readTranscriptCache(name, generation)
 }
 
+/** `defaultAssetStore().writeTranscriptCache`. */
 export async function writeTranscriptCache(
   name: string,
   contents: string,
   generation: number,
 ): Promise<void> {
-  await call('transcript_cache_write', { name, contents, generation }, voidSchema)
+  await defaultAssetStore().writeTranscriptCache(name, contents, generation)
 }
 
-/**
- * Delete one recording under `audio-memos/` — cancelling a session discards
- * its already-landed segments. Idempotent; scoped in Rust to `audio-memos/`
- * so this can never become a general file-delete IPC.
- */
+/** `defaultAssetStore().deleteAudioMemo`. */
 export async function deleteAudioMemo(path: string, generation: number): Promise<void> {
-  await call('audio_memo_delete', { path, generation }, voidSchema)
+  await defaultAssetStore().deleteAudioMemo(path, generation)
 }
 
-/**
- * Copy a recording from an OS path (the mobile recorder's staging directory)
- * into `audio-memos/` at an exact path. Rust copies file-to-file, so the
- * bytes never enter webview memory. Idempotent: re-importing a segment that
- * already landed is a no-op, which is what makes a re-scan after a failed
- * staged-file delete safe.
- */
+/** `defaultAssetStore().importAudioMemo`. */
 export async function importAudioMemo(
   sourcePath: string,
   path: string,
   generation: number,
 ): Promise<void> {
-  await call('audio_memo_import', { sourcePath, path, generation }, voidSchema)
-  echoLocalWrite({ path, kind: 'upsert', modifiedMs: Date.now() })
+  await defaultAssetStore().importAudioMemo(sourcePath, path, generation)
 }
 
-/**
- * Open an asset by graph-relative path in the system default application.
- * `generation` pins the request to the graph whose markdown produced the
- * image, so a delayed click after a graph switch cannot open another graph's
- * same-named file.
- */
+/** `defaultAssetStore().open`. */
 export async function openAsset(path: string, generation: number): Promise<void> {
-  await call('asset_open', { path, generation }, voidSchema)
+  await defaultAssetStore().open(path, generation)
 }
 
-/**
- * Reveal a graph file in the OS file manager, the fallback when
- * {@link openAsset} refuses a file type. Pinned to `generation` for the same
- * reason.
- */
+/** `defaultAssetStore().reveal`. */
 export async function revealAsset(path: string, generation: number): Promise<void> {
-  await call('asset_reveal', { path, generation }, voidSchema)
+  await defaultAssetStore().reveal(path, generation)
 }
 
-/**
- * List every file (any extension) under a graph-relative directory, e.g.
- * `audio-memos`. A missing directory lists as empty. Pinned to `generation`
- * for the same reason as {@link readAsset}.
- */
+/** `defaultNoteFile().listDir`. */
 export async function listDir(dir: string, generation: number): Promise<FileMeta[]> {
-  return await call('dir_list', { dir, generation }, z.array(fileMetaSchema))
+  return await defaultNoteFile().listDir(dir, generation)
 }
 
-/**
- * Does a graph-relative path currently exist as a file on disk? Probes the
- * filesystem directly — unlike an index lookup, this can't lag the watcher.
- */
+/** `defaultNoteFile().exists`. */
 export async function noteExists(path: string): Promise<boolean> {
-  return await call('note_exists', { path }, z.boolean())
+  return await defaultNoteFile().exists(path)
 }
 
-/** Send a note to the OS trash (recoverable; pinned to `generation`). */
+/** `defaultNoteFile().delete`. */
 export async function deleteNote(path: string, generation: number): Promise<void> {
-  await call('note_delete', { path, generation }, voidSchema)
-  echoLocalWrite({ path, kind: 'remove' })
+  await defaultNoteFile().delete(path, generation)
 }
 
-/**
- * List eligible Markdown notes at the graph root and in visible nested
- * folders. `generation` pins the listing like {@link readNote}'s.
- */
+/** `defaultNoteFile().listNotes`. */
 export async function listFiles(generation?: number): Promise<FileMeta[]> {
-  return await call('list_files', { generation }, z.array(fileMetaSchema))
+  return await defaultNoteFile().listNotes(generation)
 }
 
-/**
- * List supported local attachments anywhere in the vault, from the same
- * cached catalog as {@link listFiles}.
- */
+/** `defaultNoteFile().listAttachments`. */
 export async function listAttachments(generation?: number): Promise<FileMeta[]> {
-  return await call('list_attachments', { generation }, z.array(fileMetaSchema))
+  return await defaultNoteFile().listAttachments(generation)
 }
 
-const vaultScanStatsSchema = z.object({
-  notes: z.number(),
-  attachments: z.number(),
-  skipped: z.number(),
-})
-
-export type VaultScanStats = z.infer<typeof vaultScanStatsSchema>
-
-/**
- * Counts from the vault catalog. `skipped` is what the walk refused or failed
- * to list (unreadable directories, symlinks, default-pruned trees) — surfaced
- * so "why isn't my file showing up" stays diagnosable.
- */
+/** `defaultNoteFile().vaultScanStats`. */
 export async function vaultScanStats(generation?: number): Promise<VaultScanStats> {
-  return await call('vault_scan_stats', { generation }, vaultScanStatsSchema)
+  return await defaultNoteFile().vaultScanStats(generation)
 }
 
 /**

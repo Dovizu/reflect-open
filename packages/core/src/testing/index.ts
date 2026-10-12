@@ -142,3 +142,13 @@ export {
   type AudioRecorderCall,
   type TestAudioRecorderService,
 } from './audio-recorder.ts'
+export {
+  createTestAssetStoreService,
+  createTestNoteFileService,
+  type AssetUpload,
+  type NoteFileWrite,
+  type TestAssetStoreService,
+  type TestAssetStoreServiceOptions,
+  type TestNoteFileService,
+  type TestNoteFileServiceOptions,
+} from './graph.ts'

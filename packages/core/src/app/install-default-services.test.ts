@@ -12,6 +12,8 @@ import { defaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { defaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
+import { defaultAssetStore } from '../graph/asset-store-service.ts'
+import { defaultNoteFile } from '../graph/note-file-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
@@ -83,6 +85,8 @@ describe('installDefaultServices', () => {
     expect(defaultIap()).toBe(services.iap)
     expect(defaultAppStore()).toBe(services.appStore)
     expect(defaultWebAuth()).toBe(services.webAuth)
+    expect(defaultNoteFile()).toBe(services.noteFile)
+    expect(defaultAssetStore()).toBe(services.assetStore)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {
@@ -122,6 +126,8 @@ describe('resetDefaultServices', () => {
     expect(defaultIap()).not.toBe(services.iap)
     expect(defaultAppStore()).not.toBe(services.appStore)
     expect(defaultWebAuth()).not.toBe(services.webAuth)
+    expect(defaultNoteFile()).not.toBe(services.noteFile)
+    expect(defaultAssetStore()).not.toBe(services.assetStore)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

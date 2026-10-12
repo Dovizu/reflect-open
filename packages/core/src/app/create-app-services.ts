@@ -16,6 +16,8 @@ import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 import { createPlatformAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
+import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
 import { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
@@ -114,6 +116,8 @@ export interface AppServices {
   readonly appStore?: AppStoreService
   /** Mobile only. */
   readonly webAuth?: WebAuthService
+  readonly noteFile: NoteFileService
+  readonly assetStore: AssetStoreService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -153,6 +157,10 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const windowService = createWindowService({ ipc, host: adapters.window, logger })
   const mobile =
     isMobilePlatform(adapters.platform.appPlatform) || adapters.platform.surface.mobileApp
+  const fileChanges = createFileChangeService(
+    { ipc, logger },
+    { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
+  )
   return {
     ipc,
     logger,
@@ -182,10 +190,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations: createOperationsService({ clock }),
     database: createDatabaseService({ ipc }),
-    fileChanges: createFileChangeService(
-      { ipc, logger },
-      { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
-    ),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,
@@ -214,5 +218,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
           webAuth: createWebAuthService({ ipc }),
         }
       : {}),
+    fileChanges,
+    noteFile: createNoteFileService({ ipc, clock, fileChanges }),
+    assetStore: createAssetStoreService({ ipc, clock, fileChanges }),
   }
 }

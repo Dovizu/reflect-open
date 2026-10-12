@@ -33,6 +33,12 @@ import {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
+import {
+  createTestAssetStoreService,
+  createTestNoteFileService,
+  type TestAssetStoreService,
+  type TestNoteFileService,
+} from './graph.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
   createTestHashService,
@@ -115,6 +121,8 @@ export interface TestAppServices extends AppServices {
   readonly iap: TestIapService
   readonly appStore: TestAppStoreService
   readonly webAuth: TestWebAuthService
+  readonly noteFile: TestNoteFileService
+  readonly assetStore: TestAssetStoreService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -163,6 +171,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     iap: createTestIapService(),
     appStore: createTestAppStoreService(),
     webAuth: createTestWebAuthService(null),
+    noteFile: createTestNoteFileService(),
+    assetStore: createTestAssetStoreService(),
   }
   return Object.assign(services, overrides)
 }

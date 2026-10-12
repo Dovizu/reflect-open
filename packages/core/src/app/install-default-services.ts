@@ -6,6 +6,8 @@ import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
+import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
+import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
 import { setDefaultAppStore } from '../ipc/app-store-plugin.ts'
@@ -73,6 +75,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultIap(services.iap ?? null)
   setDefaultAppStore(services.appStore ?? null)
   setDefaultWebAuth(services.webAuth ?? null)
+  setDefaultNoteFile(services.noteFile)
+  setDefaultAssetStore(services.assetStore)
   setDefaultIpc(services.ipc)
 }
 
@@ -113,5 +117,7 @@ export function resetDefaultServices(): void {
   setDefaultIap(null)
   setDefaultAppStore(null)
   setDefaultWebAuth(null)
+  setDefaultNoteFile(null)
+  setDefaultAssetStore(null)
   setDefaultIpc(null)
 }

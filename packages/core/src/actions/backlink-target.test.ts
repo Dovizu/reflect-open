@@ -1,24 +1,33 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { readNote } from '../graph/commands.ts'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { resolveOrCreateNoteWithTitle } from '../graph/create-note.ts'
+import { setDefaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import { createTestNoteFileService, type TestNoteFileService } from '../testing/index.ts'
 import { ensureBacklinkTarget } from './backlink-target.ts'
 
-vi.mock('../graph/commands', () => ({ readNote: vi.fn() }))
 vi.mock('../graph/create-note', () => ({ resolveOrCreateNoteWithTitle: vi.fn() }))
 
-const readNoteMock = vi.mocked(readNote)
 const resolveOrCreateMock = vi.mocked(resolveOrCreateNoteWithTitle)
+let noteFile: TestNoteFileService
+let readNoteMock: MockInstance<NoteFileService['read']>
 
 beforeEach(() => {
   vi.clearAllMocks()
   resolveOrCreateMock.mockResolvedValue({ kind: 'resolved', path: 'notes/links.md' })
-  readNoteMock.mockResolvedValue('# Links\n')
+  noteFile = createTestNoteFileService({
+    files: { 'notes/links.md': '# Links\n', 'notes/links-2.md': '# Links\n' },
+  })
+  readNoteMock = vi.spyOn(noteFile, 'read')
+  setDefaultNoteFile(noteFile)
+})
+
+afterEach(() => {
+  setDefaultNoteFile(null)
 })
 
 describe('ensureBacklinkTarget', () => {
   it('returns the existing note title so renamed categories keep one section', async () => {
     resolveOrCreateMock.mockResolvedValue({ kind: 'resolved', path: 'notes/bookmarks.md' })
-    readNoteMock.mockResolvedValue('# Bookmarks\n')
+    noteFile.set('notes/bookmarks.md', '# Bookmarks\n')
 
     await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Bookmarks')
     expect(readNoteMock).toHaveBeenCalledWith('notes/bookmarks.md', 3)
@@ -32,7 +41,7 @@ describe('ensureBacklinkTarget', () => {
 
   it('keeps the resolvable alias when the current title is unsafe in wiki syntax', async () => {
     resolveOrCreateMock.mockResolvedValue({ kind: 'resolved', path: 'notes/saved-links.md' })
-    readNoteMock.mockResolvedValue('# Saved | Links\n')
+    noteFile.set('notes/saved-links.md', '# Saved | Links\n')
 
     await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Links')
   })
@@ -52,7 +61,7 @@ describe('ensureBacklinkTarget', () => {
       kind: 'ambiguous',
       paths: ['notes/saved-links.md', 'notes/bookmarks.md'],
     })
-    readNoteMock.mockResolvedValue('# Bookmarks\n')
+    noteFile.set('notes/bookmarks.md', '# Bookmarks\n')
 
     await expect(ensureBacklinkTarget('Links', 3)).resolves.toBe('Bookmarks')
     expect(readNoteMock).toHaveBeenCalledWith('notes/bookmarks.md', 3)
