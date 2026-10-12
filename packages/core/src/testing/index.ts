@@ -136,6 +136,11 @@ export {
   type TestOperationsService,
 } from './operations.ts'
 export { createTestSettingsService, type TestSettingsService } from './settings.ts'
+export { createTestThemeService, type TestThemeService } from './theme.ts'
+export {
+  createTestPersistenceFlushService,
+  type TestPersistenceFlushService,
+} from './persistence-flush.ts'
 export {
   createTestFileChangeService,
   type TestFileChangeService,
@@ -176,3 +181,24 @@ export {
   type TestNoteFileService,
   type TestNoteFileServiceOptions,
 } from './graph.ts'
+export {
+  createTestAttachmentService,
+  type AttachmentSave,
+  type TestAttachmentEntry,
+  type TestAttachmentService,
+  type TestAttachmentServiceOptions,
+} from './attachments.ts'
+export {
+  createTestAppStoreEnvironmentService,
+  createTestClassicAccessService,
+  createTestPaywallService,
+  createTestSubscriptionService,
+  type AppStoreEnvironmentCall,
+  type ClassicAccessCall,
+  type PaywallAction,
+  type SubscriptionCall,
+  type TestAppStoreEnvironmentService,
+  type TestClassicAccessService,
+  type TestPaywallService,
+  type TestSubscriptionService,
+} from './monetization.ts'

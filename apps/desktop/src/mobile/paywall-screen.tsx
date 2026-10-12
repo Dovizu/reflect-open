@@ -1,13 +1,7 @@
 import { useState, type ReactElement } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
-import {
-  IAP_PRODUCT_IDS,
-  iapGetProducts,
-  iapPurchase,
-  presentOfferCodeRedeemSheet,
-  syncAppStore,
-} from '@reflect/core'
+import { IAP_PRODUCT_IDS } from '@reflect/core'
 import appIcon from '@/assets/app-icon.png'
 import { Button } from '@/components/ui/button.tsx'
 import { Spinner } from '@/components/ui/spinner.tsx'
@@ -15,10 +9,6 @@ import { openUrlSync } from '@/lib/open-url.ts'
 import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
 import { cn } from '@/lib/utils.ts'
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/mobile/legal-urls.ts'
-import {
-  refetchActiveSubscription,
-  useActiveSubscription,
-} from '@/mobile/use-active-subscription.ts'
 import { ClassicMemberDrawer } from '@/mobile/classic-member-drawer.tsx'
 import { ClassicSignInProgress } from '@/mobile/classic-sign-in-progress.tsx'
 import {
@@ -26,6 +16,7 @@ import {
   useClassicAccess,
   useClassicSignIn,
 } from '@/mobile/use-classic-access.ts'
+import { usePaywallService } from '@/services/use-monetization-services.ts'
 
 type PurchasePlan = 'monthly' | 'yearly'
 
@@ -38,14 +29,13 @@ interface PurchaseVariables {
 const CLAIM_FREE_YEAR_URL = 'https://reflect.app/claim-reflect-open'
 
 export function PaywallScreen(): ReactElement {
-  const subscription = useActiveSubscription()
-  const queryClient = useQueryClient()
+  const paywall = usePaywallService()
   const [selectedPlan, setSelectedPlan] = useState<PurchasePlan>('yearly')
   const [classicDrawerOpen, setClassicDrawerOpen] = useState(false)
 
   const products = useQuery({
     queryKey: queryKeys.iap.products,
-    queryFn: () => iapGetProducts([IAP_PRODUCT_IDS.yearly, IAP_PRODUCT_IDS.monthly]),
+    queryFn: () => paywall.products(),
   })
   const yearly =
     products.data?.find((product) => product.productId === IAP_PRODUCT_IDS.yearly) ?? null
@@ -62,24 +52,17 @@ export function PaywallScreen(): ReactElement {
   const purchaseMutation = useMutation({
     mutationKey: mutationKeys.iap.purchase,
     scope: { id: mutationScopeIds.iapAction },
-    mutationFn: (variables: PurchaseVariables) => iapPurchase(variables.productId),
-    onSuccess: subscription.invalidate,
+    mutationFn: (variables: PurchaseVariables) => paywall.purchase(variables.productId),
   })
   const restoreMutation = useMutation({
     mutationKey: mutationKeys.iap.restore,
     scope: { id: mutationScopeIds.iapAction },
-    mutationFn: async () => {
-      await syncAppStore()
-      return await refetchActiveSubscription(queryClient)
-    },
+    mutationFn: () => paywall.restore(),
   })
   const redeemMutation = useMutation({
     mutationKey: mutationKeys.iap.redeem,
     scope: { id: mutationScopeIds.iapAction },
-    mutationFn: presentOfferCodeRedeemSheet,
-    // A redeemed code normally arrives as a purchaseUpdated event; the
-    // refetch here covers a sheet that closed without emitting one.
-    onSuccess: subscription.invalidate,
+    mutationFn: () => paywall.redeemCode(),
   })
   const classicAccess = useClassicAccess()
   const classicSignIn = useClassicSignIn()

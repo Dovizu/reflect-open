@@ -1,5 +1,5 @@
 import { useId, useState, type ReactElement } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   aiProvider,
   aiProviderRequiresApiKey,
@@ -10,8 +10,6 @@ import {
   TRANSCRIPTION_PROMPT_MAX_LENGTH,
   normalizeChatSystemPrompt,
   normalizeTranscriptionPrompt,
-  presentOfferCodeRedeemSheet,
-  syncAppStore,
   type AiPrompt,
   type AiProviderConfig,
   type DateFormat,
@@ -45,10 +43,7 @@ import {
   SettingsValueRow,
   type SegmentedOption,
 } from '@/mobile/settings-list.tsx'
-import {
-  refetchActiveSubscription,
-  useActiveSubscription,
-} from '@/mobile/use-active-subscription.ts'
+import { useActiveSubscription } from '@/mobile/use-active-subscription.ts'
 import { useAppStoreEnvironment } from '@/mobile/use-app-store-environment.ts'
 import {
   classicAccessMessage,
@@ -57,6 +52,7 @@ import {
 } from '@/mobile/use-classic-access.ts'
 import { useMobileSyncStatus } from '@/mobile/use-sync-status.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { usePaywallService } from '@/services/use-monetization-services.ts'
 import { formatFullDate } from '@/lib/dates.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useSyncContext } from '@/providers/sync-provider.tsx'
@@ -111,7 +107,7 @@ export function MobileSettings(): ReactElement {
   const subscription = useActiveSubscription()
   const classicAccess = useClassicAccess()
   const classicSignOut = useClassicSignOut()
-  const queryClient = useQueryClient()
+  const paywall = usePaywallService()
   const [, setPaywallRequested] = usePaywallRequested()
   const [restorePending, setRestorePending] = useState(false)
   const [redeemPending, setRedeemPending] = useState(false)
@@ -121,8 +117,7 @@ export function MobileSettings(): ReactElement {
     setRestorePending(true)
     setSubscriptionMessage(null)
     try {
-      await syncAppStore()
-      const found = await refetchActiveSubscription(queryClient)
+      const found = await paywall.restore()
       if (found === null) {
         setSubscriptionMessage('No previous purchase found for this Apple account.')
       }
@@ -137,10 +132,7 @@ export function MobileSettings(): ReactElement {
     setRedeemPending(true)
     setSubscriptionMessage(null)
     try {
-      await presentOfferCodeRedeemSheet()
-      // A redeemed code normally arrives as a purchaseUpdated event; the
-      // refetch here covers a sheet that closed without emitting one.
-      subscription.invalidate()
+      await paywall.redeemCode()
     } catch {
       setSubscriptionMessage('Could not open the redemption sheet. Try again.')
     } finally {

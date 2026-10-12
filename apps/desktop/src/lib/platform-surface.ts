@@ -26,10 +26,14 @@ export type { PlatformSurface }
 export function setPlatformSurface(next: Partial<PlatformSurface>): void {
   const current = defaultPlatform()
   setDefaultPlatform(
-    createPlatformService({
-      ...platformFacts(current),
-      surface: { ...current.surface, ...next },
-    }),
+    createPlatformService(
+      {
+        ...platformFacts(current),
+        surface: { ...current.surface, ...next },
+      },
+      undefined,
+      (filePath, protocol) => current.convertFileSrc(filePath, protocol),
+    ),
   )
 }
 

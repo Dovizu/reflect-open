@@ -3,15 +3,19 @@ import { cleanup, renderHook } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import type { LinkClickHandler } from '@meowdown/core'
-import { setDefaultOpener } from '@reflect/core'
-import { createTestOpenerService, type TestOpenerService } from '@reflect/core/testing'
+import { setDefaultAttachments, setDefaultOpener } from '@reflect/core'
+import {
+  createTestAttachmentService,
+  createTestOpenerService,
+  type TestAttachmentService,
+  type TestOpenerService,
+} from '@reflect/core/testing'
 import { dispatchDeepLink } from '@/lib/deep-links/intake.ts'
 import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 
 const openDeepLinkInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 const resolveExistingMarkdownTarget = vi.hoisted(() => vi.fn())
-const openAsset = vi.hoisted(() => vi.fn(async () => {}))
 
 vi.mock('@/lib/deep-links/intake.ts', () => ({
   dispatchDeepLink: vi.fn(),
@@ -23,7 +27,6 @@ vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   resolveExistingMarkdownTarget,
-  openAsset,
 }))
 
 function RouteProbe(): ReactNode {
@@ -58,17 +61,23 @@ function click(href: string, metaKey = false): MouseEvent {
 }
 
 let opener: TestOpenerService
+let attachments: TestAttachmentService
 
 beforeEach(async () => {
   vi.clearAllMocks()
   opener = createTestOpenerService()
   setDefaultOpener(opener)
+  attachments = createTestAttachmentService()
+  setDefaultAttachments(attachments)
   openDeepLinkInNewWindow.mockResolvedValue(true)
   resolveExistingMarkdownTarget.mockResolvedValue({ kind: 'missing' })
   await mount(7, 'projects/TASKS.md')
 })
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  setDefaultAttachments(null)
+})
 
 describe('useMarkdownLinkClick', () => {
   it('opens an http(s) link in the OS browser and blocks the frame navigation', async () => {
@@ -139,7 +148,7 @@ describe('useMarkdownLinkClick', () => {
   it('opens an attachment link through the graph asset opener, not the URL opener', async () => {
     click('assets/cat.png')
 
-    await vi.waitFor(() => expect(openAsset).toHaveBeenCalledWith('assets/cat.png', 7))
+    await vi.waitFor(() => expect(attachments.opened()).toEqual(['assets/cat.png']))
     expect(opener.openedUrls()).toEqual([])
     expect(resolveExistingMarkdownTarget).not.toHaveBeenCalled()
   })
@@ -150,7 +159,7 @@ describe('useMarkdownLinkClick', () => {
     const asset = click('assets/cat.png')
     const note = click('notes/foo.md')
 
-    expect(openAsset).not.toHaveBeenCalled()
+    expect(attachments.opened()).toEqual([])
     expect(resolveExistingMarkdownTarget).not.toHaveBeenCalled()
     expect(opener.openedUrls()).toEqual([])
     expect(dispatchDeepLink).not.toHaveBeenCalled()

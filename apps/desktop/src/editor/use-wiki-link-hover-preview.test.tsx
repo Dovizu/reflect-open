@@ -6,10 +6,6 @@ import { setBridge, type FileMeta } from '@reflect/core'
 import { queryClient } from '@/lib/query-client.ts'
 import { useWikiLinkHoverPreview } from './use-wiki-link-hover-preview.tsx'
 
-vi.mock('@tauri-apps/api/core', () => ({
-  convertFileSrc: (filePath: string) => `reflect-asset://${filePath}`,
-}))
-
 const mocks = vi.hoisted(() => ({
   resolveExistingWikiTarget: vi.fn(),
   readExistingNoteSource: vi.fn(),
@@ -138,7 +134,7 @@ describe('useWikiLinkHoverPreview', () => {
     expect(await props.resolveImageUrl('../../outside.png')).toBeUndefined()
     expect(await props.resolveImageUrl('assets/vector.svg')).toBeUndefined()
     expect(await props.resolveImageUrl('assets/cat.png')).toBe(
-      'reflect-asset://7/assets/cat.png?reflect-preview=raster',
+      `reflect-asset://localhost/${encodeURIComponent('7/assets/cat.png')}?reflect-preview=raster`,
     )
   })
 
@@ -154,7 +150,7 @@ describe('useWikiLinkHoverPreview', () => {
 
     const props = mocks.markdownPreview.mock.calls.at(-1)?.[0] as MarkdownPreviewProps
     expect(await props.resolveImageUrl('../attachments/garden-budget.png')).toBe(
-      'reflect-asset://7/attachments/garden-budget.png?reflect-preview=raster',
+      `reflect-asset://localhost/${encodeURIComponent('7/attachments/garden-budget.png')}?reflect-preview=raster`,
     )
     const embed = { target: 'garden-budget.png', display: '', width: null, height: null }
     expect(props.resolveWikiEmbed(embed)).toEqual({ kind: 'image', src: 'garden-budget.png' })
@@ -189,7 +185,9 @@ describe('useWikiLinkHoverPreview', () => {
     expect(settled).toBe(false)
 
     listing.resolve([{ path: 'Media/photo.png', size: 42, modifiedMs: 0 }])
-    await expect(url).resolves.toBe('reflect-asset://7/Media/photo.png?reflect-preview=raster')
+    await expect(url).resolves.toBe(
+      `reflect-asset://localhost/${encodeURIComponent('7/Media/photo.png')}?reflect-preview=raster`,
+    )
   })
 
   it('shows a formatted subject and Empty note for an empty daily note', async () => {
