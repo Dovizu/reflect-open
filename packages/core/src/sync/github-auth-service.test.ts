@@ -343,23 +343,42 @@ describe('GithubAuthService.load', () => {
   it('returns null (not a crash) for unreadable stored credentials', async () => {
     const { auth } = setup({ secrets: { 'github-auth': 'not json' } })
     expect(await auth.load()).toBeNull()
-    expect(await auth.isConnected()).toBe(false)
+    expect(auth.getState().connected).toBe(false)
+  })
+
+  it('publishes whether a credential is stored, unknown until the first read', async () => {
+    const { auth } = setup({
+      secrets: { 'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_abc' }) },
+    })
+    expect(auth.getState().connected).toBeNull()
+
+    await auth.load()
+    expect(auth.getState().connected).toBe(true)
+  })
+
+  it('keeps a save that lands while a read is in flight', async () => {
+    const { auth } = setup()
+    const read = auth.load()
+    await auth.save({ kind: 'pat', token: 'ghp_abc' })
+    await read
+
+    expect(auth.getState().connected).toBe(true)
   })
 })
 
 describe('GithubAuthService change notification', () => {
-  it('notifies subscribers when the credential is saved or cleared', async () => {
+  it('notifies subscribers when the connection changes', async () => {
     const { auth } = setup()
     const listener = vi.fn()
     const unsubscribe = auth.subscribe(listener)
 
     await auth.save({ kind: 'pat', token: 'ghp_abc' })
     expect(listener).toHaveBeenCalledTimes(1)
-    expect(await auth.isConnected()).toBe(true)
+    expect(auth.getState().connected).toBe(true)
 
     await auth.clear()
     expect(listener).toHaveBeenCalledTimes(2)
-    expect(await auth.isConnected()).toBe(false)
+    expect(auth.getState().connected).toBe(false)
 
     unsubscribe()
     await auth.save({ kind: 'pat', token: 'ghp_abc' })

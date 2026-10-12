@@ -142,20 +142,26 @@ function usableToken(auth: GithubAuth): string {
   return auth.kind === 'pat' ? auth.token : auth.accessToken
 }
 
+/** What a {@link GithubAuthService} knows of the stored credential. */
+export interface GithubAuthState {
+  /**
+   * Whether a credential is stored (keychain presence, not validity: a dead
+   * token surfaces at use time with its real error). `null` until the first
+   * keychain read.
+   */
+  readonly connected: boolean | null
+}
+
 /** The one GitHub sign-in of this machine (not graph-scoped), kept in the keychain. */
 export interface GithubAuthService {
-  /** The stored credential, or `null` when absent or unreadable (re-connect). */
+  getState: () => GithubAuthState
+  /** The stored credential, or `null` when absent or unreadable (re-connect). Updates the state. */
   load: () => Promise<GithubAuth | null>
   /** Stores `auth` and notifies subscribers. */
   save: (auth: GithubAuth) => Promise<void>
   /** Removes the stored credential and notifies subscribers. */
   clear: () => Promise<void>
-  /**
-   * Whether a credential is stored (keychain presence, not validity — a dead
-   * token surfaces at use time with its real error).
-   */
-  isConnected: () => Promise<boolean>
-  /** Called after the credential is saved or cleared. */
+  /** Called after the state changes. */
   subscribe: (listener: () => void) => Unlisten
   /**
    * The token for git/API calls, silently refreshing app tokens near expiry.
@@ -202,6 +208,10 @@ export function createGithubAuthService(deps: {
 }): GithubAuthService {
   const { secretStore, http, clock } = deps
   const listeners = new Set<() => void>()
+  let state: GithubAuthState = { connected: null }
+  // Bumped by every save and clear, so a read that started before one does not
+  // overwrite its answer.
+  let writes = 0
 
   function notify(): void {
     for (const listener of listeners) {
@@ -209,16 +219,25 @@ export function createGithubAuthService(deps: {
     }
   }
 
+  function setConnected(connected: boolean): void {
+    if (state.connected === connected) {
+      return
+    }
+    state = { connected }
+    notify()
+  }
+
   async function store(auth: GithubAuth): Promise<void> {
     await secretStore.set(GITHUB_AUTH_SECRET, JSON.stringify(auth))
   }
 
   async function save(auth: GithubAuth): Promise<void> {
+    writes += 1
     await store(auth)
-    notify()
+    setConnected(true)
   }
 
-  async function load(): Promise<GithubAuth | null> {
+  async function readStored(): Promise<GithubAuth | null> {
     const raw = await secretStore.get(GITHUB_AUTH_SECRET)
     if (raw === null) {
       return null
@@ -230,9 +249,19 @@ export function createGithubAuthService(deps: {
     }
   }
 
+  async function load(): Promise<GithubAuth | null> {
+    const before = writes
+    const auth = await readStored()
+    if (writes === before) {
+      setConnected(auth !== null)
+    }
+    return auth
+  }
+
   async function clear(): Promise<void> {
+    writes += 1
     await secretStore.delete(GITHUB_AUTH_SECRET)
-    notify()
+    setConnected(false)
   }
 
   async function deviceFlowStart(
@@ -367,7 +396,7 @@ export function createGithubAuthService(deps: {
   }
 
   async function getToken(): Promise<string | null> {
-    const auth = await load()
+    const auth = await readStored()
     if (auth === null) {
       return null
     }
@@ -419,7 +448,7 @@ export function createGithubAuthService(deps: {
       return await getAuthenticatedUser(token)
     } catch (error: unknown) {
       if (isAppError(error) && error.kind === 'auth') {
-        const current = await load()
+        const current = await readStored()
         if (current !== null && usableToken(current) === token) {
           await clear()
         }
@@ -429,10 +458,10 @@ export function createGithubAuthService(deps: {
   }
 
   return {
+    getState: () => state,
     load,
     save,
     clear,
-    isConnected: async () => (await load()) !== null,
     subscribe(listener) {
       // Wrapped for identity, so one function added twice detaches independently.
       const deliver = (): void => {

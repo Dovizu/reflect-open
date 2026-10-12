@@ -113,9 +113,6 @@ export const queryKeys = {
   },
   calendar: {
     all: ['calendar'] as const,
-    get authorization() {
-      return [...this.all, 'authorization'] as const
-    },
     get calendars() {
       return [...this.all, 'calendars'] as const
     },
@@ -127,12 +124,6 @@ export const queryKeys = {
     all: ['contacts'] as const,
     get authorization() {
       return [...this.all, 'authorization'] as const
-    },
-  },
-  github: {
-    all: ['github'] as const,
-    get authentication() {
-      return [...this.all, 'authentication'] as const
     },
   },
   icloud: {

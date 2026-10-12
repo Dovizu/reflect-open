@@ -2,7 +2,9 @@ import { z } from 'zod'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HttpService } from '../app/http-service.ts'
 import type { IdService } from '../app/id-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import { ReflectError } from '../errors.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { WebAuthService } from '../ipc/web-auth-plugin.ts'
@@ -78,6 +80,11 @@ export interface ClassicAccessService {
   signIn: (options: ClassicSignInOptions) => Promise<ClassicSignInResult>
   /** Forgets this device's access. */
   signOut: () => Promise<void>
+  /**
+   * On iOS, reads the stored access now and, while it holds a token, rechecks
+   * it now and whenever the page turns visible. Elsewhere it does nothing.
+   */
+  start: () => Unlisten
 }
 
 const meSchema = z.object({
@@ -135,9 +142,11 @@ export function createClassicAccessService(deps: {
   webAuth: WebAuthService
   clock: ClockService
   id: IdService
+  lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  platform: Pick<PlatformFacts, 'appPlatform'>
   logger: LoggerService
 }): ClassicAccessService {
-  const { secretStore, http, webAuth, clock, id, logger } = deps
+  const { secretStore, http, webAuth, clock, id, lifecycle, platform, logger } = deps
   const listeners = new Set<() => void>()
   let state: ClassicAccessState = { access: null, active: false, isLoading: true }
 
@@ -293,26 +302,32 @@ export function createClassicAccessService(deps: {
 
   let pendingLoad: Promise<ClassicAccess | null> | null = null
 
+  function subscribe(listener: () => void): Unlisten {
+    listeners.add(listener)
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+
+  const read = (): Promise<ClassicAccess | null> => settle(readStored())
+
+  function load(): Promise<ClassicAccess | null> {
+    if (pendingLoad === null) {
+      const next = settle(recheck())
+      pendingLoad = next
+      const clear = (): void => {
+        if (pendingLoad === next) pendingLoad = null
+      }
+      void next.then(clear, clear)
+    }
+    return pendingLoad
+  }
+
   return {
     getState: () => state,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    read: () => settle(readStored()),
-    load() {
-      if (pendingLoad === null) {
-        const load = settle(recheck())
-        pendingLoad = load
-        const clear = (): void => {
-          if (pendingLoad === load) pendingLoad = null
-        }
-        void load.then(clear, clear)
-      }
-      return pendingLoad
-    },
+    subscribe,
+    read,
+    load,
     async signIn(options) {
       const { code_verifier: verifier, code_challenge: challenge } = await id.pkceChallenge()
       const oauthState = id.uuid()
@@ -348,6 +363,34 @@ export function createClassicAccessService(deps: {
     async signOut() {
       await secretStore.delete(CLASSIC_ACCESS_SECRET)
       publish(null)
+    },
+    start() {
+      if (platform.appPlatform !== 'ios') return () => {}
+      read().catch((error: unknown) => {
+        logger.error('Reading the Reflect Classic access failed', error)
+      })
+      let stopRechecks: Unlisten | null = null
+      const followToken = (): void => {
+        const hasToken = state.access?.token != null
+        if (hasToken && stopRechecks === null) {
+          const recheckNow = (): void => {
+            load().catch((error: unknown) => {
+              logger.error('Reading the Reflect Classic access failed', error)
+            })
+          }
+          recheckNow()
+          stopRechecks = lifecycle.subscribeVisible(recheckNow)
+        } else if (!hasToken && stopRechecks !== null) {
+          stopRechecks()
+          stopRechecks = null
+        }
+      }
+      followToken()
+      const unsubscribe = subscribe(followToken)
+      return () => {
+        unsubscribe()
+        stopRechecks?.()
+      }
     },
   }
 }

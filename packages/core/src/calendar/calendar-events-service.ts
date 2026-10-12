@@ -1,3 +1,4 @@
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformService } from '../app/platform-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
@@ -11,16 +12,29 @@ import type {
 } from './calendar-service.ts'
 import { dayRange } from './events.ts'
 
+/** What a {@link CalendarEventsService} knows of the calendar permission. */
+export interface CalendarEventsState {
+  /** The macOS calendar permission state; `null` until the first read. */
+  readonly authorization: CalendarAuthorizationStatus | null
+}
+
 /**
  * The calendar integration behind the daily note's events panel and the
  * settings field (docs/porting/calendar-meetings-integration.md). Events are
  * fetched live: nothing here is cached, and nothing is indexed.
  */
 export interface CalendarEventsService {
+  getState: () => CalendarEventsState
+  /** Called after the state changes. */
+  subscribe: (listener: () => void) => Unlisten
+  /**
+   * Read the permission state now, again whenever the page turns visible or
+   * the calendar reports a change, until the returned function runs. The
+   * state changes behind Reflect's back in System Settings. Never prompts.
+   */
+  watchAuthorization: () => Unlisten
   /** Whether calendar reads can run at all: the macOS desktop shell only. */
   isAvailable(): boolean
-  /** The macOS calendar permission state. Never prompts. */
-  authorizationStatus(): Promise<CalendarAuthorizationStatus>
   /** Every calendar on the Mac, for the settings chooser. */
   listCalendars(): Promise<CalendarInfo[]>
   /**
@@ -35,14 +49,15 @@ export interface CalendarEventsService {
    */
   subscribeChanged(listener: () => void): Unlisten
   /**
-   * Ask the OS for calendar access. Resolves instantly when the OS already
-   * remembers an answer; prompts only on the very first request. Never
-   * rejects: a failure is logged, and the permission state is the truth.
+   * Ask the OS for calendar access, then re-read the permission state.
+   * Resolves instantly when the OS already remembers an answer; prompts only
+   * on the very first request. Never rejects: a failure is logged, and the
+   * permission state is the truth.
    */
   requestAccess(): Promise<void>
   /**
    * Switch the integration on or off. Switching it on also requests access;
-   * `accessRequested` then tells the caller to re-read the permission state.
+   * `accessRequested` then tells the caller to re-read the calendars.
    */
   setEnabled(enabled: boolean): Promise<{ accessRequested: boolean }>
   /** Add `id` to, or remove it from, the calendars the daily note shows. */
@@ -91,9 +106,33 @@ export function createCalendarEventsService(deps: {
   calendar: CalendarService
   settings: SettingsService
   platform: PlatformService
+  lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
   logger: LoggerService
 }): CalendarEventsService {
-  const { calendar, settings, platform, logger } = deps
+  const { calendar, settings, platform, lifecycle, logger } = deps
+  const listeners = new Set<() => void>()
+  let state: CalendarEventsState = { authorization: null }
+  // Bumped by every read, so only the latest one publishes.
+  let reads = 0
+
+  async function refreshAuthorization(): Promise<void> {
+    reads += 1
+    const read = reads
+    let authorization: CalendarAuthorizationStatus
+    try {
+      authorization = await calendar.authorizationStatus()
+    } catch (cause) {
+      logger.error('calendar authorization read failed:', cause)
+      return
+    }
+    if (read !== reads || authorization === state.authorization) {
+      return
+    }
+    state = { authorization }
+    for (const listener of listeners) {
+      listener()
+    }
+  }
 
   async function requestAccess(): Promise<void> {
     try {
@@ -101,11 +140,34 @@ export function createCalendarEventsService(deps: {
     } catch (cause) {
       logger.error('calendar access request failed:', cause)
     }
+    await refreshAuthorization()
   }
 
   return {
+    getState: () => state,
+    subscribe(listener) {
+      const deliver = (): void => {
+        listener()
+      }
+      listeners.add(deliver)
+      return () => {
+        listeners.delete(deliver)
+      }
+    },
+    watchAuthorization() {
+      void refreshAuthorization()
+      const stopVisible = lifecycle.subscribeVisible(() => {
+        void refreshAuthorization()
+      })
+      const stopChanged = calendar.subscribeChanged(() => {
+        void refreshAuthorization()
+      })
+      return () => {
+        stopVisible()
+        stopChanged()
+      }
+    },
     isAvailable: () => platform.isMacosDesktop,
-    authorizationStatus: () => calendar.authorizationStatus(),
     listCalendars: () => calendar.listCalendars(),
     listDayEvents: (date, calendarIds) => calendar.listEvents(dayRange(date), calendarIds),
     subscribeChanged: (listener) => calendar.subscribeChanged(listener),

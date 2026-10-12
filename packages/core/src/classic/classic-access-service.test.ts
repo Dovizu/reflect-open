@@ -1,12 +1,15 @@
 import { verifyChallenge } from 'pkce-challenge'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createSystemIdService, type IdService } from '../app/id-service.ts'
+import type { AppPlatform } from '../app/platform.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestHttpService, type TestHttpService } from '../testing/http.ts'
 import { createTestIdService } from '../testing/id.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
+import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestWebAuthService, type TestWebAuthService } from '../testing/plugins.ts'
 import { createTestSecretStoreService, type TestSecretStoreService } from '../testing/secrets.ts'
+import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
 import {
   CLASSIC_ACCESS_SECRET,
   classicAccessUntil,
@@ -69,8 +72,10 @@ let clock: TestClockService
 let http: TestHttpService
 let secrets: TestSecretStoreService
 let webAuth: TestWebAuthService
+let lifecycle: TestLifecycleService
 
 beforeEach(() => {
+  lifecycle = createTestLifecycleService()
   logger = createTestLoggerService()
   clock = createTestClockService({ now: NOW })
   http = createTestHttpService()
@@ -89,7 +94,11 @@ function paths(): string[] {
   return http.requests().map((request) => new URL(request.url).pathname)
 }
 
-function service(options?: { id?: IdService; approved?: boolean }): ClassicAccessService {
+function service(options?: {
+  id?: IdService
+  approved?: boolean
+  appPlatform?: AppPlatform
+}): ClassicAccessService {
   const approved = options?.approved ?? true
   return createClassicAccessService({
     secretStore: secrets,
@@ -104,6 +113,8 @@ function service(options?: { id?: IdService; approved?: boolean }): ClassicAcces
       : webAuth,
     clock,
     id: options?.id ?? createTestIdService(),
+    lifecycle,
+    platform: createTestPlatformService({ appPlatform: options?.appPlatform ?? 'ios' }),
     logger,
   })
 }
@@ -519,5 +530,90 @@ describe('signOut', () => {
     expect(secrets.snapshot()).toEqual({})
     expect(classic.getState()).toEqual({ access: null, active: false, isLoading: false })
     expect(notified).toBe(1)
+  })
+})
+
+describe('start', () => {
+  function withStored(access: ClassicAccess): void {
+    secrets = createTestSecretStoreService({ [CLASSIC_ACCESS_SECRET]: JSON.stringify(access) })
+  }
+
+  it('reads the stored access, then rechecks a token now and whenever the page turns visible', async () => {
+    withStored(storedAccess())
+    routes({ '/api/users/me': meRoute(true) })
+    const classic = service()
+
+    classic.start()
+    await vi.waitFor(() => expect(paths()).toEqual(['/api/users/me']))
+    expect(classic.getState().access?.checkedAt).toBe(NOW)
+
+    await clock.advance(DAY_MS)
+    lifecycle.emitVisible()
+    await vi.waitFor(() => expect(paths()).toEqual(['/api/users/me', '/api/users/me']))
+  })
+
+  it('reads without rechecking when no token is stored', async () => {
+    withStored(storedAccess({ token: null }))
+    const classic = service()
+
+    classic.start()
+    await vi.waitFor(() => expect(classic.getState().isLoading).toBe(false))
+    const reads = vi.spyOn(secrets, 'get')
+    lifecycle.emitVisible()
+
+    expect(reads).not.toHaveBeenCalled()
+  })
+
+  it('stops rechecking once the token is gone', async () => {
+    withStored(storedAccess())
+    routes({ '/api/users/me': meRoute(true) })
+    const classic = service()
+    classic.start()
+    await vi.waitFor(() => expect(paths()).toHaveLength(1))
+
+    await classic.signOut()
+    const reads = vi.spyOn(secrets, 'get')
+    lifecycle.emitVisible()
+
+    expect(reads).not.toHaveBeenCalled()
+  })
+
+  it('stops rechecking when stopped', async () => {
+    withStored(storedAccess())
+    routes({ '/api/users/me': meRoute(true) })
+    const classic = service()
+    const stop = classic.start()
+    await vi.waitFor(() => expect(paths()).toHaveLength(1))
+
+    stop()
+    const reads = vi.spyOn(secrets, 'get')
+    lifecycle.emitVisible()
+
+    expect(reads).not.toHaveBeenCalled()
+  })
+
+  it('logs a failed keychain read', async () => {
+    secrets = {
+      ...createTestSecretStoreService(),
+      get: () => Promise.reject(new Error('locked')),
+    }
+    service().start()
+
+    await vi.waitFor(() =>
+      expect(logger.getErrors()).toEqual([
+        { message: 'Reading the Reflect Classic access failed', cause: new Error('locked') },
+      ]),
+    )
+  })
+
+  it('does nothing off iOS', async () => {
+    withStored(storedAccess())
+    const reads = vi.spyOn(secrets, 'get')
+    const classic = service({ appPlatform: 'desktop' })
+
+    classic.start()
+    lifecycle.emitVisible()
+
+    expect(reads).not.toHaveBeenCalled()
   })
 })

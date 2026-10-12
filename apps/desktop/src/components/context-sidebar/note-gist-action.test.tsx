@@ -32,6 +32,9 @@ function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
 }
 
 async function renderAction() {
+  if (connected) {
+    await app.githubAuth.save({ kind: 'pat', token: 'ghp_test' })
+  }
   return await renderInApp(<NoteGistAction path="notes/a.md" />, {
     app,
     graph: { root: '/g', name: 'g', generation: 7 },
@@ -41,7 +44,7 @@ async function renderAction() {
 /** Both reads behind the action have answered: what renders now is final. */
 async function waitForReads(queryClient: QueryClient): Promise<void> {
   await vi.waitFor(() => {
-    expect(queryClient.getQueryData(queryKeys.github.authentication)).toBe(connected)
+    expect(app.githubAuth.getState().connected).toBe(connected)
     expect(queryClient.getQueryData(queryKeys.index.note('/g', 'notes/a.md'))).toEqual(row)
   })
 }
@@ -50,7 +53,6 @@ beforeEach(() => {
   connected = true
   row = null
   app = createTestAppServices()
-  vi.spyOn(app.githubAuth, 'isConnected').mockImplementation(async () => connected)
   vi.spyOn(app.indexQuery, 'getNote').mockImplementation(async () => row ?? undefined)
   publish = vi.spyOn(app.gistPublish, 'publish').mockResolvedValue({ url: GIST_URL, stale: false })
   unpublish = vi.spyOn(app.gistPublish, 'unpublish').mockResolvedValue({ url: null, stale: false })

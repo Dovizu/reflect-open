@@ -37,7 +37,9 @@ beforeEach(() => {
 async function renderSection(backup: BackupState): Promise<void> {
   backups.backup.setState(backup)
   const app = createTestAppServices({ opener, backups })
-  vi.spyOn(app.githubAuth, 'isConnected').mockImplementation(async () => githubConnected)
+  if (githubConnected) {
+    await app.githubAuth.save({ kind: 'pat', token: 'ghp_test' })
+  }
   await renderInApp(<BackupSettingsField />, { app, sync: true })
 }
 

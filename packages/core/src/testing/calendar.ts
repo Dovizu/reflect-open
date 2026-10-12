@@ -1,3 +1,4 @@
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformService } from '../app/platform-service.ts'
 import {
@@ -14,6 +15,7 @@ import type { SettingsService } from '../settings/settings-service.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestPlatformService } from './platform.ts'
 import { createTestSettingsService } from './settings.ts'
+import { createTestLifecycleService } from './shell.ts'
 
 export interface TestCalendarServiceOptions {
   /** The permission state. Defaults to `fullAccess`. */
@@ -101,6 +103,8 @@ export interface TestCalendarEventsServiceOptions {
   settings?: SettingsService
   /** Defaults to a fresh {@link createTestPlatformService}. */
   platform?: PlatformService
+  /** Defaults to a fresh {@link createTestLifecycleService}. */
+  lifecycle?: Pick<AppLifecycleService, 'subscribeVisible'>
   /** Defaults to a fresh {@link createTestLoggerService}. */
   logger?: LoggerService
 }
@@ -113,6 +117,7 @@ export function createTestCalendarEventsService(
     calendar: options?.calendar ?? createTestCalendarService(),
     settings: options?.settings ?? createTestSettingsService(),
     platform: options?.platform ?? createTestPlatformService(),
+    lifecycle: options?.lifecycle ?? createTestLifecycleService(),
     logger: options?.logger ?? createTestLoggerService(),
   })
 }

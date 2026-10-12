@@ -1,6 +1,5 @@
 import { watchAssetDescriptions } from '@/lib/asset-description-queries.ts'
 import { watchCaptureXPosts } from '@/lib/capture-x-posts.ts'
-import { watchGithubAuth } from '@/lib/github-auth-state.ts'
 import { createDesktopAdapters } from '@/services/create-desktop-services.ts'
 import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
@@ -26,6 +25,5 @@ export const appServices = createAppServices(
 // Runs before every module imported after this one, so exception telemetry
 // exists while the rest of the app's modules evaluate.
 appServices.exceptionTelemetry.install()
-watchGithubAuth(appServices.githubAuth)
 watchCaptureXPosts(appServices.capture)
 watchAssetDescriptions(appServices.assetDescription)

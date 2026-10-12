@@ -51,7 +51,11 @@ export {
   createGitRepositoryService,
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
-export { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
+export {
+  createGithubAuthService,
+  type GithubAuthService,
+  type GithubAuthState,
+} from '../sync/github-auth-service.ts'
 export {
   createGitHostCredentialService,
   type GitHostCredentialService,
@@ -510,6 +514,7 @@ export {
   groupCalendarsBySource,
   showsDayEvents,
   type CalendarEventsService,
+  type CalendarEventsState,
 } from '../calendar/calendar-events-service.ts'
 export {
   createFileChangeService,

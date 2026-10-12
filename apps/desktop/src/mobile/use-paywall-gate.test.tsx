@@ -49,7 +49,7 @@ describe('usePaywallGate', () => {
 
     await vi.waitFor(() => {
       expect(services.subscription.calls()).toContain('activeSubscription')
-      expect(services.classicAccess.calls()).toContain('read')
+      expect(services.classicAccess.calls()).toContain('start')
       expect(services.appStoreEnvironment.calls()).toContain('environment')
     })
   })
@@ -62,27 +62,6 @@ describe('usePaywallGate', () => {
     focusManager.setFocused(true)
 
     expect(services.subscription.calls()).toContain('refetch')
-  })
-
-  it('rechecks a stored Reflect Classic token on mount and on window focus', async () => {
-    const services = iosServices()
-    services.classicAccess.setState({
-      access: { token: 'token', email: null, expiresAt: 1, checkedAt: 0 },
-    })
-    await renderHookInApp(() => usePaywallGate(), { app: services })
-    await vi.waitFor(() => expect(services.classicAccess.calls()).toContain('load'))
-    const loads = services.classicAccess.calls().filter((call) => call === 'load').length
-
-    focusManager.setFocused(false)
-    focusManager.setFocused(true)
-
-    expect(services.classicAccess.calls().filter((call) => call === 'load')).toHaveLength(loads + 1)
-  })
-
-  it('leaves Reflect Classic alone off iOS', async () => {
-    const services = createTestAppServices()
-    await renderHookInApp(() => usePaywallGate(), { app: services })
-    expect(services.classicAccess.calls()).toEqual([])
   })
 
   describe('over the real services', () => {
@@ -103,6 +82,8 @@ describe('usePaywallGate', () => {
         webAuth: base.webAuth,
         clock: base.clock,
         id: base.id,
+        lifecycle: base.lifecycle,
+        platform: base.platform,
         logger: base.logger,
       })
       const appStoreEnvironment = createAppStoreEnvironmentService({

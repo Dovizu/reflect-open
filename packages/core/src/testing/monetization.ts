@@ -38,7 +38,7 @@ function createListeners(): Listeners {
   }
 }
 
-export type ClassicAccessCall = 'read' | 'load' | 'signIn' | 'signOut'
+export type ClassicAccessCall = 'read' | 'load' | 'signIn' | 'signOut' | 'start'
 
 export interface TestClassicAccessService extends ClassicAccessService {
   /** Replaces part of the state and notifies subscribers. */
@@ -54,7 +54,7 @@ export interface TestClassicAccessService extends ClassicAccessService {
 /**
  * A {@link ClassicAccessService} over a settable state. `read` and `load`
  * resolve the stored access; `signIn` resolves `cancelled` until `setSignIn`;
- * `signOut` clears the access.
+ * `signOut` clears the access; `start` only records the call.
  */
 export function createTestClassicAccessService(
   state?: Partial<ClassicAccessState>,
@@ -90,6 +90,10 @@ export function createTestClassicAccessService(
       log.push('signOut')
       setState({ access: null, active: false })
       return Promise.resolve()
+    },
+    start() {
+      log.push('start')
+      return () => {}
     },
     setState,
     setSignIn(handler) {
