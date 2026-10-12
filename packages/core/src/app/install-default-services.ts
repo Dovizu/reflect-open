@@ -10,6 +10,7 @@ import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
+import { setDefaultIndexStore } from '../indexing/index-store-service.ts'
 import { setDefaultAppStore } from '../ipc/app-store-plugin.ts'
 import { setDefaultIpc } from '../ipc/bridge.ts'
 import { setDefaultIap } from '../ipc/iap-plugin.ts'
@@ -64,6 +65,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultOperations(services.operations)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
+  setDefaultIndexStore(services.indexStore)
   setDefaultUpdate(services.update)
   setDefaultGitRepository(services.gitRepository)
   setDefaultICloudNative(services.icloudNative)
@@ -106,6 +108,7 @@ export function resetDefaultServices(): void {
   setDefaultOperations(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
+  setDefaultIndexStore(null)
   setDefaultUpdate(null)
   setDefaultGitRepository(null)
   setDefaultICloudNative(null)

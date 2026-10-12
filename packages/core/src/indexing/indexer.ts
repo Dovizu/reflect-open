@@ -1,26 +1,19 @@
 import { defaultLogger } from '../app/logger-service.ts'
-import { errorMessage, isAppError } from '../errors.ts'
+import { isAppError } from '../errors.ts'
 import { listFiles, readNote } from '../graph/commands.ts'
 import { parseNote } from '../markdown/index.ts'
-import {
-  applyIndexedNote,
-  applyIndexedNotes,
-  clearIndex,
-  moveIndexedRows,
-  reconcileScan,
-  removeFromIndex,
-  setIndexMeta,
-  touchIndexedNotes,
-  type IndexedNoteTouch,
-} from './commands.ts'
 import { assetReferencingNotePaths } from './asset-refs.ts'
 import { gatherAssetDescriptionText } from './asset-description-text.ts'
 import { emitIndexApplied } from './index-applied.ts'
+import {
+  defaultIndexStore,
+  type IndexStoreService,
+  type SkippedIndexedNote,
+} from './index-store-service.ts'
 import { hashContent } from './hash.ts'
 import { buildIndexedNote, PROJECTION_VERSION, type IndexedNote } from './indexed-note.ts'
 import { detectExternalMoves } from './move-healing.ts'
 import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
-import { getIndexMeta } from './queries.ts'
 
 /**
  * The indexing pipeline (Plan 04): read (Plan 02) → parse/extract in TS
@@ -33,14 +26,6 @@ import { getIndexMeta } from './queries.ts'
  * caller timing (the watcher in Plan 04b indexes outside the serialized open
  * flow). The `AbortSignal` is an optimization that stops a superseded pass early.
  */
-
-/**
- * Notes per `index_apply_batch` transaction in the bulk passes (rebuild,
- * reconcile, and large watcher batches). Bounds the IPC payload and
- * transaction size on large graphs while keeping the transaction/round-trip
- * count far below one-per-note.
- */
-export const INDEX_APPLY_BATCH_SIZE = 256
 
 /**
  * The `index_meta` key holding the {@link PROJECTION_VERSION} the stored rows
@@ -66,7 +51,7 @@ export async function indexNote(
     fileHash,
     mtime: options.mtime ?? Date.now(),
   })
-  await applyIndexedNote(note, options.generation)
+  await defaultIndexStore().apply(note, options.generation)
 }
 
 /**
@@ -186,129 +171,22 @@ export interface IndexPassOptions {
   onStalePlaceholders?: ((paths: readonly string[]) => void) | undefined
 }
 
-/** One note omitted from a rebuild because its projection could not be written. */
-export interface SkippedIndexedNote {
-  /** Graph-relative markdown path. */
-  path: string
-  /** Displayable reason from the failed write. */
-  message: string
-}
+export {
+  INDEX_APPLY_BATCH_SIZE,
+  type IndexApplyBatch,
+  type MtimeTouchBatch,
+  type SkippedIndexedNote,
+} from './index-store-service.ts'
 
-/**
- * Apply `notes` in one transaction, splitting a refused batch in half until
- * the failing note stands alone — one bad projection must not cost the rest
- * of the batch. The lone failure reports through `onSkippedNote`, or throws
- * without one. Returns how many notes were actually written.
- */
-async function applySplitBatch(
-  notes: IndexedNote[],
-  generation: number,
-  onSkippedNote?: (note: SkippedIndexedNote) => void,
-): Promise<number> {
-  if (notes.length === 0) {
-    return 0
-  }
-  try {
-    await applyIndexedNotes(notes, generation)
-    return notes.length
-  } catch (cause) {
-    if (notes.length === 1) {
-      if (onSkippedNote === undefined) {
-        throw cause
-      }
-      onSkippedNote({ path: notes[0]!.path, message: errorMessage(cause) })
-      return 0
-    }
-    const midpoint = Math.ceil(notes.length / 2)
-    const first = await applySplitBatch(notes.slice(0, midpoint), generation, onSkippedNote)
-    return first + (await applySplitBatch(notes.slice(midpoint), generation, onSkippedNote))
-  }
-}
+/** `defaultIndexStore().createApplyBatch`. */
+export const createIndexApplyBatch: IndexStoreService['createApplyBatch'] = (
+  generation,
+  onSkippedNote,
+) => defaultIndexStore().createApplyBatch(generation, onSkippedNote)
 
-/** A shared accumulator for bulk index writes — see {@link createIndexApplyBatch}. */
-export interface IndexApplyBatch {
-  /** Queue a projection; flushes automatically at the transaction cap. */
-  add: (note: IndexedNote) => Promise<void>
-  /** Apply everything still queued. Safe to call repeatedly. */
-  flush: () => Promise<void>
-  /** Projections actually written so far (skipped notes excluded). */
-  applied: () => number
-}
-
-/**
- * The one write path for the bulk index passes (rebuild, reconcile, watcher
- * batches): accumulate projections, apply them in shared
- * `index_apply_batch` transactions of {@link INDEX_APPLY_BATCH_SIZE}, and
- * degrade refused batches through {@link applySplitBatch}'s halving retry so
- * failures attribute to single notes. Callers own *when* to flush early —
- * e.g. before a remove that must not be overtaken by queued upserts.
- */
-export function createIndexApplyBatch(
-  generation: number,
-  onSkippedNote?: (note: SkippedIndexedNote) => void,
-): IndexApplyBatch {
-  let batch: IndexedNote[] = []
-  let appliedCount = 0
-  async function flush(): Promise<void> {
-    if (batch.length === 0) {
-      return
-    }
-    const notes = batch
-    batch = []
-    appliedCount += await applySplitBatch(notes, generation, onSkippedNote)
-  }
-  return {
-    add: async (note) => {
-      batch.push(note)
-      if (batch.length >= INDEX_APPLY_BATCH_SIZE) {
-        await flush()
-      }
-    },
-    flush,
-    applied: () => appliedCount,
-  }
-}
-
-/** A shared accumulator for mtime re-stamps — see {@link createMtimeTouchBatch}. */
-export interface MtimeTouchBatch {
-  /** Queue a re-stamp; flushes automatically at the transaction cap. */
-  add: (entry: IndexedNoteTouch) => Promise<void>
-  /** Apply everything still queued. Safe to call repeatedly. */
-  flush: () => Promise<void>
-  /** Re-stamps actually written so far. */
-  applied: () => number
-}
-
-/**
- * Accumulate mtime re-stamps for hash-match skips (the self-heal for rows
- * whose stored mtime was an echo-time stamp — see {@link touchIndexedNotes})
- * and apply them in shared `index_touch` transactions of
- * {@link INDEX_APPLY_BATCH_SIZE}. Both bulk skip paths (reconcile, watcher
- * batch) share this shape, mirroring {@link createIndexApplyBatch}.
- */
-export function createMtimeTouchBatch(generation: number): MtimeTouchBatch {
-  let batch: IndexedNoteTouch[] = []
-  let appliedCount = 0
-  async function flush(): Promise<void> {
-    if (batch.length === 0) {
-      return
-    }
-    const entries = batch
-    batch = []
-    await touchIndexedNotes(entries, generation)
-    appliedCount += entries.length
-  }
-  return {
-    add: async (entry) => {
-      batch.push(entry)
-      if (batch.length >= INDEX_APPLY_BATCH_SIZE) {
-        await flush()
-      }
-    },
-    flush,
-    applied: () => appliedCount,
-  }
-}
+/** `defaultIndexStore().createTouchBatch`. */
+export const createMtimeTouchBatch: IndexStoreService['createTouchBatch'] = (generation) =>
+  defaultIndexStore().createTouchBatch(generation)
 
 /**
  * Full rebuild: wipe derived tables and re-index every markdown file. Used for
@@ -324,12 +202,13 @@ export async function rebuildIndex(options: IndexPassOptions): Promise<void> {
   if (options.signal?.aborted) {
     return // don't wipe the current index for an already-cancelled pass
   }
-  await clearIndex(generation)
+  const store = defaultIndexStore()
+  await store.clear(generation)
   if (options.signal?.aborted) {
     return
   }
   const files = await listFiles()
-  const batch = createIndexApplyBatch(generation, onSkippedNote)
+  const batch = store.createApplyBatch(generation, onSkippedNote)
   const evicted: string[] = []
   let done = 0
   let worked = 0
@@ -380,7 +259,7 @@ export async function rebuildIndex(options: IndexPassOptions): Promise<void> {
   // reconcile cheaply from here on. A superseded pass stamps into a stale
   // generation, which Rust drops: the next open then rebuilds again, which is
   // the safe direction to fail in.
-  await setIndexMeta(PROJECTION_VERSION_KEY, String(PROJECTION_VERSION), generation)
+  await store.setMeta(PROJECTION_VERSION_KEY, String(PROJECTION_VERSION), generation)
 }
 
 /**
@@ -392,7 +271,7 @@ export async function rebuildIndex(options: IndexPassOptions): Promise<void> {
  * forever on unchanged files.
  */
 export async function syncIndex(options: IndexPassOptions): Promise<void> {
-  const stamped = await getIndexMeta(PROJECTION_VERSION_KEY)
+  const stamped = await defaultIndexStore().getMeta(PROJECTION_VERSION_KEY)
   if (stamped === String(PROJECTION_VERSION)) {
     return await reconcileIndex(options)
   }
@@ -413,7 +292,7 @@ export async function syncIndex(options: IndexPassOptions): Promise<void> {
  * carry `generation`, so even a pass that races a connection swap can't corrupt
  * the newly-opened index — Rust drops its stale writes.
  *
- * The full-listing comparison lives in Rust ({@link reconcileScan}): one IPC
+ * The full-listing comparison lives in Rust (`index_reconcile_scan`): one IPC
  * round-trip returns only the files needing a read — mtime moved, mtime too
  * fresh to trust, or no row yet — with their stored facts riding along, plus
  * the rows whose files vanished. On a healthy graph the delta is empty and
@@ -426,7 +305,8 @@ export async function syncIndex(options: IndexPassOptions): Promise<void> {
 export async function reconcileIndex(options: IndexPassOptions): Promise<void> {
   const { generation, signal, onMoved, onSkippedNote, onFileProgress, onStalePlaceholders } =
     options
-  const scan = await reconcileScan(generation)
+  const store = defaultIndexStore()
+  const scan = await store.reconcileScan(generation)
   if (signal?.aborted) {
     return
   }
@@ -466,7 +346,7 @@ export async function reconcileIndex(options: IndexPassOptions): Promise<void> {
         return
       }
       try {
-        await moveIndexedRows(move.from, move.to, generation)
+        await store.move(move.from, move.to, generation)
       } catch (err) {
         // A refused/failed move (e.g. a row appeared at the destination in a
         // race) degrades to today's delete+create.
@@ -490,8 +370,8 @@ export async function reconcileIndex(options: IndexPassOptions): Promise<void> {
     return
   }
 
-  const batch = createIndexApplyBatch(generation, onSkippedNote)
-  const touches = createMtimeTouchBatch(generation)
+  const batch = store.createApplyBatch(generation, onSkippedNote)
+  const touches = store.createTouchBatch(generation)
   const total = scan.candidates.length
   let done = 0
   let worked = 0
@@ -563,6 +443,6 @@ export async function reconcileIndex(options: IndexPassOptions): Promise<void> {
     if (signal?.aborted) {
       return
     }
-    await removeFromIndex(path, generation)
+    await store.remove(path, generation)
   }
 }

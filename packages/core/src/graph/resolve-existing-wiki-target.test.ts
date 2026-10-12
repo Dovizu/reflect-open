@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { setBridge } from '../ipc/bridge.ts'
+import { setDefaultIndexStore } from '../indexing/index-store-service.ts'
+import { createTestIndexStoreService, type TestIndexStoreService } from '../testing/index-store.ts'
 import {
   resolveExistingMarkdownTarget,
   resolveExistingWikiTarget,
 } from './resolve-existing-wiki-target.ts'
+
+let indexStore: TestIndexStoreService
 
 interface BridgeBehavior {
   readonly files?: Record<string, string>
@@ -20,6 +24,8 @@ function bindBridge({
   query,
   read,
 }: BridgeBehavior = {}): ReturnType<typeof vi.fn> {
+  indexStore = createTestIndexStoreService()
+  setDefaultIndexStore(indexStore)
   const invoke = vi.fn(async (command: string, args?: Record<string, unknown>) => {
     if (command === 'db_query') {
       const params = args?.['params']
@@ -64,12 +70,14 @@ function bindBridge({
 function expectNoWrites(invoke: ReturnType<typeof vi.fn>): void {
   expect(
     invoke.mock.calls.some(([command]) =>
-      ['note_create', 'note_write', 'note_delete', 'index_apply_batch'].includes(String(command)),
+      ['note_create', 'note_write', 'note_delete'].includes(String(command)),
     ),
   ).toBe(false)
+  expect(indexStore.applied()).toEqual([])
 }
 
 afterEach(() => {
+  setDefaultIndexStore(null)
   setBridge(null)
 })
 

@@ -47,6 +47,7 @@ import {
   type TestIdService,
 } from './id.ts'
 import { createTestImageCodec, type TestImageCodecService } from './image-codec.ts'
+import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
@@ -110,6 +111,7 @@ export interface TestAppServices extends AppServices {
   readonly operations: TestOperationsService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
+  readonly indexStore: TestIndexStoreService
   readonly update: TestUpdateService
   readonly gitRepository: TestGitRepositoryService
   readonly icloudNative: TestICloudNativeService
@@ -160,6 +162,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     operations: createTestOperationsService(clock),
     database: createTestDatabaseService(),
     fileChanges: createTestFileChangeService(),
+    indexStore: createTestIndexStoreService(),
     update: createTestUpdateService(),
     gitRepository: createTestGitRepositoryService(),
     icloudNative: createTestICloudNativeService(),

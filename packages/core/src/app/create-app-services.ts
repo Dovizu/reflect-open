@@ -20,6 +20,7 @@ import { createAssetStoreService, type AssetStoreService } from '../graph/asset-
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
+import { createIndexStoreService, type IndexStoreService } from '../indexing/index-store-service.ts'
 import { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
 import { createIapService, type IapService } from '../ipc/iap-plugin.ts'
 import {
@@ -101,6 +102,7 @@ export interface AppServices {
   readonly operations: OperationsService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
+  readonly indexStore: IndexStoreService
   readonly update: UpdateService
   readonly gitRepository: GitRepositoryService
   readonly icloudNative: ICloudNativeService
@@ -153,6 +155,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
+  const database = createDatabaseService({ ipc })
   const platform = createPlatformService(adapters.platform)
   const windowService = createWindowService({ ipc, host: adapters.window, logger })
   const mobile =
@@ -189,7 +192,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations: createOperationsService({ clock }),
-    database: createDatabaseService({ ipc }),
+    database,
+    indexStore: createIndexStoreService({ ipc, database }),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,

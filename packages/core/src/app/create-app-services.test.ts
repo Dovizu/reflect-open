@@ -43,6 +43,7 @@ const SERVICE_KEYS = [
   'operations',
   'database',
   'fileChanges',
+  'indexStore',
   'update',
   'gitRepository',
   'icloudNative',

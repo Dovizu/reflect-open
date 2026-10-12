@@ -16,6 +16,7 @@ import { defaultAssetStore } from '../graph/asset-store-service.ts'
 import { defaultNoteFile } from '../graph/note-file-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
 import { defaultFileChanges } from '../indexing/file-change-service.ts'
+import { defaultIndexStore } from '../indexing/index-store-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
 import { createTestAppServices } from '../testing/services.ts'
@@ -74,6 +75,7 @@ describe('installDefaultServices', () => {
     expect(defaultOperations()).toBe(services.operations)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
+    expect(defaultIndexStore()).toBe(services.indexStore)
     expect(defaultUpdate()).toBe(services.update)
     expect(defaultGitRepository()).toBe(services.gitRepository)
     expect(defaultICloudNative()).toBe(services.icloudNative)
@@ -115,6 +117,7 @@ describe('resetDefaultServices', () => {
     expect(defaultOperations()).not.toBe(services.operations)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
+    expect(defaultIndexStore()).not.toBe(services.indexStore)
     expect(defaultUpdate()).not.toBe(services.update)
     expect(defaultGitRepository()).not.toBe(services.gitRepository)
     expect(defaultICloudNative()).not.toBe(services.icloudNative)

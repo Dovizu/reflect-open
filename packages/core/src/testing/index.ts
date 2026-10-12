@@ -108,6 +108,12 @@ export {
   type TestSecretStoreService,
 } from './secrets.ts'
 export {
+  createTestIndexStoreService,
+  type IndexStoreCall,
+  type TestIndexStoreService,
+  type TestIndexStoreServiceOptions,
+} from './index-store.ts'
+export {
   createTestOperationsService,
   type OperationSnapshot,
   type TestOperationsService,
