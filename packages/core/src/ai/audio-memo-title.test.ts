@@ -1,16 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestHttpService } from '../testing/index.ts'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import {
+  createTestHttpService,
+  createTestLanguageModelService,
+  type TestLanguageModelService,
+} from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import { generateAudioMemoTitle, pickAudioMemoEnrichmentConfig } from './audio-memo-title.ts'
-import { languageModel } from './language-model.ts'
-
-vi.mock('./language-model', () => ({
-  languageModel: vi.fn(),
-}))
-
-const languageModelMock = vi.mocked(languageModel)
+import { setDefaultLanguageModel } from './language-model-service.ts'
 
 const USAGE: LanguageModelV3Usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
@@ -45,12 +43,19 @@ const OPENROUTER_CONFIG: AiProviderConfig = {
   keyHint: 'wxyz1',
 }
 
+let languageModelService: TestLanguageModelService
+
 beforeEach(() => {
-  vi.clearAllMocks()
+  languageModelService = createTestLanguageModelService()
+  setDefaultLanguageModel(languageModelService)
+})
+
+afterEach(() => {
+  setDefaultLanguageModel(null)
 })
 
 function modelAnswering(text: string): void {
-  languageModelMock.mockResolvedValue(
+  languageModelService.setModel(
     new MockLanguageModelV3({
       doGenerate: async () => ({
         content: [{ type: 'text', text: JSON.stringify({ title: text }) }],
@@ -63,7 +68,7 @@ function modelAnswering(text: string): void {
 }
 
 function modelThrowing(error: unknown): void {
-  languageModelMock.mockResolvedValue(
+  languageModelService.setModel(
     new MockLanguageModelV3({
       doGenerate: async () => {
         throw error
@@ -103,11 +108,14 @@ describe('generateAudioMemoTitle', () => {
     })
 
     expect(config.model).toBe(originalModel)
-    expect(languageModelMock).toHaveBeenCalledWith(
-      expect.objectContaining({ id: config.id, provider: config.provider, model: titleModel }),
-      'sk-live-key',
-      expect.any(Function),
-    )
+    expect(languageModelService.calls()).toContainEqual({
+      config: expect.objectContaining({
+        id: config.id,
+        provider: config.provider,
+        model: titleModel,
+      }),
+      apiKey: 'sk-live-key',
+    })
   })
 
   it('falls back to the transcript when the provider returns nothing useful', async () => {
@@ -128,7 +136,7 @@ describe('generateAudioMemoTitle', () => {
     modelAnswering('Ignored')
 
     await expect(request('')).resolves.toBe('Audio memo 2026-06-11 15:30:22')
-    expect(languageModelMock).not.toHaveBeenCalled()
+    expect(languageModelService.calls()).toEqual([])
   })
 
   it('uses the transcript fallback when title credentials are absent', async () => {
@@ -141,7 +149,7 @@ describe('generateAudioMemoTitle', () => {
         fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
       }),
     ).resolves.toBe('Review launch checklist')
-    expect(languageModelMock).not.toHaveBeenCalled()
+    expect(languageModelService.calls()).toEqual([])
   })
 
   it('prefers the default supported provider for title generation', () => {

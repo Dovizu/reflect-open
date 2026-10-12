@@ -1,3 +1,7 @@
+import { setDefaultAiCredentials } from '../ai/ai-credential-service.ts'
+import { setDefaultAiKeyValidation } from '../ai/ai-key-validation-service.ts'
+import { setDefaultAiPrompts } from '../ai/ai-prompt-service.ts'
+import { setDefaultLanguageModel } from '../ai/language-model-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
@@ -121,6 +125,10 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteLinkResolver(services.noteLinkResolver)
   setDefaultNoteCreation(services.noteCreation)
   setDefaultPrivacy(services.privacy)
+  setDefaultAiCredentials(services.aiCredentials)
+  setDefaultAiKeyValidation(services.aiKeyValidation)
+  setDefaultLanguageModel(services.languageModel)
+  setDefaultAiPrompts(services.aiPrompts)
   setDefaultIpc(services.ipc)
 }
 
@@ -185,5 +193,9 @@ export function resetDefaultServices(): void {
   setDefaultNoteLinkResolver(null)
   setDefaultNoteCreation(null)
   setDefaultPrivacy(null)
+  setDefaultAiCredentials(null)
+  setDefaultAiKeyValidation(null)
+  setDefaultLanguageModel(null)
+  setDefaultAiPrompts(null)
   setDefaultIpc(null)
 }

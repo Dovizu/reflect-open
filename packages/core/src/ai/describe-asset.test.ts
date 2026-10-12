@@ -1,21 +1,30 @@
 import { APICallError } from '@reflect/modules/ai'
-import { createTestHttpService } from '../testing/index.ts'
+import {
+  createTestHttpService,
+  createTestLanguageModelService,
+  type TestLanguageModelService,
+} from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3CallOptions, LanguageModelV3Usage } from '@ai-sdk/provider'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import {
   describeAsset,
   isAssetDescriptionRejected,
   type DescribeAssetRequest,
 } from './describe-asset.ts'
-import { languageModel } from './language-model.ts'
+import { setDefaultLanguageModel } from './language-model-service.ts'
 
-vi.mock('./language-model', () => ({
-  languageModel: vi.fn(),
-}))
+let languageModelService: TestLanguageModelService
 
-const languageModelMock = vi.mocked(languageModel)
+beforeEach(() => {
+  languageModelService = createTestLanguageModelService()
+  setDefaultLanguageModel(languageModelService)
+})
+
+afterEach(() => {
+  setDefaultLanguageModel(null)
+})
 
 const USAGE: LanguageModelV3Usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
@@ -31,7 +40,7 @@ const CONFIG: AiProviderConfig = {
 
 function modelAnswering(text: string): LanguageModelV3CallOptions[] {
   const calls: LanguageModelV3CallOptions[] = []
-  languageModelMock.mockResolvedValue(
+  languageModelService.setModel(
     new MockLanguageModelV3({
       doGenerate: async (options) => {
         calls.push(options)
@@ -48,7 +57,7 @@ function modelAnswering(text: string): LanguageModelV3CallOptions[] {
 }
 
 function modelThrowing(error: unknown): void {
-  languageModelMock.mockResolvedValue(
+  languageModelService.setModel(
     new MockLanguageModelV3({
       doGenerate: async () => {
         throw error

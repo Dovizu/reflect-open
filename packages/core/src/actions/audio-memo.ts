@@ -4,7 +4,8 @@ import {
   resolveTranscriptionTarget,
   type AiProvidersState,
 } from '../ai/provider-config.ts'
-import { aiApiKeyForConfig, aiKeySecretName } from '../ai/secrets.ts'
+import { defaultAiCredentials } from '../ai/ai-credential-service.ts'
+import { aiApiKeyForConfig } from '../ai/secrets.ts'
 import {
   audioMemoEnrichmentConfig,
   pickAudioMemoEnrichmentConfig,
@@ -36,7 +37,6 @@ import {
 import { AUDIO_MEMOS_DIR, audioMemoPath, dailyPath, notePath } from '../graph/paths.ts'
 import { wikiLinkSafe } from '../markdown/edit.ts'
 import { appendListItem } from '../markdown/task-ast.ts'
-import { getSecret } from '../secrets/keychain.ts'
 import { ensureBacklinkTarget } from './backlink-target.ts'
 
 /**
@@ -483,15 +483,7 @@ export async function reconcileAudioMemos(
   // Re-resolved on every pass (not once at record time): a pass after the
   // user fixes their model configuration must see the fix. Keys are read at
   // most once per entry per pass.
-  const keys = new Map<string, Promise<string | null>>()
-  const getKey = (id: string): Promise<string | null> => {
-    let key = keys.get(id)
-    if (key === undefined) {
-      key = getSecret(aiKeySecretName(id)).catch(() => null)
-      keys.set(id, key)
-    }
-    return key
-  }
+  const getKey = defaultAiCredentials().createPassReader()
   const target = await resolveTranscriptionTarget(input.providers, getKey)
   if (target === 'no-provider') {
     return {

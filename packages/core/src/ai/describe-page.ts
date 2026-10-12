@@ -163,7 +163,7 @@ export async function describePage(request: DescribePageRequest): Promise<PageEn
   }
   try {
     const result = await sdk.generateObject({
-      model: await languageModel(request.config, request.apiKey, request.fetchFn),
+      model: await languageModel(request.config, request.apiKey),
       schema: pageDescriptionSchema,
       messages: [{ role: 'user', content }],
       abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),

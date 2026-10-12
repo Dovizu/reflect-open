@@ -1,16 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestHttpService } from '../testing/index.ts'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import {
+  createTestHttpService,
+  createTestLanguageModelService,
+  type TestLanguageModelService,
+} from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import { formatAudioMemoTranscript } from './audio-memo-format.ts'
-import { languageModel } from './language-model.ts'
-
-vi.mock('./language-model', () => ({
-  languageModel: vi.fn(),
-}))
-
-const languageModelMock = vi.mocked(languageModel)
+import { setDefaultLanguageModel } from './language-model-service.ts'
 
 const USAGE: LanguageModelV3Usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
@@ -26,8 +24,15 @@ const CONFIG: AiProviderConfig = {
 
 const FALLBACK_TITLE = 'Audio memo 2026-06-11 15:30:22'
 
+let languageModelService: TestLanguageModelService
+
 beforeEach(() => {
-  vi.clearAllMocks()
+  languageModelService = createTestLanguageModelService()
+  setDefaultLanguageModel(languageModelService)
+})
+
+afterEach(() => {
+  setDefaultLanguageModel(null)
 })
 
 function modelAnswering(output: { title: string; body: string }): MockLanguageModelV3 {
@@ -39,7 +44,7 @@ function modelAnswering(output: { title: string; body: string }): MockLanguageMo
       warnings: [],
     }),
   })
-  languageModelMock.mockResolvedValue(model)
+  languageModelService.setModel(model)
   return model
 }
 
@@ -63,11 +68,10 @@ describe('formatAudioMemoTranscript', () => {
       title: 'Launch planning',
       body: 'We reviewed the launch.\n\n## Next steps\n\n- Invite beta users',
     })
-    expect(languageModelMock).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'gpt-5.4-nano' }),
-      'sk-live-key',
-      expect.any(Function),
-    )
+    expect(languageModelService.calls()).toContainEqual({
+      config: expect.objectContaining({ model: 'gpt-5.4-nano' }),
+      apiKey: 'sk-live-key',
+    })
   })
 
   it('frames the complete transcript as untrusted data and forbids meaning changes', async () => {
@@ -87,7 +91,7 @@ describe('formatAudioMemoTranscript', () => {
   })
 
   it('falls back to the untouched transcript and a local title when the call fails', async () => {
-    languageModelMock.mockResolvedValue(
+    languageModelService.setModel(
       new MockLanguageModelV3({
         doGenerate: async () => {
           throw new Error('model unavailable')
@@ -205,6 +209,6 @@ describe('formatAudioMemoTranscript', () => {
     modelAnswering({ title: 'Ignored', body: 'Ignored' })
 
     await expect(request('')).resolves.toEqual({ title: FALLBACK_TITLE, body: '' })
-    expect(languageModelMock).not.toHaveBeenCalled()
+    expect(languageModelService.calls()).toEqual([])
   })
 })

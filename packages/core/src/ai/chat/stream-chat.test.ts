@@ -1,5 +1,5 @@
-import type { ModelMessage } from '@reflect/modules/ai'
-import { describe, expect, it, vi } from 'vitest'
+import type { LanguageModel, ModelMessage } from '@reflect/modules/ai'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { convertArrayToReadableStream, MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type {
   LanguageModelV3StreamPart,
@@ -8,13 +8,13 @@ import type {
 } from '@ai-sdk/provider'
 import type { RetrievalHit } from '../../embeddings/retrieve.ts'
 import { cloudSafeGraphContext } from '../../privacy/checkers.ts'
-import { languageModel } from '../language-model.ts'
+import {
+  createTestLanguageModelService,
+  type TestLanguageModelService,
+} from '../../testing/index.ts'
+import { setDefaultLanguageModel } from '../language-model-service.ts'
 import { fitToContextWindow } from './context-window.ts'
 import { MAX_STEPS, streamChat, streamChatTurn, type ChatStreamEvent } from './stream-chat.ts'
-
-vi.mock('../language-model', () => ({
-  languageModel: vi.fn(),
-}))
 
 vi.mock('./context-window', async (importOriginal) => {
   const original = await importOriginal<typeof import('./context-window.ts')>()
@@ -24,8 +24,18 @@ vi.mock('./context-window', async (importOriginal) => {
   }
 })
 
-const languageModelMock = vi.mocked(languageModel)
 const fitToContextWindowMock = vi.mocked(fitToContextWindow)
+
+let languageModelService: TestLanguageModelService
+
+beforeEach(() => {
+  languageModelService = createTestLanguageModelService()
+  setDefaultLanguageModel(languageModelService)
+})
+
+afterEach(() => {
+  setDefaultLanguageModel(null)
+})
 
 const USAGE: LanguageModelV3Usage = {
   inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined },
@@ -116,9 +126,9 @@ const PRIVATE_HIT: RetrievalHit = {
 describe('streamChat', () => {
   it('does not start a provider request when stopped while the model loads', async () => {
     const controller = new AbortController()
-    const loading = Promise.withResolvers<Awaited<ReturnType<typeof languageModel>>>()
+    const loading = Promise.withResolvers<LanguageModel>()
     const model = new MockLanguageModelV3({ doStream: sequence([textTurn('never')]) })
-    languageModelMock.mockReturnValueOnce(loading.promise)
+    languageModelService.setModel(() => loading.promise)
     const events = collect(
       streamChat({
         config: { id: 'cfg', provider: 'openai', model: 'gpt-5.5', keyHint: 'test' },
@@ -150,13 +160,13 @@ describe('streamChat', () => {
       customSystemPrompt: '',
       context: null,
     }
-    languageModelMock.mockRejectedValueOnce(new Error('model chunk unavailable'))
+    languageModelService.setModel(() => Promise.reject(new Error('model chunk unavailable')))
     expect(await collect(streamChat(options))).toEqual([
       { type: 'error', message: 'model chunk unavailable', messages: [] },
     ])
 
     const model = new MockLanguageModelV3({ doStream: sequence([textTurn('loaded')]) })
-    languageModelMock.mockResolvedValueOnce(model)
+    languageModelService.setModel(model)
     const events = await collect(streamChat(options))
     expect(events[0]).toEqual({ type: 'text-delta', text: 'loaded' })
     expect(events.at(-1)?.type).toBe('complete')
@@ -166,7 +176,7 @@ describe('streamChat', () => {
     const customSystemPrompt = 'sentinel-custom-system-prompt-01jxq3'
     const messages: ModelMessage[] = [{ role: 'user', content: 'hello' }]
     const model = new MockLanguageModelV3({ doStream: sequence([textTurn('hi')]) })
-    languageModelMock.mockResolvedValue(model)
+    languageModelService.setModel(model)
 
     await collect(
       streamChat({

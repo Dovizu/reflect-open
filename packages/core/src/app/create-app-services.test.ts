@@ -73,6 +73,10 @@ const SERVICE_KEYS = [
   'noteLinkResolver',
   'noteCreation',
   'privacy',
+  'aiCredentials',
+  'aiKeyValidation',
+  'languageModel',
+  'aiPrompts',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
