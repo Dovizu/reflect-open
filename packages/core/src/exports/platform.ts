@@ -331,6 +331,7 @@ export {
   type ContactsAuthorization,
   type ContactMatch,
 } from '../contacts/commands.ts'
+export { type ContactsState } from '../contacts/contacts-service.ts'
 export { type ClassicAccess, type ClassicSignInResult } from '../classic/classic-access-service.ts'
 export {
   createClassicAccessService,
