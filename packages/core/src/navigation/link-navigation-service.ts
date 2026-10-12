@@ -7,6 +7,7 @@ import type { AttachmentService } from '../documents/attachment-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
+import { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { normalizeWikiTarget } from '../markdown/resolve.ts'
 import { deepLinkForRoute } from './deep-link-format.ts'
@@ -206,11 +207,7 @@ export function createLinkNavigationService(
   let latestIntent = 0
 
   const reportAmbiguousNoteTitle = (operationLabel: string, title: string): void => {
-    operations
-      .start(operationLabel)
-      .fail(
-        `Couldn’t safely choose one note matching “${title}”. Rename conflicting notes or wait for unavailable notes to become available, then try again.`,
-      )
+    operations.start(operationLabel).fail(ambiguousNoteTitleMessage(title))
   }
 
   const reportUnavailableNote = (name: string): void => {
