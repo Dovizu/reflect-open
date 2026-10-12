@@ -60,7 +60,7 @@ describe('router', () => {
     const first = await routerHook()
     await first.act(() => first.result.current.navigate({ kind: 'tasks' }))
     await first.act(() => first.result.current.saveScrollState(40))
-    first.unmount()
+    await first.unmount()
 
     const { result } = await routerHook()
     expect(result.current.route).toEqual({ kind: 'today' })
