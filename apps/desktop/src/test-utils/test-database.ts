@@ -6,7 +6,10 @@ import { createDevIndexDb } from '@/dev/dev-index-db.ts'
 /**
  * The browser twin of `createTestDatabaseService()` from
  * `@reflect/core/testing`: the same real migrations over the dev bridge's wasm
- * SQLite, which only loads under this app's Vite config.
+ * SQLite, which only loads under this app's Vite config. Browser tests get it
+ * from `createTestDatabaseService()` already, opened on the first query (see
+ * `setup-browser.ts`); call this only when a test needs the database open
+ * before its first query.
  */
 export async function createWasmTestDatabaseService(): Promise<TestDatabaseService> {
   const index = await createDevIndexDb()
