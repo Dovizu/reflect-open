@@ -11,7 +11,6 @@ import {
   createTestContactsService,
   createTestOperationsService,
   createTestSettingsService,
-  createTestWikiLinkPersonNotes,
   createTestWikiLinkSuggestionService,
   installTestServices,
 } from '@reflect/core/testing'
@@ -63,6 +62,10 @@ async function setup(options?: SetupOptions) {
       return options?.createOutcome ?? { kind: 'created', path: 'notes/created.md' }
     },
   }
+  const contacts = createTestContactsService({
+    status: options?.authorization ?? 'authorized',
+    contacts: [ADA],
+  })
   const wikiLinkSuggestions = createTestWikiLinkSuggestionService({
     suggestions: {
       suggestWikiLinkTargets: async () =>
@@ -73,9 +76,15 @@ async function setup(options?: SetupOptions) {
       ],
     },
     noteCreation,
+    contacts,
     personNotes: {
-      ...createTestWikiLinkPersonNotes(noteCreation),
-      contactLinkSuggestions: async () => [ADA],
+      resolvePersonContact: async (contact) => ({
+        kind: 'new',
+        contact,
+        insertText: contact.fullName,
+      }),
+      ensurePersonNote: async (input) =>
+        await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation),
     },
     settings,
     operations,
@@ -84,7 +93,7 @@ async function setup(options?: SetupOptions) {
     wikiLinkSuggestions,
     operations,
     settings,
-    contacts: createTestContactsService({ status: options?.authorization ?? 'authorized' }),
+    contacts,
   })
   // The Contacts permission query reads the process-wide services.
   onTestFinished(installTestServices(app))

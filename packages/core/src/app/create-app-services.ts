@@ -57,6 +57,15 @@ import {
   type BacklinkTargetService,
 } from '../capture/backlink-target-service.ts'
 import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
+import { createAudioMemoService, type AudioMemoService } from '../audio/audio-memo-service.ts'
+import {
+  createMobileAudioMemoService,
+  type MobileAudioMemoService,
+} from '../audio/mobile-audio-memo-service.ts'
+import {
+  createNativeActionService,
+  type NativeActionService,
+} from '../audio/native-action-service.ts'
 import {
   createAssetDescriptionService,
   type AssetDescriptionService,
@@ -120,8 +129,18 @@ import {
   createSubscriptionService,
   type SubscriptionService,
 } from '../monetization/subscription-service.ts'
+import {
+  createCalendarEventsService,
+  type CalendarEventsService,
+} from '../calendar/calendar-events-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
+import {
+  createContactSuggestionService,
+  type ContactSuggestionService,
+} from '../contacts/contact-suggestion-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import { createMeetingService, type MeetingService } from '../contacts/meeting-service.ts'
+import { createPersonNoteService, type PersonNoteService } from '../contacts/person-note-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
 import {
   createNoteCreationService,
@@ -284,7 +303,6 @@ import {
 } from '../search/palette-search-service.ts'
 import {
   createWikiLinkSuggestionService,
-  defaultWikiLinkPersonNotes,
   type WikiLinkSuggestionService,
 } from '../search/wiki-link-suggestion-service.ts'
 import {
@@ -313,7 +331,11 @@ export interface AppServices {
   readonly secretStore: SecretStoreService
   readonly appInfo: AppInfoService
   readonly calendar: CalendarService
+  readonly calendarEvents: CalendarEventsService
   readonly contacts: ContactsService
+  readonly contactSuggestions: ContactSuggestionService
+  readonly personNotes: PersonNoteService
+  readonly meetings: MeetingService
   readonly agentSkill: AgentSkillService
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
@@ -424,6 +446,11 @@ export interface AppServices {
   readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: CaptureService
+  readonly audioMemo: AudioMemoService
+  /** Mobile only. */
+  readonly nativeAction?: NativeActionService
+  /** Mobile only. */
+  readonly mobileAudioMemo?: MobileAudioMemoService
   readonly assetPrivacy: AssetPrivacyService
   readonly assetDescription: AssetDescriptionService
   /** The editor's `[[` and `#` menus. */
@@ -548,6 +575,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     id,
     logger,
   })
+  const audioRecorder = createPlatformAudioRecorder({
+    platform: adapters.platform,
+    ipc,
+    clock,
+    logger,
+  })
   const createMobileServices = () => {
     const iap = createIapService({ ipc, logger })
     const appStore = createAppStoreService({ ipc })
@@ -555,6 +588,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     const appStoreEnvironment = createAppStoreEnvironmentService({ appStore, storage, platform })
     return {
       haptics: createHapticsService({ ipc, logger }),
+      nativeAction: createNativeActionService({ audioRecorder, clock, platform, logger }),
       iap,
       appStore,
       webAuth,
@@ -591,6 +625,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     id,
   })
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
+  const calendar = createCalendarService({ ipc, logger })
+  const contacts = createContactsService({ ipc })
+  const personNotes = createPersonNoteService({
+    database,
+    wikiResolver: indexReads.wikiResolver,
+    noteCreation: noteServices.noteCreation,
+  })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
   const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
@@ -683,6 +724,30 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexLifecycle,
     logger,
   })
+  const transcription = withAppReviewDemoTranscription(
+    createTranscriptionService({ http: adapters.http }),
+  )
+  const transcriptEnrichment = createTranscriptEnrichmentService({ languageModel })
+  const audioMemo = createAudioMemoService({
+    assetStore,
+    noteFile,
+    backlinkTarget,
+    transcription,
+    transcriptEnrichment,
+    aiProviderConfig,
+    aiCredentials,
+    audioRecorder,
+    reconcilers,
+    lifecycle,
+    fileChanges,
+    settings,
+    operations,
+    clock,
+    platform,
+    window: windowService,
+    logger,
+  })
+  const mobileServices = mobile ? createMobileServices() : null
   const chatHistory = createChatHistoryService({ ipc, database, logger })
   const noteTools = createNoteToolsService({
     retrieval,
@@ -716,8 +781,27 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     lifecycle,
     secretStore,
     appInfo: createAppInfoService({ ipc }),
-    calendar: createCalendarService({ ipc, logger }),
-    contacts: createContactsService({ ipc }),
+    calendar,
+    calendarEvents: createCalendarEventsService({ calendar, settings, platform, logger }),
+    contacts,
+    contactSuggestions: createContactSuggestionService({
+      contacts,
+      noteDocuments,
+      openDocuments,
+      noteFile,
+      settings,
+    }),
+    personNotes,
+    meetings: createMeetingService({
+      noteFile,
+      noteCreation: noteServices.noteCreation,
+      wikiResolver: indexReads.wikiResolver,
+      suggestions: indexReads.suggestions,
+      personNotes,
+      contacts,
+      settings,
+      logger,
+    }),
     agentSkill: createAgentSkillService({ ipc }),
     mobileStorage,
     imageCodec,
@@ -790,14 +874,9 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     captureInbox,
     webFetch,
     xArchive,
-    audioRecorder: createPlatformAudioRecorder({
-      platform: adapters.platform,
-      ipc,
-      clock,
-      logger,
-    }),
+    audioRecorder,
     classicAccess,
-    ...(mobile ? createMobileServices() : {}),
+    ...mobileServices,
     fileChanges,
     noteFile,
     assetStore,
@@ -893,10 +972,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     pageDescriber,
     assetDescriber,
-    transcription: withAppReviewDemoTranscription(
-      createTranscriptionService({ http: adapters.http }),
-    ),
-    transcriptEnrichment: createTranscriptEnrichmentService({ languageModel }),
+    transcription,
+    transcriptEnrichment,
     noteTools,
     chatEngine,
     chatGraphContext,
@@ -936,6 +1013,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
       logger,
     }),
+    audioMemo,
+    ...(mobileServices === null
+      ? {}
+      : {
+          nativeAction: mobileServices.nativeAction,
+          mobileAudioMemo: createMobileAudioMemoService({
+            audioMemo,
+            audioRecorder,
+            nativeAction: mobileServices.nativeAction,
+            lifecycle,
+            haptics: mobileServices.haptics,
+            platform,
+            logger,
+          }),
+        }),
     assetPrivacy,
     assetDescription: createAssetDescriptionService({
       assetStore,
@@ -954,8 +1046,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     wikiLinkSuggestions: createWikiLinkSuggestionService({
       suggestions: indexReads.suggestions,
       noteCreation: noteServices.noteCreation,
-      // The person-note logic is still free functions over the default services.
-      personNotes: defaultWikiLinkPersonNotes,
+      contacts,
+      personNotes,
       settings,
       clock,
       operations,

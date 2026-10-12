@@ -2,16 +2,25 @@ import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultContacts, setDefaultOpener, setDefaultPlatform } from '@reflect/core'
+import {
+  setDefaultContacts,
+  setDefaultOpener,
+  setDefaultPlatform,
+  setDefaultSettings,
+  type Settings,
+} from '@reflect/core'
 import {
   createTestContactsService,
   createTestIpcBridgeService,
   createTestOpenerService,
   createTestPlatformService,
+  createTestSettingsService,
   installTestBridge,
   type TestContactsService,
   type TestOpenerService,
+  type TestSettingsService,
 } from '@reflect/core/testing'
+import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { IntegrationsSection } from './integrations-section.tsx'
 
 let opener: TestOpenerService
@@ -20,24 +29,21 @@ vi.mock('./calendar-integration-field', () => ({
   CalendarIntegrationField: () => <div>Calendar events</div>,
 }))
 
-const settings = vi.hoisted(() => ({
-  current: { contactsEnabled: false },
-  update: vi.fn((patch: Record<string, unknown>) => {
-    settings.current = { ...settings.current, ...patch } as typeof settings.current
-  }),
-}))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({ settings: settings.current, updateSettings: settings.update }),
-}))
-
+let settings: TestSettingsService
 let contacts: TestContactsService
 let removeBridge: () => void
 
-async function renderSection(): Promise<void> {
+/** Render the section over a settings document that starts as `stored`. */
+async function renderSection(stored: Partial<Settings> = {}): Promise<void> {
+  settings = createTestSettingsService(stored)
+  setDefaultSettings(settings)
+  await settings.whenLoaded()
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   await render(
     <QueryClientProvider client={queryClient}>
-      <IntegrationsSection />
+      <SettingsProvider>
+        <IntegrationsSection />
+      </SettingsProvider>
     </QueryClientProvider>,
   )
 }
@@ -47,8 +53,6 @@ beforeEach(() => {
   contacts = createTestContactsService({ status: 'notDetermined' })
   setDefaultContacts(contacts)
   removeBridge = installTestBridge(createTestIpcBridgeService())
-  settings.current = { contactsEnabled: false }
-  settings.update.mockClear()
   opener = createTestOpenerService()
   setDefaultOpener(opener)
 })
@@ -57,6 +61,7 @@ afterEach(() => {
   removeBridge()
   setDefaultContacts(null)
   setDefaultPlatform(null)
+  setDefaultSettings(null)
 })
 
 describe('IntegrationsSection', () => {
@@ -64,23 +69,21 @@ describe('IntegrationsSection', () => {
     await renderSection()
     await page.getByRole('switch', { name: 'Contacts' }).click()
 
-    expect(settings.update).toHaveBeenCalledWith({ contactsEnabled: true })
     await vi.waitFor(() => expect(contacts.accessRequests()).toBe(1))
+    expect(settings.get().contactsEnabled).toBe(true)
   })
 
   it('disabling persists without touching the permission', async () => {
     contacts.setStatus('authorized')
-    settings.current = { contactsEnabled: true }
-    await renderSection()
+    await renderSection({ contactsEnabled: true })
     await page.getByRole('switch', { name: 'Contacts' }).click()
 
-    expect(settings.update).toHaveBeenCalledWith({ contactsEnabled: false })
+    await vi.waitFor(() => expect(settings.get().contactsEnabled).toBe(false))
     expect(contacts.accessRequests()).toBe(0)
   })
 
   it('offers the prompt again when enabled but never asked (e.g. after a restart)', async () => {
-    settings.current = { contactsEnabled: true }
-    await renderSection()
+    await renderSection({ contactsEnabled: true })
 
     await page.getByRole('button', { name: 'Allow contacts access' }).click()
     await vi.waitFor(() => expect(contacts.accessRequests()).toBe(1))
@@ -88,8 +91,7 @@ describe('IntegrationsSection', () => {
 
   it('points a denied permission at System Settings', async () => {
     contacts.setStatus('denied')
-    settings.current = { contactsEnabled: true }
-    await renderSection()
+    await renderSection({ contactsEnabled: true })
 
     await page.getByRole('button', { name: 'Open System Settings' }).click()
     await vi.waitFor(() =>

@@ -2,6 +2,8 @@ import type { ClockService } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { CommandService } from '../commands/command-service.ts'
+import type { ContactsService } from '../contacts/contacts-service.ts'
+import type { PersonNoteService } from '../contacts/person-note-service.ts'
 import type { RetrievalService } from '../embeddings/retrieval-service.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
@@ -14,12 +16,12 @@ import {
 } from '../search/palette-search-service.ts'
 import {
   createWikiLinkSuggestionService,
-  type WikiLinkPersonNotes,
   type WikiLinkSuggestionService,
 } from '../search/wiki-link-suggestion-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import { createTestClockService } from './clock.ts'
 import { createTestCommandService } from './commands.ts'
+import { createTestContactsService, createTestPersonNoteService } from './contacts.ts'
 import { createTestDatabaseService } from './database.ts'
 import { createTestRetrievalService } from './embeddings.ts'
 import { createTestNoteCreationService } from './graph.ts'
@@ -27,33 +29,15 @@ import { createTestLoggerService } from './logger.ts'
 import { createTestOperationsService } from './operations.ts'
 import { createTestSettingsService } from './settings.ts'
 
-/**
- * Person-note operations without an address book: no Contact matches, every
- * Contact resolves as a new person, and `ensurePersonNote` goes straight to
- * `noteCreation`.
- */
-export function createTestWikiLinkPersonNotes(
-  noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>,
-): WikiLinkPersonNotes {
-  return {
-    contactLinkSuggestions: async () => [],
-    resolvePersonContact: async (contact) => ({
-      kind: 'new',
-      contact,
-      insertText: contact.fullName,
-    }),
-    ensurePersonNote: async (input) =>
-      await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation, input.body),
-  }
-}
-
 export interface TestWikiLinkSuggestionServiceOptions {
   /** Defaults to the real {@link SuggestionService} over `database`. */
   suggestions?: Pick<SuggestionService, 'suggestWikiLinkTargets' | 'suggestTags'>
   /** Defaults to a fresh {@link createTestNoteCreationService}. */
   noteCreation?: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-  /** Defaults to {@link createTestWikiLinkPersonNotes} over `noteCreation`. */
-  personNotes?: WikiLinkPersonNotes
+  /** Defaults to an empty {@link createTestContactsService}. */
+  contacts?: Pick<ContactsService, 'lookupByName'>
+  /** Defaults to a {@link createTestPersonNoteService} over `database` and `noteCreation`. */
+  personNotes?: Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>
   /** Defaults to a fresh {@link createTestSettingsService}. */
   settings?: Pick<SettingsService, 'get'>
   /** Defaults to a fresh {@link createTestClockService}. */
@@ -62,7 +46,7 @@ export interface TestWikiLinkSuggestionServiceOptions {
   operations?: Pick<OperationsService, 'start'>
   /** Defaults to a fresh {@link createTestLoggerService}. */
   logger?: LoggerService
-  /** The index behind the default `suggestions`. Defaults to an empty one. */
+  /** The index behind the default `suggestions` and `personNotes`. Defaults to an empty one. */
   database?: DatabaseService
 }
 
@@ -71,12 +55,12 @@ export function createTestWikiLinkSuggestionService(
   options?: TestWikiLinkSuggestionServiceOptions,
 ): WikiLinkSuggestionService {
   const noteCreation = options?.noteCreation ?? createTestNoteCreationService()
+  const database = options?.database ?? createTestDatabaseService()
   return createWikiLinkSuggestionService({
-    suggestions:
-      options?.suggestions ??
-      createSuggestionService({ database: options?.database ?? createTestDatabaseService() }),
+    suggestions: options?.suggestions ?? createSuggestionService({ database }),
     noteCreation,
-    personNotes: options?.personNotes ?? createTestWikiLinkPersonNotes(noteCreation),
+    contacts: options?.contacts ?? createTestContactsService(),
+    personNotes: options?.personNotes ?? createTestPersonNoteService({ database, noteCreation }),
     settings: options?.settings ?? createTestSettingsService(),
     clock: options?.clock ?? createTestClockService(),
     operations: options?.operations ?? createTestOperationsService(),

@@ -3,11 +3,9 @@ import { Command as CommandPrimitive } from 'cmdk'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import {
   aliasHint,
-  contactLinkSuggestions,
   displayNoteTitle,
   foldKey,
   isContactsReadable,
-  suggestWikiTargets,
   type MeetingAttendee,
 } from '@reflect/core'
 import { getIsComposing } from '@meowdown/core'
@@ -23,6 +21,7 @@ import { useContactsAuthorization } from '@/hooks/use-contacts-authorization.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
+import { useMeetingService } from '@/services/use-contacts-services.ts'
 
 const SUGGESTION_LIMIT = 6
 
@@ -74,6 +73,7 @@ function entryAttendee(entry: AutocompleteEntry): MeetingAttendee {
 export function AttendeeCombobox({ attendees, onAdd }: AttendeeComboboxProps): ReactElement {
   const { graph } = useGraph()
   const { settings } = useSettings()
+  const meetings = useMeetingService()
   const authorization = useContactsAuthorization()
   const contactsInMenu =
     settings.contactsEnabled && authorization !== null && isContactsReadable(authorization)
@@ -93,29 +93,21 @@ export function AttendeeCombobox({ attendees, onAdd }: AttendeeComboboxProps): R
   } = useQuery({
     queryKey: queryKeys.index.attendeeSuggestions(graph?.root, searchTerm, contactsInMenu),
     queryFn: async () => {
-      const [suggestions, contacts] = await Promise.all([
-        suggestWikiTargets(searchTerm, SUGGESTION_LIMIT),
-        // A contacts hiccup must cost only its own rows, never the note
-        // suggestions (the same containment as the editor's `[[` menu).
-        contactsInMenu
-          ? contactLinkSuggestions(searchTerm).catch((error: unknown) => {
-              console.error('contact link suggestions failed:', error)
-              return []
-            })
-          : Promise.resolve([]),
-      ])
-      return buildAutocompleteEntries(
+      // A contacts hiccup costs only its own rows, never the note suggestions,
+      // and daily notes are left out: both are the service's rules.
+      const { suggestions, contacts } = await meetings.attendeeSuggestions(
         searchTerm,
-        suggestions.filter((suggestion) => suggestion.date === null),
-        {
-          offerCreate: true,
-          contacts: contacts.map((contact) => ({
-            contact,
-            target: contact.fullName,
-            ownerPath: null,
-          })),
-        },
+        SUGGESTION_LIMIT,
+        contactsInMenu,
       )
+      return buildAutocompleteEntries(searchTerm, suggestions, {
+        offerCreate: true,
+        contacts: contacts.map((contact) => ({
+          contact,
+          target: contact.fullName,
+          ownerPath: null,
+        })),
+      })
     },
     enabled: bridgeReady && graph !== null && searchTerm !== '',
     // Typing re-keys the query as the deferred value settles; holding the

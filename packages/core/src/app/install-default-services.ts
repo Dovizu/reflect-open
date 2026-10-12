@@ -11,6 +11,9 @@ import { setDefaultTranscription } from '../ai/transcription-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultBacklinkTarget } from '../capture/backlink-target-service.ts'
 import { setDefaultCapture } from '../capture/capture-service.ts'
+import { setDefaultAudioMemo } from '../audio/audio-memo-service.ts'
+import { setDefaultMobileAudioMemo } from '../audio/mobile-audio-memo-service.ts'
+import { setDefaultNativeAction } from '../audio/native-action-service.ts'
 import { setDefaultAssetDescription } from '../assets/asset-description-service.ts'
 import { setDefaultAssetPrivacy } from '../assets/asset-privacy-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
@@ -34,9 +37,13 @@ import { setDefaultClassicAccess } from '../classic/classic-access-service.ts'
 import { setDefaultAppStoreEnvironment } from '../monetization/app-store-environment-service.ts'
 import { setDefaultPaywall } from '../monetization/paywall-service.ts'
 import { setDefaultSubscription } from '../monetization/subscription-service.ts'
+import { setDefaultCalendarEvents } from '../calendar/calendar-events-service.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
+import { setDefaultContactSuggestions } from '../contacts/contact-suggestion-service.ts'
 import { setDefaultDailyNotes } from '../daily/daily-note-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
+import { setDefaultMeetings } from '../contacts/meeting-service.ts'
+import { setDefaultPersonNotes } from '../contacts/person-note-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
@@ -128,7 +135,11 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultSecretStore(services.secretStore)
   setDefaultAppInfo(services.appInfo)
   setDefaultCalendar(services.calendar)
+  setDefaultCalendarEvents(services.calendarEvents)
   setDefaultContacts(services.contacts)
+  setDefaultContactSuggestions(services.contactSuggestions)
+  setDefaultPersonNotes(services.personNotes)
+  setDefaultMeetings(services.meetings)
   setDefaultAgentSkill(services.agentSkill)
   setDefaultMobileStorage(services.mobileStorage)
   setDefaultImageCodec(services.imageCodec)
@@ -219,6 +230,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultTranscriptEnrichment(services.transcriptEnrichment)
   setDefaultBacklinkTarget(services.backlinkTarget)
   setDefaultCapture(services.capture)
+  setDefaultAudioMemo(services.audioMemo)
+  setDefaultNativeAction(services.nativeAction ?? null)
+  setDefaultMobileAudioMemo(services.mobileAudioMemo ?? null)
   setDefaultAssetPrivacy(services.assetPrivacy)
   setDefaultAssetDescription(services.assetDescription)
   setDefaultIpc(services.ipc)
@@ -242,7 +256,11 @@ export function resetDefaultServices(): void {
   setDefaultSecretStore(null)
   setDefaultAppInfo(null)
   setDefaultCalendar(null)
+  setDefaultCalendarEvents(null)
   setDefaultContacts(null)
+  setDefaultContactSuggestions(null)
+  setDefaultPersonNotes(null)
+  setDefaultMeetings(null)
   setDefaultAgentSkill(null)
   setDefaultMobileStorage(null)
   setDefaultImageCodec(null)
@@ -333,6 +351,9 @@ export function resetDefaultServices(): void {
   setDefaultTranscriptEnrichment(null)
   setDefaultBacklinkTarget(null)
   setDefaultCapture(null)
+  setDefaultAudioMemo(null)
+  setDefaultNativeAction(null)
+  setDefaultMobileAudioMemo(null)
   setDefaultAssetPrivacy(null)
   setDefaultAssetDescription(null)
   setDefaultIpc(null)

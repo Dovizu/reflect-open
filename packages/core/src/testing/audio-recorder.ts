@@ -23,6 +23,18 @@ export interface TestAudioRecorderService extends AudioRecorderService {
   calls(): readonly AudioRecorderCall[]
   /** What the next `stop` resolves; `null` (a misclick) until set. */
   setStopResult(segment: AudioRecorderFinalSegment | null): void
+  /** Makes the next `start` reject with `error`, as a denied microphone does. */
+  failNextStart(error: unknown): void
+  /**
+   * Parks the next `start` at `requesting`, as an open permission prompt
+   * does. The returned function grants it; a `cancel` first resolves it `null`.
+   */
+  holdNextStart(): () => void
+  /**
+   * Parks the next `stop` with the state still `recording`. The returned
+   * function lets it settle.
+   */
+  holdNextStop(): () => void
   setStaged(files: readonly StagedRecordingFile[]): void
   emitLevel(event: RecordingLevelEvent): void
   emitSegment(segment: AudioRecorderSegment): void
@@ -44,6 +56,11 @@ export function createTestAudioRecorderService(options?: {
   const sessionStartedMs = options?.sessionStartedMs ?? 0
   let state: AudioRecorderState = 'idle'
   let stopResult: AudioRecorderFinalSegment | null = null
+  let startFailure: { error: unknown } | null = null
+  let startHeld: Promise<void> | null = null
+  /** Settles the parked `start` as cancelled. */
+  let cancelHeldStart: (() => void) | null = null
+  let stopHeld: Promise<void> | null = null
   let staged: StagedRecordingFile[] = []
   const log: AudioRecorderCall[] = []
   const claimed = new Set<string>()
@@ -85,24 +102,50 @@ export function createTestAudioRecorderService(options?: {
     state: () => state,
     subscribeState: subscribe(stateListeners),
     stream: () => null,
-    start(startOptions) {
+    async start(startOptions) {
       log.push({ method: 'start', options: { ...startOptions } })
       if (state !== 'idle') {
-        return Promise.resolve(null)
+        return null
+      }
+      if (startFailure !== null) {
+        const { error } = startFailure
+        startFailure = null
+        throw error
+      }
+      if (startHeld !== null) {
+        const held = startHeld
+        startHeld = null
+        setState('requesting')
+        const cancelled = Promise.withResolvers<boolean>()
+        cancelHeldStart = () => {
+          cancelled.resolve(true)
+        }
+        const wasCancelled = await Promise.race([held.then(() => false), cancelled.promise])
+        cancelHeldStart = null
+        if (wasCancelled) {
+          return null
+        }
       }
       setState('recording')
-      return Promise.resolve({ sessionStartedMs })
+      return { sessionStartedMs }
     },
-    stop() {
+    async stop() {
       log.push({ method: 'stop' })
-      setState('idle')
-      if (stopResult?.audio.kind === 'staged') {
-        claimed.add(stopResult.audio.path)
+      const result = stopResult
+      if (stopHeld !== null) {
+        const held = stopHeld
+        stopHeld = null
+        await held
       }
-      return Promise.resolve(stopResult)
+      setState('idle')
+      if (result?.audio.kind === 'staged') {
+        claimed.add(result.audio.path)
+      }
+      return result
     },
     cancel() {
       log.push({ method: 'cancel' })
+      cancelHeldStart?.()
       setState('idle')
       return Promise.resolve()
     },
@@ -143,6 +186,19 @@ export function createTestAudioRecorderService(options?: {
     calls: () => [...log],
     setStopResult(segment) {
       stopResult = segment
+    },
+    failNextStart(error) {
+      startFailure = { error }
+    },
+    holdNextStart() {
+      const held = Promise.withResolvers<void>()
+      startHeld = held.promise
+      return held.resolve
+    },
+    holdNextStop() {
+      const held = Promise.withResolvers<void>()
+      stopHeld = held.promise
+      return held.resolve
     },
     setStaged(files) {
       staged = [...files]

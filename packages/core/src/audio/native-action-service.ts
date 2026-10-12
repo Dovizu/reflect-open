@@ -1,0 +1,148 @@
+import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
+import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { AudioRecorderFinalSegment, AudioRecorderService } from './audio-recorder-service.ts'
+import { defaultAudioRecorder } from './default-audio-recorder.ts'
+
+/**
+ * How long the recording UI must survive before a delivered native action is
+ * confirmed (V1 parity): a webview crash during presentation must leave the
+ * action queued so it re-fires on the next launch.
+ */
+const ACTION_CONFIRM_DELAY_MS = 2000
+
+/** The recording surface that answers the OS entry points. */
+export interface NativeRecordActionHandler {
+  /** Start a memo — the surface's usual start (opens the drawer, records). */
+  start(): Promise<void>
+  /** Receives the final segment of a recording that outlived its UI. */
+  onReconciledSegment(segment: AudioRecorderFinalSegment): void
+}
+
+/**
+ * The webview side of the native-action handshake (audio-memos wave 3), plus
+ * the live-recording reconcile it must be sequenced behind.
+ *
+ * Reconcile first: a fresh surface did not start any recording, so a native
+ * one still running (the webview reloaded or crashed mid-memo, or the surface
+ * reopened across a graph switch) has no UI — stop and save it rather than
+ * leave a hidden hot microphone.
+ *
+ * Then the handshake: OS entry points (Siri, the home-screen quick action,
+ * the lock-screen widget) queue a `recordAudio` request in the plugin,
+ * persisted until this surface confirms it ran — neither lost nor double-run
+ * across webview churn (`docs/porting/reflect-mobile/native-entry-points.md`).
+ * The ordering is the point: a queued "record" delivered at `actionsReady`
+ * can never race the reconcile's stop.
+ */
+export interface NativeActionService {
+  /**
+   * Mount the reconcile-then-handshake lifecycle for `handler`; the returned
+   * function ends it. Does nothing outside the native shell.
+   */
+  open(handler: NativeRecordActionHandler): Unlisten
+}
+
+export function createNativeActionService(deps: {
+  audioRecorder: Pick<
+    AudioRecorderService,
+    'status' | 'stop' | 'subscribeNativeAction' | 'actionsReady' | 'actionPerformed'
+  >
+  clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
+  platform: Pick<PlatformFacts, 'isNativeShell'>
+  logger: Pick<LoggerService, 'error' | 'warn'>
+}): NativeActionService {
+  const { audioRecorder, clock, platform, logger } = deps
+  return {
+    open(handler) {
+      if (!platform.isNativeShell) {
+        return () => {}
+      }
+      let disposed = false
+      let confirmTimer: TimerHandle | null = null
+      let unlisten: Unlisten | null = null
+      void (async () => {
+        try {
+          const status = await audioRecorder.status()
+          if (status.recording) {
+            const final = await audioRecorder.stop()
+            if (final !== null) {
+              handler.onReconciledSegment(final)
+            }
+          }
+        } catch (cause) {
+          // A user stop or native finalize winning the race lands here — the
+          // memo arrives through that path (or the orphan scan) instead.
+          logger.warn('reconciling a live native recording failed:', cause)
+        }
+        if (disposed) {
+          return
+        }
+        unlisten = audioRecorder.subscribeNativeAction((event) => {
+          if (event.action !== 'recordAudio') {
+            return
+          }
+          void handler.start()
+          // A repeat delivery (double widget open, or a redelivery while the
+          // action is still queued) restarts the confirm window against the
+          // latest start — otherwise an earlier timer could confirm before
+          // this start's UI has survived its full window.
+          if (confirmTimer !== null) {
+            clock.clearTimeout(confirmTimer)
+          }
+          // Confirmation is about delivery, not success — a mic-denied start
+          // still confirms, or the queue would re-surface the same failure
+          // every launch.
+          confirmTimer = clock.setTimeout(() => {
+            void audioRecorder.actionPerformed().catch((cause: unknown) => {
+              logger.warn('confirming a native action failed:', cause)
+            })
+          }, ACTION_CONFIRM_DELAY_MS)
+        })
+        try {
+          await audioRecorder.actionsReady()
+        } catch (cause) {
+          logger.error('the native-action handshake is unavailable:', cause)
+        }
+      })()
+      return () => {
+        disposed = true
+        if (confirmTimer !== null) {
+          clock.clearTimeout(confirmTimer)
+        }
+        unlisten?.()
+      }
+    },
+  }
+}
+
+let installedService: NativeActionService | null = null
+let fallback: NativeActionService | null = null
+
+/**
+ * The process-wide `NativeActionService`. Unless {@link setDefaultNativeAction}
+ * installed one, a service over the process-wide defaults of its
+ * dependencies as they are at the first call.
+ */
+export function defaultNativeAction(): NativeActionService {
+  if (installedService !== null) {
+    return installedService
+  }
+  fallback ??= createNativeActionService({
+    audioRecorder: defaultAudioRecorder(),
+    clock: defaultClock(),
+    platform: defaultPlatform(),
+    logger: defaultLogger(),
+  })
+  return fallback
+}
+
+/**
+ * Install the process-wide `NativeActionService`. `null` restores the
+ * default-backed one, rebuilt over the defaults at its next use.
+ */
+export function setDefaultNativeAction(service: NativeActionService | null): void {
+  installedService = service
+  fallback = null
+}

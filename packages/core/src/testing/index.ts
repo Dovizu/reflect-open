@@ -14,7 +14,6 @@ export { createTestClockService, type TestClockService } from './clock.ts'
 export { createTestDailyNoteService, type TestDailyNoteServiceOptions } from './daily.ts'
 export {
   createTestPaletteSearchService,
-  createTestWikiLinkPersonNotes,
   createTestWikiLinkSuggestionService,
   type TestPaletteSearchServiceOptions,
   type TestWikiLinkSuggestionServiceOptions,
@@ -63,15 +62,23 @@ export {
   type TestGraphServices,
 } from './services.ts'
 export {
+  createTestCalendarEventsService,
   createTestCalendarService,
+  type TestCalendarEventsServiceOptions,
   type TestCalendarService,
   type TestCalendarServiceOptions,
 } from './calendar.ts'
 export {
+  createTestContactSuggestionService,
   createTestContactsService,
+  createTestMeetingService,
+  createTestPersonNoteService,
   type ContactsLookup,
+  type TestContactSuggestionServiceOptions,
   type TestContactsService,
   type TestContactsServiceOptions,
+  type TestMeetingServiceOptions,
+  type TestPersonNoteServiceOptions,
 } from './contacts.ts'
 export {
   createTestDatabaseService,
@@ -276,6 +283,14 @@ export {
   type AudioRecorderCall,
   type TestAudioRecorderService,
 } from './audio-recorder.ts'
+export {
+  createTestAudioMemoService,
+  createTestMobileAudioMemoService,
+  createTestNativeActionService,
+  type TestAudioMemoServiceOptions,
+  type TestMobileAudioMemoServiceOptions,
+  type TestNativeActionServiceOptions,
+} from './audio-memo.ts'
 export {
   createTestAssetStoreService,
   createTestNoteCreationService,

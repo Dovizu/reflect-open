@@ -3,16 +3,19 @@ import { defaultClock, type ClockService } from '../app/clock-service.ts'
 import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
 import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
 import { isContactsReadable } from '../contacts/commands.ts'
-import type { ContactMatch, ContactsAuthorization } from '../contacts/contacts-service.ts'
-import { contactDetailsMarkdown } from '../contacts/markdown.ts'
-import { contactLinkSuggestions } from '../contacts/match.ts'
 import {
-  ensurePersonNote,
-  resolvePersonContact,
-  type EnsurePersonNoteInput,
-  type EnsurePersonNoteResult,
+  defaultContacts,
+  type ContactMatch,
+  type ContactsAuthorization,
+  type ContactsService,
+} from '../contacts/contacts-service.ts'
+import { contactDetailsMarkdown } from '../contacts/markdown.ts'
+import { pickContactLinkSuggestions } from '../contacts/match.ts'
+import {
+  defaultPersonNotes,
   type PersonContactResolution,
-} from '../contacts/person.ts'
+  type PersonNoteService,
+} from '../contacts/person-note-service.ts'
 import { errorMessage } from '../errors.ts'
 import { defaultNoteCreation, type NoteCreationService } from '../graph/note-creation-service.ts'
 import { aliasHint } from '../indexing/suggest.ts'
@@ -40,18 +43,8 @@ export interface TagMenuItem {
   tag: string
 }
 
-/**
- * The person-note operations behind the Contact rows. The composition root
- * passes the free functions of `contacts/match.ts` and `contacts/person.ts`.
- */
-export interface WikiLinkPersonNotes {
-  /** Apple Contacts matching `query`, for the `[[` menu. */
-  contactLinkSuggestions(query: string): Promise<ContactMatch[]>
-  /** Resolve one Contact into a selectable new or existing wikilink target. */
-  resolvePersonContact(contact: ContactMatch): Promise<PersonContactResolution>
-  /** Reuse the person note that owns the emails, or create one. */
-  ensurePersonNote(input: EnsurePersonNoteInput): Promise<EnsurePersonNoteResult>
-}
+/** How many Contact rows the `[[` menu shows at most. */
+const CONTACT_SUGGESTION_LIMIT = 4
 
 export interface WikiLinkSuggestionOptions {
   /** The open graph's generation: a background create that outlives it is rejected. */
@@ -84,7 +77,8 @@ export interface WikiLinkSuggestionService {
 export interface WikiLinkSuggestionServiceDeps {
   suggestions: Pick<SuggestionService, 'suggestWikiLinkTargets' | 'suggestTags'>
   noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-  personNotes: WikiLinkPersonNotes
+  contacts: Pick<ContactsService, 'lookupByName'>
+  personNotes: Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>
   settings: Pick<SettingsService, 'get'>
   clock: Pick<ClockService, 'now'>
   operations: Pick<OperationsService, 'start'>
@@ -94,7 +88,26 @@ export interface WikiLinkSuggestionServiceDeps {
 export function createWikiLinkSuggestionService(
   deps: WikiLinkSuggestionServiceDeps,
 ): WikiLinkSuggestionService {
-  const { suggestions, noteCreation, personNotes, settings, clock, operations, logger } = deps
+  const { suggestions, noteCreation, contacts, personNotes, settings, clock, operations, logger } =
+    deps
+
+  /**
+   * Contacts for the `[[` link menu — v1 mixed contacts into the backlink
+   * autocomplete so a person note could be born from the address book. This
+   * keeps the framework's word-prefix matches (typing "Ada" should offer "Ada
+   * Lovelace"). Queries shorter than two characters answer empty — one letter
+   * matches half the address book.
+   */
+  async function contactLinkSuggestions(query: string): Promise<ContactMatch[]> {
+    const trimmed = query.trim()
+    if (trimmed.length < 2) {
+      return []
+    }
+    return pickContactLinkSuggestions(
+      await contacts.lookupByName(trimmed),
+      CONTACT_SUGGESTION_LIMIT,
+    )
+  }
 
   /**
    * The one user-visible refusal for an `ambiguous` title resolution: several
@@ -147,10 +160,9 @@ export function createWikiLinkSuggestionService(
         // A contacts hiccup (permission revoked mid-session, store error)
         // must cost only its own rows, never the note suggestions.
         contactsInMenu
-          ? personNotes
-              .contactLinkSuggestions(query)
-              .then((contacts) =>
-                Promise.all(contacts.map((contact) => personNotes.resolvePersonContact(contact))),
+          ? contactLinkSuggestions(query)
+              .then((matches) =>
+                Promise.all(matches.map((contact) => personNotes.resolvePersonContact(contact))),
               )
               .catch((error: unknown): PersonContactResolution[] => {
                 logger.error('contact link suggestions failed:', error)
@@ -158,7 +170,7 @@ export function createWikiLinkSuggestionService(
               })
           : Promise.resolve<PersonContactResolution[]>([]),
       ])
-      const contacts = contactResolutions
+      const contactCandidates = contactResolutions
         .map((resolution) =>
           resolution.kind === 'blocked'
             ? null
@@ -174,7 +186,7 @@ export function createWikiLinkSuggestionService(
         .filter(isNotNullish)
       const entries = buildAutocompleteEntries(query, wikiLinks.suggestions, {
         offerCreate: true,
-        contacts,
+        contacts: contactCandidates,
         blockedContactNames,
         requireSerializableWikiText: true,
         queryReadsAsDate: wikiLinks.queryReadsAsDate,
@@ -267,13 +279,6 @@ export function createWikiLinkSuggestionService(
   }
 }
 
-/** The person-note operations as they exist today: free functions over the default services. */
-export const defaultWikiLinkPersonNotes: WikiLinkPersonNotes = {
-  contactLinkSuggestions: (query) => contactLinkSuggestions(query),
-  resolvePersonContact: (contact) => resolvePersonContact(contact),
-  ensurePersonNote: (input) => ensurePersonNote(input),
-}
-
 let installedService: WikiLinkSuggestionService | null = null
 let fallback: (WikiLinkSuggestionServiceDeps & { service: WikiLinkSuggestionService }) | null = null
 
@@ -288,7 +293,8 @@ export function defaultWikiLinkSuggestions(): WikiLinkSuggestionService {
   const deps: WikiLinkSuggestionServiceDeps = {
     suggestions: defaultSuggestions(),
     noteCreation: defaultNoteCreation(),
-    personNotes: defaultWikiLinkPersonNotes,
+    contacts: defaultContacts(),
+    personNotes: defaultPersonNotes(),
     settings: defaultSettings(),
     clock: defaultClock(),
     operations: defaultOperations(),
@@ -297,6 +303,8 @@ export function defaultWikiLinkSuggestions(): WikiLinkSuggestionService {
   if (
     fallback?.suggestions !== deps.suggestions ||
     fallback.noteCreation !== deps.noteCreation ||
+    fallback.contacts !== deps.contacts ||
+    fallback.personNotes !== deps.personNotes ||
     fallback.settings !== deps.settings ||
     fallback.clock !== deps.clock ||
     fallback.operations !== deps.operations ||

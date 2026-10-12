@@ -1,17 +1,21 @@
 import { describe, expect, it } from 'vitest'
 import type { ContactMatch, ContactsAuthorization } from '../contacts/contacts-service.ts'
-import type { EnsurePersonNoteInput, PersonContactResolution } from '../contacts/person.ts'
+import type {
+  EnsurePersonNoteInput,
+  PersonContactResolution,
+  PersonNoteService,
+} from '../contacts/person-note-service.ts'
 import type { ResolveOrCreateNoteResult } from '../graph/note-creation-service.ts'
 import type { DateSuggestionContext } from '../indexing/date-suggestion-types.ts'
 import type { WikiLinkSuggestionResult } from '../indexing/suggestion-service.ts'
 import type { Settings } from '../settings/schema.ts'
 import { createTestClockService } from '../testing/clock.ts'
+import { createTestContactsService } from '../testing/contacts.ts'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import { createTestWikiLinkSuggestionService } from '../testing/search.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
-import type { WikiLinkPersonNotes } from './wiki-link-suggestion-service.ts'
 
 const NO_SUGGESTIONS: WikiLinkSuggestionResult = {
   suggestions: [],
@@ -32,7 +36,11 @@ interface SetupOptions {
   wikiLinks?: WikiLinkSuggestionResult
   /** Answers `resolveOrCreateNoteWithTitle`. */
   create?: () => Promise<ResolveOrCreateNoteResult>
-  personNotes?: Partial<WikiLinkPersonNotes>
+  /** The address book. */
+  contacts?: readonly ContactMatch[]
+  /** Makes every address-book lookup reject. */
+  contactsFailure?: Error
+  personNotes?: Partial<Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>>
 }
 
 async function setup(options?: SetupOptions) {
@@ -41,6 +49,7 @@ async function setup(options?: SetupOptions) {
   const settings = createTestSettingsService(options?.settings ?? {}, { operations })
   await settings.whenLoaded()
   const clock = createTestClockService({ now: new Date(2026, 5, 9, 12).getTime() })
+  const contacts = createTestContactsService({ contacts: options?.contacts ?? [] })
   const linkQueries: { query: string; limit?: number; dateGen?: DateSuggestionContext }[] = []
   const tagQueries: string[] = []
   const created: { title: string; generation: number; body?: string }[] = []
@@ -70,8 +79,15 @@ async function setup(options?: SetupOptions) {
           Promise.resolve({ kind: 'created', path: 'notes/created.md' }))
       },
     },
+    contacts: {
+      lookupByName: async (name) => {
+        if (options?.contactsFailure !== undefined) {
+          throw options.contactsFailure
+        }
+        return await contacts.lookupByName(name)
+      },
+    },
     personNotes: {
-      contactLinkSuggestions: async () => [],
       resolvePersonContact: async (contact) => ({
         kind: 'new',
         contact,
@@ -90,7 +106,17 @@ async function setup(options?: SetupOptions) {
   })
   const suggest = (query: string, contactsAuthorization: ContactsAuthorization | null = null) =>
     service.suggestLinks(query, { generation: 7, contactsAuthorization })
-  return { service, suggest, operations, logger, linkQueries, tagQueries, created, ensured }
+  return {
+    service,
+    suggest,
+    operations,
+    logger,
+    contacts,
+    linkQueries,
+    tagQueries,
+    created,
+    ensured,
+  }
 }
 
 /** Let the background work of an `onSelect` settle. */
@@ -317,10 +343,8 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
     }
     const { suggest, ensured } = await setup({
       settings: { contactsEnabled: true },
-      personNotes: {
-        contactLinkSuggestions: async () => [ADA],
-        resolvePersonContact: async () => existing,
-      },
+      contacts: [ADA],
+      personNotes: { resolvePersonContact: async () => existing },
     })
 
     const items = await suggest('Ada', 'authorized')
@@ -344,8 +368,8 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
   it('hides an exact blocked Contact and its Create fallback', async () => {
     const { suggest } = await setup({
       settings: { contactsEnabled: true },
+      contacts: [ADA],
       personNotes: {
-        contactLinkSuggestions: async () => [ADA],
         resolvePersonContact: async (contact) => ({
           kind: 'blocked',
           contact,
@@ -361,10 +385,8 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
     const cause = new Error('graph changed')
     const { suggest, operations, logger } = await setup({
       settings: { contactsEnabled: true },
-      personNotes: {
-        contactLinkSuggestions: async () => [ADA],
-        ensurePersonNote: () => Promise.reject(cause),
-      },
+      contacts: [ADA],
+      personNotes: { ensurePersonNote: () => Promise.reject(cause) },
     })
     const items = await suggest('Ada Lovelace', 'authorized')
 
@@ -388,10 +410,8 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
     ]
     const { suggest, operations } = await setup({
       settings: { contactsEnabled: true },
-      personNotes: {
-        contactLinkSuggestions: async () => [ADA],
-        ensurePersonNote: async () => outcomes.shift()!,
-      },
+      contacts: [ADA],
+      personNotes: { ensurePersonNote: async () => outcomes.shift()! },
     })
     const items = await suggest('Ada Lovelace', 'authorized')
 
@@ -406,31 +426,49 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
   })
 
   it('keeps contacts out of the menu unless the integration is on and readable', async () => {
-    let lookups = 0
-    const personNotes: Partial<WikiLinkPersonNotes> = {
-      contactLinkSuggestions: async () => {
-        lookups++
-        return [ADA]
-      },
-    }
-    const off = await setup({ settings: { contactsEnabled: false }, personNotes })
+    const off = await setup({ settings: { contactsEnabled: false }, contacts: [ADA] })
     await expect(off.suggest('Ada Lovelace', 'authorized')).resolves.toMatchObject([
       { label: 'Create “Ada Lovelace”' },
     ])
 
-    const on = await setup({ settings: { contactsEnabled: true }, personNotes })
+    expect(off.contacts.lookups()).toEqual([])
+
+    const on = await setup({ settings: { contactsEnabled: true }, contacts: [ADA] })
     await expect(on.suggest('Ada Lovelace', null)).resolves.toMatchObject([
       { label: 'Create “Ada Lovelace”' },
     ])
     await expect(on.suggest('Ada Lovelace', 'denied')).resolves.toMatchObject([
       { label: 'Create “Ada Lovelace”' },
     ])
-    expect(lookups).toBe(0)
+    expect(on.contacts.lookups()).toEqual([])
 
     await expect(on.suggest('Ada Lovelace', 'limited')).resolves.toMatchObject([
       { label: 'Ada Lovelace', detail: 'ada@example.com' },
     ])
-    expect(lookups).toBe(1)
+    expect(on.contacts.lookups()).toEqual([{ kind: 'name', name: 'Ada Lovelace' }])
+  })
+
+  it('asks the address book only for queries of two characters or more, and shows 4 at most', async () => {
+    const people = ['Ada One', 'Ada Two', 'Ada Three', 'Ada Four', 'Ada Five'].map(
+      (fullName, i): ContactMatch => ({ ...ADA, fullName, emails: [`ada${i}@example.com`] }),
+    )
+    const { suggest, contacts } = await setup({
+      settings: { contactsEnabled: true },
+      contacts: [...people, { ...ADA, fullName: 'Ada Nothing', emails: [], phones: [] }],
+    })
+
+    await suggest(' a ', 'authorized')
+    expect(contacts.lookups()).toEqual([])
+
+    const items = await suggest(' Ada ', 'authorized')
+    expect(contacts.lookups()).toEqual([{ kind: 'name', name: 'Ada' }])
+    expect(items.map((item) => item.label)).toEqual([
+      'Ada One',
+      'Ada Two',
+      'Ada Three',
+      'Ada Four',
+      'Create “Ada”',
+    ])
   })
 
   it('a contacts failure costs only the Contact rows', async () => {
@@ -451,7 +489,7 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
         claimedTargetKeys: [],
         queryReadsAsDate: false,
       },
-      personNotes: { contactLinkSuggestions: () => Promise.reject(cause) },
+      contactsFailure: cause,
     })
 
     await expect(suggest('Ada', 'authorized')).resolves.toMatchObject([

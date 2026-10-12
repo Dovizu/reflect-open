@@ -1,12 +1,20 @@
 import { useEffect, useState, type ReactElement } from 'react'
-import { defaultOpener, requestContactsAccess } from '@reflect/core'
+import {
+  canPromptForContacts,
+  contactsAccessNotice,
+  defaultOpener,
+  isContactsAvailable,
+} from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import {
   useContactsAuthorization,
   useRefreshContactsAuthorization,
 } from '@/hooks/use-contacts-authorization.ts'
-import { isMacosDesktop } from '@/lib/platform.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
+import {
+  useCalendarEventsService,
+  useContactSuggestionService,
+} from '@/services/use-contacts-services.ts'
 import { CalendarIntegrationField } from './calendar-integration-field.tsx'
 import { SettingsSection } from './section.tsx'
 import { SettingsSwitchField } from './switch-field.tsx'
@@ -22,7 +30,9 @@ import { SettingsSwitchField } from './switch-field.tsx'
  * {@link useVisibleSettingsSections}.
  */
 export function IntegrationsSection(): ReactElement | null {
-  const { settings, updateSettings } = useSettings()
+  const { settings } = useSettings()
+  const contactSuggestions = useContactSuggestionService()
+  const calendarEvents = useCalendarEventsService()
   const authorization = useContactsAuthorization()
   const refreshAuthorization = useRefreshContactsAuthorization()
   const [isPrompting, setIsPrompting] = useState(false)
@@ -41,20 +51,19 @@ export function IntegrationsSection(): ReactElement | null {
     return () => window.removeEventListener('focus', onFocus)
   }, [contactsEnabled, refreshAuthorization])
 
-  const contactsAvailable = authorization !== null && authorization !== 'unavailable'
-  const calendarAvailable = isMacosDesktop()
+  const contactsAvailable = isContactsAvailable(authorization)
+  const calendarAvailable = calendarEvents.isAvailable()
 
   if (!contactsAvailable && !calendarAvailable) {
     return null
   }
 
-  const showDenied =
-    settings.contactsEnabled && (authorization === 'denied' || authorization === 'restricted')
-  // Enabled but never asked — the toggle-on prompt didn't complete (quit
-  // mid-prompt, settings restored from another machine). Offer the prompt
-  // again rather than sitting silently gated off. Suppressed while a prompt
-  // is up, so it doesn't flash under the OS dialog on a fresh toggle.
-  const showPrompt = settings.contactsEnabled && authorization === 'notDetermined' && !isPrompting
+  // `denied` points at System Settings; `prompt` offers the OS prompt again
+  // (enabled but never asked), suppressed while a prompt is up so it doesn't
+  // flash under the OS dialog on a fresh toggle.
+  const notice = contactsAccessNotice(settings, authorization, isPrompting)
+  const showDenied = notice === 'denied'
+  const showPrompt = notice === 'prompt'
 
   async function promptForAccess(): Promise<void> {
     setIsPrompting(true)
@@ -62,7 +71,7 @@ export function IntegrationsSection(): ReactElement | null {
       // A failed prompt (e.g. it timed out unanswered) isn't surfaced here —
       // the refreshed status is the truth, and a denied/restricted answer
       // shows the System Settings pointer below.
-      await requestContactsAccess().catch(() => {})
+      await contactSuggestions.requestAccess()
       await refreshAuthorization()
     } finally {
       setIsPrompting(false)
@@ -70,8 +79,8 @@ export function IntegrationsSection(): ReactElement | null {
   }
 
   async function enableContacts(): Promise<void> {
-    updateSettings({ contactsEnabled: true })
-    if (authorization === 'notDetermined') {
+    contactSuggestions.setEnabled(true)
+    if (canPromptForContacts(authorization)) {
       await promptForAccess()
     }
   }
@@ -88,7 +97,7 @@ export function IntegrationsSection(): ReactElement | null {
               if (checked) {
                 void enableContacts()
               } else {
-                updateSettings({ contactsEnabled: false })
+                contactSuggestions.setEnabled(false)
               }
             }}
           />

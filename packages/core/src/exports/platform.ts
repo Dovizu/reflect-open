@@ -12,8 +12,6 @@ export { createIpcBridgeService, listenNow, type IpcBridgeService } from '../ipc
 export { call, callBinary } from '../ipc/invoke.ts'
 export { type PluginSubscription } from '../ipc/plugin.ts'
 export {
-  actionPerformed,
-  actionsReady,
   cancelRecording,
   deleteStaged,
   listStaged,
@@ -21,7 +19,6 @@ export {
   startRecording,
   stopRecording,
   subscribeRecordingLevel,
-  subscribeRecordingNativeAction,
   subscribeRecordingSegment,
   subscribeRecordingStopped,
   type RecordingLevelEvent,
@@ -458,12 +455,10 @@ export {
 } from '../search/wiki-autocomplete-entries.ts'
 export {
   createWikiLinkSuggestionService,
-  defaultWikiLinkPersonNotes,
   defaultWikiLinkSuggestions,
   setDefaultWikiLinkSuggestions,
   type TagMenuItem,
   type WikiLinkMenuItem,
-  type WikiLinkPersonNotes,
   type WikiLinkSuggestionOptions,
   type WikiLinkSuggestionService,
   type WikiLinkSuggestionServiceDeps,
@@ -709,6 +704,15 @@ export {
   type CalendarService,
 } from '../calendar/calendar-service.ts'
 export {
+  countSelectedCalendars,
+  createCalendarEventsService,
+  defaultCalendarEvents,
+  groupCalendarsBySource,
+  setDefaultCalendarEvents,
+  showsDayEvents,
+  type CalendarEventsService,
+} from '../calendar/calendar-events-service.ts'
+export {
   createFileChangeService,
   defaultFileChanges,
   setDefaultFileChanges,
@@ -721,6 +725,32 @@ export {
   setDefaultContacts,
   type ContactsService,
 } from '../contacts/contacts-service.ts'
+export {
+  canPromptForContacts,
+  contactsAccessNotice,
+  createContactSuggestionService,
+  defaultContactSuggestions,
+  isContactsAvailable,
+  setDefaultContactSuggestions,
+  showsContactSuggestions,
+  suggestedContactDetails,
+  type ContactSuggestionService,
+} from '../contacts/contact-suggestion-service.ts'
+export {
+  createPersonNoteService,
+  defaultPersonNotes,
+  setDefaultPersonNotes,
+  type PersonNoteService,
+} from '../contacts/person-note-service.ts'
+export {
+  createMeetingService,
+  defaultMeetings,
+  mergeAttendeeUpgrades,
+  setDefaultMeetings,
+  withAttendee,
+  type AttendeeSuggestions,
+  type MeetingService,
+} from '../contacts/meeting-service.ts'
 export {
   createDatabaseService,
   defaultDatabase,
@@ -1027,8 +1057,6 @@ export {
   listDir,
   noteExists,
   deleteNote,
-  deleteAudioMemo,
-  importAudioMemo,
   listFiles,
   listAttachments,
   vaultScanStats,
@@ -1180,9 +1208,6 @@ export {
 export {
   contactsAuthorizationSchema,
   contactMatchSchema,
-  contactsAuthorizationStatus,
-  requestContactsAccess,
-  lookupContactsByEmail,
   lookupContactsByName,
   isContactsReadable,
   type ContactsAuthorization,
@@ -1192,17 +1217,15 @@ export {
   contactLinkSuggestions,
   contactNamesEqual,
   matchContactForTitle,
-  suggestContactForTitle,
 } from '../contacts/match.ts'
 export {
   contactDetailsMarkdown,
   appendContactDetails,
   noteHasContactDetails,
 } from '../contacts/markdown.ts'
-export { pickContactForEmail, resolveAttendeeContact } from '../contacts/resolve.ts'
+export { pickContactForEmail } from '../contacts/resolve.ts'
 export {
   ensurePersonNote,
-  resolvePerson,
   resolvePersonContact,
   type BlockedPersonResolution,
   type BlockedPersonContactResolution,
