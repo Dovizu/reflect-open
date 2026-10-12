@@ -600,6 +600,7 @@ export {
   defaultIndexLifecycle,
   setDefaultIndexLifecycle,
   type IndexAppliedEvent,
+  type IndexChangesAppliedEvent,
   type IndexFileProgress,
   type IndexLifecycleDeps,
   type IndexLifecycleProgress,
@@ -702,22 +703,39 @@ export {
   embedStatus,
   embedEnsure,
   embedTexts,
-  embedApply,
-  embedRemove,
   subscribeEmbedStatus,
   embedStatusSchema,
   type EmbedStatus,
   type EmbedProgress,
-  type EmbedChunkPayload,
 } from '../embeddings/commands.ts'
-export { embedNote, backfillEmbeddings } from '../embeddings/pipeline.ts'
 export {
-  retrieve,
-  relatedNotes,
+  createEmbeddingIndexService,
+  defaultEmbeddingIndex,
+  setDefaultEmbeddingIndex,
+  type EmbedChunkPayload,
+  type EmbeddingBackfillOptions,
+  type EmbeddingBackfillResult,
+  type EmbeddingIndexService,
+  type EmbedNoteOptions,
+} from '../embeddings/embedding-index-service.ts'
+export { retrieve } from '../embeddings/retrieve.ts'
+export {
+  createRetrievalService,
+  defaultRetrieval,
   fuseRanked,
+  setDefaultRetrieval,
   type RetrievalHit,
+  type RetrievalService,
   type RetrieveOptions,
-} from '../embeddings/retrieve.ts'
+} from '../embeddings/retrieval-service.ts'
+export {
+  createSemanticSearchService,
+  defaultSemanticSearch,
+  setDefaultSemanticSearch,
+  type SemanticSearchGraphSource,
+  type SemanticSearchService,
+  type SemanticSearchServiceDeps,
+} from '../embeddings/semantic-search-service.ts'
 export {
   appErrorSchema,
   errorMessage,

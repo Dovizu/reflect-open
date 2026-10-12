@@ -1,30 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultEmbeddingRuntime, setDefaultStorage } from '@reflect/core'
-import { createTestEmbeddingRuntimeService, createTestStorageService } from '@reflect/core/testing'
-import {
-  consumeLegacySemanticOptIn,
-  ensureEmbeddingsVisibly,
-  retryFailedEmbeddings,
-} from './semantic.ts'
+import { setDefaultEmbeddingRuntime } from '@reflect/core'
+import { createTestEmbeddingRuntimeService } from '@reflect/core/testing'
+import { ensureEmbeddingsVisibly, retryFailedEmbeddings } from './semantic.ts'
+
+// The service itself is covered in `@reflect/core`; these cover the
+// delegations to the process-wide one.
 
 afterEach(() => {
   setDefaultEmbeddingRuntime(null)
-  setDefaultStorage(null)
-})
-
-describe('consumeLegacySemanticOptIn', () => {
-  it('returns a stored opt-in exactly once (the settings document owns it after)', () => {
-    const storage = createTestStorageService({ local: { 'reflect.semantic.enabled': 'true' } })
-    setDefaultStorage(storage)
-    expect(consumeLegacySemanticOptIn()).toBe(true)
-    expect(consumeLegacySemanticOptIn()).toBe(false)
-    expect(storage.dump().local).toEqual({})
-  })
-
-  it('is false when the legacy key was never set', () => {
-    setDefaultStorage(createTestStorageService())
-    expect(consumeLegacySemanticOptIn()).toBe(false)
-  })
 })
 
 describe('retryFailedEmbeddings', () => {

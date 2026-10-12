@@ -2,6 +2,7 @@ import { setDefaultICloudNative } from '@reflect/core'
 import {
   createTestICloudNativeService,
   createTestIndexLifecycleService,
+  createTestIndexStoreService,
   createTestNoteFileService,
   type TestICloudNativeService,
 } from '@reflect/core/testing'
@@ -49,6 +50,31 @@ describe('bindGraphIndex', () => {
     await index.settled()
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.index.all })
+  })
+
+  it('invalidates the index queries after a requested rebuild', async () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const { index } = setup()
+
+    await index.rebuildVisibly(5)
+
+    // A manual rebuild bypasses the watcher pipeline, whose batches refresh the caches.
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.index.all })
+  })
+
+  it('leaves the index queries alone after a failed rebuild', async () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
+    const index = createTestIndexLifecycleService({
+      indexStore: createTestIndexStoreService({
+        fail: (call) => (call.method === 'clear' ? new Error('index on fire') : undefined),
+      }),
+    })
+    const unbind = bindGraphIndex(index)
+
+    await index.rebuildVisibly(5)
+
+    expect(invalidate).not.toHaveBeenCalled()
+    unbind()
   })
 
   it('requests downloads for the stale placeholders a pass reports', async () => {

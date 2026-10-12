@@ -2,8 +2,8 @@ import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultStorage } from '@reflect/core'
-import { createTestStorageService } from '@reflect/core/testing'
+import { setDefaultRetrieval, setDefaultStorage } from '@reflect/core'
+import { createTestRetrievalService, createTestStorageService } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { SimilarNotesSection } from './similar-notes-section.tsx'
@@ -14,7 +14,6 @@ const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-  relatedNotes,
 }))
 vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
@@ -58,11 +57,13 @@ beforeEach(() => {
   semanticSetting.enabled = true
   noteFile.read().mockResolvedValue('- daily entry\n')
   relatedNotes.mockReset().mockResolvedValue([])
+  setDefaultRetrieval(createTestRetrievalService({ relatedNotes }))
   openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
 
 afterEach(() => {
   setDefaultStorage(null)
+  setDefaultRetrieval(null)
 })
 
 describe('SimilarNotesSection', () => {

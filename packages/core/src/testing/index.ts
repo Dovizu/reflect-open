@@ -73,9 +73,20 @@ export {
   type TestNote,
 } from './database.ts'
 export {
+  createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
+  createTestRetrievalService,
+  createTestSemanticSearchService,
+  type TestEmbeddingApply,
+  type TestEmbeddingIndexService,
+  type TestEmbeddingIndexServiceOptions,
+  type TestEmbeddingRemove,
   type TestEmbeddingRuntimeService,
   type TestEmbeddingRuntimeServiceOptions,
+  type TestRetrievalService,
+  type TestRetrievalServiceOptions,
+  type TestSemanticSearchService,
+  type TestSemanticSearchServiceOptions,
 } from './embeddings.ts'
 export {
   createTestChatHistoryService,
