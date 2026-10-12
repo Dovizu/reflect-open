@@ -11,7 +11,6 @@ import {
   type ReactNode,
 } from 'react'
 import type { NavigateOptions } from '@reflect/core'
-import { onNoteMoved } from '@/lib/note-moves.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
 import type { Route } from './route.ts'
 
@@ -95,7 +94,7 @@ export function RouterProvider({
   initialRoute = { kind: 'today' },
   children,
 }: RouterProviderProps): ReactElement {
-  const { navigation: appNavigation } = useAppServices()
+  const { navigation: appNavigation, noteMove } = useAppServices()
   const [navigation] = useState(() => {
     appNavigation.reset(initialRoute)
     return appNavigation
@@ -138,7 +137,10 @@ export function RouterProvider({
 
   // A note file move (Plan 17) rewrites every history entry that points at
   // the old path, so the current route (and back/forward) follow the file.
-  useEffect(() => onNoteMoved((from, to) => navigation.noteMoved(from, to)), [navigation])
+  useEffect(
+    () => noteMove.onMoved((from, to) => navigation.noteMoved(from, to)),
+    [navigation, noteMove],
+  )
 
   const saveScrollState = useCallback(
     (offset: number) => navigation.saveScrollState(offset, rendered.current),

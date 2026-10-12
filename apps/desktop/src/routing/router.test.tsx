@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReactElement } from 'react'
 import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
-import { emitNoteMoved } from '@/lib/note-moves.ts'
 import { renderHookInApp, renderInApp } from '@/test-utils/render-in-app.tsx'
 import type { Route } from './route.ts'
 import { RouterFreeze, useRouter } from './router.tsx'
@@ -147,13 +146,13 @@ describe('router', () => {
 
   describe('note moves (Plan 17)', () => {
     it('rewrites the current route when a note moves', async () => {
-      const { result, act } = await routerHook()
+      const { result, act, app } = await routerHook()
       await act(() => result.current.navigate({ kind: 'note', path: 'notes/01abc.md' }))
       const arrivalsBefore = result.current.arrivalSeq
       const entryBefore = result.current.entryId
       const revisionBefore = result.current.navigationRevision()
 
-      await act(() => emitNoteMoved('notes/01abc.md', 'notes/meeting-notes.md'))
+      await act(() => app.noteMove.followHealedMove('notes/01abc.md', 'notes/meeting-notes.md'))
 
       expect(result.current.route).toEqual({ kind: 'note', path: 'notes/meeting-notes.md' })
       expect(result.current.arrivalSeq).toBe(arrivalsBefore)
@@ -162,11 +161,11 @@ describe('router', () => {
     })
 
     it('a move settling after the workspace unmounts is harmless', async () => {
-      const { result, act, unmount } = await routerHook()
+      const { result, act, unmount, app } = await routerHook()
       await act(() => result.current.navigate({ kind: 'note', path: 'notes/01abc.md' }))
       unmount()
 
-      emitNoteMoved('notes/01abc.md', 'notes/meeting-notes.md')
+      app.noteMove.followHealedMove('notes/01abc.md', 'notes/meeting-notes.md')
     })
   })
 })
