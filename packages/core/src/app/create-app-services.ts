@@ -2,6 +2,7 @@ import { createCalendarService, type CalendarService } from '../calendar/calenda
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
+import { createIndexStoreService, type IndexStoreService } from '../indexing/index-store-service.ts'
 import {
   createIpcBridgeService,
   type IpcBridge,
@@ -71,6 +72,7 @@ export interface AppServices {
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
+  readonly indexStore: IndexStoreService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -104,6 +106,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
+  const database = createDatabaseService({ ipc })
   return {
     ipc,
     logger,
@@ -131,10 +134,11 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
-    database: createDatabaseService({ ipc }),
+    database,
     fileChanges: createFileChangeService(
       { ipc, logger },
       { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
     ),
+    indexStore: createIndexStoreService({ ipc, database }),
   }
 }

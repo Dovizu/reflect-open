@@ -41,6 +41,7 @@ const SERVICE_KEYS = [
   'exceptionTelemetry',
   'database',
   'fileChanges',
+  'indexStore',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

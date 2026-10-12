@@ -26,6 +26,7 @@ import {
   type TestIdService,
 } from './id.ts'
 import { createTestImageCodec, type TestImageCodecService } from './image-codec.ts'
+import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
@@ -76,6 +77,7 @@ export interface TestAppServices extends AppServices {
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
+  readonly indexStore: TestIndexStoreService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -111,6 +113,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     exceptionTelemetry: createTestExceptionTelemetry(),
     database: createTestDatabaseService(),
     fileChanges: createTestFileChangeService(),
+    indexStore: createTestIndexStoreService(),
   }
   return Object.assign(services, overrides)
 }

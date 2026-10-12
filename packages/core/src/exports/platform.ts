@@ -284,6 +284,17 @@ export {
   setDefaultDatabase,
   type DatabaseService,
 } from '../indexing/database-service.ts'
+export {
+  createIndexStoreService,
+  defaultIndexStore,
+  setDefaultIndexStore,
+  type IndexApplyBatch,
+  type IndexedNoteTouch,
+  type IndexStoreService,
+  type MtimeTouchBatch,
+  type ReconcileScan,
+  type SkippedIndexedNote,
+} from '../indexing/index-store-service.ts'
 export { chunkNote, type NoteChunk } from '../embeddings/chunk.ts'
 export {
   embedStatus,
