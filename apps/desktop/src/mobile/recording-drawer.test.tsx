@@ -1,4 +1,5 @@
-import { act, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent } from '@/test-utils/fire-event.ts'

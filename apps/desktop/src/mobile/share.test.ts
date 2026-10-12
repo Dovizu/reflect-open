@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSession } from '@reflect/core'
 import { createTestOpenDocumentsService, createTestShareService } from '@reflect/core/testing'
 import { shareNote } from './share.ts'
@@ -9,10 +9,6 @@ beforeEach(() => {
   Object.defineProperty(navigator, 'share', { configurable: true, value: shareMock })
   shareMock.mockReset()
   shareMock.mockResolvedValue(undefined)
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
 })
 
 describe('shareNote', () => {

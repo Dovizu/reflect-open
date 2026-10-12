@@ -3,15 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
 import { createTestAppServices, createTestWindowService } from '@reflect/core/testing'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { TemplatesSection } from './templates-section.tsx'
 
 const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
-
-vi.mock('@/providers/note-templates-provider.tsx', () => ({
-  useNoteTemplates: () => ({ openTemplateCreate: vi.fn() }),
-}))
 
 function RouteProbe(): ReactElement {
   const { route } = useRouter()
@@ -32,7 +29,12 @@ async function renderSection(): Promise<void> {
       <TemplatesSection />
       <RouteProbe />
     </>,
-    { app, graph: { root: '/g', name: 'g' }, route: { kind: 'settings' } },
+    {
+      app,
+      graph: { root: '/g', name: 'g' },
+      route: { kind: 'settings' },
+      wrapper: (children) => <NoteTemplatesProvider>{children}</NoteTemplatesProvider>,
+    },
   )
 }
 

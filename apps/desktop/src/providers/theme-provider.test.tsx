@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act } from 'react'
+import { act } from '@/test-utils/act.ts'
 import {
   createThemeService,
   THEME_PREFERENCE_CACHE_KEY,

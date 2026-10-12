@@ -11,6 +11,7 @@ import {
   createTestAiCredentialService,
   createTestAiProviderConfigService,
   createTestLanguageModelService,
+  createTestLoggerService,
   createTestPrivacyService,
   createTestSecretStoreService,
   createTestSettingsService,
@@ -66,7 +67,11 @@ describe('streamTransformTurn', () => {
     const model = new MockLanguageModelV3({
       doStream: async () => textStream(['good', 'bye']),
     })
-    const events = await collect(streamTransformTurn(model, { prompt: 'Fix: teh text' }))
+    const events = await collect(
+      streamTransformTurn({ logger: createTestLoggerService() }, model, {
+        prompt: 'Fix: teh text',
+      }),
+    )
 
     expect(events).toEqual([
       { type: 'text-delta', text: 'good' },
@@ -79,7 +84,11 @@ describe('streamTransformTurn', () => {
     const model = new MockLanguageModelV3({
       doStream: async () => textStream(['ok']),
     })
-    await collect(streamTransformTurn(model, { prompt: 'Fix: teh text' }))
+    await collect(
+      streamTransformTurn({ logger: createTestLoggerService() }, model, {
+        prompt: 'Fix: teh text',
+      }),
+    )
 
     expect(model.doStreamCalls.length).toBe(1)
     const outbound = JSON.stringify(model.doStreamCalls[0]?.prompt)
@@ -93,9 +102,13 @@ describe('streamTransformTurn', () => {
         throw new Error('provider exploded')
       },
     })
-    const events = await collect(streamTransformTurn(model, { prompt: 'x' }))
+    const logger = createTestLoggerService()
+    const events = await collect(streamTransformTurn({ logger }, model, { prompt: 'x' }))
 
     expect(events).toEqual([{ type: 'error', message: 'provider exploded' }])
+    expect(logger.getErrors()).toEqual([
+      { message: 'selection transform stream failed:', cause: new Error('provider exploded') },
+    ])
   })
 
   it('terminates with aborted when the signal fires before the call', async () => {
@@ -105,7 +118,10 @@ describe('streamTransformTurn', () => {
       doStream: async () => textStream(['never']),
     })
     const events = await collect(
-      streamTransformTurn(model, { prompt: 'x', signal: controller.signal }),
+      streamTransformTurn({ logger: createTestLoggerService() }, model, {
+        prompt: 'x',
+        signal: controller.signal,
+      }),
     )
 
     expect(events.at(-1)?.type).toBe('aborted')
@@ -144,6 +160,7 @@ async function createService(
     options.model ?? new MockLanguageModelV3({ doStream: async () => textStream(['good', 'bye']) }),
   )
   const service = createSelectionTransformService({
+    logger: createTestLoggerService(),
     languageModel,
     providerConfig,
     credentials,

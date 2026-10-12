@@ -24,7 +24,6 @@ beforeEach(() => {
 
 afterEach(() => {
   closeDatabase()
-  vi.restoreAllMocks()
 })
 
 /** Bind the app to `index`, over test doubles for the other services. */

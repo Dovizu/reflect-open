@@ -13,9 +13,12 @@ import { invalidateIndexQueries, throttledInvalidateIndexQueries } from '@/lib/q
  * and iCloud download requests.
  */
 export function bindGraphIndex(
-  ctx: Pick<AppServices, 'indexLifecycle' | 'openDocuments' | 'noteMove' | 'icloudNative'>,
+  ctx: Pick<
+    AppServices,
+    'indexLifecycle' | 'openDocuments' | 'noteMove' | 'icloudNative' | 'logger'
+  >,
 ): Unlisten {
-  const { indexLifecycle: index, openDocuments, noteMove, icloudNative } = ctx
+  const { indexLifecycle: index, openDocuments, noteMove, icloudNative, logger } = ctx
   const unlisteners = [
     // Applied watcher batches stream every couple of seconds during a bulk
     // sync — the throttled variant collapses them to one refetch round per
@@ -47,7 +50,7 @@ export function bindGraphIndex(
     // fires for them. Rust resolves against the active root itself.
     index.onStalePlaceholders((paths) => {
       icloudNative.requestDownloads(paths).catch((err: unknown) => {
-        console.error('iCloud download request failed:', errorMessage(err))
+        logger.error('iCloud download request failed:', errorMessage(err))
       })
     }),
   ]

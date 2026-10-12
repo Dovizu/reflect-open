@@ -1,42 +1,40 @@
 import { page, type Locator } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createTestAppServices,
   createTestDialogService,
+  type TestAppServices,
   type TestDialogService,
 } from '@reflect/core/testing'
+import { V1ImportProvider } from '@/providers/v1-import-provider.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
-import type { V1ImportState } from '@/lib/v1-import-state.ts'
+import { ImportSection } from './import-section.tsx'
 
-const startImport = vi.hoisted(() => vi.fn())
-const importState = vi.hoisted((): { state: V1ImportState } => ({
-  state: { phase: 'idle' },
-}))
-
-vi.mock('@/providers/v1-import-provider.tsx', () => ({
-  useV1Import: () => ({
-    state: importState.state,
-    startImport,
-    cancelImport: vi.fn(),
-    dismiss: vi.fn(),
-  }),
-}))
-
-const { ImportSection } = await import('./import-section.tsx')
+const IMPORT_COMMAND = 'graph_import_reflect_v1_zip'
 
 let dialog: TestDialogService
 
 beforeEach(() => {
   dialog = createTestDialogService({ files: ['/Users/alex/Downloads/reflect-v1.zip'] })
-  importState.state = { phase: 'idle' }
 })
 
-afterEach(() => {
-  vi.clearAllMocks()
-})
+/** The section under the workspace's real V1 import, whose native import never finishes. */
+async function renderSection(): Promise<TestAppServices> {
+  const app = createTestAppServices({ dialog })
+  app.ipc.onCommand(IMPORT_COMMAND, () => new Promise<never>(() => {}))
+  await renderInApp(<ImportSection />, {
+    app,
+    graph: { generation: 4 },
+    wrapper: (children) => <V1ImportProvider>{children}</V1ImportProvider>,
+  })
+  return app
+}
 
-async function renderSection(): Promise<void> {
-  await renderInApp(<ImportSection />, { app: createTestAppServices({ dialog }) })
+function importCalls(app: TestAppServices): Record<string, unknown>[] {
+  return app.ipc
+    .calls()
+    .filter((call) => call.command === IMPORT_COMMAND)
+    .map((call) => call.args)
 }
 
 function importButton(): Locator {
@@ -45,7 +43,7 @@ function importButton(): Locator {
 
 describe('ImportSection', () => {
   it('hands the picked Reflect V1 zip to the import controller', async () => {
-    await renderSection()
+    const app = await renderSection()
 
     await importButton().click()
 
@@ -62,25 +60,29 @@ describe('ImportSection', () => {
       ]),
     )
     await vi.waitFor(() =>
-      expect(startImport).toHaveBeenCalledWith('/Users/alex/Downloads/reflect-v1.zip'),
+      expect(importCalls(app)).toEqual([
+        { path: '/Users/alex/Downloads/reflect-v1.zip', generation: 4 },
+      ]),
     )
   })
 
   it('does nothing when the picker is cancelled', async () => {
     dialog.setFiles(null)
-    await renderSection()
+    const app = await renderSection()
 
     await importButton().click()
 
     await vi.waitFor(() => expect(dialog.calls()).toHaveLength(1))
-    expect(startImport).not.toHaveBeenCalled()
+    expect(importCalls(app)).toEqual([])
   })
 
   it('is disabled while an import runs', async () => {
-    importState.state = { phase: 'running', progress: null, cancelling: false }
     await renderSection()
 
-    await expect.element(importButton()).toBeDisabled()
-    expect(importButton().element().textContent).toContain('Importing')
+    await importButton().click()
+
+    // The running import shows its modal dialog, which hides the section from
+    // the accessibility tree: find the button by its text.
+    await expect.element(page.getByText('Importing...')).toBeDisabled()
   })
 })

@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createTestAppServices,

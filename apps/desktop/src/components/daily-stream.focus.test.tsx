@@ -1,6 +1,7 @@
 import { page } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, useEffect } from 'react'
+import { useEffect } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { createSystemClock } from '@reflect/core'
 import { createTestAppServices } from '@reflect/core/testing'
 import { todayIso } from '@/lib/dates.ts'

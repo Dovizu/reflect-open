@@ -49,7 +49,7 @@ const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
 export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps): ReactElement {
   const { settings } = useSettings()
   const { graph } = useGraph()
-  const { meetings } = useAppServices()
+  const { meetings, logger } = useAppServices()
   const [name, setName] = useState(event.title)
   const [attendees, setAttendees] = useState<MeetingAttendee[]>(() => defaultAttendees(event))
   const [createNote, setCreateNote] = useState(event.recurring)
@@ -72,7 +72,7 @@ export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps
       setAttendees((current) => mergeAttendeeUpgrades(current, upgrades))
     }
     upgradeAttendees().catch((cause: unknown) => {
-      console.error('attendee resolution failed:', cause)
+      logger.error('attendee resolution failed:', cause)
     })
     return () => {
       cancelled = true

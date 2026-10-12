@@ -290,7 +290,7 @@ export function NoteEditor({
   onSearchChange,
   handleRef,
 }: NoteEditorProps): ReactElement {
-  const { platform } = useAppServices()
+  const { platform, logger } = useAppServices()
   const touchEditor = platform.surface.touchEditor
   const resolveXPost = useXPostResolver()
   const resolveWikilink = useWikilinkResolver()
@@ -400,7 +400,7 @@ export function NoteEditor({
           openPath !== null && openImage !== null
             ? () => {
                 void Promise.resolve(openImage(openPath)).catch((cause) => {
-                  console.error('open image failed:', errorMessage(cause))
+                  logger.error('open image failed:', errorMessage(cause))
                 })
               }
             : null,

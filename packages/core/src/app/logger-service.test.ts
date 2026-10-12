@@ -1,10 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createConsoleLogger } from './logger-service.ts'
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 
 describe('createConsoleLogger', () => {
   it('forwards each level to the matching console method', () => {

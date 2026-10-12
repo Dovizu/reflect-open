@@ -1,12 +1,9 @@
 import { createRef } from 'react'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { NoteEditor, type NoteEditorHandle } from '@/editor/note-editor.tsx'
 import '@/test-utils/locator.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
-
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }))
 
 const pmRoot = page.locate('.ProseMirror')
 
@@ -26,9 +23,5 @@ describe('NoteEditor smoke', () => {
       expect(onChange).toHaveBeenCalled()
     })
     expect(handleRef.current?.getMarkdown()).toBe('Hello world\n')
-  })
-
-  it('applies module mocks in browser mode', () => {
-    expect(vi.isMockFunction(openUrl)).toBe(true)
   })
 })

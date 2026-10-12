@@ -1,4 +1,5 @@
 import { defineESLintConfig } from '@ocavue/eslint-config'
+import { architectureConfigs } from './eslint.architecture.js'
 
 export default defineESLintConfig(
   {
@@ -54,4 +55,5 @@ export default defineESLintConfig(
       'unicorn/no-unnecessary-splice': 'off',
     },
   },
+  ...architectureConfigs,
 )

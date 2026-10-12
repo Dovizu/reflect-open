@@ -1,5 +1,6 @@
 import {
   isOstensiblyEmptyNoteSource,
+  type ChatSession,
   type GraphSessionService,
   type LinkNavigationService,
   type NativeMenuService,
@@ -25,7 +26,15 @@ import { isModEvent } from '@meowdown/core'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { PaletteProvider, usePalette } from '@/components/command-palette/palette-provider.tsx'
+import {
+  registerNoteEditorHandle,
+  unregisterNoteEditorHandle,
+} from '@/editor/editor-handle-registry.ts'
+import type { NoteEditorHandle } from '@/editor/note-editor.tsx'
 import { registerAppKeymaps } from '@/lib/shortcuts.ts'
+import { AudioMemoProvider } from '@/providers/audio-memo-provider.tsx'
+import { ChatProvider } from '@/providers/chat-provider.tsx'
+import { NoteFindProvider, useNoteFind } from '@/providers/note-find-provider.tsx'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
@@ -35,27 +44,29 @@ import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useAppShortcuts } from './app-shortcuts.ts'
 import { useRouter } from './router.tsx'
 
-const GRAPH: TestOpenGraph = { root: '/g', name: 'g', generation: 1 }
+const GRAPH = { root: '/g', name: 'g', generation: 1 } satisfies TestOpenGraph
 
-const newChat = vi.hoisted(() => vi.fn())
+// `newChat` of the chat session the rendered `ChatProvider` created; set by `shortcutsHook`.
+let newChat: MockInstance<ChatSession['newChat']>
 
-const openNoteFindForPath = vi.hoisted(() => vi.fn(() => true))
-const findNextInNote = vi.hoisted(() => vi.fn())
-const findPreviousInNote = vi.hoisted(() => vi.fn())
-
-vi.mock('@/providers/note-find-provider.tsx', () => ({
-  useNoteFindActions: () => ({
-    openForPath: openNoteFindForPath,
-    next: findNextInNote,
-    previous: findPreviousInNote,
-  }),
-}))
-vi.mock('@/providers/audio-memo-provider.tsx', () => ({
-  useAudioMemo: () => ({ toggle: vi.fn() }),
-}))
-vi.mock('@/providers/chat-provider.tsx', () => ({
-  useChatSession: () => ({ newChat }),
-}))
+/** An editor handle that records the Find traversal and ignores the rest. */
+function findHandle(findNext: () => void, findPrevious: () => void): NoteEditorHandle {
+  return {
+    getMarkdown: () => '',
+    setMarkdown: () => {},
+    insertMarkdown: () => {},
+    focus: () => {},
+    setSelection: () => {},
+    getSelectedText: () => '',
+    openSelectionMenu: () => {},
+    startPendingReplacement: () => false,
+    appendPendingReplacementText: () => {},
+    acceptPendingReplacement: () => {},
+    discardPendingReplacement: () => {},
+    findNext,
+    findPrevious,
+  }
+}
 
 // What the app's note documents answer; reset before each test.
 const commitNoteFrontmatter = vi.fn<NoteDocumentService['commitFrontmatter']>()
@@ -76,9 +87,6 @@ beforeEach(() => {
     hasMacosTitleBarOverlay: false,
   }
   commitNoteFrontmatter.mockReset().mockResolvedValue(undefined)
-  openNoteFindForPath.mockClear()
-  findNextInNote.mockClear()
-  findPreviousInNote.mockClear()
 })
 
 async function shortcutsHook(client?: QueryClient) {
@@ -100,6 +108,12 @@ async function shortcutsHook(client?: QueryClient) {
     .spyOn(services.linkNavigation, 'openRouteInNewWindow')
     .mockResolvedValue(true)
   isNativeMenuInstalled = vi.spyOn(services.nativeMenu, 'isInstalled').mockReturnValue(false)
+  const createChatSession = services.chatSessions.create
+  vi.spyOn(services.chatSessions, 'create').mockImplementation((options) => {
+    const session = createChatSession(options)
+    newChat = vi.spyOn(session, 'newChat')
+    return session
+  })
   return await renderHookInApp(
     () => {
       const context = useAppShortcuts()
@@ -108,6 +122,7 @@ async function shortcutsHook(client?: QueryClient) {
         setFocusedDailyDate: useSetFocusedDailyDate(),
         router: useRouter(),
         palette: usePalette(),
+        noteFind: useNoteFind(),
         shortcuts: useShortcuts(),
         sidebar: useSidebar(),
       }
@@ -130,7 +145,13 @@ async function shortcutsHook(client?: QueryClient) {
             <ShortcutsProvider>
               <NoteTemplatesProvider>
                 <SidebarProvider>
-                  <FocusedDailyProvider>{children}</FocusedDailyProvider>
+                  <FocusedDailyProvider>
+                    <NoteFindProvider>
+                      <AudioMemoProvider graph={GRAPH}>
+                        <ChatProvider graph={GRAPH}>{children}</ChatProvider>
+                      </AudioMemoProvider>
+                    </NoteFindProvider>
+                  </FocusedDailyProvider>
                 </SidebarProvider>
               </NoteTemplatesProvider>
             </ShortcutsProvider>
@@ -350,14 +371,21 @@ describe('app shortcuts', () => {
       throw new Error('expected the new-note route')
     }
 
+    const findNext = vi.fn()
+    const findPrevious = vi.fn()
+    const handle = findHandle(findNext, findPrevious)
+    registerNoteEditorHandle(opened.path, handle)
+
+    expect(result.current.noteFind.open).toBe(false)
     await act(() => press('f'))
-    expect(openNoteFindForPath).toHaveBeenCalledWith(opened.path)
+    expect(result.current.noteFind.open).toBe(true)
 
     await act(() => press('g'))
-    expect(findNextInNote).toHaveBeenCalledTimes(1)
+    expect(findNext).toHaveBeenCalledTimes(1)
 
     await act(() => press('g', { shiftKey: true }))
-    expect(findPreviousInNote).toHaveBeenCalledTimes(1)
+    expect(findPrevious).toHaveBeenCalledTimes(1)
+    unregisterNoteEditorHandle(opened.path, handle)
   })
 
   it(String.raw`⌘\ toggles the sidebar in both directions`, async () => {
@@ -395,7 +423,6 @@ describe('app shortcuts', () => {
   })
 
   it('⌘⇧N starts a fresh chat when the chat route is active', async () => {
-    newChat.mockClear()
     const { result, act } = await shortcutsHook()
 
     await act(() => press('j'))
@@ -406,7 +433,6 @@ describe('app shortcuts', () => {
   })
 
   it('⌘⇧N is inert outside the chat route', async () => {
-    newChat.mockClear()
     const { result, act } = await shortcutsHook()
 
     await act(() => press('n', { shiftKey: true }))

@@ -31,7 +31,7 @@ interface NoteActionsMenuProps {
  */
 export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): ReactElement {
   const { graph } = useGraph()
-  const { noteActions, share: shareService } = useAppServices()
+  const { noteActions, share: shareService, logger } = useAppServices()
   const queryClient = useQueryClient()
   const isPinned = usePinnedNotes().some((note) => note.path === path)
   const { row: noteRow, settled: privacyReady } = useNoteRowState(path)
@@ -69,7 +69,7 @@ export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): Reac
 
   const share = (): void => {
     void shareNote({ share: shareService }, path).catch((cause) =>
-      console.error('share failed:', errorMessage(cause)),
+      logger.error('share failed:', errorMessage(cause)),
     )
   }
 

@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { page } from 'vitest/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -6,12 +6,9 @@ import {
   publishFormattingToolbar,
   type FormattingToolbar,
 } from '@/editor/formatting-toolbar-store.ts'
-import { pickFiles } from '@/lib/pick-files.ts'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { MobileFormattingToolbar } from './formatting-toolbar.tsx'
-
-vi.mock('@/lib/pick-files.ts', () => ({ pickFiles: vi.fn(async () => []) }))
 
 function makeToolbar(
   capabilities: Partial<FormattingToolbar['capabilities']> = {},
@@ -120,17 +117,31 @@ describe('MobileFormattingToolbar', () => {
   })
 
   it('hands the picked images to the editor', async () => {
-    const picked = [new File(['png'], 'photo.png', { type: 'image/png' })]
-    vi.mocked(pickFiles).mockResolvedValueOnce(picked)
+    // The OS file picker cannot be answered from a test: the input's `click`
+    // is where it would open, so the files are chosen there instead.
+    const inputs: HTMLInputElement[] = []
+    vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(function (
+      this: HTMLInputElement,
+    ) {
+      inputs.push(this)
+      const chosen = new DataTransfer()
+      chosen.items.add(new File(['png'], 'photo.png', { type: 'image/png' }))
+      this.files = chosen.files
+      this.dispatchEvent(new Event('change'))
+    })
     const toolbar = makeToolbar()
     await renderInApp(<MobileFormattingToolbar />)
     act(() => publishFormattingToolbar(owner, toolbar))
 
     fireEvent.click(page.getByRole('button', { name: 'Insert image' }))
 
-    expect(pickFiles).toHaveBeenCalledWith({ accept: 'image/*', multiple: true })
+    expect(inputs.map((input) => [input.type, input.accept, input.multiple])).toEqual([
+      ['file', 'image/*', true],
+    ])
     await vi.waitFor(() => {
-      expect(toolbar.commands.attachFiles).toHaveBeenCalledWith(picked)
+      expect(toolbar.commands.attachFiles).toHaveBeenCalledOnce()
     })
+    const attached = vi.mocked(toolbar.commands.attachFiles).mock.lastCall?.[0] ?? []
+    expect(attached.map((file) => [file.name, file.type])).toEqual([['photo.png', 'image/png']])
   })
 })

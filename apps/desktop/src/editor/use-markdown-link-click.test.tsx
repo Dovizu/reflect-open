@@ -1,4 +1,5 @@
-import { act, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import type { LinkClickHandler } from '@meowdown/core'

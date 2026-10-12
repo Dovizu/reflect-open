@@ -1,18 +1,9 @@
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GraphInfo } from '@reflect/core'
-import type { ContextSidebarTarget } from '@/components/context-sidebar/sidebar-route.ts'
+import type { ReactElement } from 'react'
+import type { GraphInfo, Route } from '@reflect/core'
+import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
-
-interface WorkspaceState {
-  collapsed: boolean
-  target: ContextSidebarTarget | null
-}
-
-const workspaceState = vi.hoisted<WorkspaceState>(() => ({
-  collapsed: false,
-  target: { kind: 'daily', date: '2026-07-11' },
-}))
 
 vi.mock('@/components/command-palette/command-palette.tsx', () => ({
   CommandPalette: () => null,
@@ -36,29 +27,38 @@ vi.mock('@/components/templates/template-create-dialog.tsx', () => ({
   TemplateCreateDialog: () => null,
 }))
 vi.mock('@/components/templates/template-picker.tsx', () => ({ TemplatePicker: () => null }))
-vi.mock('@/providers/focused-daily-provider.tsx', () => ({
-  useDailyContextTarget: () => workspaceState.target,
-}))
-vi.mock('@/providers/sidebar-provider.tsx', () => ({
-  useSidebar: () => ({ collapsed: workspaceState.collapsed, toggleSidebar: vi.fn() }),
-}))
 vi.mock('@/routing/app-shortcuts.ts', () => ({ useAppShortcuts: () => ({}) }))
 
 const { WorkspaceContent } = await import('./workspace-content.tsx')
 
 const GRAPH: GraphInfo = { root: '/notes', name: 'Notes', generation: 1 }
 
-function renderWorkspace() {
-  return renderInApp(<WorkspaceContent graph={GRAPH} />, {
-    graph: GRAPH,
-    // The AppShell asides mount resize handles, which read the persisted widths.
-    settings: { sidebarWidth: 260, contextSidebarWidth: 320 },
-  })
+/** Stands in for the "Toggle sidebar" command, which lives in the mocked shortcuts. */
+function SidebarToggle(): ReactElement {
+  const { toggleSidebar } = useSidebar()
+  return (
+    <button type="button" onClick={toggleSidebar}>
+      Toggle sidebar
+    </button>
+  )
+}
+
+function renderWorkspace(route: Route) {
+  return renderInApp(
+    <SidebarProvider>
+      <WorkspaceContent graph={GRAPH} />
+      <SidebarToggle />
+    </SidebarProvider>,
+    {
+      graph: GRAPH,
+      route,
+      // The AppShell asides mount resize handles, which read the persisted widths.
+      settings: { sidebarWidth: 260, contextSidebarWidth: 320 },
+    },
+  )
 }
 
 beforeEach(async () => {
-  workspaceState.collapsed = false
-  workspaceState.target = { kind: 'daily', date: '2026-07-11' }
   // The context sidebar is `hidden lg:block`, so it only renders on a
   // desktop-width viewport.
   await page.viewport(1280, 800)
@@ -70,30 +70,31 @@ afterEach(async () => {
 
 describe('WorkspaceContent', () => {
   it('hides and restores the workspace and daily context sidebars together', async () => {
-    const view = await renderWorkspace()
+    const view = await renderWorkspace({ kind: 'daily', date: '2026-07-11' })
+    const toggle = view.getByRole('button', { name: 'Toggle sidebar' })
 
     await expect.element(view.getByRole('complementary', { name: 'Workspace' })).toBeInTheDocument()
     await expect.element(view.getByRole('complementary', { name: 'Context' })).toBeInTheDocument()
     expect(view.getByTestId('daily-context').element().textContent).toBe('2026-07-11')
 
-    workspaceState.collapsed = true
-    await view.rerender(<WorkspaceContent graph={GRAPH} />)
-    expect(view.getByRole('complementary', { name: 'Workspace' }).query()).toBeNull()
+    await toggle.click()
+    await expect
+      .element(view.getByRole('complementary', { name: 'Workspace' }))
+      .not.toBeInTheDocument()
     expect(view.getByRole('complementary', { name: 'Context' }).query()).toBeNull()
 
-    workspaceState.collapsed = false
-    await view.rerender(<WorkspaceContent graph={GRAPH} />)
+    await toggle.click()
     await expect.element(view.getByRole('complementary', { name: 'Workspace' })).toBeInTheDocument()
     await expect.element(view.getByRole('complementary', { name: 'Context' })).toBeInTheDocument()
   })
 
   it('applies the same collapsed state to ordinary note context', async () => {
-    workspaceState.target = { kind: 'note', path: 'notes/project.md' }
-    const view = await renderWorkspace()
+    const view = await renderWorkspace({ kind: 'note', path: 'notes/project.md' })
     expect(view.getByTestId('note-context').element().textContent).toBe('notes/project.md')
 
-    workspaceState.collapsed = true
-    await view.rerender(<WorkspaceContent graph={GRAPH} />)
-    expect(view.getByRole('complementary', { name: 'Context' }).query()).toBeNull()
+    await view.getByRole('button', { name: 'Toggle sidebar' }).click()
+    await expect
+      .element(view.getByRole('complementary', { name: 'Context' }))
+      .not.toBeInTheDocument()
   })
 })

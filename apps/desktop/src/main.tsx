@@ -22,7 +22,7 @@ warmPlatformRoot()
 registerAppCommands(appServices.commands)
 registerAppKeymaps(appServices.keymap)
 installNativeMenu(appServices.nativeMenu).catch((cause: unknown) => {
-  console.error('failed to install the native menu', cause)
+  appServices.logger.error('failed to install the native menu', cause)
 })
 
 const rootElement = document.getElementById('root')

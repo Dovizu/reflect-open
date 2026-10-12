@@ -3,7 +3,11 @@ import { generateText, streamText } from '@reflect/modules/ai'
 import { describe, expect, it } from 'vitest'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import { APP_REVIEW_STUB_KEY, createDemoModel, DEMO_REPLY_TEXT } from './app-review-demo.ts'
-import { createTestHttpService, createTestNoteToolsService } from '../testing/index.ts'
+import {
+  createTestHttpService,
+  createTestLoggerService,
+  createTestNoteToolsService,
+} from '../testing/index.ts'
 import { createChatEngineService, type ChatStreamEvent } from './chat/chat-engine-service.ts'
 import { fitToContextWindow } from './chat/context-window.ts'
 import {
@@ -46,6 +50,7 @@ describe('createDemoModel', () => {
     // No route answers: any request the demo sent would fail the turn.
     const http = createTestHttpService()
     const engine = createChatEngineService({
+      logger: createTestLoggerService(),
       languageModel: withAppReviewDemo(
         createLanguageModelService({ http, sdk: createLazyAiSdkLoader() }),
       ),
