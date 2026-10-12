@@ -69,6 +69,7 @@ import {
   createTestNoteMoveService,
   createTestNoteSessionService,
   createTestNoteDocumentService,
+  createTestNotePreviewService,
   createTestOpenDocumentsService,
   createTestTitleRenameService,
   type TestNoteMoveService,
@@ -336,6 +337,25 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: overrides?.mobileStorage ?? mobileStorage,
     logger,
   })
+  const opener = createTestOpenerService({ logger })
+  const deepLink = createTestDeepLinkService({
+    indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
+    captureInbox: overrides?.captureInbox ?? captureInbox,
+    operations: overrides?.operations ?? operations,
+    id: overrides?.id ?? id,
+    clock: overrides?.clock ?? clock,
+    logger,
+  })
+  const attachments = createTestAttachmentService()
+  const noteCreation = createTestNoteCreationService({
+    noteFile: overrides?.noteFile ?? noteFile,
+    noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+    id: overrides?.id ?? id,
+  })
+  const noteDocuments = createTestNoteDocumentService({
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
   const services: TestAppServices = {
     ipc,
     logger: testLogger,
@@ -347,7 +367,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     http,
     dialog,
     clipboard: createTestClipboardService(),
-    opener: createTestOpenerService({ logger }),
+    opener,
     path,
     window: windowService,
     lifecycle,
@@ -370,14 +390,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
-    deepLink: createTestDeepLinkService({
-      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
-      captureInbox: overrides?.captureInbox ?? captureInbox,
-      operations: overrides?.operations ?? operations,
-      id: overrides?.id ?? id,
-      clock: overrides?.clock ?? clock,
-      logger,
-    }),
+    deepLink,
     gitRepository: createTestGitRepositoryService(),
     githubAuth: createTestGithubAuthService({
       secretStore: overrides?.secretStore ?? secretStore,
@@ -404,7 +417,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     paywall: createTestPaywallService(),
     noteFile,
     assetStore: createTestAssetStoreService(),
-    attachments: createTestAttachmentService(),
+    attachments,
     noteSessions: createTestNoteSessionService({
       noteFile: overrides?.noteFile ?? noteFile,
       clock: overrides?.clock ?? clock,
@@ -425,17 +438,15 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     keyboard: createTestKeyboardService(),
     share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
-    noteDocuments: createTestNoteDocumentService({
-      openDocuments: overrides?.openDocuments ?? openDocuments,
-      noteFile: overrides?.noteFile ?? noteFile,
+    noteDocuments,
+    notePreview: createTestNotePreviewService({
+      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      attachments: overrides?.attachments ?? attachments,
     }),
     ...indexReads,
     noteLinkResolver,
-    noteCreation: createTestNoteCreationService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
-      id: overrides?.id ?? id,
-    }),
+    noteCreation,
     privacy,
     indexLifecycle,
     graphSession,

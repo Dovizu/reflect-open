@@ -376,6 +376,14 @@ export {
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export {
+  createNotePreviewService,
+  defaultNotePreview,
+  setDefaultNotePreview,
+  type NotePreview,
+  type NotePreviewService,
+  type NotePreviewServiceDeps,
+} from '../documents/note-preview-service.ts'
+export {
   createOpenDocumentsService,
   defaultOpenDocuments,
   setDefaultOpenDocuments,

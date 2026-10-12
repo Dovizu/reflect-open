@@ -103,6 +103,10 @@ import {
   createNoteDocumentService,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
+import {
+  createNotePreviewService,
+  type NotePreviewService,
+} from '../documents/note-preview-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
   createOpenDocumentsService,
@@ -285,6 +289,7 @@ export interface AppServices {
   readonly noteMove: NoteMoveService
   readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
+  readonly notePreview: NotePreviewService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -507,6 +512,26 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage,
     logger,
   })
+  const opener = createOpenerService({ transport: adapters.opener, logger })
+  const deepLink = createDeepLinkService({
+    source: adapters.deepLink ?? createNoDeepLinkSource(),
+    indexQuery: indexReads.indexQuery,
+    captureInbox,
+    operations,
+    id,
+    clock,
+    logger,
+  })
+  const attachments = createAttachmentService({
+    assetStore,
+    noteFile,
+    fileChanges,
+    dialog: adapters.dialog,
+    operations,
+    clock,
+    platform,
+  })
+  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
   return {
     ipc,
     logger,
@@ -518,7 +543,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     http: adapters.http,
     dialog: adapters.dialog,
     clipboard: adapters.clipboard,
-    opener: createOpenerService({ transport: adapters.opener, logger }),
+    opener,
     path,
     window: windowService,
     lifecycle,
@@ -545,15 +570,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     navigation: createNavigationService(),
-    deepLink: createDeepLinkService({
-      source: adapters.deepLink ?? createNoDeepLinkSource(),
-      indexQuery: indexReads.indexQuery,
-      captureInbox,
-      operations,
-      id,
-      clock,
-      logger,
-    }),
+    deepLink,
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,
@@ -583,15 +600,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     fileChanges,
     noteFile,
     assetStore,
-    attachments: createAttachmentService({
-      assetStore,
-      noteFile,
-      fileChanges,
-      dialog: adapters.dialog,
-      operations,
-      clock,
-      platform,
-    }),
+    attachments,
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
     noteMove,
@@ -608,7 +617,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments,
+    notePreview: createNotePreviewService({
+      noteLinkResolver: noteServices.noteLinkResolver,
+      noteDocuments,
+      attachments,
+    }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

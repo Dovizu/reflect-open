@@ -84,6 +84,7 @@ const SERVICE_KEYS = [
   'noteList',
   'graphStats',
   'notePath',
+  'notePreview',
   'noteLinkResolver',
   'noteCreation',
   'privacy',

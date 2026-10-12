@@ -1,6 +1,6 @@
-import { defaultNoteDocuments } from '@reflect/core'
+import { defaultNotePreview } from '@reflect/core'
 
-/** Read an existing note without disturbing its editor session: `NoteDocumentService.readExisting`. */
+/** Read an existing note without disturbing its editor session: `NotePreviewService.readExistingNoteSource`. */
 export async function readExistingNoteSource(path: string, generation: number): Promise<string> {
-  return await defaultNoteDocuments().readExisting(path, generation)
+  return await defaultNotePreview().readExistingNoteSource(path, generation)
 }
