@@ -1,7 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
-import { dateFromDailyPath, type NoteRow, type PinnedNote } from '@reflect/core'
+import { dateFromDailyPath, isValidPinOrder, type NoteRow, type PinnedNote } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
-import { isValidPinOrder } from './pin-order.ts'
 
 /**
  * Apply an optimistic update to the pinned-notes cache. The markdown/index

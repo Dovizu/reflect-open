@@ -1,24 +1,19 @@
-import { startOperation } from '@/lib/operations.ts'
-import {
-  errorMessage,
-  getBacklinks,
-  getLinkSources,
-  getPathLinkSources,
-  isReflectManagedNote,
-  readNote,
-  resolveWikiTarget,
-  rewriteLinksForTitleChange,
-  rewritePathLinksForMove,
-  slugPathForTitle,
-  writeNote,
-  type ClockService,
-} from '@reflect/core'
+import { defaultClock, type ClockService } from '../app/clock-service.ts'
+import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import { errorMessage } from '../errors.ts'
+import { isReflectManagedNote } from '../graph/note-management.ts'
+import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import { defaultBacklinks, type BacklinkService } from '../indexing/backlink-service.ts'
+import { defaultNotePath, type NotePathService } from '../indexing/note-path-service.ts'
+import { rewriteLinksForTitleChange, rewritePathLinksForMove } from '../indexing/rename.ts'
+import { defaultWikiResolver, type WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { placeOldTitleAlias } from './alias-placement.ts'
-import { moveNoteCarryingSession } from './move-note.ts'
-import type { NoteContentOrigin } from './note-session.ts'
+import { defaultNoteMove, type NoteMoveService } from './note-move-service.ts'
+import type { NoteContentOrigin } from './note-session-types.ts'
+import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
 import { composeRenameFailure, type RenamePhaseFailures } from './rename-failure.ts'
-import type { TitleRename } from './title-rename.ts'
-import { createTitleRenameTracker } from './title-rename.ts'
+import { createTitleRenameTracker, type TitleRename } from './title-rename-tracker.ts'
 
 /**
  * Owns one note's auto-rename lifecycle: the settled-title tracker, serialized
@@ -33,7 +28,7 @@ import { createTitleRenameTracker } from './title-rename.ts'
  * 1. **Rewrite** inbound title targets and title-mirroring displays;
  * 2. **Alias** the old title onto this note (`alias-placement.ts`) — the
  *    safety net for links the rewrite missed;
- * 3. **Move** the file onto the new title's slug (`move-note.ts`).
+ * 3. **Move** the file onto the new title's slug (`note-move-service.ts`).
  *
  * A *birth* (the first authored title on an untitled note) runs phase 3 alone
  * for Reflect-managed notes; other notes already have their permanent path.
@@ -61,8 +56,6 @@ export interface RenameCoordinatorOptions {
    * content the title came from; "keep mine" re-arms, "load theirs" cancels).
    */
   canFire: () => boolean
-  /** Runs the title tracker's quiet timer. Defaults to the process-wide clock. */
-  clock?: ClockService | undefined
 }
 
 export interface RenameCoordinator {
@@ -75,7 +68,49 @@ export interface RenameCoordinator {
   dispose(): void
 }
 
-export function createRenameCoordinator(options: RenameCoordinatorOptions): RenameCoordinator {
+/** Keeps inbound links, aliases and filenames following each note's settled title. */
+export interface TitleRenameService {
+  /** The auto-rename lifecycle of one open note; the caller disposes it. */
+  createCoordinator(options: RenameCoordinatorOptions): RenameCoordinator
+}
+
+export interface TitleRenameServiceDeps {
+  noteFile: Pick<NoteFileService, 'read' | 'write'>
+  wikiResolver: Pick<
+    WikiResolverService,
+    'resolveWikiTarget' | 'getLinkSources' | 'getPathLinkSources'
+  >
+  backlinks: Pick<BacklinkService, 'getBacklinks'>
+  notePath: Pick<NotePathService, 'slugPathForTitle'>
+  noteMove: Pick<NoteMoveService, 'moveNote'>
+  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  operations: Pick<OperationsService, 'start'>
+  /** Runs each title tracker's quiet timer. */
+  clock: ClockService
+  logger: Pick<LoggerService, 'error'>
+}
+
+export function createTitleRenameService(deps: TitleRenameServiceDeps): TitleRenameService {
+  return {
+    createCoordinator: (options) => createRenameCoordinator(deps, options),
+  }
+}
+
+function createRenameCoordinator(
+  deps: TitleRenameServiceDeps,
+  options: RenameCoordinatorOptions,
+): RenameCoordinator {
+  const {
+    noteFile,
+    wikiResolver,
+    backlinks,
+    notePath,
+    noteMove,
+    openDocuments,
+    operations,
+    clock,
+    logger,
+  } = deps
   const { generation, canFire } = options
   /** The note's current path — a landed move advances it (Plan 17). */
   let currentPath = options.path
@@ -96,12 +131,12 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
     gen: number,
     options?: { rewriteInboundPathLinks?: boolean },
   ): Promise<void> => {
-    const target = await slugPathForTitle(currentPath, title)
+    const target = await notePath.slugPathForTitle(currentPath, title)
     if (target === currentPath) {
       return
     }
     const from = currentPath
-    await moveNoteCarryingSession(from, target, gen)
+    await noteMove.moveNote(from, target, gen)
     currentPath = target
     // Retarget inbound `[[notes/…]]` path links only after the move landed: a
     // refused move then touches nothing (rollback for free), while the
@@ -114,12 +149,14 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
     if (options?.rewriteInboundPathLinks === true) {
       try {
         await rewritePathLinksForMove(from, target, {
-          pathLinkSources: getPathLinkSources,
-          read: readNote,
-          write: (forPath, contents) => writeNote(forPath, contents, gen),
+          pathLinkSources: (targetPathKey) => wikiResolver.getPathLinkSources(targetPathKey),
+          read: (forPath) => noteFile.read(forPath),
+          write: async (forPath, contents) => {
+            await noteFile.write(forPath, contents, gen)
+          },
         })
       } catch (cause) {
-        console.error('path link rewrite failed:', cause)
+        logger.error('path link rewrite failed:', cause)
       }
     }
   }
@@ -137,7 +174,7 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
         // which requires a generation; an unmounted pane's ref keeps its
         // non-null value) — but the tracker's baseline has already advanced,
         // so if a future caller gets here the drop must be loud, not silent.
-        console.error(
+        logger.error(
           `rename dropped (no graph generation): "${rename.from ?? ''}" → "${rename.to}" on ${currentPath}`,
         )
         return
@@ -149,12 +186,12 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
         // A birth: the first authored title on an untitled note. Nothing
         // links to a title that never existed — no rewrite, no alias — but
         // the file sheds its placeholder name for the title's slug.
-        const operation = startOperation(`Naming "${rename.to}"`)
+        const operation = operations.start(`Naming "${rename.to}"`)
         try {
           await runMove(rename.to, gen)
           operation.done()
         } catch (cause) {
-          console.error('note file move failed:', cause)
+          logger.error('note file move failed:', cause)
           operation.fail(
             `${errorMessage(cause)} — the note keeps its placeholder filename; the title and its links are unaffected`,
           )
@@ -162,7 +199,7 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
         return
       }
       const from = rename.from
-      const operation = startOperation(`Renaming "${from}" → "${rename.to}"`)
+      const operation = operations.start(`Renaming "${from}" → "${rename.to}"`)
       // The phases fail independently and the report says what held — the
       // permutations live in `composeRenameFailure`.
       const failures: RenamePhaseFailures = { rewrite: null, alias: null, move: null }
@@ -174,11 +211,13 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
             from,
             to: rename.to,
             io: {
-              sources: getLinkSources,
-              backlinks: getBacklinks,
-              read: readNote,
-              write: (forPath, contents) => writeNote(forPath, contents, gen),
-              resolve: resolveWikiTarget,
+              sources: (targetKey) => wikiResolver.getLinkSources(targetKey),
+              backlinks: (forPath) => backlinks.getBacklinks(forPath),
+              read: (forPath) => noteFile.read(forPath),
+              write: async (forPath, contents) => {
+                await noteFile.write(forPath, contents, gen)
+              },
+              resolve: (target) => wikiResolver.resolveWikiTarget(target),
             },
             onProgress: operation.progress,
           })
@@ -189,7 +228,7 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
           // stale `from` after further edits), so the alias is the safety
           // net that keeps every un-rewritten link resolving to this note.
           failures.rewrite = errorMessage(cause)
-          console.error('rename link rewrite failed:', cause)
+          logger.error('rename link rewrite failed:', cause)
         }
         // The tracker only marks a continuing chain (the title the previous
         // rename left behind); what that rename actually added is remembered
@@ -200,13 +239,14 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
         if (!collision) {
           try {
             autoAliases = await placeOldTitleAlias(
+              { noteFile, openDocuments },
               currentPath,
               { from, to: rename.to, previousAutoAliases },
               gen,
             )
           } catch (cause) {
             failures.alias = errorMessage(cause)
-            console.error('rename alias placement failed:', cause)
+            logger.error('rename alias placement failed:', cause)
           }
         }
         // Link maintenance applies to every editable note. Filename projection
@@ -216,7 +256,7 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
             await runMove(rename.to, gen, { rewriteInboundPathLinks: true })
           } catch (cause) {
             failures.move = errorMessage(cause)
-            console.error('note file move failed:', cause)
+            logger.error('note file move failed:', cause)
           }
         }
       } finally {
@@ -234,7 +274,7 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
     path: options.path,
     onRename: runRename,
     canFire,
-    clock: options.clock,
+    clock,
   })
 
   return {
@@ -256,4 +296,65 @@ export function createRenameCoordinator(options: RenameCoordinatorOptions): Rena
       tracker.dispose()
     },
   }
+}
+
+let installedService: TitleRenameService | null = null
+let fallback: {
+  service: TitleRenameService
+  deps: readonly unknown[]
+} | null = null
+
+/**
+ * The process-wide `TitleRenameService`. Unless one is installed, it runs over
+ * the current default note file, wiki resolver, backlink, note path, note
+ * move, open documents, operations, clock and logger services, and is rebuilt
+ * when any of them is replaced.
+ */
+export function defaultTitleRename(): TitleRenameService {
+  if (installedService !== null) {
+    return installedService
+  }
+  const noteFile = defaultNoteFile()
+  const wikiResolver = defaultWikiResolver()
+  const backlinks = defaultBacklinks()
+  const notePath = defaultNotePath()
+  const noteMove = defaultNoteMove()
+  const openDocuments = defaultOpenDocuments()
+  const operations = defaultOperations()
+  const clock = defaultClock()
+  const logger = defaultLogger()
+  const deps = [
+    noteFile,
+    wikiResolver,
+    backlinks,
+    notePath,
+    noteMove,
+    openDocuments,
+    operations,
+    clock,
+    logger,
+  ]
+  if (fallback === null || fallback.deps.some((dep, index) => dep !== deps[index])) {
+    fallback = {
+      service: createTitleRenameService({
+        noteFile,
+        wikiResolver,
+        backlinks,
+        notePath,
+        noteMove,
+        openDocuments,
+        operations,
+        clock,
+        logger,
+      }),
+      deps,
+    }
+  }
+  return fallback.service
+}
+
+/** Install the process-wide `TitleRenameService`; `null` restores the one over the defaults. */
+export function setDefaultTitleRename(service: TitleRenameService | null): void {
+  installedService = service
+  fallback = null
 }

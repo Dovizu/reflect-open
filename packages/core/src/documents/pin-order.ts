@@ -1,5 +1,5 @@
 import { clamp } from '@ocavue/utils'
-import type { PinnedNote } from '@reflect/core'
+import type { PinnedNote } from '../indexing/index-query-service.ts'
 
 /**
  * Spacing between orders when the shelf is numbered from scratch.

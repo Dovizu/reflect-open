@@ -27,7 +27,7 @@ import type { OpenDocumentsService } from './open-documents-service.ts'
  * ```ts
  * useEffect(() => {
  *   const { session, created } = binding.bind(path, {
- *     coordinator: () => createRenameCoordinator({ ... }),
+ *     coordinator: () => titleRename.createCoordinator({ ... }),
  *     session: (coordinator) => noteSessions.create({ ... }),
  *   })
  *   if (created) session.load()            // adopted sessions are already live

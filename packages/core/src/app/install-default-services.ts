@@ -32,10 +32,17 @@ import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
+import { setDefaultNoteActions } from '../documents/note-actions-service.ts'
 import { setDefaultNoteDocuments } from '../documents/note-document-service.ts'
+import { setDefaultNoteRows } from '../documents/note-row-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
+import { setDefaultNoteMove } from '../documents/note-move-service.ts'
 import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
+import { setDefaultTitleRename } from '../documents/title-rename-service.ts'
+import { setDefaultEmbeddingIndex } from '../embeddings/embedding-index-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
+import { setDefaultRetrieval } from '../embeddings/retrieval-service.ts'
+import { setDefaultSemanticSearch } from '../embeddings/semantic-search-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
@@ -147,9 +154,13 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAttachments(services.attachments)
   setDefaultNoteSessions(services.noteSessions)
   setDefaultOpenDocuments(services.openDocuments)
+  setDefaultNoteMove(services.noteMove)
+  setDefaultTitleRename(services.titleRename)
   setDefaultKeyboard(services.keyboard)
   setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
+  setDefaultNoteActions(services.noteActions)
+  setDefaultNoteRows(services.noteRows)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -162,6 +173,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteCreation(services.noteCreation)
   setDefaultPrivacy(services.privacy)
   setDefaultIndexLifecycle(services.indexLifecycle)
+  setDefaultRetrieval(services.retrieval)
+  setDefaultEmbeddingIndex(services.embeddingIndex)
+  setDefaultSemanticSearch(services.semanticSearch)
   setDefaultAiCredentials(services.aiCredentials)
   setDefaultAiKeyValidation(services.aiKeyValidation)
   setDefaultLanguageModel(services.languageModel)
@@ -238,9 +252,13 @@ export function resetDefaultServices(): void {
   setDefaultAttachments(null)
   setDefaultNoteSessions(null)
   setDefaultOpenDocuments(null)
+  setDefaultNoteMove(null)
+  setDefaultTitleRename(null)
   setDefaultKeyboard(null)
   setDefaultShare(null)
   setDefaultNoteDocuments(null)
+  setDefaultNoteActions(null)
+  setDefaultNoteRows(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)
@@ -253,6 +271,9 @@ export function resetDefaultServices(): void {
   setDefaultNoteCreation(null)
   setDefaultPrivacy(null)
   setDefaultIndexLifecycle(null)
+  setDefaultRetrieval(null)
+  setDefaultEmbeddingIndex(null)
+  setDefaultSemanticSearch(null)
   setDefaultAiCredentials(null)
   setDefaultAiKeyValidation(null)
   setDefaultLanguageModel(null)

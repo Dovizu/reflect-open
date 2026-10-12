@@ -404,12 +404,60 @@ export {
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export {
+  canTrashNote,
+  createNoteActionsService,
+  defaultNoteActions,
+  setDefaultNoteActions,
+  type NoteActionOptions,
+  type NoteActionOutcome,
+  type NoteActionsService,
+  type NotePinOrderWrite,
+  type NotePinResult,
+  type NotePinToggleOptions,
+  type NoteTrashFailure,
+  type NoteTrashManyOptions,
+  type NoteTrashResult,
+} from '../documents/note-actions-service.ts'
+export {
+  applyNoteRowOverlay,
+  createNoteRowService,
+  defaultNoteRows,
+  setDefaultNoteRows,
+  type NoteRowOverlay,
+  type NoteRowOverlayPatch,
+  type NoteRowService,
+} from '../documents/note-row-service.ts'
+export {
+  getNextPinOrder,
+  isValidPinOrder,
+  renumberPinOrder,
+  updatePinOrder,
+} from '../documents/pin-order.ts'
+export {
   createOpenDocumentsService,
   defaultOpenDocuments,
   setDefaultOpenDocuments,
   type OpenDocument,
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
+export {
+  createNoteMoveService,
+  defaultNoteMove,
+  setDefaultNoteMove,
+  NOTE_MOVED_EVENT,
+  type NoteMovedListener,
+  type NoteMoveService,
+  type NoteMoveServiceDeps,
+} from '../documents/note-move-service.ts'
+export {
+  createTitleRenameService,
+  defaultTitleRename,
+  setDefaultTitleRename,
+  type RenameCoordinator,
+  type RenameCoordinatorOptions,
+  type TitleRenameService,
+  type TitleRenameServiceDeps,
+} from '../documents/title-rename-service.ts'
 export {
   createDocumentBinding,
   type BindFactories,
@@ -580,6 +628,7 @@ export {
   defaultIndexLifecycle,
   setDefaultIndexLifecycle,
   type IndexAppliedEvent,
+  type IndexChangesAppliedEvent,
   type IndexFileProgress,
   type IndexLifecycleDeps,
   type IndexLifecycleProgress,
@@ -682,22 +731,39 @@ export {
   embedStatus,
   embedEnsure,
   embedTexts,
-  embedApply,
-  embedRemove,
   subscribeEmbedStatus,
   embedStatusSchema,
   type EmbedStatus,
   type EmbedProgress,
-  type EmbedChunkPayload,
 } from '../embeddings/commands.ts'
-export { embedNote, backfillEmbeddings } from '../embeddings/pipeline.ts'
 export {
-  retrieve,
-  relatedNotes,
+  createEmbeddingIndexService,
+  defaultEmbeddingIndex,
+  setDefaultEmbeddingIndex,
+  type EmbedChunkPayload,
+  type EmbeddingBackfillOptions,
+  type EmbeddingBackfillResult,
+  type EmbeddingIndexService,
+  type EmbedNoteOptions,
+} from '../embeddings/embedding-index-service.ts'
+export { retrieve } from '../embeddings/retrieve.ts'
+export {
+  createRetrievalService,
+  defaultRetrieval,
   fuseRanked,
+  setDefaultRetrieval,
   type RetrievalHit,
+  type RetrievalService,
   type RetrieveOptions,
-} from '../embeddings/retrieve.ts'
+} from '../embeddings/retrieval-service.ts'
+export {
+  createSemanticSearchService,
+  defaultSemanticSearch,
+  setDefaultSemanticSearch,
+  type SemanticSearchGraphSource,
+  type SemanticSearchService,
+  type SemanticSearchServiceDeps,
+} from '../embeddings/semantic-search-service.ts'
 export {
   appErrorSchema,
   errorMessage,

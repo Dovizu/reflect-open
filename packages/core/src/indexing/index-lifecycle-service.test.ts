@@ -19,6 +19,7 @@ import {
   defaultIndexLifecycle,
   setDefaultIndexLifecycle,
   type IndexAppliedEvent,
+  type IndexChangesAppliedEvent,
   type IndexLifecycleProgress,
   type IndexReconciledEvent,
 } from './index-lifecycle-service.ts'
@@ -217,6 +218,31 @@ describe('createIndexLifecycleService', () => {
 
     await vi.waitFor(() => expect(applied).toHaveLength(2))
     expect(applied[1]).toEqual({ generation: 5, paths: ['notes/a.md'] })
+  })
+
+  it('reports the full batch of each applied watcher batch, asset files included', async () => {
+    const { index, fileChanges } = setup({ files: { 'notes/a.md': '# A' } })
+    const batches: IndexChangesAppliedEvent[] = []
+    const unlisten = index.onChangesApplied((event) => {
+      batches.push(event)
+    })
+    index.sync(5, () => false)
+    await index.settled()
+    expect(batches).toEqual([]) // a sync pass reports no batch
+
+    const changes = [
+      { path: 'notes/a.md', kind: 'upsert' as const },
+      { path: 'notes/gone.md', kind: 'remove' as const },
+      { path: 'assets/photo.png', kind: 'upsert' as const },
+    ]
+    fileChanges.emit({ changes, source: 'external' })
+    await vi.waitFor(() => expect(batches).toHaveLength(1))
+    expect(batches[0]).toEqual({ generation: 5, changes })
+
+    unlisten()
+    fileChanges.emit({ changes, source: 'external' })
+    await index.close()
+    expect(batches).toHaveLength(1)
   })
 
   it('reports a move healed by the reconcile', async () => {

@@ -127,7 +127,6 @@ export {
   subscribeIndexApplied,
   type IndexAppliedListener,
   subscribeIndexWritten,
-  subscribeNoteMoved,
   subscribeFileChanges,
   subscribeReconcileRequests,
   emitFileChanges,

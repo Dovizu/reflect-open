@@ -96,6 +96,16 @@ import {
 import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
+import {
+  createTitleRenameService,
+  type TitleRenameService,
+} from '../documents/title-rename-service.ts'
+import {
+  createNoteActionsService,
+  type NoteActionsService,
+} from '../documents/note-actions-service.ts'
+import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
@@ -113,6 +123,15 @@ import {
   createEmbeddingRuntimeService,
   type EmbeddingRuntimeService,
 } from '../embeddings/embedding-runtime-service.ts'
+import {
+  createEmbeddingIndexService,
+  type EmbeddingIndexService,
+} from '../embeddings/embedding-index-service.ts'
+import { createRetrievalService, type RetrievalService } from '../embeddings/retrieval-service.ts'
+import {
+  createSemanticSearchService,
+  type SemanticSearchService,
+} from '../embeddings/semantic-search-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createBacklinkService, type BacklinkService } from '../indexing/backlink-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
@@ -283,7 +302,11 @@ export interface AppServices {
   readonly attachments: AttachmentService
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
+  readonly noteMove: NoteMoveService
+  readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
+  readonly noteActions: NoteActionsService
+  readonly noteRows: NoteRowService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -297,6 +320,9 @@ export interface AppServices {
   readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
+  readonly retrieval: RetrievalService
+  readonly embeddingIndex: EmbeddingIndexService
+  readonly semanticSearch: SemanticSearchService
   readonly mobileOnboarding: MobileOnboardingService
   readonly keyboard: KeyboardService
   readonly share: ShareService
@@ -477,6 +503,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
+  const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const captureInbox = createCaptureInboxService({ ipc })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
@@ -517,6 +545,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const gitHostCredentials = createGitHostCredentialService({ secretStore })
   const githubRepos = createGithubRepoService({ http: adapters.http })
   const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
+  const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
+  const retrieval = createRetrievalService({
+    database,
+    search: indexReads.search,
+    embeddingRuntime,
+    logger,
+  })
+  const embeddingIndex = createEmbeddingIndexService({
+    ipc,
+    embeddingRuntime,
+    noteFile,
+    database,
+    indexLifecycle,
+    logger,
+  })
   return {
     ipc,
     logger,
@@ -546,7 +589,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     persistenceFlush,
     database,
     indexStore,
-    embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
+    embeddingRuntime,
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     navigation: createNavigationService(),
     deepLink: createDeepLinkService({
@@ -613,13 +656,49 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
+    noteMove,
+    titleRename: createTitleRenameService({
+      noteFile,
+      wikiResolver: indexReads.wikiResolver,
+      backlinks: indexReads.backlinks,
+      notePath: indexReads.notePath,
+      noteMove,
+      openDocuments,
+      operations,
+      clock,
+      logger,
+    }),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments,
+    noteActions: createNoteActionsService({
+      noteDocuments,
+      noteFile,
+      openDocuments,
+      indexLifecycle,
+      operations,
+      clipboard: adapters.clipboard,
+      path,
+      id,
+    }),
+    noteRows: createNoteRowService(),
     ...indexReads,
     ...noteServices,
     indexLifecycle,
     graphSession,
+    retrieval,
+    embeddingIndex,
+    semanticSearch: createSemanticSearchService({
+      embeddingRuntime,
+      embeddingIndex,
+      retrieval,
+      settings,
+      storage,
+      window: windowService,
+      indexLifecycle,
+      graphSession,
+      logger,
+    }),
     mobileOnboarding: createMobileOnboardingService({
       mobileStorage,
       settings,
