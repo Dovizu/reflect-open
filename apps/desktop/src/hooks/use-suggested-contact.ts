@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { showsContactSuggestions, type ContactMatch } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useContactSuggestionService } from '@/services/use-contacts-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { useContactsAuthorization } from './use-contacts-authorization.ts'
 
 /**
@@ -27,10 +26,8 @@ export function useSuggestedContact(path: string): ContactMatch | null {
   const { graph } = useGraph()
   const { settings } = useSettings()
   const authorization = useContactsAuthorization()
-  const contactSuggestions = useContactSuggestionService()
-  const bridgeReady = useBridgeReady()
-  const enabled =
-    bridgeReady && graph !== null && showsContactSuggestions(settings, authorization, path)
+  const { contactSuggestions } = useAppServices()
+  const enabled = graph !== null && showsContactSuggestions(settings, authorization, path)
   const { data } = useQuery({
     queryKey: queryKeys.index.suggestedContact(graph?.root, path),
     queryFn: () => contactSuggestions.suggestionFor(path),

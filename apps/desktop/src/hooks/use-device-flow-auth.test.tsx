@@ -1,25 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
-import {
-  ReflectError,
-  setDefaultGithubAuth,
-  type GithubAuth,
-  type GithubAuthService,
-} from '@reflect/core'
-import { createTestGithubAuthService } from '@reflect/core/testing'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { ReflectError, type GithubAuth, type GithubAuthService } from '@reflect/core'
+import { createTestAppServices } from '@reflect/core/testing'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useDeviceFlowAuth } from './use-device-flow-auth.ts'
 
 const mockFlow = vi.fn<GithubAuthService['runDeviceFlow']>()
 const AUTH: GithubAuth = { kind: 'pat', token: 'ghp_abc' }
 
-beforeEach(() => {
-  const githubAuth = createTestGithubAuthService()
-  githubAuth.onRunDeviceFlow(mockFlow)
-  setDefaultGithubAuth(githubAuth)
-})
+/** Render the hook over an app whose GitHub device flow is `mockFlow`. */
+async function mount() {
+  const app = createTestAppServices()
+  app.githubAuth.onRunDeviceFlow(mockFlow)
+  return await renderHookInApp(() => useDeviceFlowAuth(), { app })
+}
 
 afterEach(() => {
-  setDefaultGithubAuth(null)
   mockFlow.mockReset()
 })
 
@@ -31,7 +26,7 @@ describe('useDeviceFlowAuth', () => {
       options.onCode({ userCode: 'ABCD-1234', verificationUri: 'https://github.com/login/device' })
       return AUTH
     })
-    const { result, act } = await renderHook(() => useDeviceFlowAuth())
+    const { result, act } = await mount()
 
     let authed = false
     await act(async () => {
@@ -53,7 +48,7 @@ describe('useDeviceFlowAuth', () => {
       options.onCode({ userCode: 'ABCD-1234', verificationUri: 'https://github.com/login/device' })
       throw new ReflectError('auth', 'GitHub sign-in was denied.')
     })
-    const { result, act } = await renderHook(() => useDeviceFlowAuth())
+    const { result, act } = await mount()
 
     let authed = true
     await act(async () => {
@@ -67,7 +62,7 @@ describe('useDeviceFlowAuth', () => {
 
   it('resolves false without an error when the flow is aborted (dialog closed)', async () => {
     mockFlow.mockResolvedValue(null)
-    const { result, act } = await renderHook(() => useDeviceFlowAuth())
+    const { result, act } = await mount()
 
     let authed = true
     await act(async () => {
@@ -84,7 +79,7 @@ describe('useDeviceFlowAuth', () => {
       signal = options.signal
       return null
     })
-    const { result, act, unmount } = await renderHook(() => useDeviceFlowAuth())
+    const { result, act, unmount } = await mount()
 
     await act(async () => {
       await result.current.signIn()

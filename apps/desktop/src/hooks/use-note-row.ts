@@ -1,14 +1,10 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getNote, type NoteRow } from '@reflect/core'
-import {
-  applyNoteRowOverlay,
-  reconcileNoteRowOverlay,
-  useNoteRowOverlay,
-} from '@/hooks/note-row-overlay.ts'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
+import type { NoteRow } from '@reflect/core'
+import { applyNoteRowOverlay, useNoteRowOverlay } from '@/hooks/note-row-overlay.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 export interface NoteRowState {
   /** The overlay-bridged row, `null` while loading or when no row exists. */
@@ -30,11 +26,11 @@ export interface NoteRowState {
 export function useNoteRowState(path: string): NoteRowState {
   const { graph } = useGraph()
   const generation = graph?.generation
-  const bridgeReady = useBridgeReady()
+  const { indexQuery, noteRows } = useAppServices()
   const { data, isFetched } = useQuery({
     queryKey: queryKeys.index.note(graph?.root, path),
-    queryFn: async () => (await getNote(path)) ?? null,
-    enabled: bridgeReady && graph !== null,
+    queryFn: async () => (await indexQuery.getNote(path)) ?? null,
+    enabled: graph !== null,
   })
   const row = data ?? null
   const overlay = useNoteRowOverlay(path, generation)
@@ -44,9 +40,9 @@ export function useNoteRowState(path: string): NoteRowState {
   // would tear other subscribers.
   useEffect(() => {
     if (generation !== undefined && overlay !== null) {
-      reconcileNoteRowOverlay(path, generation, row)
+      noteRows.reconcile(path, generation, row)
     }
-  }, [path, generation, overlay, row])
+  }, [noteRows, path, generation, overlay, row])
 
   return { row: applyNoteRowOverlay(row, overlay), settled: isFetched }
 }

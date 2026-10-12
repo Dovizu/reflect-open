@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { xPostQueryOptions } from '@/editor/use-x-post-resolver.ts'
 import { queryClient } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 // Longest wait before mounting anyway; cold-start archive reads measured up to 258 ms.
 const PRELOAD_BUDGET_MS = 300
@@ -15,6 +16,7 @@ const PRELOAD_BUDGET_MS = 300
  * is no editor content yet.
  */
 export function useXPostPreload(markdown: string | null): boolean {
+  const { embedMedia } = useAppServices()
   const generation = useGraph({ optional: true })?.graph?.generation ?? null
   const queries = useMemo(() => {
     if (markdown === null || generation === null) return []
@@ -23,8 +25,8 @@ export function useXPostPreload(markdown: string | null): boolean {
       const id = parseXPostId(url)
       if (id) ids.add(id)
     }
-    return [...ids].map((id) => xPostQueryOptions(generation, id))
-  }, [markdown, generation])
+    return [...ids].map((id) => xPostQueryOptions({ embedMedia }, generation, id))
+  }, [embedMedia, markdown, generation])
   // The resolver reads the shared client, so the preload must fill that one.
   const loaded = useQueries(
     {

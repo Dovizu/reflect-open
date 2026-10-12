@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createTestCaptureService } from '@reflect/core/testing'
+import { createTestCaptureService, createTestEmbedMediaService } from '@reflect/core/testing'
 import type { XPost } from '@post-embed/types'
 import { createXPostResolver, xPostQueryOptions } from '@/editor/use-x-post-resolver.ts'
 import { watchCaptureXPosts } from './capture-x-posts.ts'
 import { queryClient } from './query-client.ts'
 
+const app = { embedMedia: createTestEmbedMediaService() }
 const url = 'https://x.com/jack/status/123'
 const post: XPost = {
   id: '123',
@@ -14,7 +15,7 @@ const post: XPost = {
 }
 
 function cachePost(): void {
-  queryClient.setQueryData(xPostQueryOptions(3, '123').queryKey, post)
+  queryClient.setQueryData(xPostQueryOptions(app, 3, '123').queryKey, post)
 }
 
 afterEach(() => {
@@ -26,7 +27,7 @@ describe('watchCaptureXPosts', () => {
     cachePost()
     const capture = createTestCaptureService()
     const stop = watchCaptureXPosts(capture)
-    const resolveXPost = createXPostResolver(3)
+    const resolveXPost = createXPostResolver(app, 3)
     expect(resolveXPost(url)).toBe(post)
 
     capture.emitXPostsWritten()
@@ -40,7 +41,7 @@ describe('watchCaptureXPosts', () => {
   it('keeps cached X posts while no pass reports a write', () => {
     cachePost()
     const stop = watchCaptureXPosts(createTestCaptureService())
-    const resolveXPost = createXPostResolver(3)
+    const resolveXPost = createXPostResolver(app, 3)
 
     expect(resolveXPost(url)).toBe(post)
     stop()
@@ -50,7 +51,7 @@ describe('watchCaptureXPosts', () => {
     cachePost()
     const capture = createTestCaptureService()
     watchCaptureXPosts(capture)()
-    const resolveXPost = createXPostResolver(3)
+    const resolveXPost = createXPostResolver(app, 3)
 
     capture.emitXPostsWritten()
 

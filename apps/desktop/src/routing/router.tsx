@@ -10,8 +10,8 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { defaultNavigation, type NavigateOptions } from '@reflect/core'
-import { onNoteMoved } from '@/lib/note-moves.ts'
+import type { NavigateOptions } from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 import type { Route } from './route.ts'
 
 /**
@@ -94,10 +94,10 @@ export function RouterProvider({
   initialRoute = { kind: 'today' },
   children,
 }: RouterProviderProps): ReactElement {
+  const { navigation: appNavigation, noteMove } = useAppServices()
   const [navigation] = useState(() => {
-    const service = defaultNavigation()
-    service.reset(initialRoute)
-    return service
+    appNavigation.reset(initialRoute)
+    return appNavigation
   })
   // React state rather than `useSyncExternalStore`: a store read through that
   // hook always updates synchronously, which would drop the transition and
@@ -137,7 +137,10 @@ export function RouterProvider({
 
   // A note file move (Plan 17) rewrites every history entry that points at
   // the old path, so the current route (and back/forward) follow the file.
-  useEffect(() => onNoteMoved((from, to) => navigation.noteMoved(from, to)), [navigation])
+  useEffect(
+    () => noteMove.onMoved((from, to) => navigation.noteMoved(from, to)),
+    [navigation, noteMove],
+  )
 
   const saveScrollState = useCallback(
     (offset: number) => navigation.saveScrollState(offset, rendered.current),

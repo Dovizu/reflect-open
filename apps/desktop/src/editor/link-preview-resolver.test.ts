@@ -1,9 +1,43 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { LinkPreviewResolver } from '@meowdown/core'
 import {
-  createNoteLinkPreviewResolver,
-  type LinkPreviewResolverDependencies,
+  cloudSafeLinkHref,
+  createLinkPreviewService,
+  notePrivate,
   type LinkPreviewSession,
-} from './link-preview-resolver.ts'
+  type NoteDocumentService,
+  type parseLinkPreviewMeta,
+  type WebFetchService,
+} from '@reflect/core'
+
+/** The boundaries of the resolver pipeline that `useLinkPreview` gets from `LinkPreviewService`. */
+interface LinkPreviewResolverDependencies {
+  /** Read the note's live full markdown through the open-document registry. */
+  readonly readSource: NoteDocumentService['readExisting']
+  /** Fetch bounded page HTML using a privacy-authorized URL. */
+  readonly fetchHtml: WebFetchService['fetchLinkPreviewHtml']
+  /** Fetch a bounded raster favicon using a privacy-authorized URL. */
+  readonly fetchIcon: WebFetchService['fetchLinkPreviewIcon']
+  /** Parse and validate bounded display metadata from the fetched page. */
+  readonly parseMetadata: typeof parseLinkPreviewMeta
+}
+
+/** One editor-session resolver of a `LinkPreviewService` over `dependencies`. */
+function createNoteLinkPreviewResolver(
+  session: LinkPreviewSession,
+  currentSession: () => LinkPreviewSession | null,
+  dependencies: LinkPreviewResolverDependencies,
+): LinkPreviewResolver {
+  return createLinkPreviewService({
+    noteDocuments: { readExisting: dependencies.readSource },
+    privacy: { notePrivate, cloudSafeLinkHref },
+    webFetch: {
+      fetchLinkPreviewHtml: dependencies.fetchHtml,
+      fetchLinkPreviewIcon: dependencies.fetchIcon,
+    },
+    parseMetadata: dependencies.parseMetadata,
+  }).createResolver(session, currentSession)
+}
 
 const session: LinkPreviewSession = {
   path: 'notes/a.md',

@@ -4,16 +4,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toggleNotePinned } from '@/lib/note-pin.ts'
 import { toggleNotePrivate } from '@/lib/note-private.ts'
 import { getIsComposing } from '@meowdown/core'
-import { defaultCommands } from '@reflect/core'
 import { usePalette } from '@/components/command-palette/palette-provider.tsx'
 import { registerKeymap } from '@/editor/keymap.ts'
 import { APP_COMMANDS } from '@/lib/commands/app-commands.ts'
-import { runCommand } from '@/lib/commands/registry.ts'
 import { todayIso } from '@/lib/dates.ts'
-import { setMenuCommandDispatch } from '@/lib/native-menu/dispatch.ts'
-import { isNativeMenuInstalled } from '@/lib/native-menu/menu.ts'
-import { isMacosDesktop } from '@/lib/platform.ts'
-import { retryFailedEmbeddings } from '@/lib/semantic.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { useAudioMemo } from '@/providers/audio-memo-provider.tsx'
 import { useChatSession } from '@/providers/chat-provider.tsx'
@@ -58,14 +52,6 @@ const NATIVE_MACOS_MENU_COMMAND_IDS = new Set([
   'note.findPrevious',
 ])
 
-function idForKeyDown(event: KeyboardEvent): string | null {
-  return defaultCommands().commandForKeyDown(event)
-}
-
-function isNativeMacosMenuCommand(commandId: string): boolean {
-  return isMacosDesktop() && isNativeMenuInstalled() && NATIVE_MACOS_MENU_COMMAND_IDS.has(commandId)
-}
-
 /**
  * Install the app-level shortcut listener and build the {@link CommandContext}
  * commands run with. Mount once inside the router + palette providers; the
@@ -76,6 +62,7 @@ function isNativeMacosMenuCommand(commandId: string): boolean {
 export function useAppShortcuts(): CommandContext {
   const services = useAppServices()
   const { route, navigate, back, forward, clearScrollState } = useRouter()
+  const { commands, nativeMenu, platform, semanticSearch } = useAppServices()
   const queryClient = useQueryClient()
   const focusedDailyDate = useFocusedDailyDate()
   const { resolvedTheme, setTheme } = useTheme()
@@ -194,7 +181,7 @@ export function useAppShortcuts(): CommandContext {
         updateSettings({ semanticSearchEnabled: true })
         // EmbeddingsSync loads an untouched runtime; a `failed` one only
         // retries on an explicit action like this command.
-        void retryFailedEmbeddings()
+        void semanticSearch.retryFailedModel()
       },
     }),
     [
@@ -217,10 +204,23 @@ export function useAppShortcuts(): CommandContext {
       findPreviousInNote,
       toggleAudioMemo,
       updateSettings,
+      semanticSearch,
     ],
   )
 
   useEffect(() => {
+    function idForKeyDown(event: KeyboardEvent): string | null {
+      return commands.commandForKeyDown(event)
+    }
+
+    function isNativeMacosMenuCommand(commandId: string): boolean {
+      return (
+        platform.isMacosDesktop &&
+        nativeMenu.isInstalled() &&
+        NATIVE_MACOS_MENU_COMMAND_IDS.has(commandId)
+      )
+    }
+
     // The one guarded entry point for app commands, shared by keystrokes and
     // native menu activations. Returns whether the command was handled.
     function triggerCommand(id: string): boolean {
@@ -239,7 +239,7 @@ export function useAppShortcuts(): CommandContext {
       if (templatesOpenRef.current) {
         return false // the template picker/create dialogs are modal too
       }
-      void runCommand(id, context)
+      void commands.run(id, context)
       return true
     }
 
@@ -280,15 +280,15 @@ export function useAppShortcuts(): CommandContext {
       }
     }
 
-    setMenuCommandDispatch(triggerCommand)
+    nativeMenu.setCommandDispatch(triggerCommand)
     window.addEventListener('keydown', onHistoryKeyDownCapture, { capture: true })
     window.addEventListener('keydown', onKeyDown)
     return () => {
-      setMenuCommandDispatch(null)
+      nativeMenu.setCommandDispatch(null)
       window.removeEventListener('keydown', onHistoryKeyDownCapture, true)
       window.removeEventListener('keydown', onKeyDown)
     }
-  }, [context, closeShortcuts])
+  }, [context, closeShortcuts, commands, nativeMenu, platform])
 
   return context
 }

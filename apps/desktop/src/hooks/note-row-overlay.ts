@@ -1,10 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import {
-  defaultNoteRows,
-  type NoteRow,
-  type NoteRowOverlay,
-  type NoteRowOverlayPatch,
-} from '@reflect/core'
+import { defaultNoteRows, type NoteRowOverlay, type NoteRowOverlayPatch } from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /*
  * The optimistic read overlay for note index rows lives in `@reflect/core`
@@ -31,15 +27,6 @@ export function getNoteRowOverlay(
   return defaultNoteRows().getOverlay(path, generation)
 }
 
-/** `defaultNoteRows().reconcile`. Call it from an effect, never during render. */
-export function reconcileNoteRowOverlay(
-  path: string,
-  generation: number,
-  row: NoteRow | null,
-): void {
-  defaultNoteRows().reconcile(path, generation, row)
-}
-
 /** `defaultNoteRows().reset`. */
 export function resetNoteRowOverlays(): void {
   defaultNoteRows().reset()
@@ -50,7 +37,7 @@ export function useNoteRowOverlay(
   path: string,
   generation: number | undefined,
 ): NoteRowOverlay | null {
-  const noteRows = defaultNoteRows()
+  const { noteRows } = useAppServices()
   const subscribe = useCallback((listener: () => void) => noteRows.subscribe(listener), [noteRows])
   const getSnapshot = useCallback(
     () => noteRows.getOverlay(path, generation),

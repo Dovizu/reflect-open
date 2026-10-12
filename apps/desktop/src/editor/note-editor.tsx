@@ -4,7 +4,7 @@ import { MediaLightbox } from '@/editor/media-lightbox.tsx'
 import { useWikilinkResolver } from '@/editor/resolve-wikilink.ts'
 import { useXPostResolver, X_MEDIA_URL_PROTOCOLS } from '@/editor/use-x-post-resolver.ts'
 import { lightboxItemFromXPostMedia } from '@/editor/x-post-media-lightbox-item.ts'
-import { resolveYouTubeVideo } from '@/editor/youtube-video-resolver.ts'
+import { useYouTubeVideoResolver } from '@/editor/youtube-video-resolver.ts'
 import { isTouchEditorSurface } from '@/lib/platform-surface.ts'
 import { cn } from '@/lib/utils.ts'
 import type {
@@ -320,6 +320,7 @@ export function NoteEditor({
     onExitBoundaryRef.current = onExitBoundary
   })
 
+  const resolveYouTubeVideo = useYouTubeVideoResolver()
   const lightbox = useLightbox()
   const openLightbox = lightbox.open
   // Captured when the lightbox opens, so a later graph switch cannot retarget it.

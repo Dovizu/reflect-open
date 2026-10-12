@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import {
   createConnectGithubWizardService,
-  defaultClock,
-  defaultGithubAuth,
-  defaultLifecycle,
-  defaultOpener,
   type ConnectAuthKind,
   type ConnectFinishView,
   type ConnectGithubWizardOptions,
@@ -12,7 +8,7 @@ import {
   type GithubUser,
 } from '@reflect/core'
 import { useSync } from '@/providers/sync-provider.tsx'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 export type {
   ConnectAuthKind,
@@ -57,8 +53,7 @@ export interface ConnectGithubWizard {
  * polls and the public-repo consent gate). Desktop's dialog and mobile's
  * drawer drive the identical flow through it.
  *
- * The connect actions are the ones of {@link useSync}. The other services
- * come from the nearest `AppServicesProvider`, else the process-wide ones.
+ * The connect actions are the ones of {@link useSync}.
  */
 export function useConnectGithubWizard({
   suggestedRepoName,
@@ -66,7 +61,7 @@ export function useConnectGithubWizard({
   pollIntervalMs = 3000,
 }: ConnectGithubWizardOptions): ConnectGithubWizard {
   const sync = useSync()
-  const services = useOptionalAppServices()
+  const { githubAuth, opener, lifecycle, clock } = useAppServices()
   // The wizard lives as long as the surface; it always calls the latest
   // actions and `onClose` without being rebuilt every render.
   const latest = useRef({ sync, onClose })
@@ -82,10 +77,10 @@ export function useConnectGithubWizard({
           connectExistingRepo: (ref, options) =>
             latest.current.sync.connectExistingRepo(ref, options),
         },
-        githubAuth: { load: () => (services?.githubAuth ?? defaultGithubAuth()).load() },
-        opener: { openUrl: (url) => (services?.opener ?? defaultOpener()).openUrl(url) },
-        lifecycle: services?.lifecycle ?? defaultLifecycle(),
-        clock: services?.clock ?? defaultClock(),
+        githubAuth,
+        opener,
+        lifecycle,
+        clock,
       },
       { suggestedRepoName, onClose: () => latest.current.onClose(), pollIntervalMs },
     ),

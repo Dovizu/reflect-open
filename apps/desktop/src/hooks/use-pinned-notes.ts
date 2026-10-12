@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import { getPinnedNotes, type PinnedNote } from '@reflect/core'
+import type { PinnedNote } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * The pinned notes from the index, kept fresh by the usual index invalidation
@@ -11,9 +12,10 @@ import { useGraph } from '@/providers/graph-provider.tsx'
  */
 export function usePinnedNotes(): PinnedNote[] {
   const { graph } = useGraph()
+  const { indexQuery } = useAppServices()
   const { data } = useQuery({
     queryKey: queryKeys.index.pinnedNotes(graph?.root),
-    queryFn: () => getPinnedNotes(),
+    queryFn: () => indexQuery.getPinnedNotes(),
     enabled: graph !== null,
   })
   return data ?? []

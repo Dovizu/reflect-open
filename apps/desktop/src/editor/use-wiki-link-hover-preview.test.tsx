@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver, WikilinkHoverHit } from '@meowdown/core'
 import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderHookInApp, renderInApp } from '@/test-utils/render-in-app.tsx'
 import { useWikiLinkHoverPreview } from './use-wiki-link-hover-preview.tsx'
 
 const markdownPreview = vi.hoisted(() => vi.fn())
@@ -31,7 +30,7 @@ let app: TestAppServices
 async function setupRenderer(
   overrides: Partial<Parameters<typeof useWikiLinkHoverPreview>[0]> = {},
 ): Promise<(hit: WikilinkHoverHit) => Promise<ReactNode>> {
-  const { result } = await renderHook(
+  const { result } = await renderHookInApp(
     () =>
       useWikiLinkHoverPreview({
         generation: 7,
@@ -39,11 +38,7 @@ async function setupRenderer(
         dateFormat: 'mdy',
         ...overrides,
       }),
-    {
-      wrapper: ({ children }) => (
-        <AppServicesProvider services={app}>{children}</AppServicesProvider>
-      ),
-    },
+    { app },
   )
   return result.current
 }
@@ -83,7 +78,7 @@ describe('useWikiLinkHoverPreview', () => {
     app.noteFile.set('notes/alpha.md', '---\nprivate: true\n---\n# Alpha\n\nBody')
     const renderBody = await setupRenderer()
 
-    const screen = await render(<>{await renderBody(hoverHit('Alpha'))}</>)
+    const screen = await renderInApp(<>{await renderBody(hoverHit('Alpha'))}</>, { app })
 
     expect(screen.getByTestId('markdown-preview').element().textContent).toBe('# Alpha\n\nBody')
     expect(markdownPreview.mock.calls.at(-1)?.[0]).toMatchObject({
@@ -100,7 +95,7 @@ describe('useWikiLinkHoverPreview', () => {
     app.noteFile.set('Projects/Garden redesign.md', '# Garden redesign\n\n![[garden-budget.png]]')
     const renderBody = await setupRenderer()
 
-    await render(<>{await renderBody(hoverHit('/Projects/Garden redesign'))}</>)
+    await renderInApp(<>{await renderBody(hoverHit('/Projects/Garden redesign'))}</>, { app })
 
     const props = markdownPreview.mock.calls.at(-1)?.[0] as MarkdownPreviewProps
     expect(await props.resolveImageUrl('../attachments/garden-budget.png')).toBe(
@@ -115,7 +110,7 @@ describe('useWikiLinkHoverPreview', () => {
     app.noteFile.set('daily/2026-06-09.md', '---\nid: day\n---\n\n')
     const renderBody = await setupRenderer()
 
-    const screen = await render(<>{await renderBody(hoverHit('2026-06-09'))}</>)
+    const screen = await renderInApp(<>{await renderBody(hoverHit('2026-06-09'))}</>, { app })
 
     expect(screen.getByText('Tue, June 9th, 2026').query()).not.toBeNull()
     expect(screen.getByText('Empty note').query()).not.toBeNull()

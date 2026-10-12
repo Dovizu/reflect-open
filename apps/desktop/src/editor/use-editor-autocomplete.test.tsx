@@ -1,5 +1,3 @@
-import type { ReactElement, ReactNode } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type {
   ContactMatch,
   ContactsAuthorization,
@@ -12,19 +10,10 @@ import {
   createTestOperationsService,
   createTestSettingsService,
   createTestWikiLinkSuggestionService,
-  installTestServices,
 } from '@reflect/core/testing'
-import { describe, expect, it, onTestFinished, vi } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { describe, expect, it, vi } from 'vitest'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useEditorAutocomplete } from './use-editor-autocomplete.ts'
-
-const graphState = vi.hoisted(() => ({
-  graph: { generation: 7 } as { generation: number } | null,
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: graphState.graph }),
-}))
 
 const ADA: ContactMatch = {
   fullName: 'Ada Lovelace',
@@ -39,6 +28,8 @@ interface SetupOptions {
   authorization?: ContactsAuthorization
   wikiLinks?: WikiLinkSuggestionResult
   createOutcome?: ResolveOrCreateNoteResult
+  /** `null` renders the hook with no open graph. */
+  graph?: null
 }
 
 /**
@@ -51,7 +42,6 @@ async function setup(options?: SetupOptions) {
     { contactsEnabled: options?.contactsEnabled ?? false },
     { operations },
   )
-  await settings.whenLoaded()
   const created: { title: string; generation: number }[] = []
   const noteCreation = {
     resolveOrCreateNoteWithTitle: async (
@@ -95,17 +85,10 @@ async function setup(options?: SetupOptions) {
     settings,
     contacts,
   })
-  // The Contacts permission query reads the process-wide services.
-  onTestFinished(installTestServices(app))
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  function wrapper({ children }: { children: ReactNode }): ReactElement {
-    return (
-      <QueryClientProvider client={client}>
-        <AppServicesProvider services={app}>{children}</AppServicesProvider>
-      </QueryClientProvider>
-    )
-  }
-  const { result } = await renderHook(() => useEditorAutocomplete(), { wrapper })
+  const { result } = await renderHookInApp(() => useEditorAutocomplete(), {
+    app,
+    graph: options?.graph === null ? null : { generation: 7 },
+  })
   return { result, operations, created }
 }
 
@@ -176,13 +159,8 @@ describe('useEditorAutocomplete', () => {
   })
 
   it('returns nothing without an open graph', async () => {
-    graphState.graph = null
-    try {
-      const { result } = await setup()
-      await expect(result.current.onWikilinkSearch('Business ideas')).resolves.toEqual([])
-      await expect(result.current.onTagSearch('')).resolves.toEqual([])
-    } finally {
-      graphState.graph = { generation: 7 }
-    }
+    const { result } = await setup({ graph: null })
+    await expect(result.current.onWikilinkSearch('Business ideas')).resolves.toEqual([])
+    await expect(result.current.onTagSearch('')).resolves.toEqual([])
   })
 })

@@ -1,16 +1,7 @@
-import type { ReactNode } from 'react'
-import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
-import { setDefaultAttachments } from '@reflect/core'
-import {
-  createTestAppServices,
-  createTestAttachmentService,
-  createTestIpcBridgeService,
-  installTestBridge,
-  type TestAttachmentService,
-} from '@reflect/core/testing'
+import { afterEach, describe, expect, it } from 'vitest'
+import { createTestAppServices, createTestAttachmentService } from '@reflect/core/testing'
 import { useAttachmentCatalogSync } from '@/lib/attachment-catalog.ts'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useNoteAttachments, type NoteAttachments } from './use-note-attachments.ts'
 
 function assetUrl(generation: number, path: string): string {
@@ -22,23 +13,25 @@ const embed = (target: string) => ({ target, display: '', width: null, height: n
 let attachments: NoteAttachments | null = null
 
 afterEach(() => {
-  setDefaultAttachments(null)
   attachments = null
 })
 
 describe('useNoteAttachments', () => {
-  it('resolves from the note it renders, with the process-wide service outside a provider', async () => {
-    setDefaultAttachments(
-      createTestAttachmentService({
+  it('resolves from the note it renders', async () => {
+    const app = createTestAppServices({
+      attachments: createTestAttachmentService({
         catalog: [
           { path: 'Projects/attachments/plan.png', size: 1 },
           { path: 'attachments/plan.png', size: 1 },
         ],
       }),
-    )
-    await renderHook(() => {
-      attachments = useNoteAttachments(3, 'Projects/Plan.md')
     })
+    await renderHookInApp(
+      () => {
+        attachments = useNoteAttachments(3, 'Projects/Plan.md')
+      },
+      { app },
+    )
 
     expect(attachments?.resolveImageUrl('attachments/plan.png')).toBe(
       assetUrl(3, 'Projects/attachments/plan.png'),
@@ -50,18 +43,11 @@ describe('useNoteAttachments', () => {
   })
 
   it('re-renders when the catalog changes', async () => {
-    const services = createTestAppServices()
-    const wrapper = ({ children }: { children: ReactNode }): ReactNode => (
-      <AppServicesProvider services={services}>{children}</AppServicesProvider>
-    )
     let renders = 0
-    const { act } = await renderHook(
-      () => {
-        renders += 1
-        attachments = useNoteAttachments(3, 'Home.md')
-      },
-      { wrapper },
-    )
+    const { act, app: services } = await renderHookInApp(() => {
+      renders += 1
+      attachments = useNoteAttachments(3, 'Home.md')
+    })
     const rendersBefore = renders
     expect(attachments?.resolveImageUrl('garden-budget.png')).toBe(assetUrl(3, 'garden-budget.png'))
 
@@ -79,15 +65,13 @@ describe('useNoteAttachments', () => {
 
 describe('useAttachmentCatalogSync', () => {
   it('watches the graph session catalog while mounted', async () => {
-    const service: TestAttachmentService = createTestAttachmentService()
-    setDefaultAttachments(service)
-    onTestFinished(installTestBridge(createTestIpcBridgeService()))
-    const view = await renderHook(
+    const view = await renderHookInApp(
       ({ generation }: { generation: number | null } = { generation: null }) => {
         useAttachmentCatalogSync(generation)
       },
       { initialProps: { generation: 3 as number | null } },
     )
+    const service = view.app.attachments
     expect(service.watchers()).toBe(1)
 
     await view.rerender({ generation: null })
