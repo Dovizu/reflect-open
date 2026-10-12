@@ -433,8 +433,7 @@ export function createLinkNavigationService(
       latestIntent += 1
       const intent = latestIntent
       const startedAtRevision = navigation.navigationRevision()
-      return () =>
-        latestIntent !== intent || navigation.navigationRevision() !== startedAtRevision
+      return () => latestIntent !== intent || navigation.navigationRevision() !== startedAtRevision
     },
     openRouteInNewWindow,
     openDeepLinkInNewWindow,

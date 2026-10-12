@@ -194,7 +194,6 @@ export function useRouter(): RouterValue {
   return context
 }
 
-
 interface RouterFreezeProps {
   /** While true, the subtree keeps the last router value it saw unfrozen. */
   frozen: boolean

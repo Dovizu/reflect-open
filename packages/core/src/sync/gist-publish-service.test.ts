@@ -119,7 +119,10 @@ function setup(options?: SetupOptions) {
 describe('GistPublishService.publish', () => {
   it('creates a secret gist for a fresh note and records it in frontmatter', async () => {
     const { service, files, sent } = setup()
-    await expect(service.publish(PATH, 3)).resolves.toEqual({ url: PUBLISHED.htmlUrl, stale: false })
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(sent('POST')).toEqual([
       {
@@ -136,7 +139,10 @@ describe('GistPublishService.publish', () => {
 
   it('republishes to the same gist, addressing the file by its previous name', async () => {
     const { service, sent } = setup({ source: REPUBLISH_SOURCE })
-    await expect(service.publish(PATH, 3)).resolves.toEqual({ url: PUBLISHED.htmlUrl, stale: false })
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(sent('PATCH')).toEqual([
       {
@@ -151,7 +157,10 @@ describe('GistPublishService.publish', () => {
   it('falls back to creating a fresh gist when the old one is gone (update → null)', async () => {
     const { service, files, reply, sent } = setup({ source: REPUBLISH_SOURCE })
     reply('PATCH', { status: 404 })
-    await expect(service.publish(PATH, 3)).resolves.toEqual({ url: PUBLISHED.htmlUrl, stale: false })
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(sent('POST')).toHaveLength(1)
     expect(files.getWrites(PATH)[0]).toContain('id: g1')
@@ -160,7 +169,10 @@ describe('GistPublishService.publish', () => {
   it('routes the frontmatter write through the live session when the note is open', async () => {
     const session = createTestNoteSession({ path: PATH, content: BODY })
     const { service, files } = setup({ source: null, session })
-    await expect(service.publish(PATH, 3)).resolves.toEqual({ url: PUBLISHED.htmlUrl, stale: false })
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(session.getCalls('commitFrontmatter')).toEqual([
       [{ gist: { id: 'g1', url: PUBLISHED.htmlUrl, file: 'A.md', hash: gistBodyHash(BODY) } }],
@@ -171,7 +183,10 @@ describe('GistPublishService.publish', () => {
   it('falls back to disk when the session cannot take the patch', async () => {
     const session = createTestNoteSession({ path: PATH, content: BODY, accepts: false })
     const { service, files } = setup({ session })
-    await expect(service.publish(PATH, 3)).resolves.toEqual({ url: PUBLISHED.htmlUrl, stale: false })
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
     expect(files.writes()).toHaveLength(1)
   })
 
@@ -181,7 +196,10 @@ describe('GistPublishService.publish', () => {
     const session = createTestNoteSession({ path: PATH, loaded: false, accepts: false })
     const { service, files, sent } = setup({ session })
 
-    await expect(service.publish(PATH, 3)).resolves.toEqual({ url: PUBLISHED.htmlUrl, stale: false })
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(sent('POST').map((request) => request.body)).toEqual([
       { public: false, files: { 'A.md': { content: BODY } } },
