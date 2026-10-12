@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver } from '@meowdown/core'
-import { defaultAttachments, type AttachmentService } from '@reflect/core'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import type { AttachmentService } from '@reflect/core'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /** How one note's images, `![[embeds]]`, and attachment links render. */
 export interface NoteAttachments {
@@ -21,9 +21,9 @@ export interface NoteAttachments {
   resolveWikiEmbed: WikiEmbedResolver
 }
 
-/** The `AttachmentService` of the nearest `AppServicesProvider`, else the process-wide one. */
+/** The `AttachmentService` of the nearest `AppServicesProvider`. */
 export function useAttachments(): AttachmentService {
-  return useOptionalAppServices()?.attachments ?? defaultAttachments()
+  return useAppServices().attachments
 }
 
 /** Attachment resolution for rendering `notePath` in graph session `generation`. */
@@ -45,7 +45,7 @@ export function createNoteAttachments(
  * caller re-renders whenever the catalog changes.
  */
 export function useNoteAttachments(generation: number | null, notePath: string): NoteAttachments {
-  const attachments = useAttachments()
+  const { attachments } = useAppServices()
   const subscribeCatalog = useCallback(
     (listener: () => void) => attachments.onCatalogChanged(listener),
     [attachments],

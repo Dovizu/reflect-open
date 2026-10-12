@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
-import { ReflectError, createAttachmentService, setDefaultAttachments } from '@reflect/core'
+import { ReflectError, createAttachmentService, type AttachmentService } from '@reflect/core'
 import {
+  createTestAppServices,
   createTestAssetStoreService,
   createTestAttachmentService,
   createTestClockService,
@@ -13,9 +13,12 @@ import {
   type TestAttachmentService,
   type TestAttachmentServiceOptions,
 } from '@reflect/core/testing'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useAssetPersistence, type AssetPersistence } from './use-asset-persistence.ts'
 
 let persistence: AssetPersistence | null = null
+// The attachment service of the next `renderPersistence`.
+let attachmentService: AttachmentService = createTestAttachmentService()
 
 function renderPersistence({
   generation,
@@ -24,7 +27,7 @@ function renderPersistence({
   generation: number | null
   path?: string
 }) {
-  return renderHook(
+  return renderHookInApp(
     (
       { generation, path }: { generation: number | null; path: string } = {
         generation: null,
@@ -33,13 +36,16 @@ function renderPersistence({
     ) => {
       persistence = useAssetPersistence(generation, path)
     },
-    { initialProps: { generation, path } },
+    {
+      initialProps: { generation, path },
+      app: createTestAppServices({ attachments: attachmentService }),
+    },
   )
 }
 
 function installAttachments(options?: TestAttachmentServiceOptions): TestAttachmentService {
   const attachments = createTestAttachmentService(options)
-  setDefaultAttachments(attachments)
+  attachmentService = attachments
   return attachments
 }
 
@@ -48,7 +54,7 @@ function fileOf(name: string, type: string): File {
 }
 
 afterEach(() => {
-  setDefaultAttachments(null)
+  attachmentService = createTestAttachmentService()
   persistence = null
 })
 
@@ -131,17 +137,15 @@ describe('useAssetPersistence', () => {
   it('drops a failure that lands after the note switched', async () => {
     const upload = Promise.withResolvers<string>()
     const clock = createTestClockService()
-    setDefaultAttachments(
-      createAttachmentService({
-        assetStore: { ...createTestAssetStoreService(), uploadBlob: () => upload.promise },
-        noteFile: createTestNoteFileService(),
-        fileChanges: createTestFileChangeService(),
-        dialog: createTestDialogService(),
-        operations: createTestOperationsService(clock),
-        clock,
-        platform: createTestPlatformService(),
-      }),
-    )
+    attachmentService = createAttachmentService({
+      assetStore: { ...createTestAssetStoreService(), uploadBlob: () => upload.promise },
+      noteFile: createTestNoteFileService(),
+      fileChanges: createTestFileChangeService(),
+      dialog: createTestDialogService(),
+      operations: createTestOperationsService(clock),
+      clock,
+      platform: createTestPlatformService(),
+    })
     const view = await renderPersistence({ generation: 3, path: 'notes/a.md' })
 
     let savePromise: Promise<string | null> | null = null

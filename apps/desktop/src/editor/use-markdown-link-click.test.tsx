@@ -1,38 +1,28 @@
 import { act, type ReactNode } from 'react'
-import { cleanup, renderHook } from 'vitest-browser-react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import type { LinkClickHandler } from '@meowdown/core'
-import { setDefaultAttachments, setDefaultOpener } from '@reflect/core'
 import {
+  createTestAppServices,
   createTestAttachmentService,
+  createTestLinkNavigationService,
   createTestOpenerService,
+  createTestWindowService,
   type TestAttachmentService,
   type TestOpenerService,
 } from '@reflect/core/testing'
 import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { useRouter } from '@/routing/router.tsx'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 
 const dispatchDeepLink = vi.fn<(url: string) => void>()
 const resolveMarkdownHref = vi.fn()
-const { openNoteWindow } = installTestLinkNavigation({
-  deepLink: { dispatch: dispatchDeepLink },
-  noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
-})
+// Receives the `reflect://` link of every note window a test opens.
+const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 
 function RouteProbe(): ReactNode {
   const { route } = useRouter()
   return <output data-testid="route">{JSON.stringify(route)}</output>
-}
-
-function Providers({ children }: { children: ReactNode }): ReactNode {
-  return (
-    <RouterProvider>
-      {children}
-      <RouteProbe />
-    </RouterProvider>
-  )
 }
 
 const route = page.getByTestId('route')
@@ -40,8 +30,25 @@ const route = page.getByTestId('route')
 let onLinkClick: LinkClickHandler
 
 async function mount(generation: number | null, sourcePath: string | null): Promise<void> {
-  const { result } = await renderHook(() => useMarkdownLinkClick(generation, sourcePath), {
-    wrapper: Providers,
+  const app = createTestAppServices({
+    opener,
+    attachments,
+    linkNavigation: createTestLinkNavigationService({
+      deepLink: { dispatch: dispatchDeepLink },
+      noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
+      window: createTestWindowService({ openNoteWindow }),
+      opener,
+      attachments,
+    }),
+  })
+  const { result } = await renderHookInApp(() => useMarkdownLinkClick(generation, sourcePath), {
+    app,
+    wrapper: (children) => (
+      <>
+        {children}
+        <RouteProbe />
+      </>
+    ),
   })
   onLinkClick = result.current
 }
@@ -58,16 +65,10 @@ let attachments: TestAttachmentService
 beforeEach(async () => {
   vi.clearAllMocks()
   opener = createTestOpenerService()
-  setDefaultOpener(opener)
   attachments = createTestAttachmentService()
-  setDefaultAttachments(attachments)
+  openNoteWindow.mockResolvedValue(true)
   resolveMarkdownHref.mockResolvedValue({ kind: 'missing' })
   await mount(7, 'projects/TASKS.md')
-})
-
-afterEach(() => {
-  cleanup()
-  setDefaultAttachments(null)
 })
 
 describe('useMarkdownLinkClick', () => {

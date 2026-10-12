@@ -1,12 +1,12 @@
 import { useXPostResolver, X_MEDIA_URL_PROTOCOLS } from '@/editor/use-x-post-resolver.ts'
-import { resolveYouTubeVideo } from '@/editor/youtube-video-resolver.ts'
 import { useCallback, useEffect, useRef, type ReactElement } from 'react'
-import type { ImageUrlResolver, WikiEmbedResolver } from '@meowdown/core'
+import type { ImageUrlResolver, WikiEmbedResolver, YouTubeVideoResolver } from '@meowdown/core'
 import { MarkdownView } from '@meowdown/react'
 import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
 import { useWikilinkResolver } from '@/editor/resolve-wikilink.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * A read-only rendering of note markdown via @meowdown/react's `<MarkdownView>`
@@ -75,6 +75,11 @@ export function MarkdownPreview({
   // The click handler is read through a ref so a changing prop never gives
   // MarkdownView a new callback identity (which would re-render its whole
   // tree).
+  const { embedMedia } = useAppServices()
+  const resolveYouTubeVideo = useCallback<YouTubeVideoResolver>(
+    (url) => embedMedia.resolveYouTubeVideo(url),
+    [embedMedia],
+  )
   const resolveXPost = useXPostResolver()
   const resolveWikilink = useWikilinkResolver()
   const navigateRef = useRef(onWikiLinkClick)

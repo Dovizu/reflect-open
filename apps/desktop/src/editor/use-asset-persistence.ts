@@ -6,7 +6,8 @@ import type {
   WikiEmbedResolver,
 } from '@meowdown/core'
 import type { AssetSaveError } from '@reflect/core'
-import { useAttachments, useNoteAttachments } from '@/editor/use-note-attachments.ts'
+import { useNoteAttachments } from '@/editor/use-note-attachments.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 export type { AssetSaveError }
 
@@ -51,7 +52,7 @@ export interface AssetPersistence {
  * being edited (a pane is reused across note switches).
  */
 export function useAssetPersistence(generation: number | null, path: string): AssetPersistence {
-  const attachments = useAttachments()
+  const { attachments } = useAppServices()
   const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(generation, path)
   // The pane outlives the note (and graph session) it shows, so a save that
   // finishes after a switch must not put its outcome on the next note's banner.

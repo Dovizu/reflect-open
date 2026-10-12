@@ -7,7 +7,7 @@ import type {
 } from '@meowdown/react'
 import { useContactsAuthorization } from '@/hooks/use-contacts-authorization.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useWikiLinkSuggestionService } from '@/services/use-search-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /** The `[[` and `#` autocomplete search handlers a {@link NoteEditor} wires up. */
 export interface EditorAutocomplete {
@@ -30,7 +30,7 @@ export interface EditorAutocomplete {
 export function useEditorAutocomplete(): EditorAutocomplete {
   const { graph } = useGraph()
   const authorization = useContactsAuthorization()
-  const wikiLinkSuggestions = useWikiLinkSuggestionService()
+  const { wikiLinkSuggestions } = useAppServices()
   const generation = graph?.generation ?? null
 
   const onWikilinkSearch = useCallback(

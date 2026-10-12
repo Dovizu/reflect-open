@@ -8,11 +8,7 @@ import {
   type RenameCoordinator,
 } from '@reflect/core'
 import { useFileChanges } from '@/lib/use-file-changes.ts'
-import {
-  useNoteSessionService,
-  useOpenDocumentsService,
-  useTitleRenameService,
-} from '@/services/use-document-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { checkRoundTrip } from './roundtrip.ts'
 
@@ -85,9 +81,7 @@ export function useNoteDocument(
   /** Mirrors the snapshot's conflict for non-reactive checks (rename gating). */
   const conflictRef = useRef<string | null>(null)
   /** The pane's lifecycle policy object — one per hook instance. */
-  const noteSessions = useNoteSessionService()
-  const openDocuments = useOpenDocumentsService()
-  const titleRename = useTitleRenameService()
+  const { noteSessions, openDocuments, titleRename } = useAppServices()
   const [binding] = useState<DocumentBinding<RenameCoordinator>>(() =>
     createDocumentBinding({ openDocuments }),
   )
