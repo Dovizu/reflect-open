@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { getNote, type NoteRow } from '@reflect/core'
+import type { NoteRow } from '@reflect/core'
 import { applyNoteRowOverlay, useNoteRowOverlay } from '@/hooks/note-row-overlay.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
@@ -26,10 +26,10 @@ export interface NoteRowState {
 export function useNoteRowState(path: string): NoteRowState {
   const { graph } = useGraph()
   const generation = graph?.generation
-  const { noteRows } = useAppServices()
+  const { indexQuery, noteRows } = useAppServices()
   const { data, isFetched } = useQuery({
     queryKey: queryKeys.index.note(graph?.root, path),
-    queryFn: async () => (await getNote(path)) ?? null,
+    queryFn: async () => (await indexQuery.getNote(path)) ?? null,
     enabled: graph !== null,
   })
   const row = data ?? null

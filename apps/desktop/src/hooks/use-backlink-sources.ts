@@ -1,14 +1,10 @@
 import { useCallback, useMemo } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import {
-  getBacklinksWithContext,
-  type BacklinkContext,
-  type BacklinkContextPage,
-  type BacklinkSourceCursor,
-} from '@reflect/core'
+import type { BacklinkContext, BacklinkContextPage, BacklinkSourceCursor } from '@reflect/core'
 import { groupBacklinksBySource, type BacklinkSource } from '@/lib/group-backlinks.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 const BACKLINK_SOURCES_PER_PAGE = 10
 
@@ -69,6 +65,7 @@ function groupLoadedBacklinks(pages: readonly BacklinkContextPage[]): BacklinkSo
  */
 export function useBacklinkSources(path: string): BacklinkSources {
   const { graph } = useGraph()
+  const { backlinks } = useAppServices()
   const {
     data,
     fetchNextPage,
@@ -80,7 +77,7 @@ export function useBacklinkSources(path: string): BacklinkSources {
   } = useInfiniteQuery({
     queryKey: queryKeys.index.backlinks(graph?.root, path),
     queryFn: ({ pageParam }) =>
-      getBacklinksWithContext(path, {
+      backlinks.getBacklinksWithContext(path, {
         cursor: pageParam,
         limit: BACKLINK_SOURCES_PER_PAGE,
       }),

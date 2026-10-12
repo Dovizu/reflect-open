@@ -1,10 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import {
-  defaultNoteRows,
-  type NoteRow,
-  type NoteRowOverlay,
-  type NoteRowOverlayPatch,
-} from '@reflect/core'
+import { defaultNoteRows, type NoteRowOverlay, type NoteRowOverlayPatch } from '@reflect/core'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 /*
@@ -30,15 +25,6 @@ export function getNoteRowOverlay(
   generation: number | undefined,
 ): NoteRowOverlay | null {
   return defaultNoteRows().getOverlay(path, generation)
-}
-
-/** `defaultNoteRows().reconcile`. Call it from an effect, never during render. */
-export function reconcileNoteRowOverlay(
-  path: string,
-  generation: number,
-  row: NoteRow | null,
-): void {
-  defaultNoteRows().reconcile(path, generation, row)
 }
 
 /** `defaultNoteRows().reset`. */

@@ -4,9 +4,9 @@ import { MediaLightbox } from '@/editor/media-lightbox.tsx'
 import { useWikilinkResolver } from '@/editor/resolve-wikilink.ts'
 import { useXPostResolver, X_MEDIA_URL_PROTOCOLS } from '@/editor/use-x-post-resolver.ts'
 import { lightboxItemFromXPostMedia } from '@/editor/x-post-media-lightbox-item.ts'
+import { useYouTubeVideoResolver } from '@/editor/youtube-video-resolver.ts'
 import { isTouchEditorSurface } from '@/lib/platform-surface.ts'
 import { cn } from '@/lib/utils.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
 import type {
   AcceptPendingReplacementOptions,
   ExitBoundaryHandler,
@@ -23,7 +23,6 @@ import type {
   WikilinkHoverHit,
   XPostMediaClickHandler,
   YouTubeVideoClickHandler,
-  YouTubeVideoResolver,
 } from '@meowdown/core'
 import {
   MarkdownEditor,
@@ -321,11 +320,7 @@ export function NoteEditor({
     onExitBoundaryRef.current = onExitBoundary
   })
 
-  const { embedMedia } = useAppServices()
-  const resolveYouTubeVideo = useCallback<YouTubeVideoResolver>(
-    (url) => embedMedia.resolveYouTubeVideo(url),
-    [embedMedia],
-  )
+  const resolveYouTubeVideo = useYouTubeVideoResolver()
   const lightbox = useLightbox()
   const openLightbox = lightbox.open
   // Captured when the lightbox opens, so a later graph switch cannot retarget it.
