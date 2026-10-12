@@ -87,6 +87,23 @@ import { createGithubAuthService, type GithubAuthService } from '../sync/github-
 import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
 import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
 import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
+import {
+  createConflictResolutionService,
+  type ConflictResolutionService,
+} from '../sync/conflict-resolution-service.ts'
+import {
+  createICloudDownloadServiceFactory,
+  type ICloudDownloadServiceFactory,
+} from '../sync/icloud-download-service.ts'
+import {
+  createICloudMigrationService,
+  type ICloudMigrationService,
+} from '../sync/icloud-migration-service.ts'
+import {
+  createICloudSyncServiceFactory,
+  type ICloudSyncServiceFactory,
+} from '../sync/icloud-sync-service.ts'
+import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
 import {
@@ -145,6 +162,10 @@ import {
   createNoteDocumentService,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
+import {
+  createNotePreviewService,
+  type NotePreviewService,
+} from '../documents/note-preview-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
   createOpenDocumentsService,
@@ -208,6 +229,10 @@ import {
   type DeepLinkService,
   type DeepLinkSource,
 } from '../navigation/deep-link-service.ts'
+import {
+  createLinkNavigationService,
+  type LinkNavigationService,
+} from '../navigation/link-navigation-service.ts'
 import {
   createNavigationService,
   type NavigationService,
@@ -305,6 +330,8 @@ export interface AppServices {
   readonly navigation: NavigationService
   /** The `reflect://` intake of this webview and the handler behind it. */
   readonly deepLink: DeepLinkService
+  /** Turns an activated link into a navigation, a new window, or a refusal. */
+  readonly linkNavigation: LinkNavigationService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -316,6 +343,13 @@ export interface AppServices {
   /** Builds the backup lifecycle of one (graph, index session) pair. */
   readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
+  /** Builds the iCloud conflict lifecycle of one (graph, index session) pair. */
+  readonly icloudSyncs: ICloudSyncServiceFactory
+  /** Builds the download refresh of one open iCloud graph (mobile). */
+  readonly icloudDownloads: ICloudDownloadServiceFactory
+  readonly icloudMigration: ICloudMigrationService
+  readonly conflictResolution: ConflictResolutionService
+  readonly syncStatus: SyncStatusService
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
   readonly xArchive: XArchiveService
@@ -345,6 +379,7 @@ export interface AppServices {
   readonly noteMove: NoteMoveService
   readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
+  readonly notePreview: NotePreviewService
   readonly tasks: TaskService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
@@ -598,6 +633,25 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage,
     logger,
   })
+  const opener = createOpenerService({ transport: adapters.opener, logger })
+  const deepLink = createDeepLinkService({
+    source: adapters.deepLink ?? createNoDeepLinkSource(),
+    indexQuery: indexReads.indexQuery,
+    captureInbox,
+    operations,
+    id,
+    clock,
+    logger,
+  })
+  const attachments = createAttachmentService({
+    assetStore,
+    noteFile,
+    fileChanges,
+    dialog: adapters.dialog,
+    operations,
+    clock,
+    platform,
+  })
   const persistenceFlush = createPersistenceFlushService({
     lifecycle,
     window: windowService,
@@ -612,6 +666,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const gists = createGistService({ http: adapters.http })
   const noteRows = createNoteRowService()
   const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
+  const icloudNative = createICloudNativeService({ ipc, logger })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
   const retrieval = createRetrievalService({
     database,
@@ -654,7 +709,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     http: adapters.http,
     dialog: adapters.dialog,
     clipboard: adapters.clipboard,
-    opener: createOpenerService({ transport: adapters.opener, logger }),
+    opener,
     path,
     window: windowService,
     lifecycle,
@@ -675,13 +730,17 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     embeddingRuntime,
     chatHistory,
     navigation: createNavigationService(),
-    deepLink: createDeepLinkService({
-      source: adapters.deepLink ?? createNoDeepLinkSource(),
-      indexQuery: indexReads.indexQuery,
-      captureInbox,
+    deepLink,
+    linkNavigation: createLinkNavigationService({
+      noteLinkResolver: noteServices.noteLinkResolver,
+      noteCreation: noteServices.noteCreation,
+      wikiResolver: indexReads.wikiResolver,
+      window: windowService,
+      platform,
+      opener,
+      deepLink,
+      attachments,
       operations,
-      id,
-      clock,
       logger,
     }),
     update: adapters.updater
@@ -722,7 +781,20 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       operations,
       clipboard: adapters.clipboard,
     }),
-    icloudNative: createICloudNativeService({ ipc, logger }),
+    icloudNative,
+    icloudSyncs: createICloudSyncServiceFactory({
+      icloudNative,
+      fileChanges,
+      indexLifecycle,
+      openDocuments,
+      lifecycle,
+      clock,
+      logger,
+    }),
+    icloudDownloads: createICloudDownloadServiceFactory({ icloudNative, lifecycle, clock, logger }),
+    icloudMigration: createICloudMigrationService({ icloudNative }),
+    conflictResolution: createConflictResolutionService({ noteFile, indexLifecycle, fileChanges }),
+    syncStatus: createSyncStatusService(),
     captureInbox,
     webFetch,
     xArchive,
@@ -744,15 +816,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     fileChanges,
     noteFile,
     assetStore,
-    attachments: createAttachmentService({
-      assetStore,
-      noteFile,
-      fileChanges,
-      dialog: adapters.dialog,
-      operations,
-      clock,
-      platform,
-    }),
+    attachments,
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
     noteMove,
@@ -770,6 +834,11 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
     noteDocuments,
+    notePreview: createNotePreviewService({
+      noteLinkResolver: noteServices.noteLinkResolver,
+      noteDocuments,
+      attachments,
+    }),
     tasks: createTaskService({ database, noteDocuments, operations, clock, logger }),
     noteActions: createNoteActionsService({
       noteDocuments,

@@ -1,11 +1,7 @@
 import { useCallback } from 'react'
 import type { LinkClickHandler } from '@meowdown/core'
-import { isOpenableExternalUrl } from '@/editor/open-external-link.ts'
-import { useMarkdownLinkNavigation } from '@/editor/use-markdown-link-navigation.ts'
-import { useAttachments } from '@/editor/use-note-attachments.ts'
-import { isDeepLinkUrl } from '@/lib/deep-links/parse.ts'
-import { useFollowDeepLink } from '@/lib/deep-links/use-follow-deep-link.ts'
-import { openUrlSync } from '@/lib/open-url.ts'
+import { useLinkNavigationHost } from '@/hooks/use-link-navigation-host.ts'
+import { useLinkNavigationService } from '@/hooks/use-link-navigation-service.ts'
 
 /**
  * The click policy for a rendered Markdown link: an attachment opens through
@@ -18,32 +14,17 @@ export function useMarkdownLinkClick(
   generation: number | null,
   sourcePath: string | null,
 ): LinkClickHandler {
-  const followDeepLink = useFollowDeepLink()
-  const navigateNoteLink = useMarkdownLinkNavigation(generation, sourcePath ?? '')
-  const attachments = useAttachments()
+  const linkNavigation = useLinkNavigationService()
+  const host = useLinkNavigationHost()
 
   return useCallback<LinkClickHandler>(
     ({ href, event, mod }) => {
       event.preventDefault()
-      if (generation !== null && sourcePath !== null) {
-        const assetPath = attachments.resolveAssetOpenPath(sourcePath, href, generation)
-        if (assetPath !== null) {
-          void attachments.openOrReveal(assetPath, generation)
-          return
-        }
-      }
-      if (isDeepLinkUrl(href)) {
-        followDeepLink({ href, openInNewWindow: mod })
-        return
-      }
-      if (isOpenableExternalUrl(href)) {
-        openUrlSync(href)
-        return
-      }
-      if (sourcePath !== null) {
-        navigateNoteLink({ href, openInNewWindow: mod })
-      }
+      linkNavigation.followMarkdownLink(
+        { href, sourcePath, openInNewWindow: mod, generation },
+        host,
+      )
     },
-    [attachments, followDeepLink, generation, navigateNoteLink, sourcePath],
+    [generation, host, linkNavigation, sourcePath],
   )
 }

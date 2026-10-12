@@ -1,27 +1,26 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  getConflictedNotes,
   setDefaultKeyboard,
+  type BackupState,
+  type ConflictedNote,
   type GraphInfo,
   type KeyboardService,
 } from '@reflect/core'
-import { createTestKeyboardService } from '@reflect/core/testing'
-import type { BackupState } from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestIpcBridgeService,
+  createTestKeyboardService,
+  installTestBridge,
+} from '@reflect/core/testing'
+import { renderWithServices } from '@/test-utils/render-with-services.tsx'
 import { SyncStatusPill } from './sync-status-pill.tsx'
 
 /**
  * The floating status pill (Plan 19, step 10): visible only when sync has
  * something to say, plain language only, and it yields to the keyboard.
  */
-
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-  getConflictedNotes: vi.fn(async () => []),
-}))
 
 const graphState = vi.hoisted(() => ({
   graph: { root: '/g', name: 'G', generation: 3 } as GraphInfo | null,
@@ -44,27 +43,35 @@ function connected(status: Extract<BackupState, { phase: 'connected' }>['status'
 
 let queryClient: QueryClient
 let keyboard: KeyboardService
+/** Answers the index's conflicted-note read. */
+let conflictedNotes: () => Promise<ConflictedNote[]>
+let uninstallBridge: () => void = () => {}
 
 beforeEach(() => {
   keyboard = createTestKeyboardService()
   setDefaultKeyboard(keyboard)
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   sync.backup = connected({ state: 'idle' })
-  vi.mocked(getConflictedNotes).mockResolvedValue([])
+  conflictedNotes = async () => []
+  uninstallBridge = installTestBridge(createTestIpcBridgeService())
 })
 
-afterEach(async () => {
-  await cleanup()
+afterEach(() => {
   queryClient.clear()
   setDefaultKeyboard(null)
-  vi.clearAllMocks()
+  uninstallBridge()
 })
 
 async function mount(): Promise<void> {
-  await render(
+  const base = createTestAppServices()
+  const app = createTestAppServices({
+    indexQuery: { ...base.indexQuery, getConflictedNotes: () => conflictedNotes() },
+  })
+  await renderWithServices(
     <QueryClientProvider client={queryClient}>
       <SyncStatusPill />
     </QueryClientProvider>,
+    { app },
   )
 }
 
@@ -87,7 +94,7 @@ describe('SyncStatusPill', () => {
     // A pill shown before the count resolves could flip from hidden
     // (reads as Backed up) to Needs review.
     sync.backup = connected({ state: 'offline', message: 'Offline' })
-    vi.mocked(getConflictedNotes).mockReturnValue(new Promise(() => {}))
+    conflictedNotes = () => new Promise(() => {})
     await mount()
 
     await Promise.resolve()
@@ -98,14 +105,16 @@ describe('SyncStatusPill', () => {
     // Loading hides; a failed count must not — Offline/Needs attention are
     // engine truth and would otherwise blank forever.
     sync.backup = connected({ state: 'offline', message: 'Offline' })
-    vi.mocked(getConflictedNotes).mockRejectedValue(new Error('index unavailable'))
+    conflictedNotes = async () => {
+      throw new Error('index unavailable')
+    }
     await mount()
 
     await expect.element(page.getByRole('status')).toMatchTextContent('Offline')
   })
 
   it('shows Needs review while conflicted notes exist', async () => {
-    vi.mocked(getConflictedNotes).mockResolvedValue([{ path: 'notes/a.md', title: 'A' }])
+    conflictedNotes = async () => [{ path: 'notes/a.md', title: 'A' }]
     await mount()
 
     await expect.element(page.getByRole('status')).toMatchTextContent('Needs review')

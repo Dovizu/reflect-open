@@ -10,6 +10,10 @@ import { queryKeys } from '@/lib/query-client.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { AllNotesScreen } from './all-notes-screen.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+
+const { openNoteWindow } = installTestLinkNavigation()
 
 /**
  * The All Notes screen over the real query layer and a fake IPC bridge: rows
@@ -20,7 +24,6 @@ import { AllNotesScreen } from './all-notes-screen.tsx'
 const settingsState = vi.hoisted((): { dateFormat: 'mdy' | 'dmy' | 'iso' } => ({
   dateFormat: 'mdy',
 }))
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({
@@ -39,10 +42,6 @@ vi.mock('@/providers/settings-provider.tsx', () => ({
     },
     updateSettings: () => {},
   }),
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 
 // Deterministic regardless of the test run's clock: both timestamps are far in
@@ -107,7 +106,6 @@ function mockManyNotes(): void {
 beforeEach(() => {
   setDefaultOperations(createTestOperationsService())
   settingsState.dateFormat = 'mdy'
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
   mockInvoke.mockReset()
   mockInvoke.mockImplementation(async (command, args) => {
     if (command !== 'db_query') {
@@ -280,10 +278,12 @@ describe('AllNotesScreen', () => {
       .click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/health.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/health.md',
+        }),
+      ),
     )
     expect(probedRoute(view)).toEqual({ kind: 'allNotes', tag: null })
     expect(view.getByRole('button', { name: /Trash \(/ }).query()).toBeNull()
@@ -297,12 +297,14 @@ describe('AllNotesScreen', () => {
     await subject.dblClick({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/health.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/health.md',
+        }),
+      ),
     )
-    expect(openRouteInNewWindow).toHaveBeenCalledTimes(1)
+    expect(openNoteWindow).toHaveBeenCalledTimes(1)
     expect(probedRoute(view)).toEqual({ kind: 'allNotes', tag: null })
     await view.unmount()
   })
@@ -466,7 +468,7 @@ describe('AllNotesScreen — selection and bulk trash', () => {
     // ⌘-click a second row extends the selection.
     await view.getByText('Dandelion chocolate.').click({ modifiers: ['ControlOrMeta'] })
     await expect.element(view.getByRole('button', { name: /Trash \(2\)/ })).toBeInTheDocument()
-    expect(openRouteInNewWindow).not.toHaveBeenCalled()
+    expect(openNoteWindow).not.toHaveBeenCalled()
     await view.unmount()
   })
 
@@ -519,7 +521,7 @@ describe('AllNotesScreen — selection and bulk trash', () => {
 
     await userEvent.keyboard('{Enter}')
     expect(probedRoute(view)).toEqual({ kind: 'note', path: 'notes/health.md' })
-    expect(openRouteInNewWindow).not.toHaveBeenCalled()
+    expect(openNoteWindow).not.toHaveBeenCalled()
     await view.unmount()
   })
 
@@ -533,12 +535,14 @@ describe('AllNotesScreen — selection and bulk trash', () => {
     await userEvent.keyboard('{ControlOrMeta>}{Enter}{/ControlOrMeta}')
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/health.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/health.md',
+        }),
+      ),
     )
-    expect(openRouteInNewWindow).toHaveBeenCalledTimes(1)
+    expect(openNoteWindow).toHaveBeenCalledTimes(1)
     expect(probedRoute(view)).toEqual({ kind: 'allNotes', tag: null })
     await view.unmount()
   })

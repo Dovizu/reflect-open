@@ -15,7 +15,29 @@ import {
   type BackupState,
   type ConnectExistingResult,
 } from '../sync/backup-service.ts'
+import {
+  createConflictResolutionService,
+  type ConflictResolutionService,
+  type ConflictResolutionServiceDeps,
+} from '../sync/conflict-resolution-service.ts'
 import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
+import {
+  createICloudDownloadServiceFactory,
+  type ICloudDownloadServiceDeps,
+  type ICloudDownloadServiceFactory,
+} from '../sync/icloud-download-service.ts'
+import {
+  createICloudMigrationService,
+  type ICloudMigrationService,
+  type ICloudMigrationServiceDeps,
+} from '../sync/icloud-migration-service.ts'
+import {
+  createICloudSyncServiceFactory,
+  type ICloudSyncService,
+  type ICloudSyncServiceDeps,
+  type ICloudSyncServiceFactory,
+} from '../sync/icloud-sync-service.ts'
+import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import { createGistService, type GistService } from '../sync/gist-service.ts'
 import { createGistPublishService, type GistPublishService } from '../sync/gist-publish-service.ts'
@@ -24,7 +46,6 @@ import type { OperationsService } from '../app/operations-service.ts'
 import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
 import type { PrivacyService } from '../privacy/privacy-service.ts'
-import { createTestNoteDocumentService } from './documents.ts'
 import { createTestPrivacyService } from './privacy.ts'
 import {
   createGitHostCredentialService,
@@ -51,7 +72,9 @@ import {
   type GithubRepoService,
 } from '../sync/github-repo-service.ts'
 import { createTestClockService } from './clock.ts'
+import { createTestNoteDocumentService, createTestOpenDocumentsService } from './documents.ts'
 import { createTestFileChangeService } from './file-change.ts'
+import { createTestNoteFileService } from './graph.ts'
 import { createTestHttpService } from './http.ts'
 import { createTestIndexLifecycleService } from './index-lifecycle.ts'
 import { createTestLoggerService } from './logger.ts'
@@ -536,4 +559,87 @@ export function createTestBackupService(options?: { state?: BackupState }): Test
       connectExisting = handler
     },
   }
+}
+
+/**
+ * The real {@link ICloudSyncServiceFactory} over `deps`; each service left
+ * out defaults to a fresh test double.
+ */
+export function createTestICloudSyncServiceFactory(
+  deps?: Partial<ICloudSyncServiceDeps>,
+): ICloudSyncServiceFactory {
+  const fileChanges = deps?.fileChanges ?? createTestFileChangeService()
+  return createICloudSyncServiceFactory({
+    icloudNative: deps?.icloudNative ?? createTestICloudNativeService(),
+    fileChanges,
+    indexLifecycle: deps?.indexLifecycle ?? createTestIndexLifecycleService({ fileChanges }),
+    openDocuments: deps?.openDocuments ?? createTestOpenDocumentsService(),
+    lifecycle: deps?.lifecycle ?? createTestLifecycleService(),
+    clock: deps?.clock ?? createTestClockService(),
+    logger: deps?.logger ?? createTestLoggerService(),
+  })
+}
+
+export interface TestICloudSyncService extends ICloudSyncService {
+  /** Every lifecycle method called, in order. */
+  calls(): readonly ('start' | 'dispose')[]
+}
+
+/** A scripted {@link ICloudSyncService}: it sweeps nothing and records its lifecycle calls. */
+export function createTestICloudSyncService(): TestICloudSyncService {
+  const log: ('start' | 'dispose')[] = []
+  return {
+    start: async () => {
+      log.push('start')
+    },
+    dispose: () => {
+      log.push('dispose')
+    },
+    calls: () => [...log],
+  }
+}
+
+/**
+ * The real {@link ICloudDownloadServiceFactory} over `deps`; each service
+ * left out defaults to a fresh test double.
+ */
+export function createTestICloudDownloadServiceFactory(
+  deps?: Partial<ICloudDownloadServiceDeps>,
+): ICloudDownloadServiceFactory {
+  return createICloudDownloadServiceFactory({
+    icloudNative: deps?.icloudNative ?? createTestICloudNativeService(),
+    lifecycle: deps?.lifecycle ?? createTestLifecycleService(),
+    clock: deps?.clock ?? createTestClockService(),
+    logger: deps?.logger ?? createTestLoggerService(),
+  })
+}
+
+/** The real {@link ICloudMigrationService} over `icloudNative`, a fresh test double by default. */
+export function createTestICloudMigrationService(
+  deps?: Partial<ICloudMigrationServiceDeps>,
+): ICloudMigrationService {
+  return createICloudMigrationService({
+    icloudNative: deps?.icloudNative ?? createTestICloudNativeService(),
+  })
+}
+
+/**
+ * The real {@link ConflictResolutionService} over `deps`; each service left
+ * out defaults to a fresh test double.
+ */
+export function createTestConflictResolutionService(
+  deps?: Partial<ConflictResolutionServiceDeps>,
+): ConflictResolutionService {
+  const fileChanges = deps?.fileChanges ?? createTestFileChangeService()
+  const noteFile = deps?.noteFile ?? createTestNoteFileService()
+  return createConflictResolutionService({
+    noteFile,
+    indexLifecycle: deps?.indexLifecycle ?? createTestIndexLifecycleService(),
+    fileChanges,
+  })
+}
+
+/** The real {@link SyncStatusService}; it is a pure derivation. */
+export function createTestSyncStatusService(): SyncStatusService {
+  return createSyncStatusService()
 }

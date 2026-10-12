@@ -1,0 +1,104 @@
+import {
+  defaultNoteLinkResolver,
+  type NoteLinkResolverService,
+} from '../graph/note-link-resolver-service.ts'
+import { splitFrontmatter } from '../markdown/frontmatter.ts'
+import {
+  defaultAttachments,
+  type AttachmentService,
+  type WikiEmbedDisplay,
+} from './attachment-service.ts'
+import { defaultNoteDocuments, type NoteDocumentService } from './note-document-service.ts'
+
+/** A read-only snapshot of one note, taken for a passive preview. */
+export interface NotePreview {
+  /** The graph-relative path of the previewed note. */
+  readonly path: string
+  /** The note body with frontmatter already stripped. */
+  readonly markdown: string
+  /** The preview URL of an image in the note, resolved from the note's own folder. */
+  resolveImageUrl: (source: string) => Promise<string | undefined>
+  /** Classify one of the note's `![[embeds]]`. */
+  resolveWikiEmbed: (target: string) => WikiEmbedDisplay | undefined
+}
+
+/** Read-only previews of the note that a link points at. */
+export interface NotePreviewService {
+  /**
+   * The preview of the note that a `[[wiki link]]` target names. Only an
+   * existing target resolves to a snapshot; missing, ambiguous, unavailable,
+   * and failed targets resolve to `null`. Failures are swallowed into `null`
+   * rather than rejected: transient read errors (an iCloud eviction, a graph
+   * switch) are expected and should not log as errors.
+   */
+  previewWikiTarget(target: string, generation: number): Promise<NotePreview | null>
+  /** Read an existing note without disturbing its editor session: `NoteDocumentService.readExisting`. */
+  readExistingNoteSource(path: string, generation: number): Promise<string>
+}
+
+export interface NotePreviewServiceDeps {
+  noteLinkResolver: Pick<NoteLinkResolverService, 'resolveWikiTarget'>
+  noteDocuments: Pick<NoteDocumentService, 'readExisting'>
+  attachments: Pick<AttachmentService, 'resolvePreviewImageUrl' | 'resolveWikiEmbed'>
+}
+
+export function createNotePreviewService(deps: NotePreviewServiceDeps): NotePreviewService {
+  const { noteLinkResolver, noteDocuments, attachments } = deps
+
+  return {
+    async previewWikiTarget(target, generation) {
+      try {
+        const resolution = await noteLinkResolver.resolveWikiTarget(target, generation)
+        if (resolution.kind !== 'resolved') {
+          return null
+        }
+        const { path } = resolution
+        const source = await noteDocuments.readExisting(path, generation)
+        return {
+          path,
+          markdown: splitFrontmatter(source).body,
+          resolveImageUrl: (imageSource) =>
+            attachments.resolvePreviewImageUrl(path, imageSource, generation),
+          resolveWikiEmbed: (embedTarget) => attachments.resolveWikiEmbed(embedTarget),
+        }
+      } catch {
+        return null
+      }
+    },
+    readExistingNoteSource: (path, generation) => noteDocuments.readExisting(path, generation),
+  }
+}
+
+let installedService: NotePreviewService | null = null
+let fallback: NotePreviewService | null = null
+
+/**
+ * The process-wide `NotePreviewService`. Unless one is installed, it reads
+ * the default note link resolver, note documents, and attachments at each
+ * call.
+ */
+export function defaultNotePreview(): NotePreviewService {
+  if (installedService !== null) {
+    return installedService
+  }
+  fallback ??= createNotePreviewService({
+    noteLinkResolver: {
+      resolveWikiTarget: (target, generation, sourcePath) =>
+        defaultNoteLinkResolver().resolveWikiTarget(target, generation, sourcePath),
+    },
+    noteDocuments: {
+      readExisting: (path, generation) => defaultNoteDocuments().readExisting(path, generation),
+    },
+    attachments: {
+      resolvePreviewImageUrl: (notePath, source, generation) =>
+        defaultAttachments().resolvePreviewImageUrl(notePath, source, generation),
+      resolveWikiEmbed: (target) => defaultAttachments().resolveWikiEmbed(target),
+    },
+  })
+  return fallback
+}
+
+/** Install the process-wide `NotePreviewService`; `null` restores the one over the defaults. */
+export function setDefaultNotePreview(service: NotePreviewService | null): void {
+  installedService = service
+}
