@@ -68,3 +68,8 @@ export {
   type TestGitRepositoryService,
   type TestICloudNativeService,
 } from './sync.ts'
+export {
+  createTestAppInfoService,
+  createTestSecretStoreService,
+  type TestSecretStoreService,
+} from './secrets.ts'

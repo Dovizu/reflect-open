@@ -3,13 +3,20 @@ import { page, userEvent, type Locator } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ReflectError,
   setBridge,
   setDefaultHttp,
+  setDefaultSecretStore,
   settingsSchema,
   type HostedAiProviderConfig,
   type Settings,
 } from '@reflect/core'
-import { createTestHttpService, type TestHttpService } from '@reflect/core/testing'
+import {
+  createTestHttpService,
+  createTestSecretStoreService,
+  type TestHttpService,
+  type TestSecretStoreService,
+} from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { resetOperations } from '@/lib/operations.ts'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
@@ -21,13 +28,22 @@ let http: TestHttpService
 
 let stored: Record<string, unknown>
 let saved: unknown[]
-let secrets: Map<string, string>
+let secrets: TestSecretStoreService
 let failSecretSet: boolean
 let failLoad: boolean
 
 function installFakeBridge(): void {
   saved = []
-  secrets = new Map()
+  secrets = createTestSecretStoreService()
+  setDefaultSecretStore({
+    ...secrets,
+    set: async (name, value) => {
+      if (failSecretSet) {
+        throw new ReflectError('io', 'keychain locked')
+      }
+      await secrets.set(name, value)
+    },
+  })
   failSecretSet = false
   failLoad = false
   setBridge({
@@ -40,15 +56,6 @@ function installFakeBridge(): void {
           return stored
         case 'settings_save':
           saved.push(args['settings'])
-          return null
-        case 'secret_set':
-          if (failSecretSet) {
-            throw { kind: 'io', message: 'keychain locked' }
-          }
-          secrets.set(args['name'] as string, args['value'] as string)
-          return null
-        case 'secret_delete':
-          secrets.delete(args['name'] as string)
           return null
         default:
           return null
@@ -113,6 +120,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setBridge(null)
+  setDefaultSecretStore(null)
   setDefaultHttp(null)
   queryClient.clear()
   resetOperations()
@@ -165,7 +173,7 @@ describe('AiProvidersSection', () => {
       expect.objectContaining({ method: 'GET', url: 'https://api.anthropic.com/v1/models' }),
     )
     // The full key reached the keychain (and only the keychain).
-    expect(secrets.get(`ai-api-key:${added!.id}`)).toBe('sk-ant-test-wxyz1')
+    expect(secrets.snapshot()[`ai-api-key:${added!.id}`]).toBe('sk-ant-test-wxyz1')
     expect(JSON.stringify(saved)).not.toContain('sk-ant-test-wxyz1')
     await expectLocatorToHaveCount(page.getByRole('dialog'), 0)
   })
@@ -206,7 +214,7 @@ describe('AiProvidersSection', () => {
     const [probe] = http.requests()
     expect(probe).toMatchObject({ method: 'GET', url: 'http://localhost:1234/v1/models' })
     expect([...(probe?.headers.keys() ?? [])]).toEqual([])
-    expect(secrets.size).toBe(0)
+    expect(secrets.snapshot()).toEqual({})
     expect(JSON.stringify(saved)).not.toContain('localhost:1234/v1/')
     await expectLocatorToHaveCount(page.getByRole('dialog'), 0)
   })
@@ -221,7 +229,7 @@ describe('AiProvidersSection', () => {
     await dialog.getByRole('button', { name: 'Add provider' }).click()
 
     await expect.element(dialog.getByRole('alert')).toMatchTextContent(/rejected this API key/i)
-    expect(secrets.size).toBe(0)
+    expect(secrets.snapshot()).toEqual({})
     expect(saved).toEqual([])
   })
 
@@ -246,7 +254,7 @@ describe('AiProvidersSection', () => {
 
     await dialog.getByRole('button', { name: 'Save anyway' }).click()
     await vi.waitFor(() => expect(saved).toHaveLength(1))
-    expect(secrets.size).toBe(1)
+    expect(Object.keys(secrets.snapshot())).toHaveLength(1)
     await expectLocatorToHaveCount(page.getByRole('dialog'), 0)
   })
 
@@ -262,7 +270,7 @@ describe('AiProvidersSection', () => {
     await expect.element(dialog.getByRole('alert')).toMatchTextContent(/^keychain locked$/)
     await expect.element(page.getByRole('dialog')).toBeInTheDocument()
     expect(saved).toEqual([])
-    expect(secrets.size).toBe(0)
+    expect(secrets.snapshot()).toEqual({})
   })
 
   it('refuses to add when the settings store failed to load (no orphaned key)', async () => {
@@ -277,13 +285,13 @@ describe('AiProvidersSection', () => {
     // A session-only entry would vanish on restart, stranding the key in the
     // keychain with no UI to delete it — so the key must never be stored.
     await expect.element(dialog.getByRole('alert')).toMatchTextContent(/could not be loaded/i)
-    expect(secrets.size).toBe(0)
+    expect(secrets.snapshot()).toEqual({})
     expect(saved).toEqual([])
   })
 
   it('removes a model, deletes its secret, and promotes the next default', async () => {
     stored = twoStoredModels()
-    secrets.set('ai-api-key:a', 'sk-a')
+    await secrets.set('ai-api-key:a', 'sk-a')
     await renderSection()
     await expect.element(page.getByText('Anthropic')).toBeInTheDocument()
 
@@ -295,13 +303,13 @@ describe('AiProvidersSection', () => {
         defaultAiProviderId: 'b',
       }),
     )
-    expect(secrets.has('ai-api-key:a')).toBe(false)
+    expect(secrets.snapshot()).not.toHaveProperty('ai-api-key:a')
   })
 
   it('overlapping removes both land instead of clobbering each other', async () => {
     stored = twoStoredModels()
-    secrets.set('ai-api-key:a', 'sk-a')
-    secrets.set('ai-api-key:b', 'sk-b')
+    await secrets.set('ai-api-key:a', 'sk-a')
+    await secrets.set('ai-api-key:b', 'sk-b')
     await renderSection()
     await expect.element(page.getByText('Anthropic')).toBeInTheDocument()
 
@@ -321,7 +329,7 @@ describe('AiProvidersSection', () => {
     await vi.waitFor(() =>
       expect(lastSavedDoc()).toMatchObject({ aiProviders: [], defaultAiProviderId: null }),
     )
-    expect(secrets.size).toBe(0)
+    expect(secrets.snapshot()).toEqual({})
   })
 
   it('make default moves the id', async () => {
@@ -337,7 +345,7 @@ describe('AiProvidersSection', () => {
 
   it('changes a configured provider default model without replacing its key', async () => {
     stored = twoStoredModels()
-    secrets.set('ai-api-key:b', 'sk-openai-secret')
+    await secrets.set('ai-api-key:b', 'sk-openai-secret')
     await renderSection()
 
     await page.getByRole('combobox', { name: 'Default model for OpenAI' }).click()
@@ -348,7 +356,7 @@ describe('AiProvidersSection', () => {
         entry({ id: 'b', provider: 'openai', model: 'gpt-5.4-mini', keyHint: 'abcd2' }),
       )
     })
-    expect(secrets.get('ai-api-key:b')).toBe('sk-openai-secret')
+    expect(secrets.snapshot()['ai-api-key:b']).toBe('sk-openai-secret')
   })
 
   it('traps Tab inside the dialog', async () => {

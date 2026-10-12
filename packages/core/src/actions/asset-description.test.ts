@@ -1,12 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestHttpService } from '../testing/index.ts'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestHttpService, createTestSecretStoreService } from '../testing/index.ts'
 import { AssetDescriptionRejectedError, describeAsset } from '../ai/describe-asset.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import { ReflectError } from '../errors.ts'
 import { listDir, readAsset, readNote, writeNote } from '../graph/commands.ts'
 import { assetReferencingNotePaths } from '../indexing/asset-refs.ts'
 import { hashContent } from '../indexing/hash.ts'
-import { getSecret } from '../secrets/keychain.ts'
+import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import { descriptionPathFor } from '../graph/paths.ts'
 import {
   assetTypeFor,
@@ -29,9 +29,6 @@ vi.mock('../indexing/asset-refs', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../indexing/asset-refs.ts')>()),
   assetReferencingNotePaths: vi.fn(),
 }))
-vi.mock('../secrets/keychain', () => ({
-  getSecret: vi.fn(),
-}))
 vi.mock('../ai/describe-asset', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ai/describe-asset.ts')>()),
   describeAsset: vi.fn(),
@@ -42,7 +39,6 @@ const readAssetMock = vi.mocked(readAsset)
 const readNoteMock = vi.mocked(readNote)
 const writeNoteMock = vi.mocked(writeNote)
 const assetRefsMock = vi.mocked(assetReferencingNotePaths)
-const getSecretMock = vi.mocked(getSecret)
 const describeMock = vi.mocked(describeAsset)
 
 const PROVIDERS: AiProvidersState = {
@@ -97,8 +93,12 @@ beforeEach(() => {
     }))
   })
   assetRefsMock.mockImplementation(async (assetPath: string) => refs.get(assetPath) ?? [])
-  getSecretMock.mockResolvedValue('sk-live')
+  setDefaultSecretStore(createTestSecretStoreService({ 'ai-api-key:cfg-anthropic': 'sk-live' }))
   describeMock.mockResolvedValue('A flow diagram.')
+})
+
+afterEach(() => {
+  setDefaultSecretStore(null)
 })
 
 /** A public note referencing `assetPath`. */
@@ -419,7 +419,12 @@ describe('reconcileAssetDescriptions', () => {
   it('stops with a config reason when the API key is missing from the keychain', async () => {
     assets.set('assets/a.png', 'aGVsbG8=')
     refs.set('assets/a.png', ['notes/pub.md'])
-    getSecretMock.mockRejectedValue(new Error('no key'))
+    setDefaultSecretStore({
+      ...createTestSecretStoreService(),
+      get: async () => {
+        throw new Error('no key')
+      },
+    })
 
     const outcome = await reconcileAssetDescriptions(input())
 

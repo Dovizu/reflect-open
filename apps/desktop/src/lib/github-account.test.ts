@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { setBridge, setDefaultHttp, setDefaultPlatform } from '@reflect/core'
+import { setDefaultHttp, setDefaultPlatform, setDefaultSecretStore } from '@reflect/core'
 import {
   createTestHttpService,
   createTestPlatformService,
+  createTestSecretStoreService,
   type TestHttpService,
+  type TestSecretStoreService,
 } from '@reflect/core/testing'
 import { fetchSignedInUser } from './github-account.ts'
 
@@ -23,26 +25,9 @@ afterEach(() => {
   setDefaultHttp(null)
 })
 
-function fakeKeychain(initial: Record<string, string> = {}): Map<string, string> {
-  const store = new Map(Object.entries(initial))
-  setBridge({
-    invoke: async (command, args) => {
-      const name = args['name'] as string
-      if (command === 'secret_get') {
-        return store.get(name) ?? null
-      }
-      if (command === 'secret_set') {
-        store.set(name, args['value'] as string)
-        return null
-      }
-      if (command === 'secret_delete') {
-        store.delete(name)
-        return null
-      }
-      throw new Error(`unexpected command ${command}`)
-    },
-    listen: async () => () => {},
-  })
+function fakeKeychain(initial: Record<string, string> = {}): TestSecretStoreService {
+  const store = createTestSecretStoreService(initial)
+  setDefaultSecretStore(store)
   return store
 }
 
@@ -54,7 +39,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 afterEach(() => {
-  setBridge(null)
+  setDefaultSecretStore(null)
 })
 
 describe('fetchSignedInUser', () => {
@@ -79,7 +64,7 @@ describe('fetchSignedInUser', () => {
     http.on('GET', USER_URL, jsonResponse({ message: 'Bad credentials' }, 401))
 
     await expect(fetchSignedInUser()).rejects.toMatchObject({ kind: 'auth' })
-    expect(store.has('github-auth')).toBe(false)
+    expect(store.snapshot()).not.toHaveProperty('github-auth')
   })
 
   it('keeps a newer credential saved while a stale lookup was in flight', async () => {
@@ -90,12 +75,12 @@ describe('fetchSignedInUser', () => {
       'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_old' }),
     })
     http.on('GET', USER_URL, () => {
-      store.set('github-auth', JSON.stringify({ kind: 'pat', token: 'ghp_new' }))
+      void store.set('github-auth', JSON.stringify({ kind: 'pat', token: 'ghp_new' }))
       return jsonResponse({ message: 'Bad credentials' }, 401)
     })
 
     await expect(fetchSignedInUser()).rejects.toMatchObject({ kind: 'auth' })
-    expect(JSON.parse(store.get('github-auth') ?? '{}')).toEqual({
+    expect(JSON.parse(store.snapshot()['github-auth'] ?? '{}')).toEqual({
       kind: 'pat',
       token: 'ghp_new',
     })
