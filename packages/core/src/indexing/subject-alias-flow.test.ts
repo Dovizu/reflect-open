@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { parseNote, upsertFrontmatter } from '../markdown/index.ts'
-import { setBridge } from '../ipc/bridge.ts'
+import { createTestDatabaseService } from '../testing/database.ts'
 import {
-  applyProjection,
   connectIndex,
   expectSuggestionOpensItsPath,
-  openMigratedIndex,
+  disconnectIndex,
   project,
 } from './flow-test-harness.ts'
 import {
@@ -19,7 +18,7 @@ import { nextAliases, rewriteLinksForTitleChange } from './rename.ts'
 
 describe('v1 subject alias flow', () => {
   it('keeps `[[segment]]` links resolving after a `//` title is renamed away', async () => {
-    const database = openMigratedIndex()
+    const database = createTestDatabaseService()
     const aliases = nextAliases([], {
       from: 'Tim MacCaw // Dad',
       to: 'Timothy MacCaw',
@@ -27,9 +26,8 @@ describe('v1 subject alias flow', () => {
     })
     expect(aliases).toEqual(['Tim MacCaw', 'Dad', 'Tim MacCaw // Dad'])
     const renamed = upsertFrontmatter('# Timothy MacCaw\n', { aliases: aliases ?? [] })
-    applyProjection(database, project('notes/tim-maccaw-dad.md', renamed, 20))
-    applyProjection(
-      database,
+    database.applyProjection(project('notes/tim-maccaw-dad.md', renamed, 20))
+    database.applyProjection(
       project('notes/family.md', '# Family\n\nCall [[Dad]] or [[Tim MacCaw]].\n', 10),
     )
     connectIndex(database)
@@ -46,21 +44,19 @@ describe('v1 subject alias flow', () => {
         { sourcePath: 'notes/family.md', targetRaw: 'Tim MacCaw' },
       ])
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 
   it('retitles a display reached through a stable subject alias', async () => {
-    const database = openMigratedIndex()
+    const database = createTestDatabaseService()
     const subjectPath = 'notes/capture.md'
     const sourcePath = 'daily/2026-07-23.md'
     const source = '[[capture-2026-07-23-154848|Old Title]]\n'
-    applyProjection(
-      database,
+    database.applyProjection(
       project(subjectPath, '---\naliases:\n  - capture-2026-07-23-154848\n---\n# Old Title\n', 20),
     )
-    applyProjection(database, project(sourcePath, source, 10))
+    database.applyProjection(project(sourcePath, source, 10))
     connectIndex(database)
 
     try {
@@ -84,13 +80,12 @@ describe('v1 subject alias flow', () => {
         [sourcePath]: '[[capture-2026-07-23-154848|New Title]]\n',
       })
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 
   it('projects, resolves, backlinks, and autocompletes Dad through the real schema', async () => {
-    const database = openMigratedIndex()
+    const database = createTestDatabaseService()
     const person = project('notes/tim-maccaw-dad.md', '# Tim MacCaw // Dad\n', 20)
     const source = project('notes/family.md', '# Family\n\nCall [[Dad]].\n', 10)
 
@@ -98,8 +93,8 @@ describe('v1 subject alias flow', () => {
       { alias: 'Tim MacCaw', aliasKey: 'tim maccaw' },
       { alias: 'Dad', aliasKey: 'dad' },
     ])
-    applyProjection(database, person)
-    applyProjection(database, source)
+    database.applyProjection(person)
+    database.applyProjection(source)
 
     connectIndex(database)
 
@@ -128,7 +123,7 @@ describe('v1 subject alias flow', () => {
       // A standalone title is a stronger claimant than the subject alias. The
       // link, backlink, and autocomplete ranking must all move together.
       const standaloneDad = project('notes/dad.md', '# Dad\n', 30)
-      applyProjection(database, standaloneDad)
+      database.applyProjection(standaloneDad)
       await expect(resolveWikiTarget('Dad')).resolves.toEqual({
         kind: 'resolved',
         ref: 'notes/dad.md',
@@ -139,7 +134,7 @@ describe('v1 subject alias flow', () => {
       ])
 
       const selected = project('notes/selected.md', `# Selected\n\nCall [[${inserted}]].\n`, 40)
-      applyProjection(database, selected)
+      database.applyProjection(selected)
       expect(selected.links).toEqual([
         expect.objectContaining({
           targetRaw: 'Tim MacCaw // Dad',
@@ -171,13 +166,12 @@ describe('v1 subject alias flow', () => {
       expect(collidedSuggestions[1]!.insertText).toBe('Tim MacCaw // Dad|Dad')
       await Promise.all(collidedSuggestions.map(expectSuggestionOpensItsPath))
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 
   it('offers only suggestions whose serialized address resolves to the selected note', async () => {
-    const database = openMigratedIndex()
+    const database = createTestDatabaseService()
     const projections = [
       // A calendar-valid daily address outranks a regular note with that title,
       // even when the daily's custom H1 keeps it out of the title search hits.
@@ -223,7 +217,7 @@ describe('v1 subject alias flow', () => {
       project('notes/escaped.md', "---\ntitle: 'Escape \\. Title'\n---\nBody\n", 130),
     ]
     for (const projection of projections) {
-      applyProjection(database, projection)
+      database.applyProjection(projection)
     }
     connectIndex(database)
 
@@ -376,8 +370,7 @@ describe('v1 subject alias flow', () => {
         suggestions: [{ path: 'notes/escaped.md', insertText: 'notes/escaped' }],
       })
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 })

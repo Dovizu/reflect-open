@@ -39,6 +39,7 @@ const SERVICE_KEYS = [
   'mobileStorage',
   'imageCodec',
   'exceptionTelemetry',
+  'database',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

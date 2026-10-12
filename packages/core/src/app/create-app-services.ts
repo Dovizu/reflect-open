@@ -1,5 +1,6 @@
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import {
   createIpcBridgeService,
   type IpcBridge,
@@ -66,6 +67,7 @@ export interface AppServices {
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
+  readonly database: DatabaseService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -126,5 +128,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
+    database: createDatabaseService({ ipc }),
   }
 }
