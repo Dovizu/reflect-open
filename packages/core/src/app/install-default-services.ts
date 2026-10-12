@@ -5,7 +5,11 @@ import { setDefaultLanguageModel } from '../ai/language-model-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
+import { setDefaultGists } from '../sync/gist-service.ts'
+import { setDefaultGitHostCredentials } from '../sync/git-host-credential-service.ts'
 import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
+import { setDefaultGithubAuth } from '../sync/github-auth-service.ts'
+import { setDefaultGithubRepos } from '../sync/github-repo-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
@@ -101,6 +105,10 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultChatHistory(services.chatHistory)
   setDefaultUpdate(services.update)
   setDefaultGitRepository(services.gitRepository)
+  setDefaultGithubAuth(services.githubAuth)
+  setDefaultGitHostCredentials(services.gitHostCredentials)
+  setDefaultGithubRepos(services.githubRepos)
+  setDefaultGists(services.gists)
   setDefaultICloudNative(services.icloudNative)
   setDefaultCaptureInbox(services.captureInbox)
   setDefaultWebFetch(services.webFetch)
@@ -172,6 +180,10 @@ export function resetDefaultServices(): void {
   setDefaultChatHistory(null)
   setDefaultUpdate(null)
   setDefaultGitRepository(null)
+  setDefaultGithubAuth(null)
+  setDefaultGitHostCredentials(null)
+  setDefaultGithubRepos(null)
+  setDefaultGists(null)
   setDefaultICloudNative(null)
   setDefaultCaptureInbox(null)
   setDefaultWebFetch(null)

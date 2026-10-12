@@ -6,7 +6,11 @@ import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { defaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { defaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { defaultICloudNative } from '../ipc/icloud-native-service.ts'
+import { defaultGists } from '../sync/gist-service.ts'
+import { defaultGitHostCredentials } from '../sync/git-host-credential-service.ts'
 import { defaultGitRepository } from '../sync/git-repository-service.ts'
+import { defaultGithubAuth } from '../sync/github-auth-service.ts'
+import { defaultGithubRepos } from '../sync/github-repo-service.ts'
 import { defaultXArchive } from '../x-archive.ts'
 import { defaultWebFetch } from './web-fetch-service.ts'
 import { defaultIap } from '../ipc/iap-plugin.ts'
@@ -104,6 +108,10 @@ describe('installDefaultServices', () => {
     expect(defaultChatHistory()).toBe(services.chatHistory)
     expect(defaultUpdate()).toBe(services.update)
     expect(defaultGitRepository()).toBe(services.gitRepository)
+    expect(defaultGithubAuth()).toBe(services.githubAuth)
+    expect(defaultGitHostCredentials()).toBe(services.gitHostCredentials)
+    expect(defaultGithubRepos()).toBe(services.githubRepos)
+    expect(defaultGists()).toBe(services.gists)
     expect(defaultICloudNative()).toBe(services.icloudNative)
     expect(defaultCaptureInbox()).toBe(services.captureInbox)
     expect(defaultWebFetch()).toBe(services.webFetch)
@@ -180,6 +188,10 @@ describe('resetDefaultServices', () => {
     expect(defaultChatHistory()).not.toBe(services.chatHistory)
     expect(defaultUpdate()).not.toBe(services.update)
     expect(defaultGitRepository()).not.toBe(services.gitRepository)
+    expect(defaultGithubAuth()).not.toBe(services.githubAuth)
+    expect(defaultGitHostCredentials()).not.toBe(services.gitHostCredentials)
+    expect(defaultGithubRepos()).not.toBe(services.githubRepos)
+    expect(defaultGists()).not.toBe(services.gists)
     expect(defaultICloudNative()).not.toBe(services.icloudNative)
     expect(defaultCaptureInbox()).not.toBe(services.captureInbox)
     expect(defaultWebFetch()).not.toBe(services.webFetch)
