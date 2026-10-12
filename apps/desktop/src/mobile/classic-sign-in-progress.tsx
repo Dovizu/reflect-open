@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button.tsx'
 import { Spinner } from '@/components/ui/spinner.tsx'
 import type { ClassicSignIn } from '@/mobile/use-classic-access.ts'
 import { formatFullDate } from '@/lib/dates.ts'
-import { useClassicAccessService, useLoggerService } from '@/services/use-monetization-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { useDateFormat } from '@/hooks/use-date-format.ts'
 
 type StepState = 'done' | 'active' | 'pending' | 'failed'
@@ -93,8 +93,7 @@ function StepIcon({ state }: { state: StepState }): ReactElement {
  * while idle, while the sheet is open, or after a cancelled sheet.
  */
 export function ClassicSignInProgress({ signIn }: { signIn: ClassicSignIn }): ReactElement | null {
-  const classic = useClassicAccessService()
-  const logger = useLoggerService()
+  const { classicAccess: classic, logger } = useAppServices()
   const screen = screenFor(signIn, useDateFormat())
   if (screen === null) return null
   const { mutation } = signIn

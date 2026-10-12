@@ -4,7 +4,6 @@ import {
   aiProvider,
   aiProviderRequiresApiKey,
   errorMessage,
-  listNotes,
   marketingVersion,
   CHAT_SYSTEM_PROMPT_MAX_LENGTH,
   TRANSCRIPTION_PROMPT_MAX_LENGTH,
@@ -22,9 +21,7 @@ import { useAiPrompts } from '@/hooks/use-ai-prompts.ts'
 import { useAiProviders } from '@/hooks/use-ai-providers.ts'
 import { useAppVersion } from '@/hooks/use-app-version.ts'
 import { usePaywallRequested } from '@/hooks/use-paywall-requested.ts'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useCrashTest, useDebugUnlockTap } from '@/hooks/use-debug-unlock.ts'
-import { openUrlSync } from '@/lib/open-url.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { AddAiProviderDrawer } from '@/mobile/add-ai-provider-drawer.tsx'
 import { AiPromptDrawer } from '@/mobile/ai-prompt-drawer.tsx'
@@ -52,7 +49,7 @@ import {
 } from '@/mobile/use-classic-access.ts'
 import { useMobileSyncStatus } from '@/mobile/use-sync-status.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { usePaywallService } from '@/services/use-monetization-services.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 import { formatFullDate } from '@/lib/dates.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useSyncContext } from '@/providers/sync-provider.tsx'
@@ -107,7 +104,7 @@ export function MobileSettings(): ReactElement {
   const subscription = useActiveSubscription()
   const classicAccess = useClassicAccess()
   const classicSignOut = useClassicSignOut()
-  const paywall = usePaywallService()
+  const { paywall, opener, noteList } = useMobileAppServices()
   const [, setPaywallRequested] = usePaywallRequested()
   const [restorePending, setRestorePending] = useState(false)
   const [redeemPending, setRedeemPending] = useState(false)
@@ -168,11 +165,10 @@ export function MobileSettings(): ReactElement {
   const [managedProvider, setManagedProvider] = useState<AiProviderConfig | null>(null)
   const [manageOpen, setManageOpen] = useState(false)
 
-  const bridgeReady = useBridgeReady()
   const { data: notes } = useQuery({
     queryKey: queryKeys.index.mobileNoteCount(graph?.root),
-    queryFn: () => listNotes(),
-    enabled: bridgeReady && graph !== null,
+    queryFn: () => noteList.listNotes(),
+    enabled: graph !== null,
   })
 
   const backup = sync?.backup ?? null
@@ -428,7 +424,7 @@ export function MobileSettings(): ReactElement {
                 <SettingsActionRow
                   label="Manage Subscription"
                   onPress={() => {
-                    openUrlSync('https://apps.apple.com/account/subscriptions')
+                    opener.openUrlSync('https://apps.apple.com/account/subscriptions')
                   }}
                 />
               ) : null}
@@ -465,7 +461,7 @@ export function MobileSettings(): ReactElement {
               <SettingsActionRow
                 label="Terms of Use"
                 onPress={() => {
-                  openUrlSync(TERMS_OF_USE_URL)
+                  opener.openUrlSync(TERMS_OF_USE_URL)
                 }}
               />
             </SettingsGroup>
@@ -484,7 +480,7 @@ export function MobileSettings(): ReactElement {
             <SettingsActionRow
               label="Privacy Policy"
               onPress={() => {
-                openUrlSync(PRIVACY_POLICY_URL)
+                opener.openUrlSync(PRIVACY_POLICY_URL)
               }}
             />
           </SettingsGroup>

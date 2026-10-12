@@ -3,8 +3,6 @@ import type { GraphInfo } from '@reflect/core'
 import { PaletteProvider } from '@/components/command-palette/palette-provider.tsx'
 import { NoteWindowContent } from '@/components/note-window-content.tsx'
 import { WorkspaceContent } from '@/components/workspace-content.tsx'
-import { getInitialWindowRoute } from '@/lib/windows/initial-window-route.ts'
-import { isMainWindow } from '@/lib/windows/window-role.ts'
 import { useAttachmentCatalogSync } from '@/lib/attachment-catalog.ts'
 import { AssetDescribeProvider } from '@/providers/asset-describe-provider.tsx'
 import { AudioMemoProvider } from '@/providers/audio-memo-provider.tsx'
@@ -19,6 +17,7 @@ import { SidebarProvider } from '@/providers/sidebar-provider.tsx'
 import { SyncProvider } from '@/providers/sync-provider.tsx'
 import { V1ImportProvider } from '@/providers/v1-import-provider.tsx'
 import { RouterProvider } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface GraphWorkspaceProps {
   graph: GraphInfo
@@ -32,11 +31,12 @@ interface GraphWorkspaceProps {
  * fresh history.
  */
 export function GraphWorkspace({ graph }: GraphWorkspaceProps): ReactElement {
+  const { deepLink, window: appWindow } = useAppServices()
   useAttachmentCatalogSync(graph.generation)
   // A note window's first route is its ⌘-clicked target (seeded by the boot
   // hook) — starting on the default today route would flash the daily note
   // until the deep link navigated.
-  const initialRoute = isMainWindow() ? null : getInitialWindowRoute()
+  const initialRoute = appWindow.isMainWindow() ? null : deepLink.getInitialWindowRoute()
   return (
     <RouterProvider key={graph.root} {...(initialRoute !== null ? { initialRoute } : {})}>
       <SyncProvider graph={graph}>
@@ -63,7 +63,7 @@ export function GraphWorkspace({ graph }: GraphWorkspaceProps): ReactElement {
                                   closing settings can't orphan a running
                                   import; main window only — its dialog is the
                                   import's single face. */}
-                              {isMainWindow() ? (
+                              {appWindow.isMainWindow() ? (
                                 <V1ImportProvider>
                                   <WorkspaceContent graph={graph} />
                                 </V1ImportProvider>

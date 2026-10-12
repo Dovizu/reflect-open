@@ -1,25 +1,33 @@
-import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
 import {
+  isOstensiblyEmptyNoteSource,
   upsertFrontmatter,
-  type GraphInfo,
+  type IndexQueryService,
+  type NoteActionsService,
+  type NoteDocumentService,
+  type NoteRow,
   type PinnedNote,
-  setDefaultOperations,
 } from '@reflect/core'
+import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import { frontmatterPatchToYaml } from '@/editor/note-session.ts'
-import { installTestNoteDocuments } from '@/test-utils/note-documents.ts'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-client.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { act, type ReactElement, type ReactNode } from 'react'
-import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { NoteActionsMenu } from './note-actions-menu.tsx'
 
-const getNote = vi.hoisted(() => vi.fn())
-const noteSource = vi.hoisted(() => ({ value: '# A\n' }))
-const { readSource: readNoteSource, commitFrontmatter: commitNoteFrontmatter } =
-  installTestNoteDocuments()
-const deleteOpenNote = vi.hoisted(() => vi.fn(async () => {}))
-const shareNote = vi.hoisted(() => vi.fn(async () => {}))
+// What the app's fakes answer; each test sets them before `mount`.
+const getNote = vi.fn<IndexQueryService['getNote']>()
+const readNoteSource = vi.fn<NoteDocumentService['readSource']>()
+const commitNoteFrontmatter = vi.fn<NoteDocumentService['commitFrontmatter']>()
+const shareMock = vi.fn<(data: ShareData) => Promise<void>>()
+const SHARED = { title: 'meeting', text: '# Meeting\n' }
+const noteSource = { value: '# A\n' }
+
+// The services of the rendered app; set by `mount`.
+let app: TestAppServices
+let trash: MockInstance<NoteActionsService['trash']>
+let noteContent: MockInstance<TestAppServices['share']['noteContent']>
 
 /**
  * The mobile note actions drawer: pin/share/delete already live here; this
@@ -90,95 +98,64 @@ vi.mock('@/components/ui/drawer.tsx', async () => {
   }
 })
 
-const graphStore = vi.hoisted(() => {
-  let graph: GraphInfo | null = null
-  const listeners = new Set<() => void>()
-  return {
-    getSnapshot: (): GraphInfo | null => graph,
-    subscribe: (listener: () => void): (() => void) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    set: (next: GraphInfo | null): void => {
-      graph = next
-      for (const listener of listeners) {
-        listener()
-      }
-    },
-  }
-})
-vi.mock('@/providers/graph-provider.tsx', async () => {
-  const { useSyncExternalStore } = await import('react')
-  return {
-    useGraph: () => ({
-      graph: useSyncExternalStore(graphStore.subscribe, graphStore.getSnapshot),
-    }),
-  }
-})
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-  getPinnedNotes: async () => [],
-  getNote,
-}))
-vi.mock('@/lib/note-delete.ts', () => ({ deleteOpenNote }))
-vi.mock('@/mobile/share.ts', () => ({ shareNote }))
-
-const { NoteActionsMenu } = await import('./note-actions-menu.tsx')
-
-let currentNoteRow: {
-  path: string
-  title: string
-  dailyDate: string | null
-  isPrivate: boolean
-} | null
+let currentNoteRow: NoteRow | null
 let currentNoteRowSettled: boolean
 
-function noteRow(path: string, isPrivate: boolean, title = 'Meeting') {
-  return { path, title, dailyDate: null, isPrivate }
+function noteRow(path: string, isPrivate: boolean, title = 'Meeting'): NoteRow {
+  return {
+    path,
+    title,
+    dailyDate: null,
+    isPrivate,
+    hasConflict: false,
+    gistUrl: null,
+    gistStale: false,
+  }
 }
 
-let operations: TestOperationsService
-
 beforeEach(() => {
-  operations = createTestOperationsService()
-  setDefaultOperations(operations)
-  graphStore.set({ root: '/g', name: 'g', generation: 7 })
   currentNoteRow = noteRow('notes/meeting.md', false)
   currentNoteRowSettled = true
   getNote
     .mockReset()
     .mockImplementation(() =>
-      currentNoteRowSettled ? Promise.resolve(currentNoteRow) : new Promise(() => {}),
+      currentNoteRowSettled ? Promise.resolve(currentNoteRow ?? undefined) : new Promise(() => {}),
     )
   noteSource.value = '# A\n'
   readNoteSource.mockReset().mockImplementation(async () => noteSource.value)
   commitNoteFrontmatter.mockReset().mockImplementation(async (_path, patch) => {
     noteSource.value = upsertFrontmatter(noteSource.value, frontmatterPatchToYaml(patch))
   })
-  deleteOpenNote.mockReset().mockResolvedValue(undefined)
-  shareNote.mockReset().mockResolvedValue(undefined)
+  shareMock.mockReset().mockResolvedValue(undefined)
+  Object.defineProperty(navigator, 'share', { configurable: true, value: shareMock })
 })
 
-afterEach(async () => {
-  setDefaultOperations(null)
-  await cleanup()
+afterEach(() => {
+  Reflect.deleteProperty(navigator, 'share')
 })
 
 async function mount(path = 'notes/meeting.md', onDeleted = vi.fn()) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { staleTime: Infinity, retry: false } },
+  const created = createTestAppServices({
+    noteDocuments: {
+      readSource: readNoteSource,
+      readExisting: async (notePath) => await readNoteSource(notePath),
+      commitFrontmatter: commitNoteFrontmatter,
+      commitSourceEdit: () => Promise.reject(new Error('commitSourceEdit is not stubbed')),
+      isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
+    },
   })
-  client.setQueryData(queryKeys.index.pinnedNotes('/g'), [])
-  if (currentNoteRowSettled) {
-    client.setQueryData(queryKeys.index.note('/g', path), currentNoteRow)
-  }
-  const view = await render(
-    <QueryClientProvider client={client}>
-      <NoteActionsMenu path={path} onDeleted={onDeleted} />
-    </QueryClientProvider>,
-  )
-  return { view, onDeleted, client }
+  vi.spyOn(created.indexQuery, 'getNote').mockImplementation(getNote)
+  vi.spyOn(created.indexQuery, 'getPinnedNotes').mockResolvedValue([])
+  trash = vi
+    .spyOn(created.noteActions, 'trash')
+    .mockResolvedValue({ succeeded: [path], failed: [] })
+  noteContent = vi.spyOn(created.share, 'noteContent').mockReturnValue(SHARED)
+  const view = await renderInApp(<NoteActionsMenu path={path} onDeleted={onDeleted} />, {
+    app: created,
+    graph: { root: '/g', name: 'g', generation: 7 },
+  })
+  app = view.app
+  return { view, onDeleted, client: view.queryClient }
 }
 
 async function openActions(): Promise<void> {
@@ -257,7 +234,7 @@ describe('NoteActionsMenu', () => {
     await view.getByRole('button', { name: 'Lock note' }).click()
 
     await vi.waitFor(() =>
-      expect(operations.findByLabel('Updating privacy')).toMatchObject({
+      expect(app.operations.findByLabel('Updating privacy')).toMatchObject({
         status: 'failed',
         message: 'disk on fire',
       }),
@@ -325,7 +302,8 @@ describe('NoteActionsMenu', () => {
     await openActions()
     await view.getByRole('button', { name: 'Share' }).click()
 
-    await vi.waitFor(() => expect(shareNote).toHaveBeenCalledWith('notes/meeting.md'))
+    await vi.waitFor(() => expect(shareMock).toHaveBeenCalledWith(SHARED))
+    expect(noteContent).toHaveBeenCalledWith('notes/meeting.md')
     await expect.element(view.getByRole('button', { name: 'Share' })).not.toBeInTheDocument()
   })
 
@@ -339,7 +317,7 @@ describe('NoteActionsMenu', () => {
     await expect.element(dialog).toHaveAttribute('data-slot', 'drawer-content')
     await dialog.getByRole('button', { name: 'Delete' }).click()
 
-    await vi.waitFor(() => expect(deleteOpenNote).toHaveBeenCalledWith('notes/meeting.md', 7))
+    await vi.waitFor(() => expect(trash).toHaveBeenCalledWith('notes/meeting.md', 7))
     expect(onDeleted).toHaveBeenCalledOnce()
   })
 
@@ -350,11 +328,11 @@ describe('NoteActionsMenu', () => {
     await view.getByRole('button', { name: 'Delete' }).click()
 
     const dialog = page.getByRole('dialog')
-    act(() => graphStore.set(null))
+    act(() => app.graphSession.setGraph(null))
     await dialog.getByRole('button', { name: 'Delete' }).click()
 
     await expect.element(dialog.getByText('No graph is open.')).toBeInTheDocument()
-    expect(deleteOpenNote).not.toHaveBeenCalled()
+    expect(trash).not.toHaveBeenCalled()
     expect(onDeleted).not.toHaveBeenCalled()
   })
 })

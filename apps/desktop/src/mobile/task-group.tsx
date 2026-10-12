@@ -7,6 +7,7 @@ import { getTaskKey } from '@/lib/tasks/task-identity.ts'
 import type { InsertTaskTarget } from '@/lib/tasks/task-insert-target.ts'
 import { cn } from '@/lib/utils.ts'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
+import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 import { MobileTaskRow } from '@/mobile/task-row.tsx'
 
 interface MobileTaskGroupProps {
@@ -50,6 +51,7 @@ export function MobileTaskGroup({
   revealedTaskKey,
   setRevealedTaskKey,
 }: MobileTaskGroupProps): ReactElement {
+  const { haptics } = useMobileAppServices()
   const showSource = group.kind !== 'note'
   const { notePath } = group
   const { icon, colorClass } = taskGroupHeaderStyle(group)
@@ -69,7 +71,7 @@ export function MobileTaskGroup({
             <button
               type="button"
               onClick={() => {
-                hapticImpactLight()
+                hapticImpactLight({ haptics })
                 onOpen(notePath)
               }}
               className="truncate"

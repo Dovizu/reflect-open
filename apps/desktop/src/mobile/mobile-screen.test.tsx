@@ -1,42 +1,22 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render } from 'vitest-browser-react'
+import type { RenderResult } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { act, StrictMode, type ReactElement } from 'react'
-import {
-  setBridge,
-  setDefaultHaptics,
-  setDefaultKeyboard,
-  type KeyboardService,
-} from '@reflect/core'
-import {
-  createTestHapticsService,
-  createTestKeyboardService,
-  type TestHapticsService,
-} from '@reflect/core/testing'
+import type { DailyNoteService } from '@reflect/core'
+import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import {
   clearFormattingToolbar,
   publishFormattingToolbar,
 } from '@/editor/formatting-toolbar-store.ts'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
+import { useRouter } from '@/routing/router.tsx'
 import type { Route } from '@/routing/route.ts'
 import { addDaysIso, formatDayLabel, todayIso } from '@/lib/dates.ts'
 import { monthLabel, monthOf } from '@/lib/month-grid.ts'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import '@/test-utils/locator.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { createWeekWindow, weekOf } from './calendar.ts'
 import { MobileShell } from './mobile-shell.tsx'
-
-let haptics: TestHapticsService
-
-beforeEach(() => {
-  haptics = createTestHapticsService()
-  setDefaultHaptics(haptics)
-})
-
-afterEach(() => {
-  setDefaultHaptics(null)
-})
 
 const waitFor = vi.waitFor
 
@@ -44,7 +24,7 @@ const waitFor = vi.waitFor
  * The tabbed mobile shell (Plan 19, V1 parity): the daily spine pages
  * between days, the All tab lists and searches, a note screen pops back to
  * where it came from, and a cold note entry lands on today. Drives the real
- * router → MobileShell → screens → NotePane stack over a fake IPC bridge;
+ * router → MobileShell → screens → NotePane stack over the test app services;
  * only the ProseMirror view is stubbed, mirroring `route-content.test.tsx`.
  */
 
@@ -105,20 +85,6 @@ vi.mock('@/editor/note-editor.tsx', async () => {
     },
   }
 })
-const indexFns = vi.hoisted(() => ({
-  dailyDatesInRange: vi.fn(async () => [] as string[]),
-  getBacklinksWithContext: vi.fn(async () => ({
-    contexts: [],
-    nextCursor: null,
-    indexedLinkCount: 0,
-  })),
-}))
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-  dailyDatesInRange: indexFns.dailyDatesInRange,
-  getBacklinksWithContext: indexFns.getBacklinksWithContext,
-}))
 // Vaul's drag/animation is verified on-device. This passthrough
 // honours `open`, so the month-picker sheet renders only once the title
 // opens it.
@@ -132,28 +98,6 @@ vi.mock('@/components/ui/drawer.tsx', () => ({
   DrawerTrigger: ({ children }: { children?: import('react').ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({
-    graph: { root: '/g', name: 'g', generation: 1 },
-    indexing: false,
-  }),
-}))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({
-    settings: {
-      editorMarkdownSyntax: 'hide',
-      dateFormat: 'mdy',
-      weekStartDay: 'monday',
-      aiProviders: [],
-      defaultAiProviderId: null,
-      chatSystemPrompt: '',
-      transcriptionPrompt: '',
-      aiPrompts: [],
-    },
-    updateSettings: async () => {},
-    updateSettingsWith: () => {},
-  }),
-}))
 // The daily spine renders the capture menu; this suite is about screens,
 // not recording — an unavailable memo surface keeps its mic action out.
 vi.mock('@/mobile/audio-memo-provider.tsx', () => ({
@@ -175,82 +119,37 @@ vi.mock('@/mobile/audio-memo-provider.tsx', () => ({
   }),
 }))
 
-/** The fake graph: files behind the IPC bridge. */
-let files: Record<string, string>
-const mockInvoke = vi.fn<(command: string, args: Record<string, unknown>) => Promise<unknown>>()
-
-setBridge({
-  invoke: mockInvoke,
-  listen: async () => () => {},
-})
-
-let keyboard: KeyboardService
-
-afterEach(async () => {
-  await cleanup()
-  setDefaultKeyboard(null)
-})
+// The services of the running test: the graph's files live in `app.noteFile`.
+let app: TestAppServices
+let dailyDatesInRange: MockInstance<DailyNoteService['dailyDatesInRange']>
 
 beforeEach(async () => {
-  keyboard = createTestKeyboardService()
-  setDefaultKeyboard(keyboard)
   await page.viewport(375, 700)
-  files = {}
+  app = createTestAppServices()
+  // The tests compute dates from the real clock.
+  app.clock.setNow(Date.now())
+  // The browser context prefers reduced motion; the test platform says the same.
+  app.platform.setReducedMotion(true)
+  dailyDatesInRange = vi.spyOn(app.dailyNotes, 'dailyDatesInRange').mockResolvedValue([])
   editorProbe.focusCalls = 0
   editorProbe.selectionCalls = []
-  mockInvoke.mockReset()
-  indexFns.dailyDatesInRange.mockReset().mockResolvedValue([])
-  mockInvoke.mockImplementation(async (command, args) => {
-    if (command === 'note_read') {
-      const content = files[(args as { path: string }).path]
-      if (content === undefined) {
-        throw { kind: 'notFound', message: 'missing' } // AppError shape
-      }
-      return content
-    }
-    if (command === 'note_write') {
-      const { path, contents } = args as { path: string; contents: string }
-      files[path] = contents
-      return null
-    }
-    if (command === 'note_exists') {
-      return (args as { path: string }).path in files
-    }
-    if (command === 'note_create') {
-      const { path, contents } = args as { path: string; contents: string }
-      if (path in files) {
-        return { kind: 'collision' }
-      }
-      files[path] = contents
-      return { kind: 'created', modifiedMs: 1 }
-    }
-    if (command === 'list_files') {
-      return Object.entries(files).map(([path, contents]) => ({
-        path,
-        size: contents.length,
-        modifiedMs: 1,
-      }))
-    }
-    if (command === 'db_query') {
-      return []
-    }
-    return null
-  })
 })
 
 function mount(initialRoute: Route, probeRoute?: Route, options?: { strict?: boolean }) {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const tree = (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider initialRoute={initialRoute}>
-        <MobileShell />
-        {probeRoute ? <NavProbe to={probeRoute} /> : null}
-      </RouterProvider>
-    </QueryClientProvider>
+    <>
+      <MobileShell />
+      {probeRoute ? <NavProbe to={probeRoute} /> : null}
+    </>
   )
   // The app runs under StrictMode (main.tsx); opt in where a test guards
   // against impure updaters (dev double-invocation caught a double-pop once).
-  return render(options?.strict ? <StrictMode>{tree}</StrictMode> : tree)
+  return renderInApp(options?.strict ? <StrictMode>{tree}</StrictMode> : tree, {
+    app,
+    graph: { root: '/g', name: 'g', generation: 1 },
+    route: initialRoute,
+    settings: { editorMarkdownSyntax: 'hide', dateFormat: 'mdy', weekStartDay: 'monday' },
+  })
 }
 
 /** Stands in for a wiki-link tap: navigation arriving from inside a screen. */
@@ -264,7 +163,7 @@ function NavProbe({ to }: { to: Route }): ReactElement {
 }
 
 /** Every mounted stack layer, in DOM order (below → current → exiting). */
-type BrowserView = Awaited<ReturnType<typeof render>>
+type BrowserView = RenderResult
 
 function stackLayers(view: BrowserView): HTMLElement[] {
   return Array.from(view.container.querySelectorAll<HTMLElement>('.mobile-stack-layer'))
@@ -331,7 +230,7 @@ function otherDayInWeek(date: string): string {
 describe('MobileShell', () => {
   it('renders today as the daily spine with its note content', async () => {
     const today = todayIso()
-    files[`daily/${today}.md`] = 'captured on the go'
+    app.noteFile.set(`daily/${today}.md`, 'captured on the go')
     const view = await mount({ kind: 'today' })
 
     // The header is the month; the carousel mounts today's slide (±1
@@ -388,7 +287,7 @@ describe('MobileShell', () => {
     const week = weekOf(today, 'monday')
     const notedDay = week.find((day) => day !== today) ?? week[0]!
     const emptyDay = week.find((day) => day !== today && day !== notedDay) ?? week[1]!
-    indexFns.dailyDatesInRange.mockResolvedValue([notedDay])
+    dailyDatesInRange.mockResolvedValue([notedDay])
 
     const view = await mount({ kind: 'today' })
 
@@ -403,7 +302,7 @@ describe('MobileShell', () => {
       .toBeVisible()
 
     const weekWindow = createWeekWindow(today, 'monday')
-    expect(indexFns.dailyDatesInRange).toHaveBeenCalledWith(
+    expect(dailyDatesInRange).toHaveBeenCalledWith(
       weekWindow.start,
       addDaysIso(weekWindow.start, weekWindow.count * 7 - 1),
     )
@@ -475,13 +374,13 @@ describe('MobileShell', () => {
     const view = await mount({ kind: 'today' })
 
     await user.click(view.getByRole('button', { name: dayCellLabel(other) }))
-    haptics.reset()
+    app.haptics.reset()
 
     await user.click(view.getByRole('button', { name: 'Today' }))
-    expect(haptics.impacts()).toBe(1)
+    expect(app.haptics.impacts()).toBe(1)
 
     await user.click(view.getByRole('button', { name: 'Settings' }))
-    expect(haptics.impacts()).toBe(2)
+    expect(app.haptics.impacts()).toBe(2)
     await expect.element(view.getByRole('heading', { name: 'Settings' })).toBeVisible()
   })
 
@@ -490,7 +389,7 @@ describe('MobileShell', () => {
     // Beyond the ±366-day window — only reachable as a date-link navigation,
     // which forces the carousel to rebuild its window around the day.
     const farDay = addDaysIso(todayIso(), 400)
-    files[`daily/${farDay}.md`] = 'far future plans'
+    app.noteFile.set(`daily/${farDay}.md`, 'far future plans')
     const view = await mount({ kind: 'today' }, { kind: 'daily', date: farDay })
 
     await user.click(view.getByRole('button', { name: 'probe-navigate' }))
@@ -503,7 +402,7 @@ describe('MobileShell', () => {
 
   it('opens a note from in-screen navigation and pops back through history', async () => {
     const user = userEvent
-    files['notes/meeting-notes.md'] = 'agenda'
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
     const view = await mount({ kind: 'today' }, { kind: 'note', path: 'notes/meeting-notes.md' })
 
     await user.click(view.getByRole('button', { name: 'probe-navigate' }))
@@ -515,7 +414,7 @@ describe('MobileShell', () => {
 
   it('never focuses the destination editor on navigation (keyboard stays down)', async () => {
     const user = userEvent
-    files['notes/source.md'] = 'see [[Target Note]]'
+    app.noteFile.set('notes/source.md', 'see [[Target Note]]')
     const view = await mount({ kind: 'note', path: 'notes/source.md' })
 
     // A plain arrival (cold entry, All list, back-nav) must not focus — on
@@ -617,7 +516,7 @@ describe('MobileShell', () => {
 
   it('double-tapping Daily while already on today focuses the editor at its end', async () => {
     const today = todayIso()
-    files[`daily/${today}.md`] = 'first thought'
+    app.noteFile.set(`daily/${today}.md`, 'first thought')
     const view = await mount({ kind: 'today' })
     await waitFor(() => {
       const editors = view.getByTestId('fake-editor').elements()
@@ -709,10 +608,10 @@ describe('MobileShell', () => {
     const view = await mount({ kind: 'today' })
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()
 
-    act(() => keyboard.publish(316))
+    act(() => app.keyboard.publish(316))
     expect(view.getByRole('navigation', { name: 'Sections' }).query()).toBeNull()
 
-    act(() => keyboard.publish(0))
+    act(() => app.keyboard.publish(0))
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()
   })
 
@@ -722,7 +621,7 @@ describe('MobileShell', () => {
 
     // Keyboard up with no focused editor (the All-tab search field): neither
     // the tab bar nor a dead-button toolbar.
-    act(() => keyboard.publish(316))
+    act(() => app.keyboard.publish(316))
     expect(view.getByRole('toolbar', { name: 'Formatting' }).query()).toBeNull()
 
     act(() =>
@@ -753,7 +652,7 @@ describe('MobileShell', () => {
 
     act(() => {
       clearFormattingToolbar(owner)
-      keyboard.publish(0)
+      app.keyboard.publish(0)
     })
     expect(view.getByRole('toolbar', { name: 'Formatting' }).query()).toBeNull()
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()
@@ -779,7 +678,7 @@ describe('MobileShell', () => {
 
   it('back from a cold note entry lands on today', async () => {
     const user = userEvent
-    files['notes/meeting-notes.md'] = 'agenda'
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
     const view = await mount({ kind: 'note', path: 'notes/meeting-notes.md' })
 
     expect(view.getByRole('heading').element().textContent).toBe('Edit note')
@@ -802,29 +701,12 @@ describe('MobileShell', () => {
  * it. Tests drive the `animationend` / `transitionend` completions by hand.
  */
 describe('MobileStack transitions & back-swipe', () => {
-  // The test browser pins `prefers-reduced-motion: reduce`, which turns the
-  // stack's animations off. These tests are about the animated path, so they
-  // report the animating preference; the reduced-motion test below stubs the
-  // other answer for itself.
-  const animatingMatchMedia = ((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    addListener: () => {},
-    removeListener: () => {},
-    dispatchEvent: () => false,
-  })) as unknown as typeof matchMedia
-  let realMatchMedia: typeof matchMedia
-
+  // The file's platform prefers reduced motion, as the test browser does, which
+  // turns the stack's animations off. These tests are about the animated path,
+  // so they report the animating preference; the reduced-motion test below
+  // sets the other answer for itself.
   beforeEach(() => {
-    realMatchMedia = globalThis.matchMedia
-    globalThis.matchMedia = animatingMatchMedia
-  })
-
-  afterEach(() => {
-    globalThis.matchMedia = realMatchMedia
+    app.platform.setReducedMotion(false)
   })
 
   /** Navigate to the probe note and complete the push animation. */
@@ -836,7 +718,7 @@ describe('MobileStack transitions & back-swipe', () => {
 
   it('pushes a note as a sliding card over its origin, which stays mounted but inert', async () => {
     const user = userEvent
-    files['notes/meeting-notes.md'] = 'agenda'
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
     const view = await mount({ kind: 'today' }, { kind: 'note', path: 'notes/meeting-notes.md' })
 
     await user.click(view.getByRole('button', { name: 'probe-navigate' }))
@@ -859,7 +741,7 @@ describe('MobileStack transitions & back-swipe', () => {
 
   it('pops the note with a slide-out and unmounts it when the animation ends', async () => {
     const user = userEvent
-    files['notes/meeting-notes.md'] = 'agenda'
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
     const view = await mount({ kind: 'today' }, { kind: 'note', path: 'notes/meeting-notes.md' })
     await pushProbeNote(view)
 
@@ -889,7 +771,7 @@ describe('MobileStack transitions & back-swipe', () => {
 
   it('follows history direction within a note chain: wiki-link pushes, back pops', async () => {
     const user = userEvent
-    files['notes/source.md'] = 'see [[Target Note]]'
+    app.noteFile.set('notes/source.md', 'see [[Target Note]]')
     const view = await mount({ kind: 'note', path: 'notes/source.md' })
     await waitFor(() => {
       expect(
@@ -918,37 +800,23 @@ describe('MobileStack transitions & back-swipe', () => {
   })
 
   it('cuts instantly under prefers-reduced-motion', async () => {
-    const originalMatchMedia = globalThis.matchMedia
-    globalThis.matchMedia = ((query: string) => ({
-      matches: query.includes('prefers-reduced-motion'),
-      media: query,
-      onchange: null,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      dispatchEvent: () => false,
-    })) as unknown as typeof matchMedia
-    try {
-      const user = userEvent
-      files['notes/meeting-notes.md'] = 'agenda'
-      const view = await mount({ kind: 'today' }, { kind: 'note', path: 'notes/meeting-notes.md' })
+    app.platform.setReducedMotion(true)
+    const user = userEvent
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
+    const view = await mount({ kind: 'today' }, { kind: 'note', path: 'notes/meeting-notes.md' })
 
-      await user.click(view.getByRole('button', { name: 'probe-navigate' }))
-      await waitFor(() => expect(view.getByRole('heading').element().textContent).toBe('Edit note'))
-      expect(stackLayers(view).at(-1)!.className).not.toContain('mobile-stack-slide-in')
+    await user.click(view.getByRole('button', { name: 'probe-navigate' }))
+    await waitFor(() => expect(view.getByRole('heading').element().textContent).toBe('Edit note'))
+    expect(stackLayers(view).at(-1)!.className).not.toContain('mobile-stack-slide-in')
 
-      await user.click(view.getByRole('button', { name: 'Back' }))
-      // No exit animation: the note is gone the moment the route changes.
-      await waitFor(() => expect(shownMonth(view)).toBe(monthLabel(monthOf(todayIso()))))
-      expect(stackLayers(view)).toHaveLength(1)
-    } finally {
-      globalThis.matchMedia = originalMatchMedia
-    }
+    await user.click(view.getByRole('button', { name: 'Back' }))
+    // No exit animation: the note is gone the moment the route changes.
+    await waitFor(() => expect(shownMonth(view)).toBe(monthLabel(monthOf(todayIso()))))
+    expect(stackLayers(view)).toHaveLength(1)
   })
 
   it('pops the note when an edge swipe crosses the release threshold', async () => {
-    files['notes/meeting-notes.md'] = 'agenda'
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
     const view = await mount({ kind: 'today' }, { kind: 'note', path: 'notes/meeting-notes.md' })
     await pushProbeNote(view)
 
@@ -984,7 +852,7 @@ describe('MobileStack transitions & back-swipe', () => {
     // once), and the card's transform + the scrim's opacity settling in the
     // same frame, so `transitionend` arrives twice before React re-renders.
     const user = userEvent
-    files['notes/meeting-notes.md'] = 'agenda'
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
     const view = await mount(
       { kind: 'today' },
       { kind: 'note', path: 'notes/meeting-notes.md' },
@@ -1016,7 +884,7 @@ describe('MobileStack transitions & back-swipe', () => {
   })
 
   it('snaps back when the swipe releases short of the threshold', async () => {
-    files['notes/meeting-notes.md'] = 'agenda'
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
     const view = await mount({ kind: 'today' }, { kind: 'note', path: 'notes/meeting-notes.md' })
     await pushProbeNote(view)
 
@@ -1050,7 +918,7 @@ describe('MobileStack transitions & back-swipe', () => {
   })
 
   it('ignores mid-screen touches, mouse pointers, and vertical scrolls', async () => {
-    files['notes/meeting-notes.md'] = 'agenda'
+    app.noteFile.set('notes/meeting-notes.md', 'agenda')
     const view = await mount({ kind: 'today' }, { kind: 'note', path: 'notes/meeting-notes.md' })
     await pushProbeNote(view)
 

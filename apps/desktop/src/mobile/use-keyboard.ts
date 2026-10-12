@@ -1,21 +1,6 @@
 import { useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
-import { defaultKeyboard, type KeyboardService } from '@reflect/core'
 import { focusedEditorCommands } from '@/editor/formatting-toolbar-store.ts'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
-
-/** The {@link KeyboardService} of the nearest `AppServicesProvider`, else the process-wide one. */
-function useKeyboardService(): KeyboardService {
-  return useOptionalAppServices()?.keyboard ?? defaultKeyboard()
-}
-
-/**
- * The last published keyboard overlap in px — `0` when the keyboard is closed.
- * A plain getter (not a hook) so imperative call sites — Embla's `watchDrag`
- * predicate fires at drag start, outside React — can read the live value.
- */
-export function getKeyboardHeight(): number {
-  return defaultKeyboard().getHeight()
-}
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Whether the software keyboard is up, as reactive state. The tab bar hides
@@ -24,7 +9,7 @@ export function getKeyboardHeight(): number {
  * keyboard cover it instead.
  */
 export function useKeyboardVisible(): boolean {
-  const keyboard = useKeyboardService()
+  const { keyboard } = useAppServices()
   return useSyncExternalStore(keyboard.subscribe, keyboard.isVisible, keyboard.isVisible)
 }
 
@@ -61,11 +46,11 @@ function readKeyboardOverlap(): number {
  * sizes itself to `calc(100dvh - var(--keyboard-height))`, and `DrawerContent`
  * pads its bottom past it so drawers end above the keyboard.
  * The height is also published to the `KeyboardService` for non-layout
- * consumers ({@link getKeyboardHeight} for the carousel's swipe guard,
+ * consumers (`KeyboardService.getHeight` for the carousel's swipe guard,
  * {@link useKeyboardVisible} for the tab bar hiding).
  */
 export function useKeyboardHeightVar(): void {
-  const keyboard = useKeyboardService()
+  const { keyboard } = useAppServices()
 
   // Viewport reader: feeds the service, which drops no-op publishes.
   useEffect(() => {
@@ -150,7 +135,7 @@ function focusedKeyboardField(): HTMLElement | null {
  * own reveal, so one plain `scrollIntoView` is enough.
  */
 export function useKeyboardFieldReveal(): void {
-  const keyboard = useKeyboardService()
+  const { keyboard } = useAppServices()
   const height = useSyncExternalStore(keyboard.subscribe, keyboard.getHeight, keyboard.getHeight)
 
   useEffect(() => {
@@ -182,7 +167,7 @@ export function useKeyboardFieldReveal(): void {
  * the caret is already visible.
  */
 export function useKeyboardCaretReveal(): void {
-  const keyboard = useKeyboardService()
+  const { keyboard } = useAppServices()
   const height = useSyncExternalStore(keyboard.subscribe, keyboard.getHeight, keyboard.getHeight)
 
   useEffect(() => {

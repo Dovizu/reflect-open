@@ -1,39 +1,29 @@
 import { act } from 'react'
-import { renderHook } from 'vitest-browser-react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultKeyboard, type KeyboardService } from '@reflect/core'
-import { createTestKeyboardService } from '@reflect/core/testing'
-import { getKeyboardHeight, useKeyboardHeightVar, useKeyboardVisible } from './use-keyboard.ts'
-
-let keyboard: KeyboardService
-
-beforeEach(() => {
-  keyboard = createTestKeyboardService()
-  setDefaultKeyboard(keyboard)
-})
-
-afterEach(() => {
-  setDefaultKeyboard(null)
-})
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createTestAppServices } from '@reflect/core/testing'
+import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
+import { useKeyboardHeightVar, useKeyboardVisible } from './use-keyboard.ts'
 
 /**
  * The `KeyboardService` behind `--keyboard-height`, as the app reads it:
  * imperative consumers (the day carousel's drag guard fires at drag start,
  * outside React) read the last published overlap through
- * {@link getKeyboardHeight}; reactive ones (the shell hiding the tab bar)
+ * `KeyboardService.getHeight`; reactive ones (the shell hiding the tab bar)
  * subscribe through {@link useKeyboardVisible}.
  */
 describe('keyboard height', () => {
   it('starts closed and reflects the last published height', async () => {
-    expect(getKeyboardHeight()).toBe(0)
+    const { keyboard } = createTestAppServices()
+    expect(keyboard.getHeight()).toBe(0)
     keyboard.publish(316)
-    expect(getKeyboardHeight()).toBe(316)
+    expect(keyboard.getHeight()).toBe(316)
     keyboard.publish(0)
-    expect(getKeyboardHeight()).toBe(0)
+    expect(keyboard.getHeight()).toBe(0)
   })
 
   it('exposes visibility as reactive state', async () => {
-    const view = await renderHook(() => useKeyboardVisible())
+    const view = await renderHookInApp(() => useKeyboardVisible())
+    const { keyboard } = view.app
     expect(view.result.current).toBe(false)
 
     act(() => keyboard.publish(316))
@@ -45,8 +35,10 @@ describe('keyboard height', () => {
   })
 
   it('keeps notifying after an unrelated subscriber unmounts', async () => {
-    const first = await renderHook(() => useKeyboardVisible())
-    const second = await renderHook(() => useKeyboardVisible())
+    const app = createTestAppServices()
+    const { keyboard } = app
+    const first = await renderHookInApp(() => useKeyboardVisible(), { app })
+    const second = await renderHookInApp(() => useKeyboardVisible(), { app })
     await first.unmount()
     act(() => keyboard.publish(280))
     expect(second.result.current).toBe(true)
@@ -84,44 +76,47 @@ describe('useKeyboardHeightVar', () => {
 
   it('mirrors the viewport shortfall into the service and the CSS variable', async () => {
     const viewport = installViewport()
-    const view = await renderHook(() => useKeyboardHeightVar())
+    const view = await renderHookInApp(() => useKeyboardHeightVar())
+    const { keyboard } = view.app
 
     viewport.height = 464
     act(() => {
       viewport.dispatchEvent(new Event('resize'))
     })
-    expect(getKeyboardHeight()).toBe(336)
+    expect(keyboard.getHeight()).toBe(336)
     expect(document.documentElement.style.getPropertyValue('--keyboard-height')).toBe('336px')
 
     viewport.height = 800
     act(() => {
       viewport.dispatchEvent(new Event('resize'))
     })
-    expect(getKeyboardHeight()).toBe(0)
+    expect(keyboard.getHeight()).toBe(0)
     await view.unmount()
   })
 
   it('ignores a shrink at or under the keyboard threshold', async () => {
     const viewport = installViewport()
-    const view = await renderHook(() => useKeyboardHeightVar())
+    const view = await renderHookInApp(() => useKeyboardHeightVar())
+    const { keyboard } = view.app
 
     viewport.height = 745
     act(() => {
       viewport.dispatchEvent(new Event('resize'))
     })
-    expect(getKeyboardHeight()).toBe(0)
+    expect(keyboard.getHeight()).toBe(0)
     await view.unmount()
   })
 
   it('clears a stale overlap once focus has left every editable element', async () => {
     const viewport = installViewport()
-    const view = await renderHook(() => useKeyboardHeightVar())
+    const view = await renderHookInApp(() => useKeyboardHeightVar())
+    const { keyboard } = view.app
 
     viewport.height = 464
     act(() => {
       viewport.dispatchEvent(new Event('resize'))
     })
-    expect(getKeyboardHeight()).toBe(336)
+    expect(keyboard.getHeight()).toBe(336)
 
     // iOS 26.0: the keyboard closed, but the viewport still reports 464.
     vi.useFakeTimers()
@@ -131,7 +126,7 @@ describe('useKeyboardHeightVar', () => {
     act(() => {
       vi.advanceTimersByTime(1750)
     })
-    expect(getKeyboardHeight()).toBe(0)
+    expect(keyboard.getHeight()).toBe(0)
     vi.useRealTimers()
     await view.unmount()
   })

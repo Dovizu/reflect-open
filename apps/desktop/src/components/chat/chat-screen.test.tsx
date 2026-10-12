@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { ReactElement } from 'react'
@@ -16,16 +15,15 @@ import {
   createTestChatEngineService,
   createTestChatGraphContextService,
   createTestSecretStoreService,
-  createTestSettingsService,
+  seedNotes,
+  type TestAppServices,
   type TestChatEngineService,
   type TestChatGraphContextService,
 } from '@reflect/core/testing'
-import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { ChatProvider, useChatSession } from '@/providers/chat-provider.tsx'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { useRouter } from '@/routing/router.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { ChatScreen } from './chat-screen.tsx'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 
 /**
@@ -37,20 +35,6 @@ import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
  * image-only send).
  */
 
-const resolveWikiTarget = vi.hoisted(() =>
-  vi.fn<
-    (
-      target: string,
-    ) => Promise<{ kind: 'resolved'; ref: string } | { kind: 'unresolved'; text: string }>
-  >(),
-)
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  resolveWikiTarget,
-}))
-const linkNavigation = installTestLinkNavigation({ wikiResolver: { resolveWikiTarget } })
-const { openNoteWindow } = linkNavigation
-
 // The settings document and the keychain each test starts from.
 const settingsState = {
   models: [] as AiProviderConfig[],
@@ -58,13 +42,6 @@ const settingsState = {
   selection: null as ChatModelSelection | null,
   apiKey: 'sk-test' as string | null,
 }
-
-// The history menu reads the index generation here: none, so it lists nothing.
-// The session reads the graph session service, which has no open graph either,
-// so persistence stays inert; chat-session-service.test.ts covers it.
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ indexGeneration: null, graph: null }),
-}))
 
 const GRAPH: GraphInfo = { root: '/graphs/test', name: 'test-graph', generation: 1 }
 
@@ -80,6 +57,7 @@ const GRAPH_CONTEXT: CloudGraphContext = {
 
 let chatEngine: TestChatEngineService
 let chatGraphContext: TestChatGraphContextService
+let noteWindows: TestAppServices['window']
 
 beforeEach(() => {
   settingsState.models = []
@@ -88,10 +66,6 @@ beforeEach(() => {
   settingsState.apiKey = 'sk-test'
   chatEngine = createTestChatEngineService()
   chatGraphContext = createTestChatGraphContextService(GRAPH_CONTEXT)
-  resolveWikiTarget.mockReset().mockImplementation(async (target) => ({
-    kind: 'resolved',
-    ref: `notes/${target.toLowerCase()}.md`,
-  }))
 })
 
 const MODEL: AiProviderConfig = { id: 'm1', provider: 'openai', model: 'gpt-5.1', keyHint: '12345' }
@@ -140,35 +114,35 @@ function RouteProbe(): ReactElement | null {
 async function renderChat() {
   probedSend = null
   probedRoute = null
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const settings = createTestSettingsService({
-    aiProviders: settingsState.models,
-    defaultAiProviderId: settingsState.defaultId,
-    chatModelSelection: settingsState.selection,
-  })
-  await settings.whenLoaded()
   const app = createTestAppServices({
-    settings,
     secretStore: createTestSecretStoreService(
       settingsState.apiKey === null ? {} : { [aiKeySecretName(MODEL.id)]: settingsState.apiKey },
     ),
     chatEngine,
     chatGraphContext,
-    linkNavigation: linkNavigation.service(),
   })
-  return await renderWithServices(
-    <QueryClientProvider client={client}>
-      <RouterProvider>
-        <TooltipProvider>
-          <ChatProvider graph={GRAPH}>
-            <ChatScreen />
-            <SendProbe />
-            <RouteProbe />
-          </ChatProvider>
-        </TooltipProvider>
-      </RouterProvider>
-    </QueryClientProvider>,
-    { app },
+  // The cited `[[Atlas]]` links resolve through the index.
+  seedNotes(app.database, [{ path: 'notes/atlas.md', markdown: '# Atlas\n' }])
+  noteWindows = app.window
+  // The history menu reads the index generation: no graph is open, so it lists
+  // nothing. The session reads the graph session service, which has no open
+  // graph either, so persistence stays inert; chat-session-service.test.ts
+  // covers it.
+  return await renderInApp(
+    <ChatProvider graph={GRAPH}>
+      <ChatScreen />
+      <SendProbe />
+      <RouteProbe />
+    </ChatProvider>,
+    {
+      app,
+      graph: null,
+      settings: {
+        aiProviders: settingsState.models,
+        defaultAiProviderId: settingsState.defaultId,
+        chatModelSelection: settingsState.selection,
+      },
+    },
   )
 }
 
@@ -296,9 +270,9 @@ describe('ChatScreen', () => {
       .click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openNoteWindow.mock.calls).toEqual([
-        [deepLinkForRoute({ kind: 'note', path: 'notes/atlas.md' })],
-        [deepLinkForRoute({ kind: 'note', path: 'notes/brief.md' })],
+      expect(noteWindows.openedNoteWindows()).toEqual([
+        deepLinkForRoute({ kind: 'note', path: 'notes/atlas.md' }),
+        deepLinkForRoute({ kind: 'note', path: 'notes/brief.md' }),
       ]),
     )
     expect(probedRoute).toEqual({ kind: 'today' })
@@ -336,7 +310,7 @@ describe('ChatScreen', () => {
     await view.getByTestId('wikilink').click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openNoteWindow).toHaveBeenCalledWith(
+      expect(noteWindows.openedNoteWindows()).toContain(
         deepLinkForRoute({
           kind: 'note',
           path: 'notes/atlas.md',

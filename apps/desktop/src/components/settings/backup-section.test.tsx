@@ -1,50 +1,44 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { setDefaultOpener } from '@reflect/core'
-import { createTestOpenerService } from '@reflect/core/testing'
-import type { BackupState } from '@reflect/core'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import type { BackupService, BackupState, OpenerService } from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestOpenerService,
+  createTestScriptedBackupServiceFactory,
+  type TestOpenerService,
+  type TestScriptedBackupServiceFactory,
+} from '@reflect/core/testing'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import '@/test-utils/locator.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { BackupSettingsField } from './backup-section.tsx'
 
 // The section's GitHub-vs-generic split (Plan 16): a hand-wired remote must
 // render host-neutrally, and its auth errors must surface the engine's
 // actionable message — "reconnect GitHub" can't fix an ssh-agent problem.
 
-const sync = vi.hoisted(() => ({
-  backup: { phase: 'loading' } as BackupState,
-  disconnectGraph: vi.fn(async () => {}),
-  signOut: vi.fn(async () => {}),
-  backUpNow: vi.fn(async () => {}),
-}))
-const github = vi.hoisted(() => ({ connected: false }))
-vi.mock('@/providers/sync-provider.tsx', () => ({ useSync: () => sync }))
-vi.mock('@/providers/graph-provider.tsx', () => ({ useGraph: () => ({ graph: null }) }))
-vi.mock('@/hooks/use-github-connected.ts', () => ({ useGithubConnected: () => github.connected }))
+// Whether a GitHub credential is stored; each test sets it before `renderSection`.
+let githubConnected: boolean
 
-let openUrl: MockInstance<(url: string) => Promise<void>>
+// The services of the app under test; created fresh for each test.
+let opener: TestOpenerService
+let backups: TestScriptedBackupServiceFactory
+let openUrl: MockInstance<OpenerService['openUrl']>
+let signOut: MockInstance<BackupService['signOut']>
 
 beforeEach(() => {
-  const opener = createTestOpenerService()
-  setDefaultOpener(opener)
+  githubConnected = false
+  opener = createTestOpenerService()
   openUrl = vi.spyOn(opener, 'openUrl')
-})
-
-afterEach(async () => {
-  await cleanup()
-  vi.clearAllMocks()
-  github.connected = false
+  backups = createTestScriptedBackupServiceFactory()
+  signOut = vi.spyOn(backups.backup, 'signOut')
 })
 
 async function renderSection(backup: BackupState): Promise<void> {
-  sync.backup = backup
-  await render(
-    <QueryClientProvider client={new QueryClient()}>
-      <BackupSettingsField />
-    </QueryClientProvider>,
-  )
+  backups.backup.setState(backup)
+  const app = createTestAppServices({ opener, backups })
+  vi.spyOn(app.githubAuth, 'isConnected').mockImplementation(async () => githubConnected)
+  await renderInApp(<BackupSettingsField />, { app, sync: true })
 }
 
 const AUTH_ERROR = {
@@ -186,18 +180,18 @@ describe('BackupSettingsField', () => {
     await expect
       .element(page.getByText(/Every GitHub-backed graph will stop backing up/i))
       .toBeVisible()
-    expect(sync.signOut).not.toHaveBeenCalled()
+    expect(signOut).not.toHaveBeenCalled()
 
     await userEvent.click(page.getByRole('button', { name: 'Sign out' }))
 
-    await vi.waitFor(() => expect(sync.signOut).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
     await expect
       .element(page.getByRole('heading', { name: 'Sign out of GitHub?' }))
       .not.toBeInTheDocument()
   })
 
   it('shows sign-out failures inside the confirmation dialog', async () => {
-    sync.signOut.mockRejectedValueOnce(new Error('Keychain denied'))
+    signOut.mockRejectedValueOnce(new Error('Keychain denied'))
     await renderSection({
       phase: 'connected',
       remoteUrl: 'https://github.com/alex/notes.git',
@@ -215,7 +209,7 @@ describe('BackupSettingsField', () => {
 
   it('does not close the sign-out dialog while sign-out is pending', async () => {
     const pendingSignOut = Promise.withResolvers<void>()
-    sync.signOut.mockImplementationOnce(() => pendingSignOut.promise)
+    signOut.mockImplementationOnce(() => pendingSignOut.promise)
     await renderSection({
       phase: 'connected',
       remoteUrl: 'https://github.com/alex/notes.git',
@@ -237,7 +231,7 @@ describe('BackupSettingsField', () => {
   })
 
   it('offers sign-out with no connected graph when signed in to GitHub', async () => {
-    github.connected = true
+    githubConnected = true
     await renderSection({ phase: 'disconnected' })
 
     await expect.element(page.getByRole('button', { name: /Connect GitHub/ })).toBeVisible()
@@ -247,7 +241,7 @@ describe('BackupSettingsField', () => {
   })
 
   it('hides sign-out with no connected graph when not signed in to GitHub', async () => {
-    github.connected = false
+    githubConnected = false
     await renderSection({ phase: 'disconnected' })
 
     await expect.element(page.getByRole('button', { name: /Connect GitHub/ })).toBeVisible()
@@ -257,7 +251,7 @@ describe('BackupSettingsField', () => {
   })
 
   it('signs out of GitHub from the disconnected state', async () => {
-    github.connected = true
+    githubConnected = true
     await renderSection({ phase: 'disconnected' })
 
     await userEvent.click(page.getByRole('button', { name: /Sign out of GitHub/ }))
@@ -265,6 +259,6 @@ describe('BackupSettingsField', () => {
 
     await userEvent.click(page.getByRole('button', { name: 'Sign out' }))
 
-    await vi.waitFor(() => expect(sync.signOut).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
   })
 })

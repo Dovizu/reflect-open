@@ -14,11 +14,10 @@ import {
 import { Input } from '@/components/ui/input.tsx'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
 import { deleteOpenNote } from '@/lib/note-delete.ts'
-import { renameTemplate } from '@/lib/note-templates.ts'
-import { startOperation } from '@/lib/operations.ts'
 import { createTemplatesQueryOptions } from '@/lib/query-options.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useNoteTemplates } from '@/providers/note-templates-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { SettingsField } from './field.tsx'
 import { SettingsSection } from './section.tsx'
 import { isModEvent } from '@meowdown/core'
@@ -110,6 +109,7 @@ interface TemplateDialogProps {
 /** Rename = move onto the new name's slug and rewrite the authored title. */
 function TemplateRenameDialog({ template, onClose }: TemplateDialogProps): ReactElement {
   const { graph } = useGraph()
+  const { templates } = useAppServices()
   const [name, setName] = useState(template.title)
   const [error, setError] = useState<string | null>(null)
 
@@ -121,7 +121,7 @@ function TemplateRenameDialog({ template, onClose }: TemplateDialogProps): React
     }
     setError(null)
     try {
-      await renameTemplate(template.path, trimmed, generation)
+      await templates.renameTemplate(template.path, trimmed, generation)
       onClose()
     } catch (cause) {
       setError(errorMessage(cause))
@@ -179,6 +179,7 @@ function TemplateRenameDialog({ template, onClose }: TemplateDialogProps): React
 /** Delete = move the file to the trash (recoverable), confirmed first. */
 function TemplateDeleteDialog({ template, onClose }: TemplateDialogProps): ReactElement {
   const { graph } = useGraph()
+  const { operations } = useAppServices()
   const [error, setError] = useState<string | null>(null)
 
   const trash = async (): Promise<void> => {
@@ -186,7 +187,7 @@ function TemplateDeleteDialog({ template, onClose }: TemplateDialogProps): React
     if (generation === undefined) {
       return
     }
-    const operation = startOperation('Trashing template')
+    const operation = operations.start('Trashing template')
     setError(null)
     try {
       await deleteOpenNote(template.path, generation)

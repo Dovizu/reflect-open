@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useRouter } from '@/routing/router.tsx'
-import { useDailyNoteService } from '@/services/use-daily-note-service.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * V1's wake-to-today: when the app returns to the foreground on a later
@@ -11,7 +11,7 @@ import { useDailyNoteService } from '@/services/use-daily-note-service.ts'
  */
 export function useWakeToToday(): void {
   const { navigate } = useRouter()
-  const dailyNotes = useDailyNoteService()
+  const { dailyNotes } = useAppServices()
   useEffect(() => {
     return dailyNotes.subscribeWakeOnNewDay(() => {
       navigate({ kind: 'today' })

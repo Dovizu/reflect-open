@@ -1,5 +1,5 @@
 import { useContactsAuthorization } from '@/hooks/use-contacts-authorization.ts'
-import { isMacosDesktop } from '@/lib/platform.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { SETTINGS_SECTIONS } from './sections.ts'
 
 /** One registered settings section (see {@link SETTINGS_SECTIONS}). */
@@ -14,14 +14,15 @@ export type SettingsSectionEntry = (typeof SETTINGS_SECTIONS)[number]
  */
 export function useVisibleSettingsSections(): readonly SettingsSectionEntry[] {
   const authorization = useContactsAuthorization()
+  const { platform } = useAppServices()
   const hasAppleIntegrations =
-    isMacosDesktop() || (authorization !== null && authorization !== 'unavailable')
+    platform.isMacosDesktop || (authorization !== null && authorization !== 'unavailable')
   return SETTINGS_SECTIONS.filter((section) => {
     if (section.id === 'integrations') {
       return hasAppleIntegrations
     }
     if (section.id === 'agents') {
-      return isMacosDesktop()
+      return platform.isMacosDesktop
     }
     return true
   })

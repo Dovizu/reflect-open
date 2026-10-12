@@ -1,37 +1,24 @@
-import { render } from 'vitest-browser-react'
 import { page, userEvent, type Locator } from 'vitest/browser'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  setDefaultMeetings,
-  type ContactMatch,
-  type MeetingAttendee,
-  type SuggestionService,
-  type WikiSuggestion,
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type {
+  ContactMatch,
+  MeetingAttendee,
+  SuggestionService,
+  WikiSuggestion,
 } from '@reflect/core'
 import {
+  createTestAppServices,
   createTestContactsService,
-  createTestIpcBridgeService,
   createTestMeetingService,
-  installTestBridge,
   type TestContactsService,
 } from '@reflect/core/testing'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { AttendeeCombobox } from './attendee-combobox.tsx'
 
 // The note suggestions are the seam: one case needs a fetch that never settles.
 const suggestWikiTargets = vi.fn<SuggestionService['suggestWikiTargets']>(async () => [])
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
-}))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({ settings: { contactsEnabled: true }, updateSettings: () => {} }),
-}))
-vi.mock('@/hooks/use-contacts-authorization.ts', () => ({
-  useContactsAuthorization: () => 'authorized',
-}))
 
 let contacts: TestContactsService
-let removeBridge: () => void
 
 function noteSuggestion(title: string, overrides: Partial<WikiSuggestion> = {}): WikiSuggestion {
   return { target: title, path: `notes/${title}.md`, title, alias: null, date: null, ...overrides }
@@ -44,12 +31,15 @@ function contact(fullName: string, email: string): ContactMatch {
 const onAdd = vi.fn<(attendee: MeetingAttendee) => void>()
 
 async function renderCombobox(attendees: MeetingAttendee[] = []): Promise<Locator> {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  await render(
-    <QueryClientProvider client={client}>
-      <AttendeeCombobox attendees={attendees} onAdd={onAdd} />
-    </QueryClientProvider>,
-  )
+  const app = createTestAppServices({
+    contacts,
+    meetings: createTestMeetingService({ suggestions: { suggestWikiTargets }, contacts }),
+  })
+  await renderInApp(<AttendeeCombobox attendees={attendees} onAdd={onAdd} />, {
+    app,
+    graph: { root: '/g', name: 'g' },
+    settings: { contactsEnabled: true },
+  })
   return page.getByPlaceholder('Add attendee')
 }
 
@@ -66,14 +56,7 @@ async function findHighlighted(text: string): Promise<Locator> {
 beforeEach(() => {
   suggestWikiTargets.mockReset().mockResolvedValue([])
   contacts = createTestContactsService()
-  setDefaultMeetings(createTestMeetingService({ suggestions: { suggestWikiTargets }, contacts }))
-  removeBridge = installTestBridge(createTestIpcBridgeService())
   onAdd.mockClear()
-})
-
-afterEach(() => {
-  removeBridge()
-  setDefaultMeetings(null)
 })
 
 describe('AttendeeCombobox', () => {

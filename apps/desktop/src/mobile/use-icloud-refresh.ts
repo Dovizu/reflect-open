@@ -1,8 +1,6 @@
 import { useEffect } from 'react'
-import { defaultICloudDownloads } from '@reflect/core'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useOptionalAppServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Keeps an iCloud-stored graph fresh while the app is used (Plan 21): mounts
@@ -15,17 +13,16 @@ import { useOptionalAppServices } from '@/services/services-provider.tsx'
 export function useICloudRefresh(): void {
   const { graph, mobileStorageKind, refreshIndex } = useGraph()
   const root = mobileStorageKind === 'icloud' ? (graph?.root ?? null) : null
-  const bridgeReady = useBridgeReady()
-  const downloads = useOptionalAppServices()?.icloudDownloads
+  const { icloudDownloads } = useAppServices()
 
   useEffect(() => {
-    if (root === null || !bridgeReady) {
+    if (root === null) {
       return
     }
-    const service = (downloads ?? defaultICloudDownloads()).create({ root, refreshIndex })
+    const service = icloudDownloads.create({ root, refreshIndex })
     service.start()
     return () => {
       service.dispose()
     }
-  }, [bridgeReady, downloads, root, refreshIndex])
+  }, [icloudDownloads, root, refreshIndex])
 }

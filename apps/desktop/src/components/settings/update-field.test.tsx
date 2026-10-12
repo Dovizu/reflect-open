@@ -1,25 +1,23 @@
-import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, describe, expect, it } from 'vitest'
-import { setDefaultUpdate, type UpdateState } from '@reflect/core'
-import { createTestUpdateService, type TestUpdateService } from '@reflect/core/testing'
+import { describe, expect, it } from 'vitest'
+import type { UpdateState } from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestUpdateService,
+  type TestUpdateService,
+} from '@reflect/core/testing'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { UpdateField } from './update-field.tsx'
 
 async function renderField(state: UpdateState): Promise<TestUpdateService> {
   const update = createTestUpdateService(state)
-  setDefaultUpdate(update)
-  await render(
-    <UpdateProvider autoCheck={false}>
-      <UpdateField />
-    </UpdateProvider>,
-  )
+  await renderInApp(<UpdateField />, {
+    app: createTestAppServices({ update }),
+    wrapper: (children) => <UpdateProvider autoCheck={false}>{children}</UpdateProvider>,
+  })
   return update
 }
-
-afterEach(() => {
-  setDefaultUpdate(null)
-})
 
 describe('UpdateField', () => {
   it('retries the install after an install failure: the found update is still there', async () => {

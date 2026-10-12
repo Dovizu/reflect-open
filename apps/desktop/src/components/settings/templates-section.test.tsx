@@ -1,24 +1,14 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
-import { RouterProvider, useRouter } from '@/routing/router.tsx'
-import { TemplatesSection } from './templates-section.tsx'
-import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { createTestAppServices, createTestWindowService } from '@reflect/core/testing'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+import { useRouter } from '@/routing/router.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
+import { TemplatesSection } from './templates-section.tsx'
 
-const { openNoteWindow } = installTestLinkNavigation()
+const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 
-const listTemplates = vi.hoisted(() => vi.fn())
-
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  listTemplates,
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
-}))
 vi.mock('@/providers/note-templates-provider.tsx', () => ({
   useNoteTemplates: () => ({ openTemplateCreate: vi.fn() }),
 }))
@@ -32,21 +22,22 @@ function RouteProbe(): ReactElement {
   )
 }
 
-function renderSection() {
-  return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <RouterProvider initialRoute={{ kind: 'settings' }}>
-        <TemplatesSection />
-        <RouteProbe />
-      </RouterProvider>
-    </QueryClientProvider>,
+async function renderSection(): Promise<void> {
+  const app = createTestAppServices({ window: createTestWindowService({ openNoteWindow }) })
+  vi.spyOn(app.indexQuery, 'listTemplates').mockResolvedValue([
+    { path: 'templates/weekly-review.md', title: 'Weekly review', mtime: 1 },
+  ])
+  await renderInApp(
+    <>
+      <TemplatesSection />
+      <RouteProbe />
+    </>,
+    { app, graph: { root: '/g', name: 'g' }, route: { kind: 'settings' } },
   )
 }
 
 beforeEach(() => {
-  listTemplates
-    .mockReset()
-    .mockResolvedValue([{ path: 'templates/weekly-review.md', title: 'Weekly review', mtime: 1 }])
+  openNoteWindow.mockReset().mockResolvedValue(true)
 })
 
 describe('TemplatesSection note links', () => {

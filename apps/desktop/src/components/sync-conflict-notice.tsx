@@ -1,16 +1,15 @@
 import type { ReactElement, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { GitMerge } from 'lucide-react'
-import { conflictMarkerBlockCount, conflictMarkerLabels, getNote, readNote } from '@reflect/core'
+import { conflictMarkerBlockCount, conflictMarkerLabels, getNote } from '@reflect/core'
 import { CONFLICT_SIDE_DOT } from '@/components/conflict-note-view.tsx'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Button } from '@/components/ui/button.tsx'
-import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useConflictResolution } from '@/hooks/use-conflict-resolution.ts'
-import { isMobileSurface } from '@/lib/platform-surface.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface SyncConflictNoticeProps {
   /** Graph-relative path of the open note. */
@@ -44,11 +43,11 @@ export function SyncConflictNotice({
 }: SyncConflictNoticeProps): ReactElement | null {
   const { graph } = useGraph()
   const { busy, error, resolve } = useConflictResolution(path)
-  const bridgeReady = useBridgeReady()
+  const { noteFile, platform } = useAppServices()
   const { data } = useQuery({
     queryKey: queryKeys.index.noteConflict(graph?.root, path),
     queryFn: async () => (await getNote(path)) ?? null,
-    enabled: bridgeReady && graph !== null,
+    enabled: graph !== null,
   })
   const hasConflict = data?.hasConflict === true
   // The iCloud sweep labels marker sides with real device names (or the two
@@ -59,13 +58,13 @@ export function SyncConflictNotice({
   const { data: markerInfo } = useQuery({
     queryKey: queryKeys.index.noteConflictLabels(graph?.root, path),
     queryFn: async () => {
-      const source = await readNote(path)
+      const source = await noteFile.read(path)
       return {
         labels: conflictMarkerLabels(source),
         blocks: conflictMarkerBlockCount(source),
       }
     },
-    enabled: bridgeReady && graph !== null && hasConflict,
+    enabled: graph !== null && hasConflict,
   })
 
   if (data == null || !hasConflict || graph === null) {
@@ -74,7 +73,7 @@ export function SyncConflictNotice({
   const labels = markerInfo?.labels ?? null
   const manySided = (markerInfo?.blocks ?? 0) > 1
   const named = labels != null && labels.ours !== 'this device'
-  const mobile = isMobileSurface()
+  const mobile = platform.surface.mobileApp
   // One row when the labels fit (short generic labels, wide panes); a button
   // whose device name doesn't fit wraps to its own full-width line. Mobile
   // buttons are touch-sized and stretch to share the row evenly.

@@ -1,75 +1,25 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { QueryClient } from '@tanstack/react-query'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { Locator } from 'vitest/browser'
-import { render } from 'vitest-browser-react'
+import type { GraphSessionService, Settings } from '@reflect/core'
 import {
-  setBridge,
-  setDefaultEmbeddingRuntime,
-  type GraphInfo,
-  setDefaultPlatform,
-  setDefaultOperations,
-  setDefaultUpdate,
-  setDefaultSettings,
-} from '@reflect/core'
-import {
+  createTestAppServices,
   createTestEmbeddingRuntimeService,
-  createTestOperationsService,
   createTestPlatformService,
-  createTestUpdateService,
+  createTestScriptedBackupServiceFactory,
   type TestEmbeddingRuntimeService,
+  type TestOpenGraph,
 } from '@reflect/core/testing'
 import { formatFullDate } from '@/lib/dates.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider } from '@/providers/shortcuts-provider.tsx'
-import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
-import { RouterProvider } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { ShortcutsDialog } from './shortcuts-dialog.tsx'
 import { SettingsScreen } from './settings-screen.tsx'
 
-// The rebuild-index field reads the open index generation — and the Backup
-// section the open graph + sync state — from per-graph providers the screen
-// tests don't mount, so stub both hooks (backup disconnected).
-const graph = vi.hoisted(() => ({
-  current: null as GraphInfo | null,
-  indexGeneration: 7 as number | null,
-  forget: vi.fn<(root: string) => Promise<void>>(async () => {}),
-  deleteGraph: vi.fn<() => Promise<void>>(async () => {}),
-}))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({
-    graph: graph.current,
-    indexGeneration: graph.indexGeneration,
-    forget: graph.forget,
-    deleteGraph: graph.deleteGraph,
-  }),
-}))
-vi.mock('@/providers/sync-provider.tsx', () => ({
-  useSync: () => ({
-    backup: { phase: 'disconnected' },
-    connectNewRepo: async () => {},
-    connectExistingRepo: async () => 'connected',
-    disconnectGraph: async () => {},
-    signOut: async () => {},
-    backUpNow: async () => {},
-  }),
-}))
-// The update field gates on a supported updater, which the test browser lacks.
-beforeEach(() => {
-  setDefaultOperations(createTestOperationsService())
-  setDefaultPlatform(
-    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
-  )
-  setDefaultUpdate(createTestUpdateService())
-})
-
-afterEach(() => {
-  setDefaultOperations(null)
-  setDefaultPlatform(null)
-  setDefaultUpdate(null)
-})
 // The Import section only hands the picked zip to the workspace-level V1
 // import controller, which these screen tests don't mount.
 vi.mock('@/providers/v1-import-provider.tsx', () => ({
@@ -81,55 +31,58 @@ vi.mock('@/providers/v1-import-provider.tsx', () => ({
   }),
 }))
 
-let stored: Record<string, unknown>
-let saved: unknown[]
-let invoked: string[]
+// What the app starts from; each test sets them before `renderScreen`.
+let stored: Partial<Settings>
+let openGraph: TestOpenGraph
 let embedRuntime: TestEmbeddingRuntimeService
 
-function installFakeBridge(): void {
-  saved = []
-  invoked = []
-  setBridge({
-    invoke: async (command, args) => {
-      invoked.push(command)
-      switch (command) {
-        case 'settings_load':
-          return stored
-        case 'settings_save':
-          saved.push(args['settings'])
-          return null
-        case 'list_files':
-          return []
-        case 'db_query':
-          return [] // the Note templates section lists `kind = 'template'` rows
-        default:
-          return null
-      }
-    },
-    listen: async () => () => {},
+// The services of the rendered app; set by `renderScreen`.
+let app: ReturnType<typeof createApp>
+let forget: MockInstance<GraphSessionService['forgetRecent']>
+let deleteGraph: MockInstance<GraphSessionService['deleteGraph']>
+
+/** Every settings document the app persisted, oldest first. */
+function saved(): Settings[] {
+  return app.settings.saves()
+}
+
+// The screen runs off macOS desktop (no Agents, iCloud or Calendar rows), with
+// a graph open and its backup disconnected.
+function createApp() {
+  return createTestAppServices({
+    embeddingRuntime: embedRuntime,
+    platform: createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+    backups: createTestScriptedBackupServiceFactory({ state: { phase: 'disconnected' } }),
   })
 }
 
-let queryClient: QueryClient
-
-function renderScreen() {
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <SettingsProvider>
+async function renderScreen(): Promise<void> {
+  app = createApp()
+  forget = vi.spyOn(app.graphSession, 'forgetRecent').mockResolvedValue()
+  deleteGraph = vi.spyOn(app.graphSession, 'deleteGraph').mockResolvedValue()
+  await renderInApp(
+    <>
+      <SettingsScreen />
+      <ShortcutsDialog />
+    </>,
+    {
+      app,
+      graph: openGraph,
+      settings: stored,
+      sync: true,
+      queryClient: new QueryClient({
+        defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+      }),
+      // The Note templates section shares the "New template" dialog state
+      // (templates provider).
+      wrapper: (children) => (
         <UpdateProvider autoCheck={false}>
-          {/* The Note templates section opens files (router) and shares the
-              "New template" dialog state (templates provider). */}
-          <RouterProvider>
-            <ShortcutsProvider>
-              <NoteTemplatesProvider>
-                <SettingsScreen />
-                <ShortcutsDialog />
-              </NoteTemplatesProvider>
-            </ShortcutsProvider>
-          </RouterProvider>
+          <ShortcutsProvider>
+            <NoteTemplatesProvider>{children}</NoteTemplatesProvider>
+          </ShortcutsProvider>
         </UpdateProvider>
-      </SettingsProvider>
-    </QueryClientProvider>,
+      ),
+    },
   )
 }
 
@@ -148,25 +101,12 @@ async function pickRadio(name: RegExp): Promise<void> {
 
 beforeEach(() => {
   stored = {}
+  openGraph = { root: '/graphs/work', name: 'Work', generation: 1, indexGeneration: 7 }
   embedRuntime = createTestEmbeddingRuntimeService({ status: { status: 'uninitialized' } })
-  setDefaultEmbeddingRuntime(embedRuntime)
-  graph.current = null
-  graph.indexGeneration = 7
-  graph.forget.mockClear()
-  graph.deleteGraph.mockClear()
-  queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
-  })
-  installFakeBridge()
-  setDefaultSettings(null)
 })
 
 afterEach(() => {
   vi.useRealTimers()
-  setBridge(null)
-  setDefaultSettings(null)
-  setDefaultEmbeddingRuntime(null)
-  queryClient.clear()
 })
 
 describe('SettingsScreen', () => {
@@ -190,7 +130,7 @@ describe('SettingsScreen', () => {
     await toggle.click()
 
     await expect.element(toggle).toHaveAttribute('aria-checked', 'false')
-    await vi.waitFor(() => expect(saved.at(-1)).toMatchObject({ transcriptionFormat: false }))
+    await vi.waitFor(() => expect(saved().at(-1)).toMatchObject({ transcriptionFormat: false }))
   })
 
   it('reflects a persisted transcription auto-format opt-out', async () => {
@@ -211,7 +151,7 @@ describe('SettingsScreen', () => {
     await userEvent.tab()
 
     await vi.waitFor(() =>
-      expect(saved.at(-1)).toMatchObject({ transcriptionPrompt: 'Names:\nOcavue' }),
+      expect(saved().at(-1)).toMatchObject({ transcriptionPrompt: 'Names:\nOcavue' }),
     )
   })
 
@@ -222,7 +162,7 @@ describe('SettingsScreen', () => {
 
     await section.getByRole('button', { name: 'Clear' }).click()
 
-    await vi.waitFor(() => expect(saved.at(-1)).toMatchObject({ transcriptionPrompt: '' }))
+    await vi.waitFor(() => expect(saved().at(-1)).toMatchObject({ transcriptionPrompt: '' }))
   })
 
   it('warns when the transcription helper text is over the limit and truncates on save', async () => {
@@ -239,12 +179,11 @@ describe('SettingsScreen', () => {
     await userEvent.tab()
 
     await vi.waitFor(() =>
-      expect(saved.at(-1)).toMatchObject({ transcriptionPrompt: 'x'.repeat(500) }),
+      expect(saved().at(-1)).toMatchObject({ transcriptionPrompt: 'x'.repeat(500) }),
     )
   })
 
   it('confirms before forgetting the open graph from saved graphs', async () => {
-    graph.current = { root: '/graphs/work', name: 'Work', generation: 1 }
     await renderScreen()
 
     const section = page.getByRole('region', { name: 'Danger zone' })
@@ -252,15 +191,14 @@ describe('SettingsScreen', () => {
 
     const dialog = page.getByRole('dialog', { name: /forget graph/i })
     await expect.element(dialog.getByText('/graphs/work')).toBeInTheDocument()
-    expect(graph.forget).not.toHaveBeenCalled()
+    expect(forget).not.toHaveBeenCalled()
 
     await dialog.getByRole('button', { name: /forget graph/i }).click()
 
-    await vi.waitFor(() => expect(graph.forget).toHaveBeenCalledWith('/graphs/work'))
+    await vi.waitFor(() => expect(forget).toHaveBeenCalledWith('/graphs/work'))
   })
 
   it('requires typing the graph name before deleting the graph', async () => {
-    graph.current = { root: '/graphs/work', name: 'Work', generation: 1 }
     await renderScreen()
 
     const section = page.getByRole('region', { name: 'Danger zone' })
@@ -279,13 +217,13 @@ describe('SettingsScreen', () => {
     await expect.element(confirm).toBeDisabled()
     // Enter with a mismatched name must not delete either.
     await userEvent.keyboard('{Enter}')
-    expect(graph.deleteGraph).not.toHaveBeenCalled()
+    expect(deleteGraph).not.toHaveBeenCalled()
 
     await nameInput.fill('Work')
     await expect.element(confirm).not.toBeDisabled()
     await confirm.click()
 
-    await vi.waitFor(() => expect(graph.deleteGraph).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(deleteGraph).toHaveBeenCalledTimes(1))
   })
 
   it('reflects the persisted markdown syntax mode', async () => {
@@ -302,7 +240,7 @@ describe('SettingsScreen', () => {
     await pickRadio(/^show/i)
 
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'show',
           editorSpellCheck: true,
@@ -355,7 +293,7 @@ describe('SettingsScreen', () => {
     await pickRadio(/^large/i)
 
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -402,7 +340,7 @@ describe('SettingsScreen', () => {
     await toggle.click()
 
     await expect.element(toggle).toHaveAttribute('aria-checked', 'true')
-    await vi.waitFor(() => expect(saved.at(-1)).toMatchObject({ editorFullWidth: true }))
+    await vi.waitFor(() => expect(saved().at(-1)).toMatchObject({ editorFullWidth: true }))
   })
 
   it('reflects a persisted spell check opt-out', async () => {
@@ -422,7 +360,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(toggle).toHaveAttribute('aria-checked', 'false')
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: false,
@@ -475,7 +413,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(toggle).toHaveAttribute('aria-checked', 'false')
     await vi.waitFor(() =>
-      expect(saved.at(-1)).toMatchObject({ editorSmoothCaretAnimation: false }),
+      expect(saved().at(-1)).toMatchObject({ editorSmoothCaretAnimation: false }),
     )
   })
 
@@ -496,7 +434,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(toggle).toHaveAttribute('aria-checked', 'false')
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -549,7 +487,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(toggle).toHaveAttribute('aria-checked', 'false')
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -595,7 +533,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(radio(/^light/i)).toBeChecked()
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -650,7 +588,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(trigger).toMatchTextContent(formatFullDate(new Date(), 'dmy'))
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -702,7 +640,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(trigger).toMatchTextContent(isoLabel)
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -760,7 +698,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(trigger).toMatchTextContent('Sunday')
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -804,7 +742,7 @@ describe('SettingsScreen', () => {
     await page.getByRole('option', { name: 'Saturday' }).click()
 
     await expect.element(trigger).toMatchTextContent('Saturday')
-    await vi.waitFor(() => expect(saved.at(-1)).toMatchObject({ weekStartDay: 'saturday' }))
+    await vi.waitFor(() => expect(saved().at(-1)).toMatchObject({ weekStartDay: 'saturday' }))
   })
 
   it('reflects the persisted time format', async () => {
@@ -824,7 +762,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(trigger).toMatchTextContent('24-hour')
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -870,7 +808,7 @@ describe('SettingsScreen', () => {
 
     await expect.element(page.getByText('#meeting')).toBeInTheDocument()
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -917,7 +855,7 @@ describe('SettingsScreen', () => {
     await expect.element(page.getByRole('alert')).toMatchTextContent(`"my tag" can't be a tag`)
     // The draft stays put for fixing, and nothing reaches the store.
     await expect.element(input).toHaveValue('my tag')
-    await vi.waitFor(() => expect(saved).toEqual([]))
+    await vi.waitFor(() => expect(saved()).toEqual([]))
   })
 
   it('ignores adding a duplicate filter tag', async () => {
@@ -931,7 +869,7 @@ describe('SettingsScreen', () => {
     await page.getByLabelText('Add filter tag').fill('BOOK')
     await page.getByRole('button', { name: 'Add', exact: true }).click()
 
-    await vi.waitFor(() => expect(saved).toEqual([]))
+    await vi.waitFor(() => expect(saved()).toEqual([]))
   })
 
   it('removes a filter tag and persists the rest', async () => {
@@ -945,7 +883,7 @@ describe('SettingsScreen', () => {
 
     expect(page.getByText('#book').query()).toBeNull()
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -989,7 +927,7 @@ describe('SettingsScreen', () => {
     await enable.click()
 
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -1058,7 +996,7 @@ describe('SettingsScreen', () => {
     await page.getByRole('button', { name: /disable/i }).click()
 
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -1126,7 +1064,7 @@ describe('SettingsScreen', () => {
     // action carries the retry.
     await vi.waitFor(() => expect(embedRuntime.ensureCalls()).toBeGreaterThan(0))
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -1176,7 +1114,7 @@ describe('SettingsScreen', () => {
     await page.getByRole('button', { name: /disable/i }).click()
 
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -1221,15 +1159,16 @@ describe('SettingsScreen', () => {
 
     await page.getByRole('button', { name: /rebuild index/i }).click()
 
-    // The whole chain: button → rebuildIndexVisibly → wipe, then the
-    // projection-version stamp that marks a completed rebuild. (The graph is
-    // empty here, so there is no apply batch in between.)
-    await vi.waitFor(() => expect(invoked).toContain('index_clear'))
-    await vi.waitFor(() => expect(invoked).toContain('index_meta_set'))
+    // The whole chain: button → the index lifecycle's visible rebuild → wipe,
+    // then the projection-version stamp that marks a completed rebuild. (The
+    // graph is empty here, so there is no apply batch in between.)
+    const indexCalls = (): string[] => app.indexStore.calls().map((call) => call.method)
+    await vi.waitFor(() => expect(indexCalls()).toContain('clear'))
+    await vi.waitFor(() => expect(indexCalls()).toContain('setMeta'))
   })
 
   it('disables the index rebuild until a graph index is open', async () => {
-    graph.indexGeneration = null
+    openGraph = { ...openGraph, indexGeneration: null }
     await renderScreen()
     const button = page.getByRole('button', { name: /rebuild index/i })
     await expect.element(button).toBeDisabled()
@@ -1261,7 +1200,7 @@ describe('SettingsScreen', () => {
     await userEvent.tab()
 
     await vi.waitFor(() =>
-      expect(saved.at(-1)).toMatchObject({
+      expect(saved().at(-1)).toMatchObject({
         chatSystemPrompt: 'Challenge my assumptions.\nKeep the recommendation short.',
       }),
     )
@@ -1275,7 +1214,7 @@ describe('SettingsScreen', () => {
 
     await section.getByRole('button', { name: 'Clear' }).click()
 
-    await vi.waitFor(() => expect(saved.at(-1)).toMatchObject({ chatSystemPrompt: '' }))
+    await vi.waitFor(() => expect(saved().at(-1)).toMatchObject({ chatSystemPrompt: '' }))
   })
 
   it('keeps long AI prompts scrollable within the viewport', async () => {
@@ -1308,7 +1247,7 @@ describe('SettingsScreen', () => {
     await dialog.getByRole('button', { name: /add prompt/i }).click()
 
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -1370,7 +1309,7 @@ describe('SettingsScreen', () => {
     await remove.click()
 
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,
@@ -1423,7 +1362,7 @@ describe('SettingsScreen', () => {
     await dialog.getByRole('button', { name: /^save$/i }).click()
 
     await vi.waitFor(() =>
-      expect(saved).toEqual([
+      expect(saved()).toEqual([
         {
           editorMarkdownSyntax: 'hide',
           editorSpellCheck: true,

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
+import type { NoteSession } from '@reflect/core'
+import { createTestOpenDocumentsService, createTestShareService } from '@reflect/core/testing'
+import { shareNote } from './share.ts'
 
 const shareMock = vi.fn<(data: ShareData) => Promise<void>>()
-
-const documents = installTestOpenDocuments()
 
 beforeEach(() => {
   Object.defineProperty(navigator, 'share', { configurable: true, value: shareMock })
@@ -18,13 +18,16 @@ afterEach(() => {
 describe('shareNote', () => {
   // What a note shares is covered with `ShareService` in `@reflect/core`.
   it('hands the live editor buffer body to the OS share sheet', async () => {
-    documents.open(
-      { liveContent: () => '---\nid: abc123\n---\n# Meeting\n\nAgenda + the unsaved line.\n' },
-      'notes/meeting-notes.md',
-    )
-    const { shareNote } = await import('./share.ts')
+    const openDocuments = createTestOpenDocumentsService()
+    const share = createTestShareService({ openDocuments })
+    // A stand-in implements only what the code under test calls.
+    const session: Partial<NoteSession> = {
+      path: 'notes/meeting-notes.md',
+      liveContent: () => '---\nid: abc123\n---\n# Meeting\n\nAgenda + the unsaved line.\n',
+    }
+    openDocuments.register({ session: session as NoteSession })
 
-    await shareNote('notes/meeting-notes.md')
+    await shareNote({ share }, 'notes/meeting-notes.md')
 
     expect(shareMock).toHaveBeenCalledWith({
       title: 'meeting-notes',

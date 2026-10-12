@@ -1,9 +1,9 @@
-import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, useRef, type ReactElement } from 'react'
-import { untitledNotePath } from '@reflect/core'
-import { RouterProvider, useRouter, type NavigateOptions } from '@/routing/router.tsx'
+import { createTestAppServices } from '@reflect/core/testing'
+import { useRouter, type NavigateOptions } from '@/routing/router.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { MobileNote } from './note.tsx'
 
 const paneProps = vi.hoisted(() => ({
@@ -33,8 +33,7 @@ vi.mock('@/mobile/note-actions-menu.tsx', () => ({
   NoteActionsMenu: () => null,
 }))
 
-// The backlinks section has its own suite (incoming-backlinks.test.tsx) and
-// needs the query/graph providers this focus-contract harness doesn't mount.
+// The backlinks section has its own suite (incoming-backlinks.test.tsx).
 vi.mock('@/mobile/incoming-backlinks.tsx', () => ({
   IncomingBacklinks: () => null,
 }))
@@ -63,15 +62,10 @@ function Arrival({
 }
 
 async function renderArrival(path: string, options?: NavigateOptions): Promise<void> {
-  await render(
-    <RouterProvider>
-      <Arrival path={path} options={options} />
-    </RouterProvider>,
-  )
+  await renderInApp(<Arrival path={path} options={options} />)
 }
 
-afterEach(async () => {
-  await cleanup()
+afterEach(() => {
   paneProps.autoFocus = null
   paneProps.className = null
   paneProps.gutterClassName = null
@@ -99,7 +93,7 @@ describe('MobileNote focus contract', () => {
   })
 
   it('autofocuses a fresh untitled note (the + flow)', async () => {
-    await renderArrival(untitledNotePath())
+    await renderArrival(createTestAppServices().noteCreation.untitledNotePath())
     await expect.element(page.getByRole('heading', { name: 'New note' })).toBeVisible()
     expect(paneProps.autoFocus).toBe(true)
   })
