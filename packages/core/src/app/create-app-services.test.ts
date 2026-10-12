@@ -71,6 +71,7 @@ const SERVICE_KEYS = [
   'attachments',
   'noteSessions',
   'openDocuments',
+  'noteDocuments',
   'indexQuery',
   'wikiResolver',
   'backlinks',
