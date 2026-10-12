@@ -35,6 +35,8 @@ export interface DevIndexDb {
   saveChatMessage: (conversation: DevChatConversation, message: DevChatMessageRow) => void
   /** Delete a conversation; its messages cascade (`chat_conversation_delete`). */
   deleteChatConversation: (id: string) => void
+  /** Release the database. */
+  close: () => void
 }
 
 /** Mirrors `chat_write.rs`'s `ChatConversation` (camelCased over IPC). */
@@ -333,6 +335,10 @@ export async function createDevIndexDb(): Promise<DevIndexDb> {
 
     deleteChatConversation: (id) => {
       run(db, 'DELETE FROM chat_conversations WHERE id = ?', [id])
+    },
+
+    close: () => {
+      db.close()
     },
   }
 }

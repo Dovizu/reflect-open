@@ -1,5 +1,8 @@
 import type { RetrievalHit } from '../embeddings/retrieve.ts'
 import { parseFrontmatter, splitFrontmatter } from '../markdown/frontmatter.ts'
+import type { CloudSafe } from './cloud-safe.ts'
+
+export type { CloudSafe } from './cloud-safe.ts'
 
 /**
  * Reflect's outbound-service privacy gate (Plan 10). `private: true` is a hard block:
@@ -11,15 +14,6 @@ import { parseFrontmatter, splitFrontmatter } from '../markdown/frontmatter.ts'
  * checks run. An unchecked payload can't be built — adding a new outbound
  * integration means minting its content here or it won't typecheck.
  */
-
-declare const cloudSafeBrand: unique symbol
-
-/**
- * Proof that a value passed this module's privacy gate. The brand is
- * compile-time only (it serializes as plain JSON); its job is making
- * "checked for privacy" a type every outbound boundary can demand.
- */
-export type CloudSafe<T> = T & { readonly [cloudSafeBrand]: true }
 
 /** The one place a `CloudSafe` is born. Private by design. */
 function mint<T>(value: T): CloudSafe<T> {

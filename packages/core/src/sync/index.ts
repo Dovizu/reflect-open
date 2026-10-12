@@ -7,7 +7,6 @@ export {
   gitStatus,
   gitSetup,
   gitDisconnect,
-  gitClone,
   gitCommitAll,
   gitFetch,
   gitMergeRemote,

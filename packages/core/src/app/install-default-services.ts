@@ -1,5 +1,7 @@
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
+import { setDefaultDatabase } from '../indexing/database-service.ts'
+import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
 import { setDefaultIpc } from '../ipc/bridge.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -47,6 +49,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultImageCodec(services.imageCodec)
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
   setDefaultOperations(services.operations)
+  setDefaultDatabase(services.database)
+  setDefaultFileChanges(services.fileChanges)
   setDefaultIpc(services.ipc)
 }
 
@@ -74,5 +78,7 @@ export function resetDefaultServices(): void {
   setDefaultImageCodec(null)
   setDefaultExceptionTelemetry(null)
   setDefaultOperations(null)
+  setDefaultDatabase(null)
+  setDefaultFileChanges(null)
   setDefaultIpc(null)
 }

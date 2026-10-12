@@ -12,10 +12,12 @@ import { createTestAgentSkillService, type TestAgentSkillService } from './agent
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
+import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
 import {
   createTestExceptionTelemetry,
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
+import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
   createTestHashService,
@@ -74,6 +76,8 @@ export interface TestAppServices extends AppServices {
   readonly imageCodec: TestImageCodecService
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly operations: TestOperationsService
+  readonly database: TestDatabaseService
+  readonly fileChanges: TestFileChangeService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -109,6 +113,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
     operations: createTestOperationsService(clock),
+    database: createTestDatabaseService(),
+    fileChanges: createTestFileChangeService(),
   }
   return Object.assign(services, overrides)
 }

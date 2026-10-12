@@ -1,26 +1,31 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
 import { deleteNote, writeNote } from '../graph/commands.ts'
-import { subscribeFileChanges, type FileChange } from './file-changes.ts'
-import { setLocalWriteEcho } from './local-write-echo.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
+import { createTestIpcBridgeService, installTestBridge } from '../testing/ipc.ts'
+import { setDefaultFileChanges, type FileChange } from './file-change-service.ts'
+import { subscribeFileChanges } from './file-changes.ts'
+
+let uninstall: (() => void) | null = null
 
 afterEach(() => {
-  setLocalWriteEcho(false)
-  setBridge(null)
+  uninstall?.()
+  uninstall = null
+  setDefaultFileChanges(null)
 })
 
-/** Bridge fake: every invoke succeeds with `null` (the void contract). */
-function fakeBridge() {
-  setBridge({
-    invoke: async () => null,
-    listen: async () => () => {},
-  })
+/** Install a bridge answering `invoke` and a file-change fake with the given echo setting. */
+function install(echoOwnWrites: boolean, invoke: (command: string) => unknown = () => null) {
+  const ipc = createTestIpcBridgeService()
+  for (const command of ['note_write', 'note_delete']) {
+    ipc.onCommand(command, () => invoke(command))
+  }
+  uninstall = installTestBridge(ipc)
+  setDefaultFileChanges(createTestFileChangeService({ echoOwnWrites }))
 }
 
 describe('local write echo (Plan 19, decision 5)', () => {
   it('emits an upsert to file-change subscribers after a note write', async () => {
-    fakeBridge()
-    setLocalWriteEcho(true)
+    install(true)
     const seen: FileChange[][] = []
     const unlisten = await subscribeFileChanges((changes) => {
       seen.push(changes)
@@ -35,8 +40,7 @@ describe('local write echo (Plan 19, decision 5)', () => {
   })
 
   it('emits a remove after a delete', async () => {
-    fakeBridge()
-    setLocalWriteEcho(true)
+    install(true)
     const seen: FileChange[][] = []
     const unlisten = await subscribeFileChanges((changes) => {
       seen.push(changes)
@@ -51,11 +55,7 @@ describe('local write echo (Plan 19, decision 5)', () => {
   it('stamps the echo with the on-disk mtime the write returned', async () => {
     // The reconcile's read-free skip compares the stored row's mtime against
     // the file listing — only the write's own on-disk stamp can ever match.
-    setBridge({
-      invoke: async (command) => (command === 'note_write' ? 1_234 : null),
-      listen: async () => () => {},
-    })
-    setLocalWriteEcho(true)
+    install(true, (command) => (command === 'note_write' ? 1_234 : null))
     const seen: FileChange[][] = []
     const unlisten = await subscribeFileChanges((changes) => {
       seen.push(changes)
@@ -68,7 +68,7 @@ describe('local write echo (Plan 19, decision 5)', () => {
   })
 
   it('stays silent when disabled (the desktop default — the watcher covers it)', async () => {
-    fakeBridge()
+    install(false)
     const handler = vi.fn()
     const unlisten = await subscribeFileChanges(handler)
 
@@ -79,13 +79,9 @@ describe('local write echo (Plan 19, decision 5)', () => {
   })
 
   it('does not emit when the write itself fails', async () => {
-    setBridge({
-      invoke: async () => {
-        throw new Error('disk full')
-      },
-      listen: async () => () => {},
+    install(true, () => {
+      throw new Error('disk full')
     })
-    setLocalWriteEcho(true)
     const handler = vi.fn()
     const unlisten = await subscribeFileChanges(handler)
 

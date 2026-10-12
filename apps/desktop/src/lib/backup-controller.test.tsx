@@ -382,6 +382,7 @@ describe('createBackupController', () => {
     // Local history is best effort: a watcher that won't come up must not cost
     // the user the one instruction they have for fixing the remote.
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     fakeBridge({ remoteUrl: 'https://gitlab.com/alex/notes.git', failListen: true })
     const controller = createBackupController({ graph: GRAPH, indexGeneration: 1 })
     await controller.start()
@@ -393,6 +394,7 @@ describe('createBackupController', () => {
     })
     controller.dispose()
     errorSpy.mockRestore()
+    warnSpy.mockRestore()
   })
 
   it('keeps local history when the keychain itself cannot be read', async () => {

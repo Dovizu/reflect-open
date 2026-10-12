@@ -65,6 +65,7 @@ export {
   type TestContactsService,
   type TestContactsServiceOptions,
 } from './contacts.ts'
+export { createTestDatabaseService, type TestDatabaseService } from './database.ts'
 export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 export {
   createTestMobileStorageService,
@@ -84,6 +85,24 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestCaptureInboxService,
+  createTestWebFetchService,
+  createTestXArchiveService,
+  type TestCaptureInboxService,
+  type TestWebFetchService,
+  type TestXArchiveService,
+  type WebFetchKind,
+} from './capture.ts'
+export {
+  createTestGitRepositoryService,
+  createTestICloudNativeService,
+  type GitRepositoryCall,
+  type GitRepositoryHandler,
+  type ICloudNativeCall,
+  type TestGitRepositoryService,
+  type TestICloudNativeService,
+} from './sync.ts'
+export {
   createTestAppInfoService,
   createTestSecretStoreService,
   type TestSecretStoreService,
@@ -93,3 +112,8 @@ export {
   type OperationSnapshot,
   type TestOperationsService,
 } from './operations.ts'
+export {
+  createTestFileChangeService,
+  type TestFileChangeService,
+  type TestFileChangeServiceOptions,
+} from './file-change.ts'
