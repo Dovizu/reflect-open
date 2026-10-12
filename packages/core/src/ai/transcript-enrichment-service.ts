@@ -218,40 +218,6 @@ export interface EnrichedSessionTranscript {
   readonly body: string
 }
 
-/** The two provider calls {@link routeSessionTranscriptEnrichment} chooses between. */
-export type TranscriptEnrichmentCalls = Pick<
-  TranscriptEnrichmentService,
-  'generateTitle' | 'formatTranscript'
->
-
-/**
- * The choice between the two calls of an enrichment: one formatting-and-naming
- * call when formatting is on and the transcript fits, else a title-only call.
- */
-export async function routeSessionTranscriptEnrichment(
-  calls: TranscriptEnrichmentCalls,
-  input: EnrichSessionTranscriptInput,
-): Promise<EnrichedSessionTranscript> {
-  if (
-    input.formatTranscript &&
-    input.enrichmentCredentials !== null &&
-    input.transcript.length <= FORMAT_MAX_CHARS
-  ) {
-    const formatted = await calls.formatTranscript({
-      credentials: input.enrichmentCredentials,
-      transcript: input.transcript,
-      fallbackTitle: input.fallbackTitle,
-    })
-    return { title: formatted.title, body: formatted.body }
-  }
-  const title = await calls.generateTitle({
-    ...(input.enrichmentCredentials !== null ? { credentials: input.enrichmentCredentials } : {}),
-    transcript: input.transcript.slice(0, TITLE_INPUT_MAX_CHARS),
-    fallbackTitle: input.fallbackTitle,
-  })
-  return { title, body: input.transcript }
-}
-
 /**
  * Best-effort enrichment of a transcript after transcription: an optional
  * formatting pass and a content-derived title. Enrichment never gates the
@@ -342,8 +308,30 @@ export function createTranscriptEnrichmentService(deps: {
   }
 
   return {
-    enrich: async (input) =>
-      await routeSessionTranscriptEnrichment({ generateTitle, formatTranscript }, input),
+    // One formatting-and-naming call when formatting is on and the transcript
+    // fits, else a title-only call.
+    enrich: async (input) => {
+      if (
+        input.formatTranscript &&
+        input.enrichmentCredentials !== null &&
+        input.transcript.length <= FORMAT_MAX_CHARS
+      ) {
+        const formatted = await formatTranscript({
+          credentials: input.enrichmentCredentials,
+          transcript: input.transcript,
+          fallbackTitle: input.fallbackTitle,
+        })
+        return { title: formatted.title, body: formatted.body }
+      }
+      const title = await generateTitle({
+        ...(input.enrichmentCredentials !== null
+          ? { credentials: input.enrichmentCredentials }
+          : {}),
+        transcript: input.transcript.slice(0, TITLE_INPUT_MAX_CHARS),
+        fallbackTitle: input.fallbackTitle,
+      })
+      return { title, body: input.transcript }
+    },
     generateTitle,
     formatTranscript,
   }

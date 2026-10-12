@@ -237,6 +237,14 @@ export {
   type TestAudioRecorderService,
 } from './audio-recorder.ts'
 export {
+  createTestAudioMemoService,
+  createTestMobileAudioMemoService,
+  createTestNativeActionService,
+  type TestAudioMemoServiceOptions,
+  type TestMobileAudioMemoServiceOptions,
+  type TestNativeActionServiceOptions,
+} from './audio-memo.ts'
+export {
   createTestAssetStoreService,
   createTestNoteCreationService,
   createTestNoteFileService,

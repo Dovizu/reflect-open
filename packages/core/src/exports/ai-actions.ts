@@ -119,28 +119,59 @@ export {
 export type { ModelMessage as ChatModelMessage } from '@reflect/modules/ai'
 export { base64ToBytes } from '../lib/base64.ts'
 export { isTranscriptionRejected, TranscriptionRejectedError } from '../ai/transcribe-http.ts'
-export { transcribeAudio, type TranscriptionRequest } from '../ai/transcribe.ts'
+export type { TranscriptionRequest } from '../ai/transcription-service.ts'
 export {
   audioMemoFromPath,
   audioMemoIdentity,
   audioMemoPartFromPath,
   audioMemoPartPath,
-  captureAudioMemoPart,
-  listAudioMemoSegments,
-  listPendingAudioMemoSessions,
-  reconcileAudioMemos,
-  type AudioMemoSource,
+} from '../actions/audio-memo.ts'
+export {
+  createAudioMemoService,
+  defaultAudioMemo,
+  setDefaultAudioMemo,
+  type AudioMemoPhase,
+  type AudioMemoPipeline,
+  type AudioMemoPipelineOptions,
+  type AudioMemoPipelineState,
+  type AudioMemoService,
+  type AudioMemoSession,
+  type AudioMemoSessionOptions,
+  type AudioMemoSessionState,
+  type AudioMemoSurface,
   type CaptureAudioMemoOutcome,
   type CaptureAudioMemoPartInput,
+  type PendingAudioCapture,
+} from '../audio/audio-memo-service.ts'
+export {
+  createAudioMemoTranscriptionService,
+  type AudioMemoTranscriptionService,
+  type AudioMemoTranscriptionSession,
+  type AudioMemoTranscriptionSessionOptions,
   type ReconcileAudioMemosInput,
   type ReconcileAudioMemosOutcome,
-} from '../actions/audio-memo.ts'
+} from '../audio/audio-memo-transcription-service.ts'
+export {
+  createMobileAudioMemoService,
+  defaultMobileAudioMemo,
+  setDefaultMobileAudioMemo,
+  type MobileAudioMemoService,
+  type MobileAudioMemoSession,
+  type MobileAudioMemoSessionOptions,
+  type MobileAudioMemoSessionState,
+} from '../audio/mobile-audio-memo-service.ts'
+export {
+  createNativeActionService,
+  defaultNativeAction,
+  setDefaultNativeAction,
+  type NativeActionService,
+  type NativeRecordActionHandler,
+} from '../audio/native-action-service.ts'
 export { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
 export {
   AUDIO_MEMO_REMINDER_MS,
   AUDIO_MEMO_SEGMENT_MS,
   type AudioMemoIdentity,
-  type AudioMemoSession,
 } from '../actions/audio-memo-session.ts'
 export {
   captureAckSchema,
