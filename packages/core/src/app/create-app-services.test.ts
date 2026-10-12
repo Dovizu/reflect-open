@@ -44,6 +44,8 @@ const SERVICE_KEYS = [
   'database',
   'fileChanges',
   'indexStore',
+  'embeddingRuntime',
+  'chatHistory',
   'update',
   'gitRepository',
   'icloudNative',

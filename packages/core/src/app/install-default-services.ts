@@ -1,3 +1,4 @@
+import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
@@ -8,6 +9,7 @@ import { setDefaultCalendar } from '../calendar/calendar-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
+import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
 import { setDefaultIndexStore } from '../indexing/index-store-service.ts'
@@ -66,6 +68,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
   setDefaultIndexStore(services.indexStore)
+  setDefaultEmbeddingRuntime(services.embeddingRuntime)
+  setDefaultChatHistory(services.chatHistory)
   setDefaultUpdate(services.update)
   setDefaultGitRepository(services.gitRepository)
   setDefaultICloudNative(services.icloudNative)
@@ -109,6 +113,8 @@ export function resetDefaultServices(): void {
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
   setDefaultIndexStore(null)
+  setDefaultEmbeddingRuntime(null)
+  setDefaultChatHistory(null)
   setDefaultUpdate(null)
   setDefaultGitRepository(null)
   setDefaultICloudNative(null)

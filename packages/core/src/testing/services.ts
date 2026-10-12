@@ -27,7 +27,12 @@ import {
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
+import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
+import {
+  createTestEmbeddingRuntimeService,
+  type TestEmbeddingRuntimeService,
+} from './embeddings.ts'
 import {
   createTestExceptionTelemetry,
   type TestExceptionTelemetryService,
@@ -112,6 +117,8 @@ export interface TestAppServices extends AppServices {
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
   readonly indexStore: TestIndexStoreService
+  readonly embeddingRuntime: TestEmbeddingRuntimeService
+  readonly chatHistory: TestChatHistoryService
   readonly update: TestUpdateService
   readonly gitRepository: TestGitRepositoryService
   readonly icloudNative: TestICloudNativeService
@@ -163,6 +170,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     database: createTestDatabaseService(),
     fileChanges: createTestFileChangeService(),
     indexStore: createTestIndexStoreService(),
+    embeddingRuntime: createTestEmbeddingRuntimeService(),
+    chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     gitRepository: createTestGitRepositoryService(),
     icloudNative: createTestICloudNativeService(),

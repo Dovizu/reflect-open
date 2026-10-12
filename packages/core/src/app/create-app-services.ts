@@ -1,4 +1,8 @@
 import {
+  createChatHistoryService,
+  type ChatHistoryService,
+} from '../ai/chat/chat-history-service.ts'
+import {
   createCaptureInboxService,
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
@@ -18,6 +22,10 @@ import { createCalendarService, type CalendarService } from '../calendar/calenda
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
+import {
+  createEmbeddingRuntimeService,
+  type EmbeddingRuntimeService,
+} from '../embeddings/embedding-runtime-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
 import { createIndexStoreService, type IndexStoreService } from '../indexing/index-store-service.ts'
@@ -103,6 +111,8 @@ export interface AppServices {
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
   readonly indexStore: IndexStoreService
+  readonly embeddingRuntime: EmbeddingRuntimeService
+  readonly chatHistory: ChatHistoryService
   readonly update: UpdateService
   readonly gitRepository: GitRepositoryService
   readonly icloudNative: ICloudNativeService
@@ -194,6 +204,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     operations: createOperationsService({ clock }),
     database,
     indexStore: createIndexStoreService({ ipc, database }),
+    embeddingRuntime: createEmbeddingRuntimeService({ ipc, logger }),
+    chatHistory: createChatHistoryService({ ipc, database, logger }),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,
