@@ -65,7 +65,6 @@ import {
   createAssetPrivacyService,
   type AssetPrivacyService,
 } from '../assets/asset-privacy-service.ts'
-import { createAssetReferences } from '../indexing/asset-refs.ts'
 import {
   createCaptureInboxService,
   type CaptureInboxService,
