@@ -1,4 +1,4 @@
-import type { GistFrontmatter } from '@reflect/core'
+import type { GistFrontmatter } from '../markdown/model.ts'
 
 export interface FrontmatterPatch {
   /**

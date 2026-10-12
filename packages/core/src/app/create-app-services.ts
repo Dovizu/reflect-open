@@ -59,6 +59,11 @@ import {
 } from '../graph/note-creation-service.ts'
 import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
+import {
+  createOpenDocumentsService,
+  type OpenDocumentsService,
+} from '../documents/open-documents-service.ts'
 import {
   createNoteLinkResolverService,
   type NoteLinkResolverService,
@@ -209,6 +214,8 @@ export interface AppServices {
   readonly noteFile: NoteFileService
   readonly assetStore: AssetStoreService
   readonly attachments: AttachmentService
+  readonly noteSessions: NoteSessionService
+  readonly openDocuments: OpenDocumentsService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -443,6 +450,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clock,
       platform,
     }),
+    noteSessions: createNoteSessionService({ noteFile, clock, logger }),
+    openDocuments: createOpenDocumentsService(),
     ...indexReads,
     ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
     indexLifecycle: createIndexLifecycleService({

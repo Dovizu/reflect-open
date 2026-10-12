@@ -1,22 +1,32 @@
-import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
-import { setDefaultOperations } from '@reflect/core'
+import {
+  createTestClockService,
+  createTestLoggerService,
+  createTestNoteFileService,
+  createTestOpenDocumentsService,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/core/testing'
+import {
+  createNoteSessionService,
+  setDefaultOpenDocuments,
+  setDefaultOperations,
+  type NoteFileService,
+  type NoteSession,
+  type OpenDocumentsService,
+} from '@reflect/core'
 import { QueryClient } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteRow } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
-import { createNoteSession } from '@/editor/note-session.ts'
-import type { NoteSession } from '@/editor/note-session.ts'
 
 const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
 const writeNote = vi.hoisted(() => vi.fn(async () => {}))
-const openSession = vi.hoisted(() => vi.fn<(path: string) => NoteSession | null>(() => null))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   readNote,
   writeNote,
 }))
-vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
 
 const { toggleNotePrivate } = await import('./note-private.ts')
 
@@ -27,6 +37,7 @@ function input(path = 'notes/a.md') {
 }
 
 let operations: TestOperationsService
+let openDocuments: OpenDocumentsService
 
 beforeEach(() => {
   operations = createTestOperationsService()
@@ -34,21 +45,30 @@ beforeEach(() => {
   client = new QueryClient()
   readNote.mockReset()
   writeNote.mockClear()
-  openSession.mockReset()
-  openSession.mockReturnValue(null)
+  openDocuments = createTestOpenDocumentsService()
+  setDefaultOpenDocuments(openDocuments)
 })
 
 afterEach(() => {
+  setDefaultOpenDocuments(null)
   setDefaultOperations(null)
 })
 
-function fakeSession(content: string, canCommit = true, liveContent: string | null = content) {
+/** An open session of `path`, registered with the open documents. */
+function fakeSession(
+  content: string,
+  canCommit = true,
+  liveContent: string | null = content,
+  path = 'notes/a.md',
+) {
   const commitFrontmatter = vi.fn(async () => canCommit)
   const session = {
+    path,
     content: () => content,
     liveContent: () => liveContent,
     commitFrontmatter,
   } as unknown as NoteSession
+  openDocuments.register({ session })
   return { session, commitFrontmatter }
 }
 
@@ -80,8 +100,7 @@ describe('toggleNotePrivate', () => {
   })
 
   it('routes through the live session, which owns landing the patch', async () => {
-    const { session, commitFrontmatter } = fakeSession('# A\n')
-    openSession.mockReturnValue(session)
+    const { commitFrontmatter } = fakeSession('# A\n')
     await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ private: true })
     expect(readNote).not.toHaveBeenCalled()
@@ -89,15 +108,13 @@ describe('toggleNotePrivate', () => {
   })
 
   it('toggles off through the session when the open note is private', async () => {
-    const { session, commitFrontmatter } = fakeSession('---\nprivate: true\n---\n# A\n')
-    openSession.mockReturnValue(session)
+    const { commitFrontmatter } = fakeSession('---\nprivate: true\n---\n# A\n')
     await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ private: false })
   })
 
   it('falls back to disk when the session cannot take the patch', async () => {
-    const { session } = fakeSession('# A\n', false)
-    openSession.mockReturnValue(session)
+    fakeSession('# A\n', false)
     readNote.mockResolvedValue('# A\n')
     await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
     expect(writeNote).toHaveBeenCalledWith('notes/a.md', '---\nprivate: true\n---\n\n# A\n', 3)
@@ -105,15 +122,13 @@ describe('toggleNotePrivate', () => {
 
   it('marks a not-yet-created note private by creating its file (the lazy contract)', async () => {
     // Still-loading session: `liveContent` is null, so the read falls to disk.
-    const { session } = fakeSession('', false, null)
-    openSession.mockReturnValue(session)
+    fakeSession('', false, null, 'daily/2026-06-10.md')
     readNote.mockRejectedValue({ kind: 'notFound', message: 'no such note' })
     await expect(toggleNotePrivate(input('daily/2026-06-10.md'))).resolves.toBeUndefined()
     expect(writeNote).toHaveBeenCalledWith('daily/2026-06-10.md', '---\nprivate: true\n---\n\n', 3)
   })
 
   it('reports non-notFound read failures through operations', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockRejectedValue({ kind: 'io', message: 'disk on fire' })
     await expect(toggleNotePrivate(input())).resolves.toBeUndefined()
     expect(writeNote).not.toHaveBeenCalled()
@@ -172,16 +187,22 @@ describe('privacy feedback', () => {
     client.setQueryData(queryKey, cachedRow())
     const write = Promise.withResolvers<void>()
     const writeStarted = Promise.withResolvers<void>()
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const session = createNoteSession({
-      path: 'notes/a.md',
-      io: {
-        read: async () => '# A\n',
-        write: () => {
-          writeStarted.resolve()
-          return write.promise
-        },
+    const files = createTestNoteFileService({ files: { 'notes/a.md': '# A\n' } })
+    const noteFile: NoteFileService = {
+      ...files,
+      write: async () => {
+        writeStarted.resolve()
+        await write.promise
+        return 0
       },
+    }
+    const session = createNoteSessionService({
+      noteFile,
+      clock: createTestClockService(),
+      logger: createTestLoggerService(),
+    }).create({
+      path: 'notes/a.md',
+      generation: () => 3,
       classify: () => 'exact',
       applyContent: () => {},
       onSnapshot: () => {},
@@ -189,7 +210,7 @@ describe('privacy feedback', () => {
     try {
       session.load()
       await vi.waitFor(() => expect(session.liveContent()).toBe('# A\n'))
-      openSession.mockReturnValue(session)
+      const close = openDocuments.register({ session })
       const action = toggleNotePrivate(input())
       await writeStarted.promise
       session.editorChanged('# Typed while locking\n')
@@ -202,13 +223,12 @@ describe('privacy feedback', () => {
       expect(client.getQueryState(queryKey)?.isInvalidated).toBe(true)
       // The next attempt must reach the writer again, rather than stay guarded.
       session.discard()
-      openSession.mockReturnValue(null)
+      close()
       readNote.mockResolvedValue('# A\n')
       await toggleNotePrivate(input())
       expect(writeNote).toHaveBeenCalledOnce()
     } finally {
       session.discard()
-      consoleError.mockRestore()
     }
   })
 })

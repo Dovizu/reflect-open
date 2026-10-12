@@ -1,24 +1,29 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { readNote, writeNote, type FileChange } from '@reflect/core'
-import { useFileChanges } from '@/lib/use-file-changes.ts'
-import { createDocumentBinding, type DocumentBinding } from './document-binding.ts'
-import type { NoteEditorHandle } from './note-editor.tsx'
-import { createRenameCoordinator } from './rename-coordinator.ts'
 import {
-  createNoteSession,
+  createDocumentBinding,
   INITIAL_NOTE_SNAPSHOT,
+  type DocumentBinding,
+  type FileChange,
   type NoteSessionSnapshot,
-} from './note-session.ts'
+} from '@reflect/core'
+import { useFileChanges } from '@/lib/use-file-changes.ts'
+import {
+  useClockService,
+  useNoteSessionService,
+  useOpenDocumentsService,
+} from '@/services/use-document-services.ts'
+import type { NoteEditorHandle } from './note-editor.tsx'
+import { createRenameCoordinator, type RenameCoordinator } from './rename-coordinator.ts'
 import { checkRoundTrip } from './roundtrip.ts'
 
 /**
- * React adapter over the {@link createNoteSession} document state machine: one
- * session per open `(path, generation)`, wired to the `@reflect/core` file
- * commands, the watcher event stream, and the editor's imperative handle. All
- * save/conflict/protection semantics live in `note-session.ts`, and the
+ * React adapter over the `@reflect/core` document state machine
+ * (`NoteSessionService`): one session per open `(path, generation)`, wired to
+ * the watcher event stream and the editor's imperative handle. All
+ * save/conflict/protection semantics live in core's `note-session.ts`, and the
  * create/adopt/teardown/hand-off lifecycle (a rename retargets the live
- * session and the route follows, Plan 17) lives in `document-binding.ts` —
- * this hook only adapts both to React.
+ * session and the route follows, Plan 17) lives in core's
+ * `document-binding.ts` — this hook only adapts both to React.
  */
 
 export interface NoteDocument extends NoteSessionSnapshot {
@@ -80,7 +85,12 @@ export function useNoteDocument(
   /** Mirrors the snapshot's conflict for non-reactive checks (rename gating). */
   const conflictRef = useRef<string | null>(null)
   /** The pane's lifecycle policy object — one per hook instance. */
-  const [binding] = useState<DocumentBinding>(() => createDocumentBinding())
+  const noteSessions = useNoteSessionService()
+  const openDocuments = useOpenDocumentsService()
+  const clock = useClockService()
+  const [binding] = useState<DocumentBinding<RenameCoordinator>>(() =>
+    createDocumentBinding({ openDocuments }),
+  )
 
   // Writes read the generation at write time, not at session creation, so the
   // session must NOT be keyed on `generation`: reopening the *same* graph bumps
@@ -112,23 +122,13 @@ export function useNoteDocument(
               path,
               generation: () => generationRef.current,
               canFire: () => conflictRef.current === null,
+              clock,
             })
           : null,
       session: (coordinator) =>
-        createNoteSession({
+        noteSessions.create({
           path,
-          io: {
-            read: readNote,
-            write: canWrite
-              ? (forPath, contents, expectedContents) => {
-                  const current = generationRef.current
-                  if (current === null) {
-                    return Promise.reject(new Error('no graph generation available for save'))
-                  }
-                  return writeNote(forPath, contents, current, expectedContents)
-                }
-              : null,
-          },
+          generation: canWrite ? () => generationRef.current : null,
           classify: checkRoundTrip,
           onSnapshot: (next) => {
             conflictRef.current = next.conflict
@@ -151,7 +151,7 @@ export function useNoteDocument(
       session.load()
     }
     return () => binding.unbind(path)
-  }, [binding, path, canWrite, createIfMissing, trackRenames, missingSeed])
+  }, [binding, noteSessions, clock, path, canWrite, createIfMissing, trackRenames, missingSeed])
 
   // External-change reconciliation via the watcher (Plan 04b events). The
   // comparison reads the session's CURRENT path, not the route prop: a rename

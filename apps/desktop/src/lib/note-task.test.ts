@@ -13,9 +13,7 @@ import {
   writeTask,
   type TaskRef,
 } from './note-task.ts'
-
-const openSession = vi.hoisted(() => vi.fn())
-vi.mock('@/editor/open-documents.ts', () => ({ openSession }))
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 
 const readNote = vi.hoisted(() => vi.fn())
 const writeNote = vi.hoisted(() => vi.fn())
@@ -24,6 +22,8 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   readNote,
   writeNote,
 }))
+
+const documents = installTestOpenDocuments()
 
 /** The `index`th task of `source` as the index would hand it to the Tasks view. */
 function ref(source: string, index = 0, notePath = 'notes/a.md'): TaskRef {
@@ -61,7 +61,6 @@ function sessionOver(source: string, applied = true) {
 const task = ref('+ [ ] do it\n')
 
 beforeEach(() => {
-  openSession.mockReset()
   readNote.mockReset()
   writeNote.mockReset()
 })
@@ -70,7 +69,6 @@ const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
 
 describe('write serialization', () => {
   it('serializes concurrent writes to the same note — no read/write interleave', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('+ [ ] do it\n')
     const pendingFirstWrite = Promise.withResolvers<void>()
     let writes = 0
@@ -95,7 +93,6 @@ describe('write serialization', () => {
   })
 
   it('keeps the chain alive when a write fails', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('+ [ ] do it\n')
     writeNote.mockRejectedValueOnce(new Error('disk full')).mockResolvedValue(undefined)
 
@@ -108,7 +105,6 @@ describe('write serialization', () => {
 
 describe('writeTask', () => {
   it('writes the toggled task to disk when the note is not open', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('+ [ ] do it\n')
     writeNote.mockResolvedValue(undefined)
 
@@ -121,7 +117,7 @@ describe('writeTask', () => {
     // No isDirty gate: an open note always goes through the session, which reads
     // its buffer synchronously, so there is no read/write race with the editor.
     const session = sessionOver('+ [ ] do it\n')
-    openSession.mockReturnValue(session)
+    documents.open(session)
 
     const result = await writeTask(task, [{ kind: 'toggle' }], 7)
     expect(session.commitSourceEdit).toHaveBeenCalledTimes(1)
@@ -131,14 +127,13 @@ describe('writeTask', () => {
   })
 
   it('throws NoteBusyError when the session declines, never clobbering via disk', async () => {
-    openSession.mockReturnValue(sessionOver('+ [ ] do it\n', false))
+    documents.open(sessionOver('+ [ ] do it\n', false))
 
     await expect(writeTask(task, [{ kind: 'remove' }], 7)).rejects.toBeInstanceOf(NoteBusyError)
     expect(writeNote).not.toHaveBeenCalled()
   })
 
   it('propagates TaskStaleError from the disk path when the index is stale', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('+ [ ] something else entirely\n')
 
     await expect(writeTask(task, [{ kind: 'toggle' }], 7)).rejects.toBeInstanceOf(TaskStaleError)
@@ -146,26 +141,24 @@ describe('writeTask', () => {
   })
 
   it('propagates TaskStaleError from the session path too', async () => {
-    openSession.mockReturnValue(sessionOver('+ [ ] something else entirely\n'))
+    documents.open(sessionOver('+ [ ] something else entirely\n'))
 
     await expect(writeTask(task, [{ kind: 'toggle' }], 7)).rejects.toBeInstanceOf(TaskStaleError)
   })
 
   it('replaces the Markdown, on disk or through the session', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('+ [ ] do it\n')
     writeNote.mockResolvedValue(undefined)
     await writeTask(task, [{ kind: 'setMarkdown', markdown: 'do it well' }], 7)
     expect(writeNote).toHaveBeenCalledWith('notes/a.md', '+ [ ] do it well\n', 7)
 
-    openSession.mockReturnValue(sessionOver('+ [ ] do it\n'))
+    documents.open(sessionOver('+ [ ] do it\n'))
     const result = await writeTask(task, [{ kind: 'setMarkdown', markdown: 'do it well' }], 7)
     expect(result.source).toBe('+ [ ] do it well\n')
     expect(writeNote).toHaveBeenCalledTimes(1)
   })
 
   it('removes the task and reports the rows below it moving up', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('+ [ ] do it\n+ [ ] keep\n')
     writeNote.mockResolvedValue(undefined)
 
@@ -176,7 +169,6 @@ describe('writeTask', () => {
   })
 
   it('drops the checkbox, so the row leaves the projection', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('+ [ ] do it\n+ [ ] keep\n')
     writeNote.mockResolvedValue(undefined)
 
@@ -186,7 +178,6 @@ describe('writeTask', () => {
   })
 
   it('lands several actions in one write', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('+ [ ] do it\n')
     writeNote.mockResolvedValue(undefined)
 
@@ -210,7 +201,6 @@ describe('writeTask', () => {
 
 describe('insertTask', () => {
   it('starts an empty note with a Tasks section and reports the new address', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('')
     writeNote.mockResolvedValue(undefined)
 
@@ -222,7 +212,6 @@ describe('insertTask', () => {
   })
 
   it('joins an existing Tasks section and reports the tasks it shifted', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue('## Tasks\n\n+ [ ] a\n\n## Later\n\n+ [ ] b\n')
     writeNote.mockResolvedValue(undefined)
 
@@ -239,7 +228,6 @@ describe('insertTask', () => {
   })
 
   it('starts a note that does not exist yet', async () => {
-    openSession.mockReturnValue(null)
     readNote.mockRejectedValue(Object.assign(new Error('missing'), { kind: 'notFound' }))
     writeNote.mockResolvedValue(undefined)
 
@@ -249,7 +237,7 @@ describe('insertTask', () => {
 
   it('appends through the live session when the note is open', async () => {
     const session = sessionOver('## Tasks\n\n+ [ ] first\n')
-    openSession.mockReturnValue(session)
+    documents.open(session)
 
     await expect(insertTask('notes/a.md', 7)).resolves.toMatchObject({ created: { astPath: [2] } })
     expect(writeNote).not.toHaveBeenCalled()
@@ -266,7 +254,6 @@ describe('continueTaskInContext', () => {
       '    + [ ] third',
       '',
     ].join('\n')
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue(source)
     writeNote.mockResolvedValue(undefined)
 
@@ -298,7 +285,6 @@ describe('continueTaskInContext', () => {
 
   it('replaces a cleared row with one empty task at the end of its context', async () => {
     const source = '+ Group\n  + [ ] old\n  + [ ] peer\n'
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue(source)
     writeNote.mockResolvedValue(undefined)
 
@@ -319,7 +305,6 @@ describe('continueTaskInContext', () => {
   it('relocates a stale anchor by its content when the note grew above it', async () => {
     const indexedSource = '+ Group\n  + [ ] \n'
     const source = `Intro\n\n${indexedSource}`
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue(source)
     writeNote.mockResolvedValue(undefined)
 
@@ -333,7 +318,6 @@ describe('continueTaskInContext', () => {
 
   it('continues the own list of a root-level task', async () => {
     const source = '+ [ ] alone\n'
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue(source)
     writeNote.mockResolvedValue(undefined)
 
@@ -345,7 +329,6 @@ describe('continueTaskInContext', () => {
 
   it('returns a result shaped for the cache', async () => {
     const source = '+ Group\n  + [ ] first\n'
-    openSession.mockReturnValue(null)
     readNote.mockResolvedValue(source)
     writeNote.mockResolvedValue(undefined)
 

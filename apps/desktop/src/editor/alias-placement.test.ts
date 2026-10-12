@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 
 /**
  * IO-bound core functions are mocked; the pure helpers (`parseNote`,
@@ -15,10 +16,7 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   writeNote: io.writeNote,
 }))
 
-const docs = vi.hoisted(() => ({ openSession: vi.fn() }))
-vi.mock('./open-documents', () => ({
-  openSession: docs.openSession,
-}))
+const documents = installTestOpenDocuments()
 
 const { placeOldTitleAlias } = await import('./alias-placement.ts')
 
@@ -28,7 +26,6 @@ const RENAME = { from: 'Old Title', to: 'New Title', previousAutoAliases: [] }
 beforeEach(() => {
   io.readNote.mockReset()
   io.writeNote.mockReset().mockResolvedValue(undefined)
-  docs.openSession.mockReset().mockReturnValue(null)
 })
 
 function fakeSession(options?: { content?: string; takesPatch?: boolean }) {
@@ -56,7 +53,7 @@ describe('placeOldTitleAlias', () => {
 
   it('routes through a live session: frontmatter channel, then flush, no disk write', async () => {
     const session = fakeSession()
-    docs.openSession.mockReturnValue(session)
+    documents.open(session, PATH)
 
     await placeOldTitleAlias(PATH, RENAME, 7)
 
@@ -68,7 +65,7 @@ describe('placeOldTitleAlias', () => {
 
   it('falls back to disk when the session cannot take the patch', async () => {
     const session = fakeSession({ takesPatch: false })
-    docs.openSession.mockReturnValue(session)
+    documents.open(session, PATH)
     io.readNote.mockResolvedValue('# Old Title\n\nbody\n')
 
     await placeOldTitleAlias(PATH, RENAME, 7)
@@ -81,7 +78,7 @@ describe('placeOldTitleAlias', () => {
     // A case-only retitle: the old title folds to the new one, so keeping it
     // as an alias would alias a note to its own title.
     const session = fakeSession({ content: '# new title\n' })
-    docs.openSession.mockReturnValue(session)
+    documents.open(session, PATH)
 
     await placeOldTitleAlias(PATH, { ...RENAME, from: 'new title' }, 7)
 
@@ -92,7 +89,7 @@ describe('placeOldTitleAlias', () => {
 
   it('returns the aliases it added, for the next rename in the chain to prune', async () => {
     const session = fakeSession({ content: '---\naliases:\n  - Dad\n---\n# Timothy MacCaw\n' })
-    docs.openSession.mockReturnValue(session)
+    documents.open(session, PATH)
 
     const added = await placeOldTitleAlias(
       PATH,
@@ -113,7 +110,7 @@ describe('placeOldTitleAlias', () => {
     const session = fakeSession({
       content: '---\naliases:\n  - Alice\n  - Alice // Dad\n---\n# Carol\n',
     })
-    docs.openSession.mockReturnValue(session)
+    documents.open(session, PATH)
 
     const added = await placeOldTitleAlias(
       PATH,
@@ -131,7 +128,7 @@ describe('placeOldTitleAlias', () => {
     const session = fakeSession({
       content: '---\naliases:\n  - Gained Elsewhere\n---\n# Old Title\n',
     })
-    docs.openSession.mockReturnValue(session)
+    documents.open(session, PATH)
 
     await placeOldTitleAlias(PATH, RENAME, 7)
 
