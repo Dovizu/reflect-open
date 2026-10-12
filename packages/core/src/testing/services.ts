@@ -64,13 +64,16 @@ import {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
+import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
+  createTestNoteActionsService,
   createTestNoteMoveService,
   createTestNoteSessionService,
   createTestNoteDocumentService,
   createTestOpenDocumentsService,
   createTestTitleRenameService,
+  type TestNoteActionsService,
   type TestNoteMoveService,
   type TestNoteSessionService,
   type TestTitleRenameService,
@@ -224,6 +227,7 @@ export interface TestAppServices extends AppServices {
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
+  readonly noteActions: TestNoteActionsService
   readonly noteSessions: TestNoteSessionService
   readonly noteMove: TestNoteMoveService
   readonly titleRename: TestTitleRenameService
@@ -314,6 +318,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
     operations: overrides?.operations ?? operations,
   })
+  const clipboard = createTestClipboardService()
+  const noteDocuments = createTestNoteDocumentService({
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+    noteFile: overrides?.noteFile ?? noteFile,
+  })
   const ipc = createTestIpcBridgeService({ logger })
   const noteMove = createTestNoteMoveService({
     ipc: overrides?.ipc ?? ipc,
@@ -346,7 +355,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     storage: createTestStorageService(),
     http,
     dialog,
-    clipboard: createTestClipboardService(),
+    clipboard,
     opener: createTestOpenerService({ logger }),
     path,
     window: windowService,
@@ -425,10 +434,17 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     keyboard: createTestKeyboardService(),
     share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
-    noteDocuments: createTestNoteDocumentService({
-      openDocuments: overrides?.openDocuments ?? openDocuments,
+    noteDocuments,
+    noteActions: createTestNoteActionsService({
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
       noteFile: overrides?.noteFile ?? noteFile,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      operations: overrides?.operations ?? operations,
+      clipboard: overrides?.clipboard ?? clipboard,
+      path: overrides?.path ?? path,
+      id: overrides?.id ?? id,
     }),
+    noteRows: createNoteRowService(),
     ...indexReads,
     noteLinkResolver,
     noteCreation: createTestNoteCreationService({

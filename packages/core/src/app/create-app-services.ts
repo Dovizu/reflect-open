@@ -100,6 +100,11 @@ import {
   type TitleRenameService,
 } from '../documents/title-rename-service.ts'
 import {
+  createNoteActionsService,
+  type NoteActionsService,
+} from '../documents/note-actions-service.ts'
+import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
+import {
   createNoteDocumentService,
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
@@ -285,6 +290,8 @@ export interface AppServices {
   readonly noteMove: NoteMoveService
   readonly titleRename: TitleRenameService
   readonly noteDocuments: NoteDocumentService
+  readonly noteActions: NoteActionsService
+  readonly noteRows: NoteRowService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -478,6 +485,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
+  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
   const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const captureInbox = createCaptureInboxService({ ipc })
   const indexLifecycle = createIndexLifecycleService({
@@ -608,7 +616,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments }),
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments,
+    noteActions: createNoteActionsService({
+      noteDocuments,
+      noteFile,
+      openDocuments,
+      indexLifecycle,
+      operations,
+      clipboard: adapters.clipboard,
+      path,
+      id,
+    }),
+    noteRows: createNoteRowService(),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

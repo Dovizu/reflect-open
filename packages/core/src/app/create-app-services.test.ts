@@ -76,6 +76,8 @@ const SERVICE_KEYS = [
   'noteMove',
   'titleRename',
   'noteDocuments',
+  'noteActions',
+  'noteRows',
   'indexQuery',
   'wikiResolver',
   'backlinks',

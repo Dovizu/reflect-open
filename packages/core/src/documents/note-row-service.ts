@@ -1,0 +1,212 @@
+import type { NoteRow } from '../indexing/index-query-service.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
+
+/**
+ * Index-row fields an action may assert ahead of the re-index. Publishing
+ * yields a concrete `gistUrl` and a fresh `gistStale: false`; unpublishing
+ * yields `gistUrl: null`. These overlays are short-lived read-model facts that
+ * retire as soon as the index catches up. As a *stored* value every field is
+ * concrete: an `undefined` field is stripped before it lands.
+ */
+export interface NoteRowOverlay {
+  readonly gistUrl?: string | null
+  readonly gistStale?: boolean
+}
+
+/**
+ * The shape callers may hand {@link NoteRowService.setOverlay}: the same
+ * fields, but an explicit `undefined` is allowed (e.g. a conditionally-built
+ * patch). Such fields are dropped, so an all-`undefined` patch is a no-op and
+ * `undefined` never reaches a stored {@link NoteRowOverlay}.
+ */
+export interface NoteRowOverlayPatch {
+  readonly gistUrl?: string | null | undefined
+  readonly gistStale?: boolean | undefined
+}
+
+type MutableNoteRowOverlay = {
+  -readonly [Key in keyof NoteRowOverlay]: NoteRowOverlay[Key]
+}
+
+interface OverlayEntry {
+  /** The graph (file) generation this optimism was written under. */
+  readonly generation: number
+  readonly overlay: NoteRowOverlay
+}
+
+/**
+ * The optimistic read overlay for note index rows (Plan 12 follow-up).
+ *
+ * The index lags an in-app frontmatter write by one watcher round-trip, so a
+ * just-published note would briefly read as unpublished. Rather than each
+ * surface (the gist action, the published-URL section, …) carrying its own
+ * pending-state "bridge", the optimism lives **once, in the read model**: an
+ * action records what it just wrote, the reader merges it over the index row,
+ * and it retires the moment the index agrees. Every reader sees a single
+ * consistent value, so there is no second value to disagree.
+ *
+ * Each entry is keyed by graph-relative path and stamped with the **graph
+ * generation** it was written under. A reader only sees overlays matching its
+ * current generation, so a publish that resolves *after* a graph switch can't
+ * surface on the new graph (its generation no longer matches): a path shared
+ * across graphs never shows the wrong note's url. {@link NoteRowService.reset}
+ * on graph teardown is then just memory hygiene, not load-bearing for
+ * correctness.
+ */
+export interface NoteRowService {
+  /**
+   * Record an optimistic patch for `path` under the `generation` it was written
+   * in, reflected by every reader of that path on that graph until the index
+   * catches up. Merges with an existing patch from the same generation; a
+   * patch from a newer generation replaces a stale one. An empty patch (or one
+   * that is all `undefined`) is ignored: it would only leave a
+   * non-reconcilable entry and leak `undefined` into merged rows.
+   */
+  setOverlay(path: string, generation: number, patch: NoteRowOverlayPatch): void
+  /**
+   * The overlay for `path` on `generation`, or `null` when none applies.
+   * Readers accept `undefined` (the graph may not have loaded yet) and report
+   * no overlay; writers always hold a concrete generation, so
+   * {@link NoteRowService.setOverlay} and {@link NoteRowService.reconcile}
+   * require one. Keep that asymmetry: it is the load-state boundary, not an
+   * inconsistency to unify.
+   */
+  getOverlay(path: string, generation: number | undefined): NoteRowOverlay | null
+  /**
+   * Drop overlay fields the freshly-read index `row` has caught up to (and the
+   * whole entry once nothing is left). A `null` row (note not indexed yet) or
+   * a mismatched generation has nothing to reconcile, so the overlay is held.
+   */
+  reconcile(path: string, generation: number, row: NoteRow | null): void
+  /** Drop every overlay: graph teardown reclaims memory (correctness is by generation). */
+  reset(): void
+  /** Call `listener` whenever an overlay changes. */
+  subscribe(listener: () => void): Unlisten
+}
+
+/** Strip `undefined` fields: an all-`undefined` patch must never be stored. */
+function definedFields(patch: NoteRowOverlayPatch): NoteRowOverlay {
+  const result: MutableNoteRowOverlay = {}
+  if (patch.gistUrl !== undefined) {
+    result.gistUrl = patch.gistUrl
+  }
+  if (patch.gistStale !== undefined) {
+    result.gistStale = patch.gistStale
+  }
+  return result
+}
+
+/**
+ * Merge an overlay over an index row. The overlay only sharpens an existing
+ * row; with no row there is nothing to display yet (a publish targets an
+ * already-indexed note), so `null` passes through.
+ */
+export function applyNoteRowOverlay(
+  row: NoteRow | null,
+  overlay: NoteRowOverlay | null,
+): NoteRow | null {
+  if (row === null || overlay === null) {
+    return row
+  }
+  return { ...row, ...overlay }
+}
+
+export function createNoteRowService(): NoteRowService {
+  const overlays = new Map<string, OverlayEntry>()
+  const listeners = new Set<() => void>()
+
+  function emit(): void {
+    for (const listener of listeners) {
+      listener()
+    }
+  }
+
+  return {
+    setOverlay(path, generation, patch) {
+      const defined = definedFields(patch)
+      if (Object.keys(defined).length === 0) {
+        return
+      }
+      const existing = overlays.get(path)
+      // Never let an older generation's late write clobber a newer graph's overlay.
+      // Rust already rejects stale-generation file writes before a publish reaches
+      // here (the publish throws and never records an overlay), so this is defence
+      // in depth: the store owns the invariant rather than trusting the caller.
+      if (existing !== undefined && existing.generation > generation) {
+        return
+      }
+      const base = existing?.generation === generation ? existing.overlay : {}
+      overlays.set(path, { generation, overlay: { ...base, ...defined } })
+      emit()
+    },
+    getOverlay(path, generation) {
+      if (generation === undefined) {
+        return null
+      }
+      const entry = overlays.get(path)
+      return entry !== undefined && entry.generation === generation ? entry.overlay : null
+    },
+    reconcile(path, generation, row) {
+      const entry = overlays.get(path)
+      if (entry === undefined || entry.generation !== generation || row === null) {
+        return
+      }
+      const remaining: MutableNoteRowOverlay = {}
+      let retired = false
+      for (const key of Object.keys(entry.overlay) as (keyof NoteRowOverlay)[]) {
+        if (row[key] === entry.overlay[key]) {
+          retired = true
+        } else if (key === 'gistUrl') {
+          const gistUrl = entry.overlay.gistUrl
+          if (gistUrl !== undefined) {
+            remaining.gistUrl = gistUrl
+          }
+        } else {
+          const gistStale = entry.overlay.gistStale
+          if (gistStale !== undefined) {
+            remaining.gistStale = gistStale
+          }
+        }
+      }
+      if (!retired) {
+        return
+      }
+      if (Object.keys(remaining).length === 0) {
+        overlays.delete(path)
+      } else {
+        overlays.set(path, { generation, overlay: remaining })
+      }
+      emit()
+    },
+    reset() {
+      if (overlays.size === 0) {
+        return
+      }
+      overlays.clear()
+      emit()
+    },
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  }
+}
+
+let installedService: NoteRowService | null = null
+let fallback: NoteRowService | null = null
+
+/** The process-wide `NoteRowService`: the installed one, else a lazily built one. */
+export function defaultNoteRows(): NoteRowService {
+  if (installedService !== null) {
+    return installedService
+  }
+  fallback ??= createNoteRowService()
+  return fallback
+}
+
+/** Install the process-wide `NoteRowService`; `null` restores the lazily built one. */
+export function setDefaultNoteRows(service: NoteRowService | null): void {
+  installedService = service
+}

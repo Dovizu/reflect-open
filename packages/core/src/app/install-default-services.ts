@@ -30,7 +30,9 @@ import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
+import { setDefaultNoteActions } from '../documents/note-actions-service.ts'
 import { setDefaultNoteDocuments } from '../documents/note-document-service.ts'
+import { setDefaultNoteRows } from '../documents/note-row-service.ts'
 import { setDefaultNoteSessions } from '../documents/note-session.ts'
 import { setDefaultNoteMove } from '../documents/note-move-service.ts'
 import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
@@ -150,6 +152,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultKeyboard(services.keyboard)
   setDefaultShare(services.share)
   setDefaultNoteDocuments(services.noteDocuments)
+  setDefaultNoteActions(services.noteActions)
+  setDefaultNoteRows(services.noteRows)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -241,6 +245,8 @@ export function resetDefaultServices(): void {
   setDefaultKeyboard(null)
   setDefaultShare(null)
   setDefaultNoteDocuments(null)
+  setDefaultNoteActions(null)
+  setDefaultNoteRows(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)

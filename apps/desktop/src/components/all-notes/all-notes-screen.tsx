@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { foldTag, isDaily, listNotes, listNoteTags } from '@reflect/core'
+import { canTrashNote, foldTag, listNotes, listNoteTags } from '@reflect/core'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
@@ -94,7 +94,7 @@ export function AllNotesScreen({ tag }: AllNotesScreenProps): ReactElement {
   const [confirmingTrash, setConfirmingTrash] = useState(false)
   const [pendingPaths, setPendingPaths] = useState<readonly string[]>([])
   const trashableSelectedPaths = useMemo(
-    () => [...selection.selected].filter((path) => !isDaily(path)),
+    () => [...selection.selected].filter((path) => canTrashNote(path)),
     [selection.selected],
   )
   const openTrashConfirm = useCallback(() => {

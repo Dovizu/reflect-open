@@ -376,6 +376,36 @@ export {
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export {
+  canTrashNote,
+  createNoteActionsService,
+  defaultNoteActions,
+  setDefaultNoteActions,
+  type NoteActionOptions,
+  type NoteActionOutcome,
+  type NoteActionsService,
+  type NotePinOrderWrite,
+  type NotePinResult,
+  type NotePinToggleOptions,
+  type NoteTrashFailure,
+  type NoteTrashManyOptions,
+  type NoteTrashResult,
+} from '../documents/note-actions-service.ts'
+export {
+  applyNoteRowOverlay,
+  createNoteRowService,
+  defaultNoteRows,
+  setDefaultNoteRows,
+  type NoteRowOverlay,
+  type NoteRowOverlayPatch,
+  type NoteRowService,
+} from '../documents/note-row-service.ts'
+export {
+  getNextPinOrder,
+  isValidPinOrder,
+  renumberPinOrder,
+  updatePinOrder,
+} from '../documents/pin-order.ts'
+export {
   createOpenDocumentsService,
   defaultOpenDocuments,
   setDefaultOpenDocuments,
