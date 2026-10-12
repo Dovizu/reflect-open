@@ -112,7 +112,7 @@ export function baseMimeType(mimeType: string): string {
 
 /**
  * File extension per audio MIME type — shared by the provider upload filename
- * and the on-disk naming of saved memos (`actions/audio-memo`), which must
+ * and the on-disk naming of saved memos (`audio/audio-memo`), which must
  * agree so a stored recording round-trips back into transcription.
  */
 export const AUDIO_EXTENSION_BY_MIME: Record<string, string> = {

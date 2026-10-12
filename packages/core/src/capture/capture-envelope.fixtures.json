@@ -1,5 +1,5 @@
 {
-  "comment": "Shared contract fixtures for the capture wire message. Consumed by BOTH packages/core/src/actions/capture-envelope.parity.test.ts (zod, the source of truth) and apps/native-host/src/envelope.rs's parity test (the serde mirror). Every `accepted` message must pass both validators; every `rejected` message must fail both. This pins the invariant that the host never spools an envelope the drain would quarantine, and that the two validators cannot drift apart silently.",
+  "comment": "Shared contract fixtures for the capture wire message. Consumed by BOTH packages/core/src/capture/capture-envelope.parity.test.ts (zod, the source of truth) and apps/native-host/src/envelope.rs's parity test (the serde mirror). Every `accepted` message must pass both validators; every `rejected` message must fail both. This pins the invariant that the host never spools an envelope the drain would quarantine, and that the two validators cannot drift apart silently.",
   "accepted": [
     {
       "name": "minimal",

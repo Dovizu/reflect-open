@@ -1,6 +1,6 @@
 import { mapXPostMediaUrls, parseYouTubeVideo } from '@post-embed/schema'
 import type { XPost, YouTubeVideo } from '@post-embed/types'
-import { oembedRequestURL } from '../actions/oembed.ts'
+import { oembedRequestURL } from './oembed.ts'
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformService } from '../app/platform-service.ts'

@@ -1,4 +1,4 @@
-import { textCaptureEnvelopeSchema } from '../actions/capture-envelope.ts'
+import { textCaptureEnvelopeSchema } from '../capture/capture-envelope.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { IdService } from '../app/id-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'

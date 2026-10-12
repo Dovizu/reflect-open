@@ -1,4 +1,4 @@
-import { TEXT_CAPTURE_MAX_LENGTH, type TextCaptureKind } from '../actions/capture-envelope.ts'
+import { TEXT_CAPTURE_MAX_LENGTH, type TextCaptureKind } from '../capture/capture-envelope.ts'
 import type { Route } from './route.ts'
 
 /**
