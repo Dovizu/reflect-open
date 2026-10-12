@@ -41,6 +41,7 @@ const SERVICE_KEYS = [
   'imageCodec',
   'exceptionTelemetry',
   'operations',
+  'settings',
   'database',
   'fileChanges',
   'indexStore',

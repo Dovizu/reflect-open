@@ -1,4 +1,4 @@
-import { mutationOptions, queryOptions } from '@tanstack/react-query'
+import { queryOptions } from '@tanstack/react-query'
 import {
   createAttachmentCatalog,
   dailyDatesInRange,
@@ -7,10 +7,8 @@ import {
   getDuplicateNoteIds,
   listChatConversations,
   listTemplates,
-  loadSettings,
-  saveSettings,
 } from '@reflect/core'
-import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
+import { queryKeys } from '@/lib/query-client.ts'
 
 /** Conflicted-note rows shared by every sync status and settings surface. */
 export function createConflictedNotesQueryOptions(root: string | undefined) {
@@ -63,21 +61,5 @@ export function createChatConversationsQueryOptions(root: string | undefined) {
   return queryOptions({
     queryKey: queryKeys.chat.conversations(root),
     queryFn: () => listChatConversations(),
-  })
-}
-
-export function createSettingsQueryOptions() {
-  return queryOptions({
-    queryKey: queryKeys.settings.all,
-    queryFn: loadSettings,
-    staleTime: Infinity,
-  })
-}
-export function createSettingsSaveMutationOptions() {
-  return mutationOptions({
-    mutationKey: mutationKeys.settings.save,
-    mutationFn: saveSettings,
-    scope: { id: mutationScopeIds.settingsSave },
-    retry: 0,
   })
 }

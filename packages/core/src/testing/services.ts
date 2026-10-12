@@ -86,6 +86,7 @@ import {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
+import { createTestSettingsService, type TestSettingsService } from './settings.ts'
 import { createTestStorageService, type TestStorageService } from './storage.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
 
@@ -114,6 +115,7 @@ export interface TestAppServices extends AppServices {
   readonly imageCodec: TestImageCodecService
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly operations: TestOperationsService
+  readonly settings: TestSettingsService
   readonly database: TestDatabaseService
   readonly fileChanges: TestFileChangeService
   readonly indexStore: TestIndexStoreService
@@ -143,6 +145,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const testLogger = createTestLoggerService()
   const logger = overrides?.logger ?? testLogger
   const clock = createTestClockService()
+  const operations = createTestOperationsService(clock)
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
@@ -166,7 +169,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: createTestMobileStorageService(),
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
-    operations: createTestOperationsService(clock),
+    operations,
+    settings: createTestSettingsService({}, { operations: overrides?.operations ?? operations }),
     database: createTestDatabaseService(),
     fileChanges: createTestFileChangeService(),
     indexStore: createTestIndexStoreService(),

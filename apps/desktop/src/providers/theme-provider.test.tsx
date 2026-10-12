@@ -2,14 +2,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
-import { setBridge, setDefaultStorage, setDefaultOperations } from '@reflect/core'
+import {
+  defaultSettings,
+  setBridge,
+  setDefaultOperations,
+  setDefaultSettings,
+  setDefaultStorage,
+} from '@reflect/core'
 import {
   createTestStorageService,
   type TestStorageService,
   createTestOperationsService,
 } from '@reflect/core/testing'
 import { THEME_PREFERENCE_CACHE_KEY } from '@/lib/theme-cache.ts'
-import { queryKeys } from '@/lib/query-client.ts'
 import { SettingsProvider } from './settings-provider.tsx'
 import { ThemeProvider, useTheme } from './theme-provider.tsx'
 
@@ -76,24 +81,13 @@ type Act = (callback: () => unknown) => Promise<void>
 
 /**
  * Run the settings load to completion and flush every React update it cascades
- * into, so assertions after this see the settled provider.
- *
- * The wait polls the query cache rather than the document: React defers the
- * updates queued inside an `act` scope until the scope exits, so polling
- * rendered output from in here would never observe it. Staying inside `act`
+ * into, so assertions after this see the settled provider. Staying inside `act`
  * matters because the load-settled state update would otherwise land
  * unattached, and React's warning about that fails the test on console output.
  */
 async function settleLoad(act: Act): Promise<void> {
   await act(async () => {
-    await vi.waitFor(() => {
-      // A query that has not been registered yet reads as `undefined`, which is
-      // also "not pending" — require the real settled state, or this returns
-      // before the load has even started.
-      const state = queryClient.getQueryState(queryKeys.settings.all)
-      expect(state).toBeDefined()
-      expect(state?.status).not.toBe('pending')
-    })
+    await defaultSettings().whenLoaded()
   })
 }
 
@@ -126,10 +120,12 @@ beforeEach(() => {
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   })
   installFakeBridge()
+  setDefaultSettings(null)
 })
 
 afterEach(() => {
   setDefaultOperations(null)
+  setDefaultSettings(null)
   setBridge(null)
   queryClient.clear()
   setDefaultStorage(null)

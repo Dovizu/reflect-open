@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import { setDefaultPlatform, setDefaultSettings } from '@reflect/core'
+import { createTestPlatformService, createTestSettingsService } from '@reflect/core/testing'
 
 interface CloseRequestedEventForTest {
   preventDefault: () => void
@@ -44,7 +44,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 
 vi.mock('@/editor/open-documents.ts', () => ({ flushOpenDocuments }))
 vi.mock('@/lib/backup-flush.ts', () => ({ flushBackup }))
-vi.mock('@/lib/settings-flush.ts', () => ({ flushSettings }))
 vi.mock('@/lib/windows/window-role.ts', () => ({
   isMainWindow: () => windowRole.isMainWindow,
 }))
@@ -53,6 +52,7 @@ const { installQuitFlush } = await import('./quit-flush.ts')
 
 beforeEach(() => {
   setDefaultPlatform(createTestPlatformService())
+  setDefaultSettings({ ...createTestSettingsService(), flush: flushSettings })
   windowRole.isMainWindow = true
   windowMock.closeRequested = null
   core.quitRequested = null
@@ -60,6 +60,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setDefaultPlatform(null)
+  setDefaultSettings(null)
   vi.clearAllMocks()
 })
 

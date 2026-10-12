@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import {
   createGraph,
   errorMessage,
@@ -11,8 +10,8 @@ import {
   type MobileStorageKind,
 } from '@reflect/core'
 import { takeWarmMobileStorage } from '@/lib/mobile-boot-warm.ts'
-import { createSettingsQueryOptions } from '@/lib/query-options.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
+import { useSettingsService } from '@/providers/use-settings-service.ts'
 
 /** The graph directory created in the container for a fresh start — reads as
  * `iCloud Drive → Reflect → Notes` in Files/Finder. */
@@ -140,7 +139,7 @@ export function useMobileGraphBoot(options: MobileGraphBootOptions): MobileGraph
   // flag through it so its cached document carries the flag too — a raw save
   // would be clobbered by the next change.
   const { updateSettings, whenSettingsLoaded } = useSettings()
-  const queryClient = useQueryClient()
+  const settingsService = useSettingsService()
 
   useEffect(() => {
     if (!isMobilePlatform(platform)) {
@@ -174,11 +173,12 @@ export function useMobileGraphBoot(options: MobileGraphBootOptions): MobileGraph
     }
     void (async () => {
       try {
-        // The settings provider started this exact query at first render —
-        // before the mobile chunk was even fetched — so this reads the
-        // in-flight (usually settled) load instead of issuing a second
-        // settings_load round trip.
-        const settings = await queryClient.ensureQueryData(createSettingsQueryOptions())
+        // The settings provider started the load at first render, before the
+        // mobile chunk was even fetched, so this usually reads a settled load.
+        if ((await settingsService.whenLoaded()) === 'failed') {
+          throw new Error('Couldn’t load your settings.')
+        }
+        const settings = settingsService.get()
         if (!active) {
           return
         }
@@ -282,7 +282,7 @@ export function useMobileGraphBoot(options: MobileGraphBootOptions): MobileGraph
       active = false
       clearTimeout(retryTimer)
     }
-  }, [platform, openRecent, onParked, queryClient])
+  }, [platform, openRecent, onParked, settingsService])
 
   const completeOnboarding = useCallback(
     async (kind: MobileStorageKind, chosenRoot?: string): Promise<void> => {
