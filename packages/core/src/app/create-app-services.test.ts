@@ -39,6 +39,7 @@ const SERVICE_KEYS = [
   'calendar',
   'contacts',
   'agentSkill',
+  'mobileOnboarding',
   'mobileStorage',
   'imageCodec',
   'indexLifecycle',
