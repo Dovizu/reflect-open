@@ -11,6 +11,9 @@ import { setDefaultTranscription } from '../ai/transcription-service.ts'
 import { setDefaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { setDefaultBacklinkTarget } from '../capture/backlink-target-service.ts'
 import { setDefaultCapture } from '../capture/capture-service.ts'
+import { setDefaultAudioMemo } from '../audio/audio-memo-service.ts'
+import { setDefaultMobileAudioMemo } from '../audio/mobile-audio-memo-service.ts'
+import { setDefaultNativeAction } from '../audio/native-action-service.ts'
 import { setDefaultAssetDescription } from '../assets/asset-description-service.ts'
 import { setDefaultAssetPrivacy } from '../assets/asset-privacy-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
@@ -223,6 +226,9 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultTranscriptEnrichment(services.transcriptEnrichment)
   setDefaultBacklinkTarget(services.backlinkTarget)
   setDefaultCapture(services.capture)
+  setDefaultAudioMemo(services.audioMemo)
+  setDefaultNativeAction(services.nativeAction ?? null)
+  setDefaultMobileAudioMemo(services.mobileAudioMemo ?? null)
   setDefaultAssetPrivacy(services.assetPrivacy)
   setDefaultAssetDescription(services.assetDescription)
   setDefaultIpc(services.ipc)
@@ -339,6 +345,9 @@ export function resetDefaultServices(): void {
   setDefaultTranscriptEnrichment(null)
   setDefaultBacklinkTarget(null)
   setDefaultCapture(null)
+  setDefaultAudioMemo(null)
+  setDefaultNativeAction(null)
+  setDefaultMobileAudioMemo(null)
   setDefaultAssetPrivacy(null)
   setDefaultAssetDescription(null)
   setDefaultIpc(null)

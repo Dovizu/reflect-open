@@ -67,6 +67,12 @@ export interface TranscriptionService {
    * shape is unrecognizable.
    */
   transcribe: (request: TranscriptionRequest) => Promise<string>
+  /**
+   * The transcript this service gives a whole recording session for `apiKey`
+   * without reading any audio, or `null` when the session's segments must be
+   * transcribed. Only {@link withAppReviewDemoTranscription} answers one.
+   */
+  sessionTranscript: (apiKey: string) => string | null
 }
 
 export function createTranscriptionService(deps: { http: HttpService }): TranscriptionService {
@@ -77,23 +83,25 @@ export function createTranscriptionService(deps: { http: HttpService }): Transcr
       request.provider === 'openai'
         ? await transcribeWithOpenAi(fetchFn, request)
         : await transcribeWithGemini(fetchFn, request),
+    sessionTranscript: () => null,
   }
 }
 
 /**
  * App Review demo mode for `service`: the demo key gets a canned transcript
- * without any provider call. Every other key goes to `service`.
+ * without any provider call, for one recording and for a whole session.
+ * Every other key goes to `service`. This is the only place that compares a
+ * transcription key with the demo key.
  */
 export function withAppReviewDemoTranscription(
   service: TranscriptionService,
 ): TranscriptionService {
+  const demoTranscript = (apiKey: string): string | null =>
+    apiKey === APP_REVIEW_STUB_KEY ? stubTranscriptBody() : null
   return {
-    transcribe: async (request) => {
-      if (request.apiKey === APP_REVIEW_STUB_KEY) {
-        return stubTranscriptBody()
-      }
-      return await service.transcribe(request)
-    },
+    transcribe: async (request) =>
+      demoTranscript(request.apiKey) ?? (await service.transcribe(request)),
+    sessionTranscript: (apiKey) => demoTranscript(apiKey) ?? service.sessionTranscript(apiKey),
   }
 }
 

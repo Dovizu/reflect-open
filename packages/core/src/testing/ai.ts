@@ -269,6 +269,7 @@ export function createTestTranscriptionService(
       log.push(request)
       return typeof source === 'function' ? await source(request) : source
     },
+    sessionTranscript: () => null,
     calls: () => [...log],
     setResult(next) {
       source = next
