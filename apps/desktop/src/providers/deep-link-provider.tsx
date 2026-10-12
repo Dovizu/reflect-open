@@ -1,9 +1,6 @@
 import { useEffect, useRef, type ReactElement, type ReactNode } from 'react'
 import { defaultDeepLink, type GraphInfo } from '@reflect/core'
-import {
-  beginLinkNavigationIntent,
-  isCurrentLinkNavigationIntent,
-} from '@/lib/windows/link-navigation-intent.ts'
+import { useLinkNavigationService } from '@/hooks/use-link-navigation-service.ts'
 import { useRouter } from '@/routing/router.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
@@ -22,6 +19,7 @@ interface DeepLinkProviderProps {
 export function DeepLinkProvider({ graph, children }: DeepLinkProviderProps): ReactElement {
   const { navigate, navigationRevision } = useRouter()
   const deepLink = useAppServices({ optional: true })?.deepLink ?? defaultDeepLink()
+  const linkNavigation = useLinkNavigationService()
 
   // The graph session this provider instance currently serves. Staleness must
   // mean "the session changed", NOT "the effect re-ran": StrictMode's probe
@@ -40,15 +38,15 @@ export function DeepLinkProvider({ graph, children }: DeepLinkProviderProps): Re
       navigate,
       generation,
       beginNavigationIntent: () => {
-        const linkIntent = beginLinkNavigationIntent()
+        const linkIntent = linkNavigation.beginIntent()
         const issuedAtRevision = navigationRevision()
         return () =>
           sessionRef.current !== generation ||
           navigationRevision() !== issuedAtRevision ||
-          !isCurrentLinkNavigationIntent(linkIntent)
+          !linkNavigation.isCurrentIntent(linkIntent)
       },
     })
-  }, [deepLink, navigate, navigationRevision, graph.generation])
+  }, [deepLink, linkNavigation, navigate, navigationRevision, graph.generation])
 
   return <>{children}</>
 }

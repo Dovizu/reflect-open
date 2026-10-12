@@ -8,17 +8,16 @@ import type { ReactNode } from 'react'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { SimilarNotesSection } from './similar-notes-section.tsx'
 import { installTestNoteFile } from '@/test-utils/note-file.ts'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+
+const { openNoteWindow } = installTestLinkNavigation()
 
 const relatedNotes = vi.hoisted(() => vi.fn())
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   relatedNotes,
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 vi.mock('@/lib/use-embed-status.ts', () => ({
   useEmbedStatus: () => ({ status: 'ready', model: 'all-MiniLM-L6-v2' }),
@@ -58,7 +57,6 @@ beforeEach(() => {
   semanticSetting.enabled = true
   noteFile.read().mockResolvedValue('- daily entry\n')
   relatedNotes.mockReset().mockResolvedValue([])
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
 
 afterEach(() => {
@@ -177,10 +175,12 @@ describe('SimilarNotesSection', () => {
     await view.getByRole('button', { name: 'Gardening' }).click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/gardening.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/gardening.md',
+        }),
+      ),
     )
     await expect.element(view.getByTestId('route')).toMatchTextContent('"kind":"today"')
     await view.unmount()

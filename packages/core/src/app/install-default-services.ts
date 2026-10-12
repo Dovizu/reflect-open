@@ -58,6 +58,7 @@ import { setDefaultKeyboard } from '../mobile/keyboard-service.ts'
 import { setDefaultShare } from '../mobile/share-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultDeepLink } from '../navigation/deep-link-service.ts'
+import { setDefaultLinkNavigation } from '../navigation/link-navigation-service.ts'
 import { setDefaultNavigation } from '../navigation/navigation-service.ts'
 import { setDefaultPrivacy } from '../privacy/privacy-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -123,6 +124,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultUpdate(services.update)
   setDefaultNavigation(services.navigation)
   setDefaultDeepLink(services.deepLink)
+  setDefaultLinkNavigation(services.linkNavigation)
   setDefaultGitRepository(services.gitRepository)
   setDefaultGithubAuth(services.githubAuth)
   setDefaultGitHostCredentials(services.gitHostCredentials)
@@ -215,6 +217,7 @@ export function resetDefaultServices(): void {
   setDefaultUpdate(null)
   setDefaultNavigation(null)
   setDefaultDeepLink(null)
+  setDefaultLinkNavigation(null)
   setDefaultGitRepository(null)
   setDefaultGithubAuth(null)
   setDefaultGitHostCredentials(null)

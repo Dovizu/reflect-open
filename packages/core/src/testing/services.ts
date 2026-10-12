@@ -151,6 +151,7 @@ import {
 } from './shell.ts'
 import {
   createTestDeepLinkService,
+  createTestLinkNavigationService,
   createTestNavigationService,
   type TestDeepLinkService,
   type TestNavigationService,
@@ -391,6 +392,18 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
     deepLink,
+    linkNavigation: createTestLinkNavigationService({
+      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
+      noteCreation: overrides?.noteCreation ?? noteCreation,
+      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
+      window: overrides?.window ?? windowService,
+      platform: overrides?.platform ?? platform,
+      opener: overrides?.opener ?? opener,
+      deepLink: overrides?.deepLink ?? deepLink,
+      attachments: overrides?.attachments ?? attachments,
+      operations: overrides?.operations ?? operations,
+      logger,
+    }),
     gitRepository: createTestGitRepositoryService(),
     githubAuth: createTestGithubAuthService({
       secretStore: overrides?.secretStore ?? secretStore,

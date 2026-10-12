@@ -57,6 +57,7 @@ const SERVICE_KEYS = [
   'update',
   'navigation',
   'deepLink',
+  'linkNavigation',
   'gitRepository',
   'githubAuth',
   'gitHostCredentials',

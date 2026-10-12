@@ -162,6 +162,10 @@ import {
   type DeepLinkSource,
 } from '../navigation/deep-link-service.ts'
 import {
+  createLinkNavigationService,
+  type LinkNavigationService,
+} from '../navigation/link-navigation-service.ts'
+import {
   createNavigationService,
   type NavigationService,
 } from '../navigation/navigation-service.ts'
@@ -256,6 +260,8 @@ export interface AppServices {
   readonly navigation: NavigationService
   /** The `reflect://` intake of this webview and the handler behind it. */
   readonly deepLink: DeepLinkService
+  /** Turns an activated link into a navigation, a new window, or a refusal. */
+  readonly linkNavigation: LinkNavigationService
   readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
   readonly gitHostCredentials: GitHostCredentialService
@@ -571,6 +577,18 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     chatHistory: createChatHistoryService({ ipc, database, logger }),
     navigation: createNavigationService(),
     deepLink,
+    linkNavigation: createLinkNavigationService({
+      noteLinkResolver: noteServices.noteLinkResolver,
+      noteCreation: noteServices.noteCreation,
+      wikiResolver: indexReads.wikiResolver,
+      window: windowService,
+      platform,
+      opener,
+      deepLink,
+      attachments,
+      operations,
+      logger,
+    }),
     update: adapters.updater
       ? createUpdateService({
           updater: adapters.updater,

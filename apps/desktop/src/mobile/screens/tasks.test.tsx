@@ -19,6 +19,7 @@ import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import '@/test-utils/locator.ts'
 import { swipe, translateX } from '@/test-utils/swipe.ts'
 import { MobileTasks } from './tasks.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
 
 let haptics: TestHapticsService
 
@@ -49,8 +50,8 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   hasBridge: () => true,
   getOpenTasks,
   getCompletedTasks,
-  resolveOrCreateNoteWithTitle,
 }))
+installTestLinkNavigation({ noteCreation: { resolveOrCreateNoteWithTitle } })
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
 }))

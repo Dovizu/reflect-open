@@ -20,19 +20,18 @@ import { fireEvent } from '@/test-utils/fire-event.ts'
 import { MOD_KEY } from '@/test-utils/mod-key.ts'
 import '@/test-utils/locator.ts'
 import { TasksScreen } from './tasks-screen.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
+
+const { openNoteWindow } = installTestLinkNavigation()
 
 const getOpenTasks = vi.hoisted(() => vi.fn())
 const getCompletedTasks = vi.hoisted(() => vi.fn())
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
   getOpenTasks,
   getCompletedTasks,
-}))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 1 } }),
@@ -262,7 +261,6 @@ beforeEach(() => {
   getOpenTasks.mockReset()
   getCompletedTasks.mockReset()
   getCompletedTasks.mockResolvedValue([])
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
   writeTask.mockReset()
   writeTask.mockResolvedValue(WRITTEN)
   insertTask.mockReset()
@@ -516,10 +514,12 @@ describe('TasksScreen', () => {
     })
 
     await waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/p.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/p.md',
+        }),
+      ),
     )
     expect(view.getByTestId('route').element().textContent).toBe('{"kind":"today"}')
     expect(view.queryByTestId('task-editor')).toBeNull()
@@ -538,10 +538,12 @@ describe('TasksScreen', () => {
     })
 
     await waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/p.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/p.md',
+        }),
+      ),
     )
     expect(view.getByTestId('route').element().textContent).toBe('{"kind":"today"}')
     await view.unmount()
@@ -789,7 +791,7 @@ describe('TasksScreen', () => {
       fireEvent.click(view.getByRole('button', { name: 'third' }), MOD_KEY)
     })
     expect([pressed('first'), pressed('second'), pressed('third')]).toEqual([true, false, true])
-    expect(openRouteInNewWindow).not.toHaveBeenCalled()
+    expect(openNoteWindow).not.toHaveBeenCalled()
 
     // Shift-click from the anchor (third) back to first selects the whole range.
     act(() => {

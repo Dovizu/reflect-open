@@ -22,6 +22,8 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { ChatProvider, useChatSession } from '@/providers/chat-provider.tsx'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { ChatScreen } from './chat-screen.tsx'
+import { installTestLinkNavigation } from '@/test-utils/link-navigation.ts'
+import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 
 /**
  * The chat view over a faked engine: the provider stack and screen are real,
@@ -47,7 +49,6 @@ const resolveWikiTarget = vi.hoisted(() =>
 const loadChatGraphContext = vi.hoisted(() =>
   vi.fn<(graphName: string, deps?: GraphContextDeps) => Promise<CloudSafe<CloudGraphContext>>>(),
 )
-const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   streamChat,
@@ -55,10 +56,7 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   resolveWikiTarget,
   loadChatGraphContext,
 }))
-vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
-  openRouteInNewWindow,
-}))
+const { openNoteWindow } = installTestLinkNavigation({ wikiResolver: { resolveWikiTarget } })
 
 const settingsState = vi.hoisted(() => ({
   models: [] as AiProviderConfig[],
@@ -125,7 +123,6 @@ beforeEach(() => {
     kind: 'resolved',
     ref: `notes/${target.toLowerCase()}.md`,
   }))
-  openRouteInNewWindow.mockReset().mockResolvedValue(true)
 })
 
 const MODEL: AiProviderConfig = { id: 'm1', provider: 'openai', model: 'gpt-5.1', keyHint: '12345' }
@@ -318,9 +315,9 @@ describe('ChatScreen', () => {
       .click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow.mock.calls).toEqual([
-        [{ kind: 'note', path: 'notes/atlas.md' }],
-        [{ kind: 'note', path: 'notes/brief.md' }],
+      expect(openNoteWindow.mock.calls).toEqual([
+        [deepLinkForRoute({ kind: 'note', path: 'notes/atlas.md' })],
+        [deepLinkForRoute({ kind: 'note', path: 'notes/brief.md' })],
       ]),
     )
     expect(probedRoute).toEqual({ kind: 'today' })
@@ -358,10 +355,12 @@ describe('ChatScreen', () => {
     await view.getByTestId('wikilink').click({ modifiers: ['ControlOrMeta'] })
 
     await vi.waitFor(() =>
-      expect(openRouteInNewWindow).toHaveBeenCalledWith({
-        kind: 'note',
-        path: 'notes/atlas.md',
-      }),
+      expect(openNoteWindow).toHaveBeenCalledWith(
+        deepLinkForRoute({
+          kind: 'note',
+          path: 'notes/atlas.md',
+        }),
+      ),
     )
     expect(probedRoute).toEqual({ kind: 'today' })
   })

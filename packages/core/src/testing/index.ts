@@ -244,11 +244,13 @@ export {
 } from './privacy.ts'
 export {
   createTestDeepLinkService,
+  createTestLinkNavigationService,
   createTestDeepLinkSource,
   createTestNavigationService,
   type TestDeepLinkService,
   type TestDeepLinkServiceOptions,
   type TestDeepLinkSource,
+  type TestLinkNavigationServiceOptions,
   type TestNavigateCall,
   type TestNavigationService,
   type TestNavigationServiceOptions,
