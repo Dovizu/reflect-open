@@ -1,23 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import { getAppVersion } from '../ipc/commands.ts'
-import {
-  createTestAppInfoService,
-  createTestIpcBridgeService,
-  installTestBridge,
-} from '../testing/index.ts'
-import {
-  createAppInfoService,
-  defaultAppInfo,
-  marketingVersion,
-  setDefaultAppInfo,
-} from './app-info-service.ts'
-
-afterEach(() => {
-  setDefaultAppInfo(null)
-  setBridge(null)
-})
-
+import { describe, expect, it } from 'vitest'
+import { createTestAppInfoService, createTestIpcBridgeService } from '../testing/index.ts'
+import { createAppInfoService, marketingVersion } from './app-info-service.ts'
 describe('createAppInfoService', () => {
   it('reads the version through `app_version`', async () => {
     const ipc = createTestIpcBridgeService({ commands: { app_version: () => '1.2.3' } })
@@ -33,29 +16,6 @@ describe('createAppInfoService', () => {
     })
   })
 })
-
-describe('defaultAppInfo', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestAppInfoService()
-    setDefaultAppInfo(fake)
-    expect(defaultAppInfo()).toBe(fake)
-
-    setDefaultAppInfo(null)
-    expect(defaultAppInfo()).not.toBe(fake)
-    expect(defaultAppInfo()).toBe(defaultAppInfo())
-  })
-
-  it('uses the bridge installed at call time', async () => {
-    installTestBridge(createTestIpcBridgeService({ commands: { app_version: () => '2.0.0' } }))
-    await expect(defaultAppInfo().version()).resolves.toBe('2.0.0')
-  })
-
-  it('backs `getAppVersion`', async () => {
-    setDefaultAppInfo(createTestAppInfoService('3.1.4'))
-    await expect(getAppVersion()).resolves.toBe('3.1.4')
-  })
-})
-
 describe('createTestAppInfoService', () => {
   it('reports a test version by default', async () => {
     await expect(createTestAppInfoService().version()).resolves.toBe('0.0.0-test')

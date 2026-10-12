@@ -1,7 +1,7 @@
-import { defaultIdService, type IdService } from '../app/id-service.ts'
+import type { IdService } from '../app/id-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { AiPrompt, AiPromptMode } from '../settings/schema.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
 
 /** What the prompt editor collects; `id` is minted on add. */
 export interface AiPromptDraft {
@@ -52,28 +52,4 @@ export function createAiPromptService(deps: {
       }))
     },
   }
-}
-
-let defaultService: AiPromptService | null = null
-
-/**
- * The process-wide `AiPromptService`; one over the settings and ids that
- * `defaultSettings()` and `defaultIdService()` return at call time unless
- * {@link setDefaultAiPrompts} installed another.
- */
-export function defaultAiPrompts(): AiPromptService {
-  defaultService ??= createAiPromptService({
-    settings: {
-      get: () => defaultSettings().get(),
-      subscribe: (listener) => defaultSettings().subscribe(listener),
-      updateWith: (updater) => defaultSettings().updateWith(updater),
-    },
-    id: { uuid: () => defaultIdService().uuid() },
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `AiPromptService`; `null` restores the default one. */
-export function setDefaultAiPrompts(service: AiPromptService | null): void {
-  defaultService = service
 }

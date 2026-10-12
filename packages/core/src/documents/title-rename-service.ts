@@ -1,17 +1,17 @@
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
 import { isReflectManagedNote } from '../graph/note-management.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
-import { defaultBacklinks, type BacklinkService } from '../indexing/backlink-service.ts'
-import { defaultNotePath, type NotePathService } from '../indexing/note-path-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { BacklinkService } from '../indexing/backlink-service.ts'
+import type { NotePathService } from '../indexing/note-path-service.ts'
 import { rewriteLinksForTitleChange, rewritePathLinksForMove } from '../indexing/rename.ts'
-import { defaultWikiResolver, type WikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { placeOldTitleAlias } from './alias-placement.ts'
-import { defaultNoteMove, type NoteMoveService } from './note-move-service.ts'
+import type { NoteMoveService } from './note-move-service.ts'
 import type { NoteContentOrigin } from './note-session-types.ts'
-import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
+import type { OpenDocumentsService } from './open-documents-service.ts'
 import { composeRenameFailure, type RenamePhaseFailures } from './rename-failure.ts'
 import { createTitleRenameTracker, type TitleRename } from './title-rename-tracker.ts'
 
@@ -296,65 +296,4 @@ function createRenameCoordinator(
       tracker.dispose()
     },
   }
-}
-
-let installedService: TitleRenameService | null = null
-let fallback: {
-  service: TitleRenameService
-  deps: readonly unknown[]
-} | null = null
-
-/**
- * The process-wide `TitleRenameService`. Unless one is installed, it runs over
- * the current default note file, wiki resolver, backlink, note path, note
- * move, open documents, operations, clock and logger services, and is rebuilt
- * when any of them is replaced.
- */
-export function defaultTitleRename(): TitleRenameService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const noteFile = defaultNoteFile()
-  const wikiResolver = defaultWikiResolver()
-  const backlinks = defaultBacklinks()
-  const notePath = defaultNotePath()
-  const noteMove = defaultNoteMove()
-  const openDocuments = defaultOpenDocuments()
-  const operations = defaultOperations()
-  const clock = defaultClock()
-  const logger = defaultLogger()
-  const deps = [
-    noteFile,
-    wikiResolver,
-    backlinks,
-    notePath,
-    noteMove,
-    openDocuments,
-    operations,
-    clock,
-    logger,
-  ]
-  if (fallback === null || fallback.deps.some((dep, index) => dep !== deps[index])) {
-    fallback = {
-      service: createTitleRenameService({
-        noteFile,
-        wikiResolver,
-        backlinks,
-        notePath,
-        noteMove,
-        openDocuments,
-        operations,
-        clock,
-        logger,
-      }),
-      deps,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `TitleRenameService`; `null` restores the one over the defaults. */
-export function setDefaultTitleRename(service: TitleRenameService | null): void {
-  installedService = service
-  fallback = null
 }

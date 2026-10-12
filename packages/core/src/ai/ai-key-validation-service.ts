@@ -3,7 +3,7 @@ import { anthropicDirectBrowserAccessHeaders } from './anthropic-headers.ts'
 import { APP_REVIEW_STUB_KEY } from './app-review-demo.ts'
 import { isHttpBaseUrl, normalizeOpenAICompatibleBaseUrl } from '../lib/http-url.ts'
 import { OPENROUTER_BASE_URL } from './openrouter.ts'
-import { defaultHttp, type HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../app/http-service.ts'
 
 /**
  * BYOK key validation (Plan 10): one cheap authenticated probe against the
@@ -114,23 +114,4 @@ export function createAiKeyValidationService(deps: { http: HttpService }): AiKey
       return probe.invalidStatuses.includes(response.status) ? 'invalid' : 'unreachable'
     },
   }
-}
-
-let defaultService: AiKeyValidationService | null = null
-
-/**
- * The process-wide `AiKeyValidationService`; one over the HTTP service that
- * `defaultHttp()` returns at call time unless
- * {@link setDefaultAiKeyValidation} installed another.
- */
-export function defaultAiKeyValidation(): AiKeyValidationService {
-  defaultService ??= createAiKeyValidationService({
-    http: { fetch: (input, init) => defaultHttp().fetch(input, init) },
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `AiKeyValidationService`; `null` restores the default one. */
-export function setDefaultAiKeyValidation(service: AiKeyValidationService | null): void {
-  defaultService = service
 }

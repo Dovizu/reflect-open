@@ -1,13 +1,9 @@
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
-import {
-  defaultLifecycle,
-  type AppLifecycleService,
-  type BackgroundTaskToken,
-} from './lifecycle-service.ts'
-import { defaultLogger, type LoggerService } from './logger-service.ts'
-import { defaultPlatform, type PlatformService } from './platform-service.ts'
-import { defaultWindow, type WindowService } from './window-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
+import type { AppLifecycleService, BackgroundTaskToken } from './lifecycle-service.ts'
+import type { LoggerService } from './logger-service.ts'
+import type { PlatformService } from './platform-service.ts'
+import type { WindowService } from './window-service.ts'
 
 /** The dirty state a registered flusher lands. Settings is built in. */
 export type PersistenceFlusherKind = 'documents' | 'backup'
@@ -184,23 +180,4 @@ export function createPersistenceFlushService(deps: {
       }
     },
   }
-}
-
-let defaultService: PersistenceFlushService | null = null
-
-/** The process-wide `PersistenceFlushService`, over the default services unless replaced. */
-export function defaultPersistenceFlush(): PersistenceFlushService {
-  defaultService ??= createPersistenceFlushService({
-    lifecycle: defaultLifecycle(),
-    window: defaultWindow(),
-    platform: defaultPlatform(),
-    settings: defaultSettings(),
-    logger: defaultLogger(),
-  })
-  return defaultService
-}
-
-/** Install the process-wide `PersistenceFlushService`; `null` rebuilds it over the defaults. */
-export function setDefaultPersistenceFlush(service: PersistenceFlushService | null): void {
-  defaultService = service
 }

@@ -1,9 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import {
-  createTestAppServices,
   createTestAttachmentService,
   createTestDeepLinkService,
   createTestLinkNavigationService,
@@ -15,14 +14,11 @@ import {
   createTestOperationsService,
   createTestPlatformService,
   createTestWindowService,
-  installTestServices,
   type TestPlatformOptions,
 } from '../testing/index.ts'
 import {
-  defaultLinkNavigation,
   isOpenableExternalUrl,
   routeForTag,
-  setDefaultLinkNavigation,
   type LinkNavigationHost,
   type LinkNavigationService,
 } from './link-navigation-service.ts'
@@ -948,42 +944,5 @@ describe('isOpenableExternalUrl', () => {
 describe('routeForTag', () => {
   it('opens All Notes filtered by the tag', () => {
     expect(routeForTag('work')).toEqual({ kind: 'allNotes', tag: 'work' })
-  })
-})
-
-describe('defaultLinkNavigation', () => {
-  afterEach(() => {
-    setDefaultLinkNavigation(null)
-  })
-
-  it('is one instance that reads the default services of the moment', async () => {
-    const service = defaultLinkNavigation()
-    const intent = service.beginIntent()
-    const app = createTestAppServices()
-    const restore = installTestServices(app)
-    setDefaultLinkNavigation(null)
-
-    expect(defaultLinkNavigation()).toBe(service)
-    expect(service.isCurrentIntent(intent)).toBe(true)
-    await expect(
-      service.openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' }),
-    ).resolves.toBe(true)
-    expect(app.window.openedNoteWindows()).toEqual(['reflect://note/notes%2Ffoo.md'])
-    service.reportAmbiguousNoteTitle('Creating note', 'Plan')
-    expect(app.operations.findByLabel('Creating note')).toMatchObject({ status: 'failed' })
-    restore()
-  })
-
-  it('returns an installed service', () => {
-    const installed = setup().linkNavigation
-    setDefaultLinkNavigation(installed)
-    expect(defaultLinkNavigation()).toBe(installed)
-  })
-
-  it('is installed with the app services', () => {
-    const app = createTestAppServices()
-    const restore = installTestServices(app)
-    expect(defaultLinkNavigation()).toBe(app.linkNavigation)
-    restore()
   })
 })

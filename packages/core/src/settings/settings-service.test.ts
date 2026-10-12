@@ -1,10 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultIpc } from '../ipc/bridge.ts'
+import { describe, expect, it, vi } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
 import { DEFAULT_SETTINGS, type AiProviderConfig, type Settings } from './schema.ts'
-import { createSettingsService, defaultSettings, setDefaultSettings } from './settings-service.ts'
+import { createSettingsService } from './settings-service.ts'
 
 function setup(stored: Record<string, unknown> = {}) {
   const ipc = createTestIpcBridgeService()
@@ -56,11 +55,6 @@ function setup(stored: Record<string, unknown> = {}) {
   }
   return { ipc, operations, disk, settings, releaseLoad }
 }
-
-afterEach(() => {
-  setDefaultSettings(null)
-  setDefaultIpc(null)
-})
 
 describe('createSettingsService', () => {
   it('serves defaults immediately, then the persisted document', async () => {
@@ -463,33 +457,6 @@ describe('createSettingsService', () => {
     expect(listener).not.toHaveBeenCalled()
   })
 })
-
-describe('defaultSettings', () => {
-  it('settles as failed when no bridge is installed', async () => {
-    const settings = defaultSettings()
-    await expect(settings.whenLoaded()).resolves.toBe('failed')
-    settings.updateWith(() => ({ editorMarkdownSyntax: 'show' }))
-    expect(settings.get().editorMarkdownSyntax).toBe('show')
-  })
-
-  it('loads over the installed bridge', async () => {
-    const ipc = createTestIpcBridgeService({
-      commands: { settings_load: () => ({ editorFullWidth: true }) },
-    })
-    setDefaultIpc(ipc)
-    await defaultSettings().whenLoaded()
-    expect(defaultSettings().get().editorFullWidth).toBe(true)
-  })
-
-  it('returns the installed service until reset', () => {
-    const installed = createTestSettingsService()
-    setDefaultSettings(installed)
-    expect(defaultSettings()).toBe(installed)
-    setDefaultSettings(null)
-    expect(defaultSettings()).not.toBe(installed)
-  })
-})
-
 describe('createTestSettingsService', () => {
   it('loads the initial document and records saves', async () => {
     const settings = createTestSettingsService({ editorFullWidth: true })

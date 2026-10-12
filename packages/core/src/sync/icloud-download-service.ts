@@ -1,8 +1,8 @@
-import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
-import { defaultLifecycle, type AppLifecycleService } from '../app/lifecycle-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import { errorMessage } from '../errors.ts'
-import { defaultICloudNative, type ICloudNativeService } from '../ipc/icloud-native-service.ts'
+import type { ICloudNativeService } from '../ipc/icloud-native-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 
 /**
@@ -216,33 +216,4 @@ export function createICloudDownloadService(
       }
     },
   }
-}
-
-/** The process-wide `ICloudDownloadServiceFactory`; `null` unless one was installed. */
-let installedFactory: ICloudDownloadServiceFactory | null = null
-
-/**
- * The process-wide `ICloudDownloadServiceFactory`. Unless one is installed,
- * each service it builds runs over the default services current at that moment.
- */
-export function defaultICloudDownloads(): ICloudDownloadServiceFactory {
-  return (
-    installedFactory ?? {
-      create: (options) =>
-        createICloudDownloadService(
-          {
-            icloudNative: defaultICloudNative(),
-            lifecycle: defaultLifecycle(),
-            clock: defaultClock(),
-            logger: defaultLogger(),
-          },
-          options,
-        ),
-    }
-  )
-}
-
-/** Install the process-wide `ICloudDownloadServiceFactory`; `null` restores the one over the defaults. */
-export function setDefaultICloudDownloads(factory: ICloudDownloadServiceFactory | null): void {
-  installedFactory = factory
 }

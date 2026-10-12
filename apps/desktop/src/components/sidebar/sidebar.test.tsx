@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
   DEFAULT_SETTINGS,
   isOstensiblyEmptyNoteSource,
-  untitledNotePath,
   type GraphSessionService,
   type NativeContextMenuOptions,
   type NoteDocumentService,
@@ -57,6 +56,11 @@ const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 // The services of the rendered app; set by `renderSidebar`.
 let opener: TestOpenerService
 let operations: TestOperationsService
+/** A fresh untitled placeholder path, as the new-note route has it. */
+function untitledNotePath(): string {
+  return createTestAppServices().noteCreation.untitledNotePath()
+}
+
 let openRecent: MockInstance<GraphSessionService['openRecent']>
 let pickAndOpen: MockInstance<GraphSessionService['pickAndOpen']>
 let chooseGraph: MockInstance<GraphSessionService['chooseGraph']>

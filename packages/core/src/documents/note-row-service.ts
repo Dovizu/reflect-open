@@ -193,20 +193,3 @@ export function createNoteRowService(): NoteRowService {
     },
   }
 }
-
-let installedService: NoteRowService | null = null
-let fallback: NoteRowService | null = null
-
-/** The process-wide `NoteRowService`: the installed one, else a lazily built one. */
-export function defaultNoteRows(): NoteRowService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createNoteRowService()
-  return fallback
-}
-
-/** Install the process-wide `NoteRowService`; `null` restores the lazily built one. */
-export function setDefaultNoteRows(service: NoteRowService | null): void {
-  installedService = service
-}

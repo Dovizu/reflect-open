@@ -2,7 +2,6 @@ import { createDb, type Database, type QueryRunner } from '@reflect/db'
 import type { Kysely } from 'kysely'
 import { z } from 'zod'
 import { toAppError } from '../errors.ts'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 /**
@@ -38,20 +37,4 @@ export function createDatabaseService(deps: { ipc: IpcBridgeService }): Database
     }
   }
   return { db: createDb(runQuery), runQuery }
-}
-
-let defaultService: DatabaseService | null = null
-
-/**
- * The process-wide `DatabaseService`; one over the bridge installed at query
- * time unless {@link setDefaultDatabase} installed another.
- */
-export function defaultDatabase(): DatabaseService {
-  defaultService ??= createDatabaseService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `DatabaseService`; `null` restores the bridge-backed one. */
-export function setDefaultDatabase(service: DatabaseService | null): void {
-  defaultService = service
 }

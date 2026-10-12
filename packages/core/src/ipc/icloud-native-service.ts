@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { currentIpc } from './bridge.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import { listenNow, type IpcBridgeService, type Unlisten } from './ipc-service.ts'
 
 const countSchema = z.number().int().nonnegative()
@@ -212,17 +211,4 @@ export function createICloudNativeService(deps: {
         listener()
       }),
   }
-}
-
-let defaultInstance: ICloudNativeService | null = null
-
-/** The process-wide `ICloudNativeService` over the installed bridge, unless {@link setDefaultICloudNative} installed another. */
-export function defaultICloudNative(): ICloudNativeService {
-  defaultInstance ??= createICloudNativeService({ ipc: currentIpc(), logger: defaultLogger() })
-  return defaultInstance
-}
-
-/** Install the process-wide `ICloudNativeService`; `null` restores the bridge-backed one. */
-export function setDefaultICloudNative(service: ICloudNativeService | null): void {
-  defaultInstance = service
 }

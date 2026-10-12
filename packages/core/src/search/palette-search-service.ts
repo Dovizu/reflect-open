@@ -1,12 +1,12 @@
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultCommands, type Command, type CommandService } from '../commands/command-service.ts'
-import { defaultRetrieval, type RetrievalService } from '../embeddings/retrieval-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { Command, CommandService } from '../commands/command-service.ts'
+import type { RetrievalService } from '../embeddings/retrieval-service.ts'
 import { dateFromDailyPath } from '../graph/paths.ts'
 import type { DateSuggestionContext } from '../indexing/date-suggestion-types.ts'
 import { parseSearchQuery } from '../indexing/filter-query.ts'
-import { defaultSearch, type SearchService } from '../indexing/search-service.ts'
+import type { SearchService } from '../indexing/search-service.ts'
 import type { WikiSuggestion } from '../indexing/suggest.ts'
-import { defaultSuggestions, type SuggestionService } from '../indexing/suggestion-service.ts'
+import type { SuggestionService } from '../indexing/suggestion-service.ts'
 import { localIsoDate } from '../lib/dates.ts'
 import { updatedPresetFilter, type UpdatedFilter, type UpdatedPreset } from './all-notes-filters.ts'
 import { buildPaletteSections, type PaletteHit, type PaletteSections } from './palette-entries.ts'
@@ -93,42 +93,4 @@ export function createPaletteSearchService<Context = unknown>(
 
     updatedPresetFilter: (preset) => updatedPresetFilter(preset, new Date(clock.now())),
   }
-}
-
-let installedService: PaletteSearchService | null = null
-let fallback: (PaletteSearchServiceDeps & { service: PaletteSearchService }) | null = null
-
-/**
- * The process-wide `PaletteSearchService`; one over the default services
- * unless {@link setDefaultPaletteSearch} installed another.
- */
-export function defaultPaletteSearch(): PaletteSearchService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const deps: PaletteSearchServiceDeps = {
-    suggestions: defaultSuggestions(),
-    search: defaultSearch(),
-    retrieval: defaultRetrieval(),
-    commands: defaultCommands(),
-    clock: defaultClock(),
-  }
-  if (
-    fallback?.suggestions !== deps.suggestions ||
-    fallback.search !== deps.search ||
-    fallback.retrieval !== deps.retrieval ||
-    fallback.commands !== deps.commands ||
-    fallback.clock !== deps.clock
-  ) {
-    fallback = { ...deps, service: createPaletteSearchService(deps) }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `PaletteSearchService`; `null` restores the one
- * over the default services.
- */
-export function setDefaultPaletteSearch(service: PaletteSearchService | null): void {
-  installedService = service
 }

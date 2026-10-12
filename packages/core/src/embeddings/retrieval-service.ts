@@ -1,12 +1,9 @@
 import { sql } from 'kysely'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultDatabase, type DatabaseService } from '../indexing/database-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { DatabaseService } from '../indexing/database-service.ts'
 import { literalSearchQuery } from '../indexing/filter-query.ts'
-import { defaultSearch, type SearchService } from '../indexing/search-service.ts'
-import {
-  defaultEmbeddingRuntime,
-  type EmbeddingRuntimeService,
-} from './embedding-runtime-service.ts'
+import type { SearchService } from '../indexing/search-service.ts'
+import type { EmbeddingRuntimeService } from './embedding-runtime-service.ts'
 
 /**
  * The shared retrieval contract (Plan 09): one `retrieve()` for search and AI.
@@ -270,47 +267,4 @@ export function createRetrievalService(deps: {
   }
 
   return { retrieve, relatedNotes }
-}
-
-let installedService: RetrievalService | null = null
-let fallback: {
-  service: RetrievalService
-  database: DatabaseService
-  search: SearchService
-  embeddingRuntime: EmbeddingRuntimeService
-  logger: LoggerService
-} | null = null
-
-/**
- * The process-wide `RetrievalService`; one over the default services unless
- * {@link setDefaultRetrieval} installed another.
- */
-export function defaultRetrieval(): RetrievalService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  const search = defaultSearch()
-  const embeddingRuntime = defaultEmbeddingRuntime()
-  const logger = defaultLogger()
-  if (
-    fallback?.database !== database ||
-    fallback.search !== search ||
-    fallback.embeddingRuntime !== embeddingRuntime ||
-    fallback.logger !== logger
-  ) {
-    fallback = {
-      service: createRetrievalService({ database, search, embeddingRuntime, logger }),
-      database,
-      search,
-      embeddingRuntime,
-      logger,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `RetrievalService`; `null` restores the default-backed one. */
-export function setDefaultRetrieval(service: RetrievalService | null): void {
-  installedService = service
 }

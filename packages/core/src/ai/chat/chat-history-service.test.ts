@@ -1,13 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createTestChatHistoryService } from '../../testing/chat.ts'
 import { createTestDatabaseService } from '../../testing/database.ts'
 import { createTestIpcBridgeService } from '../../testing/ipc.ts'
 import { createTestLoggerService } from '../../testing/logger.ts'
-import {
-  createChatHistoryService,
-  defaultChatHistory,
-  setDefaultChatHistory,
-} from './chat-history-service.ts'
+import { createChatHistoryService } from './chat-history-service.ts'
 import type { ChatTurn } from './transcript.ts'
 
 const turn: ChatTurn = {
@@ -78,10 +74,6 @@ function setup() {
 
   return { ipc, database, logger, history, insertConversation, insertMessage }
 }
-
-afterEach(() => {
-  setDefaultChatHistory(null)
-})
 
 describe('createChatHistoryService', () => {
   it('sends the conversation and the JSON-encoded message row', async () => {
@@ -227,16 +219,5 @@ describe('createTestChatHistoryService', () => {
     await history.deleteConversation('conv-1', 1)
     expect(await history.listRecent()).toEqual([])
     expect(history.getDeletes()).toEqual(['conv-1'])
-  })
-})
-
-describe('defaultChatHistory', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestChatHistoryService()
-    setDefaultChatHistory(fake)
-    expect(defaultChatHistory()).toBe(fake)
-
-    setDefaultChatHistory(null)
-    expect(defaultChatHistory()).not.toBe(fake)
   })
 })

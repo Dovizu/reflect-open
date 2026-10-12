@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 /**
@@ -35,20 +34,4 @@ export function createSecretStoreService(deps: { ipc: IpcBridgeService }): Secre
       await ipc.call('secret_delete', { name }, voidSchema)
     },
   }
-}
-
-let defaultSecretStoreInstance: SecretStoreService | null = null
-
-/**
- * The process-wide keychain; one over the bridge installed at call time
- * unless {@link setDefaultSecretStore} installed another.
- */
-export function defaultSecretStore(): SecretStoreService {
-  defaultSecretStoreInstance ??= createSecretStoreService({ ipc: currentIpc() })
-  return defaultSecretStoreInstance
-}
-
-/** Installs the process-wide keychain; `null` restores the bridge-backed one. */
-export function setDefaultSecretStore(service: SecretStoreService | null): void {
-  defaultSecretStoreInstance = service
 }

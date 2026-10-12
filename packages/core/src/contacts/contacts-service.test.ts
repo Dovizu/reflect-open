@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { createTestContactsService } from '../testing/contacts.ts'
+import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { lookupContactsByName } from './commands.ts'
-import { createContactsService, defaultContacts, setDefaultContacts } from './contacts-service.ts'
+import { createContactsService } from './contacts-service.ts'
 
 const ADA = {
   fullName: 'Ada Lovelace',
@@ -11,11 +9,6 @@ const ADA = {
   emails: ['ada@example.com'],
   phones: [],
 }
-
-afterEach(() => {
-  setDefaultContacts(null)
-})
-
 describe('createContactsService', () => {
   it('reads the permission state and requests access', async () => {
     const ipc = createTestIpcBridgeService({
@@ -45,21 +38,5 @@ describe('createContactsService', () => {
       { command: 'contacts_lookup_by_email', args: { email: 'ada@example.com' } },
       { command: 'contacts_lookup_by_name', args: { name: 'Ada' } },
     ])
-  })
-})
-
-describe('defaultContacts', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestContactsService()
-    setDefaultContacts(fake)
-    expect(defaultContacts()).toBe(fake)
-
-    setDefaultContacts(null)
-    expect(defaultContacts()).not.toBe(fake)
-  })
-
-  it('backs the free functions', async () => {
-    setDefaultContacts(createTestContactsService({ contacts: [ADA] }))
-    await expect(lookupContactsByName('ada')).resolves.toEqual([ADA])
   })
 })

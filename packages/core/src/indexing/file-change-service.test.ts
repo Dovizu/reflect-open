@@ -1,17 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultLogger } from '../app/logger-service.ts'
-import { setDefaultPlatform } from '../app/platform-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
-import { createTestFileChangeService } from '../testing/file-change.ts'
+import { describe, expect, it, vi } from 'vitest'
+import { createIpcBridgeService } from '../ipc/ipc-service.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestPlatformService } from '../testing/platform.ts'
-import {
-  createFileChangeService,
-  defaultFileChanges,
-  setDefaultFileChanges,
-  type FileChangeBatch,
-} from './file-change-service.ts'
+import { createFileChangeService, type FileChangeBatch } from './file-change-service.ts'
 
 function setup(echoOwnWrites = false) {
   const ipc = createTestIpcBridgeService()
@@ -25,12 +16,6 @@ async function settle(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
 }
-
-afterEach(() => {
-  setDefaultFileChanges(null)
-  setDefaultPlatform(null)
-  setDefaultLogger(null)
-})
 
 describe('createFileChangeService', () => {
   it('delivers watcher events and emitted batches with their source', async () => {
@@ -80,12 +65,18 @@ describe('createFileChangeService', () => {
     ])
   })
 
-  it('keeps no listener and does not throw when no transport is installed', async () => {
+  it('keeps no listener and does not throw when the transport cannot listen', async () => {
     const logger = createTestLoggerService()
-    const fileChanges = createFileChangeService(
-      { ipc: currentIpc(), logger },
-      { echoOwnWrites: false },
+    const ipc = createIpcBridgeService(
+      {
+        invoke: async () => null,
+        listen: async () => {
+          throw new Error('no transport')
+        },
+      },
+      { logger },
     )
+    const fileChanges = createFileChangeService({ ipc, logger }, { echoOwnWrites: false })
     const listener = vi.fn()
     const reconcile = vi.fn()
 
@@ -187,33 +178,5 @@ describe('createFileChangeService', () => {
       { command: 'watch_start', args: {} },
       { command: 'watch_stop', args: {} },
     ])
-  })
-})
-
-describe('defaultFileChanges', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestFileChangeService()
-    setDefaultFileChanges(fake)
-    expect(defaultFileChanges()).toBe(fake)
-
-    setDefaultFileChanges(null)
-    expect(defaultFileChanges()).not.toBe(fake)
-  })
-
-  it('echoes own writes on mobile only', () => {
-    setDefaultLogger(createTestLoggerService())
-    for (const [appPlatform, echoed] of [
-      ['desktop', 0],
-      ['ios', 1],
-    ] as const) {
-      setDefaultPlatform(createTestPlatformService({ appPlatform }))
-      setDefaultFileChanges(null)
-      const listener = vi.fn()
-      defaultFileChanges().subscribe(listener)
-
-      defaultFileChanges().reportOwnWrite([{ path: 'notes/a.md', kind: 'upsert' }])
-
-      expect(listener).toHaveBeenCalledTimes(echoed)
-    }
   })
 })

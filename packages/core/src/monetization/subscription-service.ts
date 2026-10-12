@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultPlatform, type PlatformService } from '../app/platform-service.ts'
-import { defaultStorage, getJson, setJson, type StorageService } from '../app/storage-service.ts'
-import { IAP_PRODUCT_IDS, defaultIap, type IapService } from '../ipc/iap-plugin.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformService } from '../app/platform-service.ts'
+import { getJson, setJson, type StorageService } from '../app/storage-service.ts'
+import { IAP_PRODUCT_IDS, type IapService } from '../ipc/iap-plugin.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 
 const activeSubscriptionSchema = z.enum(['yearly', 'monthly']).nullable()
@@ -273,23 +273,4 @@ export function createSubscriptionService(deps: {
     refetch,
     invalidate,
   }
-}
-
-let defaultService: SubscriptionService | null = null
-
-/** The process-wide `SubscriptionService`; one over the default services unless replaced. */
-export function defaultSubscription(): SubscriptionService {
-  defaultService ??= createSubscriptionService({
-    iap: defaultIap(),
-    storage: defaultStorage(),
-    clock: defaultClock(),
-    platform: defaultPlatform(),
-    logger: defaultLogger(),
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `SubscriptionService`; `null` restores the default one. */
-export function setDefaultSubscription(service: SubscriptionService | null): void {
-  defaultService = service
 }

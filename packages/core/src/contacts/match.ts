@@ -1,4 +1,4 @@
-import { lookupContactsByName, type ContactMatch } from './commands.ts'
+import type { ContactMatch } from './commands.ts'
 import { contactDetailsMarkdown } from './markdown.ts'
 
 /**
@@ -64,26 +64,12 @@ export function matchContactForTitle(
 }
 
 /**
- * Contacts for the `[[` link menu — v1 mixed contacts into the backlink
- * autocomplete so a person note could be born from the address book. Unlike
- * the card's exact rule, this keeps the framework's word-prefix matches
- * (typing "Ada" should offer "Ada Lovelace"); contacts without a name or any
- * details are dropped, mirroring v1's valid-contact filter. Queries shorter
- * than two characters answer empty — one letter matches half the address
- * book. Callers gate on the integration being enabled and readable.
- */
-export async function contactLinkSuggestions(query: string, limit = 4): Promise<ContactMatch[]> {
-  const trimmed = query.trim()
-  if (trimmed.length < 2) {
-    return []
-  }
-  return pickContactLinkSuggestions(await lookupContactsByName(trimmed), limit)
-}
-
-/**
- * The {@link contactLinkSuggestions} filter over name-lookup `candidates`:
- * one row per name, contacts without a name or any details dropped, at most
- * `limit` rows.
+ * The filter for contacts in the `[[` link menu, over name-lookup
+ * `candidates`. v1 mixed contacts into the backlink autocomplete so a person
+ * note could be born from the address book. Unlike the card's exact rule,
+ * this keeps the framework's word-prefix matches (typing "Ada" should offer
+ * "Ada Lovelace"). One row per name; contacts without a name or any details
+ * are dropped, mirroring v1's valid-contact filter; at most `limit` rows.
  */
 export function pickContactLinkSuggestions(
   candidates: readonly ContactMatch[],

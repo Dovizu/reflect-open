@@ -1,9 +1,5 @@
 import { isAppError } from '../errors.ts'
-import {
-  defaultNoteFile,
-  type LocalNoteRead,
-  type NoteFileService,
-} from '../graph/note-file-service.ts'
+import type { LocalNoteRead, NoteFileService } from '../graph/note-file-service.ts'
 import { descriptionPathFor } from '../graph/paths.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 
@@ -125,11 +121,4 @@ export function createAssetDescriptionText(deps: {
         .slice(0, MAX_ASSET_TEXT_CHARS)
     },
   }
-}
-
-/** {@link AssetDescriptionText.gatherBodies} over the default `NoteFileService`. */
-export async function gatherAssetDescriptionBodies(
-  assetPaths: readonly string[],
-): Promise<AssetDescriptionGather> {
-  return await createAssetDescriptionText({ noteFile: defaultNoteFile() }).gatherBodies(assetPaths)
 }

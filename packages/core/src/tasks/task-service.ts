@@ -1,13 +1,9 @@
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import {
-  defaultNoteDocuments,
-  NoteBusyError,
-  type NoteDocumentService,
-} from '../documents/note-document-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import { NoteBusyError, type NoteDocumentService } from '../documents/note-document-service.ts'
 import { errorMessage } from '../errors.ts'
-import { defaultDatabase, type DatabaseService } from '../indexing/database-service.ts'
+import type { DatabaseService } from '../indexing/database-service.ts'
 import { decodeTaskBreadcrumbs } from '../indexing/indexed-note.ts'
 import type { SnippetTask } from '../indexing/snippet-tasks.ts'
 import {
@@ -266,7 +262,7 @@ export function createTaskService(deps: {
   noteDocuments: Pick<NoteDocumentService, 'commitSourceEdit'>
   operations: Pick<OperationsService, 'start'>
   clock: Pick<ClockService, 'now'>
-  logger: Pick<LoggerService, 'error'>
+  logger: Pick<LoggerService, 'error' | 'warn'>
 }): TaskService {
   const { noteDocuments, operations, clock, logger } = deps
   const { db } = deps.database
@@ -351,7 +347,7 @@ export function createTaskService(deps: {
       await noteDocuments.commitSourceEdit(
         notePath,
         (source) => {
-          result = applyTaskEdits(source, edits)
+          result = applyTaskEdits({ logger }, source, edits)
           return result.source
         },
         { generation, createIfMissing: options.createIfMissing === true },
@@ -375,7 +371,7 @@ export function createTaskService(deps: {
         const result = await service.writeTask(task, actionsFor(task), generation)
         onWritten?.(task, result)
         const rest: readonly OpenTask[] = pending.slice(1)
-        pending = withRelocatedTasks(rest, task.notePath, result.moved)
+        pending = withRelocatedTasks({ logger }, rest, task.notePath, result.moved)
       }
     },
     async continueTaskInContext(task, content, generation) {
@@ -456,7 +452,7 @@ export function createTaskService(deps: {
       if (root !== graphRoot || moved.length === 0) {
         return
       }
-      const next = withRelocatedTasks(struck, notePath, moved)
+      const next = withRelocatedTasks({ logger }, struck, notePath, moved)
       if (next !== struck) {
         struck = next
         emit()
@@ -490,65 +486,4 @@ export function createTaskService(deps: {
     },
   }
   return service
-}
-
-let installedService: TaskService | null = null
-let fallback: {
-  service: TaskService
-  database: DatabaseService
-  noteDocuments: NoteDocumentService
-  operations: OperationsService
-  clock: ClockService
-  logger: LoggerService
-} | null = null
-
-/**
- * The process-wide `TaskService`; one over the default database, note
- * documents, operations, clock and logger unless {@link setDefaultTasks}
- * installed another.
- */
-export function defaultTasks(): TaskService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  const noteDocuments = defaultNoteDocuments()
-  const operations = defaultOperations()
-  const clock = defaultClock()
-  const logger = defaultLogger()
-  if (
-    fallback?.database !== database ||
-    fallback.noteDocuments !== noteDocuments ||
-    fallback.operations !== operations ||
-    fallback.clock !== clock ||
-    fallback.logger !== logger
-  ) {
-    fallback = {
-      service: createTaskService({ database, noteDocuments, operations, clock, logger }),
-      database,
-      noteDocuments,
-      operations,
-      clock,
-      logger,
-    }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `TaskService`; `null` restores the one over the
- * default services.
- */
-export function setDefaultTasks(service: TaskService | null): void {
-  installedService = service
-}
-
-/** {@link TaskService.getOpenTasks} on the default service. */
-export function getOpenTasks(): Promise<OpenTask[]> {
-  return defaultTasks().getOpenTasks()
-}
-
-/** {@link TaskService.getCompletedTasks} on the default service. */
-export function getCompletedTasks(): Promise<OpenTask[]> {
-  return defaultTasks().getCompletedTasks()
 }

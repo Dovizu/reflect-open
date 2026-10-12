@@ -7,13 +7,7 @@ import {
   disconnectIndex,
   project,
 } from './flow-test-harness.ts'
-import {
-  getBacklinks,
-  getLinkSources,
-  resolveWikiTarget,
-  suggestWikiLinkTargets,
-  suggestWikiTargets,
-} from './queries.ts'
+
 import { nextAliases, rewriteLinksForTitleChange } from './rename.ts'
 
 describe('v1 subject alias flow', () => {
@@ -30,16 +24,16 @@ describe('v1 subject alias flow', () => {
     database.applyProjection(
       project('notes/family.md', '# Family\n\nCall [[Dad]] or [[Tim MacCaw]].\n', 10),
     )
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
       for (const target of ['Dad', 'Tim MacCaw', 'Tim MacCaw // Dad', 'Timothy MacCaw']) {
-        await expect(resolveWikiTarget(target)).resolves.toEqual({
+        await expect(index.wikiResolver.resolveWikiTarget(target)).resolves.toEqual({
           kind: 'resolved',
           ref: 'notes/tim-maccaw-dad.md',
         })
       }
-      await expect(getBacklinks('notes/tim-maccaw-dad.md')).resolves.toMatchObject([
+      await expect(index.backlinks.getBacklinks('notes/tim-maccaw-dad.md')).resolves.toMatchObject([
         { sourcePath: 'notes/family.md', targetRaw: 'Dad' },
         { sourcePath: 'notes/family.md', targetRaw: 'Tim MacCaw' },
       ])
@@ -57,7 +51,7 @@ describe('v1 subject alias flow', () => {
       project(subjectPath, '---\naliases:\n  - capture-2026-07-23-154848\n---\n# Old Title\n', 20),
     )
     database.applyProjection(project(sourcePath, source, 10))
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
       const writes: Record<string, string> = {}
@@ -66,13 +60,13 @@ describe('v1 subject alias flow', () => {
         from: 'Old Title',
         to: 'New Title',
         io: {
-          sources: getLinkSources,
-          backlinks: getBacklinks,
+          sources: (targets) => index.wikiResolver.getLinkSources(targets),
+          backlinks: (path) => index.backlinks.getBacklinks(path),
           read: async () => source,
           write: async (path, content) => {
             writes[path] = content
           },
-          resolve: resolveWikiTarget,
+          resolve: (target) => index.wikiResolver.resolveWikiTarget(target),
         },
       })
 
@@ -96,18 +90,18 @@ describe('v1 subject alias flow', () => {
     database.applyProjection(person)
     database.applyProjection(source)
 
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
-      await expect(resolveWikiTarget('Dad')).resolves.toEqual({
+      await expect(index.wikiResolver.resolveWikiTarget('Dad')).resolves.toEqual({
         kind: 'resolved',
         ref: 'notes/tim-maccaw-dad.md',
       })
-      await expect(getBacklinks('notes/tim-maccaw-dad.md')).resolves.toMatchObject([
+      await expect(index.backlinks.getBacklinks('notes/tim-maccaw-dad.md')).resolves.toMatchObject([
         { sourcePath: 'notes/family.md', targetRaw: 'Dad' },
       ])
 
-      const { suggestions } = await suggestWikiLinkTargets('Dad')
+      const { suggestions } = await index.suggestions.suggestWikiLinkTargets('Dad')
       expect(suggestions[0]).toMatchObject({
         target: 'Tim MacCaw // Dad',
         path: 'notes/tim-maccaw-dad.md',
@@ -124,12 +118,12 @@ describe('v1 subject alias flow', () => {
       // link, backlink, and autocomplete ranking must all move together.
       const standaloneDad = project('notes/dad.md', '# Dad\n', 30)
       database.applyProjection(standaloneDad)
-      await expect(resolveWikiTarget('Dad')).resolves.toEqual({
+      await expect(index.wikiResolver.resolveWikiTarget('Dad')).resolves.toEqual({
         kind: 'resolved',
         ref: 'notes/dad.md',
       })
-      await expect(getBacklinks('notes/tim-maccaw-dad.md')).resolves.toEqual([])
-      await expect(getBacklinks('notes/dad.md')).resolves.toMatchObject([
+      await expect(index.backlinks.getBacklinks('notes/tim-maccaw-dad.md')).resolves.toEqual([])
+      await expect(index.backlinks.getBacklinks('notes/dad.md')).resolves.toMatchObject([
         { sourcePath: 'notes/family.md', targetRaw: 'Dad' },
       ])
 
@@ -142,29 +136,34 @@ describe('v1 subject alias flow', () => {
           alias: 'Dad',
         }),
       ])
-      await expect(resolveWikiTarget(selected.links[0]!.targetRaw)).resolves.toEqual({
+      await expect(
+        index.wikiResolver.resolveWikiTarget(selected.links[0]!.targetRaw),
+      ).resolves.toEqual({
         kind: 'resolved',
         ref: 'notes/tim-maccaw-dad.md',
       })
-      await expect(getBacklinks('notes/tim-maccaw-dad.md')).resolves.toMatchObject([
+      await expect(index.backlinks.getBacklinks('notes/tim-maccaw-dad.md')).resolves.toMatchObject([
         {
           sourcePath: 'notes/selected.md',
           targetRaw: 'Tim MacCaw // Dad',
           alias: 'Dad',
         },
       ])
-      await expect(getBacklinks('notes/dad.md')).resolves.toMatchObject([
+      await expect(index.backlinks.getBacklinks('notes/dad.md')).resolves.toMatchObject([
         { sourcePath: 'notes/family.md', targetRaw: 'Dad' },
       ])
 
-      const { suggestions: collidedSuggestions } = await suggestWikiLinkTargets('Dad')
+      const { suggestions: collidedSuggestions } =
+        await index.suggestions.suggestWikiLinkTargets('Dad')
       expect(collidedSuggestions.map((suggestion) => suggestion.path)).toEqual([
         'notes/dad.md',
         'notes/tim-maccaw-dad.md',
       ])
       expect(collidedSuggestions[0]!.insertText).toBe('Dad')
       expect(collidedSuggestions[1]!.insertText).toBe('Tim MacCaw // Dad|Dad')
-      await Promise.all(collidedSuggestions.map(expectSuggestionOpensItsPath))
+      await Promise.all(
+        collidedSuggestions.map((suggestion) => expectSuggestionOpensItsPath(index, suggestion)),
+      )
     } finally {
       disconnectIndex(database)
     }
@@ -219,7 +218,7 @@ describe('v1 subject alias flow', () => {
     for (const projection of projections) {
       database.applyProjection(projection)
     }
-    connectIndex(database)
+    const index = connectIndex(database)
 
     try {
       const dateContext = {
@@ -227,14 +226,15 @@ describe('v1 subject alias flow', () => {
         dateFormat: 'dmy' as const,
         weekStartDay: 'monday' as const,
       }
-      const { suggestions: dateSuggestions } = await suggestWikiLinkTargets('2026-07-10')
+      const { suggestions: dateSuggestions } =
+        await index.suggestions.suggestWikiLinkTargets('2026-07-10')
       // The daily owns the date key; the date-titled note stays selectable
       // through its path address instead of vanishing.
       expect(dateSuggestions.map(({ path, insertText }) => ({ path, insertText }))).toEqual([
         { path: 'daily/2026-07-10.md', insertText: '2026-07-10' },
         { path: 'notes/date-title.md', insertText: 'notes/date-title' },
       ])
-      const { suggestions: fuzzyDateSuggestions } = await suggestWikiLinkTargets(
+      const { suggestions: fuzzyDateSuggestions } = await index.suggestions.suggestWikiLinkTargets(
         'today',
         8,
         dateContext,
@@ -247,17 +247,20 @@ describe('v1 subject alias flow', () => {
           generated: { phrase: 'Today' },
         },
       ])
-      await expect(suggestWikiLinkTargets('tomorrow', 8, dateContext)).resolves.toEqual({
+      await expect(
+        index.suggestions.suggestWikiLinkTargets('tomorrow', 8, dateContext),
+      ).resolves.toEqual({
         suggestions: [],
         claimedTargetKeys: ['2026-07-11'],
         queryReadsAsDate: true,
       })
-      const { suggestions: invalidDateSuggestions } = await suggestWikiLinkTargets('2026-02-31')
+      const { suggestions: invalidDateSuggestions } =
+        await index.suggestions.suggestWikiLinkTargets('2026-02-31')
       expect(invalidDateSuggestions.map((suggestion) => suggestion.path)).toEqual([
         'notes/invalid-date-title.md',
       ])
 
-      const duplicateResult = await suggestWikiLinkTargets('Roadmap')
+      const duplicateResult = await index.suggestions.suggestWikiLinkTargets('Roadmap')
       // Neither twin owns the bare name, so each falls back to its own path
       // address instead of vanishing from the menu.
       expect(duplicateResult.claimedTargetKeys).toEqual(['roadmap'])
@@ -268,13 +271,13 @@ describe('v1 subject alias flow', () => {
         { path: 'notes/z-roadmap.md', insertText: 'notes/z-roadmap' },
         { path: 'notes/a-roadmap.md', insertText: 'notes/a-roadmap' },
       ])
-      const prefixResult = await suggestWikiLinkTargets('Road')
+      const prefixResult = await index.suggestions.suggestWikiLinkTargets('Road')
       expect(prefixResult.claimedTargetKeys).toEqual(['roadmap'])
       expect(prefixResult.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
         'notes/z-roadmap',
         'notes/a-roadmap',
       ])
-      const navigationSuggestions = await suggestWikiTargets('Roadmap')
+      const navigationSuggestions = await index.suggestions.suggestWikiTargets('Roadmap')
       expect(navigationSuggestions.map((suggestion) => suggestion.path)).toEqual([
         'notes/z-roadmap.md',
         'notes/a-roadmap.md',
@@ -284,7 +287,7 @@ describe('v1 subject alias flow', () => {
       // claimed key still reaches the editor so its fallback folding can
       // suppress a Create row that the writable resolver would refuse as
       // ambiguous.
-      const ideasResult = await suggestWikiLinkTargets('Ideas')
+      const ideasResult = await index.suggestions.suggestWikiLinkTargets('Ideas')
       // The twins claim `ideas` through their filename stems too.
       expect(ideasResult.claimedTargetKeys).toEqual(['ideas', '🧠 ideas'])
       expect(ideasResult.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
@@ -295,19 +298,21 @@ describe('v1 subject alias flow', () => {
       // A duplicate date-shaped title cannot be addressed by name (that would
       // open an ambiguity error, not the selected note), so each twin gets
       // its own path address.
-      const dateTwinResult = await suggestWikiLinkTargets('2026-07-12')
+      const dateTwinResult = await index.suggestions.suggestWikiLinkTargets('2026-07-12')
       expect(dateTwinResult.claimedTargetKeys).toEqual(['2026-07-12'])
       expect(dateTwinResult.suggestions.map((suggestion) => suggestion.insertText)).toEqual([
         'notes/z-date-twin',
         'notes/a-date-twin',
       ])
       // A uniquely claimed date-shaped title stays addressable.
-      const { suggestions: dateTitleSuggestions } = await suggestWikiLinkTargets('2026-07-11')
+      const { suggestions: dateTitleSuggestions } =
+        await index.suggestions.suggestWikiLinkTargets('2026-07-11')
       expect(dateTitleSuggestions.map((suggestion) => suggestion.path)).toEqual([
         'notes/tomorrow-title.md',
       ])
 
-      const { suggestions: aliasSuggestions } = await suggestWikiLinkTargets('Second Shared')
+      const { suggestions: aliasSuggestions } =
+        await index.suggestions.suggestWikiLinkTargets('Second Shared')
       expect(aliasSuggestions).toMatchObject([
         {
           path: 'notes/z-shared.md',
@@ -319,7 +324,7 @@ describe('v1 subject alias flow', () => {
 
       // Matching the duplicate *title* must not hide a uniquely addressable
       // note: its ambiguous ranked spelling is rescued through its unique alias.
-      const sharedTitleResult = await suggestWikiLinkTargets('Shared')
+      const sharedTitleResult = await index.suggestions.suggestWikiLinkTargets('Shared')
       const { suggestions: sharedTitleSuggestions } = sharedTitleResult
       expect(sharedTitleResult.claimedTargetKeys).toEqual(['second shared', 'shared'])
       expect(sharedTitleSuggestions).toMatchObject([
@@ -332,7 +337,7 @@ describe('v1 subject alias flow', () => {
         { path: 'notes/a-shared.md', insertText: 'notes/a-shared' },
       ])
 
-      const adaResult = await suggestWikiLinkTargets('Ada')
+      const adaResult = await index.suggestions.suggestWikiLinkTargets('Ada')
       expect(adaResult.claimedTargetKeys).toEqual(['ada lovelace', 'ada project'])
       expect(adaResult.suggestions).toMatchObject([
         { path: 'notes/ada-project.md', target: 'Ada Project' },
@@ -347,11 +352,12 @@ describe('v1 subject alias flow', () => {
           ...aliasSuggestions,
           ...sharedTitleSuggestions,
           ...adaResult.suggestions,
-        ].map(expectSuggestionOpensItsPath),
+        ].map((suggestion) => expectSuggestionOpensItsPath(index, suggestion)),
       )
       // The matched alias cannot be serialized, so insertion falls back to
       // the bare canonical title instead of dropping the note.
-      const { suggestions: unsafeAliasSuggestions } = await suggestWikiLinkTargets('Zeta|Prime')
+      const { suggestions: unsafeAliasSuggestions } =
+        await index.suggestions.suggestWikiLinkTargets('Zeta|Prime')
       expect(unsafeAliasSuggestions).toMatchObject([
         {
           path: 'notes/zeta-project.md',
@@ -360,13 +366,19 @@ describe('v1 subject alias flow', () => {
           insertText: 'Zeta Project',
         },
       ])
-      await Promise.all(unsafeAliasSuggestions.map(expectSuggestionOpensItsPath))
+      await Promise.all(
+        unsafeAliasSuggestions.map((suggestion) => expectSuggestionOpensItsPath(index, suggestion)),
+      )
 
       // Unserializable names fall back to path addresses instead of hiding.
-      await expect(suggestWikiLinkTargets('Unsafe | Title')).resolves.toMatchObject({
+      await expect(
+        index.suggestions.suggestWikiLinkTargets('Unsafe | Title'),
+      ).resolves.toMatchObject({
         suggestions: [{ path: 'notes/unsafe.md', insertText: 'notes/unsafe' }],
       })
-      await expect(suggestWikiLinkTargets(String.raw`Escape \. Title`)).resolves.toMatchObject({
+      await expect(
+        index.suggestions.suggestWikiLinkTargets(String.raw`Escape \. Title`),
+      ).resolves.toMatchObject({
         suggestions: [{ path: 'notes/escaped.md', insertText: 'notes/escaped' }],
       })
     } finally {

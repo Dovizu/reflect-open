@@ -27,16 +27,3 @@ export function createSystemIdService(): IdService {
     },
   }
 }
-
-let defaultService: IdService | null = null
-
-/** The process-wide `IdService`, the system one unless replaced. */
-export function defaultIdService(): IdService {
-  defaultService ??= createSystemIdService()
-  return defaultService
-}
-
-/** Replace the process-wide `IdService`; `null` restores the system one. */
-export function setDefaultIdService(service: IdService | null): void {
-  defaultService = service
-}

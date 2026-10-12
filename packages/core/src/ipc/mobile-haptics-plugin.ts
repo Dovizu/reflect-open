@@ -1,5 +1,4 @@
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { currentIpc } from './bridge.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import type { IpcBridgeService } from './ipc-service.ts'
 import { definePluginCommand, ignoredResult } from './plugin.ts'
 
@@ -48,17 +47,4 @@ export function createHapticsService(deps: {
       }
     },
   }
-}
-
-let defaultService: HapticsService | null = null
-
-/** The process-wide `HapticsService`; one over the installed bridge unless replaced. */
-export function defaultHaptics(): HapticsService {
-  defaultService ??= createHapticsService({ ipc: currentIpc(), logger: defaultLogger() })
-  return defaultService
-}
-
-/** Install the process-wide `HapticsService`; `null` restores a fresh bridge-backed one. */
-export function setDefaultHaptics(service: HapticsService | null): void {
-  defaultService = service
 }

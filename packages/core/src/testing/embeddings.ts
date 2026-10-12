@@ -31,6 +31,7 @@ import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.
 import { createTestDatabaseService } from './database.ts'
 import { createTestNoteFileService } from './graph.ts'
 import { createTestGraphSessionService } from './graph-session.ts'
+import { createTestHashService } from './id.ts'
 import { createTestIndexLifecycleService } from './index-lifecycle.ts'
 import { createTestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService } from './logger.ts'
@@ -310,6 +311,7 @@ export function createTestEmbeddingIndexService(
     noteFile: options?.noteFile ?? createTestNoteFileService(),
     database,
     indexLifecycle: options?.indexLifecycle ?? createTestIndexLifecycleService({ database }),
+    hash: createTestHashService(),
     logger: options?.logger ?? createTestLoggerService(),
   })
 

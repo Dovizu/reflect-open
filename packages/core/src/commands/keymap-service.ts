@@ -1,4 +1,4 @@
-import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import { formatBinding, normalizeBinding } from './keybindings.ts'
 
 export type KeymapScope = 'editor' | 'app'
@@ -65,31 +65,4 @@ export function createKeymapService(deps: KeymapServiceDeps): KeymapService {
       return formatBinding(binding, apple).join(apple ? '' : '+')
     },
   }
-}
-
-let installedService: KeymapService | null = null
-let fallback: KeymapService | null = null
-
-/**
- * The process-wide `KeymapService`. Unless one is installed, it is one
- * registry that reads the current default platform on every call.
- */
-export function defaultKeymap(): KeymapService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createKeymapService({
-    platform: {
-      // Resolved per call: the platform may be installed later.
-      get isApplePlatform() {
-        return defaultPlatform().isApplePlatform
-      },
-    },
-  })
-  return fallback
-}
-
-/** Install the process-wide `KeymapService`; `null` restores the fallback registry. */
-export function setDefaultKeymap(service: KeymapService | null): void {
-  installedService = service
 }

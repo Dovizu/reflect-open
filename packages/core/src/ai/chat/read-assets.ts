@@ -1,9 +1,10 @@
 import { z } from 'zod'
-import { classifyAssetFromNotes } from '../../actions/asset-privacy.ts'
+
 import { isAppError } from '../../errors.ts'
 import { descriptionPathFor, isAssetPath } from '../../graph/paths.ts'
 import { canonicalAssetPath } from '../../markdown/extract.ts'
 import { splitFrontmatter } from '../../markdown/frontmatter.ts'
+import type { AssetPrivacyService } from '../../assets/asset-privacy-service.ts'
 import type { AssetReferences } from '../../indexing/asset-refs.ts'
 import {
   isPrivateNoteError,
@@ -70,6 +71,7 @@ export const readAssetsInput = z.object({
 export interface ReadAssetDeps {
   readNote: (path: string) => Promise<string>
   assetReferences: Pick<AssetReferences, 'notePaths'>
+  assetPrivacy: Pick<AssetPrivacyService, 'classifyAssetFromNotes'>
   xArchive: Pick<XArchiveService, 'owners'>
   privacy: Pick<PrivacyService, 'cloudSafeAssetDescription'>
 }
@@ -104,7 +106,12 @@ export function buildReadOneAsset(deps: ReadAssetDeps) {
     const body = splitFrontmatter(source).body.trim()
     const owners = await deps.xArchive.owners(canonical)
     const candidates = await deps.assetReferences.notePaths(canonical, owners)
-    const verdict = await classifyAssetFromNotes(canonical, candidates, deps.readNote, owners)
+    const verdict = await deps.assetPrivacy.classifyAssetFromNotes(
+      canonical,
+      candidates,
+      deps.readNote,
+      owners,
+    )
     const truncated = body.length > MAX_ASSET_DESCRIPTION_CHARS
     try {
       const asset = deps.privacy.cloudSafeAssetDescription({

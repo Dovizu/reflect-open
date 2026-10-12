@@ -1,24 +1,13 @@
-import {
-  defaultNoteDocuments,
-  type NoteDocumentService,
-} from '../documents/note-document-service.ts'
-import {
-  defaultOpenDocuments,
-  type OpenDocumentsService,
-} from '../documents/open-documents-service.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteDocumentService } from '../documents/note-document-service.ts'
+import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { isDaily } from '../graph/paths.ts'
 import { parseNote } from '../markdown/extract.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 import type { Settings } from '../settings/schema.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
 import { isContactsReadable } from './commands.ts'
-import {
-  defaultContacts,
-  type ContactMatch,
-  type ContactsAuthorization,
-  type ContactsService,
-} from './contacts-service.ts'
+import type { ContactMatch, ContactsAuthorization, ContactsService } from './contacts-service.ts'
 import { appendContactDetails, contactDetailsMarkdown, noteHasContactDetails } from './markdown.ts'
 import { contactNamesEqual, matchContactForTitle } from './match.ts'
 
@@ -245,51 +234,4 @@ export function createContactSuggestionService(deps: {
       await contacts.requestAccess().catch(() => {})
     },
   }
-}
-
-type ContactSuggestionServiceDeps = {
-  contacts: ContactsService
-  noteDocuments: NoteDocumentService
-  openDocuments: OpenDocumentsService
-  noteFile: NoteFileService
-  settings: SettingsService
-}
-
-let installedService: ContactSuggestionService | null = null
-let fallback: { service: ContactSuggestionService; deps: ContactSuggestionServiceDeps } | null =
-  null
-
-/**
- * The process-wide `ContactSuggestionService`; one over the default services
- * unless {@link setDefaultContactSuggestions} installed another.
- */
-export function defaultContactSuggestions(): ContactSuggestionService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const deps: ContactSuggestionServiceDeps = {
-    contacts: defaultContacts(),
-    noteDocuments: defaultNoteDocuments(),
-    openDocuments: defaultOpenDocuments(),
-    noteFile: defaultNoteFile(),
-    settings: defaultSettings(),
-  }
-  if (
-    fallback?.deps.contacts !== deps.contacts ||
-    fallback.deps.noteDocuments !== deps.noteDocuments ||
-    fallback.deps.openDocuments !== deps.openDocuments ||
-    fallback.deps.noteFile !== deps.noteFile ||
-    fallback.deps.settings !== deps.settings
-  ) {
-    fallback = { service: createContactSuggestionService(deps), deps }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `ContactSuggestionService`; `null` restores the
- * one over the default services.
- */
-export function setDefaultContactSuggestions(service: ContactSuggestionService | null): void {
-  installedService = service
 }

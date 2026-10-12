@@ -4,8 +4,11 @@ import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIdService } from '../testing/id.ts'
-import { deferredCreationPolicy, isUntitledNotePath } from './create-note.ts'
-import { createNoteCreationService } from './note-creation-service.ts'
+import {
+  createNoteCreationService,
+  deferredCreationPolicy,
+  isUntitledNotePath,
+} from './note-creation-service.ts'
 import { createNoteLinkResolverService } from './note-link-resolver-service.ts'
 
 interface Graph {

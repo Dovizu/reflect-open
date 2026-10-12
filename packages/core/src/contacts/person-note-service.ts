@@ -1,12 +1,11 @@
-import {
-  defaultNoteCreation,
-  type NoteCreationService,
-  type ResolveOrCreateNoteResult,
+import type {
+  NoteCreationService,
+  ResolveOrCreateNoteResult,
 } from '../graph/note-creation-service.ts'
-import { defaultDatabase, type DatabaseService } from '../indexing/database-service.ts'
+import type { DatabaseService } from '../indexing/database-service.ts'
 import { inClauseChunks } from '../indexing/query-utils.ts'
 import { serializeWikiSuggestionAddress } from '../indexing/suggest.ts'
-import { defaultWikiResolver, type WikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { canonicalEmails } from '../markdown/email-fields.ts'
 import type { ContactMatch } from './contacts-service.ts'
 
@@ -185,47 +184,4 @@ export function createPersonNoteService(deps: {
       )
     },
   }
-}
-
-let installedService: PersonNoteService | null = null
-let fallback: {
-  service: PersonNoteService
-  database: DatabaseService
-  wikiResolver: WikiResolverService
-  noteCreation: NoteCreationService
-} | null = null
-
-/**
- * The process-wide `PersonNoteService`; one over the default database, wiki
- * resolver and note creation unless {@link setDefaultPersonNotes} installed
- * another.
- */
-export function defaultPersonNotes(): PersonNoteService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  const wikiResolver = defaultWikiResolver()
-  const noteCreation = defaultNoteCreation()
-  if (
-    fallback?.database !== database ||
-    fallback.wikiResolver !== wikiResolver ||
-    fallback.noteCreation !== noteCreation
-  ) {
-    fallback = {
-      service: createPersonNoteService({ database, wikiResolver, noteCreation }),
-      database,
-      wikiResolver,
-      noteCreation,
-    }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `PersonNoteService`; `null` restores the one over
- * the default services.
- */
-export function setDefaultPersonNotes(service: PersonNoteService | null): void {
-  installedService = service
 }

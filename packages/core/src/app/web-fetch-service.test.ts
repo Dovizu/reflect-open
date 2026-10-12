@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { cloudSafeLinkHref } from '../privacy/checkers.ts'
 import { createTestIpcBridgeService, createTestWebFetchService } from '../testing/index.ts'
-import { createWebFetchService, defaultWebFetch, setDefaultWebFetch } from './web-fetch-service.ts'
+import { createWebFetchService } from './web-fetch-service.ts'
 
 function publicUrl(url: string) {
   return cloudSafeLinkHref({ path: 'notes/public.md', isPrivate: false }, url)
@@ -11,10 +11,6 @@ function serviceAnswering(command: string, answer: unknown) {
   const ipc = createTestIpcBridgeService({ commands: { [command]: () => answer } })
   return { ipc, webFetch: createWebFetchService({ ipc }) }
 }
-
-afterEach(() => {
-  setDefaultWebFetch(null)
-})
 
 describe('createWebFetchService', () => {
   it('sends capture fetches as their commands', async () => {
@@ -114,18 +110,6 @@ describe('createWebFetchService', () => {
     ).rejects.toMatchObject({ kind: 'parse' })
   })
 })
-
-describe('defaultWebFetch', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestWebFetchService()
-    setDefaultWebFetch(fake)
-    expect(defaultWebFetch()).toBe(fake)
-
-    setDefaultWebFetch(null)
-    expect(defaultWebFetch()).not.toBe(fake)
-  })
-})
-
 describe('createTestWebFetchService', () => {
   it('answers from per-URL tables and records each request', async () => {
     const url = publicUrl('https://x.test/a')

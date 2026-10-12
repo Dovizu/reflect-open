@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { isMobilePlatform } from '../app/platform.ts'
-import { defaultPlatform } from '../app/platform-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
 
 /** Event name the Rust watcher emits tracked-file changes on. */
@@ -187,31 +184,4 @@ export function createFileChangeService(
       await ipc.call('watch_stop', {}, voidSchema)
     },
   }
-}
-
-let defaultService: FileChangeService | null = null
-
-/**
- * The process-wide `FileChangeService`, over the installed bridge unless
- * replaced. Own writes echo onto the change stream on mobile, which has no
- * file watcher.
- */
-export function defaultFileChanges(): FileChangeService {
-  defaultService ??= createFileChangeService(
-    {
-      ipc: currentIpc(),
-      logger: {
-        error: (message, cause) => defaultLogger().error(message, cause),
-        warn: (message, cause) => defaultLogger().warn(message, cause),
-        info: (message, cause) => defaultLogger().info(message, cause),
-      },
-    },
-    { echoOwnWrites: isMobilePlatform(defaultPlatform().appPlatform) },
-  )
-  return defaultService
-}
-
-/** Install the process-wide `FileChangeService`; `null` restores the bridge-backed one. */
-export function setDefaultFileChanges(service: FileChangeService | null): void {
-  defaultService = service
 }

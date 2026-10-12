@@ -1,7 +1,7 @@
 import type { UserContent } from '@reflect/modules/ai'
 import { ReflectError } from '../errors.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
-import { defaultLanguageModel, type LanguageModelService } from './language-model-service.ts'
+import type { LanguageModelService } from './language-model-service.ts'
 
 /**
  * BYOK description + OCR for one asset (Plan 20): a single short multimodal
@@ -149,23 +149,4 @@ export function createAssetDescriberService(deps: {
       }
     },
   }
-}
-
-let defaultService: AssetDescriberService | null = null
-
-/**
- * The process-wide `AssetDescriberService`; one over the language model
- * service that `defaultLanguageModel()` returns at call time unless
- * {@link setDefaultAssetDescriber} installed another.
- */
-export function defaultAssetDescriber(): AssetDescriberService {
-  defaultService ??= createAssetDescriberService({
-    languageModel: { create: (config, apiKey) => defaultLanguageModel().create(config, apiKey) },
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `AssetDescriberService`; `null` restores the default one. */
-export function setDefaultAssetDescriber(service: AssetDescriberService | null): void {
-  defaultService = service
 }

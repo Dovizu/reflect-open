@@ -1,18 +1,15 @@
-import { defaultClipboard, type ClipboardService } from '../app/clipboard-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import {
-  defaultNoteDocuments,
-  type NoteDocumentService,
-} from '../documents/note-document-service.ts'
-import { defaultNoteRows, type NoteRowService } from '../documents/note-row-service.ts'
+import type { ClipboardService } from '../app/clipboard-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { NoteDocumentService } from '../documents/note-document-service.ts'
+import type { NoteRowService } from '../documents/note-row-service.ts'
 import { errorMessage, ReflectError } from '../errors.ts'
 import { parseNote } from '../markdown/extract.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 import { gistBodyHash, gistFilename } from '../markdown/gist.ts'
 import type { GistFrontmatter } from '../markdown/model.ts'
-import { defaultPrivacy, type PrivacyService } from '../privacy/privacy-service.ts'
-import { defaultGists, type GistService } from './gist-service.ts'
-import { defaultGithubAuth, type GithubAuthService } from './github-auth-service.ts'
+import type { PrivacyService } from '../privacy/privacy-service.ts'
+import type { GistService } from './gist-service.ts'
+import type { GithubAuthService } from './github-auth-service.ts'
 
 /**
  * What a gist action left on the note's index row: the fields the action
@@ -240,53 +237,4 @@ export function createGistPublishService(deps: {
       }
     },
   }
-}
-
-let installedService: GistPublishService | null = null
-let fallback: GistPublishService | null = null
-
-/**
- * The process-wide `GistPublishService`. Unless one is installed, it runs over
- * the default services, each resolved per call, so one instance holds the
- * per-note lock however the defaults are replaced.
- */
-export function defaultGistPublish(): GistPublishService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createGistPublishService({
-    gists: {
-      create: async (token, file) => await defaultGists().create(token, file),
-      update: async (token, gistId, previousFilename, file) =>
-        await defaultGists().update(token, gistId, previousFilename, file),
-      delete: async (token, gistId) => {
-        await defaultGists().delete(token, gistId)
-      },
-    },
-    githubAuth: { getToken: async () => await defaultGithubAuth().getToken() },
-    noteDocuments: {
-      readSource: async (path) => await defaultNoteDocuments().readSource(path),
-      commitFrontmatter: async (path, patch, generation) => {
-        await defaultNoteDocuments().commitFrontmatter(path, patch, generation)
-      },
-    },
-    noteRows: {
-      setOverlay: (path, generation, patch) => {
-        defaultNoteRows().setOverlay(path, generation, patch)
-      },
-    },
-    privacy: {
-      assertCloudAllowed: (note) => {
-        defaultPrivacy().assertCloudAllowed(note)
-      },
-    },
-    operations: { start: (label, options) => defaultOperations().start(label, options) },
-    clipboard: { writeText: async (text) => await defaultClipboard().writeText(text) },
-  })
-  return fallback
-}
-
-/** Install the process-wide `GistPublishService`; `null` restores the one over the defaults. */
-export function setDefaultGistPublish(service: GistPublishService | null): void {
-  installedService = service
 }

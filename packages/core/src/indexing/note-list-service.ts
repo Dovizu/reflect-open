@@ -1,6 +1,6 @@
 import { sql } from 'kysely'
 import { foldTag } from '../markdown/index.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 import { recallOrder } from './queries-shared.ts'
 
 /**
@@ -220,27 +220,4 @@ export function createNoteListService(deps: { database: DatabaseService }): Note
         .execute()
     },
   }
-}
-
-let installedService: NoteListService | null = null
-let fallback: { service: NoteListService; database: DatabaseService } | null = null
-
-/**
- * The process-wide `NoteListService`; one over {@link defaultDatabase}
- * unless {@link setDefaultNoteList} installed another.
- */
-export function defaultNoteList(): NoteListService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  if (fallback?.database !== database) {
-    fallback = { service: createNoteListService({ database }), database }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `NoteListService`; `null` restores the one over the default database. */
-export function setDefaultNoteList(service: NoteListService | null): void {
-  installedService = service
 }

@@ -1,10 +1,7 @@
 import { errorMessage } from '../errors.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
-import { defaultFileChanges, type FileChangeService } from '../indexing/file-change-service.ts'
-import {
-  defaultIndexLifecycle,
-  type IndexLifecycleService,
-} from '../indexing/index-lifecycle-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import { resolveConflictMarkers, type ConflictResolution } from '../markdown/conflict-markers.ts'
 
 /** The (graph, index session) pair a resolution writes under. */
@@ -80,23 +77,4 @@ export function createConflictResolutionService(
       return { wrote, error }
     },
   }
-}
-
-let defaultService: ConflictResolutionService | null = null
-
-/** The process-wide `ConflictResolutionService` over the default services, unless one was installed. */
-export function defaultConflictResolution(): ConflictResolutionService {
-  return (
-    defaultService ??
-    createConflictResolutionService({
-      noteFile: defaultNoteFile(),
-      indexLifecycle: defaultIndexLifecycle(),
-      fileChanges: defaultFileChanges(),
-    })
-  )
-}
-
-/** Install the process-wide `ConflictResolutionService`; `null` restores the one over the defaults. */
-export function setDefaultConflictResolution(service: ConflictResolutionService | null): void {
-  defaultService = service
 }

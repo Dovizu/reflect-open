@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defaultHttp, type HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../app/http-service.ts'
 import { ReflectError } from '../errors.ts'
 import { apiHeaders, readJson } from './github-api.ts'
 
@@ -150,28 +150,4 @@ export function createGithubRepoService(deps: { http: HttpService }): GithubRepo
       return toRepo(await readJson(response, repoResponseSchema, 'repo lookup'))
     },
   }
-}
-
-let installedService: GithubRepoService | null = null
-let fallback: { service: GithubRepoService; http: HttpService } | null = null
-
-/**
- * The process-wide `GithubRepoService`; one over {@link defaultHttp} unless
- * {@link setDefaultGithubRepos} installed another.
- */
-export function defaultGithubRepos(): GithubRepoService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const http = defaultHttp()
-  if (fallback?.http !== http) {
-    fallback = { service: createGithubRepoService({ http }), http }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `GithubRepoService`; `null` restores the default-backed one. */
-export function setDefaultGithubRepos(service: GithubRepoService | null): void {
-  installedService = service
-  fallback = null
 }

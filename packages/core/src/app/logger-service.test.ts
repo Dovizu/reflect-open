@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { createConsoleLogger, defaultLogger, setDefaultLogger } from './logger-service.ts'
+import { createConsoleLogger } from './logger-service.ts'
 
 afterEach(() => {
   vi.restoreAllMocks()
-  setDefaultLogger(null)
 })
 
 describe('createConsoleLogger', () => {
@@ -73,32 +72,5 @@ describe('createTestLoggerService', () => {
 
     expect(before).toHaveLength(1)
     expect(logger.getErrors()).toHaveLength(2)
-  })
-})
-
-describe('defaultLogger', () => {
-  it('is a console logger until replaced', () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    defaultLogger().error('to console')
-
-    expect(error).toHaveBeenCalledExactlyOnceWith('to console')
-  })
-
-  it('returns the logger installed by setDefaultLogger', () => {
-    const logger = createTestLoggerService()
-    setDefaultLogger(logger)
-    defaultLogger().warn('captured')
-
-    expect(defaultLogger()).toBe(logger)
-    expect(logger.getWarnings()).toEqual([{ message: 'captured', cause: undefined }])
-  })
-
-  it('restores a console logger after setDefaultLogger(null)', () => {
-    setDefaultLogger(createTestLoggerService())
-    setDefaultLogger(null)
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    defaultLogger().warn('back on console')
-
-    expect(warn).toHaveBeenCalledExactlyOnceWith('back on console')
   })
 })

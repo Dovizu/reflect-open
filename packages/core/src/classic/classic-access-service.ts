@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultHttp, type HttpService } from '../app/http-service.ts'
-import { defaultIdService, type IdService } from '../app/id-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { HttpService } from '../app/http-service.ts'
+import type { IdService } from '../app/id-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import { ReflectError } from '../errors.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultWebAuth, type WebAuthService } from '../ipc/web-auth-plugin.ts'
-import { defaultSecretStore, type SecretStoreService } from '../secrets/secret-store-service.ts'
+import type { WebAuthService } from '../ipc/web-auth-plugin.ts'
+import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 
 /**
  * Reflect Open access granted by a Reflect Classic subscription: sign in with
@@ -350,24 +350,4 @@ export function createClassicAccessService(deps: {
       publish(null)
     },
   }
-}
-
-let defaultService: ClassicAccessService | null = null
-
-/** The process-wide `ClassicAccessService`; one over the default services unless replaced. */
-export function defaultClassicAccess(): ClassicAccessService {
-  defaultService ??= createClassicAccessService({
-    secretStore: defaultSecretStore(),
-    http: defaultHttp(),
-    webAuth: defaultWebAuth(),
-    clock: defaultClock(),
-    id: defaultIdService(),
-    logger: defaultLogger(),
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `ClassicAccessService`; `null` restores the default one. */
-export function setDefaultClassicAccess(service: ClassicAccessService | null): void {
-  defaultService = service
 }

@@ -1,7 +1,6 @@
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
-import { defaultPlatform } from '@reflect/core'
 import { createTestAppServices } from '@reflect/core/testing'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
@@ -103,8 +102,7 @@ describe('renderInApp', () => {
     await expect
       .element(page.getByTestId('graph'))
       .toHaveTextContent('ready /graphs/test 1 1 idle 0 icloud')
-    expect(defaultPlatform()).toBe(app.platform)
-    expect(defaultPlatform().surface.mobileApp).toBe(true)
+    expect(app.platform.surface.mobileApp).toBe(true)
   })
 
   it('uses the given app, so a test can spy on a service before the first render', async () => {

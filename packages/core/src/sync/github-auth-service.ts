@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultHttp, type HttpService } from '../app/http-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { HttpService } from '../app/http-service.ts'
 import { isAppError, ReflectError } from '../errors.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultSecretStore, type SecretStoreService } from '../secrets/secret-store-service.ts'
+import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type { GitCredential } from './git-repository-service.ts'
 import { apiHeaders, JSON_HEADERS, readJson } from './github-api.ts'
 
@@ -450,35 +450,4 @@ export function createGithubAuthService(deps: {
     getAuthenticatedUser,
     getSignedInUser,
   }
-}
-
-let installedService: GithubAuthService | null = null
-let fallback: {
-  service: GithubAuthService
-  deps: readonly unknown[]
-} | null = null
-
-/**
- * The process-wide `GithubAuthService`. Unless one is installed, it runs over
- * the current default secret store, HTTP, and clock services, and is rebuilt
- * when any of them is replaced.
- */
-export function defaultGithubAuth(): GithubAuthService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const secretStore = defaultSecretStore()
-  const http = defaultHttp()
-  const clock = defaultClock()
-  const deps = [secretStore, http, clock]
-  if (fallback === null || fallback.deps.some((dep, index) => dep !== deps[index])) {
-    fallback = { service: createGithubAuthService({ secretStore, http, clock }), deps }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `GithubAuthService`; `null` restores the one over the defaults. */
-export function setDefaultGithubAuth(service: GithubAuthService | null): void {
-  installedService = service
-  fallback = null
 }

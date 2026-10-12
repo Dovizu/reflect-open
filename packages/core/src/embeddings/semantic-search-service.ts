@@ -1,20 +1,13 @@
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultStorage, type StorageService } from '../app/storage-service.ts'
-import { defaultWindow, type WindowService } from '../app/window-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { StorageService } from '../app/storage-service.ts'
+import type { WindowService } from '../app/window-service.ts'
 import type { GraphSessionState } from '../graph/graph-session-service.ts'
-import {
-  defaultIndexLifecycle,
-  type IndexLifecycleService,
-} from '../indexing/index-lifecycle-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
-import { defaultEmbeddingIndex, type EmbeddingIndexService } from './embedding-index-service.ts'
-import {
-  defaultEmbeddingRuntime,
-  type EmbeddingRuntimeService,
-  type EmbedStatus,
-} from './embedding-runtime-service.ts'
-import { defaultRetrieval, type RetrievalHit, type RetrievalService } from './retrieval-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
+import type { EmbeddingIndexService } from './embedding-index-service.ts'
+import type { EmbeddingRuntimeService, EmbedStatus } from './embedding-runtime-service.ts'
+import type { RetrievalHit, RetrievalService } from './retrieval-service.ts'
 
 /** Where the opt-in lived before it moved into the settings document. */
 const LEGACY_ENABLED_KEY = 'reflect.semantic.enabled'
@@ -224,61 +217,4 @@ export function createSemanticSearchService(
     similarNotes: (path) => retrieval.relatedNotes(path, SIMILAR_NOTES_LIMIT),
     dispose: stopFollowingRebuilds,
   }
-}
-
-/** No graph is ever open: the process-wide services include no `GraphSessionService`. */
-const NO_GRAPH: SemanticSearchGraphSource = {
-  getState: () => ({ graph: null, indexGeneration: null }),
-  subscribe: () => () => {},
-}
-
-type FallbackDeps = Omit<SemanticSearchServiceDeps, 'graphSession'>
-
-let installedService: SemanticSearchService | null = null
-let fallback: { service: SemanticSearchService; deps: FallbackDeps } | null = null
-
-function sameDeps(left: FallbackDeps, right: FallbackDeps): boolean {
-  return (
-    left.embeddingRuntime === right.embeddingRuntime &&
-    left.embeddingIndex === right.embeddingIndex &&
-    left.retrieval === right.retrieval &&
-    left.settings === right.settings &&
-    left.storage === right.storage &&
-    left.window === right.window &&
-    left.indexLifecycle === right.indexLifecycle &&
-    left.logger === right.logger
-  )
-}
-
-/**
- * The process-wide `SemanticSearchService`; one over the default services
- * unless {@link setDefaultSemanticSearch} installed another. The
- * default-backed one sees no open graph, so its
- * {@link SemanticSearchService.start} loads the model but never embeds.
- */
-export function defaultSemanticSearch(): SemanticSearchService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const deps: FallbackDeps = {
-    embeddingRuntime: defaultEmbeddingRuntime(),
-    embeddingIndex: defaultEmbeddingIndex(),
-    retrieval: defaultRetrieval(),
-    settings: defaultSettings(),
-    storage: defaultStorage(),
-    window: defaultWindow(),
-    indexLifecycle: defaultIndexLifecycle(),
-    logger: defaultLogger(),
-  }
-  if (fallback === null || !sameDeps(fallback.deps, deps)) {
-    // The replaced service must stop answering rebuilds of a lifecycle it shares.
-    fallback?.service.dispose()
-    fallback = { service: createSemanticSearchService({ ...deps, graphSession: NO_GRAPH }), deps }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `SemanticSearchService`; `null` restores the default-backed one. */
-export function setDefaultSemanticSearch(service: SemanticSearchService | null): void {
-  installedService = service
 }

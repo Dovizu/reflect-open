@@ -1,14 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTestEmbeddingRuntimeService } from '../testing/embeddings.ts'
+import { describe, expect, it, vi } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { embedEnsure, embedStatus, embedTexts, subscribeEmbedStatus } from './commands.ts'
-import {
-  createEmbeddingRuntimeService,
-  defaultEmbeddingRuntime,
-  setDefaultEmbeddingRuntime,
-  type EmbedStatus,
-} from './embedding-runtime-service.ts'
+
+import { createEmbeddingRuntimeService, type EmbedStatus } from './embedding-runtime-service.ts'
 
 const READY: EmbedStatus = { status: 'ready', model: 'all-MiniLM-L6-v2' }
 const LOADING: EmbedStatus = { status: 'loading' }
@@ -19,10 +13,6 @@ function setup() {
   const runtime = createEmbeddingRuntimeService({ ipc, logger })
   return { ipc, logger, runtime }
 }
-
-afterEach(() => {
-  setDefaultEmbeddingRuntime(null)
-})
 
 describe('createEmbeddingRuntimeService', () => {
   it('polls, loads and embeds over the runtime commands', async () => {
@@ -133,39 +123,5 @@ describe('createEmbeddingRuntimeService', () => {
 
       await expect(runtime.retry()).resolves.toMatchObject({ status: 'failed' })
     })
-  })
-})
-
-describe('defaultEmbeddingRuntime', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestEmbeddingRuntimeService()
-    setDefaultEmbeddingRuntime(fake)
-    expect(defaultEmbeddingRuntime()).toBe(fake)
-
-    setDefaultEmbeddingRuntime(null)
-    expect(defaultEmbeddingRuntime()).not.toBe(fake)
-  })
-
-  it('backs the free functions', async () => {
-    const fake = createTestEmbeddingRuntimeService({ status: LOADING, vectors: () => [1, 2] })
-    setDefaultEmbeddingRuntime(fake)
-
-    await expect(embedStatus()).resolves.toEqual(LOADING)
-    await expect(embedEnsure()).resolves.toEqual(LOADING)
-    expect(fake.ensureCalls()).toBe(1)
-
-    const seen: EmbedStatus[] = []
-    const unlisten = await subscribeEmbedStatus((status) => {
-      seen.push(status)
-    })
-    fake.setStatus(READY)
-    unlisten()
-    expect(seen).toEqual([READY])
-
-    await expect(embedTexts(['a', 'b'])).resolves.toEqual([
-      [1, 2],
-      [1, 2],
-    ])
-    expect(fake.embedCalls()).toEqual([['a', 'b']])
   })
 })

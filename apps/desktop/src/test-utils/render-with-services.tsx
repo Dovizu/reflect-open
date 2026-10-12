@@ -5,7 +5,6 @@ import type { AppServices, GraphServices } from '@reflect/core'
 import {
   createTestAppServices,
   createTestGraphServices,
-  installTestServices,
   type TestAppServices,
   type TestGraphServices,
 } from '@reflect/core/testing'
@@ -22,8 +21,7 @@ export interface ServicesRenderResult<
 
 /**
  * Render `ui` inside both services providers. `app` and `graph` default to
- * test doubles (`app` to `graph.app` when only `graph` is given), and `app`
- * is also installed as the process-wide defaults until the test finishes.
+ * test doubles (`app` to `graph.app` when only `graph` is given).
  * The app commands are registered in `app.commands`, like `main.tsx` does.
  */
 export async function renderWithServices(
@@ -39,16 +37,17 @@ export async function renderWithServices(
 ): Promise<ServicesRenderResult<AppServices, GraphServices>> {
   const app = options?.app ?? options?.graph?.app ?? createTestAppServices()
   const graph = options?.graph ?? createTestGraphServices(app)
-  const restore = installTestServices(app)
-  registerAppCommands()
-  const screen = await render(
-    <AppServicesProvider services={app}>
-      <GraphServicesProvider services={graph}>{ui}</GraphServicesProvider>
-    </AppServicesProvider>,
-  )
+  registerAppCommands(app.commands)
+  // A wrapper, so `rerender(<X />)` keeps the providers.
+  const screen = await render(ui, {
+    wrapper: ({ children }) => (
+      <AppServicesProvider services={app}>
+        <GraphServicesProvider services={graph}>{children}</GraphServicesProvider>
+      </AppServicesProvider>
+    ),
+  })
   onTestFinished(() => {
     screen.unmount()
-    restore()
   })
   return Object.assign(screen, { app, graph })
 }

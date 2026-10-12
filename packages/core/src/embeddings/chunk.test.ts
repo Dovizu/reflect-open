@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_ASSET_TEXT_CHARS } from '../indexing/asset-description-text.ts'
-import { chunkAssetDescriptions, chunkNote } from './chunk.ts'
+import { createWebCryptoHashService } from '../app/hash-service.ts'
+import { chunkAssetDescriptions, chunkNote, type ChunkContext } from './chunk.ts'
 
 const PATH = 'notes/a.md'
+const ctx: ChunkContext = { hash: createWebCryptoHashService() }
 
 describe('chunkNote', () => {
   it('chunks per heading section with whole-file offsets and stable hashes', async () => {
     const source = '# Alpha\n\nFirst section text.\n\n# Beta\n\nSecond section text.\n'
-    const chunks = await chunkNote(PATH, source)
+    const chunks = await chunkNote(ctx, PATH, source)
     expect(chunks).toHaveLength(2)
     expect(chunks[0]!.heading).toBe('Alpha')
     expect(chunks[1]!.heading).toBe('Beta')
@@ -16,7 +18,7 @@ describe('chunkNote', () => {
       expect(source.slice(chunk.posFrom, chunk.posTo)).toBe(chunk.text)
     }
 
-    const again = await chunkNote(PATH, source)
+    const again = await chunkNote(ctx, PATH, source)
     expect(again.map((chunk) => chunk.contentHash)).toEqual(
       chunks.map((chunk) => chunk.contentHash),
     )
@@ -25,8 +27,8 @@ describe('chunkNote', () => {
   it('an unchanged section keeps its hash when another section changes', async () => {
     const before = '# Stable\n\nUnchanged text here.\n\n# Volatile\n\nOld content.\n'
     const after = '# Stable\n\nUnchanged text here.\n\n# Volatile\n\nNew content entirely.\n'
-    const a = await chunkNote(PATH, before)
-    const b = await chunkNote(PATH, after)
+    const a = await chunkNote(ctx, PATH, before)
+    const b = await chunkNote(ctx, PATH, after)
     expect(b[0]!.contentHash).toBe(a[0]!.contentHash) // the hash-skip foundation
     expect(b[1]!.contentHash).not.toBe(a[1]!.contentHash)
   })
@@ -34,7 +36,7 @@ describe('chunkNote', () => {
   it('splits a long section into sentence-aligned chunks', async () => {
     const sentence = 'This sentence is reasonably long and ends with a period. '
     const source = `# Long\n\n${sentence.repeat(40)}`
-    const chunks = await chunkNote(PATH, source)
+    const chunks = await chunkNote(ctx, PATH, source)
     expect(chunks.length).toBeGreaterThan(1)
     for (const chunk of chunks) {
       expect(chunk.heading).toBe('Long')
@@ -48,21 +50,21 @@ describe('chunkNote', () => {
 
   it('skips frontmatter and handles heading-less notes', async () => {
     const source = '---\ntitle: Meta\n---\n\nJust a body without headings.\n'
-    const chunks = await chunkNote(PATH, source)
+    const chunks = await chunkNote(ctx, PATH, source)
     expect(chunks).toHaveLength(1)
     expect(chunks[0]!.heading).toBeNull()
     expect(chunks[0]!.text).not.toContain('title: Meta')
   })
 
   it('returns nothing for empty or whitespace-only notes', async () => {
-    expect(await chunkNote(PATH, '')).toEqual([])
-    expect(await chunkNote(PATH, '\n\n  \n')).toEqual([])
+    expect(await chunkNote(ctx, PATH, '')).toEqual([])
+    expect(await chunkNote(ctx, PATH, '\n\n  \n')).toEqual([])
   })
 
   it('merges a runt tail chunk into its predecessor', async () => {
     const sentence = 'A solid sentence that carries real length for the chunker to count. '
     const source = `# One\n\n${sentence.repeat(16)}Tiny tail.`
-    const chunks = await chunkNote(PATH, source)
+    const chunks = await chunkNote(ctx, PATH, source)
     const last = chunks[chunks.length - 1]!
     expect(last.text.length).toBeGreaterThanOrEqual(200)
     expect(last.text.endsWith('Tiny tail.')).toBe(true)
@@ -74,6 +76,7 @@ describe('chunkAssetDescriptions', () => {
 
   it('chunks each body under the asset filename with positions past the note', async () => {
     const chunks = await chunkAssetDescriptions(
+      ctx,
       [
         { assetPath: 'assets/graphs/q4.png', body: 'Quarterly revenue bar chart.' },
         { assetPath: 'assets/scan.pdf', body: 'A signed lease agreement.' },
@@ -91,11 +94,12 @@ describe('chunkAssetDescriptions', () => {
 
   it('hashes are stable across runs and change with the body', async () => {
     const bodies = [{ assetPath: 'assets/a.png', body: 'A red bridge at dawn.' }]
-    const first = await chunkAssetDescriptions(bodies, BASE)
-    const again = await chunkAssetDescriptions(bodies, BASE)
+    const first = await chunkAssetDescriptions(ctx, bodies, BASE)
+    const again = await chunkAssetDescriptions(ctx, bodies, BASE)
     expect(again[0]!.contentHash).toBe(first[0]!.contentHash)
 
     const changed = await chunkAssetDescriptions(
+      ctx,
       [{ assetPath: 'assets/a.png', body: 'A snowy mountain pass.' }],
       BASE,
     )
@@ -105,6 +109,7 @@ describe('chunkAssetDescriptions', () => {
   it('splits a long body into sentence-aligned chunks and merges the runt tail', async () => {
     const sentence = 'The scanned page describes the quarterly figures in detail. '
     const chunks = await chunkAssetDescriptions(
+      ctx,
       [{ assetPath: 'assets/report.pdf', body: `${sentence.repeat(40)}End.` }],
       BASE,
     )
@@ -119,6 +124,7 @@ describe('chunkAssetDescriptions', () => {
 
   it('caps the combined description text, mirroring the FTS fold', async () => {
     const chunks = await chunkAssetDescriptions(
+      ctx,
       [
         { assetPath: 'assets/a.png', body: 'x'.repeat(MAX_ASSET_TEXT_CHARS) },
         { assetPath: 'assets/b.png', body: 'never reached' },
@@ -134,6 +140,7 @@ describe('chunkAssetDescriptions', () => {
     // FTS keeps `first + '\n\n' + second` sliced to the cap, so a later body
     // only gets what the cap leaves after the two joiner chars.
     const chunks = await chunkAssetDescriptions(
+      ctx,
       [
         { assetPath: 'assets/a.png', body: 'x'.repeat(MAX_ASSET_TEXT_CHARS - 6) },
         { assetPath: 'assets/b.png', body: 'yyyyyyyy' },
@@ -146,6 +153,6 @@ describe('chunkAssetDescriptions', () => {
   })
 
   it('returns nothing for no bodies', async () => {
-    expect(await chunkAssetDescriptions([], BASE)).toEqual([])
+    expect(await chunkAssetDescriptions(ctx, [], BASE)).toEqual([])
   })
 })

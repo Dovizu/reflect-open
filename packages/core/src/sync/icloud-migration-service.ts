@@ -1,5 +1,5 @@
 import { errorMessage } from '../errors.ts'
-import { defaultICloudNative, type ICloudNativeService } from '../ipc/icloud-native-service.ts'
+import type { ICloudNativeService } from '../ipc/icloud-native-service.ts'
 
 /** One move of the open graph into iCloud Drive. */
 export interface MoveGraphToICloudOptions {
@@ -83,16 +83,4 @@ export function createICloudMigrationService(
       }
     },
   }
-}
-
-let defaultService: ICloudMigrationService | null = null
-
-/** The process-wide `ICloudMigrationService` over the default `ICloudNativeService`, unless one was installed. */
-export function defaultICloudMigration(): ICloudMigrationService {
-  return defaultService ?? createICloudMigrationService({ icloudNative: defaultICloudNative() })
-}
-
-/** Install the process-wide `ICloudMigrationService`; `null` restores the one over the defaults. */
-export function setDefaultICloudMigration(service: ICloudMigrationService | null): void {
-  defaultService = service
 }

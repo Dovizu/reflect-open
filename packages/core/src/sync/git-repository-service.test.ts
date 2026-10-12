@@ -1,18 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import { createTestIpcBridgeService, installTestBridge } from '../testing/ipc.ts'
+import { describe, expect, it } from 'vitest'
+import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestGitRepositoryService } from '../testing/sync.ts'
-import {
-  createGitRepositoryService,
-  defaultGitRepository,
-  setDefaultGitRepository,
-} from './git-repository-service.ts'
-
-afterEach(() => {
-  setDefaultGitRepository(null)
-  setBridge(null)
-})
-
+import { createGitRepositoryService } from './git-repository-service.ts'
 const STATUS = {
   initialized: true,
   branch: 'main',
@@ -67,28 +56,6 @@ describe('createGitRepositoryService', () => {
     await expect(git.fetch(null, 1)).rejects.toMatchObject({ kind: 'parse' })
   })
 })
-
-describe('defaultGitRepository', () => {
-  it('forwards to the bridge installed at call time', async () => {
-    const service = defaultGitRepository()
-    const ipc = createTestIpcBridgeService({ commands: { git_status: () => STATUS } })
-    installTestBridge(ipc)
-
-    await expect(service.status(1)).resolves.toEqual(STATUS)
-  })
-
-  it('can be replaced', async () => {
-    const git = createTestGitRepositoryService()
-    git.onPush(() => ({ pushed: false, nonFastForward: true, rejectionMessage: 'fetch first' }))
-    setDefaultGitRepository(git)
-
-    await expect(defaultGitRepository().push(CRED, 2)).resolves.toMatchObject({
-      nonFastForward: true,
-    })
-    expect(git.calls()).toEqual([{ method: 'push', args: [CRED, 2] }])
-  })
-})
-
 describe('createTestGitRepositoryService', () => {
   it('tracks the remote through setup and disconnect', async () => {
     const git = createTestGitRepositoryService({ initialized: true, branch: 'master' })

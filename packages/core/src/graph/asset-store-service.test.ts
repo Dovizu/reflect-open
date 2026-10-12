@@ -1,20 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  createTestAssetStoreService,
   createTestClockService,
   createTestFileChangeService,
   createTestIpcBridgeService,
 } from '../testing/index.ts'
-import {
-  createAssetStoreService,
-  defaultAssetStore,
-  setDefaultAssetStore,
-} from './asset-store-service.ts'
-import { createAsset } from './assets.ts'
-
-afterEach(() => {
-  setDefaultAssetStore(null)
-})
+import { createAssetStoreService } from './asset-store-service.ts'
 
 function bytesOf(size: number, fill: number): Blob {
   return new Blob([new Uint8Array(size).fill(fill)])
@@ -213,17 +203,5 @@ describe('createAssetStoreService', () => {
       { command: 'transcript_cache_read', args: { name: 'a.json', generation: 7 } },
     ])
     expect(fileChanges.ownWrites()).toEqual([['audio-memos/a.webm']])
-  })
-})
-
-describe('defaultAssetStore', () => {
-  it('is the installed service while one is installed', async () => {
-    const assetStore = createTestAssetStoreService()
-    setDefaultAssetStore(assetStore)
-
-    expect(defaultAssetStore()).toBe(assetStore)
-    await expect(createAsset('a.png', new Blob(['a']), 1)).resolves.toBe('assets/a.png')
-    await expect(createAsset('a.png', new Blob(['b']), 1)).resolves.toBe('assets/a-2.png')
-    expect(assetStore.uploads().map(({ path }) => path)).toEqual(['assets/a.png', 'assets/a-2.png'])
   })
 })

@@ -1,5 +1,4 @@
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
-import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 
 /** What a note hands to the OS share sheet. */
@@ -46,19 +45,4 @@ export function createShareService(deps: {
     noteContent: (path) =>
       noteShareContent(openDocuments.sessionFor(path)?.liveContent() ?? '', path),
   }
-}
-
-let defaultService: ShareService | null = null
-
-/** The process-wide `ShareService`; one over the default open documents unless replaced. */
-export function defaultShare(): ShareService {
-  defaultService ??= createShareService({
-    openDocuments: { sessionFor: (path) => defaultOpenDocuments().sessionFor(path) },
-  })
-  return defaultService
-}
-
-/** Install the process-wide `ShareService`; `null` restores the default one. */
-export function setDefaultShare(service: ShareService | null): void {
-  defaultService = service
 }

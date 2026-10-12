@@ -1,15 +1,10 @@
 import { isValid } from 'ulidx'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createTestIdService } from '../testing/index.ts'
-import { createSystemIdService, defaultIdService, setDefaultIdService } from './id-service.ts'
+import { createSystemIdService } from './id-service.ts'
 
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 const NOTE_ID_RE = /^[0-7][0-9a-hjkmnp-tv-z]{25}$/
-
-afterEach(() => {
-  setDefaultIdService(null)
-})
-
 describe('createSystemIdService', () => {
   it('returns v4 UUIDs', () => {
     const id = createSystemIdService()
@@ -32,17 +27,6 @@ describe('createSystemIdService', () => {
     expect(pair.code_verifier).toHaveLength(43)
   })
 })
-
-describe('defaultIdService', () => {
-  it('can be replaced and restored', () => {
-    const fake = createTestIdService()
-    setDefaultIdService(fake)
-    expect(defaultIdService()).toBe(fake)
-    setDefaultIdService(null)
-    expect(defaultIdService()).not.toBe(fake)
-  })
-})
-
 describe('createTestIdService', () => {
   it('counts UUIDs up from one', () => {
     const id = createTestIdService()

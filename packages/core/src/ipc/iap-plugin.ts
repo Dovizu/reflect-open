@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { currentIpc } from './bridge.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import type { IpcBridgeService, Unlisten } from './ipc-service.ts'
 import { definePluginCommand, definePluginEvent, ignoredResult } from './plugin.ts'
 
@@ -130,32 +129,4 @@ export function createIapService(deps: {
       return subscription.unlisten
     },
   }
-}
-
-let defaultService: IapService | null = null
-
-/** The process-wide `IapService`; one over the installed bridge unless replaced. */
-export function defaultIap(): IapService {
-  defaultService ??= createIapService({ ipc: currentIpc(), logger: defaultLogger() })
-  return defaultService
-}
-
-/** Install the process-wide `IapService`; `null` restores the bridge-backed one. */
-export function setDefaultIap(service: IapService | null): void {
-  defaultService = service
-}
-
-/** {@link IapService.getProducts} on the process-wide service. */
-export async function iapGetProducts(productIds: string[]): Promise<IapProduct[]> {
-  return await defaultIap().getProducts(productIds)
-}
-
-/** {@link IapService.purchase} on the process-wide service. */
-export async function iapPurchase(productId: string): Promise<void> {
-  await defaultIap().purchase(productId)
-}
-
-/** {@link IapService.isOwned} on the process-wide service. */
-export async function iapIsOwned(productId: string): Promise<boolean> {
-  return await defaultIap().isOwned(productId)
 }

@@ -1,22 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import {
-  createTestIpcBridgeService,
-  createTestSecretStoreService,
-  installTestBridge,
-} from '../testing/index.ts'
-import { deleteSecret, getSecret, setSecret } from './keychain.ts'
-import {
-  createSecretStoreService,
-  defaultSecretStore,
-  setDefaultSecretStore,
-} from './secret-store-service.ts'
+import { describe, expect, it } from 'vitest'
+import { createTestIpcBridgeService, createTestSecretStoreService } from '../testing/index.ts'
 
-afterEach(() => {
-  setDefaultSecretStore(null)
-  setBridge(null)
-})
-
+import { createSecretStoreService } from './secret-store-service.ts'
 describe('createSecretStoreService', () => {
   it('reads, writes and deletes through the secret commands', async () => {
     const ipc = createTestIpcBridgeService({
@@ -65,39 +50,6 @@ describe('createSecretStoreService', () => {
     })
   })
 })
-
-describe('defaultSecretStore', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestSecretStoreService()
-    setDefaultSecretStore(fake)
-    expect(defaultSecretStore()).toBe(fake)
-
-    setDefaultSecretStore(null)
-    expect(defaultSecretStore()).not.toBe(fake)
-    expect(defaultSecretStore()).toBe(defaultSecretStore())
-  })
-
-  it('uses the bridge installed at call time', async () => {
-    const store = defaultSecretStore()
-    installTestBridge(createTestIpcBridgeService({ commands: { secret_get: () => 'first' } }))
-    await expect(store.get('a')).resolves.toBe('first')
-
-    installTestBridge(createTestIpcBridgeService({ commands: { secret_get: () => 'second' } }))
-    await expect(store.get('a')).resolves.toBe('second')
-  })
-
-  it('backs the keychain functions', async () => {
-    const fake = createTestSecretStoreService({ a: '1' })
-    setDefaultSecretStore(fake)
-
-    await expect(getSecret('a')).resolves.toBe('1')
-    await setSecret('b', '2')
-    await deleteSecret('a')
-
-    expect(fake.snapshot()).toEqual({ b: '2' })
-  })
-})
-
 describe('createTestSecretStoreService', () => {
   it('starts from the initial secrets', async () => {
     const store = createTestSecretStoreService({ a: '1' })

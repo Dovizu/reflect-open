@@ -1,12 +1,12 @@
 import { sql } from 'kysely'
 import { displayNoteTitle } from '../markdown/note-title.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 import type { ParsedSearchQuery } from './filter-query.ts'
 import { recallOrder } from './queries-shared.ts'
 import { buildFtsMatch, buildTitleMatchSql } from './search-query.ts'
 import { HIGHLIGHT_END, HIGHLIGHT_START } from './search.ts'
 import { highlightTitle } from './title-highlight.ts'
-import { defaultWikiResolver, type WikiResolverService } from './wiki-resolver-service.ts'
+import type { WikiResolverService } from './wiki-resolver-service.ts'
 
 /**
  * The one palette search (Plan 08): parsed filter tokens become composable
@@ -347,32 +347,4 @@ export function createSearchService(deps: {
       }))
     },
   }
-}
-
-let installedService: SearchService | null = null
-let fallback: {
-  service: SearchService
-  database: DatabaseService
-  wikiResolver: WikiResolverService
-} | null = null
-
-/**
- * The process-wide `SearchService`; one over {@link defaultDatabase} and
- * {@link defaultWikiResolver} unless {@link setDefaultSearch} installed another.
- */
-export function defaultSearch(): SearchService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  const wikiResolver = defaultWikiResolver()
-  if (fallback?.database !== database || fallback.wikiResolver !== wikiResolver) {
-    fallback = { service: createSearchService({ database, wikiResolver }), database, wikiResolver }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `SearchService`; `null` restores the default-backed one. */
-export function setDefaultSearch(service: SearchService | null): void {
-  installedService = service
 }

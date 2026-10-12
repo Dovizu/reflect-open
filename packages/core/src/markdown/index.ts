@@ -88,6 +88,7 @@ export {
   type TaskEditInsert,
   type TaskEditItem,
   type TaskEditResult,
+  type TaskLogContext,
   type TaskMove,
   type TaskEntry,
   type TaskRow,

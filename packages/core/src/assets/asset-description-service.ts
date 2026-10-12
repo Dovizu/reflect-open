@@ -1,31 +1,21 @@
-import { defaultAiCredentials, type AiCredentialService } from '../ai/ai-credential-service.ts'
+import type { AiCredentialService } from '../ai/ai-credential-service.ts'
+import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import {
-  defaultAiProviderConfig,
-  type AiProviderConfigService,
-} from '../ai/ai-provider-config-service.ts'
-import {
-  defaultAssetDescriber,
   isAssetDescriptionRejected,
   type AssetDescriberService,
 } from '../ai/asset-describer-service.ts'
-import {
-  defaultBackgroundReconcilerFactory,
-  type BackgroundReconcilerFactory,
-} from '../app/background-reconciler.ts'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultHashService, type HashService } from '../app/hash-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { HashService } from '../app/hash-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
 import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
-import { defaultAssetStore, type AssetStoreService } from '../graph/asset-store-service.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { AssetStoreService } from '../graph/asset-store-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { ASSETS_DIR, descriptionPathFor, isNotePath } from '../graph/paths.ts'
 import type { FileMeta } from '../graph/schemas.ts'
-import {
-  defaultIndexLifecycle,
-  type IndexLifecycleService,
-} from '../indexing/index-lifecycle-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { base64ToBytes } from '../lib/base64.ts'
 import { parseNote } from '../markdown/extract.ts'
@@ -38,7 +28,7 @@ import {
   readManagedDescription,
   type ManagedDescription,
 } from './asset-description-helpers.ts'
-import { defaultAssetPrivacy, type AssetPrivacyService } from './asset-privacy-service.ts'
+import type { AssetPrivacyService } from './asset-privacy-service.ts'
 
 /** Largest source we send to a provider; bigger assets are skipped, not sent. */
 const MAX_ASSET_BYTES = 20 * 1024 * 1024
@@ -737,42 +727,4 @@ export function createAssetDescriptionService(deps: {
       }
     },
   }
-}
-
-let installedService: AssetDescriptionService | null = null
-let fallback: AssetDescriptionService | null = null
-
-/**
- * The process-wide `AssetDescriptionService`. Unless
- * {@link setDefaultAssetDescription} installed one, a service over the
- * process-wide defaults of its dependencies as they are at the first call.
- */
-export function defaultAssetDescription(): AssetDescriptionService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createAssetDescriptionService({
-    assetStore: defaultAssetStore(),
-    noteFile: defaultNoteFile(),
-    assetPrivacy: defaultAssetPrivacy(),
-    assetDescriber: defaultAssetDescriber(),
-    aiProviderConfig: defaultAiProviderConfig(),
-    aiCredentials: defaultAiCredentials(),
-    hash: defaultHashService(),
-    clock: defaultClock(),
-    reconcilers: defaultBackgroundReconcilerFactory(),
-    indexLifecycle: defaultIndexLifecycle(),
-    operations: defaultOperations(),
-    logger: defaultLogger(),
-  })
-  return fallback
-}
-
-/**
- * Install the process-wide `AssetDescriptionService`. `null` restores the
- * default-backed one, rebuilt over the defaults at its next use.
- */
-export function setDefaultAssetDescription(service: AssetDescriptionService | null): void {
-  installedService = service
-  fallback = null
 }

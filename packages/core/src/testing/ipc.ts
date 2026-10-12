@@ -1,7 +1,6 @@
 import type { LoggerService } from '../app/logger-service.ts'
 import { createTestLoggerService } from './logger.ts'
 import { ReflectError } from '../errors.ts'
-import { setBridge } from '../ipc/bridge.ts'
 import {
   createIpcBridgeService,
   type IpcBridge,
@@ -124,16 +123,5 @@ export function createTestIpcBridgeService(
     calls() {
       return [...log]
     },
-  }
-}
-
-/**
- * Install `service`'s transport as the process-wide bridge, returning a
- * function that removes it again.
- */
-export function installTestBridge(service: TestIpcBridgeService): () => void {
-  setBridge(service.transport)
-  return () => {
-    setBridge(null)
   }
 }

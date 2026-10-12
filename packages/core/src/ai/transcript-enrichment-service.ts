@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { AiProvidersState } from './provider-config.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import { wikiLinkSafe } from '../markdown/edit.ts'
-import { defaultLanguageModel, type LanguageModelService } from './language-model-service.ts'
+import type { LanguageModelService } from './language-model-service.ts'
 import { clipAtWordBoundary } from './text.ts'
 
 const TITLE_TIMEOUT_MS = 30_000
@@ -335,23 +335,4 @@ export function createTranscriptEnrichmentService(deps: {
     generateTitle,
     formatTranscript,
   }
-}
-
-let defaultService: TranscriptEnrichmentService | null = null
-
-/**
- * The process-wide `TranscriptEnrichmentService`; one over the language model
- * service that `defaultLanguageModel()` returns at call time unless
- * {@link setDefaultTranscriptEnrichment} installed another.
- */
-export function defaultTranscriptEnrichment(): TranscriptEnrichmentService {
-  defaultService ??= createTranscriptEnrichmentService({
-    languageModel: { create: (config, apiKey) => defaultLanguageModel().create(config, apiKey) },
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `TranscriptEnrichmentService`; `null` restores the default one. */
-export function setDefaultTranscriptEnrichment(service: TranscriptEnrichmentService | null): void {
-  defaultService = service
 }

@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { errorMessage } from '../errors.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { OperationsService } from '../app/operations-service.ts'
 import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
 import { DEFAULT_SETTINGS, settingsSchema, type Settings } from './schema.ts'
 
@@ -223,17 +222,4 @@ function replaceEqualDeep(previous: unknown, next: unknown): unknown {
     return equal ? previous : copy
   }
   return next
-}
-
-let defaultService: SettingsService | null = null
-
-/** The process-wide settings; built over {@link currentIpc} unless {@link setDefaultSettings} installed another. */
-export function defaultSettings(): SettingsService {
-  defaultService ??= createSettingsService({ ipc: currentIpc(), operations: defaultOperations() })
-  return defaultService
-}
-
-/** Installs the process-wide settings; `null` restores a lazily created one. */
-export function setDefaultSettings(service: SettingsService | null): void {
-  defaultService = service
 }

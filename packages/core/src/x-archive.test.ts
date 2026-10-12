@@ -1,19 +1,13 @@
 import type { XPost } from '@post-embed/types'
-import { afterEach, expect, it } from 'vitest'
+import { expect, it } from 'vitest'
 import { createTestIpcBridgeService, createTestXArchiveService } from './testing/index.ts'
 import { syndicationPost20 as tweet } from './testing/syndication-20.ts'
 import {
   createArchivedPost,
   createXArchiveService,
-  defaultXArchive,
-  setDefaultXArchive,
   xPostSchema,
   type ResolvedArchivedPost,
 } from './x-archive.ts'
-
-afterEach(() => {
-  setDefaultXArchive(null)
-})
 
 function serviceAnswering(command: string, answer: unknown) {
   const ipc = createTestIpcBridgeService({ commands: { [command]: () => answer } })
@@ -163,16 +157,6 @@ it('writes an archived post', async () => {
   expect(ipc.calls()).toEqual([
     { command: 'x_archive_write', args: { generation: 7, value: RESOLVED.archive } },
   ])
-})
-
-it('installs the process-wide service', async () => {
-  const fake = createTestXArchiveService({ syndication: { '123': POST } })
-  setDefaultXArchive(fake)
-  expect(defaultXArchive()).toBe(fake)
-  await expect(defaultXArchive().fetchSyndication('123')).resolves.toEqual(POST)
-
-  setDefaultXArchive(null)
-  expect(defaultXArchive()).not.toBe(fake)
 })
 
 it('keeps written posts in the test archive', async () => {

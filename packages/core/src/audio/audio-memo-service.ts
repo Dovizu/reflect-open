@@ -8,37 +8,25 @@ import {
   audioMemoPartFromPath,
   audioMemoPartPath,
 } from '../actions/audio-memo.ts'
-import { defaultAiCredentials, type AiCredentialService } from '../ai/ai-credential-service.ts'
-import {
-  defaultAiProviderConfig,
-  type AiProviderConfigService,
-} from '../ai/ai-provider-config-service.ts'
-import {
-  defaultTranscriptEnrichment,
-  type TranscriptEnrichmentService,
-} from '../ai/transcript-enrichment-service.ts'
-import { defaultTranscription, type TranscriptionService } from '../ai/transcription-service.ts'
-import {
-  defaultBackgroundReconcilerFactory,
-  type BackgroundReconcilerFactory,
-} from '../app/background-reconciler.ts'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultLifecycle, type AppLifecycleService } from '../app/lifecycle-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
-import { defaultWindow, type WindowService } from '../app/window-service.ts'
-import {
-  defaultBacklinkTarget,
-  type BacklinkTargetService,
-} from '../capture/backlink-target-service.ts'
+import type { AiCredentialService } from '../ai/ai-credential-service.ts'
+import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
+import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
+import type { TranscriptionService } from '../ai/transcription-service.ts'
+import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
+import type { WindowService } from '../app/window-service.ts'
+import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import { errorMessage } from '../errors.ts'
-import { defaultAssetStore, type AssetStoreService } from '../graph/asset-store-service.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { AssetStoreService } from '../graph/asset-store-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { AUDIO_MEMOS_DIR } from '../graph/paths.ts'
-import { defaultFileChanges, type FileChangeService } from '../indexing/file-change-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
 import {
   createAudioMemoTranscriptionService,
   type AudioMemoTranscriptionSession,
@@ -49,7 +37,6 @@ import type {
   AudioRecorderState,
   RecordedAudio,
 } from './audio-recorder-service.ts'
-import { defaultAudioRecorder } from './default-audio-recorder.ts'
 
 export interface CaptureAudioMemoPartInput {
   /** One finished segment, as the recorder produced it. */
@@ -840,47 +827,4 @@ export function createAudioMemoService(deps: {
     openPipeline,
     openSession,
   }
-}
-
-let installedService: AudioMemoService | null = null
-let fallback: AudioMemoService | null = null
-
-/**
- * The process-wide `AudioMemoService`. Unless {@link setDefaultAudioMemo}
- * installed one, a service over the process-wide defaults of its
- * dependencies as they are at the first call.
- */
-export function defaultAudioMemo(): AudioMemoService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createAudioMemoService({
-    assetStore: defaultAssetStore(),
-    noteFile: defaultNoteFile(),
-    backlinkTarget: defaultBacklinkTarget(),
-    transcription: defaultTranscription(),
-    transcriptEnrichment: defaultTranscriptEnrichment(),
-    aiProviderConfig: defaultAiProviderConfig(),
-    aiCredentials: defaultAiCredentials(),
-    audioRecorder: defaultAudioRecorder(),
-    reconcilers: defaultBackgroundReconcilerFactory(),
-    lifecycle: defaultLifecycle(),
-    fileChanges: defaultFileChanges(),
-    settings: defaultSettings(),
-    operations: defaultOperations(),
-    clock: defaultClock(),
-    platform: defaultPlatform(),
-    window: defaultWindow(),
-    logger: defaultLogger(),
-  })
-  return fallback
-}
-
-/**
- * Install the process-wide `AudioMemoService`. `null` restores the
- * default-backed one, rebuilt over the defaults at its next use.
- */
-export function setDefaultAudioMemo(service: AudioMemoService | null): void {
-  installedService = service
-  fallback = null
 }

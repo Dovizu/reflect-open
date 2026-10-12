@@ -3,6 +3,7 @@ import {
   isSameTaskPath,
   renderInlineText,
   renderTaskSnapshot,
+  type TaskLogContext,
   type TaskMove,
   type TaskSnapshot,
 } from '../markdown/index.ts'
@@ -53,16 +54,19 @@ function withSnapshot(task: OpenTask, to: TaskSnapshot): OpenTask {
  * Returns the same array when nothing changed.
  */
 export function withRelocatedTasks(
+  ctx: TaskLogContext,
   rows: OpenTask[] | undefined,
   notePath: string,
   moved: TaskMoves,
 ): OpenTask[] | undefined
 export function withRelocatedTasks(
+  ctx: TaskLogContext,
   rows: readonly OpenTask[],
   notePath: string,
   moved: TaskMoves,
 ): readonly OpenTask[]
 export function withRelocatedTasks(
+  ctx: TaskLogContext,
   rows: readonly OpenTask[] | undefined,
   notePath: string,
   moved: TaskMoves,
@@ -72,7 +76,7 @@ export function withRelocatedTasks(
   }
   let changed = false
   const relocated = rows.flatMap((task) => {
-    const move = task.notePath === notePath ? findTaskMove(moved, task) : undefined
+    const move = task.notePath === notePath ? findTaskMove(ctx, moved, task) : undefined
     if (move === undefined) {
       return [task]
     }

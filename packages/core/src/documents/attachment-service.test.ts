@@ -1,11 +1,10 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { FileMeta } from '../graph/schemas.ts'
 import {
   createTestAssetStoreService,
-  createTestAttachmentService,
   createTestClockService,
   createTestDialogService,
   createTestFileChangeService,
@@ -16,14 +15,8 @@ import {
 import {
   LARGE_FILE_BYTES,
   createAttachmentService,
-  defaultAttachments,
-  setDefaultAttachments,
   type AttachmentInsertTarget,
 } from './attachment-service.ts'
-
-afterEach(() => {
-  setDefaultAttachments(null)
-})
 
 interface Listing {
   path: string
@@ -679,17 +672,5 @@ describe('openOrReveal', () => {
     const failure = operations.findByLabel('Opening attachment')
     expect(failure?.status).toBe('failed')
     expect(failure?.message).toBe('not a supported attachment path: assets/tool.xyz')
-  })
-})
-
-describe('defaultAttachments', () => {
-  it('returns the installed service until it is removed', () => {
-    const installed = createTestAttachmentService()
-    setDefaultAttachments(installed)
-    expect(defaultAttachments()).toBe(installed)
-
-    setDefaultAttachments(null)
-    expect(defaultAttachments()).not.toBe(installed)
-    expect(defaultAttachments()).toBe(defaultAttachments())
   })
 })

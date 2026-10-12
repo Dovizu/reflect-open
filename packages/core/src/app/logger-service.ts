@@ -14,16 +14,3 @@ export function createConsoleLogger(): LoggerService {
     info: (...args: [message: string, cause?: unknown]) => console.info(...args),
   }
 }
-
-let fallbackLogger: LoggerService | null = null
-
-/** The logger for code that does not receive one yet; a console logger unless replaced. */
-export function defaultLogger(): LoggerService {
-  fallbackLogger ??= createConsoleLogger()
-  return fallbackLogger
-}
-
-/** Replace the {@link defaultLogger}. `null` restores the console logger. */
-export function setDefaultLogger(logger: LoggerService | null): void {
-  fallbackLogger = logger
-}

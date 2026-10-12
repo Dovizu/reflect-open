@@ -3,6 +3,10 @@ import type { IdService } from '../app/id-service.ts'
 import type { ImageCodecService } from '../app/image-codec-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
+import {
+  createAssetPrivacyService,
+  type AssetPrivacyService,
+} from '../assets/asset-privacy-service.ts'
 import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type {
   ChatEngineService,
@@ -142,6 +146,8 @@ export interface TestNoteToolsServiceOptions {
   assetReferences?: Pick<AssetReferences, 'notePaths'>
   /** The X archive owners of an asset; defaults to an empty test X archive. */
   xArchive?: Pick<XArchiveService, 'owners'>
+  /** The asset privacy verdict; defaults to the real service over `noteFile`, `xArchive` and `assetReferences`. */
+  assetPrivacy?: Pick<AssetPrivacyService, 'classifyAssetFromNotes'>
   /** The privacy gate; defaults to a test privacy service over `noteFile`. */
   privacy?: PrivacyService
 }
@@ -151,13 +157,17 @@ export function createTestNoteToolsService(
   options?: TestNoteToolsServiceOptions,
 ): NoteToolsService {
   const noteFile = options?.noteFile ?? createTestNoteFileService()
+  const xArchive = options?.xArchive ?? createTestXArchiveService()
+  const assetReferences = options?.assetReferences ?? { notePaths: async () => [] }
   return createNoteToolsService({
     retrieval: options?.retrieval ?? createTestRetrievalService(),
     noteFile,
     noteList: options?.noteList ?? { listRecentNotes: async () => [] },
     dailyNotes: options?.dailyNotes ?? { listDailyNotes: async () => [] },
-    assetReferences: options?.assetReferences ?? { notePaths: async () => [] },
-    xArchive: options?.xArchive ?? createTestXArchiveService(),
+    assetReferences,
+    assetPrivacy:
+      options?.assetPrivacy ?? createAssetPrivacyService({ noteFile, xArchive, assetReferences }),
+    xArchive,
     privacy: options?.privacy ?? createTestPrivacyService({ noteFile }),
   })
 }

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { ReflectError } from '../errors.ts'
 import { wikiLinkSafe } from '../markdown/edit.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
-import { defaultLanguageModel, type LanguageModelService } from './language-model-service.ts'
+import type { LanguageModelService } from './language-model-service.ts'
 import { clipAtWordBoundary } from './text.ts'
 
 /**
@@ -188,23 +188,4 @@ export function createPageDescriberService(deps: {
       }
     },
   }
-}
-
-let defaultService: PageDescriberService | null = null
-
-/**
- * The process-wide `PageDescriberService`; one over the language model
- * service that `defaultLanguageModel()` returns at call time unless
- * {@link setDefaultPageDescriber} installed another.
- */
-export function defaultPageDescriber(): PageDescriberService {
-  defaultService ??= createPageDescriberService({
-    languageModel: { create: (config, apiKey) => defaultLanguageModel().create(config, apiKey) },
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `PageDescriberService`; `null` restores the default one. */
-export function setDefaultPageDescriber(service: PageDescriberService | null): void {
-  defaultService = service
 }

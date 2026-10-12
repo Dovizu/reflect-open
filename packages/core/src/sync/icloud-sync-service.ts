@@ -1,25 +1,11 @@
-import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
-import { defaultLifecycle, type AppLifecycleService } from '../app/lifecycle-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import {
-  defaultOpenDocuments,
-  type OpenDocumentsService,
-} from '../documents/open-documents-service.ts'
+import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import { isNotePath } from '../graph/paths.ts'
-import {
-  defaultFileChanges,
-  type FileChange,
-  type FileChangeService,
-} from '../indexing/file-change-service.ts'
-import {
-  defaultIndexLifecycle,
-  type IndexLifecycleService,
-} from '../indexing/index-lifecycle-service.ts'
-import {
-  defaultICloudNative,
-  type ICloudNativeService,
-  type IcloudSweepScope,
-} from '../ipc/icloud-native-service.ts'
+import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
+import type { ICloudNativeService, IcloudSweepScope } from '../ipc/icloud-native-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 
 /**
@@ -466,36 +452,4 @@ export function createICloudSyncService(
   }
 
   return { start, dispose }
-}
-
-/** The process-wide `ICloudSyncServiceFactory`; `null` unless one was installed. */
-let installedFactory: ICloudSyncServiceFactory | null = null
-
-/**
- * The process-wide `ICloudSyncServiceFactory`. Unless one is installed, each
- * service it builds runs over the default services current at that moment.
- */
-export function defaultICloudSyncs(): ICloudSyncServiceFactory {
-  return (
-    installedFactory ?? {
-      create: (options) =>
-        createICloudSyncService(
-          {
-            icloudNative: defaultICloudNative(),
-            fileChanges: defaultFileChanges(),
-            indexLifecycle: defaultIndexLifecycle(),
-            openDocuments: defaultOpenDocuments(),
-            lifecycle: defaultLifecycle(),
-            clock: defaultClock(),
-            logger: defaultLogger(),
-          },
-          options,
-        ),
-    }
-  )
-}
-
-/** Install the process-wide `ICloudSyncServiceFactory`; `null` restores the one over the defaults. */
-export function setDefaultICloudSyncs(factory: ICloudSyncServiceFactory | null): void {
-  installedFactory = factory
 }

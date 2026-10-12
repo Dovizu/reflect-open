@@ -1,20 +1,13 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { setDefaultFileChanges } from '../indexing/file-change-service.ts'
+import { describe, expect, it } from 'vitest'
 import {
   createTestClockService,
   createTestFileChangeService,
   createTestIpcBridgeService,
   createTestNoteFileService,
-  installTestBridge,
   type TestIpcBridgeService,
 } from '../testing/index.ts'
-import { readNote, writeNote } from './commands.ts'
-import { createNoteFileService, defaultNoteFile, setDefaultNoteFile } from './note-file-service.ts'
 
-afterEach(() => {
-  setDefaultNoteFile(null)
-  setDefaultFileChanges(null)
-})
+import { createNoteFileService } from './note-file-service.ts'
 
 function setup(ipc: TestIpcBridgeService = createTestIpcBridgeService()) {
   const fileChanges = createTestFileChangeService()
@@ -173,30 +166,6 @@ describe('createNoteFileService', () => {
     await expect(noteFile.listNotes()).rejects.toMatchObject({ kind: 'parse' })
   })
 })
-
-describe('defaultNoteFile', () => {
-  it('runs over the installed bridge and the current file-change service', async () => {
-    const ipc = createTestIpcBridgeService({ commands: { note_write: () => 3 } })
-    const uninstall = installTestBridge(ipc)
-    const fileChanges = createTestFileChangeService()
-    setDefaultFileChanges(fileChanges)
-    try {
-      await writeNote('notes/a.md', 'a', 1)
-      expect(fileChanges.ownWrites()).toEqual([['notes/a.md']])
-    } finally {
-      uninstall()
-    }
-  })
-
-  it('is the installed service while one is installed', async () => {
-    const noteFile = createTestNoteFileService({ files: { 'notes/a.md': 'a' } })
-    setDefaultNoteFile(noteFile)
-
-    expect(defaultNoteFile()).toBe(noteFile)
-    await expect(readNote('notes/a.md')).resolves.toBe('a')
-  })
-})
-
 describe('createTestNoteFileService', () => {
   it('keeps files in memory and records writes', async () => {
     const noteFile = createTestNoteFileService({ files: { 'notes/a.md': 'old' } })

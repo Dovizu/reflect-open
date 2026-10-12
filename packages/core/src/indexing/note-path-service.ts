@@ -1,7 +1,7 @@
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { notePath, templatePath } from '../graph/paths.ts'
 import { slugForTitle } from '../markdown/slug.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 
 /**
  * Collision-free note-path selection — where a note's file should live for
@@ -114,32 +114,4 @@ export function createNotePathService(deps: {
       return await probeNotePath(slugForTitle(title), taken, path)
     },
   }
-}
-
-let installedService: NotePathService | null = null
-let fallback: {
-  service: NotePathService
-  database: DatabaseService
-  noteFile: NoteFileService
-} | null = null
-
-/**
- * The process-wide `NotePathService`; one over {@link defaultDatabase} and
- * {@link defaultNoteFile} unless {@link setDefaultNotePath} installed another.
- */
-export function defaultNotePath(): NotePathService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  const noteFile = defaultNoteFile()
-  if (fallback?.database !== database || fallback.noteFile !== noteFile) {
-    fallback = { service: createNotePathService({ database, noteFile }), database, noteFile }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `NotePathService`; `null` restores the default-backed one. */
-export function setDefaultNotePath(service: NotePathService | null): void {
-  installedService = service
 }

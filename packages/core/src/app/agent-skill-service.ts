@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 const agentSkillInstallStateSchema = z.enum(['missing', 'current', 'stale', 'conflict'])
@@ -45,17 +44,4 @@ export function createAgentSkillService(deps: { ipc: IpcBridgeService }): AgentS
     install: (generation) => ipc.call('skill_install', { generation }, agentSkillStatusSchema),
     uninstall: (generation) => ipc.call('skill_uninstall', { generation }, agentSkillStatusSchema),
   }
-}
-
-let defaultService: AgentSkillService | null = null
-
-/** The process-wide `AgentSkillService`; one over the installed bridge unless replaced. */
-export function defaultAgentSkill(): AgentSkillService {
-  defaultService ??= createAgentSkillService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `AgentSkillService`; `null` restores the bridge-backed one. */
-export function setDefaultAgentSkill(service: AgentSkillService | null): void {
-  defaultService = service
 }

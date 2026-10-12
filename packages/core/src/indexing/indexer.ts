@@ -1,20 +1,16 @@
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultHashService, type HashService } from '../app/hash-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { HashService } from '../app/hash-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import { isAppError } from '../errors.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { parseNote } from '../markdown/index.ts'
-import { defaultXArchive, type XArchiveService } from '../x-archive.ts'
+import type { XArchiveService } from '../x-archive.ts'
 import { createAssetDescriptionText } from './asset-description-text.ts'
 import { createAssetReferences } from './asset-refs.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 import type { FileChange } from './file-change-service.ts'
-import { defaultIndexQuery, type IndexQueryService } from './index-query-service.ts'
-import {
-  defaultIndexStore,
-  type IndexStoreService,
-  type SkippedIndexedNote,
-} from './index-store-service.ts'
+import type { IndexQueryService } from './index-query-service.ts'
+import type { IndexStoreService, SkippedIndexedNote } from './index-store-service.ts'
 import { buildIndexedNote, PROJECTION_VERSION, type IndexedNote } from './indexed-note.ts'
 import { createMoveHealing } from './move-healing.ts'
 import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
@@ -56,20 +52,6 @@ export interface IndexingDeps {
  * its `onChangesApplied` listeners.
  */
 export type ChangesAppliedEmitter = (changes: readonly FileChange[], generation: number) => void
-
-/** {@link IndexingDeps} from the process-wide default services. */
-export function defaultIndexingDeps(): IndexingDeps {
-  return {
-    indexStore: defaultIndexStore(),
-    noteFile: defaultNoteFile(),
-    indexQuery: defaultIndexQuery(),
-    database: defaultDatabase(),
-    xArchive: defaultXArchive(),
-    hash: defaultHashService(),
-    clock: defaultClock(),
-    logger: defaultLogger(),
-  }
-}
 
 /** Options for the long-running index passes. */
 export interface IndexPassOptions {
@@ -504,16 +486,4 @@ export function createNoteIndexer(
   }
 
   return { indexNote, buildNoteProjection, reindexNotesReferencing, rebuild, sync, reconcile }
-}
-
-/** {@link NoteIndexer.indexNote} over the default services. */
-export async function indexNote(
-  path: string,
-  options: { generation: number; content?: string | undefined; mtime?: number | undefined },
-): Promise<void> {
-  // `indexNote` reports no batch, so this indexer needs no listeners.
-  await createNoteIndexer({ ...defaultIndexingDeps(), emitChangesApplied: () => {} }).indexNote(
-    path,
-    options,
-  )
 }

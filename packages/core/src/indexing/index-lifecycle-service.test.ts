@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
 import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
@@ -16,8 +15,6 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import {
   createIndexLifecycleService,
-  defaultIndexLifecycle,
-  setDefaultIndexLifecycle,
   type IndexAppliedEvent,
   type IndexChangesAppliedEvent,
   type IndexLifecycleProgress,
@@ -840,31 +837,5 @@ describe('applyChanges', () => {
     expect(mutations).toBe(0)
     expect(store.applied()).toEqual([])
     expect(applied).toEqual([])
-  })
-})
-
-describe('defaultIndexLifecycle', () => {
-  afterEach(() => {
-    setDefaultIndexLifecycle(null)
-    setBridge(null)
-  })
-
-  it('keeps one lifecycle until the bridge is replaced', () => {
-    const first = defaultIndexLifecycle()
-    expect(defaultIndexLifecycle()).toBe(first)
-
-    setBridge({ invoke: async () => null, listen: async () => () => {} })
-    const second = defaultIndexLifecycle()
-    expect(second).not.toBe(first)
-    expect(defaultIndexLifecycle()).toBe(second)
-  })
-
-  it('returns an installed lifecycle', () => {
-    const installed = createTestIndexLifecycleService()
-    setDefaultIndexLifecycle(installed)
-    expect(defaultIndexLifecycle()).toBe(installed)
-
-    setDefaultIndexLifecycle(null)
-    expect(defaultIndexLifecycle()).not.toBe(installed)
   })
 })

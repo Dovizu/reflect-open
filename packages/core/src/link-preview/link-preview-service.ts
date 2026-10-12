@@ -1,12 +1,9 @@
-import { defaultWebFetch, type WebFetchService } from '../app/web-fetch-service.ts'
-import {
-  defaultNoteDocuments,
-  type NoteDocumentService,
-} from '../documents/note-document-service.ts'
+import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import { isAppError } from '../errors.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
-import { defaultPrivacy, type PrivacyService } from '../privacy/privacy-service.ts'
-import { parseLinkPreviewMeta } from './metadata.ts'
+import type { PrivacyService } from '../privacy/privacy-service.ts'
+import type { parseLinkPreviewMeta } from './metadata.ts'
 
 /** Immutable identity of the note and editor session that owns a resolver. */
 export interface LinkPreviewSession {
@@ -189,38 +186,4 @@ export function createLinkPreviewService(deps: {
       }
     },
   }
-}
-
-let installedService: LinkPreviewService | null = null
-let fallback: LinkPreviewService | null = null
-
-/**
- * The process-wide `LinkPreviewService`. Unless one is installed, it runs
- * over the default services, each resolved per call.
- */
-export function defaultLinkPreview(): LinkPreviewService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createLinkPreviewService({
-    noteDocuments: {
-      readExisting: async (path, generation) =>
-        await defaultNoteDocuments().readExisting(path, generation),
-    },
-    privacy: {
-      notePrivate: (source) => defaultPrivacy().notePrivate(source),
-      cloudSafeLinkHref: (note, href) => defaultPrivacy().cloudSafeLinkHref(note, href),
-    },
-    webFetch: {
-      fetchLinkPreviewHtml: async (url) => await defaultWebFetch().fetchLinkPreviewHtml(url),
-      fetchLinkPreviewIcon: async (url) => await defaultWebFetch().fetchLinkPreviewIcon(url),
-    },
-    parseMetadata: parseLinkPreviewMeta,
-  })
-  return fallback
-}
-
-/** Install the process-wide `LinkPreviewService`; `null` restores the one over the defaults. */
-export function setDefaultLinkPreview(service: LinkPreviewService | null): void {
-  installedService = service
 }

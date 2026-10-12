@@ -41,16 +41,3 @@ export function createKeyboardService(): KeyboardService {
     },
   }
 }
-
-let defaultService: KeyboardService | null = null
-
-/** The process-wide `KeyboardService`; a fresh one unless replaced. */
-export function defaultKeyboard(): KeyboardService {
-  defaultService ??= createKeyboardService()
-  return defaultService
-}
-
-/** Install the process-wide `KeyboardService`; `null` restores a fresh one. */
-export function setDefaultKeyboard(service: KeyboardService | null): void {
-  defaultService = service
-}

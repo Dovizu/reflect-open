@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { currentIpc } from '../ipc/bridge.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 
@@ -60,17 +59,4 @@ export function createWebFetchService(deps: { ipc: IpcBridgeService }): WebFetch
     fetchLinkPreviewIcon: async (url) =>
       await ipc.call('link_preview_fetch_icon', { url }, linkPreviewIconSchema),
   }
-}
-
-let defaultService: WebFetchService | null = null
-
-/** The process-wide `WebFetchService`; one over the installed bridge unless replaced. */
-export function defaultWebFetch(): WebFetchService {
-  defaultService ??= createWebFetchService({ ipc: currentIpc() })
-  return defaultService
-}
-
-/** Install the process-wide `WebFetchService`; `null` restores the one over the installed bridge. */
-export function setDefaultWebFetch(service: WebFetchService | null): void {
-  defaultService = service
 }

@@ -11,8 +11,6 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { AppLifecycleService } from './lifecycle-service.ts'
 import {
   createPersistenceFlushService,
-  defaultPersistenceFlush,
-  setDefaultPersistenceFlush,
   type PersistenceFlushService,
 } from './persistence-flush-service.ts'
 import type { CloseRequestedHandler, WindowService } from './window-service.ts'
@@ -167,7 +165,6 @@ afterEach(() => {
   for (const dispose of disposers.splice(0)) {
     dispose()
   }
-  setDefaultPersistenceFlush(null)
 })
 
 describe('flushAll', () => {
@@ -578,15 +575,5 @@ describe('installMobileBackgroundPolicy', () => {
     await settle()
 
     expect(log).toEqual([])
-  })
-})
-
-describe('defaultPersistenceFlush', () => {
-  it('returns the installed service until reset', () => {
-    const { service } = setup()
-    setDefaultPersistenceFlush(service)
-    expect(defaultPersistenceFlush()).toBe(service)
-    setDefaultPersistenceFlush(null)
-    expect(defaultPersistenceFlush()).not.toBe(service)
   })
 })

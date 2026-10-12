@@ -1,4 +1,4 @@
-import type { Unlisten } from '../ipc/bridge.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
 import { isAssetPath, isNotePath } from '../graph/paths.ts'
 import type { FileChange, FileChangeService } from './file-change-service.ts'
 import { matchesTrustedMtime } from './hash.ts'

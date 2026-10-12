@@ -2,18 +2,14 @@ import type { LanguageModel } from '@reflect/modules/ai'
 import { errorMessage } from '../errors.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import {
-  defaultPrivacy,
   isPrivateNoteError,
   type CloudSendable,
   type PrivacyService,
 } from '../privacy/privacy-service.ts'
-import { defaultAiCredentials, type AiCredentialService } from './ai-credential-service.ts'
-import {
-  defaultAiProviderConfig,
-  type AiProviderConfigService,
-} from './ai-provider-config-service.ts'
+import type { AiCredentialService } from './ai-credential-service.ts'
+import type { AiProviderConfigService } from './ai-provider-config-service.ts'
 import type { ChatModelOption } from './chat/model-options.ts'
-import { defaultLanguageModel, type LanguageModelService } from './language-model-service.ts'
+import type { LanguageModelService } from './language-model-service.ts'
 import { renderSelectionPrompt } from './selection-prompts.ts'
 
 /**
@@ -184,33 +180,4 @@ export async function* streamTransformTurn(
     }
     yield { type: 'error', message: errorMessage(cause) }
   }
-}
-
-let defaultService: SelectionTransformService | null = null
-
-/**
- * The process-wide `SelectionTransformService`; one over the services that
- * `defaultLanguageModel()`, `defaultAiProviderConfig()`,
- * `defaultAiCredentials()` and `defaultPrivacy()` return at call time unless
- * {@link setDefaultSelectionTransform} installed another.
- */
-export function defaultSelectionTransform(): SelectionTransformService {
-  defaultService ??= createSelectionTransformService({
-    languageModel: { create: (config, apiKey) => defaultLanguageModel().create(config, apiKey) },
-    providerConfig: {
-      list: () => defaultAiProviderConfig().list(),
-      defaultProvider: () => defaultAiProviderConfig().defaultProvider(),
-    },
-    credentials: { read: (config) => defaultAiCredentials().read(config) },
-    privacy: {
-      cloudSafeSelection: (note, selectedText) =>
-        defaultPrivacy().cloudSafeSelection(note, selectedText),
-    },
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `SelectionTransformService`; `null` restores the default one. */
-export function setDefaultSelectionTransform(service: SelectionTransformService | null): void {
-  defaultService = service
 }

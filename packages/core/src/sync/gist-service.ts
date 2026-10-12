@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { defaultHttp, type HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../app/http-service.ts'
 import { ReflectError } from '../errors.ts'
 import { apiHeaders, readJson } from './github-api.ts'
 
@@ -129,28 +129,4 @@ export function createGistService(deps: { http: HttpService }): GistService {
       throw new ReflectError('io', `deleting the gist failed (${response.status})`)
     },
   }
-}
-
-let installedService: GistService | null = null
-let fallback: { service: GistService; http: HttpService } | null = null
-
-/**
- * The process-wide `GistService`; one over {@link defaultHttp} unless
- * {@link setDefaultGists} installed another.
- */
-export function defaultGists(): GistService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const http = defaultHttp()
-  if (fallback?.http !== http) {
-    fallback = { service: createGistService({ http }), http }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `GistService`; `null` restores the default-backed one. */
-export function setDefaultGists(service: GistService | null): void {
-  installedService = service
-  fallback = null
 }

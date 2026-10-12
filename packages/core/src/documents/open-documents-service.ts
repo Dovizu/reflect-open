@@ -122,23 +122,3 @@ export function createOpenDocumentsService(): OpenDocumentsService {
     },
   }
 }
-
-let installedService: OpenDocumentsService | null = null
-let fallback: OpenDocumentsService | null = null
-
-/**
- * The process-wide `OpenDocumentsService`; a lazily created registry unless
- * {@link setDefaultOpenDocuments} installed another.
- */
-export function defaultOpenDocuments(): OpenDocumentsService {
-  if (installedService !== null) {
-    return installedService
-  }
-  fallback ??= createOpenDocumentsService()
-  return fallback
-}
-
-/** Install the process-wide `OpenDocumentsService`; `null` restores the lazily created one. */
-export function setDefaultOpenDocuments(service: OpenDocumentsService | null): void {
-  installedService = service
-}

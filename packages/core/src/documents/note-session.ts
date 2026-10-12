@@ -1,7 +1,7 @@
-import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import { errorMessage, isAppError } from '../errors.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { appendBlock } from '../markdown/append-section.ts'
 import { detectConflictMarkers } from '../markdown/conflict-markers.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
@@ -609,40 +609,4 @@ function createNoteSession(
     dispose,
     discard,
   }
-}
-
-let installedService: NoteSessionService | null = null
-let fallback: {
-  service: NoteSessionService
-  noteFile: NoteFileService
-  clock: ClockService
-  logger: LoggerService
-} | null = null
-
-/**
- * The process-wide `NoteSessionService`; one over {@link defaultNoteFile},
- * {@link defaultClock} and {@link defaultLogger} unless
- * {@link setDefaultNoteSessions} installed another.
- */
-export function defaultNoteSessions(): NoteSessionService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const noteFile = defaultNoteFile()
-  const clock = defaultClock()
-  const logger = defaultLogger()
-  if (fallback?.noteFile !== noteFile || fallback.clock !== clock || fallback.logger !== logger) {
-    fallback = {
-      service: createNoteSessionService({ noteFile, clock, logger }),
-      noteFile,
-      clock,
-      logger,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `NoteSessionService`; `null` restores the default-backed one. */
-export function setDefaultNoteSessions(service: NoteSessionService | null): void {
-  installedService = service
 }

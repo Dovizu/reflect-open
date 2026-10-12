@@ -1,45 +1,20 @@
 import { isCaptureSpoolPath } from '../actions/capture-identity.ts'
-import { defaultLifecycle, type AppLifecycleService } from '../app/lifecycle-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import {
-  defaultPersistenceFlush,
-  type PersistenceFlushService,
-} from '../app/persistence-flush-service.ts'
-import { defaultPlatform, type PlatformFacts } from '../app/platform-service.ts'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { PersistenceFlushService } from '../app/persistence-flush-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
 import { errorMessage, ReflectError } from '../errors.ts'
 import { isNotePath } from '../graph/paths.ts'
-import { defaultFileChanges, type FileChangeService } from '../indexing/file-change-service.ts'
-import {
-  defaultIndexLifecycle,
-  type IndexLifecycleService,
-} from '../indexing/index-lifecycle-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
+import { isSyncError, type SyncEngine, type SyncEngineFactory, type SyncStatus } from './engine.ts'
+import { remoteHost, type GitHostCredentialService } from './git-host-credential-service.ts'
+import type { ChangedFile, GitRepositoryService } from './git-repository-service.ts'
+import { githubCredential, type GithubAuthService } from './github-auth-service.ts'
 import {
-  defaultSyncEngines,
-  isSyncError,
-  type SyncEngine,
-  type SyncEngineFactory,
-  type SyncStatus,
-} from './engine.ts'
-import {
-  defaultGitHostCredentials,
-  remoteHost,
-  type GitHostCredentialService,
-} from './git-host-credential-service.ts'
-import {
-  defaultGitRepository,
-  type ChangedFile,
-  type GitRepositoryService,
-} from './git-repository-service.ts'
-import {
-  defaultGithubAuth,
-  githubCredential,
-  type GithubAuthService,
-} from './github-auth-service.ts'
-import {
-  defaultGithubRepos,
   githubRemoteUrl,
   parseGithubRemote,
   type GithubRepoRef,
@@ -563,41 +538,4 @@ export function createBackupService(
 /** An `auth` error that is really an HTTP 403 (libgit2 phrases it `status code: 403`). */
 function isForbidden(status: SyncStatus): boolean {
   return isSyncError(status) && status.errorKind === 'auth' && status.message.includes('403')
-}
-
-/** The process-wide `BackupServiceFactory`; `null` unless one was installed. */
-let installedFactory: BackupServiceFactory | null = null
-
-/**
- * The process-wide `BackupServiceFactory`. Unless one is installed, each
- * service it builds runs over the default services current at that moment.
- */
-export function defaultBackups(): BackupServiceFactory {
-  return (
-    installedFactory ?? {
-      create: (options) =>
-        createBackupService(
-          {
-            git: defaultGitRepository(),
-            syncEngines: defaultSyncEngines(),
-            githubAuth: defaultGithubAuth(),
-            githubRepos: defaultGithubRepos(),
-            gitHostCredentials: defaultGitHostCredentials(),
-            fileChanges: defaultFileChanges(),
-            indexLifecycle: defaultIndexLifecycle(),
-            operations: defaultOperations(),
-            lifecycle: defaultLifecycle(),
-            platform: defaultPlatform(),
-            persistenceFlush: defaultPersistenceFlush(),
-            logger: defaultLogger(),
-          },
-          options,
-        ),
-    }
-  )
-}
-
-/** Install the process-wide `BackupServiceFactory`; `null` restores the one over the defaults. */
-export function setDefaultBackups(factory: BackupServiceFactory | null): void {
-  installedFactory = factory
 }

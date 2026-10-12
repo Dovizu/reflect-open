@@ -101,16 +101,3 @@ export function createSyncStatusService(): SyncStatusService {
     },
   }
 }
-
-let defaultService: SyncStatusService | null = null
-
-/** The process-wide `SyncStatusService`. */
-export function defaultSyncStatus(): SyncStatusService {
-  defaultService ??= createSyncStatusService()
-  return defaultService
-}
-
-/** Install the process-wide `SyncStatusService`; `null` restores the built-in one. */
-export function setDefaultSyncStatus(service: SyncStatusService | null): void {
-  defaultService = service
-}

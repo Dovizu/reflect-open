@@ -1,11 +1,11 @@
 import { textCaptureEnvelopeSchema } from '../actions/capture-envelope.ts'
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultIdService, type IdService } from '../app/id-service.ts'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { IdService } from '../app/id-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
-import { defaultCaptureInbox, type CaptureInboxService } from '../graph/capture-inbox-service.ts'
-import { defaultIndexQuery, type IndexQueryService } from '../indexing/index-query-service.ts'
+import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
+import type { IndexQueryService } from '../indexing/index-query-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { parseDeepLink } from './deep-link-parse.ts'
 import { routeForPath, type Route } from './route.ts'
@@ -285,35 +285,4 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
 /** Status-line-sized excerpt of an untrusted URL or target. */
 function truncate(value: string): string {
   return value.length > 80 ? `${value.slice(0, 77)}…` : value
-}
-
-let defaultService: DeepLinkService | null = null
-
-/**
- * The process-wide `DeepLinkService`; unless replaced, one over a source that
- * delivers nothing, which reads the other default services at each call (its
- * buffered URLs must outlive a replaced default).
- */
-export function defaultDeepLink(): DeepLinkService {
-  defaultService ??= createDeepLinkService({
-    source: createNoDeepLinkSource(),
-    indexQuery: { resolveNoteTarget: (target) => defaultIndexQuery().resolveNoteTarget(target) },
-    captureInbox: {
-      spool: (name, json, generation) => defaultCaptureInbox().spool(name, json, generation),
-    },
-    operations: { start: (label, options) => defaultOperations().start(label, options) },
-    id: { uuid: () => defaultIdService().uuid() },
-    clock: { now: () => defaultClock().now() },
-    logger: {
-      error: (message, cause) => {
-        defaultLogger().error(message, cause)
-      },
-    },
-  })
-  return defaultService
-}
-
-/** Install the process-wide `DeepLinkService`; `null` restores the lazily built one. */
-export function setDefaultDeepLink(service: DeepLinkService | null): void {
-  defaultService = service
 }

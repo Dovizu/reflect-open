@@ -1,15 +1,11 @@
-import { defaultIdService, type IdService } from '../app/id-service.ts'
+import type { IdService } from '../app/id-service.ts'
 import type { AppError } from '../errors.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { isHttpBaseUrl, normalizeOpenAICompatibleBaseUrl } from '../lib/http-url.ts'
 import type { AiProviderConfig, AiProviderId, ChatModelSelection } from '../settings/schema.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
-import {
-  defaultAiCredentials,
-  type AiCredentialService,
-  type AiKeyReader,
-} from './ai-credential-service.ts'
-import { defaultAiKeyValidation, type AiKeyValidationService } from './ai-key-validation-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
+import type { AiCredentialService, AiKeyReader } from './ai-credential-service.ts'
+import type { AiKeyValidationService } from './ai-key-validation-service.ts'
 import { pickAudioMemoEnrichmentConfig } from './transcript-enrichment-service.ts'
 import { chatModelOptions, resolveChatModel, type ChatModelOption } from './chat/model-options.ts'
 import { aiProvider, aiProviderRequiresApiKey } from './provider-catalog.ts'
@@ -248,38 +244,4 @@ export function createAiProviderConfigService(deps: {
       await resolveTranscriptionTarget(state(), getKey ?? credentials.createPassReader()),
     audioMemoEnrichmentConfig: () => pickAudioMemoEnrichmentConfig(state()),
   }
-}
-
-let defaultService: AiProviderConfigService | null = null
-
-/**
- * The process-wide `AiProviderConfigService`; one over the settings,
- * credentials, key validation and ids that `defaultSettings()`,
- * `defaultAiCredentials()`, `defaultAiKeyValidation()` and
- * `defaultIdService()` return at call time unless
- * {@link setDefaultAiProviderConfig} installed another.
- */
-export function defaultAiProviderConfig(): AiProviderConfigService {
-  defaultService ??= createAiProviderConfigService({
-    settings: {
-      get: () => defaultSettings().get(),
-      subscribe: (listener) => defaultSettings().subscribe(listener),
-      update: (patch) => defaultSettings().update(patch),
-      updateWith: (updater) => defaultSettings().updateWith(updater),
-      whenLoaded: () => defaultSettings().whenLoaded(),
-    },
-    credentials: {
-      store: (configId, apiKey) => defaultAiCredentials().store(configId, apiKey),
-      remove: (configId) => defaultAiCredentials().remove(configId),
-      createPassReader: () => defaultAiCredentials().createPassReader(),
-    },
-    keyValidation: { validate: (input) => defaultAiKeyValidation().validate(input) },
-    id: { uuid: () => defaultIdService().uuid() },
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `AiProviderConfigService`; `null` restores the default one. */
-export function setDefaultAiProviderConfig(service: AiProviderConfigService | null): void {
-  defaultService = service
 }

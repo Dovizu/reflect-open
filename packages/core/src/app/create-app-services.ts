@@ -51,7 +51,7 @@ import {
 import { fitToContextWindow } from '../ai/chat/context-window.ts'
 import { createNoteToolsService, type NoteToolsService } from '../ai/chat/note-tools-service.ts'
 import { createAssetReferences } from '../indexing/asset-refs.ts'
-import { listDailyNotes } from '../indexing/queries.ts'
+
 import {
   createBacklinkTargetService,
   type BacklinkTargetService,
@@ -734,6 +734,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     noteFile,
     database,
     indexLifecycle,
+    hash,
     logger,
   })
   const transcription = withAppReviewDemoTranscription(
@@ -761,12 +762,14 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   })
   const mobileServices = mobile ? createMobileServices() : null
   const chatHistory = createChatHistoryService({ ipc, database, logger })
+  const dailyNotes = createDailyNoteService({ database, clock, lifecycle })
   const noteTools = createNoteToolsService({
     retrieval,
     noteFile,
     noteList: indexReads.noteList,
-    dailyNotes: { listDailyNotes },
+    dailyNotes,
     assetReferences: createAssetReferences({ database, xArchive }),
+    assetPrivacy,
     xArchive,
     privacy: noteServices.privacy,
   })
@@ -943,7 +946,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       id,
     }),
     noteRows,
-    dailyNotes: createDailyNoteService({ database, clock, lifecycle }),
+    dailyNotes,
     templates: createTemplateService({
       noteFile,
       indexQuery: indexReads.indexQuery,

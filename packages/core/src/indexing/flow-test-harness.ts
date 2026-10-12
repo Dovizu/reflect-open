@@ -1,18 +1,24 @@
 import { expect } from 'vitest'
-import { resolveOrCreateNoteWithTitle } from '../graph/create-note.ts'
-import { resolveExistingWikiTarget } from '../graph/resolve-existing-wiki-target.ts'
-import { normalizeWikiTarget, parseNote } from '../markdown/index.ts'
-import { setDefaultIpc } from '../ipc/bridge.ts'
+import {
+  createIndexReadServices,
+  createNoteServices,
+  type IndexReadServices,
+  type NoteServices,
+} from '../app/create-app-services.ts'
 import { ReflectError } from '../errors.ts'
-import { createTestIpcBridgeService } from '../testing/ipc.ts'
+import { createNoteFileService } from '../graph/note-file-service.ts'
+import { normalizeWikiTarget, parseNote } from '../markdown/index.ts'
+import { createTestClockService } from '../testing/clock.ts'
 import type { TestDatabaseService } from '../testing/database.ts'
-import { setDefaultDatabase } from './database-service.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
+import { createTestIdService } from '../testing/id.ts'
+import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { buildIndexedNote, type IndexedNote } from './indexed-note.ts'
-import type { suggestWikiLinkTargets } from './queries.ts'
+import type { WikiLinkSuggestionResult } from './suggestion-service.ts'
 
 /**
  * Shared helpers for projection-flow tests (`*-flow.test.ts`): projections
- * built from real Markdown, an index connection where disk probes see an
+ * built from real Markdown, the index services where disk probes see an
  * empty graph, and the end-to-end "selecting this suggestion opens its path"
  * assertion.
  */
@@ -25,28 +31,41 @@ export function project(path: string, source: string, mtime: number): IndexedNot
   })
 }
 
-export function connectIndex(database: TestDatabaseService): void {
-  setDefaultDatabase(database)
+/** The index read services and the note services over one test database. */
+export type FlowIndex = IndexReadServices & NoteServices
+
+export function connectIndex(database: TestDatabaseService): FlowIndex {
   // The projections exist only in the index. Disk probes see an empty
   // graph, so the writable resolvers exercise their indexed tiers.
   const notOnDisk = (): never => {
     throw new ReflectError('notFound', 'not on disk')
   }
-  setDefaultIpc(
-    createTestIpcBridgeService({
-      commands: { list_files: () => [], note_read: notOnDisk, note_read_local: notOnDisk },
+  const ipc = createTestIpcBridgeService({
+    commands: { list_files: () => [], note_read: notOnDisk, note_read_local: notOnDisk },
+  })
+  const noteFile = createNoteFileService({
+    ipc,
+    clock: createTestClockService(),
+    fileChanges: createTestFileChangeService(),
+  })
+  const indexReads = createIndexReadServices({ database, noteFile })
+  return {
+    ...indexReads,
+    ...createNoteServices({
+      noteFile,
+      wikiResolver: indexReads.wikiResolver,
+      id: createTestIdService(),
     }),
-  )
+  }
 }
 
 export function disconnectIndex(database: TestDatabaseService): void {
-  setDefaultIpc(null)
-  setDefaultDatabase(null)
   database.close()
 }
 
 export async function expectSuggestionOpensItsPath(
-  suggestion: Awaited<ReturnType<typeof suggestWikiLinkTargets>>['suggestions'][number],
+  index: FlowIndex,
+  suggestion: WikiLinkSuggestionResult['suggestions'][number],
 ): Promise<void> {
   expect(suggestion.path).not.toBeNull()
   const parsed = parseNote({
@@ -60,8 +79,8 @@ export async function expectSuggestionOpensItsPath(
   // resolver and everything else through resolve-or-create.
   const resolution =
     normalizeWikiTarget(target).date !== undefined
-      ? resolveExistingWikiTarget(target, 1)
-      : resolveOrCreateNoteWithTitle(target, 1)
+      ? index.noteLinkResolver.resolveWikiTarget(target, 1)
+      : index.noteCreation.resolveOrCreateNoteWithTitle(target, 1)
   await expect(resolution).resolves.toEqual({
     kind: 'resolved',
     path: suggestion.path,

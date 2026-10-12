@@ -1,13 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
+import { describe, expect, it, vi } from 'vitest'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import {
   createSingleWindowHost,
   createWindowService,
-  defaultWindow,
-  setDefaultWindow,
   type CloseRequestedHandler,
   type WindowHost,
 } from './window-service.ts'
@@ -201,27 +198,5 @@ describe('createWindowService', () => {
     expect(hide).toHaveBeenCalledOnce()
     expect(closeHandler).not.toBeNull()
     expect(removed).toHaveBeenCalledTimes(2)
-  })
-})
-
-describe('defaultWindow', () => {
-  afterEach(() => {
-    setDefaultWindow(null)
-    setBridge(null)
-  })
-
-  it('is a single main window over the installed bridge', async () => {
-    const ipc = createTestIpcBridgeService({ commands: { window_bootstrap: () => BOOT } })
-    setBridge(ipc.transport)
-
-    expect(defaultWindow().isMainWindow()).toBe(true)
-    await expect(defaultWindow().openNoteWindow('reflect://note/a')).resolves.toBe(false)
-    await expect(defaultWindow().bootstrap()).resolves.toEqual(BOOT)
-  })
-
-  it('can be replaced', () => {
-    const { window } = setup({ host: { label: 'note-1' } })
-    setDefaultWindow(window)
-    expect(defaultWindow()).toBe(window)
   })
 })

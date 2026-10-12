@@ -1,11 +1,5 @@
 import { z } from 'zod'
-import { defaultIpc } from './bridge.ts'
-import {
-  definePluginCommand,
-  definePluginEvent,
-  ignoredResult,
-  type PluginSubscription,
-} from './plugin.ts'
+import { definePluginCommand, definePluginEvent, ignoredResult } from './plugin.ts'
 
 /**
  * Typed bindings for `plugins/tauri-plugin-recording` — the native audio-memo
@@ -101,39 +95,6 @@ export interface StartRecordingOptions {
   reminderMs: number
 }
 
-/** Ask for the microphone and start a recording session. */
-export async function startRecording(
-  options: StartRecordingOptions,
-): Promise<RecordingSessionStart> {
-  return await startRecordingCommand(defaultIpc(), { request: options })
-}
-
-/** Stop the active recording; rejects when nothing is recording. */
-export async function stopRecording(): Promise<RecordingStopResponse> {
-  return await stopRecordingCommand(defaultIpc(), {})
-}
-
-/** Stop the active recording and discard its file. */
-export async function cancelRecording(): Promise<void> {
-  await cancelRecordingCommand(defaultIpc(), {})
-}
-
-/** Whether a native recording is live right now (webview-reload reconcile). */
-export async function recordingStatus(): Promise<RecordingStatus> {
-  return await recordingStatusCommand(defaultIpc(), {})
-}
-
-/** Finished recordings still in staging (crash orphans, files mid-ingest). */
-export async function listStaged(): Promise<StagedRecordingFile[]> {
-  const { files } = await listStagedCommand(defaultIpc(), {})
-  return files
-}
-
-/** Remove a staged recording once its bytes are durable in the graph. */
-export async function deleteStaged(path: string): Promise<void> {
-  await deleteStagedCommand(defaultIpc(), { request: { path } })
-}
-
 /** Mirrors Swift `RecordingLevel` (~10 Hz while recording, foreground only). */
 const levelEventSchema = z.object({ level: z.number(), elapsedMs: z.number() })
 export type RecordingLevelEvent = z.infer<typeof levelEventSchema>
@@ -165,31 +126,16 @@ export const recordingLevelEvent = definePluginEvent(
   'recordingLevel',
   levelEventSchema,
 )
-export function subscribeRecordingLevel(
-  handler: (payload: RecordingLevelEvent) => void,
-): PluginSubscription {
-  return recordingLevelEvent(defaultIpc(), handler)
-}
 export const recordingSegmentEvent = definePluginEvent(
   'recording',
   'recordingSegment',
   segmentEventSchema,
 )
-export function subscribeRecordingSegment(
-  handler: (payload: RecordingSegmentEvent) => void,
-): PluginSubscription {
-  return recordingSegmentEvent(defaultIpc(), handler)
-}
 export const recordingStoppedEvent = definePluginEvent(
   'recording',
   'recordingStopped',
   stoppedEventSchema,
 )
-export function subscribeRecordingStopped(
-  handler: (payload: RecordingStoppedEvent) => void,
-): PluginSubscription {
-  return recordingStoppedEvent(defaultIpc(), handler)
-}
 export const recordingNativeActionEvent = definePluginEvent(
   'recording',
   'nativeAction',

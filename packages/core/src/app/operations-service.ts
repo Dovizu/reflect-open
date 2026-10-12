@@ -1,5 +1,5 @@
 import type { Unlisten } from '../ipc/ipc-service.ts'
-import { defaultClock, type ClockService } from './clock-service.ts'
+import type { ClockService } from './clock-service.ts'
 
 /**
  * A background operation as product status: a label, optional progress, and
@@ -148,17 +148,4 @@ export function createOperationsService(deps: { clock: ClockService }): Operatio
     },
     getAll: () => operations,
   }
-}
-
-let defaultService: OperationsService | null = null
-
-/** The process-wide operations; built over {@link defaultClock} unless {@link setDefaultOperations} installed another. */
-export function defaultOperations(): OperationsService {
-  defaultService ??= createOperationsService({ clock: defaultClock() })
-  return defaultService
-}
-
-/** Installs the process-wide operations; `null` restores a lazily created one. */
-export function setDefaultOperations(service: OperationsService | null): void {
-  defaultService = service
 }

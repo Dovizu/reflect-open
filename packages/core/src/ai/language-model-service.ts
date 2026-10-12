@@ -1,5 +1,5 @@
 import type { LanguageModel } from '@reflect/modules/ai'
-import { defaultHttp, type HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../app/http-service.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import { anthropicDirectBrowserAccessHeaders } from './anthropic-headers.ts'
 import { APP_REVIEW_STUB_KEY, createDemoModel } from './app-review-demo.ts'
@@ -103,26 +103,4 @@ export function withAppReviewDemo(service: LanguageModelService): LanguageModelS
       return await service.create(config, apiKey)
     },
   }
-}
-
-let defaultService: LanguageModelService | null = null
-
-/**
- * The process-wide `LanguageModelService`; one with the App Review demo over
- * the HTTP service that `defaultHttp()` returns at call time unless
- * {@link setDefaultLanguageModel} installed another.
- */
-export function defaultLanguageModel(): LanguageModelService {
-  defaultService ??= withAppReviewDemo(
-    createLanguageModelService({
-      http: { fetch: (input, init) => defaultHttp().fetch(input, init) },
-      sdk: createLazyAiSdkLoader(),
-    }),
-  )
-  return defaultService
-}
-
-/** Installs the process-wide `LanguageModelService`; `null` restores the default one. */
-export function setDefaultLanguageModel(service: LanguageModelService | null): void {
-  defaultService = service
 }

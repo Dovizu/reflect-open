@@ -1,20 +1,20 @@
-import { defaultClock, type ClockService } from '../app/clock-service.ts'
-import { defaultDialog, type DialogService } from '../app/dialog-service.ts'
-import { defaultOperations, type OperationsService } from '../app/operations-service.ts'
-import { defaultPlatform, type PlatformService } from '../app/platform-service.ts'
+import type { ClockService } from '../app/clock-service.ts'
+import type { DialogService } from '../app/dialog-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
+import type { PlatformService } from '../app/platform-service.ts'
 import { errorMessage } from '../errors.ts'
 import { assetFileName } from '../graph/asset-names.ts'
-import { defaultAssetStore, type AssetStoreService } from '../graph/asset-store-service.ts'
+import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import {
   createAttachmentCatalog,
   resolveAttachmentLink,
   resolveWikiEmbedTarget,
   type AttachmentCatalog,
 } from '../graph/attachment-resolution.ts'
-import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import { isAttachmentPath, isSafeVisibleGraphPath } from '../graph/paths.ts'
 import type { FileMeta } from '../graph/schemas.ts'
-import { defaultFileChanges, type FileChangeService } from '../indexing/file-change-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { formatBytes } from '../lib/format-bytes.ts'
 
@@ -602,53 +602,4 @@ export function createAttachmentService(deps: {
     },
   }
   return service
-}
-
-let installedService: AttachmentService | null = null
-let fallback: {
-  service: AttachmentService
-  deps: readonly unknown[]
-} | null = null
-
-/**
- * The process-wide `AttachmentService`. Unless one is installed, it runs over
- * the current default asset store, note file, file-change, operations, clock,
- * and platform services, and is rebuilt when any of them is replaced.
- */
-export function defaultAttachments(): AttachmentService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const assetStore = defaultAssetStore()
-  const noteFile = defaultNoteFile()
-  const fileChanges = defaultFileChanges()
-  const operations = defaultOperations()
-  const clock = defaultClock()
-  const platform = defaultPlatform()
-  const deps = [assetStore, noteFile, fileChanges, operations, clock, platform]
-  if (fallback === null || fallback.deps.some((dep, index) => dep !== deps[index])) {
-    fallback = {
-      service: createAttachmentService({
-        assetStore,
-        noteFile,
-        fileChanges,
-        // Resolved per call: the dialog service may be installed later.
-        dialog: {
-          pickFiles: async (options) => await defaultDialog().pickFiles(options),
-          pickFolder: async (options) => await defaultDialog().pickFolder(options),
-        },
-        operations,
-        clock,
-        platform,
-      }),
-      deps,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `AttachmentService`; `null` restores the one over the defaults. */
-export function setDefaultAttachments(service: AttachmentService | null): void {
-  installedService = service
-  fallback = null
 }

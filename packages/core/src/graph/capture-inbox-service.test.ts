@@ -1,15 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { createTestCaptureInboxService, createTestIpcBridgeService } from '../testing/index.ts'
-import {
-  createCaptureInboxService,
-  defaultCaptureInbox,
-  setDefaultCaptureInbox,
-} from './capture-inbox-service.ts'
-
-afterEach(() => {
-  setDefaultCaptureInbox(null)
-})
-
+import { createCaptureInboxService } from './capture-inbox-service.ts'
 describe('createCaptureInboxService', () => {
   it('sends each operation as its command with the graph generation', async () => {
     const ipc = createTestIpcBridgeService()
@@ -61,18 +52,6 @@ describe('createCaptureInboxService', () => {
     await expect(inbox.relaySharedInbox(3)).rejects.toMatchObject({ kind: 'parse' })
   })
 })
-
-describe('defaultCaptureInbox', () => {
-  it('returns the installed service until it is cleared', () => {
-    const fake = createTestCaptureInboxService()
-    setDefaultCaptureInbox(fake)
-    expect(defaultCaptureInbox()).toBe(fake)
-
-    setDefaultCaptureInbox(null)
-    expect(defaultCaptureInbox()).not.toBe(fake)
-  })
-})
-
 describe('createTestCaptureInboxService', () => {
   it('keeps an in-memory inbox and records changes', async () => {
     const inbox = createTestCaptureInboxService({

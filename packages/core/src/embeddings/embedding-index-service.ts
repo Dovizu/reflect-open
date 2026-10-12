@@ -1,25 +1,15 @@
 import { z } from 'zod'
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import {
-  defaultNoteFile,
-  type LocalNoteRead,
-  type NoteFileService,
-} from '../graph/note-file-service.ts'
+import type { HashService } from '../app/hash-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { LocalNoteRead, NoteFileService } from '../graph/note-file-service.ts'
 import { isNotePath, isTemplatePath } from '../graph/paths.ts'
 import { createAssetDescriptionText } from '../indexing/asset-description-text.ts'
-import { defaultDatabase, type DatabaseService } from '../indexing/database-service.ts'
-import {
-  defaultIndexLifecycle,
-  type IndexLifecycleService,
-} from '../indexing/index-lifecycle-service.ts'
-import { currentIpc } from '../ipc/bridge.ts'
+import type { DatabaseService } from '../indexing/database-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
 import { parseNote } from '../markdown/index.ts'
 import { chunkAssetDescriptions, chunkNote } from './chunk.ts'
-import {
-  defaultEmbeddingRuntime,
-  type EmbeddingRuntimeService,
-} from './embedding-runtime-service.ts'
+import type { EmbeddingRuntimeService } from './embedding-runtime-service.ts'
 
 /**
  * The incremental embedding pass (Plan 09): chunk a note, diff chunk hashes
@@ -106,9 +96,10 @@ export function createEmbeddingIndexService(deps: {
   noteFile: NoteFileService
   database: DatabaseService
   indexLifecycle: IndexLifecycleService
+  hash: Pick<HashService, 'sha256Hex'>
   logger: LoggerService
 }): EmbeddingIndexService {
-  const { ipc, embeddingRuntime, noteFile, database, indexLifecycle, logger } = deps
+  const { ipc, embeddingRuntime, noteFile, database, indexLifecycle, hash, logger } = deps
   const assetDescriptionText = createAssetDescriptionText({ noteFile })
   let queue: Promise<void> = Promise.resolve()
 
@@ -163,8 +154,8 @@ export function createEmbeddingIndexService(deps: {
       return 0
     }
     const chunks = [
-      ...(await chunkNote(path, content, parsed)),
-      ...(await chunkAssetDescriptions(gathered.bodies, content.length + 1)),
+      ...(await chunkNote({ hash }, path, content, parsed)),
+      ...(await chunkAssetDescriptions({ hash }, gathered.bodies, content.length + 1)),
     ]
     if (chunks.length === 0) {
       await removeNote(path, generation)
@@ -299,58 +290,4 @@ export function createEmbeddingIndexService(deps: {
   }
 
   return { embedNote, removeNote, backfill, follow }
-}
-
-let installedService: EmbeddingIndexService | null = null
-let fallback: {
-  service: EmbeddingIndexService
-  embeddingRuntime: EmbeddingRuntimeService
-  noteFile: NoteFileService
-  database: DatabaseService
-  indexLifecycle: IndexLifecycleService
-  logger: LoggerService
-} | null = null
-
-/**
- * The process-wide `EmbeddingIndexService`; one over the default services
- * unless {@link setDefaultEmbeddingIndex} installed another.
- */
-export function defaultEmbeddingIndex(): EmbeddingIndexService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const embeddingRuntime = defaultEmbeddingRuntime()
-  const noteFile = defaultNoteFile()
-  const database = defaultDatabase()
-  const indexLifecycle = defaultIndexLifecycle()
-  const logger = defaultLogger()
-  if (
-    fallback?.embeddingRuntime !== embeddingRuntime ||
-    fallback.noteFile !== noteFile ||
-    fallback.database !== database ||
-    fallback.indexLifecycle !== indexLifecycle ||
-    fallback.logger !== logger
-  ) {
-    fallback = {
-      service: createEmbeddingIndexService({
-        ipc: currentIpc(),
-        embeddingRuntime,
-        noteFile,
-        database,
-        indexLifecycle,
-        logger,
-      }),
-      embeddingRuntime,
-      noteFile,
-      database,
-      indexLifecycle,
-      logger,
-    }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `EmbeddingIndexService`; `null` restores the default-backed one. */
-export function setDefaultEmbeddingIndex(service: EmbeddingIndexService | null): void {
-  installedService = service
 }

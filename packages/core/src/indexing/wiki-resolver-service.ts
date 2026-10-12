@@ -1,5 +1,5 @@
 import { normalizeWikiTarget, resolved, unresolved, type Resolution } from '../markdown/index.ts'
-import { defaultDatabase, type DatabaseService } from './database-service.ts'
+import type { DatabaseService } from './database-service.ts'
 import { verifyWikiSuggestionAddresses } from './queries-shared.ts'
 import { rankWikiSuggestions, type WikiLinkSuggestion } from './suggest.ts'
 
@@ -148,27 +148,4 @@ export function createWikiResolverService(deps: {
       return result.suggestions[0] ?? null
     },
   }
-}
-
-let installedService: WikiResolverService | null = null
-let fallback: { service: WikiResolverService; database: DatabaseService } | null = null
-
-/**
- * The process-wide `WikiResolverService`; one over {@link defaultDatabase}
- * unless {@link setDefaultWikiResolver} installed another.
- */
-export function defaultWikiResolver(): WikiResolverService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const database = defaultDatabase()
-  if (fallback?.database !== database) {
-    fallback = { service: createWikiResolverService({ database }), database }
-  }
-  return fallback.service
-}
-
-/** Install the process-wide `WikiResolverService`; `null` restores the one over the default database. */
-export function setDefaultWikiResolver(service: WikiResolverService | null): void {
-  installedService = service
 }

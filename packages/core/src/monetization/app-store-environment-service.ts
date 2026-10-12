@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { defaultPlatform, type PlatformService } from '../app/platform-service.ts'
-import { defaultStorage, getJson, setJson, type StorageService } from '../app/storage-service.ts'
-import { defaultAppStore, type AppStoreService } from '../ipc/app-store-plugin.ts'
+import type { PlatformService } from '../app/platform-service.ts'
+import { getJson, setJson, type StorageService } from '../app/storage-service.ts'
+import type { AppStoreService } from '../ipc/app-store-plugin.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 
 const appStoreEnvironmentSchema = z.enum(['Production', 'Sandbox', 'Xcode']).nullable()
@@ -150,21 +150,4 @@ export function createAppStoreEnvironmentService(deps: {
       }
     },
   }
-}
-
-let defaultService: AppStoreEnvironmentService | null = null
-
-/** The process-wide `AppStoreEnvironmentService`; one over the default services unless replaced. */
-export function defaultAppStoreEnvironment(): AppStoreEnvironmentService {
-  defaultService ??= createAppStoreEnvironmentService({
-    appStore: defaultAppStore(),
-    storage: defaultStorage(),
-    platform: defaultPlatform(),
-  })
-  return defaultService
-}
-
-/** Installs the process-wide `AppStoreEnvironmentService`; `null` restores the default one. */
-export function setDefaultAppStoreEnvironment(service: AppStoreEnvironmentService | null): void {
-  defaultService = service
 }

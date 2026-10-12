@@ -1,14 +1,13 @@
-import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
-import { defaultPlatform, type PlatformService } from '../app/platform-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
+import type { PlatformService } from '../app/platform-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { Settings } from '../settings/schema.ts'
-import { defaultSettings, type SettingsService } from '../settings/settings-service.ts'
-import {
-  defaultCalendar,
-  type CalendarAuthorizationStatus,
-  type CalendarEvent,
-  type CalendarInfo,
-  type CalendarService,
+import type { SettingsService } from '../settings/settings-service.ts'
+import type {
+  CalendarAuthorizationStatus,
+  CalendarEvent,
+  CalendarInfo,
+  CalendarService,
 } from './calendar-service.ts'
 import { dayRange } from './events.ts'
 
@@ -129,43 +128,4 @@ export function createCalendarEventsService(deps: {
       }))
     },
   }
-}
-
-type CalendarEventsServiceDeps = Parameters<typeof createCalendarEventsService>[0]
-
-let installedService: CalendarEventsService | null = null
-let fallback: { service: CalendarEventsService; deps: CalendarEventsServiceDeps } | null = null
-
-/**
- * The process-wide `CalendarEventsService`; one over the default calendar,
- * settings, platform and logger unless {@link setDefaultCalendarEvents}
- * installed another.
- */
-export function defaultCalendarEvents(): CalendarEventsService {
-  if (installedService !== null) {
-    return installedService
-  }
-  const deps: CalendarEventsServiceDeps = {
-    calendar: defaultCalendar(),
-    settings: defaultSettings(),
-    platform: defaultPlatform(),
-    logger: defaultLogger(),
-  }
-  if (
-    fallback?.deps.calendar !== deps.calendar ||
-    fallback.deps.settings !== deps.settings ||
-    fallback.deps.platform !== deps.platform ||
-    fallback.deps.logger !== deps.logger
-  ) {
-    fallback = { service: createCalendarEventsService(deps), deps }
-  }
-  return fallback.service
-}
-
-/**
- * Install the process-wide `CalendarEventsService`; `null` restores the one
- * over the default services.
- */
-export function setDefaultCalendarEvents(service: CalendarEventsService | null): void {
-  installedService = service
 }
