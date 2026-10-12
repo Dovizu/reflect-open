@@ -42,14 +42,14 @@ export interface NoteMoveService {
   /** Subscribe to landed note moves; returns the unsubscribe. */
   onMoved(listener: NoteMovedListener): Unlisten
   /** Follow the Rust-side `note:moved` broadcast. */
-  followNativeMoves(): Promise<Unlisten>
+  followNativeMoves(): Unlisten
 }
 
 export interface NoteMoveServiceDeps {
   ipc: Pick<IpcBridgeService, 'listen'>
   indexStore: Pick<IndexStoreService, 'moveIndexed'>
   openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
-  logger: Pick<LoggerService, 'error'>
+  logger: Pick<LoggerService, 'error' | 'warn'>
 }
 
 export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveService {
