@@ -4,8 +4,14 @@ import type {
   ContactsAuthorization,
   ContactsService,
 } from '../contacts/contacts-service.ts'
+import {
+  createContactSuggestionService,
+  type ContactSuggestionService,
+} from '../contacts/contact-suggestion-service.ts'
 import { createMeetingService, type MeetingService } from '../contacts/meeting-service.ts'
 import { createPersonNoteService, type PersonNoteService } from '../contacts/person-note-service.ts'
+import type { NoteDocumentService } from '../documents/note-document-service.ts'
+import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
@@ -16,6 +22,7 @@ import {
 } from '../indexing/wiki-resolver-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import { createTestDatabaseService } from './database.ts'
+import { createTestNoteDocumentService, createTestOpenDocumentsService } from './documents.ts'
 import {
   createTestNoteCreationService,
   createTestNoteFileService,
@@ -167,5 +174,34 @@ export function createTestMeetingService(options?: TestMeetingServiceOptions): M
     contacts: options?.contacts ?? createTestContactsService(),
     settings: options?.settings ?? createTestSettingsService(),
     logger: options?.logger ?? createTestLoggerService(),
+  })
+}
+
+export interface TestContactSuggestionServiceOptions {
+  /** Defaults to a fresh {@link createTestContactsService}. */
+  contacts?: ContactsService
+  /** Defaults to an empty {@link createTestOpenDocumentsService}. */
+  openDocuments?: OpenDocumentsService
+  /** Defaults to an empty {@link createTestNoteFileService}. */
+  noteFile?: NoteFileService
+  /** Defaults to a {@link createTestNoteDocumentService} over `openDocuments` and `noteFile`. */
+  noteDocuments?: NoteDocumentService
+  /** Defaults to a fresh {@link createTestSettingsService}. */
+  settings?: SettingsService
+}
+
+/** The real {@link ContactSuggestionService} over fresh test doubles by default. */
+export function createTestContactSuggestionService(
+  options?: TestContactSuggestionServiceOptions,
+): ContactSuggestionService {
+  const openDocuments = options?.openDocuments ?? createTestOpenDocumentsService()
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  return createContactSuggestionService({
+    contacts: options?.contacts ?? createTestContactsService(),
+    noteDocuments:
+      options?.noteDocuments ?? createTestNoteDocumentService({ openDocuments, noteFile }),
+    openDocuments,
+    noteFile,
+    settings: options?.settings ?? createTestSettingsService(),
   })
 }

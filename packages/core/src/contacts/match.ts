@@ -64,19 +64,6 @@ export function matchContactForTitle(
 }
 
 /**
- * Look up `title` in Apple Contacts and apply the exact-match rule. Returns
- * null for blank titles without touching the bridge. Callers gate on the
- * integration being enabled and readable first (`isContactsReadable`).
- */
-export async function suggestContactForTitle(title: string): Promise<ContactMatch | null> {
-  if (title.trim() === '') {
-    return null
-  }
-  const candidates = await lookupContactsByName(title.trim())
-  return matchContactForTitle(title, candidates)
-}
-
-/**
  * Contacts for the `[[` link menu — v1 mixed contacts into the backlink
  * autocomplete so a person note could be born from the address book. Unlike
  * the card's exact rule, this keeps the framework's word-prefix matches

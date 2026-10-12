@@ -56,10 +56,15 @@ import {
   type TestGithubAuthService,
   type TestICloudNativeService,
 } from './sync.ts'
-import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
+import {
+  createTestCalendarEventsService,
+  createTestCalendarService,
+  type TestCalendarService,
+} from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestDailyNoteService } from './daily.ts'
 import {
+  createTestContactSuggestionService,
   createTestContactsService,
   createTestMeetingService,
   createTestPersonNoteService,
@@ -311,6 +316,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
     id: overrides?.id ?? id,
   })
+  const calendar = createTestCalendarService()
   const contacts = createTestContactsService()
   const personNotes = createTestPersonNoteService({
     database: overrides?.database ?? database,
@@ -425,8 +431,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     lifecycle,
     secretStore,
     appInfo: createTestAppInfoService(),
-    calendar: createTestCalendarService(),
+    calendar,
+    calendarEvents: createTestCalendarEventsService({
+      calendar: overrides?.calendar ?? calendar,
+      settings: overrides?.settings ?? settings,
+      platform: overrides?.platform ?? platform,
+      logger,
+    }),
     contacts,
+    contactSuggestions: createTestContactSuggestionService({
+      contacts: overrides?.contacts ?? contacts,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      noteFile: overrides?.noteFile ?? noteFile,
+      settings: overrides?.settings ?? settings,
+    }),
     personNotes,
     meetings: createTestMeetingService({
       noteFile: overrides?.noteFile ?? noteFile,

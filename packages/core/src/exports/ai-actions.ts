@@ -200,12 +200,7 @@ export {
 export { createPageMetaService, type PageMetaService } from '../capture/page-meta-service.ts'
 export { parsePageMeta, type PageMeta } from '../link-preview/metadata.ts'
 export {
-  calendarAuthorizationStatus,
   canReadCalendars,
-  requestCalendarAccess,
-  listCalendars,
-  listCalendarEvents,
-  subscribeCalendarChanged,
   calendarAuthorizationStatusSchema,
   calendarInfoSchema,
   calendarAttendeeSchema,
