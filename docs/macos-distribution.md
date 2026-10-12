@@ -87,6 +87,7 @@ Bundles land under `target/<target-triple>/release/bundle/`, for example
 ```bash
 pnpm release:macos                 # build + notarize + verify
 pnpm release:macos --target=x86_64-apple-darwin  # the same for Intel
+pnpm release:macos --target=universal-apple-darwin  # one app for Apple Silicon and Intel
 pnpm release:macos --no-notarize   # signed-only build (runs locally; Gatekeeper rejects it elsewhere)
 pnpm release:macos --artifact-dir=<dir>  # also copy the release assets to <dir>
 ```
@@ -359,7 +360,8 @@ on the runner keychain setup.
   launches both sidecars to catch this.
 - **Intel sidecar launch fails on Apple Silicon with `Bad CPU type in executable`** —
   install Rosetta (`softwareupdate --install-rosetta`) or verify the Intel target on an
-  Intel runner.
+  Intel runner. A universal build launches the Intel slice of each sidecar too, so it
+  needs Rosetta as well.
 - **`rejected, source=Unnotarized Developer ID`** — signing worked but the artifact has no
   notarization ticket; rerun without `--no-notarize`.
 - **Notarization hangs** — Apple's service occasionally queues submissions for a long

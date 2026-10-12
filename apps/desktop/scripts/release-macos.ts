@@ -2,7 +2,8 @@
 //
 //   pnpm release:macos [flags]
 //
-//   --target=<triple>       Default: the host triple
+//   --target=<triple>       Default: the host triple. `universal-apple-darwin` builds one
+//                           app for Apple Silicon and Intel
 //   --artifact-dir=<path>   Copy the release assets there after the build
 //   --no-notarize           Signed-only build, for local runs without Apple credentials
 //   --no-sign               Unsigned app only, to check that it compiles and bundles
@@ -29,9 +30,11 @@ import {
 } from './helpers.ts'
 
 const INTEL_TARGET = 'x86_64-apple-darwin'
+const UNIVERSAL_TARGET = 'universal-apple-darwin'
 const ARCHS: Record<string, string> = {
   'aarch64-apple-darwin': 'aarch64',
   [INTEL_TARGET]: 'x86_64',
+  [UNIVERSAL_TARGET]: 'universal',
 }
 const PROFILE_IDENTITY_KEYS = [
   'com.apple.application-identifier',
@@ -344,11 +347,21 @@ async function verifyProfileIdentity(bundle: Bundle): Promise<void> {
 
 /** A sidecar with a bad signature passes `codesign --verify` and dies at launch, so launch them. */
 async function verifySidecarsLaunch(bundle: Bundle): Promise<void> {
-  if (bundle.target !== INTEL_TARGET && process.arch !== 'arm64') {
+  if (bundle.target === 'aarch64-apple-darwin' && process.arch !== 'arm64') {
     return
   }
+  // A universal sidecar must start in both slices. `arch` selects the slice.
+  const slices =
+    bundle.target === UNIVERSAL_TARGET && process.arch === 'arm64' ? ['-arm64', '-x86_64'] : [null]
   for (const sidecar of bundle.sidecars) {
-    await expectOutput(sidecar, basename(sidecar) === 'reflect' ? ['--version'] : [], [])
+    const args = basename(sidecar) === 'reflect' ? ['--version'] : []
+    for (const slice of slices) {
+      if (slice) {
+        await expectOutput('arch', [slice, sidecar, ...args], [])
+      } else {
+        await expectOutput(sidecar, args, [])
+      }
+    }
   }
 }
 
