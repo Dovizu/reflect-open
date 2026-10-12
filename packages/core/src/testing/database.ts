@@ -3,11 +3,20 @@ import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
 import type { getLoadablePath } from 'sqlite-vec'
 import { toAppError } from '../errors.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
-import type { IndexedNote } from '../indexing/indexed-note.ts'
+import { buildIndexedNote, type IndexedNote } from '../indexing/indexed-note.ts'
+import { parseNote } from '../markdown/extract.ts'
+
+/** One query the database ran, in its compiled form. */
+export interface TestDatabaseQuery {
+  readonly sql: string
+  readonly params: readonly unknown[]
+}
 
 export interface TestDatabaseService extends DatabaseService {
-  /** Insert the `notes`, `aliases`, `note_claims` and `links` rows of `note`. */
+  /** Replace every projected row of `note.path` with `note`, like `index_apply`. */
   applyProjection(note: IndexedNote): void
+  /** Every query run so far, in order. */
+  getQueries(): readonly TestDatabaseQuery[]
   /** Release the database; later queries and seeding throw. */
   close(): void
 }
@@ -65,12 +74,15 @@ function sqliteParameter(value: unknown): SQLInputValue {
 }
 
 function insertProjection(database: DatabaseSync, indexed: IndexedNote): void {
+  database.prepare('DELETE FROM notes WHERE path = ?').run(indexed.path)
+  database.prepare('DELETE FROM search_fts WHERE path = ?').run(indexed.path)
   database
     .prepare(
       `INSERT INTO notes(
         path, id, title, title_key, path_key, kind, daily_date, is_private, is_pinned,
-        pinned_order, mtime, file_hash, preview, has_conflict, gist_url, gist_stale
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        pinned_order, has_conflict, gist_url, gist_stale, file_hash, mtime, updated_at,
+        preview, has_content
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       indexed.path,
@@ -83,27 +95,15 @@ function insertProjection(database: DatabaseSync, indexed: IndexedNote): void {
       Number(indexed.isPrivate),
       Number(indexed.isPinned),
       indexed.pinnedOrder,
-      indexed.mtime,
-      indexed.fileHash,
-      indexed.preview,
       Number(indexed.hasConflict),
       indexed.gistUrl,
       Number(indexed.gistStale),
+      indexed.fileHash,
+      indexed.mtime,
+      indexed.mtime,
+      indexed.preview,
+      Number(indexed.hasContent),
     )
-
-  const insertAlias = database.prepare(
-    'INSERT INTO aliases(note_path, alias, alias_key) VALUES (?, ?, ?)',
-  )
-  for (const alias of indexed.aliases) {
-    insertAlias.run(indexed.path, alias.alias, alias.aliasKey)
-  }
-
-  const insertClaim = database.prepare(
-    'INSERT INTO note_claims(note_path, key, tier) VALUES (?, ?, ?)',
-  )
-  for (const claim of indexed.claims) {
-    insertClaim.run(indexed.path, claim.key, claim.tier)
-  }
 
   const insertLink = database.prepare(
     `INSERT INTO links(
@@ -122,6 +122,59 @@ function insertProjection(database: DatabaseSync, indexed: IndexedNote): void {
       link.posTo,
     )
   }
+
+  const insertTag = database.prepare('INSERT INTO tags(note_path, tag, tag_key) VALUES (?, ?, ?)')
+  for (const tag of indexed.tags) {
+    insertTag.run(indexed.path, tag.tag, tag.tagKey)
+  }
+
+  const insertAlias = database.prepare(
+    'INSERT INTO aliases(note_path, alias, alias_key) VALUES (?, ?, ?)',
+  )
+  for (const alias of indexed.aliases) {
+    insertAlias.run(indexed.path, alias.alias, alias.aliasKey)
+  }
+
+  const insertClaim = database.prepare(
+    'INSERT INTO note_claims(note_path, key, tier) VALUES (?, ?, ?)',
+  )
+  for (const claim of indexed.claims) {
+    insertClaim.run(indexed.path, claim.key, claim.tier)
+  }
+
+  const insertEmail = database.prepare(
+    'INSERT INTO note_emails(note_path, email, email_key) VALUES (?, ?, ?)',
+  )
+  for (const email of indexed.emails) {
+    insertEmail.run(indexed.path, email.email, email.emailKey)
+  }
+
+  const insertAsset = database.prepare('INSERT INTO assets(note_path, asset_path) VALUES (?, ?)')
+  for (const asset of indexed.assets) {
+    insertAsset.run(indexed.path, asset)
+  }
+
+  const insertTask = database.prepare(
+    `INSERT INTO tasks(note_path, ast_path, markdown, breadcrumbs, checked, due_date)
+    VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+  for (const task of indexed.tasks) {
+    insertTask.run(
+      indexed.path,
+      task.astPath,
+      task.markdown,
+      JSON.stringify(task.breadcrumbs),
+      Number(task.checked),
+      task.dueDate,
+    )
+  }
+
+  // The FTS body carries the note text plus its assets' description text.
+  const searchBody =
+    indexed.assetText === '' ? indexed.text : `${indexed.text}\n${indexed.assetText}`
+  database
+    .prepare('INSERT INTO search_fts(path, title, body) VALUES (?, ?, ?)')
+    .run(indexed.path, indexed.title, searchBody)
 }
 
 /**
@@ -133,6 +186,7 @@ function insertProjection(database: DatabaseSync, indexed: IndexedNote): void {
 export function createTestDatabaseService(): TestDatabaseService {
   let database: DatabaseSync | null = null
   let closed = false
+  const queries: TestDatabaseQuery[] = []
 
   function open(): DatabaseSync {
     if (closed) {
@@ -143,6 +197,7 @@ export function createTestDatabaseService(): TestDatabaseService {
   }
 
   const runQuery = async (sql: string, params: readonly unknown[]): Promise<unknown> => {
+    queries.push({ sql, params: [...params] })
     try {
       return open()
         .prepare(sql)
@@ -158,10 +213,36 @@ export function createTestDatabaseService(): TestDatabaseService {
     applyProjection(note) {
       insertProjection(open(), note)
     },
+    getQueries() {
+      return [...queries]
+    },
     close() {
       closed = true
       database?.close()
       database = null
     },
+  }
+}
+
+/** One note to project into a test index from its markdown. */
+export interface TestNote {
+  /** Graph-relative path. */
+  readonly path: string
+  /** The file contents. */
+  readonly markdown: string
+  /** File modification time (epoch ms); defaults to 0. */
+  readonly mtime?: number
+}
+
+/** Project each note through the real markdown indexing pipeline into `database`. */
+export function seedNotes(database: TestDatabaseService, notes: readonly TestNote[]): void {
+  for (const { path, markdown, mtime } of notes) {
+    database.applyProjection(
+      buildIndexedNote(parseNote({ path, source: markdown }), {
+        fileHash: `hash-${path}`,
+        mtime: mtime ?? 0,
+        source: markdown,
+      }),
+    )
   }
 }

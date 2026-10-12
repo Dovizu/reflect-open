@@ -65,7 +65,13 @@ export {
   type TestContactsService,
   type TestContactsServiceOptions,
 } from './contacts.ts'
-export { createTestDatabaseService, type TestDatabaseService } from './database.ts'
+export {
+  createTestDatabaseService,
+  seedNotes,
+  type TestDatabaseQuery,
+  type TestDatabaseService,
+  type TestNote,
+} from './database.ts'
 export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 export {
   createTestMobileStorageService,
