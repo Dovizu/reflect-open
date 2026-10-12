@@ -3,267 +3,61 @@ export {
   aiProvider,
   aiModelLabel,
   aiProviderRequiresApiKey,
-  DEFAULT_CONTEXT_WINDOW,
-  modelContextWindow,
   type AiProviderInfo,
   type AiModelOption,
 } from '../ai/provider-catalog.ts'
 export { aiKeySecretName } from '../ai/ai-credential-service.ts'
 export {
   DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
-  DEFAULT_OPENAI_COMPATIBLE_MODEL,
   isPlainHttpRemoteBaseUrl,
-  OPENAI_COMPATIBLE_PROVIDER_ID,
 } from '../ai/openai-compatible.ts'
-export { isHttpBaseUrl, normalizeOpenAICompatibleBaseUrl } from '../lib/http-url.ts'
+export { isHttpBaseUrl } from '../lib/http-url.ts'
 
-export {
-  KEY_HINT_LENGTH,
-  TRANSCRIPTION_PROVIDERS,
-  apiKeyHint,
-  withAiProviderAdded,
-  withAiProviderRemoved,
-  defaultAiProvider,
-  pickTranscriptionConfig,
-  type AiProvidersState,
-  type TranscriptionConfig,
-  type TranscriptionProvider,
-} from '../ai/provider-config.ts'
+export { TRANSCRIPTION_PROVIDERS } from '../ai/provider-config.ts'
 export {
   chatModelOptions,
-  resolveChatModel,
   type ChatModelOption,
   type ChatModelSelection,
 } from '../ai/chat/model-options.ts'
-export {
-  type ApiKeyValidation,
-  type ApiKeyValidationInput,
-} from '../ai/ai-key-validation-service.ts'
-export {
-  assertCloudAllowed,
-  cloudSafeAssetDescription,
-  cloudSafeGraphContext,
-  cloudSafeNoteContent,
-  cloudSafeSelection,
-  isPrivateNoteError,
-  PrivateNoteError,
-  type CloudAssetDescription,
-  type CloudGraphContext,
-  type CloudNoteContent,
-  type CloudNoteListing,
-  type CloudSafe,
-  type CloudSearchHit,
-  type CloudSendable,
-} from '../privacy/checkers.ts'
-export {
-  MAX_DAILY_NOTE_DAYS,
-  type ListDailyNotesOutput,
-  type ListRecentNotesOutput,
-  type NoteHitSummary,
-  type NoteToolCall,
-  type NoteToolResult,
-  type NoteTools,
-  type ReadAssetSummary,
-  type ReadNoteSummary,
-  type SearchNotesOutput,
-} from '../ai/chat/note-tools-service.ts'
-export {
-  MAX_NOTE_CONTENT_CHARS,
-  MAX_READ_NOTES,
-  type ReadNoteResult,
-  type ReadNotesOutput,
-} from '../ai/chat/read-notes.ts'
-export {
-  MAX_ASSET_DESCRIPTION_CHARS,
-  MAX_READ_ASSETS,
-  type ReadAssetResult,
-  type ReadAssetsOutput,
-} from '../ai/chat/read-assets.ts'
-export { chatSystemPrompt, type SystemPromptInput } from '../ai/chat/system-prompt.ts'
-export { MAX_CONTEXT_TAGS } from '../ai/chat/chat-graph-context-service.ts'
-export type { ChatStreamEvent, ChatTurnRequest } from '../ai/chat/chat-engine-service.ts'
-export {
-  conversationTitle,
-  type ChatSession,
-  type ChatSessionOptions,
-  type ChatSessionState,
-  type ChatStatus,
-} from '../ai/chat/chat-session-service.ts'
+export { type CloudGraphContext, type CloudSafe } from '../privacy/checkers.ts'
+export { type NoteHitSummary } from '../ai/chat/note-tools-service.ts'
+export { chatSystemPrompt } from '../ai/chat/system-prompt.ts'
+export type { ChatStreamEvent } from '../ai/chat/chat-engine-service.ts'
+export { type ChatSession, type ChatStatus } from '../ai/chat/chat-session-service.ts'
 export { readChatAttachment } from '../ai/chat/chat-attachments.ts'
+export { filterAiPrompts } from '../ai/selection-prompts.ts'
 export {
-  BUILT_IN_AI_PROMPTS,
-  filterAiPrompts,
-  renderSelectionPrompt,
-} from '../ai/selection-prompts.ts'
-export {
-  appendEvent,
-  buildHistory,
   isToolPending,
-  NO_REPLY_NOTICE,
-  userMessage,
   type AssistantPart,
   type ChatAttachment,
   type ChatTurn,
 } from '../ai/chat/transcript.ts'
 export { type ChatConversation } from '../ai/chat/chat-history-service.ts'
+export { audioMemoIdentity, audioMemoPartPath } from '../actions/audio-memo.ts'
 export {
-  estimateTokens,
-  fitToContextWindow,
-  type ContextWindowOptions,
-} from '../ai/chat/context-window.ts'
-export type { ModelMessage as ChatModelMessage } from '@reflect/modules/ai'
-export { base64ToBytes } from '../lib/base64.ts'
-export { isTranscriptionRejected, TranscriptionRejectedError } from '../ai/transcribe-http.ts'
-export type { TranscriptionRequest } from '../ai/transcription-service.ts'
-export {
-  audioMemoFromPath,
-  audioMemoIdentity,
-  audioMemoPartFromPath,
-  audioMemoPartPath,
-} from '../actions/audio-memo.ts'
-export {
-  createAudioMemoService,
   type AudioMemoPhase,
-  type AudioMemoPipeline,
-  type AudioMemoPipelineOptions,
-  type AudioMemoPipelineState,
   type AudioMemoService,
   type AudioMemoSession,
-  type AudioMemoSessionOptions,
   type AudioMemoSessionState,
-  type AudioMemoSurface,
-  type CaptureAudioMemoOutcome,
-  type CaptureAudioMemoPartInput,
-  type PendingAudioCapture,
 } from '../audio/audio-memo-service.ts'
 export {
-  createAudioMemoTranscriptionService,
-  type AudioMemoTranscriptionService,
-  type AudioMemoTranscriptionSession,
-  type AudioMemoTranscriptionSessionOptions,
-  type ReconcileAudioMemosInput,
-  type ReconcileAudioMemosOutcome,
-} from '../audio/audio-memo-transcription-service.ts'
-export {
-  createMobileAudioMemoService,
   type MobileAudioMemoService,
   type MobileAudioMemoSession,
-  type MobileAudioMemoSessionOptions,
   type MobileAudioMemoSessionState,
 } from '../audio/mobile-audio-memo-service.ts'
 export {
-  createNativeActionService,
-  type NativeActionService,
-  type NativeRecordActionHandler,
-} from '../audio/native-action-service.ts'
-export { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
-export {
-  AUDIO_MEMO_REMINDER_MS,
-  AUDIO_MEMO_SEGMENT_MS,
-  type AudioMemoIdentity,
-} from '../actions/audio-memo-session.ts'
-export {
   captureAckSchema,
-  captureEnvelopeSchema,
   captureWireMessageSchema,
-  inboxEnvelopeSchema,
-  textCaptureEnvelopeSchema,
-  textCaptureKindSchema,
-  textCaptureSourceSchema,
-  TEXT_CAPTURE_MAX_LENGTH,
-  type CaptureAck,
-  type CaptureEnvelope,
-  type CaptureSource,
   type CaptureWireMessage,
-  type InboxEnvelope,
-  type TextCaptureEnvelope,
-  type TextCaptureKind,
-  type TextCaptureSource,
 } from '../actions/capture-envelope.ts'
-export {
-  captureFromPath,
-  captureIdentity,
-  captureNoteMeta,
-  appendXPost,
-  type XPostEnvelope,
-  isCaptureSpoolPath,
-  type CaptureIdentity,
-  type CaptureNoteMeta,
-  type CaptureStatus,
-} from '../actions/capture.ts'
-export {
-  createBacklinkTargetService,
-  type BacklinkTargetService,
-} from '../capture/backlink-target-service.ts'
-export {
-  createCaptureDrainService,
-  type CaptureDrainService,
-  type DrainCaptureInboxInput,
-  type DrainCaptureInboxOutcome,
-} from '../capture/capture-drain-service.ts'
-export {
-  createCaptureEnrichmentService,
-  type CaptureEnrichmentService,
-  type ReconcileCaptureEnrichmentInput,
-  type ReconcileCaptureEnrichmentOutcome,
-} from '../capture/capture-enrichment-service.ts'
-export {
-  createCaptureService,
-  type CaptureService,
-  type CaptureSession,
-  type CaptureSessionOptions,
-} from '../capture/capture-service.ts'
-export { createPageMetaService, type PageMetaService } from '../capture/page-meta-service.ts'
-export { parsePageMeta, type PageMeta } from '../link-preview/metadata.ts'
+export { type CaptureService } from '../capture/capture-service.ts'
 export {
   canReadCalendars,
-  calendarAuthorizationStatusSchema,
-  calendarInfoSchema,
-  calendarAttendeeSchema,
   calendarEventSchema,
   type CalendarAuthorizationStatus,
   type CalendarInfo,
-  type CalendarAttendee,
   type CalendarEvent,
 } from '../calendar/commands.ts'
-export { displayEvents, isDeclinedByUser, defaultAttendees, dayRange } from '../calendar/events.ts'
-export {
-  meetingLine,
-  MEETINGS_HEADING,
-  type AddMeetingInput,
-  type AddMeetingOutcome,
-  type MeetingAttendee,
-  type MeetingLineAttendee,
-  type ResolvedMeetingAttendee,
-} from '../contacts/meeting-service.ts'
-export {
-  isDescriptionRejected,
-  DescriptionRejectedError,
-  type DescribePageRequest,
-} from '../ai/page-describer-service.ts'
-export {
-  isAssetDescriptionRejected,
-  AssetDescriptionRejectedError,
-  type AssetKind,
-  type DescribeAssetRequest,
-} from '../ai/asset-describer-service.ts'
-export {
-  buildDescriptionSource,
-  isEligibleAssetPath,
-  readManagedDescription,
-  type AssetDescriptionMeta,
-} from '../assets/asset-description-helpers.ts'
-export {
-  createAssetDescriptionService,
-  type AssetDescriptionMode,
-  type AssetDescriptionService,
-  type AssetDescriptionSession,
-  type AssetDescriptionSessionOptions,
-  type ReconcileAssetDescriptionsInput,
-  type ReconcileAssetDescriptionsOutcome,
-} from '../assets/asset-description-service.ts'
-export {
-  createAssetPrivacyService,
-  type AssetPrivacyService,
-  type AssetVerdict,
-} from '../assets/asset-privacy-service.ts'
+export { displayEvents, defaultAttendees } from '../calendar/events.ts'
+export { type MeetingAttendee } from '../contacts/meeting-service.ts'
+export { type AssetDescriptionService } from '../assets/asset-description-service.ts'

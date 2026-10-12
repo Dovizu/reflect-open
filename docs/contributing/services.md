@@ -148,9 +148,13 @@ In `packages/core/src/app/create-app-services.ts`:
    ```
 
 3. Add the key to `SERVICE_KEYS` in `create-app-services.test.ts`.
-4. Export the interface, the factory and its public types from a barrel in
-   `packages/core/src/exports/` (`NoteMoveService` is in `platform.ts`). The apps
-   import only from the package root.
+4. Export the names the app imports from a barrel in `packages/core/src/exports/`
+   (`NoteMoveService` is in `platform.ts`). The apps import only from the package
+   root. The factory and its `XxxServiceDeps` stay out of the barrel: only
+   `createAppServices` builds services. `pnpm lint` runs
+   `packages/core/scripts/check-exports.mjs`, which fails on a barrel name that
+   no app file references and on an `AppServices` field that no desktop
+   non-test file reads.
 
 `AppServices` holds only the services that the app reads. A service that only
 other services use stays a local in `createAppServices`; list it in
@@ -353,8 +357,9 @@ service stays app-scoped and takes `generation` per call.
       `console.*`, `Date.now()`, `setTimeout`, `fetch` or `@tauri-apps/*`
 - [ ] State inside the factory; changes reported through `onXxx(listener)` /
       `subscribe(listener)`
-- [ ] Field on `AppServices`, built in `createAppServices`, key in
-      `SERVICE_KEYS`, exported from `packages/core/src/exports/`
+- [ ] Built in `createAppServices`; on `AppServices` (key in `SERVICE_KEYS`)
+      only when the app reads it, else in `InternalServices`; the names the
+      app imports exported from `packages/core/src/exports/`
 - [ ] `createTestXxxService` in `packages/core/src/testing/`, exported from
       `testing/index.ts`, wired into `createTestAppServices`
 - [ ] `<name>-service.test.ts` constructing the service over test doubles
