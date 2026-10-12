@@ -200,7 +200,6 @@ export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-lab
 export {
   createPlatformService,
   defaultPlatform,
-  platformFacts,
   setDefaultPlatform,
   type ColorScheme,
   type FileSrcConverter,

@@ -1,6 +1,5 @@
 import { defaultCommands, type AppServices, type CommandService } from '@reflect/core'
 import { attachFilesToNote } from '@/lib/attach-files.ts'
-import { openRouteInNewWindow } from '@/lib/windows/open-in-new-window.ts'
 import { routeForPath, type Route } from '@/routing/route.ts'
 import type { AppCommand, CommandContext } from './types.ts'
 
@@ -93,7 +92,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await openRouteInNewWindow(routeForPath(path))
+      await context.services.linkNavigation.openRouteInNewWindow(routeForPath(path))
     },
   },
   {

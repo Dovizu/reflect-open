@@ -1,5 +1,4 @@
 import {
-  defaultNoteActions,
   getNextPinOrder,
   type AppServices,
   type FilteredSearchHit,
@@ -94,11 +93,4 @@ async function updatePin(
   if (outcome.status === 'done' && feedback !== null && outcome.pinned !== feedback.predicted) {
     applyPinnedState(input, feedback.preview, outcome.pinned)
   }
-}
-
-export async function reorderPinnedNotes(
-  notes: readonly PinnedNote[],
-  generation: number,
-): Promise<void> {
-  await defaultNoteActions().reorderPinned(notes, generation)
 }

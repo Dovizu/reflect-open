@@ -5,7 +5,7 @@ import { useWikilinkResolver } from '@/editor/resolve-wikilink.ts'
 import { useXPostResolver, X_MEDIA_URL_PROTOCOLS } from '@/editor/use-x-post-resolver.ts'
 import { lightboxItemFromXPostMedia } from '@/editor/x-post-media-lightbox-item.ts'
 import { useYouTubeVideoResolver } from '@/editor/youtube-video-resolver.ts'
-import { isTouchEditorSurface } from '@/lib/platform-surface.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { cn } from '@/lib/utils.ts'
 import type {
   AcceptPendingReplacementOptions,
@@ -290,6 +290,8 @@ export function NoteEditor({
   onSearchChange,
   handleRef,
 }: NoteEditorProps): ReactElement {
+  const { platform } = useAppServices()
+  const touchEditor = platform.surface.touchEditor
   const resolveXPost = useXPostResolver()
   const resolveWikilink = useWikilinkResolver()
   const innerRef = useRef<EditorHandle>(null)
@@ -455,7 +457,7 @@ export function NoteEditor({
         // from it at focus time, and smart punctuation corrupts markdown
         // syntax ([[ wiki links, code spans, --- fences) — Plan 19 gate.
         // Autocorrect is independent and stays on (EditorInputTraits).
-        spellCheck={isTouchEditorSurface() ? false : spellCheck}
+        spellCheck={touchEditor ? false : spellCheck}
         searchQuery={searchQuery ?? ''}
         onSearchChange={onSearchChange}
         // Reflect's implementation-neutral `12h`/`24h` maps to meowdown's
@@ -468,7 +470,7 @@ export function NoteEditor({
         // revealed on hover and drag-reorders blocks with a pointer, neither of
         // which a touch webview can express. Turning it off also drops the drop
         // indicator, which meowdown gates on the same prop.
-        blockHandle={isTouchEditorSurface() ? false : blockHandle}
+        blockHandle={touchEditor ? false : blockHandle}
         editorClassName={cn('reflect-editor', className)}
         placeholder={titlePlaceholder}
         onDocChange={handleDocChange}

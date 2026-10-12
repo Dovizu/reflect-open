@@ -5,7 +5,6 @@ import {
   createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
   createTestPlatformService,
-  installTestServices,
   type TestEmbeddingIndexService,
   type TestEmbeddingRuntimeService,
 } from '@reflect/core/testing'
@@ -28,16 +27,12 @@ function createApp() {
 }
 
 let app: ReturnType<typeof createApp>
-let restoreServices: () => void
 
 beforeEach(() => {
   app = createApp()
-  // `note.openInNewWindow` still opens through `lib/windows/open-in-new-window.ts`.
-  restoreServices = installTestServices(app)
 })
 
 afterEach(() => {
-  restoreServices()
   app.database.close()
 })
 
