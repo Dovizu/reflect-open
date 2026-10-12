@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { act } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { createTestAppServices, createTestClockService } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useToday } from './use-today.ts'

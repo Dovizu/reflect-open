@@ -773,7 +773,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     xArchive,
     privacy: noteServices.privacy,
   })
-  const chatEngine = createChatEngineService({ languageModel, noteTools, fitToContextWindow })
+  const chatEngine = createChatEngineService({
+    logger,
+    languageModel,
+    noteTools,
+    fitToContextWindow,
+  })
   const chatGraphContext = createChatGraphContextService({
     graphStats: indexReads.graphStats,
     privacy: noteServices.privacy,
@@ -996,6 +1001,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     aiProviderConfig,
     selectionTransform: createSelectionTransformService({
+      logger,
       languageModel,
       providerConfig: aiProviderConfig,
       credentials: aiCredentials,

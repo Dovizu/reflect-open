@@ -29,10 +29,12 @@ import {
 import type { TranscriptionRequest, TranscriptionService } from '../ai/transcription-service.ts'
 import type { PrivacyService } from '../privacy/privacy-service.ts'
 import type { IdService } from '../app/id-service.ts'
+import type { LoggerService } from '../app/logger-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import { createTestIdService } from './id.ts'
+import { createTestLoggerService } from './logger.ts'
 import { createTestPrivacyService } from './privacy.ts'
 import { createTestSecretStoreService } from './secrets.ts'
 import { createTestSettingsService } from './settings.ts'
@@ -155,6 +157,8 @@ export function createTestAiProviderConfigService(
 }
 
 export interface TestSelectionTransformServiceOptions {
+  /** Receives a failed stream; defaults to a test logger. */
+  logger?: LoggerService
   /** Builds the model; defaults to a test language model service. */
   languageModel?: LanguageModelService
   /** The configured entries; defaults to a provider config service with no entries. */
@@ -170,6 +174,7 @@ export function createTestSelectionTransformService(
   options?: TestSelectionTransformServiceOptions,
 ): SelectionTransformService {
   return createSelectionTransformService({
+    logger: options?.logger ?? createTestLoggerService(),
     languageModel: options?.languageModel ?? createTestLanguageModelService(),
     providerConfig: options?.providerConfig ?? createTestAiProviderConfigService(),
     credentials: options?.credentials ?? createTestAiCredentialService(),

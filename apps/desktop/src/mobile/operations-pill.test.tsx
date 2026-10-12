@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { page } from 'vitest/browser'
 import { describe, expect, it } from 'vitest'
 import { LINGER_MS, MIN_VISIBLE_MS, type OperationHandle } from '@reflect/core'

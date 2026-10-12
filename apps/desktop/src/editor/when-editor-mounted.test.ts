@@ -44,7 +44,6 @@ function fakeFrames(): FakeFrames {
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 
 describe('whenEditorMounted', () => {

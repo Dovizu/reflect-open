@@ -20,7 +20,6 @@ beforeEach(() => {
 
 afterEach(() => {
   queryClient.clear()
-  vi.restoreAllMocks()
 })
 
 function archivedPost(): ResolvedArchivedPost {

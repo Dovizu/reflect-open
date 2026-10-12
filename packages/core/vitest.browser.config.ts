@@ -7,6 +7,8 @@ export default defineProject({
   test: {
     name: 'core-browser',
     include: ['src/**/*.test.tsx'],
+    setupFiles: ['./vitest.setup.ts'],
+    restoreMocks: true,
     sequence: { groupOrder: 100 },
     retry: process.env.CI ? 3 : 0,
     browser: {

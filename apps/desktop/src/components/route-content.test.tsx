@@ -1,6 +1,7 @@
 import { page } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, type ReactElement } from 'react'
+import type { ReactElement } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { upsertFrontmatter } from '@reflect/core'
 import {
   createTestAppServices,

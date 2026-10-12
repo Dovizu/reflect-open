@@ -1,4 +1,5 @@
-import { act, type ReactElement, type ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { describe, expect, it, vi } from 'vitest'
 import type { AppPlatform, AppServices, RecentGraph } from '@reflect/core'
 import {

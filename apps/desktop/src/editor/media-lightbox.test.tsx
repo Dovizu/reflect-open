@@ -110,7 +110,6 @@ beforeEach(() => {
 
 afterEach(() => {
   document.removeEventListener('transitionend', swallowTransitionEnd, { capture: true })
-  vi.restoreAllMocks()
 })
 
 describe('MediaLightbox mobile drag-to-dismiss', () => {

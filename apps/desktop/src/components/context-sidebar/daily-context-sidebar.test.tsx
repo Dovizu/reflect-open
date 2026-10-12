@@ -1,6 +1,7 @@
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { act } from '@/test-utils/act.ts'
 import type { DailyNoteService, NoteRow, RetrievalService } from '@reflect/core'
 import {
   createTestAppServices,

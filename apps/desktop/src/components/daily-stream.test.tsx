@@ -1,6 +1,7 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi } from 'vitest'
-import { act, useEffect, type ReactElement, type ReactNode } from 'react'
+import { useEffect, type ReactElement, type ReactNode } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { createSystemClock, type ClockService } from '@reflect/core'
 import { createTestAppServices, createTestClockService } from '@reflect/core/testing'
 import { FocusedDailyProvider, useFocusedDailyDate } from '@/providers/focused-daily-provider.tsx'

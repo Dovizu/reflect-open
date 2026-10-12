@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { NoteRow } from '@reflect/core'
 import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'

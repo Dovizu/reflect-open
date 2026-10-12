@@ -23,7 +23,6 @@ let closeDatabase: () => void = () => {}
 afterEach(() => {
   closeDatabase()
   queryClient.clear()
-  vi.restoreAllMocks()
 })
 
 /** Boot a session of `windowService` over test doubles; `deepLinks` collects what the intake hands on. */

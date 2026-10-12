@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestStorageService } from '../testing/storage.ts'
@@ -23,11 +23,6 @@ function createStorage(entries: Record<string, string> = {}): Storage {
     },
   }
 }
-
-afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
-})
 
 describe('createWebStorageService', () => {
   it('reads, writes, and removes keys in the matching area', () => {

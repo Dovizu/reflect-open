@@ -763,6 +763,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     aiProviderConfig,
     selectionTransform: createTestSelectionTransformService({
+      logger,
       languageModel: overrides?.languageModel ?? languageModel,
       providerConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
       credentials: overrides?.aiCredentials ?? aiCredentials,

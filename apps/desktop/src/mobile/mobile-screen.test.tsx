@@ -1,7 +1,8 @@
 import type { RenderResult } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { act, StrictMode, type ReactElement } from 'react'
+import { StrictMode, type ReactElement } from 'react'
+import { act } from '@/test-utils/act.ts'
 import type { DailyNoteService } from '@reflect/core'
 import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import {

@@ -1,4 +1,5 @@
 import type { LanguageModel } from '@reflect/modules/ai'
+import type { LoggerService } from '../app/logger-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import {
@@ -65,12 +66,13 @@ export interface SelectionTransformService {
 }
 
 export function createSelectionTransformService(deps: {
+  logger: LoggerService
   languageModel: LanguageModelService
   providerConfig: Pick<AiProviderConfigService, 'list' | 'defaultProvider'>
   credentials: Pick<AiCredentialService, 'read'>
   privacy: Pick<PrivacyService, 'cloudSafeSelection'>
 }): SelectionTransformService {
-  const { languageModel, providerConfig, credentials, privacy } = deps
+  const { logger, languageModel, providerConfig, credentials, privacy } = deps
   return {
     async *transform(request) {
       const { model: modelOverride, signal } = request
@@ -113,7 +115,7 @@ export function createSelectionTransformService(deps: {
         signal?.throwIfAborted()
         const model = await languageModel.create(config, apiKey)
         signal?.throwIfAborted()
-        yield* streamTransformTurn(model, {
+        yield* streamTransformTurn({ logger }, model, {
           prompt: renderSelectionPrompt(request.promptBody, selection),
           signal,
         })
@@ -139,6 +141,7 @@ export interface TransformTurnOptions {
  * seam tests drive with a mock model instead of a provider.
  */
 export async function* streamTransformTurn(
+  ctx: { logger: LoggerService },
   model: LanguageModel,
   options: TransformTurnOptions,
 ): AsyncGenerator<TransformStreamEvent> {
@@ -151,6 +154,11 @@ export async function* streamTransformTurn(
       instructions: TRANSFORM_SYSTEM_PROMPT,
       prompt: options.prompt,
       ...(options.signal !== undefined ? { abortSignal: options.signal } : {}),
+      // Without a handler the SDK prints the error to the console itself. The
+      // error also arrives as an `error` part below.
+      onError: ({ error }) => {
+        ctx.logger.error('selection transform stream failed:', error)
+      },
     })
 
     for await (const part of result.stream) {

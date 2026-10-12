@@ -10,8 +10,10 @@ import type { RetrievalHit } from '../../embeddings/retrieval-service.ts'
 import { cloudSafeGraphContext } from '../../privacy/privacy-service.ts'
 import {
   createTestLanguageModelService,
+  createTestLoggerService,
   createTestNoteToolsService,
   type TestLanguageModelService,
+  type TestLoggerService,
 } from '../../testing/index.ts'
 import {
   createChatEngineService,
@@ -23,14 +25,17 @@ import {
 import { fitToContextWindow, type ContextWindowOptions } from './context-window.ts'
 import type { NoteTools } from './note-tools-service.ts'
 
+let logger: TestLoggerService
 let languageModelService: TestLanguageModelService
 let fitCalls: [ModelMessage[], ContextWindowOptions][]
 let engine: ChatEngineService
 
 beforeEach(() => {
+  logger = createTestLoggerService()
   languageModelService = createTestLanguageModelService()
   fitCalls = []
   engine = createChatEngineService({
+    logger,
     languageModel: languageModelService,
     noteTools: createTestNoteToolsService(),
     fitToContextWindow: (messages, options) => {
@@ -225,7 +230,7 @@ describe('streamChatTurn', () => {
       doStream: sequence([toolCallTurn('atlas'), textTurn('Found it: [[Atlas Launch Plan]]')]),
     })
     const events = await collect(
-      streamChatTurn(model, {
+      streamChatTurn({ logger }, model, {
         messages: [{ role: 'user', content: 'where is the launch plan?' }],
         today: '2026-06-11',
         semanticSearchEnabled: true,
@@ -268,7 +273,7 @@ describe('streamChatTurn', () => {
       doStream: sequence([toolCallTurn('diary'), textTurn('done')]),
     })
     await collect(
-      streamChatTurn(model, {
+      streamChatTurn({ logger }, model, {
         messages: [{ role: 'user', content: 'what do my notes say?' }],
         today: '2026-06-11',
         semanticSearchEnabled: true,
@@ -293,7 +298,7 @@ describe('streamChatTurn', () => {
   it('carries the graph overview in the outbound system prompt', async () => {
     const model = new MockLanguageModelV3({ doStream: sequence([textTurn('hi')]) })
     await collect(
-      streamChatTurn(model, {
+      streamChatTurn({ logger }, model, {
         messages: [{ role: 'user', content: 'hi' }],
         today: '2026-06-11',
         semanticSearchEnabled: true,
@@ -328,7 +333,7 @@ describe('streamChatTurn', () => {
       ]),
     })
     const events = await collect(
-      streamChatTurn(model, {
+      streamChatTurn({ logger }, model, {
         messages: [{ role: 'user', content: 'hi' }],
         today: '2026-06-11',
         semanticSearchEnabled: true,
@@ -338,6 +343,9 @@ describe('streamChatTurn', () => {
       }),
     )
     expect(events.at(-1)).toEqual({ type: 'error', message: 'rate limited', messages: [] })
+    expect(logger.getErrors()).toEqual([
+      { message: 'chat stream failed:', cause: new Error('rate limited') },
+    ])
   })
 
   it('a cut-short turn still carries the completed steps, properly paired', async () => {
@@ -354,7 +362,7 @@ describe('streamChatTurn', () => {
       ]),
     })
     const events = await collect(
-      streamChatTurn(model, {
+      streamChatTurn({ logger }, model, {
         messages: [{ role: 'user', content: 'where is the launch plan?' }],
         today: '2026-06-11',
         semanticSearchEnabled: true,
@@ -375,6 +383,9 @@ describe('streamChatTurn', () => {
     // plus the interrupted step's partial text — never a dangling tool call.
     expect(last.messages.map((message) => message.role)).toEqual(['assistant', 'tool', 'assistant'])
     expect(JSON.stringify(last.messages.at(-1))).toContain('So far')
+    expect(logger.getErrors()).toEqual([
+      { message: 'chat stream failed:', cause: new Error('connection lost') },
+    ])
   })
 
   it('keeps every completed step when cut short after multiple tool rounds', async () => {
@@ -396,7 +407,7 @@ describe('streamChatTurn', () => {
       ]),
     })
     const events = await collect(
-      streamChatTurn(model, {
+      streamChatTurn({ logger }, model, {
         messages: [{ role: 'user', content: 'plan and budget?' }],
         today: '2026-06-11',
         semanticSearchEnabled: true,
@@ -436,7 +447,7 @@ describe('streamChatTurn', () => {
       doStream: sequence([...gathering, textTurn('Summary: [[Atlas Launch Plan]]')]),
     })
     const events = await collect(
-      streamChatTurn(model, {
+      streamChatTurn({ logger }, model, {
         messages: [{ role: 'user', content: 'summarize everything' }],
         today: '2026-06-11',
         semanticSearchEnabled: true,

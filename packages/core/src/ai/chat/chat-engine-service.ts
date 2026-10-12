@@ -1,5 +1,6 @@
 import type { LanguageModel, ModelMessage } from '@reflect/modules/ai'
 import { errorMessage } from '../../errors.ts'
+import type { LoggerService } from '../../app/logger-service.ts'
 import type { CloudGraphContext, CloudSafe } from '../../privacy/privacy-service.ts'
 import type { AiProviderConfig } from '../../settings/schema.ts'
 import type { LanguageModelService } from '../language-model-service.ts'
@@ -87,11 +88,12 @@ export interface ChatEngineService {
 }
 
 export function createChatEngineService(deps: {
+  logger: LoggerService
   languageModel: LanguageModelService
   noteTools: NoteToolsService
   fitToContextWindow: FitToContextWindow
 }): ChatEngineService {
-  const { languageModel, noteTools, fitToContextWindow } = deps
+  const { logger, languageModel, noteTools, fitToContextWindow } = deps
   return {
     async *streamTurn(request) {
       try {
@@ -107,7 +109,7 @@ export function createChatEngineService(deps: {
         })
         const model = await languageModel.create(request.config, request.apiKey)
         request.signal?.throwIfAborted()
-        yield* streamChatTurn(model, {
+        yield* streamChatTurn({ logger }, model, {
           messages,
           today: request.today,
           semanticSearchEnabled: request.semanticSearchEnabled,
@@ -154,6 +156,7 @@ export interface ChatTurnOptions {
  * the next turn resends matches what stayed on screen.
  */
 export async function* streamChatTurn(
+  ctx: { logger: LoggerService },
   model: LanguageModel,
   options: ChatTurnOptions,
 ): AsyncGenerator<ChatStreamEvent> {
@@ -191,6 +194,11 @@ export async function* streamChatTurn(
       // so the running history is accumulated here rather than assigned.
       onStepEnd: (step) => {
         stepMessages = [...stepMessages, ...step.response.messages]
+      },
+      // Without a handler the SDK prints the error to the console itself. The
+      // error also arrives as an `error` part below.
+      onError: ({ error }) => {
+        ctx.logger.error('chat stream failed:', error)
       },
     })
 
