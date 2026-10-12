@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { defaultAudioRecorder } from '../audio/default-audio-recorder.ts'
+import { defaultAppStore } from '../ipc/app-store-plugin.ts'
 import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
+import { defaultIap } from '../ipc/iap-plugin.ts'
+import { defaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
+import { defaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
@@ -59,6 +64,20 @@ describe('installDefaultServices', () => {
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultDatabase()).toBe(services.database)
     expect(defaultFileChanges()).toBe(services.fileChanges)
+    expect(defaultAudioRecorder()).toBe(services.audioRecorder)
+    expect(defaultHaptics()).toBe(services.haptics)
+    expect(defaultIap()).toBe(services.iap)
+    expect(defaultAppStore()).toBe(services.appStore)
+    expect(defaultWebAuth()).toBe(services.webAuth)
+  })
+
+  it('leaves the bridge-backed plugin defaults where a service is absent', () => {
+    const { haptics, iap, appStore, webAuth, ...desktop } = createTestAppServices()
+    installDefaultServices(desktop)
+    expect(defaultHaptics()).not.toBe(haptics)
+    expect(defaultIap()).not.toBe(iap)
+    expect(defaultAppStore()).not.toBe(appStore)
+    expect(defaultWebAuth()).not.toBe(webAuth)
   })
 })
 
@@ -77,6 +96,11 @@ describe('resetDefaultServices', () => {
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultDatabase()).not.toBe(services.database)
     expect(defaultFileChanges()).not.toBe(services.fileChanges)
+    expect(defaultAudioRecorder()).not.toBe(services.audioRecorder)
+    expect(defaultHaptics()).not.toBe(services.haptics)
+    expect(defaultIap()).not.toBe(services.iap)
+    expect(defaultAppStore()).not.toBe(services.appStore)
+    expect(defaultWebAuth()).not.toBe(services.webAuth)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

@@ -41,6 +41,7 @@ const SERVICE_KEYS = [
   'exceptionTelemetry',
   'database',
   'fileChanges',
+  'audioRecorder',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {
@@ -103,6 +104,26 @@ describe('createAppServices', () => {
     expect(services.clock.now()).toBeGreaterThan(5)
     expect(services.id.noteId()).toMatch(/^[0-9a-z]{26}$/)
     expect(typeof services.logger.warn).toBe('function')
+  })
+
+  it('composes the plugin services and the native recorder on mobile only', () => {
+    const desktop = createAppServices({ ...requiredAdapters(), logger: createTestLoggerService() })
+    expect(desktop.haptics).toBeUndefined()
+    expect(desktop.iap).toBeUndefined()
+    expect(desktop.appStore).toBeUndefined()
+    expect(desktop.webAuth).toBeUndefined()
+
+    const mobile = createAppServices({
+      ...requiredAdapters(),
+      logger: createTestLoggerService(),
+      platform: createTestPlatformService({ appPlatform: 'ios' }),
+    })
+    expect(mobile.haptics).toBeDefined()
+    expect(mobile.iap).toBeDefined()
+    expect(mobile.appStore).toBeDefined()
+    expect(mobile.webAuth).toBeDefined()
+    // Only the native recorder is supported without `MediaRecorder`.
+    expect(mobile.audioRecorder.isSupported()).toBe(true)
   })
 
   it('echoes own writes onto the file-change stream on mobile only', () => {

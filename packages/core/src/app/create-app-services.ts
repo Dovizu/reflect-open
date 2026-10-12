@@ -1,7 +1,11 @@
+import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
+import { createPlatformAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
+import { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
+import { createIapService, type IapService } from '../ipc/iap-plugin.ts'
 import {
   createIpcBridgeService,
   type IpcBridge,
@@ -11,6 +15,8 @@ import {
   createMobileStorageService,
   type MobileStorageService,
 } from '../ipc/mobile-storage-service.ts'
+import { createHapticsService, type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
+import { createWebAuthService, type WebAuthService } from '../ipc/web-auth-plugin.ts'
 import {
   createSecretStoreService,
   type SecretStoreService,
@@ -71,6 +77,15 @@ export interface AppServices {
   readonly exceptionTelemetry: ExceptionTelemetryService
   readonly database: DatabaseService
   readonly fileChanges: FileChangeService
+  readonly audioRecorder: AudioRecorderService
+  /** Mobile only. */
+  readonly haptics?: HapticsService
+  /** Mobile only. */
+  readonly iap?: IapService
+  /** Mobile only. */
+  readonly appStore?: AppStoreService
+  /** Mobile only. */
+  readonly webAuth?: WebAuthService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -104,6 +119,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
   const ipc = createIpcBridgeService(adapters.ipc, { logger })
+  const mobile =
+    isMobilePlatform(adapters.platform.appPlatform) || adapters.platform.surface.mobileApp
   return {
     ipc,
     logger,
@@ -136,5 +153,19 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       { ipc, logger },
       { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
     ),
+    audioRecorder: createPlatformAudioRecorder({
+      platform: adapters.platform,
+      ipc,
+      clock,
+      logger,
+    }),
+    ...(mobile
+      ? {
+          haptics: createHapticsService({ ipc, logger }),
+          iap: createIapService({ ipc, logger }),
+          appStore: createAppStoreService({ ipc }),
+          webAuth: createWebAuthService({ ipc }),
+        }
+      : {}),
   }
 }
