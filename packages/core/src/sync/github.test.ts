@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import { setBridge } from '../ipc/bridge.ts'
 import {
   createGithubRepo,
@@ -189,7 +190,7 @@ describe('getGithubRepo', () => {
 describe('getGithubToken', () => {
   it('returns null when nothing is connected', async () => {
     fakeKeychain()
-    expect(await getGithubToken()).toBeNull()
+    expect(await getGithubToken(createTestHttpService().fetchFn)).toBeNull()
   })
 
   it('returns a stored PAT without any network call', async () => {

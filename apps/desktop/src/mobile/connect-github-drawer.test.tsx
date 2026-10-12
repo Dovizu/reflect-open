@@ -2,9 +2,8 @@ import type { ReactNode } from 'react'
 import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { setBridge, setDefaultHttp, setDefaultPlatform } from '@reflect/core'
+import { createTestHttpService, createTestPlatformService } from '@reflect/core/testing'
 import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { ConnectGithubDrawer } from './connect-github-drawer.tsx'
@@ -30,7 +29,6 @@ const sync = vi.hoisted(() => ({
   connectExistingRepo: vi.fn(async (): Promise<ConnectExistingResult> => 'connected'),
 }))
 vi.mock('@/providers/sync-provider.tsx', () => ({ useSync: () => sync }))
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 beforeEach(() => {
   setDefaultPlatform(
     createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
@@ -39,9 +37,9 @@ beforeEach(() => {
 
 afterEach(() => {
   setDefaultPlatform(null)
+  setDefaultHttp(null)
 })
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }))
-const httpFetch = vi.mocked(tauriFetch)
 
 beforeEach(() => {
   // A stored PAT + GitHub accepting it ("alex") makes the auth step skip
@@ -51,12 +49,14 @@ beforeEach(() => {
       command === 'secret_get' ? JSON.stringify({ kind: 'pat', token: 'ghp_abc' }) : null,
     listen: async () => () => {},
   })
-  httpFetch.mockImplementation(
-    async () =>
-      new Response(JSON.stringify({ login: 'alex' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+  setDefaultHttp(
+    createTestHttpService([
+      {
+        method: 'GET',
+        url: 'https://api.github.com/user',
+        reply: { status: 200, json: { login: 'alex' } },
+      },
+    ]),
   )
   sync.connectNewRepo.mockResolvedValue('connected')
   sync.connectExistingRepo.mockResolvedValue('connected')

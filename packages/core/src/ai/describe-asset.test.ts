@@ -1,4 +1,5 @@
 import { APICallError } from '@reflect/modules/ai'
+import { createTestHttpService } from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3CallOptions, LanguageModelV3Usage } from '@ai-sdk/provider'
 import { describe, expect, it, vi } from 'vitest'
@@ -73,6 +74,7 @@ function request(overrides: Partial<DescribeAssetRequest> = {}): Promise<string>
     mediaType: 'image/png',
     data: 'aGVsbG8=',
     filename: 'diagram.png',
+    fetchFn: createTestHttpService().fetchFn,
     ...overrides,
   })
 }

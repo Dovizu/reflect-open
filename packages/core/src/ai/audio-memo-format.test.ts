@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { AiProviderConfig } from '../settings/schema.ts'
@@ -45,6 +46,7 @@ function modelAnswering(output: { title: string; body: string }): MockLanguageMo
 function request(transcript: string) {
   return formatAudioMemoTranscript({
     credentials: { config: CONFIG, apiKey: 'sk-live-key' },
+    fetchFn: createTestHttpService().fetchFn,
     transcript,
     fallbackTitle: FALLBACK_TITLE,
   })

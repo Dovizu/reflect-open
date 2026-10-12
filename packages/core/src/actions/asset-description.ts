@@ -59,7 +59,7 @@ export interface ReconcileAssetDescriptionsInput {
   /** Incremental only: the eligible asset paths the watcher reported changed. */
   changed?: readonly string[]
   /** Host transport for the provider call (the Tauri HTTP plugin's fetch). */
-  fetchFn?: typeof fetch
+  fetchFn: typeof fetch
   /** Abort gate, checked between assets and after each slow await. */
   isStale?: () => boolean
   /** Backfill progress: `(processed, total)` after each handled asset. */
@@ -140,7 +140,7 @@ interface AssetContext {
   config: AiProviderConfig
   apiKey: string
   generation: number
-  fetchFn?: typeof fetch | undefined
+  fetchFn: typeof fetch
   now: () => Date
   isStale: () => boolean
   /** `assets/` file stats (size + mtime), to skip reads we can prove are stale. */

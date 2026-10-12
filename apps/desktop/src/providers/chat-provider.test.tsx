@@ -1,5 +1,5 @@
 import { renderHook } from 'vitest-browser-react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type {
   AiProviderConfig,
@@ -12,7 +12,8 @@ import type {
   Settings,
   StreamChatOptions,
 } from '@reflect/core'
-import { NO_REPLY_NOTICE } from '@reflect/core'
+import { setDefaultHttp, NO_REPLY_NOTICE } from '@reflect/core'
+import { createTestHttpService } from '@reflect/core/testing'
 import { ChatProvider, useChatSession } from '@/providers/chat-provider.tsx'
 
 /**
@@ -80,7 +81,12 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ indexGeneration: 7, graph: { root: '/g' } }),
 }))
 
-vi.mock('@/lib/provider-fetch.ts', () => ({ providerFetch: vi.fn() }))
+beforeEach(() => {
+  setDefaultHttp(createTestHttpService())
+})
+afterEach(() => {
+  setDefaultHttp(null)
+})
 
 const MODEL: AiProviderConfig = { id: 'm1', provider: 'openai', model: 'gpt-5.4', keyHint: '12345' }
 

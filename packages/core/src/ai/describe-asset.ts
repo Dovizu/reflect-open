@@ -25,7 +25,7 @@ export interface DescribeAssetRequest {
   /** The BYOK API key, or an empty string for no-key compatible endpoints. */
   apiKey: string
   /** Host transport (the Tauri HTTP plugin's fetch; tests pass a stub). */
-  fetchFn?: typeof fetch | undefined
+  fetchFn: typeof fetch
   /** How `data` is carried: image or PDF file input, or SVG source text. */
   kind: AssetKind
   /** IANA media type (e.g. `image/png`, `application/pdf`, `image/svg+xml`). */
@@ -127,7 +127,7 @@ export async function describeAsset(request: DescribeAssetRequest): Promise<stri
   }
   try {
     const result = await sdk.generateText({
-      model: await languageModel(request.config, request.apiKey, request.fetchFn ?? fetch),
+      model: await languageModel(request.config, request.apiKey, request.fetchFn),
       messages: [{ role: 'user', content }],
       abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),
       maxRetries: 0,

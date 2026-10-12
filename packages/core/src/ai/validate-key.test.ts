@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import { APP_REVIEW_STUB_KEY } from './app-review-demo.ts'
 import { validateApiKey } from './validate-key.ts'
 
@@ -12,45 +13,39 @@ const fetchThrowing: typeof fetch = async () => {
 
 describe('validateApiKey', () => {
   it('sends the provider-specific auth headers to the model-listing endpoint', async () => {
-    const calls: { url: string; headers: Record<string, string> }[] = []
-    const recordingFetch: typeof fetch = async (input, init) => {
-      calls.push({
-        url: String(input),
-        headers: (init?.headers ?? {}) as Record<string, string>,
-      })
-      return new Response(null, { status: 200 })
-    }
+    const http = createTestHttpService()
 
-    await validateApiKey({ provider: 'openai', apiKey: 'sk-test' }, recordingFetch)
-    await validateApiKey({ provider: 'anthropic', apiKey: 'sk-ant-test' }, recordingFetch)
-    await validateApiKey({ provider: 'google', apiKey: 'AIza-test' }, recordingFetch)
-    await validateApiKey({ provider: 'openrouter', apiKey: 'sk-or-v1-test' }, recordingFetch)
+    await validateApiKey({ provider: 'openai', apiKey: 'sk-test' }, http.fetchFn)
+    await validateApiKey({ provider: 'anthropic', apiKey: 'sk-ant-test' }, http.fetchFn)
+    await validateApiKey({ provider: 'google', apiKey: 'AIza-test' }, http.fetchFn)
+    await validateApiKey({ provider: 'openrouter', apiKey: 'sk-or-v1-test' }, http.fetchFn)
     await validateApiKey(
       {
         provider: 'openai-compatible',
         apiKey: 'local-secret',
         baseUrl: 'http://localhost:1234/v1/',
       },
-      recordingFetch,
+      http.fetchFn,
     )
     await validateApiKey(
       { provider: 'openai-compatible', apiKey: '', baseUrl: 'http://localhost:1234/v1' },
-      recordingFetch,
+      http.fetchFn,
     )
 
+    const calls = http.requests()
     expect(calls[0]!.url).toBe('https://api.openai.com/v1/models')
-    expect(calls[0]!.headers['Authorization']).toBe('Bearer sk-test')
+    expect(calls[0]!.headers.get('Authorization')).toBe('Bearer sk-test')
     expect(calls[1]!.url).toBe('https://api.anthropic.com/v1/models')
-    expect(calls[1]!.headers['x-api-key']).toBe('sk-ant-test')
-    expect(calls[1]!.headers['anthropic-version']).toBe('2023-06-01')
+    expect(calls[1]!.headers.get('x-api-key')).toBe('sk-ant-test')
+    expect(calls[1]!.headers.get('anthropic-version')).toBe('2023-06-01')
     expect(calls[2]!.url).toBe('https://generativelanguage.googleapis.com/v1beta/models')
-    expect(calls[2]!.headers['x-goog-api-key']).toBe('AIza-test')
+    expect(calls[2]!.headers.get('x-goog-api-key')).toBe('AIza-test')
     expect(calls[3]!.url).toBe('https://openrouter.ai/api/v1/key')
-    expect(calls[3]!.headers['Authorization']).toBe('Bearer sk-or-v1-test')
+    expect(calls[3]!.headers.get('Authorization')).toBe('Bearer sk-or-v1-test')
     expect(calls[4]!.url).toBe('http://localhost:1234/v1/models')
-    expect(calls[4]!.headers['Authorization']).toBe('Bearer local-secret')
+    expect(calls[4]!.headers.get('Authorization')).toBe('Bearer local-secret')
     expect(calls[5]!.url).toBe('http://localhost:1234/v1/models')
-    expect(calls[5]!.headers['Authorization']).toBeUndefined()
+    expect(calls[5]!.headers.get('Authorization')).toBeNull()
   })
 
   it('reads an ok response as valid', async () => {

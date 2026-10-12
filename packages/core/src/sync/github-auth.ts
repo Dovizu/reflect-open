@@ -105,7 +105,7 @@ const tokenResponseSchema = z.object({
 
 /** Begin the device flow: returns the code to show + where the user enters it. */
 export async function deviceFlowStart(
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn,
   clientId: string = GITHUB_APP_CLIENT_ID,
 ): Promise<DeviceFlowStart> {
   if (clientId.length === 0) {
@@ -139,7 +139,7 @@ export type DevicePollResult =
 /** One poll of the device flow; the caller loops on `pending`/`slowDown`. */
 export async function deviceFlowPoll(
   deviceCode: string,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn,
   now: () => number = Date.now,
   clientId: string = GITHUB_APP_CLIENT_ID,
 ): Promise<DevicePollResult> {
@@ -177,7 +177,7 @@ export async function deviceFlowPoll(
 }
 
 export interface RunDeviceFlowOptions {
-  fetchFn?: FetchFn
+  fetchFn: FetchFn
   /** Called once GitHub issues the code — show it and the verification URI. */
   onCode: (code: { userCode: string; verificationUri: string }) => void
   /** Aborting stops polling and resolves `null` (the dialog was closed). */
@@ -200,7 +200,7 @@ function defaultSleep(ms: number): Promise<void> {
  * throw a ReflectError('auth'); an abort resolves `null`.
  */
 export async function runDeviceFlow(options: RunDeviceFlowOptions): Promise<GithubAuth | null> {
-  const fetchFn = options.fetchFn ?? fetch
+  const fetchFn = options.fetchFn
   const sleep = options.sleep ?? defaultSleep
   const now = options.now ?? Date.now
   const clientId = options.clientId ?? GITHUB_APP_CLIENT_ID
@@ -259,7 +259,7 @@ function toAuth(
  */
 export async function refreshGithubAuth(
   auth: Extract<GithubAuth, { kind: 'app' }>,
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn,
   now: () => number = Date.now,
 ): Promise<GithubAuth | null> {
   const clientId = auth.clientId ?? GITHUB_APP_CLIENT_ID
@@ -305,7 +305,7 @@ const REFRESH_MARGIN_MS = 5 * 60 * 1000
  * reconnect.
  */
 export async function getGithubToken(
-  fetchFn: FetchFn = fetch,
+  fetchFn: FetchFn,
   now: () => number = Date.now,
 ): Promise<string | null> {
   const auth = await loadGithubAuth()
@@ -340,10 +340,7 @@ const userResponseSchema = z.object({
  * Who the token belongs to (`GET /user` — works with every token type,
  * including fine-grained PATs). Doubles as instant token validation.
  */
-export async function getAuthenticatedUser(
-  token: string,
-  fetchFn: FetchFn = fetch,
-): Promise<GithubUser> {
+export async function getAuthenticatedUser(token: string, fetchFn: FetchFn): Promise<GithubUser> {
   const response = await fetchFn('https://api.github.com/user', {
     headers: apiHeaders(token),
   })

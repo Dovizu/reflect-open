@@ -10,6 +10,8 @@ import type {
   Settings,
   StreamChatOptions,
 } from '@reflect/core'
+import { setDefaultHttp } from '@reflect/core'
+import { createTestHttpService } from '@reflect/core/testing'
 import { ChatProvider } from '@/providers/chat-provider.tsx'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
 import { fireEvent } from '@/test-utils/fire-event.ts'
@@ -57,7 +59,12 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({ indexGeneration: null, graph: null }),
 }))
 
-vi.mock('@/lib/provider-fetch.ts', () => ({ providerFetch: vi.fn() }))
+beforeEach(() => {
+  setDefaultHttp(createTestHttpService())
+})
+afterEach(() => {
+  setDefaultHttp(null)
+})
 
 // Keep sheet content inline so this suite isolates the chat flow.
 vi.mock('@/components/ui/drawer.tsx', () => ({

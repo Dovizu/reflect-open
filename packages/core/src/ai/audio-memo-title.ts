@@ -28,7 +28,7 @@ export interface GenerateAudioMemoTitleRequest {
   /** Optional title-generation credentials; omitted means local fallback only. */
   readonly credentials?: AudioMemoEnrichmentCredentials | undefined
   /** Host transport (the Tauri HTTP plugin's fetch; tests pass a stub). */
-  readonly fetchFn?: typeof fetch | undefined
+  readonly fetchFn: typeof fetch
   /** The memo transcript to name. */
   readonly transcript: string
   /** Timestamp-derived fallback when the transcript cannot produce a title. */
@@ -143,7 +143,7 @@ export async function generateAudioMemoTitle(
   try {
     const { generateText, Output } = await import('@reflect/modules/ai')
     const result = await generateText({
-      model: await languageModel(titleConfig, request.credentials.apiKey, request.fetchFn ?? fetch),
+      model: await languageModel(titleConfig, request.credentials.apiKey, request.fetchFn),
       output: Output.object({ schema: audioMemoTitleSchema }),
       prompt: titlePrompt(request.transcript),
       abortSignal: AbortSignal.timeout(TITLE_TIMEOUT_MS),

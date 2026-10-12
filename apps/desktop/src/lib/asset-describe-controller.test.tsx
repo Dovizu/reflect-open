@@ -5,6 +5,8 @@ import type {
   ReconcileAssetDescriptionsInput,
   ReconcileAssetDescriptionsOutcome,
 } from '@reflect/core'
+import { setDefaultHttp } from '@reflect/core'
+import { createTestHttpService } from '@reflect/core/testing'
 import {
   createAssetDescribeController,
   type AssetDescribeController,
@@ -31,9 +33,12 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   reindexNotesReferencing,
   hasBridge: () => true,
 }))
-vi.mock('@/lib/provider-fetch.ts', () => ({
-  providerFetch: vi.fn(),
-}))
+beforeEach(() => {
+  setDefaultHttp(createTestHttpService())
+})
+afterEach(() => {
+  setDefaultHttp(null)
+})
 vi.mock('@/lib/operations.ts', () => ({
   startOperation: () => ({ progress: vi.fn(), done: vi.fn(), fail: failOperation }),
 }))

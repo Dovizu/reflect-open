@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type { LanguageModelV3Usage } from '@ai-sdk/provider'
 import type { AiProviderConfig } from '../settings/schema.ts'
@@ -74,6 +75,7 @@ function modelThrowing(error: unknown): void {
 function request(transcript = 'talked about planning the Rome trip'): Promise<string> {
   return generateAudioMemoTitle({
     credentials: { config: CONFIG, apiKey: 'sk-live-key' },
+    fetchFn: createTestHttpService().fetchFn,
     transcript,
     fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
   })
@@ -95,6 +97,7 @@ describe('generateAudioMemoTitle', () => {
 
     await generateAudioMemoTitle({
       credentials: { config, apiKey: 'sk-live-key' },
+      fetchFn: createTestHttpService().fetchFn,
       transcript: 'planning notes',
       fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
     })
@@ -133,6 +136,7 @@ describe('generateAudioMemoTitle', () => {
 
     await expect(
       generateAudioMemoTitle({
+        fetchFn: createTestHttpService().fetchFn,
         transcript: 'review launch checklist',
         fallbackTitle: 'Audio memo 2026-06-11 15:30:22',
       }),

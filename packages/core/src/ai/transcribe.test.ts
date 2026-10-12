@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import {
   GOOGLE_TRANSCRIPTION_FALLBACK_MODEL,
   GOOGLE_TRANSCRIPTION_MODEL,
@@ -41,6 +42,7 @@ function request(overrides: Partial<TranscriptionRequest>): TranscriptionRequest
     apiKey: 'sk-test',
     audio: new Blob(['abc'], { type: 'audio/mp4' }),
     mimeType: 'audio/mp4',
+    fetchFn: createTestHttpService().fetchFn,
     ...overrides,
   }
 }

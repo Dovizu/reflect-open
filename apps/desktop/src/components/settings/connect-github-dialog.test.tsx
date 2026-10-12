@@ -1,9 +1,8 @@
 import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { setBridge, setDefaultHttp, setDefaultPlatform } from '@reflect/core'
+import { createTestHttpService, createTestPlatformService } from '@reflect/core/testing'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
 import { ConnectGithubDialog } from './connect-github-dialog.tsx'
@@ -13,7 +12,6 @@ const sync = vi.hoisted(() => ({
   connectExistingRepo: vi.fn(async (): Promise<ConnectExistingResult> => 'connected'),
 }))
 vi.mock('@/providers/sync-provider.tsx', () => ({ useSync: () => sync }))
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 beforeEach(() => {
   setDefaultPlatform(
     createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
@@ -22,9 +20,9 @@ beforeEach(() => {
 
 afterEach(() => {
   setDefaultPlatform(null)
+  setDefaultHttp(null)
 })
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }))
-const httpFetch = vi.mocked(tauriFetch)
 const openedUrls = vi.mocked(openUrl)
 
 /** A keychain holding the given credential; GET /user accepting it makes the auth step skip itself. */
@@ -50,14 +48,14 @@ beforeEach(() => {
   // skip itself, so a Continue lands straight on the finish step. PAT by
   // default; app-credential tests re-store before rendering.
   storeCredential({ kind: 'pat', token: 'ghp_abc' })
-  // A fresh Response per call — bodies are single-use, and a wizard run can
-  // pass through the auth step more than once.
-  httpFetch.mockImplementation(
-    async () =>
-      new Response(JSON.stringify({ login: 'alex' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+  setDefaultHttp(
+    createTestHttpService([
+      {
+        method: 'GET',
+        url: 'https://api.github.com/user',
+        reply: { status: 200, json: { login: 'alex' } },
+      },
+    ]),
   )
   sync.connectNewRepo.mockResolvedValue('connected')
   sync.connectExistingRepo.mockResolvedValue('connected')

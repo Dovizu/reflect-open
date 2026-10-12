@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import { createTestHttpService } from '../testing/index.ts'
 import { describePage } from '../ai/describe-page.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import {
@@ -108,7 +109,12 @@ export function drain(overrides: Partial<Parameters<typeof drainCaptureInbox>[0]
 }
 
 export function reconcile(overrides: Partial<ReconcileCaptureEnrichmentInput> = {}) {
-  return reconcileCaptureEnrichment({ providers: PROVIDERS, generation: 3, ...overrides })
+  return reconcileCaptureEnrichment({
+    providers: PROVIDERS,
+    generation: 3,
+    fetchFn: createTestHttpService().fetchFn,
+    ...overrides,
+  })
 }
 
 /** Reset the maps and point every mocked command at them; call from `beforeEach`. */

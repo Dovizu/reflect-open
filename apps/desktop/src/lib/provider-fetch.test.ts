@@ -1,52 +1,38 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setDefaultPlatform } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { afterEach, describe, expect, it } from 'vitest'
+import { setDefaultHttp } from '@reflect/core'
+import { createTestHttpService } from '@reflect/core/testing'
 import { providerFetch } from './provider-fetch.ts'
 
-vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-const httpFetch = vi.mocked(tauriFetch)
-
 afterEach(() => {
-  setDefaultPlatform(null)
-  httpFetch.mockReset()
-  vi.unstubAllGlobals()
+  setDefaultHttp(null)
 })
 
 describe('providerFetch', () => {
-  it('sends an explicit empty Origin so the plugin drops the header', async () => {
-    setDefaultPlatform(createTestPlatformService())
-    httpFetch.mockResolvedValue(new Response(null, { status: 200 }))
+  it('sends the request through the default HTTP service', async () => {
+    const http = createTestHttpService([
+      { method: 'GET', url: 'https://api.anthropic.com/v1/models', reply: { status: 200 } },
+    ])
+    setDefaultHttp(http)
 
-    await providerFetch('https://api.anthropic.com/v1/models', {
+    const response = await providerFetch('https://api.anthropic.com/v1/models', {
       headers: { 'x-api-key': 'sk-ant-test' },
     })
 
-    const [, init] = httpFetch.mock.calls[0]!
-    const headers = new Headers(init?.headers)
-    expect(headers.get('Origin')).toBe('')
-    expect(headers.get('x-api-key')).toBe('sk-ant-test')
+    expect(response.status).toBe(200)
+    const [request] = http.requests()
+    expect(request?.url).toBe('https://api.anthropic.com/v1/models')
+    expect(request?.headers.get('x-api-key')).toBe('sk-ant-test')
   })
 
-  it('leaves a caller-set Origin alone', async () => {
-    setDefaultPlatform(createTestPlatformService())
-    httpFetch.mockResolvedValue(new Response(null, { status: 200 }))
+  it('reads the default HTTP service at call time', async () => {
+    const first = createTestHttpService()
+    const second = createTestHttpService()
+    setDefaultHttp(first)
+    await providerFetch('https://api.openai.com/v1/models')
+    setDefaultHttp(second)
+    await providerFetch('https://api.openai.com/v1/models')
 
-    await providerFetch('https://api.anthropic.com/v1/models', {
-      headers: { Origin: 'https://reflect.example' },
-    })
-
-    const [, init] = httpFetch.mock.calls[0]!
-    expect(new Headers(init?.headers).get('Origin')).toBe('https://reflect.example')
-  })
-
-  it('falls back to the global fetch (untouched init) outside the native shell', async () => {
-    const globalFetch = vi.fn(async () => new Response(null, { status: 200 }))
-    vi.stubGlobal('fetch', globalFetch)
-
-    await providerFetch('https://api.anthropic.com/v1/models', undefined)
-
-    expect(globalFetch).toHaveBeenCalledWith('https://api.anthropic.com/v1/models', undefined)
-    expect(httpFetch).not.toHaveBeenCalled()
+    expect(first.requests()).toHaveLength(1)
+    expect(second.requests()).toHaveLength(1)
   })
 })

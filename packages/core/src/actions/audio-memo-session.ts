@@ -230,7 +230,7 @@ export interface TranscribeSessionPartsInput {
   /** User transcription hint, if any. */
   prompt: string
   generation: number
-  fetchFn?: typeof fetch | undefined
+  fetchFn: typeof fetch
   /** Abort gate, consulted before and after every slow await. */
   isStale: () => boolean
 }
