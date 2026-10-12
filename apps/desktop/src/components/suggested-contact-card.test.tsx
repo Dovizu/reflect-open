@@ -2,7 +2,8 @@ import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultContacts } from '@reflect/core'
+import { createTestContactsService, type TestContactsService } from '@reflect/core/testing'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { SuggestedContactCard } from './suggested-contact-card.tsx'
 
@@ -26,19 +27,13 @@ const ADA = {
 
 let noteSource: string
 let written: Array<{ path: string; contents: string }>
-let lookups: string[]
+let contacts: TestContactsService
 
-function installFakeBridge(authorization = 'authorized'): void {
+function installFakeBridge(): void {
   written = []
-  lookups = []
   setBridge({
     invoke: async (command, args) => {
       switch (command) {
-        case 'contacts_authorization_status':
-          return authorization
-        case 'contacts_lookup_by_name':
-          lookups.push(String(args['name']))
-          return [ADA]
         case 'note_read':
           return noteSource
         case 'note_write': {
@@ -68,11 +63,14 @@ async function renderCard(): Promise<void> {
 beforeEach(() => {
   contactsEnabled.current = true
   noteSource = '# Ada Lovelace\n'
+  contacts = createTestContactsService({ contacts: [ADA] })
+  setDefaultContacts(contacts)
   installFakeBridge()
 })
 
 afterEach(() => {
   setBridge(null)
+  setDefaultContacts(null)
 })
 
 describe('SuggestedContactCard', () => {
@@ -80,7 +78,7 @@ describe('SuggestedContactCard', () => {
     await renderCard()
     await expect.element(page.getByText('Ada Lovelace')).toBeInTheDocument()
     await expect.element(page.getByText('ada@example.com · +1 555 0100')).toBeInTheDocument()
-    expect(lookups).toEqual(['Ada Lovelace'])
+    expect(contacts.lookups()).toEqual([{ kind: 'name', name: 'Ada Lovelace' }])
   })
 
   it('Add writes the details block in one write, then the content hides the card', async () => {
@@ -108,7 +106,7 @@ describe('SuggestedContactCard', () => {
   it('renders nothing when the body already carries contact details — no lookup', async () => {
     noteSource = '# Ada Lovelace\n\n- Email: ada@example.com\n'
     await renderCard()
-    await vi.waitFor(() => expect(lookups).toEqual([]))
+    await vi.waitFor(() => expect(contacts.lookups()).toEqual([]))
     expect(page.getByText('Ada Lovelace').query()).toBeNull()
   })
 
@@ -116,21 +114,23 @@ describe('SuggestedContactCard', () => {
     noteSource = '---\nignoredContacts:\n  - ada lovelace\n---\n# Ada Lovelace\n'
     await renderCard()
     // The dismissal check needs the match's name, so the lookup does run.
-    await vi.waitFor(() => expect(lookups).toEqual(['Ada Lovelace']))
+    await vi.waitFor(() =>
+      expect(contacts.lookups()).toEqual([{ kind: 'name', name: 'Ada Lovelace' }]),
+    )
     expect(page.getByText('ada@example.com · +1 555 0100').query()).toBeNull()
   })
 
   it('renders nothing when the integration is off', async () => {
     contactsEnabled.current = false
     await renderCard()
-    await vi.waitFor(() => expect(lookups).toEqual([]))
+    await vi.waitFor(() => expect(contacts.lookups()).toEqual([]))
     expect(page.getByText('Ada Lovelace').query()).toBeNull()
   })
 
   it('renders nothing while contacts access is denied', async () => {
-    installFakeBridge('denied')
+    contacts.setStatus('denied')
     await renderCard()
-    await vi.waitFor(() => expect(lookups).toEqual([]))
+    await vi.waitFor(() => expect(contacts.lookups()).toEqual([]))
     expect(page.getByText('Ada Lovelace').query()).toBeNull()
   })
 })

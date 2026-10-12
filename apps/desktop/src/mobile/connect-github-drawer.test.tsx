@@ -2,8 +2,12 @@ import type { ReactNode } from 'react'
 import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultHttp, setDefaultPlatform } from '@reflect/core'
-import { createTestHttpService, createTestPlatformService } from '@reflect/core/testing'
+import { setDefaultHttp, setDefaultPlatform, setDefaultSecretStore } from '@reflect/core'
+import {
+  createTestHttpService,
+  createTestPlatformService,
+  createTestSecretStoreService,
+} from '@reflect/core/testing'
 import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { ConnectGithubDrawer } from './connect-github-drawer.tsx'
@@ -43,11 +47,11 @@ afterEach(() => {
 beforeEach(() => {
   // A stored PAT + GitHub accepting it ("alex") makes the auth step skip
   // itself, so a Continue lands straight on the finish step.
-  setBridge({
-    invoke: async (command) =>
-      command === 'secret_get' ? JSON.stringify({ kind: 'pat', token: 'ghp_abc' }) : null,
-    listen: async () => () => {},
-  })
+  setDefaultSecretStore(
+    createTestSecretStoreService({
+      'github-auth': JSON.stringify({ kind: 'pat', token: 'ghp_abc' }),
+    }),
+  )
   setDefaultHttp(
     createTestHttpService([
       {
@@ -63,7 +67,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await cleanup()
-  setBridge(null)
+  setDefaultSecretStore(null)
   vi.resetAllMocks()
 })
 

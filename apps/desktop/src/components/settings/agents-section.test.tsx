@@ -2,8 +2,12 @@ import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultPlatform, type AgentSkillStatus } from '@reflect/core'
-import { createTestPlatformService } from '@reflect/core/testing'
+import { setDefaultAgentSkill, setDefaultPlatform, type AgentSkillStatus } from '@reflect/core'
+import {
+  createTestIpcBridgeService,
+  createTestPlatformService,
+  installTestBridge,
+} from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import { AgentsSection } from './agents-section.tsx'
 
@@ -33,35 +37,21 @@ function statusPayload(): AgentSkillStatus {
   }
 }
 
-function installFakeBridge(): void {
+let removeBridge: () => void
+
+function installFakeAgentSkill(): void {
   installGenerations = []
   uninstallGenerations = []
-  setBridge({
-    invoke: async (command, args) => {
-      switch (command) {
-        case 'skill_status':
-          return statusPayload()
-        case 'skill_install': {
-          const generation = args?.['generation']
-          if (typeof generation !== 'number') {
-            throw new TypeError('missing generation')
-          }
-          installGenerations.push(generation)
-          return await installResult()
-        }
-        case 'skill_uninstall': {
-          const generation = args?.['generation']
-          if (typeof generation !== 'number') {
-            throw new TypeError('missing generation')
-          }
-          uninstallGenerations.push(generation)
-          return await uninstallResult()
-        }
-        default:
-          throw new Error(`unexpected command ${command}`)
-      }
+  setDefaultAgentSkill({
+    status: async () => statusPayload(),
+    install: async (generation) => {
+      installGenerations.push(generation)
+      return await installResult()
     },
-    listen: async () => () => {},
+    uninstall: async (generation) => {
+      uninstallGenerations.push(generation)
+      return await uninstallResult()
+    },
   })
 }
 
@@ -88,11 +78,13 @@ beforeEach(() => {
     return statusPayload()
   }
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  installFakeBridge()
+  installFakeAgentSkill()
+  removeBridge = installTestBridge(createTestIpcBridgeService())
 })
 
 afterEach(() => {
-  setBridge(null)
+  removeBridge()
+  setDefaultAgentSkill(null)
   setDefaultPlatform(null)
   queryClient.clear()
 })

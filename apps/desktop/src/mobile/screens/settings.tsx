@@ -5,6 +5,7 @@ import {
   aiProviderRequiresApiKey,
   errorMessage,
   listNotes,
+  marketingVersion,
   CHAT_SYSTEM_PROMPT_MAX_LENGTH,
   TRANSCRIPTION_PROMPT_MAX_LENGTH,
   normalizeChatSystemPrompt,
@@ -25,7 +26,6 @@ import { useAppVersion } from '@/hooks/use-app-version.ts'
 import { usePaywallRequested } from '@/hooks/use-paywall-requested.ts'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useCrashTest, useDebugUnlockTap } from '@/hooks/use-debug-unlock.ts'
-import { marketingVersion } from '@/lib/marketing-version.ts'
 import { openUrlSync } from '@/lib/open-url.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { AddAiProviderDrawer } from '@/mobile/add-ai-provider-drawer.tsx'

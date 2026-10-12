@@ -3,19 +3,21 @@ import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
   runDeviceFlow,
-  setBridge,
   setDefaultClipboard,
   setDefaultHttp,
   setDefaultOpener,
   setDefaultPlatform,
+  setDefaultSecretStore,
 } from '@reflect/core'
 import {
   createTestClipboardService,
   createTestHttpService,
   createTestOpenerService,
   createTestPlatformService,
+  createTestSecretStoreService,
   type TestClipboardService,
   type TestHttpService,
+  type TestSecretStoreService,
 } from '@reflect/core/testing'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import '@/test-utils/locator.ts'
@@ -23,7 +25,7 @@ import { GithubAuthStep } from './github-auth-step.tsx'
 
 // The Reflect GitHub App is registered, so the device flow leads and the PAT
 // path sits behind a "use a personal access token instead" toggle. The
-// keychain is the bridge fake; GET /user (instant token validation) goes
+// keychain is the in-memory secret store; GET /user (instant token validation) goes
 // through the fake HTTP service. The device-flow tests stub core's
 // runDeviceFlow (polling policy is unit-tested in core) to drive the
 // code-handoff view.
@@ -80,30 +82,13 @@ beforeEach(() => {
 
 afterEach(async () => {
   await cleanup()
-  setBridge(null)
+  setDefaultSecretStore(null)
   mockFlow.mockReset()
 })
 
-function fakeKeychain(initial: Record<string, string> = {}) {
-  const store = new Map(Object.entries(initial))
-  setBridge({
-    invoke: async (command, args) => {
-      const name = args['name'] as string
-      if (command === 'secret_get') {
-        return store.get(name) ?? null
-      }
-      if (command === 'secret_set') {
-        store.set(name, args['value'] as string)
-        return null
-      }
-      if (command === 'secret_delete') {
-        store.delete(name)
-        return null
-      }
-      throw new Error(`unexpected command ${command}`)
-    },
-    listen: async () => () => {},
-  })
+function fakeKeychain(initial: Record<string, string> = {}): TestSecretStoreService {
+  const store = createTestSecretStoreService(initial)
+  setDefaultSecretStore(store)
   return store
 }
 
@@ -142,7 +127,7 @@ describe('GithubAuthStep', () => {
     await vi.waitFor(() =>
       expect(onAuthed).toHaveBeenCalledWith({ login: 'alex', avatarUrl: null }),
     )
-    expect(JSON.parse(store.get('github-auth') ?? '{}')).toEqual({
+    expect(JSON.parse(store.snapshot()['github-auth'] ?? '{}')).toEqual({
       kind: 'pat',
       token: 'github_pat_abc',
     })
@@ -165,7 +150,7 @@ describe('GithubAuthStep', () => {
 
     await expect.element(page.getByText(/rejected the token/i)).toBeVisible()
     expect(onAuthed).not.toHaveBeenCalled()
-    expect(store.has('github-auth')).toBe(false)
+    expect(store.snapshot()).not.toHaveProperty('github-auth')
   })
 
   it('rejects an empty token with an inline message', async () => {

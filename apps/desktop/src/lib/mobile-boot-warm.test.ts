@@ -1,21 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { MobileStorageInfo } from '@reflect/core'
+import { createTestMobileStorageService } from '@reflect/core/testing'
 
 /**
  * The warm slot holds module state (the in-flight promise), so each test
- * imports a fresh copy of the module — and installs the fake bridge on the
- * same fresh registry, since `vi.resetModules()` resets `@reflect/core`'s
- * bridge slot too.
+ * imports a fresh copy of the module and installs the fake storage service
+ * on the same fresh registry, since `vi.resetModules()` resets
+ * `@reflect/core`'s default slot too.
  */
 async function freshModule(
-  invoke: (command: string) => Promise<unknown>,
+  resolve: () => Promise<MobileStorageInfo>,
 ): Promise<typeof import('./mobile-boot-warm.ts')> {
   vi.resetModules()
   const core = await import('@reflect/core')
-  core.setBridge({ invoke: async (command) => await invoke(command), listen: async () => () => {} })
+  core.setDefaultMobileStorage({ ...createTestMobileStorageService(), resolve })
   return await import('./mobile-boot-warm.ts')
 }
 
-const STORAGE = {
+const STORAGE: MobileStorageInfo = {
   localRoot: '/Documents',
   icloudDocumentsRoot: '/iCloud/Documents',
   icloudGraphRoots: [],
@@ -28,15 +30,12 @@ afterEach(() => {
 describe('mobile-boot-warm', () => {
   it('starts the resolve once and hands it to exactly one taker', async () => {
     let storageCalls = 0
-    const { warmMobileStorage, takeWarmMobileStorage } = await freshModule(async (command) => {
-      if (command === 'mobile_storage') {
-        storageCalls += 1
-        return STORAGE
-      }
-      return null
+    const { warmMobileStorage, takeWarmMobileStorage } = await freshModule(async () => {
+      storageCalls += 1
+      return STORAGE
     })
     warmMobileStorage()
-    warmMobileStorage() // idempotent — still one IPC
+    warmMobileStorage() // idempotent: still one resolve
     expect(storageCalls).toBe(1)
 
     const taken = takeWarmMobileStorage()
