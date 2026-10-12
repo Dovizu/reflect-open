@@ -9,6 +9,9 @@ import { defaultChatHistory } from '../ai/chat/chat-history-service.ts'
 import { defaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { defaultBacklinkTarget } from '../capture/backlink-target-service.ts'
 import { defaultCapture } from '../capture/capture-service.ts'
+import { defaultAudioMemo } from '../audio/audio-memo-service.ts'
+import { defaultMobileAudioMemo } from '../audio/mobile-audio-memo-service.ts'
+import { defaultNativeAction } from '../audio/native-action-service.ts'
 import { defaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { defaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { defaultGists } from '../sync/gist-service.ts'
@@ -134,6 +137,9 @@ describe('installDefaultServices', () => {
     expect(defaultWebFetch()).toBe(services.webFetch)
     expect(defaultXArchive()).toBe(services.xArchive)
     expect(defaultAudioRecorder()).toBe(services.audioRecorder)
+    expect(defaultAudioMemo()).toBe(services.audioMemo)
+    expect(defaultNativeAction()).toBe(services.nativeAction)
+    expect(defaultMobileAudioMemo()).toBe(services.mobileAudioMemo)
     expect(defaultHaptics()).toBe(services.haptics)
     expect(defaultIap()).toBe(services.iap)
     expect(defaultAppStore()).toBe(services.appStore)
@@ -176,6 +182,8 @@ describe('installDefaultServices', () => {
       subscription,
       appStoreEnvironment,
       paywall,
+      nativeAction,
+      mobileAudioMemo,
       ...desktop
     } = createTestAppServices()
     installDefaultServices(desktop)
@@ -186,6 +194,8 @@ describe('installDefaultServices', () => {
     expect(defaultSubscription()).not.toBe(subscription)
     expect(defaultAppStoreEnvironment()).not.toBe(appStoreEnvironment)
     expect(defaultPaywall()).not.toBe(paywall)
+    expect(defaultNativeAction()).not.toBe(nativeAction)
+    expect(defaultMobileAudioMemo()).not.toBe(mobileAudioMemo)
   })
 })
 
@@ -226,6 +236,9 @@ describe('resetDefaultServices', () => {
     expect(defaultWebFetch()).not.toBe(services.webFetch)
     expect(defaultXArchive()).not.toBe(services.xArchive)
     expect(defaultAudioRecorder()).not.toBe(services.audioRecorder)
+    expect(defaultAudioMemo()).not.toBe(services.audioMemo)
+    expect(defaultNativeAction()).not.toBe(services.nativeAction)
+    expect(defaultMobileAudioMemo()).not.toBe(services.mobileAudioMemo)
     expect(defaultHaptics()).not.toBe(services.haptics)
     expect(defaultIap()).not.toBe(services.iap)
     expect(defaultAppStore()).not.toBe(services.appStore)

@@ -96,15 +96,12 @@ export function createTranscriptionService(deps: { http: HttpService }): Transcr
 export function withAppReviewDemoTranscription(
   service: TranscriptionService,
 ): TranscriptionService {
+  const demoTranscript = (apiKey: string): string | null =>
+    apiKey === APP_REVIEW_STUB_KEY ? stubTranscriptBody() : null
   return {
-    transcribe: async (request) => {
-      if (request.apiKey === APP_REVIEW_STUB_KEY) {
-        return stubTranscriptBody()
-      }
-      return await service.transcribe(request)
-    },
-    sessionTranscript: (apiKey) =>
-      apiKey === APP_REVIEW_STUB_KEY ? stubTranscriptBody() : service.sessionTranscript(apiKey),
+    transcribe: async (request) =>
+      demoTranscript(request.apiKey) ?? (await service.transcribe(request)),
+    sessionTranscript: (apiKey) => demoTranscript(apiKey) ?? service.sessionTranscript(apiKey),
   }
 }
 
