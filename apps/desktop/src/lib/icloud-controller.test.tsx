@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { emitFileChanges, setBridge, writeNote } from '@reflect/core'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 import { createIcloudController, isICloudRoot } from './icloud-controller.ts'
 
 /**
@@ -12,15 +13,15 @@ import { createIcloudController, isICloudRoot } from './icloud-controller.ts'
  */
 
 const seams = vi.hoisted(() => ({
-  dirtyOpenPaths: vi.fn<() => string[]>(() => []),
   invalidateIndexQueries: vi.fn(),
   throttledInvalidateIndexQueries: vi.fn(),
 }))
-vi.mock('@/editor/open-documents.ts', () => ({ dirtyOpenPaths: seams.dirtyOpenPaths }))
 vi.mock('@/lib/query-client.ts', () => ({
   invalidateIndexQueries: seams.invalidateIndexQueries,
   throttledInvalidateIndexQueries: seams.throttledInvalidateIndexQueries,
 }))
+
+const documents = installTestOpenDocuments()
 
 interface ScanCall {
   skipPaths: string[]
@@ -54,7 +55,6 @@ beforeEach(() => {
   scanResults = []
   releaseScan = null
   listeners = new Map()
-  seams.dirtyOpenPaths.mockReturnValue([])
   setBridge({
     invoke: async (command: string, args?: Record<string, unknown>) => {
       invoked.push([command, args ?? {}])
@@ -485,7 +485,7 @@ describe('createIcloudController', () => {
   })
 
   it('dirty open notes ride skipPaths so their conflicts defer', async () => {
-    seams.dirtyOpenPaths.mockReturnValue(['daily/2026-07-04.md'])
+    documents.open({ isDirty: () => true }, 'daily/2026-07-04.md')
     const icloud = controller()
     await icloud.start()
     await settleScan()

@@ -1,4 +1,11 @@
-import { foldKey, hasAuthoredTitle, parseNote } from '@reflect/core'
+import {
+  defaultClock,
+  foldKey,
+  hasAuthoredTitle,
+  parseNote,
+  type ClockService,
+  type TimerHandle,
+} from '@reflect/core'
 
 /**
  * Settled-title detection for the auto-rename flow. A title change triggers a
@@ -51,6 +58,8 @@ export interface TitleRenameTrackerOptions {
    */
   canFire?: (() => boolean) | undefined
   quietMs?: number
+  /** Runs the quiet timer. Defaults to the process-wide clock. */
+  clock?: ClockService | undefined
 }
 
 export interface TitleRenameTracker {
@@ -68,11 +77,12 @@ const DEFAULT_QUIET_MS = 5000
 export function createTitleRenameTracker(options: TitleRenameTrackerOptions): TitleRenameTracker {
   const { path, onRename, canFire } = options
   const quietMs = options.quietMs ?? DEFAULT_QUIET_MS
+  const clock = options.clock ?? defaultClock()
 
   let baselineTitle: string | null = null
   let pending: string | null = null
   let previousAutoAlias: string | null = null
-  let timer: ReturnType<typeof setTimeout> | null = null
+  let timer: TimerHandle | null = null
   let disposed = false
 
   // A title only counts when the *content* declares one (frontmatter `title:`
@@ -90,7 +100,7 @@ export function createTitleRenameTracker(options: TitleRenameTrackerOptions): Ti
 
   function cancelTimer(): void {
     if (timer !== null) {
-      clearTimeout(timer)
+      clock.clearTimeout(timer)
       timer = null
     }
   }
@@ -147,7 +157,7 @@ export function createTitleRenameTracker(options: TitleRenameTrackerOptions): Ti
       // would rename the file under a half-typed title.
       pending = title
       cancelTimer()
-      timer = setTimeout(fire, quietMs)
+      timer = clock.setTimeout(fire, quietMs)
       return
     }
     if (foldKey(title) === foldKey(baselineTitle)) {
@@ -159,7 +169,7 @@ export function createTitleRenameTracker(options: TitleRenameTrackerOptions): Ti
     }
     pending = title
     cancelTimer()
-    timer = setTimeout(fire, quietMs)
+    timer = clock.setTimeout(fire, quietMs)
   }
 
   function settle(): void {

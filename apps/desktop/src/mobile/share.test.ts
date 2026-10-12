@@ -1,17 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
 
 const shareMock = vi.fn<(data: ShareData) => Promise<void>>()
-const openSessionMock = vi.fn<(path: string) => { liveContent: () => string | null } | null>()
 
-vi.mock('@/editor/open-documents.ts', () => ({
-  openSession: (path: string) => openSessionMock(path),
-}))
+const documents = installTestOpenDocuments()
 
 beforeEach(() => {
   Object.defineProperty(navigator, 'share', { configurable: true, value: shareMock })
   shareMock.mockReset()
   shareMock.mockResolvedValue(undefined)
-  openSessionMock.mockReset()
 })
 
 afterEach(() => {
@@ -20,9 +17,10 @@ afterEach(() => {
 
 describe('shareNote', () => {
   it('shares the live editor buffer body (frontmatter stripped, title as subject)', async () => {
-    openSessionMock.mockReturnValue({
-      liveContent: () => '---\nid: abc123\n---\n# Meeting\n\nAgenda + the unsaved line.\n',
-    })
+    documents.open(
+      { liveContent: () => '---\nid: abc123\n---\n# Meeting\n\nAgenda + the unsaved line.\n' },
+      'notes/meeting-notes.md',
+    )
     const { shareNote } = await import('./share.ts')
 
     await shareNote('notes/meeting-notes.md')
@@ -34,7 +32,7 @@ describe('shareNote', () => {
   })
 
   it('shares the empty body when a ready note was cleared (not stale content)', async () => {
-    openSessionMock.mockReturnValue({ liveContent: () => '' })
+    documents.open({ liveContent: () => '' }, 'notes/meeting-notes.md')
     const { shareNote } = await import('./share.ts')
 
     await shareNote('notes/meeting-notes.md')
@@ -45,7 +43,7 @@ describe('shareNote', () => {
   it('shares empty rather than reading disk while the session is still loading', async () => {
     // liveContent() is null until load() lands; reading disk here would
     // require an await and break navigator.share's transient activation.
-    openSessionMock.mockReturnValue({ liveContent: () => null })
+    documents.open({ liveContent: () => null }, 'notes/meeting-notes.md')
     const { shareNote } = await import('./share.ts')
 
     await shareNote('notes/meeting-notes.md')
