@@ -55,6 +55,7 @@ const SERVICE_KEYS = [
   'chatHistory',
   'update',
   'navigation',
+  'deepLink',
   'gitRepository',
   'githubAuth',
   'gitHostCredentials',
