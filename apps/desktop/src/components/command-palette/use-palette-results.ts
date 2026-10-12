@@ -1,27 +1,20 @@
 import { useDeferredValue, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  dateFromDailyPath,
-  parseSearchQuery,
-  retrieve,
-  searchWithFilters,
-  suggestWikiTargets,
-} from '@reflect/core'
+import { parseSearchQuery } from '@reflect/core'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
-import { listCommands } from '@/lib/commands/registry.ts'
-import { todayIso } from '@/lib/dates.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useEmbedStatus } from '@/lib/use-embed-status.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { buildPaletteSections, type PaletteSections } from './entries.ts'
+import { usePaletteSearchService } from '@/services/use-search-services.ts'
+import type { PaletteSections } from './entries.ts'
 
 /**
  * The palette's data layer (Plan 08), extracted so the component stays
- * presentational: query deferral, filter parsing, the two index queries
- * (title suggestions + the one search path, whose filters may be empty), and
- * the settled/failed accounting the empty-state needs. Plan 09's semantic
- * results join here, not in the component.
+ * presentational: query deferral, filter parsing, the caching of the two
+ * index reads of `PaletteSearchService` (title suggestions + the one search
+ * path, whose filters may be empty), and the settled/failed accounting the
+ * empty-state needs.
  */
 
 export interface PaletteResults {
@@ -34,6 +27,7 @@ export interface PaletteResults {
 
 export function usePaletteResults(open: boolean, query: string): PaletteResults {
   const { graph } = useGraph()
+  const paletteSearch = usePaletteSearchService()
   // Hybrid needs both halves of the opt-in: the setting on *and* the model
   // ready. The setting gate makes disabling immediate — the model stays loaded
   // for the session, but its results must not. Plain-text queries blend
@@ -56,7 +50,7 @@ export function usePaletteResults(open: boolean, query: string): PaletteResults 
   // part of the cache identity — without it a palette cached before midnight
   // would serve a stale "Tomorrow" afterwards. Computed once so the key and the
   // query agree on the same day.
-  const today = todayIso()
+  const today = paletteSearch.today()
 
   const {
     data: suggestions,
@@ -70,7 +64,7 @@ export function usePaletteResults(open: boolean, query: string): PaletteResults 
       today,
     }),
     queryFn: () =>
-      suggestWikiTargets(trimmed, 8, {
+      paletteSearch.suggestTitles(trimmed, {
         today,
         dateFormat: settings.dateFormat,
         weekStartDay: settings.weekStartDay,
@@ -84,21 +78,7 @@ export function usePaletteResults(open: boolean, query: string): PaletteResults 
     isError: hitsError,
   } = useQuery({
     queryKey: queryKeys.index.paletteSearch(graph?.root, useHybrid ? 'hybrid' : 'lexical', trimmed),
-    queryFn: async () => {
-      if (!useHybrid) {
-        return await searchWithFilters(parsed)
-      }
-      // Adapt RetrievalHit → PaletteHit: semantic chunk text rides in
-      // the snippet slot, and the path stands in for the dailyDate the
-      // retrieval contract doesn't carry.
-      const hits = await retrieve(trimmed, { mode: 'hybrid' })
-      return hits.map((hit) => ({
-        path: hit.path,
-        title: hit.title,
-        dailyDate: dateFromDailyPath(hit.path),
-        snippet: hit.snippet === '' ? null : hit.snippet,
-      }))
-    },
+    queryFn: () => paletteSearch.search(trimmed, { hybrid: useHybrid }),
     enabled: searching && trimmed !== '',
   })
 
@@ -113,15 +93,14 @@ export function usePaletteResults(open: boolean, query: string): PaletteResults 
 
   const sections = useMemo(
     () =>
-      buildPaletteSections({
+      paletteSearch.sections({
         query,
         dataQuery: trimmed,
         suggestions: suggestions ?? [],
         hits: hits ?? [],
         filtered: parsed.filtered,
-        commands: listCommands(),
       }),
-    [query, trimmed, suggestions, hits, parsed.filtered],
+    [paletteSearch, query, trimmed, suggestions, hits, parsed.filtered],
   )
 
   return { sections, resultsSettled, searchFailed }

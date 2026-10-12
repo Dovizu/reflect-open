@@ -120,6 +120,8 @@ const SERVICE_KEYS = [
   'capture',
   'assetPrivacy',
   'assetDescription',
+  'wikiLinkSuggestions',
+  'paletteSearch',
 ] as const satisfies readonly (keyof AppServices)[]
 
 function requiredAdapters(): AppAdapters {

@@ -150,6 +150,7 @@ export {
   type TimerHandle,
 } from '../app/clock-service.ts'
 export { parseIsoDate, todayIso } from '../lib/dates.ts'
+export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
   createPlatformService,
   defaultPlatform,
@@ -396,6 +397,54 @@ export {
   type NoteSessionSnapshot,
   type NoteSessionStatus,
 } from '../documents/note-session.ts'
+export {
+  buildAutocompleteEntries,
+  type AutocompleteEntry,
+  type ContactEntryCandidate,
+  type EntryOptions,
+} from '../search/wiki-autocomplete-entries.ts'
+export {
+  createWikiLinkSuggestionService,
+  defaultWikiLinkPersonNotes,
+  defaultWikiLinkSuggestions,
+  setDefaultWikiLinkSuggestions,
+  type TagMenuItem,
+  type WikiLinkMenuItem,
+  type WikiLinkPersonNotes,
+  type WikiLinkSuggestionOptions,
+  type WikiLinkSuggestionService,
+  type WikiLinkSuggestionServiceDeps,
+} from '../search/wiki-link-suggestion-service.ts'
+export {
+  buildPaletteSections,
+  type NoteEntry,
+  type PaletteCommand,
+  type PaletteHit,
+  type PaletteSections,
+} from '../search/palette-entries.ts'
+export {
+  createPaletteSearchService,
+  defaultPaletteSearch,
+  setDefaultPaletteSearch,
+  type PaletteSearchService,
+  type PaletteSearchServiceDeps,
+  type PaletteSectionsInput,
+} from '../search/palette-search-service.ts'
+export {
+  EMPTY_ALL_NOTES_FILTERS,
+  UPDATED_PRESETS,
+  buildAllNotesSearch,
+  hasActiveFilters,
+  pendingTagToken,
+  searchPlanFor,
+  updatedPresetFilter,
+  updatedRangeFilter,
+  type AllNotesFilters,
+  type NoteFilterRef,
+  type PendingTag,
+  type UpdatedFilter,
+  type UpdatedPreset,
+} from '../search/all-notes-filters.ts'
 export {
   createDailyNoteService,
   defaultDailyNotes,
@@ -818,7 +867,6 @@ export {
   type EmbeddingIndexService,
   type EmbedNoteOptions,
 } from '../embeddings/embedding-index-service.ts'
-export { retrieve } from '../embeddings/retrieve.ts'
 export {
   createRetrievalService,
   defaultRetrieval,

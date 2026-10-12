@@ -78,6 +78,8 @@ import { defaultStorage } from './storage-service.ts'
 import { defaultUpdate } from './update-service.ts'
 import { defaultNavigation } from '../navigation/navigation-service.ts'
 import { defaultWindow } from './window-service.ts'
+import { defaultPaletteSearch } from '../search/palette-search-service.ts'
+import { defaultWikiLinkSuggestions } from '../search/wiki-link-suggestion-service.ts'
 
 afterEach(() => {
   resetDefaultServices()
@@ -165,6 +167,8 @@ describe('installDefaultServices', () => {
     expect(defaultKeymap()).toBe(services.keymap)
     expect(defaultCommands()).toBe(services.commands)
     expect(defaultNativeMenu()).toBe(services.nativeMenu)
+    expect(defaultWikiLinkSuggestions()).toBe(services.wikiLinkSuggestions)
+    expect(defaultPaletteSearch()).toBe(services.paletteSearch)
   })
 
   it('leaves the bridge-backed plugin defaults where a service is absent', () => {

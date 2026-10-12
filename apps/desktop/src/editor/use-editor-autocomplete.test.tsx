@@ -1,332 +1,179 @@
-import { createTestOperationsService, type TestOperationsService } from '@reflect/core/testing'
-import { setDefaultOperations } from '@reflect/core'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactElement, ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type {
+  ContactMatch,
+  ContactsAuthorization,
+  ResolveOrCreateNoteResult,
+  WikiLinkSuggestionResult,
+} from '@reflect/core'
+import {
+  createTestAppServices,
+  createTestContactsService,
+  createTestOperationsService,
+  createTestSettingsService,
+  createTestWikiLinkPersonNotes,
+  createTestWikiLinkSuggestionService,
+  installTestServices,
+} from '@reflect/core/testing'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
+import { AppServicesProvider } from '@/services/services-provider.tsx'
 import { useEditorAutocomplete } from './use-editor-autocomplete.ts'
 
-const resolveOrCreateNoteWithTitle = vi.hoisted(() => vi.fn())
-const ensurePersonNote = vi.hoisted(() => vi.fn())
-const contactLinkSuggestions = vi.hoisted(() => vi.fn())
-const resolvePersonContact = vi.hoisted(() => vi.fn())
-const suggestWikiLinkTargets = vi.hoisted(() => vi.fn())
-const settingsState = vi.hoisted(() => ({ contactsEnabled: false }))
-
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  hasBridge: () => true,
-  suggestWikiTargets: async () => [],
-  suggestWikiLinkTargets,
-  suggestTags: async () => [],
-  contactLinkSuggestions,
-  ensurePersonNote,
-  resolveOrCreateNoteWithTitle,
-  resolvePersonContact,
+const graphState = vi.hoisted(() => ({
+  graph: { generation: 7 } as { generation: number } | null,
 }))
 vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { generation: 7 } }),
+  useGraph: () => ({ graph: graphState.graph }),
 }))
-vi.mock('@/providers/settings-provider.tsx', () => ({
-  useSettings: () => ({
-    settings: {
-      ...settingsState,
-      dateFormat: 'MMM d, yyyy',
-      weekStartDay: 1,
+
+const ADA: ContactMatch = {
+  fullName: 'Ada Lovelace',
+  givenName: 'Ada',
+  familyName: 'Lovelace',
+  emails: ['ada@example.com'],
+  phones: [],
+}
+
+interface SetupOptions {
+  contactsEnabled?: boolean
+  authorization?: ContactsAuthorization
+  wikiLinks?: WikiLinkSuggestionResult
+  createOutcome?: ResolveOrCreateNoteResult
+}
+
+/**
+ * The hook over the real `WikiLinkSuggestionService` with scripted index and
+ * address-book answers; the row rules themselves are covered in core.
+ */
+async function setup(options?: SetupOptions) {
+  const operations = createTestOperationsService()
+  const settings = createTestSettingsService(
+    { contactsEnabled: options?.contactsEnabled ?? false },
+    { operations },
+  )
+  await settings.whenLoaded()
+  const created: { title: string; generation: number }[] = []
+  const noteCreation = {
+    resolveOrCreateNoteWithTitle: async (
+      title: string,
+      generation: number,
+    ): Promise<ResolveOrCreateNoteResult> => {
+      created.push({ title, generation })
+      return options?.createOutcome ?? { kind: 'created', path: 'notes/created.md' }
     },
-  }),
-}))
-vi.mock('@/hooks/use-contacts-authorization.ts', () => ({
-  useContactsAuthorization: () => 'authorized',
-}))
-
-let operations: TestOperationsService
-
-beforeEach(() => {
-  operations = createTestOperationsService()
-  setDefaultOperations(operations)
-  resolveOrCreateNoteWithTitle.mockReset()
-  ensurePersonNote.mockReset()
-  contactLinkSuggestions.mockReset().mockResolvedValue([])
-  resolvePersonContact.mockReset()
-  settingsState.contactsEnabled = false
-  suggestWikiLinkTargets.mockReset()
-  suggestWikiLinkTargets.mockResolvedValue({
-    suggestions: [],
-    claimedTargetKeys: [],
-    queryReadsAsDate: false,
+  }
+  const wikiLinkSuggestions = createTestWikiLinkSuggestionService({
+    suggestions: {
+      suggestWikiLinkTargets: async () =>
+        options?.wikiLinks ?? { suggestions: [], claimedTargetKeys: [], queryReadsAsDate: false },
+      suggestTags: async () => [
+        { tag: 'work', count: 2 },
+        { tag: 'home', count: 1 },
+      ],
+    },
+    noteCreation,
+    personNotes: {
+      ...createTestWikiLinkPersonNotes(noteCreation),
+      contactLinkSuggestions: async () => [ADA],
+    },
+    settings,
+    operations,
   })
-})
-
-afterEach(() => {
-  setDefaultOperations(null)
-})
+  const app = createTestAppServices({
+    wikiLinkSuggestions,
+    operations,
+    settings,
+    contacts: createTestContactsService({ status: options?.authorization ?? 'authorized' }),
+  })
+  // The Contacts permission query reads the process-wide services.
+  onTestFinished(installTestServices(app))
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  function wrapper({ children }: { children: ReactNode }): ReactElement {
+    return (
+      <QueryClientProvider client={client}>
+        <AppServicesProvider services={app}>{children}</AppServicesProvider>
+      </QueryClientProvider>
+    )
+  }
+  const { result } = await renderHook(() => useEditorAutocomplete(), { wrapper })
+  return { result, operations, created }
+}
 
 describe('useEditorAutocomplete', () => {
-  it('does not offer create when the exact query has an unaddressable claim', async () => {
-    suggestWikiLinkTargets.mockResolvedValue({
-      suggestions: [],
-      claimedTargetKeys: ['roadmap'],
-      queryReadsAsDate: false,
-    })
-    const { result } = await renderHook(() => useEditorAutocomplete())
+  it('returns the rows of the service and creates with the graph generation', async () => {
+    const { result, operations, created } = await setup()
+    const items = await result.current.onWikilinkSearch('Business ideas')
+    expect(items).toMatchObject([{ target: 'Business ideas', label: 'Create “Business ideas”' }])
 
-    await expect(result.current.onWikilinkSearch('Roadmap')).resolves.toEqual([])
+    items[0]!.onSelect?.()
+
+    await vi.waitFor(() => expect(created).toEqual([{ title: 'Business ideas', generation: 7 }]))
+    expect(operations.getAll()).toEqual([])
   })
 
   it('reports an ambiguous background create instead of silently doing nothing', async () => {
-    resolveOrCreateNoteWithTitle.mockResolvedValue({
-      kind: 'ambiguous',
-      paths: ['notes/business-ideas.md', 'notes/business-ideas-2.md'],
+    const { result, operations } = await setup({
+      createOutcome: {
+        kind: 'ambiguous',
+        paths: ['notes/business-ideas.md', 'notes/business-ideas-2.md'],
+      },
     })
-    const { result, act } = await renderHook(() => useEditorAutocomplete())
     const items = await result.current.onWikilinkSearch('Business ideas')
 
-    await act(() => {
-      items[0]!.onSelect?.()
-    })
-
-    await vi.waitFor(() =>
-      expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Business ideas', 7),
-    )
-    expect(operations.findByLabel('Creating note')).toMatchObject({
-      status: 'failed',
-      message:
-        'Couldn’t safely choose one note matching “Business ideas”. Rename conflicting notes or wait for unavailable notes to become available, then try again.',
-    })
-  })
-
-  it('reports an unavailable background create distinctly from ambiguity', async () => {
-    resolveOrCreateNoteWithTitle.mockResolvedValue({
-      kind: 'unavailable',
-      paths: ['notes/business-ideas.md'],
-    })
-    const { result, act } = await renderHook(() => useEditorAutocomplete())
-    const items = await result.current.onWikilinkSearch('Business ideas')
-
-    await act(() => {
-      items[0]!.onSelect?.()
-    })
-
-    await vi.waitFor(() =>
-      expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Business ideas', 7),
-    )
-    expect(operations.findByLabel('Creating note')).toMatchObject({
-      status: 'failed',
-      message:
-        'Couldn’t create “Business ideas” while a potentially matching note is unavailable. Try again when it is available on this device.',
-    })
-  })
-
-  it('surfaces a failed background create instead of silently doing nothing', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    resolveOrCreateNoteWithTitle.mockRejectedValue(new Error('graph changed'))
-    const { result, act } = await renderHook(() => useEditorAutocomplete())
-    const items = await result.current.onWikilinkSearch('Business ideas')
-
-    await act(() => {
-      items[0]!.onSelect?.()
-    })
+    items[0]!.onSelect?.()
 
     await vi.waitFor(() =>
       expect(operations.findByLabel('Creating note')).toMatchObject({
         status: 'failed',
-        message: 'graph changed',
-      }),
-    )
-    consoleError.mockRestore()
-  })
-
-  it('creates in the background without user-facing feedback on the happy path', async () => {
-    resolveOrCreateNoteWithTitle.mockResolvedValue({
-      kind: 'created',
-      path: 'notes/business-ideas.md',
-    })
-    const { result, act } = await renderHook(() => useEditorAutocomplete())
-    const items = await result.current.onWikilinkSearch('Business ideas')
-
-    await act(() => {
-      items[0]!.onSelect?.()
-    })
-
-    await vi.waitFor(() =>
-      expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Business ideas', 7),
-    )
-    expect(operations.getAll()).toEqual([])
-  })
-
-  it('labels a `//` note by its first segment and details only an informative alias', async () => {
-    suggestWikiLinkTargets.mockResolvedValue({
-      suggestions: [
-        {
-          target: 'Tim MacCaw // Dad',
-          path: 'notes/tim-maccaw-dad.md',
-          title: 'Tim MacCaw // Dad',
-          alias: 'Dad',
-          date: null,
-          insertText: 'Tim MacCaw // Dad|Dad',
-        },
-        {
-          target: 'Charlotte MacCaw // Mum',
-          path: 'notes/charlotte-maccaw-mum.md',
-          title: 'Charlotte MacCaw // Mum',
-          alias: 'Charlotte MacCaw',
-          date: null,
-          insertText: 'Charlotte MacCaw // Mum|Charlotte MacCaw',
-        },
-      ],
-      claimedTargetKeys: [],
-      queryReadsAsDate: false,
-    })
-    const { result } = await renderHook(() => useEditorAutocomplete())
-
-    const items = await result.current.onWikilinkSearch('maccaw')
-    expect(items.slice(0, 2)).toMatchObject([
-      { target: 'Tim MacCaw // Dad|Dad', label: 'Tim MacCaw', detail: 'Dad → Tim MacCaw' },
-      { target: 'Charlotte MacCaw // Mum|Charlotte MacCaw', label: 'Charlotte MacCaw' },
-    ])
-    expect(items[1]).not.toHaveProperty('detail')
-  })
-
-  it('details notes that share a title with their paths', async () => {
-    suggestWikiLinkTargets.mockResolvedValue({
-      suggestions: [
-        {
-          target: 'Event loop',
-          path: 'notes/event-loop.md',
-          title: 'Event loop',
-          alias: null,
-          date: null,
-          insertText: 'notes/event-loop',
-        },
-        {
-          target: 'Event loop',
-          path: 'notes/event-loop-2.md',
-          title: 'Event loop',
-          alias: null,
-          date: null,
-          insertText: 'notes/event-loop-2',
-        },
-        {
-          target: 'Event sourcing',
-          path: 'notes/event-sourcing.md',
-          title: 'Event sourcing',
-          alias: null,
-          date: null,
-          insertText: 'Event sourcing',
-        },
-      ],
-      claimedTargetKeys: [],
-      queryReadsAsDate: false,
-    })
-    const { result } = await renderHook(() => useEditorAutocomplete())
-
-    const items = await result.current.onWikilinkSearch('event')
-    expect(items.slice(0, 3)).toMatchObject([
-      { target: 'notes/event-loop', label: 'Event loop', detail: 'notes/event-loop.md' },
-      { target: 'notes/event-loop-2', label: 'Event loop', detail: 'notes/event-loop-2.md' },
-      { target: 'Event sourcing', label: 'Event sourcing' },
-    ])
-    expect(items[2]).not.toHaveProperty('detail')
-  })
-
-  it('uses an existing email owner as the Contact row target', async () => {
-    settingsState.contactsEnabled = true
-    const contact = {
-      fullName: 'Ada Lovelace',
-      givenName: 'Ada',
-      familyName: 'Lovelace',
-      emails: ['ada@example.com'],
-      phones: [],
-    }
-    contactLinkSuggestions.mockResolvedValue([contact])
-    resolvePersonContact.mockResolvedValue({
-      kind: 'existing',
-      contact,
-      emails: ['ada@example.com'],
-      path: 'notes/augusta.md',
-      title: 'Augusta Ada King',
-      insertText: 'Augusta Ada King',
-    })
-    ensurePersonNote.mockResolvedValue({
-      kind: 'existing',
-      emails: ['ada@example.com'],
-      path: 'notes/augusta.md',
-      title: 'Augusta Ada King',
-      insertText: 'Augusta Ada King',
-    })
-    const { result, act } = await renderHook(() => useEditorAutocomplete())
-
-    const items = await result.current.onWikilinkSearch('Ada')
-    expect(items).toMatchObject([
-      {
-        target: 'Augusta Ada King',
-        label: 'Ada Lovelace',
-        detail: 'ada@example.com',
-      },
-      { target: 'Ada', label: 'Create “Ada”' },
-    ])
-
-    await act(() => {
-      items[0]!.onSelect?.()
-    })
-    await vi.waitFor(() =>
-      expect(ensurePersonNote).toHaveBeenCalledWith({
-        title: 'Ada Lovelace',
-        emails: ['ada@example.com'],
-        body: '- Type: #person\n- Email: ada@example.com',
-        generation: 7,
+        message:
+          'Couldn’t safely choose one note matching “Business ideas”. Rename conflicting notes or wait for unavailable notes to become available, then try again.',
       }),
     )
   })
 
-  it('hides an exact blocked Contact and its Create fallback', async () => {
-    settingsState.contactsEnabled = true
-    const contact = {
-      fullName: 'Ada Lovelace',
-      givenName: 'Ada',
-      familyName: 'Lovelace',
-      emails: ['ada@example.com'],
-      phones: [],
-    }
-    contactLinkSuggestions.mockResolvedValue([contact])
-    resolvePersonContact.mockResolvedValue({
-      kind: 'blocked',
-      contact,
-      reason: 'identity-conflict',
+  it('does not offer create when the exact query has an unaddressable claim', async () => {
+    const { result } = await setup({
+      wikiLinks: { suggestions: [], claimedTargetKeys: ['roadmap'], queryReadsAsDate: false },
     })
-    const { result } = await renderHook(() => useEditorAutocomplete())
-
-    await expect(result.current.onWikilinkSearch('Ada Lovelace')).resolves.toEqual([])
+    await expect(result.current.onWikilinkSearch('Roadmap')).resolves.toEqual([])
   })
 
-  it('reports a failed Contact creation through the operation UI', async () => {
-    settingsState.contactsEnabled = true
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const contact = {
-      fullName: 'Ada Lovelace',
-      givenName: 'Ada',
-      familyName: 'Lovelace',
-      emails: ['ada@example.com'],
-      phones: [],
-    }
-    contactLinkSuggestions.mockResolvedValue([contact])
-    resolvePersonContact.mockResolvedValue({
-      kind: 'new',
-      contact,
-      insertText: 'Ada Lovelace',
-    })
-    ensurePersonNote.mockRejectedValue(new Error('graph changed'))
-    const { result, act } = await renderHook(() => useEditorAutocomplete())
-    const items = await result.current.onWikilinkSearch('Ada Lovelace')
-
-    await act(() => {
-      items[0]!.onSelect?.()
-    })
-
-    await vi.waitFor(() =>
-      expect(operations.snapshot()).toContainEqual(
-        expect.objectContaining({ status: 'failed', message: 'graph changed' }),
-      ),
+  it('adds Contact rows once the integration is on and the permission readable', async () => {
+    const { result } = await setup({ contactsEnabled: true })
+    // The permission state arrives through a query; the row joins once it settles.
+    await vi.waitFor(async () =>
+      expect(await result.current.onWikilinkSearch('Ada Lovelace')).toMatchObject([
+        { target: 'Ada Lovelace', label: 'Ada Lovelace', detail: 'ada@example.com' },
+      ]),
     )
-    consoleError.mockRestore()
+  })
+
+  it('keeps Contact rows out while the integration is off', async () => {
+    const { result } = await setup({ contactsEnabled: false })
+    // Give the permission query time to settle: the setting alone must gate the rows.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await expect(result.current.onWikilinkSearch('Ada Lovelace')).resolves.toMatchObject([
+      { label: 'Create “Ada Lovelace”' },
+    ])
+  })
+
+  it('searches tags through the service', async () => {
+    const { result } = await setup()
+    await expect(result.current.onTagSearch('o')).resolves.toEqual([
+      { tag: 'work' },
+      { tag: 'home' },
+    ])
+  })
+
+  it('returns nothing without an open graph', async () => {
+    graphState.graph = null
+    try {
+      const { result } = await setup()
+      await expect(result.current.onWikilinkSearch('Business ideas')).resolves.toEqual([])
+      await expect(result.current.onTagSearch('')).resolves.toEqual([])
+    } finally {
+      graphState.graph = { generation: 7 }
+    }
   })
 })
