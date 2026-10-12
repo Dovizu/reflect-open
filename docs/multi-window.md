@@ -46,7 +46,7 @@ as main: they are all single-window.
 The gate is structural: singleton mounts go through `useMainWindowEffect`
 (`src/hooks/use-main-window-effect.ts`), so a new background controller
 declares its ownership rather than remembering a guard. Graph-mutating
-actions are refused off-main in `GraphProvider` (`requireMainWindow`) —
+actions are refused off-main in `GraphSessionService` (`requireMainWindow`) —
 opening a graph from a note window would re-root the shared `GraphState`
 under every window at once.
 
@@ -86,7 +86,7 @@ below. The command is also exposed in the native Window menu.
    preferred for that target, a distinct suffixed `note-*` window is created
    and becomes preferred instead.
 3. The new webview boots the ordinary desktop tree. `GraphProvider` sees a
-   non-main label and takes the adoption leg (`useNoteWindowBoot`):
+   non-main label and takes the adoption leg (`GraphSessionService.boot`):
    `window_bootstrap` returns the graph info + index generation (unbumped —
    pinned by the `session_adoption_reads_never_bump_generations` test) and
    drains the pending deep link. Because ⌘-click builds **path-shaped**

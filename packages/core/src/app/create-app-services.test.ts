@@ -42,6 +42,7 @@ const SERVICE_KEYS = [
   'mobileStorage',
   'imageCodec',
   'indexLifecycle',
+  'graphSession',
   'exceptionTelemetry',
   'operations',
   'settings',
