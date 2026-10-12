@@ -592,6 +592,14 @@ export {
   type SettingsStatus,
 } from '../settings/settings-service.ts'
 export {
+  createThemeService,
+  defaultTheme,
+  setDefaultTheme,
+  THEME_PREFERENCE_CACHE_KEY,
+  type ResolvedTheme,
+  type ThemeService,
+} from '../settings/theme-service.ts'
+export {
   contactsAuthorizationSchema,
   contactMatchSchema,
   contactsAuthorizationStatus,

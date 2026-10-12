@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { THEME_PREFERENCE_CACHE_KEY } from './theme-cache.ts'
+import { THEME_PREFERENCE_CACHE_KEY } from '@reflect/core'
 
 /**
  * `public/theme-init.js` is served raw — no bundler, so it cannot import the

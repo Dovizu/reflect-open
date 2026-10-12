@@ -21,6 +21,7 @@ import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
 import { setDefaultSettings } from '../settings/settings-service.ts'
+import { setDefaultTheme } from '../settings/theme-service.ts'
 import { setDefaultAgentSkill } from './agent-skill-service.ts'
 import { setDefaultAppInfo } from './app-info-service.ts'
 import { setDefaultClipboard } from './clipboard-service.ts'
@@ -67,6 +68,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultExceptionTelemetry(services.exceptionTelemetry)
   setDefaultOperations(services.operations)
   setDefaultSettings(services.settings)
+  setDefaultTheme(services.theme)
   setDefaultDatabase(services.database)
   setDefaultFileChanges(services.fileChanges)
   setDefaultIndexStore(services.indexStore)
@@ -113,6 +115,7 @@ export function resetDefaultServices(): void {
   setDefaultExceptionTelemetry(null)
   setDefaultOperations(null)
   setDefaultSettings(null)
+  setDefaultTheme(null)
   setDefaultDatabase(null)
   setDefaultFileChanges(null)
   setDefaultIndexStore(null)

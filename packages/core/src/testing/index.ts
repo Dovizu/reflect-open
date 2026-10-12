@@ -130,6 +130,7 @@ export {
   type TestOperationsService,
 } from './operations.ts'
 export { createTestSettingsService, type TestSettingsService } from './settings.ts'
+export { createTestThemeService, type TestThemeService } from './theme.ts'
 export {
   createTestFileChangeService,
   type TestFileChangeService,
