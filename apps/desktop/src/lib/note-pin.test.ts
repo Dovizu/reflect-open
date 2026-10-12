@@ -5,19 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSession } from '@/editor/note-session.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
-
-const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
-const writeNote = vi.hoisted(() => vi.fn(async () => {}))
-
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  readNote,
-  writeNote,
-}))
+import { installTestNoteFile } from '@/test-utils/note-file.ts'
+import { reorderPinnedNotes, toggleNotePinned, unpinNote } from './note-pin.ts'
 
 const documents = installTestOpenDocuments()
-
-const { reorderPinnedNotes, toggleNotePinned, unpinNote } = await import('./note-pin.ts')
+const noteFile = installTestNoteFile()
 
 let client: QueryClient
 
@@ -31,8 +23,6 @@ beforeEach(() => {
   operations = createTestOperationsService()
   setDefaultOperations(operations)
   client = new QueryClient()
-  readNote.mockReset()
-  writeNote.mockClear()
 })
 
 afterEach(() => {
@@ -51,9 +41,13 @@ function fakeSession(content: string, canCommit = true, liveContent: string | nu
 
 describe('toggleNotePinned', () => {
   it('pins an unopened note via read-patch-write on disk', async () => {
-    readNote.mockResolvedValue('# A\n')
+    noteFile.read().mockResolvedValue('# A\n')
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', '---\npinned: true\n---\n\n# A\n', 3)
+    expect(noteFile.write()).toHaveBeenCalledWith(
+      'notes/a.md',
+      '---\npinned: true\n---\n\n# A\n',
+      3,
+    )
   })
 
   it('numbers the pin a gap past the shelf it joins', async () => {
@@ -61,24 +55,28 @@ describe('toggleNotePinned', () => {
       { path: 'notes/b.md', title: 'B', dailyDate: null, pinnedOrder: 1024 },
       { path: 'notes/c.md', title: 'C', dailyDate: null, pinnedOrder: 2048 },
     ])
-    readNote.mockResolvedValue('# A\n')
+    noteFile.read().mockResolvedValue('# A\n')
 
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
 
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', '---\npinned: 3072\n---\n\n# A\n', 3)
+    expect(noteFile.write()).toHaveBeenCalledWith(
+      'notes/a.md',
+      '---\npinned: 3072\n---\n\n# A\n',
+      3,
+    )
   })
 
   it('unpins on disk by removing the key (back to no frontmatter)', async () => {
-    readNote.mockResolvedValue('---\npinned: true\n---\n# A\n')
+    noteFile.read().mockResolvedValue('---\npinned: true\n---\n# A\n')
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
+    expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
 
   it('treats an explicit order — including 0 — as pinned, and unpinning clears it', async () => {
     // `pinned: 0` is falsy in JS; a truthiness check would re-pin instead.
-    readNote.mockResolvedValue('---\npinned: 0\n---\n# A\n')
+    noteFile.read().mockResolvedValue('---\npinned: 0\n---\n# A\n')
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
+    expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
 
   it('routes through the live session, which owns landing the patch', async () => {
@@ -86,8 +84,8 @@ describe('toggleNotePinned', () => {
     documents.open(session)
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
     expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: true })
-    expect(readNote).not.toHaveBeenCalled()
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.read()).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('toggles off through the session when the open note is pinned', async () => {
@@ -100,9 +98,13 @@ describe('toggleNotePinned', () => {
   it('falls back to disk when the session cannot take the patch', async () => {
     const { session } = fakeSession('# A\n', false)
     documents.open(session)
-    readNote.mockResolvedValue('# A\n')
+    noteFile.read().mockResolvedValue('# A\n')
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', '---\npinned: true\n---\n\n# A\n', 3)
+    expect(noteFile.write()).toHaveBeenCalledWith(
+      'notes/a.md',
+      '---\npinned: true\n---\n\n# A\n',
+      3,
+    )
   })
 
   it('pins a not-yet-created note by creating its file (the lazy contract)', async () => {
@@ -112,15 +114,19 @@ describe('toggleNotePinned', () => {
     // note reads as empty, and the pin write is what creates it.
     const { session } = fakeSession('', false, null)
     documents.open(session, 'daily/2026-06-10.md')
-    readNote.mockRejectedValue({ kind: 'notFound', message: 'no such note' })
+    noteFile.read().mockRejectedValue({ kind: 'notFound', message: 'no such note' })
     await expect(toggleNotePinned(input('daily/2026-06-10.md'))).resolves.toBeUndefined()
-    expect(writeNote).toHaveBeenCalledWith('daily/2026-06-10.md', '---\npinned: true\n---\n\n', 3)
+    expect(noteFile.write()).toHaveBeenCalledWith(
+      'daily/2026-06-10.md',
+      '---\npinned: true\n---\n\n',
+      3,
+    )
   })
 
   it('reports non-notFound read failures through operations', async () => {
-    readNote.mockRejectedValue({ kind: 'io', message: 'disk on fire' })
+    noteFile.read().mockRejectedValue({ kind: 'io', message: 'disk on fire' })
     await expect(toggleNotePinned(input())).resolves.toBeUndefined()
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
     expect(operations.snapshot()).toMatchObject([
       { label: 'Updating pin', status: 'failed', message: 'disk on fire' },
     ])
@@ -129,11 +135,11 @@ describe('toggleNotePinned', () => {
 
 describe('unpinNote', () => {
   it('unpins directly without reading the current pin state', async () => {
-    readNote.mockResolvedValue('---\npinned: true\n---\n# A\n')
+    noteFile.read().mockResolvedValue('---\npinned: true\n---\n# A\n')
 
     await unpinNote(input())
 
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
+    expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', '# A\n', 3)
   })
 
   it('routes direct unpin through the live session', async () => {
@@ -143,13 +149,13 @@ describe('unpinNote', () => {
     await unpinNote(input())
 
     expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: false })
-    expect(readNote).not.toHaveBeenCalled()
+    expect(noteFile.read()).not.toHaveBeenCalled()
   })
 })
 
 describe('reorderPinnedNotes', () => {
   it('writes each planned pin order', async () => {
-    readNote.mockResolvedValue('# A\n')
+    noteFile.read().mockResolvedValue('# A\n')
 
     await reorderPinnedNotes(
       [
@@ -159,8 +165,16 @@ describe('reorderPinnedNotes', () => {
       3,
     )
 
-    expect(writeNote).toHaveBeenCalledWith('notes/c.md', '---\npinned: 1024\n---\n\n# A\n', 3)
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', '---\npinned: 1536\n---\n\n# A\n', 3)
+    expect(noteFile.write()).toHaveBeenCalledWith(
+      'notes/c.md',
+      '---\npinned: 1024\n---\n\n# A\n',
+      3,
+    )
+    expect(noteFile.write()).toHaveBeenCalledWith(
+      'notes/a.md',
+      '---\npinned: 1536\n---\n\n# A\n',
+      3,
+    )
   })
 
   it('routes open notes through their sessions', async () => {
@@ -173,6 +187,6 @@ describe('reorderPinnedNotes', () => {
     )
 
     expect(commitFrontmatter).toHaveBeenCalledWith({ pinned: 1024 })
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 })
