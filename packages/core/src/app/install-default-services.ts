@@ -34,9 +34,13 @@ import { setDefaultClassicAccess } from '../classic/classic-access-service.ts'
 import { setDefaultAppStoreEnvironment } from '../monetization/app-store-environment-service.ts'
 import { setDefaultPaywall } from '../monetization/paywall-service.ts'
 import { setDefaultSubscription } from '../monetization/subscription-service.ts'
+import { setDefaultCalendarEvents } from '../calendar/calendar-events-service.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
+import { setDefaultContactSuggestions } from '../contacts/contact-suggestion-service.ts'
 import { setDefaultDailyNotes } from '../daily/daily-note-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
+import { setDefaultMeetings } from '../contacts/meeting-service.ts'
+import { setDefaultPersonNotes } from '../contacts/person-note-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
@@ -126,7 +130,11 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultSecretStore(services.secretStore)
   setDefaultAppInfo(services.appInfo)
   setDefaultCalendar(services.calendar)
+  setDefaultCalendarEvents(services.calendarEvents)
   setDefaultContacts(services.contacts)
+  setDefaultContactSuggestions(services.contactSuggestions)
+  setDefaultPersonNotes(services.personNotes)
+  setDefaultMeetings(services.meetings)
   setDefaultAgentSkill(services.agentSkill)
   setDefaultMobileStorage(services.mobileStorage)
   setDefaultImageCodec(services.imageCodec)
@@ -238,7 +246,11 @@ export function resetDefaultServices(): void {
   setDefaultSecretStore(null)
   setDefaultAppInfo(null)
   setDefaultCalendar(null)
+  setDefaultCalendarEvents(null)
   setDefaultContacts(null)
+  setDefaultContactSuggestions(null)
+  setDefaultPersonNotes(null)
+  setDefaultMeetings(null)
   setDefaultAgentSkill(null)
   setDefaultMobileStorage(null)
   setDefaultImageCodec(null)

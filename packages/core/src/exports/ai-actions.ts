@@ -196,12 +196,7 @@ export {
 export { createPageMetaService, type PageMetaService } from '../capture/page-meta-service.ts'
 export { parsePageMeta, type PageMeta } from '../link-preview/metadata.ts'
 export {
-  calendarAuthorizationStatus,
   canReadCalendars,
-  requestCalendarAccess,
-  listCalendars,
-  listCalendarEvents,
-  subscribeCalendarChanged,
   calendarAuthorizationStatusSchema,
   calendarInfoSchema,
   calendarAttendeeSchema,
@@ -213,19 +208,14 @@ export {
 } from '../calendar/commands.ts'
 export { displayEvents, isDeclinedByUser, defaultAttendees, dayRange } from '../calendar/events.ts'
 export {
-  addMeetingToDaily,
   meetingLine,
   MEETINGS_HEADING,
   type AddMeetingInput,
   type AddMeetingOutcome,
-  type MeetingLineAttendee,
-} from '../actions/add-meeting.ts'
-export {
-  resolveMeetingAttendees,
-  resolveMeetingAttendeeTargets,
   type MeetingAttendee,
+  type MeetingLineAttendee,
   type ResolvedMeetingAttendee,
-} from '../actions/resolve-attendees.ts'
+} from '../contacts/meeting-service.ts'
 export {
   isDescriptionRejected,
   DescriptionRejectedError,

@@ -1,20 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import {
-  contactDetailsMarkdown,
-  contactNamesEqual,
-  isContactsReadable,
-  isDaily,
-  noteHasContactDetails,
-  parseNote,
-  splitFrontmatter,
-  suggestContactForTitle,
-  type ContactMatch,
-} from '@reflect/core'
+import { showsContactSuggestions, type ContactMatch } from '@reflect/core'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
-import { readNoteSource } from '@/lib/note-frontmatter.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
+import { useContactSuggestionService } from '@/services/use-contacts-services.ts'
 import { useContactsAuthorization } from './use-contacts-authorization.ts'
 
 /**
@@ -37,28 +27,13 @@ export function useSuggestedContact(path: string): ContactMatch | null {
   const { graph } = useGraph()
   const { settings } = useSettings()
   const authorization = useContactsAuthorization()
-  const readable = authorization !== null && isContactsReadable(authorization)
+  const contactSuggestions = useContactSuggestionService()
   const bridgeReady = useBridgeReady()
   const enabled =
-    bridgeReady && graph !== null && settings.contactsEnabled && readable && !isDaily(path)
+    bridgeReady && graph !== null && showsContactSuggestions(settings, authorization, path)
   const { data } = useQuery({
     queryKey: queryKeys.index.suggestedContact(graph?.root, path),
-    queryFn: async () => {
-      const source = await readNoteSource(path)
-      if (noteHasContactDetails(splitFrontmatter(source).body)) {
-        return null
-      }
-      const note = parseNote({ path, source })
-      const match = await suggestContactForTitle(note.title)
-      // A match with nothing to add (no email, no phone) has no card to offer.
-      if (match === null || contactDetailsMarkdown(match) === '') {
-        return null
-      }
-      const dismissed = note.frontmatter.ignoredContacts.some((name) =>
-        contactNamesEqual(name, match.fullName),
-      )
-      return dismissed ? null : match
-    },
+    queryFn: () => contactSuggestions.suggestionFor(path),
     enabled,
   })
   // A disabled query still serves its last cached answer — but once the gate
