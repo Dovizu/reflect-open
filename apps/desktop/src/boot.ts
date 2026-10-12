@@ -1,5 +1,5 @@
 import { initializeExceptionTelemetry } from '@/lib/exception-telemetry.ts'
-import { tauriBridge } from '@/lib/tauri-bridge.ts'
+import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
 import { setBridge } from '@reflect/core'
 
 import { isTauri } from '@tauri-apps/api/core'
@@ -14,5 +14,5 @@ initializeExceptionTelemetry()
 // need the real shell rather than just an answering bridge gate on
 // `isNativeShell()`.
 if (isTauri()) {
-  setBridge(tauriBridge)
+  setBridge(createTauriIpcTransport())
 }

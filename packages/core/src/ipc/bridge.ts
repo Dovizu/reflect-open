@@ -1,9 +1,10 @@
+import { defaultLogger } from '../app/logger-service.ts'
 /**
  * The pluggable transport between `@reflect/core` and its host backend.
  *
  * `@reflect/core` is platform-agnostic: nothing in this package imports
  * `@tauri-apps/*`. A host installs a bridge at startup — the desktop app
- * adapts Tauri's `invoke`/`listen` (see `apps/desktop/src/lib/tauri-bridge.ts`),
+ * adapts Tauri's `invoke`/`listen` (see `apps/desktop/src/services/tauri-ipc.ts`),
  * plain-browser dev installs the in-memory dev bridge
  * (`apps/desktop/src/dev/`), and tests install fakes via {@link setBridge}.
  * A bridge answering commands does NOT imply a native shell: gates that need
@@ -11,40 +12,17 @@
  * `isNativeShell()` instead of {@link hasBridge}.
  */
 
-/** Tears down a subscription created by {@link IpcBridge.listen}. */
-export type Unlisten = () => void
+import {
+  createIpcBridgeService,
+  type IpcBridge,
+  type IpcBridgeService,
+  type Unlisten,
+} from './ipc-service.ts'
 
-/** The two native primitives `@reflect/core` needs from its host. */
-export interface IpcBridge {
-  /** Invoke a native command, resolving with its raw (untyped) response. */
-  invoke: (command: string, args: Record<string, unknown>) => Promise<unknown>
-  /** Subscribe to a native event stream, resolving with an unlisten function. */
-  listen: (event: string, handler: (payload: unknown) => void) => Promise<Unlisten>
-  /**
-   * Invoke a native command with a **raw binary body** instead of JSON args —
-   * asset bytes cross the IPC without base64 inflation. Since a raw body
-   * carries no args, per-call metadata travels in `headers`. Optional: hosts
-   * without a binary transport simply don't stream assets; `callBinary`
-   * throws loudly rather than degrading.
-   */
-  invokeBinary?: (
-    command: string,
-    body: Uint8Array,
-    headers: Record<string, string>,
-  ) => Promise<unknown>
-  /**
-   * Attach a handler to a plugin's event stream, Tauri's
-   * `addPluginListener` channel (`recordingLevel`, ...), which is distinct
-   * from the global event bus behind {@link listen}.
-   */
-  listenPlugin?: (
-    plugin: string,
-    event: string,
-    handler: (payload: unknown) => void,
-  ) => Promise<void>
-}
+export type { IpcBridge, Unlisten } from './ipc-service.ts'
 
 let activeBridge: IpcBridge | null = null
+let activeService: IpcBridgeService | null = null
 
 /** Notified on every {@link setBridge}, so UI layers can re-read {@link hasBridge}. */
 const changeListeners = new Set<() => void>()
@@ -57,6 +35,8 @@ const changeListeners = new Set<() => void>()
  */
 export function setBridge(bridge: IpcBridge | null): void {
   activeBridge = bridge
+  activeService =
+    bridge === null ? null : createIpcBridgeService(bridge, { logger: defaultLogger() })
   for (const listener of changeListeners) {
     listener()
   }
@@ -100,12 +80,24 @@ export function hasBinaryIpc(): boolean {
   return activeBridge !== null && activeBridge.invokeBinary !== undefined
 }
 
+function noBridgeError(): Error {
+  return new Error(
+    'No IPC bridge is installed. Call setBridge() at startup — the desktop app installs the Tauri bridge in boot.ts; tests install a fake.',
+  )
+}
+
 /** The installed bridge; throws when called before {@link setBridge}. */
 export function getBridge(): IpcBridge {
   if (activeBridge === null) {
-    throw new Error(
-      'No IPC bridge is installed. Call setBridge() at startup — the desktop app installs the Tauri bridge in boot.ts; tests install a fake.',
-    )
+    throw noBridgeError()
   }
   return activeBridge
+}
+
+/** The {@link IpcBridgeService} over the installed bridge; throws when called before {@link setBridge}. */
+export function defaultIpc(): IpcBridgeService {
+  if (activeService === null) {
+    throw noBridgeError()
+  }
+  return activeService
 }

@@ -1,3 +1,4 @@
+import { defaultIpc } from './bridge.ts'
 import { definePluginCommand, ignoredResult } from './plugin.ts'
 
 /**
@@ -13,5 +14,5 @@ const impactLightCommand = definePluginCommand<Record<string, never>, unknown>(
 
 /** Fire a light impact haptic (a no-op wherever there is no haptic engine). */
 export async function impactLight(): Promise<void> {
-  await impactLightCommand({})
+  await impactLightCommand(defaultIpc(), {})
 }

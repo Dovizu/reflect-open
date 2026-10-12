@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { defaultIpc } from './bridge.ts'
 import { definePluginCommand, ignoredResult } from './plugin.ts'
 
 /**
@@ -22,7 +23,7 @@ const getEnvironmentCommand = definePluginCommand<Record<string, never>, { envir
  * unanswered probe stays distinguishable from a named channel.
  */
 export async function getAppStoreEnvironment(): Promise<string> {
-  return (await getEnvironmentCommand({})).environment
+  return (await getEnvironmentCommand(defaultIpc(), {})).environment
 }
 
 const syncCommand = definePluginCommand<Record<string, never>, unknown>(
@@ -37,7 +38,7 @@ const syncCommand = definePluginCommand<Record<string, never>, unknown>(
  * an explicit user action such as Restore Purchases.
  */
 export async function syncAppStore(): Promise<void> {
-  await syncCommand({})
+  await syncCommand(defaultIpc(), {})
 }
 
 const presentOfferCodeRedeemSheetCommand = definePluginCommand<Record<string, never>, unknown>(
@@ -52,5 +53,5 @@ const presentOfferCodeRedeemSheetCommand = definePluginCommand<Record<string, ne
  * result, which resolves as soon as the sheet is presented.
  */
 export async function presentOfferCodeRedeemSheet(): Promise<void> {
-  await presentOfferCodeRedeemSheetCommand({})
+  await presentOfferCodeRedeemSheetCommand(defaultIpc(), {})
 }
