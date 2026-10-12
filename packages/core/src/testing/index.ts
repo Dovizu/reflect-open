@@ -201,6 +201,16 @@ export {
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
 export {
+  createTestNoteSession,
+  createTestNoteSessionService,
+  createTestOpenDocumentsService,
+  type NoteSessionCall,
+  type TestNoteSession,
+  type TestNoteSessionOptions,
+  type TestNoteSessionService,
+  type TestNoteSessionServiceOptions,
+} from './documents.ts'
+export {
   createTestAppStoreEnvironmentService,
   createTestClassicAccessService,
   createTestPaywallService,

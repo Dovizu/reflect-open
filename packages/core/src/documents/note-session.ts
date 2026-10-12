@@ -1,24 +1,72 @@
-import {
-  appendBlock,
-  detectConflictMarkers,
-  errorMessage,
-  isAppError,
-  upsertFrontmatter,
-} from '@reflect/core'
+import { defaultClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
+import { defaultLogger, type LoggerService } from '../app/logger-service.ts'
+import { errorMessage, isAppError } from '../errors.ts'
+import { defaultNoteFile, type NoteFileService } from '../graph/note-file-service.ts'
+import { appendBlock } from '../markdown/append-section.ts'
+import { detectConflictMarkers } from '../markdown/conflict-markers.ts'
+import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { splitDoc } from './note-session-doc.ts'
 import { frontmatterPatchToYaml, type FrontmatterPatch } from './note-session-frontmatter.ts'
 import type {
   NoteSession,
   NoteSessionOptions,
+  NoteSessionService,
   NoteSessionSnapshot,
   NoteSessionStatus,
 } from './note-session-types.ts'
 
+export { frontmatterPatchToYaml, type FrontmatterPatch } from './note-session-frontmatter.ts'
+export {
+  INITIAL_NOTE_SNAPSHOT,
+  type NoteContentOrigin,
+  type NoteSession,
+  type NoteSessionOptions,
+  type NoteSessionService,
+  type NoteSessionSnapshot,
+  type NoteSessionStatus,
+} from './note-session-types.ts'
+
+/** File access of one session, with the graph generation bound to its writes. */
+interface NoteSessionIo {
+  read: (path: string) => Promise<string>
+  write:
+    | ((path: string, contents: string, expectedContents?: string | null) => Promise<void>)
+    | null
+}
+
 const DEFAULT_SAVE_DEBOUNCE_MS = 800
 
-/** Create the document session for one note. See note-session.ts for semantics. */
-export function createNoteSession(options: NoteSessionOptions): NoteSession {
-  const { io, classify, onSnapshot, applyContent, onContent, reconcilePendingEditorInput } = options
+export function createNoteSessionService(deps: {
+  noteFile: NoteFileService
+  clock: ClockService
+  logger: LoggerService
+}): NoteSessionService {
+  return {
+    create: (options) => createNoteSession(deps, options),
+  }
+}
+
+/** Create the document session for one note. See note-session-types.ts for semantics. */
+function createNoteSession(
+  deps: { noteFile: NoteFileService; clock: ClockService; logger: LoggerService },
+  options: NoteSessionOptions,
+): NoteSession {
+  const { noteFile, clock, logger } = deps
+  const { classify, onSnapshot, applyContent, onContent, reconcilePendingEditorInput } = options
+  const generation = options.generation
+  const io: NoteSessionIo = {
+    read: (forPath) => noteFile.read(forPath),
+    write:
+      generation === null
+        ? null
+        : async (forPath, contents, expectedContents) => {
+            const current = generation()
+            if (current === null) {
+              throw new Error('no graph generation available for save')
+            }
+            await noteFile.write(forPath, contents, current, expectedContents)
+          },
+  }
   /** Mutable: a rename retargets the session in place (Plan 17). */
   let path = options.path
   const createIfMissing = options.createIfMissing ?? false
@@ -41,7 +89,7 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
   let header = ''
   /** The full content most recently read from or written to disk. */
   let disk = ''
-  let saveTimer: ReturnType<typeof setTimeout> | null = null
+  let saveTimer: TimerHandle | null = null
   /** Serializes writes so a flush can't interleave with a debounced save. */
   let saveChain: Promise<void> = Promise.resolve()
   /** Settles when the current initial load has committed its state. */
@@ -133,7 +181,7 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
         }
       })
       .catch(async (cause) => {
-        console.error('failed to save note:', cause)
+        logger.error('failed to save note:', cause)
         error = errorMessage(cause)
         await reconcileFromDisk()
         emit()
@@ -145,9 +193,9 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
       return
     }
     if (saveTimer !== null) {
-      clearTimeout(saveTimer)
+      clock.clearTimeout(saveTimer)
     }
-    saveTimer = setTimeout(() => {
+    saveTimer = clock.setTimeout(() => {
       saveTimer = null
       save()
     }, saveDebounceMs)
@@ -155,7 +203,7 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
 
   function cancelScheduledSave(): void {
     if (saveTimer !== null) {
-      clearTimeout(saveTimer)
+      clock.clearTimeout(saveTimer)
       saveTimer = null
     }
   }
@@ -561,4 +609,40 @@ export function createNoteSession(options: NoteSessionOptions): NoteSession {
     dispose,
     discard,
   }
+}
+
+let installedService: NoteSessionService | null = null
+let fallback: {
+  service: NoteSessionService
+  noteFile: NoteFileService
+  clock: ClockService
+  logger: LoggerService
+} | null = null
+
+/**
+ * The process-wide `NoteSessionService`; one over {@link defaultNoteFile},
+ * {@link defaultClock} and {@link defaultLogger} unless
+ * {@link setDefaultNoteSessions} installed another.
+ */
+export function defaultNoteSessions(): NoteSessionService {
+  if (installedService !== null) {
+    return installedService
+  }
+  const noteFile = defaultNoteFile()
+  const clock = defaultClock()
+  const logger = defaultLogger()
+  if (fallback?.noteFile !== noteFile || fallback.clock !== clock || fallback.logger !== logger) {
+    fallback = {
+      service: createNoteSessionService({ noteFile, clock, logger }),
+      noteFile,
+      clock,
+      logger,
+    }
+  }
+  return fallback.service
+}
+
+/** Install the process-wide `NoteSessionService`; `null` restores the default-backed one. */
+export function setDefaultNoteSessions(service: NoteSessionService | null): void {
+  installedService = service
 }

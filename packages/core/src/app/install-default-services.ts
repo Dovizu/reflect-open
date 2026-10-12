@@ -16,6 +16,8 @@ import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
 import { setDefaultNoteFile } from '../graph/note-file-service.ts'
 import { setDefaultNoteLinkResolver } from '../graph/note-link-resolver-service.ts'
 import { setDefaultAttachments } from '../documents/attachment-service.ts'
+import { setDefaultNoteSessions } from '../documents/note-session.ts'
+import { setDefaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { setDefaultEmbeddingRuntime } from '../embeddings/embedding-runtime-service.ts'
 import { setDefaultDatabase } from '../indexing/database-service.ts'
 import { setDefaultBacklinks } from '../indexing/backlink-service.ts'
@@ -110,6 +112,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteFile(services.noteFile)
   setDefaultAssetStore(services.assetStore)
   setDefaultAttachments(services.attachments)
+  setDefaultNoteSessions(services.noteSessions)
+  setDefaultOpenDocuments(services.openDocuments)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -174,6 +178,8 @@ export function resetDefaultServices(): void {
   setDefaultNoteFile(null)
   setDefaultAssetStore(null)
   setDefaultAttachments(null)
+  setDefaultNoteSessions(null)
+  setDefaultOpenDocuments(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)

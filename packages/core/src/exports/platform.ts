@@ -289,6 +289,34 @@ export {
   type WikiEmbedDisplay,
 } from '../documents/attachment-service.ts'
 export {
+  INITIAL_NOTE_SNAPSHOT,
+  createNoteSessionService,
+  defaultNoteSessions,
+  frontmatterPatchToYaml,
+  setDefaultNoteSessions,
+  type FrontmatterPatch,
+  type NoteContentOrigin,
+  type NoteSession,
+  type NoteSessionOptions,
+  type NoteSessionService,
+  type NoteSessionSnapshot,
+  type NoteSessionStatus,
+} from '../documents/note-session.ts'
+export {
+  createOpenDocumentsService,
+  defaultOpenDocuments,
+  setDefaultOpenDocuments,
+  type OpenDocument,
+  type OpenDocumentsService,
+} from '../documents/open-documents-service.ts'
+export {
+  createDocumentBinding,
+  type BindFactories,
+  type BoundDocument,
+  type DocumentBinding,
+  type DocumentCoordinator,
+} from '../documents/document-binding.ts'
+export {
   createXArchiveService,
   defaultXArchive,
   setDefaultXArchive,

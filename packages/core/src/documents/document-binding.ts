@@ -1,6 +1,5 @@
-import type { NoteSession } from './note-session.ts'
-import { registerOpenDocument } from './open-documents.ts'
-import type { RenameCoordinator } from './rename-coordinator.ts'
+import type { NoteSession } from './note-session-types.ts'
+import type { OpenDocumentsService } from './open-documents-service.ts'
 
 /**
  * One pane's document lifecycle policy (Plan 17), extracted from
@@ -23,13 +22,13 @@ import type { RenameCoordinator } from './rename-coordinator.ts'
  *   session down — a moved document must never flush over its old home, and
  *   an unadopted one must never leak.
  *
- * The hook's effect drives it like so (see `use-note-document.ts`):
+ * The desktop hook's effect drives it like so (see `use-note-document.ts`):
  *
  * ```ts
  * useEffect(() => {
  *   const { session, created } = binding.bind(path, {
  *     coordinator: () => createRenameCoordinator({ ... }),
- *     session: (coordinator) => createNoteSession({ ... }),
+ *     session: (coordinator) => noteSessions.create({ ... }),
  *   })
  *   if (created) session.load()            // adopted sessions are already live
  *   return () => binding.unbind(path)
@@ -41,34 +40,46 @@ import type { RenameCoordinator } from './rename-coordinator.ts'
  * Why a rename leads here: `docs/readable-filenames.md`.
  */
 
-export interface BindFactories {
-  /** Build the session; receives the coordinator its `onContent` feeds. */
-  session: (coordinator: RenameCoordinator | null) => NoteSession
-  coordinator: () => RenameCoordinator | null
+/** What a binding needs from the coordinator that owns a document's settle-time work. */
+export interface DocumentCoordinator {
+  /** A settle point (blur, teardown, quit): fire any pending work now. */
+  settle(): void
+  /** Resolves once fired settle-time work has landed. */
+  settled(): Promise<void>
+  dispose(): void
 }
 
-export interface BoundDocument {
+export interface BindFactories<Coordinator extends DocumentCoordinator = DocumentCoordinator> {
+  /** Build the session; receives the coordinator its `onContent` feeds. */
+  session: (coordinator: Coordinator | null) => NoteSession
+  coordinator: () => Coordinator | null
+}
+
+export interface BoundDocument<Coordinator extends DocumentCoordinator = DocumentCoordinator> {
   session: NoteSession
-  coordinator: RenameCoordinator | null
+  coordinator: Coordinator | null
   /** False when a retargeted live session was adopted instead of created. */
   created: boolean
 }
 
-export interface DocumentBinding {
+export interface DocumentBinding<Coordinator extends DocumentCoordinator = DocumentCoordinator> {
   /** Bind the pane to `path`, creating or adopting. One unbind per bind. */
-  bind(path: string, create: BindFactories): BoundDocument
+  bind(path: string, create: BindFactories<Coordinator>): BoundDocument<Coordinator>
   /** Release the bind for `path`: teardown, or hand-off when retargeted. */
   unbind(path: string): void
   /** The live session, if any — callbacks read this, never a stale ref. */
   session(): NoteSession | null
-  coordinator(): RenameCoordinator | null
+  coordinator(): Coordinator | null
   /** Counts session *creations* (not adoptions) — the editor's remount key. */
   epoch(): number
 }
 
-export function createDocumentBinding(): DocumentBinding {
+export function createDocumentBinding<
+  Coordinator extends DocumentCoordinator = DocumentCoordinator,
+>(deps: { openDocuments: OpenDocumentsService }): DocumentBinding<Coordinator> {
+  const { openDocuments } = deps
   let session: NoteSession | null = null
-  let coordinator: RenameCoordinator | null = null
+  let coordinator: Coordinator | null = null
   /** The previous bind's path: adoption requires the path to have *changed*. */
   let lastPath: string | null = null
   let epoch = 0
@@ -76,7 +87,7 @@ export function createDocumentBinding(): DocumentBinding {
   let runId = 0
   let unregister: (() => void) | null = null
 
-  function teardown(target: NoteSession, owner: RenameCoordinator | null): void {
+  function teardown(target: NoteSession, owner: Coordinator | null): void {
     // Disposal flushes pending edits to the session's own (current) path —
     // the note-switch "final flush". The flush's landed save reaches the
     // rename tracker via onContent('saved'); settle after it so a just-edited
@@ -100,12 +111,12 @@ export function createDocumentBinding(): DocumentBinding {
   }
 
   return {
-    bind(path: string, create: BindFactories): BoundDocument {
+    bind(path: string, create: BindFactories<Coordinator>): BoundDocument<Coordinator> {
       runId += 1
       const adopted =
         session !== null && session.path === path && lastPath !== path ? session : null
       let bound: NoteSession
-      let owner: RenameCoordinator | null
+      let owner: Coordinator | null
       if (adopted !== null) {
         bound = adopted
         owner = coordinator
@@ -119,7 +130,7 @@ export function createDocumentBinding(): DocumentBinding {
       lastPath = path
       // One registration covers everything app-global teardown needs: the
       // quit-time flush, settle-time rename work, and reopened-note lookups.
-      unregister = registerOpenDocument({
+      unregister = openDocuments.register({
         session: bound,
         ...(owner ? { settle: () => owner.settle(), settled: () => owner.settled() } : {}),
       })

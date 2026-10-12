@@ -40,6 +40,11 @@ import {
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
+  createTestNoteSessionService,
+  createTestOpenDocumentsService,
+  type TestNoteSessionService,
+} from './documents.ts'
+import {
   createTestAssetStoreService,
   createTestNoteCreationService,
   createTestNoteFileService,
@@ -162,6 +167,7 @@ export interface TestAppServices extends AppServices {
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
+  readonly noteSessions: TestNoteSessionService
   readonly noteLinkResolver: TestNoteLinkResolverService
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
@@ -238,6 +244,12 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     noteFile,
     assetStore: createTestAssetStoreService(),
     attachments: createTestAttachmentService(),
+    noteSessions: createTestNoteSessionService({
+      noteFile: overrides?.noteFile ?? noteFile,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    openDocuments: createTestOpenDocumentsService(),
     ...indexReads,
     noteLinkResolver,
     noteCreation: createTestNoteCreationService({

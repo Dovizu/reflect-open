@@ -1,4 +1,4 @@
-import { splitFrontmatter } from '@reflect/core'
+import { splitFrontmatter } from '../markdown/frontmatter.ts'
 
 /**
  * The frontmatter block (may be empty) and the body that follows it. The block
