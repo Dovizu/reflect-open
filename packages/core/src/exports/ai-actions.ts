@@ -95,11 +95,6 @@ export {
   renderSelectionPrompt,
 } from '../ai/selection-prompts.ts'
 export {
-  transformSelection,
-  type TransformSelectionOptions,
-  type TransformStreamEvent,
-} from '../ai/transform-selection.ts'
-export {
   appendEvent,
   buildHistory,
   isToolPending,
