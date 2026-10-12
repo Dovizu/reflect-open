@@ -13,7 +13,7 @@ import {
   createTestPlatformService,
   createTestSecretStoreService,
 } from '@reflect/core/testing'
-import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
+import type { ConnectExistingResult } from '@reflect/core'
 import { ConnectGithubDialog } from './connect-github-dialog.tsx'
 
 const sync = vi.hoisted(() => ({

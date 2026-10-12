@@ -7,20 +7,23 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react'
-import { ReflectError, type GithubRepoRef, type GraphInfo } from '@reflect/core'
 import {
-  createBackupController,
-  type BackupController,
+  defaultBackups,
+  ReflectError,
+  type BackupService,
   type BackupState,
   type ConnectExistingResult,
-} from '@/lib/backup-controller.ts'
+  type GithubRepoRef,
+  type GraphInfo,
+} from '@reflect/core'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { createIcloudController, isICloudRoot } from '@/lib/icloud-controller.ts'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { isMobileSurface } from '@/lib/platform-surface.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
+import { useOptionalAppServices } from '@/services/services-provider.tsx'
 
-export type { BackupState, ConnectExistingResult } from '@/lib/backup-controller.ts'
+export type { BackupState, ConnectExistingResult } from '@reflect/core'
 
 interface SyncContextValue {
   backup: BackupState
@@ -47,21 +50,26 @@ interface SyncProviderProps {
 }
 
 /**
- * Thin React shim over the {@link createBackupController} lifecycle (Plan
- * 12): one controller per (graph, index session), created and disposed by an
- * effect, surfaced through `useSyncExternalStore`. All sync behavior lives in
- * the controller — this component owns nothing but the mounting.
+ * Thin React shim over core's `BackupService` lifecycle (Plan 12): one
+ * service per (graph, index session), created and disposed by an effect,
+ * surfaced through `useSyncExternalStore`. All sync behavior lives in the
+ * service — this component owns nothing but the mounting. The service comes
+ * from the nearest `AppServicesProvider`'s factory, else the process-wide one.
  */
 export function SyncProvider({ graph, children }: SyncProviderProps): ReactElement {
   const { indexGeneration } = useGraph()
-  const [controller, setController] = useState<BackupController | null>(null)
+  const backups = useOptionalAppServices()?.backups
+  const [controller, setController] = useState<BackupService | null>(null)
 
-  // One backup controller per app: a secondary note window mounting a
+  // One backup service per app: a secondary note window mounting a
   // second one would race commits/pulls against the main window's. Its
   // sync state stays 'loading' — the note window edits, main syncs.
   useMainWindowEffect(() => {
-    const next = createBackupController({ graph, indexGeneration })
-    // The controller is an imperative lifecycle object created per (graph, index
+    const next = (backups ?? defaultBackups()).create({
+      generation: graph.generation,
+      indexGeneration,
+    })
+    // The service is an imperative lifecycle object created per (graph, index
     // session); it must be instantiated in an effect (it subscribes and starts)
     // and stored so useSyncExternalStore can read it.
     setController(next)
@@ -70,12 +78,12 @@ export function SyncProvider({ graph, children }: SyncProviderProps): ReactEleme
       next.dispose()
       setController((current) => (current === next ? null : current))
     }
-  }, [graph, indexGeneration])
+  }, [backups, graph, indexGeneration])
 
   // iCloud-hosted graphs additionally get the conflict lifecycle (Plan 21):
   // debounced conflict sweeps and shadow-base bookkeeping, plus — on mobile
   // only — the metadata-query watch that stands in for the file watcher.
-  // Same per-(graph, index session) shape as the backup controller; a graph
+  // Same per-(graph, index session) shape as the backup service; a graph
   // outside iCloud mounts nothing.
   const bridgeReady = useBridgeReady()
   useMainWindowEffect(() => {
@@ -99,7 +107,7 @@ export function SyncProvider({ graph, children }: SyncProviderProps): ReactEleme
   )
 
   const value = useMemo<SyncContextValue>(() => {
-    const require = (): BackupController => {
+    const require = (): BackupService => {
       if (controller === null) {
         throw new ReflectError('io', 'backup is still initializing')
       }

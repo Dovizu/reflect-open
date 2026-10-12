@@ -16,6 +16,8 @@ import { defaultGitHostCredentials } from '../sync/git-host-credential-service.t
 import { defaultGitRepository } from '../sync/git-repository-service.ts'
 import { defaultGithubAuth } from '../sync/github-auth-service.ts'
 import { defaultGithubRepos } from '../sync/github-repo-service.ts'
+import { defaultSyncEngines } from '../sync/engine.ts'
+import { defaultBackups } from '../sync/backup-service.ts'
 import { defaultXArchive } from '../x-archive.ts'
 import { defaultWebFetch } from './web-fetch-service.ts'
 import { defaultIap } from '../ipc/iap-plugin.ts'
@@ -124,6 +126,8 @@ describe('installDefaultServices', () => {
     expect(defaultGitHostCredentials()).toBe(services.gitHostCredentials)
     expect(defaultGithubRepos()).toBe(services.githubRepos)
     expect(defaultGists()).toBe(services.gists)
+    expect(defaultSyncEngines()).toBe(services.syncEngines)
+    expect(defaultBackups()).toBe(services.backups)
     expect(defaultICloudNative()).toBe(services.icloudNative)
     expect(defaultCaptureInbox()).toBe(services.captureInbox)
     expect(defaultBacklinkTarget()).toBe(services.backlinkTarget)
@@ -215,6 +219,8 @@ describe('resetDefaultServices', () => {
     expect(defaultGitHostCredentials()).not.toBe(services.gitHostCredentials)
     expect(defaultGithubRepos()).not.toBe(services.githubRepos)
     expect(defaultGists()).not.toBe(services.gists)
+    expect(defaultSyncEngines()).not.toBe(services.syncEngines)
+    expect(defaultBackups()).not.toBe(services.backups)
     expect(defaultICloudNative()).not.toBe(services.icloudNative)
     expect(defaultCaptureInbox()).not.toBe(services.captureInbox)
     expect(defaultBacklinkTarget()).not.toBe(services.backlinkTarget)

@@ -1,17 +1,25 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
-import { runDeviceFlow, ReflectError, type GithubAuth } from '@reflect/core'
+import {
+  ReflectError,
+  setDefaultGithubAuth,
+  type GithubAuth,
+  type GithubAuthService,
+} from '@reflect/core'
+import { createTestGithubAuthService } from '@reflect/core/testing'
 import { useDeviceFlowAuth } from './use-device-flow-auth.ts'
 
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  runDeviceFlow: vi.fn(),
-}))
-
-const mockFlow = vi.mocked(runDeviceFlow)
+const mockFlow = vi.fn<GithubAuthService['runDeviceFlow']>()
 const AUTH: GithubAuth = { kind: 'pat', token: 'ghp_abc' }
 
+beforeEach(() => {
+  const githubAuth = createTestGithubAuthService()
+  githubAuth.onRunDeviceFlow(mockFlow)
+  setDefaultGithubAuth(githubAuth)
+})
+
 afterEach(() => {
+  setDefaultGithubAuth(null)
   mockFlow.mockReset()
 })
 
