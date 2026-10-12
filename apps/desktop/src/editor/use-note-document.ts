@@ -3,11 +3,9 @@ import {
   createDocumentBinding,
   INITIAL_NOTE_SNAPSHOT,
   type DocumentBinding,
-  type FileChange,
   type NoteSessionSnapshot,
   type RenameCoordinator,
 } from '@reflect/core'
-import { useFileChanges } from '@/lib/use-file-changes.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { checkRoundTrip } from './roundtrip.ts'
@@ -15,7 +13,8 @@ import { checkRoundTrip } from './roundtrip.ts'
 /**
  * React adapter over the `@reflect/core` document state machine
  * (`NoteSessionService`): one session per open `(path, generation)`, wired to
- * the watcher event stream and the editor's imperative handle. All
+ * the watcher event stream (through `OpenDocumentsService`) and the editor's
+ * imperative handle. All
  * save/conflict/protection semantics live in core's `note-session.ts`, and the
  * create/adopt/teardown/hand-off lifecycle (a rename retargets the live
  * session and the route follows, Plan 17) lives in core's
@@ -154,25 +153,6 @@ export function useNoteDocument(
     trackRenames,
     missingSeed,
   ])
-
-  // External-change reconciliation via the watcher (Plan 04b events). The
-  // comparison reads the session's CURRENT path, not the route prop: a rename
-  // retargets the session before React re-renders the pane (Plan 17), and an
-  // external change landing at the new path inside that window must still
-  // reconcile — matching the prop would leave the editor stale against disk.
-  const onFileChanges = useCallback(
-    (changes: FileChange[]) => {
-      const session = binding.session()
-      if (session === null) {
-        return
-      }
-      if (changes.some((change) => change.path === session.path && change.kind === 'upsert')) {
-        session.externalChanged()
-      }
-    },
-    [binding],
-  )
-  useFileChanges(path ? onFileChanges : null)
 
   // Flush pending edits when the window loses focus, and register with the
   // app-global registry so quit-time teardown (window close, ⌘Q — paths where

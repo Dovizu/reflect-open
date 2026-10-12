@@ -49,7 +49,7 @@ export function createTauriIpcTransport(): IpcBridge {
         // unguarded, so tearing a listener down around the time its registration
         // script lands throws "undefined is not an object" (tauri-apps/tauri#13746,
         // still unguarded on Tauri's `dev`). Subscriptions that resolve after their
-        // owner has already unmounted hit this — see use-file-changes.ts. The
+        // owner has already unmounted hit this (`listenNow` in core). The
         // teardown is benign, so swallow the rejection instead of letting it surface
         // as an unhandled promise rejection.
         void Promise.resolve(unlisten() as void | Promise<void>).catch(() => {})

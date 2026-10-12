@@ -144,7 +144,7 @@ describe('start', () => {
     const stop = semanticSearch.start()
     await vi.waitFor(() => expect(embeddingIndex.follows()).toHaveLength(1))
 
-    indexLifecycle.emitChangesApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
+    indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
 
     await vi.waitFor(() =>
       expect(embeddingIndex.removed()).toEqual([{ path: 'notes/a.md', generation: 7 }]),
@@ -189,7 +189,7 @@ describe('start', () => {
     settings.update({ semanticSearchEnabled: false })
     // A batch still in flight when the teardown ran must be dropped, not
     // embedded behind the user's back.
-    indexLifecycle.emitChangesApplied([{ kind: 'remove', path: 'notes/b.md' }], 7)
+    indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/b.md' }], 7)
     await flush()
 
     expect(embeddingIndex.removed()).toEqual([])
@@ -235,7 +235,7 @@ describe('start', () => {
       { generation: 8, modelId: MODEL },
     ])
     // The first follow is over: a late batch of its generation is dropped.
-    indexLifecycle.emitChangesApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
+    indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
     await flush()
     expect(embeddingIndex.removed()).toEqual([])
     stop()

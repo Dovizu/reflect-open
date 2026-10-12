@@ -5,7 +5,7 @@ import { ReflectError } from '../errors.ts'
 import type { HashService } from '../app/hash-service.ts'
 import { descriptionPathFor } from '../graph/paths.ts'
 import type { FileChange } from '../indexing/file-change-service.ts'
-import type { IndexChangesAppliedEvent } from '../indexing/index-lifecycle-service.ts'
+import type { IndexAppliedEvent } from '../indexing/index-lifecycle-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import {
@@ -106,7 +106,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
   const classified: string[] = []
   /** Every asset whose bytes were read, in order. */
   const assetReads: string[] = []
-  const appliedListeners = new Set<(event: IndexChangesAppliedEvent) => void>()
+  const appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
   /** Every `reindexNotesReferencing` call, as `[assetPaths, generation]`. */
   const reindexed: Array<[readonly string[], number]> = []
   const index = {
@@ -145,7 +145,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     clock,
     reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
     indexLifecycle: {
-      onChangesApplied: (listener) => {
+      onApplied: (listener) => {
         appliedListeners.add(listener)
         return () => {
           appliedListeners.delete(listener)

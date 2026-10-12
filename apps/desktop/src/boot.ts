@@ -25,3 +25,4 @@ export const appServices = createAppServices(
 // exists while the rest of the app's modules evaluate.
 appServices.exceptionTelemetry.install()
 installQueryInvalidation(appServices)
+void appServices.contacts.refresh()

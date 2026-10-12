@@ -26,23 +26,16 @@ export interface IndexFileProgress {
   readonly worked: number
 }
 
-/** Index rows changed at `generation`. */
+/** The index applied changes at `generation`. */
 export interface IndexAppliedEvent {
-  /** The index generation the rows were written at. */
+  /** The index generation the changes were applied at. */
   readonly generation: number
   /**
-   * The note paths of the applied watcher batch. `null` after a sync pass
-   * commits: the pass reports no per-file list, so any row may have changed.
+   * The applied batch (note changes and asset-file changes, each with its
+   * kind). `null` after a sync pass commits: the pass reports no per-file
+   * list, so any row may have changed.
    */
-  readonly paths: readonly string[] | null
-}
-
-/** One batch of file changes was applied to the index at `generation`. */
-export interface IndexChangesAppliedEvent {
-  /** The index generation the batch was applied at. */
-  readonly generation: number
-  /** The full batch: note changes and asset-file changes, each with its kind. */
-  readonly changes: readonly FileChange[]
+  readonly changes: readonly FileChange[] | null
 }
 
 /** A whole-graph pass ran to completion at `generation`. */
@@ -144,9 +137,12 @@ export interface IndexLifecycleService {
    */
   onProgress: (listener: (progress: IndexLifecycleProgress) => void) => Unlisten
   /**
-   * Listen for index rows that actually changed: once when a sync pass
-   * commits, then per applied watcher batch. Drives query-cache invalidation
-   * (Plan 07): firing on raw file events instead would refetch stale rows.
+   * Listen for changes the index applied: once when a sync pass commits
+   * (`changes: null`), then per watcher batch (notes and asset files, even
+   * when no row changed), per {@link IndexLifecycleService.applyChanges} that
+   * changed a row, and for the notes an asset description write re-indexed.
+   * Fires after the rows are written, so a cache refetch never reads stale
+   * rows. A follower must drop events of a `generation` other than its own.
    */
   onApplied: (listener: (event: IndexAppliedEvent) => void) => Unlisten
   /**
@@ -162,15 +158,6 @@ export interface IndexLifecycleService {
     generation: number,
     canApply?: () => boolean,
   ) => Promise<number>
-  /**
-   * Listen for every batch of file changes after the index applied it: each
-   * watcher batch (notes and asset files, even when no row changed) and the
-   * notes that an asset description write re-indexed. A sync pass reports no
-   * batch. The event carries each change's kind, so a follower can tell a
-   * removed note from a changed one; it must drop events of a `generation`
-   * other than its own.
-   */
-  onChangesApplied: (listener: (event: IndexChangesAppliedEvent) => void) => Unlisten
   /**
    * Listen for whole-graph passes that ran to completion. A sync pass reports
    * right after its {@link IndexLifecycleService.onApplied}; one that was
@@ -240,7 +227,7 @@ export interface IndexLifecycleService {
    * Re-index every note that references any of `assetPaths`, so an asset
    * description written after its notes were indexed reaches their search
    * rows. The re-applied notes report through
-   * {@link IndexLifecycleService.onChangesApplied}.
+   * {@link IndexLifecycleService.onApplied}.
    */
   reindexNotesReferencing: (assetPaths: readonly string[], generation: number) => Promise<void>
 }
@@ -260,7 +247,6 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
   const { indexStore, fileChanges, operations, clock, logger } = deps
   const progressListeners = new Set<(progress: IndexLifecycleProgress) => void>()
   const appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
-  const changesAppliedListeners = new Set<(event: IndexChangesAppliedEvent) => void>()
   const reconciledListeners = new Set<(event: IndexReconciledEvent) => void | Promise<void>>()
   const movedListeners = new Set<(from: string, to: string) => void>()
   const fileProgressListeners = new Set<(done: number, total: number, worked: number) => void>()
@@ -274,10 +260,14 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     }
   }
 
-  function emitChangesApplied(changes: readonly FileChange[], generation: number): void {
-    for (const listener of changesAppliedListeners) {
-      listener({ generation, changes })
+  function emitApplied(event: IndexAppliedEvent): void {
+    for (const listener of appliedListeners) {
+      listener(event)
     }
+  }
+
+  function emitChangesApplied(changes: readonly FileChange[], generation: number): void {
+    emitApplied({ generation, changes })
   }
 
   const indexer = createNoteIndexer({ ...deps, emitChangesApplied })
@@ -305,12 +295,6 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     }
     for (const listener of progressListeners) {
       listener(progress)
-    }
-  }
-
-  function emitApplied(event: IndexAppliedEvent): void {
-    for (const listener of appliedListeners) {
-      listener(event)
     }
   }
 
@@ -451,13 +435,12 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
         if (controller.signal.aborted || isStale() || isSuspended()) {
           return
         }
-        emitApplied({ generation, paths: null })
+        emitApplied({ generation, changes: null })
         for (const listener of reconciledListeners) {
           void listener({ generation, source: 'sync' })
         }
         pending = liveIndex.subscribe(
           generation,
-          (changes) => emitApplied({ generation, paths: changes.map((change) => change.path) }),
           emitMoved,
           () => !controller.signal.aborted && !isStale() && !isSuspended(),
         )
@@ -581,12 +564,11 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
       if (mutations > 0) {
         emitApplied({
           generation,
-          paths: changes.filter((change) => isNotePath(change.path)).map((change) => change.path),
+          changes: changes.filter((change) => isNotePath(change.path)),
         })
       }
       return mutations
     },
-    onChangesApplied: (listener) => attach(changesAppliedListeners, listener),
     onReconciled: (listener) => attach(reconciledListeners, listener),
     onMoved: (listener) => attach(movedListeners, listener),
     onFileProgress: (listener) => attach(fileProgressListeners, listener),

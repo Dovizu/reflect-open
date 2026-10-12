@@ -424,7 +424,6 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
   const operations = createTestOperationsService(clock)
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
-  const openDocuments = createTestOpenDocumentsService()
   const id = createTestIdService()
   const secretStore = createTestSecretStoreService()
   const settings = createTestSettingsService(
@@ -453,6 +452,9 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
   })
   const http = createTestHttpService()
   const fileChanges = createTestFileChangeService()
+  const openDocuments = createTestOpenDocumentsService({
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+  })
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
   const webFetch = createTestWebFetchService()

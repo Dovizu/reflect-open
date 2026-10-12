@@ -11,15 +11,15 @@ import {
   type TestNoteSession,
 } from '../testing/index.ts'
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
-import type { ContactMatch } from './commands.ts'
+import type { ContactMatch, ContactsAuthorization } from './commands.ts'
 import {
   canPromptForContacts,
   contactsAccessNotice,
   isContactsAvailable,
-  showsContactSuggestions,
   suggestedContactDetails,
   type ContactSuggestionService,
 } from './contact-suggestion-service.ts'
+import { withContactsLookups } from './contacts-service.ts'
 
 const PATH = 'notes/Ada Lovelace.md'
 
@@ -271,7 +271,7 @@ describe('the enable flow', () => {
     await service.requestAccess()
 
     expect(contacts.accessRequests()).toBe(1)
-    await expect(service.authorizationStatus()).resolves.toBe('authorized')
+    expect(contacts.getState()).toEqual({ authorization: 'authorized' })
   })
 
   it('requestAccess swallows a failed prompt', async () => {
@@ -295,16 +295,27 @@ describe('the enable flow', () => {
   })
 })
 
-describe('showsContactSuggestions', () => {
+describe('showsSuggestionFor', () => {
   const ON = { contactsEnabled: true }
 
+  function shows(
+    settings: { contactsEnabled: boolean },
+    authorization: ContactsAuthorization | null,
+    path: string,
+  ): boolean {
+    const gated = createTestContactSuggestionService({
+      contacts: withContactsLookups({ ...contacts, getState: () => ({ authorization }) }),
+    })
+    return gated.showsSuggestionFor(settings, path)
+  }
+
   it('needs the integration on, a readable permission, and a non-daily note', () => {
-    expect(showsContactSuggestions(ON, 'authorized', PATH)).toBe(true)
-    expect(showsContactSuggestions(ON, 'limited', PATH)).toBe(true)
-    expect(showsContactSuggestions({ contactsEnabled: false }, 'authorized', PATH)).toBe(false)
-    expect(showsContactSuggestions(ON, 'denied', PATH)).toBe(false)
-    expect(showsContactSuggestions(ON, null, PATH)).toBe(false)
-    expect(showsContactSuggestions(ON, 'authorized', 'daily/2026-07-01.md')).toBe(false)
+    expect(shows(ON, 'authorized', PATH)).toBe(true)
+    expect(shows(ON, 'limited', PATH)).toBe(true)
+    expect(shows({ contactsEnabled: false }, 'authorized', PATH)).toBe(false)
+    expect(shows(ON, 'denied', PATH)).toBe(false)
+    expect(shows(ON, null, PATH)).toBe(false)
+    expect(shows(ON, 'authorized', 'daily/2026-07-01.md')).toBe(false)
   })
 })
 

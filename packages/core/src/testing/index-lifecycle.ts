@@ -7,7 +7,7 @@ import type { DatabaseService } from '../indexing/database-service.ts'
 import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
 import {
   createIndexLifecycleService,
-  type IndexChangesAppliedEvent,
+  type IndexAppliedEvent,
   type IndexFileProgress,
   type IndexLifecycleService,
 } from '../indexing/index-lifecycle-service.ts'
@@ -45,9 +45,10 @@ export interface TestIndexLifecycleService extends IndexLifecycleService {
   rebuilds: () => readonly number[]
   /**
    * Report `changes` as applied at `generation` to this lifecycle's
-   * `onChangesApplied` listeners, as an applied watcher batch does.
+   * `onApplied` listeners, as an applied watcher batch (or, with `null`, a
+   * sync pass) does.
    */
-  emitChangesApplied: (changes: readonly FileChange[], generation: number) => void
+  emitApplied: (changes: readonly FileChange[] | null, generation: number) => void
 }
 
 /** The real {@link IndexLifecycleService} over test doubles, plus seeding and a rebuild log. */
@@ -70,7 +71,7 @@ export function createTestIndexLifecycleService(
   })
   const rebuildLog: number[] = []
   const seededListeners = new Set<() => void>()
-  const changesAppliedListeners = new Set<(event: IndexChangesAppliedEvent) => void>()
+  const appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
   let seeded: { progress: IndexFileProgress | null } | null = null
   service.subscribeFileProgress(() => {
     seeded = null
@@ -97,16 +98,16 @@ export function createTestIndexLifecycleService(
       }
     },
     rebuilds: () => [...rebuildLog],
-    onChangesApplied: (listener) => {
-      const unlisten = service.onChangesApplied(listener)
-      changesAppliedListeners.add(listener)
+    onApplied: (listener) => {
+      const unlisten = service.onApplied(listener)
+      appliedListeners.add(listener)
       return () => {
         unlisten()
-        changesAppliedListeners.delete(listener)
+        appliedListeners.delete(listener)
       }
     },
-    emitChangesApplied: (changes, generation) => {
-      for (const listener of changesAppliedListeners) {
+    emitApplied: (changes, generation) => {
+      for (const listener of appliedListeners) {
         listener({ generation, changes })
       }
     },

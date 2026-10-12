@@ -1,10 +1,7 @@
 import { useEffect, useState, type ReactElement } from 'react'
 import { canPromptForContacts, contactsAccessNotice, isContactsAvailable } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
-import {
-  useContactsAuthorization,
-  useRefreshContactsAuthorization,
-} from '@/hooks/use-contacts-authorization.ts'
+import { useContactsState } from '@/hooks/use-contacts-state.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 import { CalendarIntegrationField } from './calendar-integration-field.tsx'
@@ -23,9 +20,8 @@ import { SettingsSwitchField } from './switch-field.tsx'
  */
 export function IntegrationsSection(): ReactElement | null {
   const { settings } = useSettings()
-  const { calendarEvents, contactSuggestions, opener } = useAppServices()
-  const authorization = useContactsAuthorization()
-  const refreshAuthorization = useRefreshContactsAuthorization()
+  const { calendarEvents, contacts, contactSuggestions, opener } = useAppServices()
+  const { authorization } = useContactsState()
   const [isPrompting, setIsPrompting] = useState(false)
 
   // The user grants access in System Settings, not in the app, so re-read the
@@ -36,11 +32,11 @@ export function IntegrationsSection(): ReactElement | null {
       return
     }
     function onFocus(): void {
-      void refreshAuthorization()
+      void contacts.refresh()
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [contactsEnabled, refreshAuthorization])
+  }, [contactsEnabled, contacts])
 
   const contactsAvailable = isContactsAvailable(authorization)
   const calendarAvailable = calendarEvents.isAvailable()
@@ -63,7 +59,6 @@ export function IntegrationsSection(): ReactElement | null {
       // the refreshed status is the truth, and a denied/restricted answer
       // shows the System Settings pointer below.
       await contactSuggestions.requestAccess()
-      await refreshAuthorization()
     } finally {
       setIsPrompting(false)
     }

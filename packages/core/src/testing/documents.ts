@@ -45,6 +45,7 @@ import {
 } from '../documents/title-rename-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
+import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import { createBacklinkService } from '../indexing/backlink-service.ts'
 import { createIndexQueryService } from '../indexing/index-query-service.ts'
@@ -54,6 +55,7 @@ import { appendBlock } from '../markdown/append-section.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { createTestAttachmentService } from './attachments.ts'
 import { createTestClockService } from './clock.ts'
+import { createTestFileChangeService } from './file-change.ts'
 import { createTestDatabaseService } from './database.ts'
 import { createTestNoteFileService, createTestNoteLinkResolverService } from './graph.ts'
 import { createTestIdService } from './id.ts'
@@ -225,8 +227,12 @@ export function createTestNoteSessionService(
 /** The real {@link OpenDocumentsService}, starting with `sessions` registered. */
 export function createTestOpenDocumentsService(options?: {
   sessions?: readonly NoteSession[]
+  /** Defaults to a fresh {@link createTestFileChangeService}. */
+  fileChanges?: Pick<FileChangeService, 'subscribe'>
 }): OpenDocumentsService {
-  const service = createOpenDocumentsService()
+  const service = createOpenDocumentsService({
+    fileChanges: options?.fileChanges ?? createTestFileChangeService(),
+  })
   for (const session of options?.sessions ?? []) {
     service.register({ session })
   }

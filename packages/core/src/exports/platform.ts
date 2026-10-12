@@ -212,7 +212,6 @@ export {
   canPromptForContacts,
   contactsAccessNotice,
   isContactsAvailable,
-  showsContactSuggestions,
   suggestedContactDetails,
 } from '../contacts/contact-suggestion-service.ts'
 export {

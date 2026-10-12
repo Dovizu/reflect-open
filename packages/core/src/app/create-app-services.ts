@@ -542,7 +542,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   }
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
-  const openDocuments = createOpenDocumentsService()
+  const openDocuments = createOpenDocumentsService({ fileChanges })
   const indexReads = createIndexReadServices({ database, noteFile })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
@@ -561,7 +561,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   })
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const calendar = createCalendarService({ ipc, logger })
-  const contacts = createContactsService({ ipc })
+  const contacts = createContactsService({ ipc, logger })
   const personNotes = createPersonNoteService({
     database,
     wikiResolver: indexReads.wikiResolver,

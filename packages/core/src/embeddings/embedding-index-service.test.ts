@@ -425,7 +425,7 @@ describe('follow', () => {
     expect(index.applied().map((apply) => apply.path)).toEqual(['notes/a.md', 'notes/b.md'])
 
     noteFile.set('notes/a.md', '# A\n\nRewritten text.\n')
-    indexLifecycle.emitChangesApplied([{ kind: 'upsert', path: 'notes/a.md' }], 7)
+    indexLifecycle.emitApplied([{ kind: 'upsert', path: 'notes/a.md' }], 7)
     await queueDrained()
 
     const last = index.applied().at(-1)!
@@ -439,11 +439,25 @@ describe('follow', () => {
     const stop = index.follow({ generation: 7, modelId: MODEL })
     await queueDrained()
 
-    indexLifecycle.emitChangesApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
+    indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
     await queueDrained()
 
     expect(index.removed()).toEqual([{ path: 'notes/a.md', generation: 7 }])
     await expect(storedPaths()).resolves.toEqual(['notes/b.md'])
+    stop()
+  })
+
+  it('ignores a sync pass', async () => {
+    const { index, indexLifecycle } = setupGraph()
+    const stop = index.follow({ generation: 7, modelId: MODEL })
+    await queueDrained()
+    const before = index.applied().length
+
+    indexLifecycle.emitApplied(null, 7)
+    await queueDrained()
+
+    expect(index.applied()).toHaveLength(before)
+    expect(index.removed()).toEqual([])
     stop()
   })
 
@@ -453,8 +467,8 @@ describe('follow', () => {
     await queueDrained()
     const applied = index.applied().length
 
-    indexLifecycle.emitChangesApplied([{ kind: 'upsert', path: 'notes/a.md' }], 6)
-    indexLifecycle.emitChangesApplied([{ kind: 'remove', path: 'notes/b.md' }], 6)
+    indexLifecycle.emitApplied([{ kind: 'upsert', path: 'notes/a.md' }], 6)
+    indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/b.md' }], 6)
     await queueDrained()
 
     expect(index.applied()).toHaveLength(applied)
@@ -468,7 +482,7 @@ describe('follow', () => {
     await queueDrained()
     const applied = index.applied().length
 
-    indexLifecycle.emitChangesApplied(
+    indexLifecycle.emitApplied(
       [
         { kind: 'upsert', path: 'assets/photo.png' },
         { kind: 'remove', path: 'assets/old.pdf' },
@@ -486,9 +500,9 @@ describe('follow', () => {
     const { index, indexLifecycle } = setupGraph()
     const stop = index.follow({ generation: 7, modelId: MODEL })
     // Queued behind the backfill, which has not started yet.
-    indexLifecycle.emitChangesApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
+    indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
     stop()
-    indexLifecycle.emitChangesApplied([{ kind: 'remove', path: 'notes/b.md' }], 7)
+    indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/b.md' }], 7)
     await queueDrained()
 
     expect(index.applied()).toEqual([])
@@ -504,7 +518,7 @@ describe('follow', () => {
     noteFile.set('notes/a.md', '# A\n\nGamma text.\n')
     noteFile.set('notes/b.md', '# B\n\nDelta text.\n')
     unwritable.add('notes/a.md')
-    indexLifecycle.emitChangesApplied(
+    indexLifecycle.emitApplied(
       [
         { kind: 'upsert', path: 'notes/a.md' },
         { kind: 'upsert', path: 'notes/b.md' },
