@@ -1,29 +1,21 @@
-import { format, isSameDay, isSameWeek, parse } from 'date-fns'
-import type { DateFormat, TimeFormat } from '@reflect/core'
+import { format, isSameDay, isSameWeek } from 'date-fns'
+import { parseIsoDate, todayIso, type DateFormat, type TimeFormat } from '@reflect/core'
 import { addDaysIso, isIsoDate } from '@reflect/utils'
 
 /**
  * The app's date layer (Plan 06). Daily notes are keyed by **local** calendar
  * dates as ISO `YYYY-MM-DD` strings — "today" follows the user's clock. Pure
  * calendar arithmetic (`addDaysIso`, `isIsoDate`) lives in `@reflect/utils` and
- * is re-exported here; this module owns the date-fns-backed *display* formatting
- * and the local clock. Nothing else in the app may compute dates by hand.
+ * the local clock helpers (`todayIso`, `parseIsoDate`) live in `@reflect/core`;
+ * both are re-exported here. This module owns the date-fns-backed *display*
+ * formatting. Nothing else in the app may compute dates by hand.
  */
 
 // Pure calendar math is shared with the indexing layer — one implementation.
 export { addDaysIso, isIsoDate }
+export { parseIsoDate, todayIso }
 
 const ISO_DATE_FORMAT = 'yyyy-MM-dd'
-
-/** Parse an ISO `YYYY-MM-DD` string as a local Date (the one parsing path). */
-export function parseIsoDate(date: string): Date {
-  return parse(date, ISO_DATE_FORMAT, new Date())
-}
-
-/** Today's local calendar date as `YYYY-MM-DD`. */
-export function todayIso(): string {
-  return format(new Date(), ISO_DATE_FORMAT)
-}
 
 /**
  * Render an ISO date with the date-fns pattern of the chosen format; `iso`
