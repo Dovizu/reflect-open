@@ -217,7 +217,6 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     noteFile: overrides?.noteFile ?? noteFile,
   })
   const http = createTestHttpService()
-  const secretStore = createTestSecretStoreService()
   const fileChanges = createTestFileChangeService()
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
