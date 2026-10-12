@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
+import { afterEach, describe, expect, it } from 'vitest'
+import { createTestContactsService } from '../testing/contacts.ts'
 import type { ContactMatch } from './commands.ts'
+import { setDefaultContacts } from './contacts-service.ts'
 import {
   contactLinkSuggestions,
   contactNamesEqual,
@@ -20,7 +21,7 @@ function contact(overrides: Partial<ContactMatch>): ContactMatch {
 }
 
 afterEach(() => {
-  setBridge(null)
+  setDefaultContacts(null)
 })
 
 describe('matchContactForTitle', () => {
@@ -88,25 +89,25 @@ describe('contactLinkSuggestions', () => {
     phones: [],
   }
 
-  it('answers empty for short queries without touching the bridge', async () => {
-    const invoke = vi.fn()
-    setBridge({ invoke, listen: async () => () => {} })
+  it('answers empty for short queries without a lookup', async () => {
+    const contacts = createTestContactsService({ contacts: [ada] })
+    setDefaultContacts(contacts)
     await expect(contactLinkSuggestions('a')).resolves.toEqual([])
-    expect(invoke).not.toHaveBeenCalled()
+    expect(contacts.lookups()).toEqual([])
   })
 
   it('keeps word-prefix matches, dropping nameless and detail-less contacts', async () => {
-    const invoke = vi
-      .fn()
-      .mockResolvedValue([
+    const contacts = createTestContactsService({
+      contacts: [
         ada,
-        { fullName: '', givenName: '', familyName: '', emails: ['x@example.com'], phones: [] },
+        { fullName: '', givenName: 'Ada', familyName: '', emails: ['x@example.com'], phones: [] },
         { fullName: 'Ada Byron', givenName: 'Ada', familyName: 'Byron', emails: [], phones: [] },
-      ])
-    setBridge({ invoke, listen: async () => () => {} })
+      ],
+    })
+    setDefaultContacts(contacts)
 
     await expect(contactLinkSuggestions('Ada')).resolves.toEqual([ada])
-    expect(invoke).toHaveBeenCalledWith('contacts_lookup_by_name', { name: 'Ada' })
+    expect(contacts.lookups()).toEqual([{ kind: 'name', name: 'Ada' }])
   })
 
   it('dedupes same-named entries and honors the limit', async () => {
@@ -117,17 +118,18 @@ describe('contactLinkSuggestions', () => {
       emails: [`p${index}@example.com`],
       phones: [],
     })
-    setBridge({
-      invoke: async () => [
-        named(1),
-        { ...named(1), emails: ['dupe@example.com'] },
-        named(2),
-        named(3),
-        named(4),
-        named(5),
-      ],
-      listen: async () => () => {},
-    })
+    setDefaultContacts(
+      createTestContactsService({
+        contacts: [
+          named(1),
+          { ...named(1), emails: ['dupe@example.com'] },
+          named(2),
+          named(3),
+          named(4),
+          named(5),
+        ],
+      }),
+    )
 
     const suggestions = await contactLinkSuggestions('Person')
     expect(suggestions.map((entry) => entry.fullName)).toEqual([
@@ -140,28 +142,30 @@ describe('contactLinkSuggestions', () => {
 })
 
 describe('suggestContactForTitle', () => {
-  it('short-circuits blank titles without touching the bridge', async () => {
-    const invoke = vi.fn()
-    setBridge({ invoke, listen: async () => () => {} })
+  it('short-circuits blank titles without a lookup', async () => {
+    const contacts = createTestContactsService()
+    setDefaultContacts(contacts)
     await expect(suggestContactForTitle('  ')).resolves.toBeNull()
-    expect(invoke).not.toHaveBeenCalled()
+    expect(contacts.lookups()).toEqual([])
   })
 
   it('looks up the trimmed title and applies the exact-match rule', async () => {
-    const invoke = vi.fn().mockResolvedValue([
-      {
-        fullName: 'Ada Lovelace',
-        givenName: 'Ada',
-        familyName: 'Lovelace',
-        emails: ['ada@example.com'],
-        phones: [],
-      },
-      { fullName: 'Ada Byron', givenName: 'Ada', familyName: 'Byron', emails: [], phones: [] },
-    ])
-    setBridge({ invoke, listen: async () => () => {} })
+    const contacts = createTestContactsService({
+      contacts: [
+        {
+          fullName: 'Ada Lovelace',
+          givenName: 'Ada',
+          familyName: 'Lovelace',
+          emails: ['ada@example.com'],
+          phones: [],
+        },
+        { fullName: 'Ada Byron', givenName: 'Ada', familyName: 'Byron', emails: [], phones: [] },
+      ],
+    })
+    setDefaultContacts(contacts)
 
     const match = await suggestContactForTitle(' Ada Lovelace ')
     expect(match?.emails).toEqual(['ada@example.com'])
-    expect(invoke).toHaveBeenCalledWith('contacts_lookup_by_name', { name: 'Ada Lovelace' })
+    expect(contacts.lookups()).toEqual([{ kind: 'name', name: 'Ada Lovelace' }])
   })
 })

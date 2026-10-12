@@ -3,7 +3,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { GraphInfo } from '@reflect/core'
+import { setDefaultMobileStorage, type GraphInfo } from '@reflect/core'
+import {
+  createTestMobileStorageService,
+  type TestMobileStorageService,
+} from '@reflect/core/testing'
 import { MobileGraphs } from './graphs.tsx'
 
 /**
@@ -32,17 +36,9 @@ vi.mock('@/components/ui/drawer.tsx', () => ({
   DrawerTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
 }))
 
-const storageInfo = vi.hoisted(() => ({
-  current: {
-    localRoot: '/Documents',
-    icloudDocumentsRoot: null as string | null,
-    icloudGraphRoots: [] as string[],
-  },
-}))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   hasBridge: () => true,
-  mobileStorage: vi.fn(async () => storageInfo.current),
 }))
 
 const completeOnboarding = vi.hoisted(() => vi.fn(async (_kind: string, _root?: string) => {}))
@@ -61,21 +57,26 @@ vi.mock('@/routing/router.tsx', () => ({
 }))
 
 let queryClient: QueryClient
+let storage: TestMobileStorageService
 
 beforeEach(() => {
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   graphState.root = '/iCloud/Documents/Notes'
-  storageInfo.current = {
-    localRoot: '/Documents',
-    icloudDocumentsRoot: '/iCloud/Documents',
-    icloudGraphRoots: ['/iCloud/Documents/Notes', '/iCloud/Documents/Work'],
-  }
+  storage = createTestMobileStorageService({
+    storage: {
+      localRoot: '/Documents',
+      icloudDocumentsRoot: '/iCloud/Documents',
+      icloudGraphRoots: ['/iCloud/Documents/Notes', '/iCloud/Documents/Work'],
+    },
+  })
+  setDefaultMobileStorage(storage)
   completeOnboarding.mockImplementation(async () => {})
 })
 
 afterEach(async () => {
   await cleanup()
   queryClient.clear()
+  setDefaultMobileStorage(null)
   vi.clearAllMocks()
 })
 
@@ -148,11 +149,11 @@ describe('MobileGraphs', () => {
   })
 
   it('says so when iCloud Drive is unavailable', async () => {
-    storageInfo.current = {
+    storage.setStorage({
       localRoot: '/Documents',
       icloudDocumentsRoot: null,
       icloudGraphRoots: [],
-    }
+    })
     await mount()
 
     await expect.element(page.getByText(/iCloud Drive isn’t available/)).toBeVisible()

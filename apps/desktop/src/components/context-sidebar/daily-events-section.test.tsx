@@ -2,8 +2,23 @@ import { render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge, setDefaultPlatform, setDefaultStorage } from '@reflect/core'
-import { createTestPlatformService, createTestStorageService } from '@reflect/core/testing'
+import {
+  calendarEventSchema,
+  setBridge,
+  setDefaultCalendar,
+  setDefaultContacts,
+  setDefaultPlatform,
+  setDefaultStorage,
+  type CalendarEvent,
+} from '@reflect/core'
+import {
+  createTestCalendarService,
+  createTestContactsService,
+  createTestPlatformService,
+  createTestStorageService,
+  type TestCalendarService,
+  type TestContactsService,
+} from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { DailyEventsSection } from './daily-events-section.tsx'
@@ -46,8 +61,8 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 
 const DATE = '2026-07-01'
 
-function eventAt(hour: number, overrides: Record<string, unknown> = {}): Record<string, unknown> {
-  return {
+function eventAt(hour: number, overrides: Record<string, unknown> = {}): CalendarEvent {
+  return calendarEventSchema.parse({
     id: `evt-${hour}`,
     calendarId: 'cal-work',
     title: `Meeting at ${hour}`,
@@ -59,12 +74,12 @@ function eventAt(hour: number, overrides: Record<string, unknown> = {}): Record<
     canceled: false,
     attendees: [],
     ...overrides,
-  }
+  })
 }
 
 let stored: Record<string, unknown>
-let events: Array<Record<string, unknown>>
-let contactsAuthorization: string
+let calendar: TestCalendarService
+let contacts: TestContactsService
 
 function installFakeBridge(): void {
   setBridge({
@@ -74,10 +89,6 @@ function installFakeBridge(): void {
           return stored
         case 'settings_save':
           return null
-        case 'calendar_list_events':
-          return events
-        case 'contacts_authorization_status':
-          return contactsAuthorization
         default:
           return null
       }
@@ -100,8 +111,10 @@ async function renderSection(): Promise<void> {
 
 beforeEach(() => {
   stored = { calendarEnabled: true, calendarIds: ['cal-work'] }
-  events = []
-  contactsAuthorization = 'unavailable'
+  calendar = createTestCalendarService()
+  setDefaultCalendar(calendar)
+  contacts = createTestContactsService({ status: 'unavailable' })
+  setDefaultContacts(contacts)
   addMeetingToDaily.mockClear()
   addMeetingToDaily.mockResolvedValue({ appended: true, createdNotes: [] })
   resolveMeetingAttendees.mockClear()
@@ -113,12 +126,14 @@ beforeEach(() => {
 afterEach(() => {
   setDefaultStorage(null)
   setBridge(null)
+  setDefaultCalendar(null)
+  setDefaultContacts(null)
   queryClient.clear()
 })
 
 describe('DailyEventsSection', () => {
   it('lists the day’s events in start order with their times', async () => {
-    events = [eventAt(14), eventAt(9)]
+    calendar.setEvents([eventAt(14), eventAt(9)])
     await renderSection()
 
     await expect.element(page.getByText('Meeting at 9')).toBeInTheDocument()
@@ -131,14 +146,14 @@ describe('DailyEventsSection', () => {
   })
 
   it('hides all-day and declined-by-me events', async () => {
-    events = [
+    calendar.setEvents([
       eventAt(9),
       eventAt(10, { title: 'OOO banner', allDay: true }),
       eventAt(11, {
         title: 'Declined sync',
         attendees: [{ name: 'Me', isCurrentUser: true, isPerson: true, status: 'declined' }],
       }),
-    ]
+    ])
     await renderSection()
 
     await expect.element(page.getByText('Meeting at 9')).toBeInTheDocument()
@@ -148,7 +163,7 @@ describe('DailyEventsSection', () => {
 
   it('renders nothing while the integration is off', async () => {
     stored = { calendarEnabled: false, calendarIds: ['cal-work'] }
-    events = [eventAt(9)]
+    calendar.setEvents([eventAt(9)])
     const { container } = await render(
       <QueryClientProvider client={queryClient}>
         <SettingsProvider>
@@ -161,7 +176,7 @@ describe('DailyEventsSection', () => {
   })
 
   it('clicking an event opens the dialog prefilled from the event', async () => {
-    events = [
+    calendar.setEvents([
       eventAt(9, {
         title: 'Standup',
         recurring: true,
@@ -171,7 +186,7 @@ describe('DailyEventsSection', () => {
           { name: 'Room 4', isCurrentUser: false, isPerson: false, status: 'accepted' },
         ],
       }),
-    ]
+    ])
     await renderSection()
     await page.getByRole('button', { name: /standup/i }).click()
 
@@ -186,7 +201,7 @@ describe('DailyEventsSection', () => {
   })
 
   it('submitting writes the meeting through addMeetingToDaily and closes', async () => {
-    events = [eventAt(9, { title: 'Standup' })]
+    calendar.setEvents([eventAt(9, { title: 'Standup' })])
     await renderSection()
     await page.getByRole('button', { name: /standup/i }).click()
 
@@ -211,8 +226,8 @@ describe('DailyEventsSection', () => {
 
   it('passes invite emails and the contacts gate through to the action', async () => {
     stored = { calendarEnabled: true, calendarIds: ['cal-work'], contactsEnabled: true }
-    contactsAuthorization = 'authorized'
-    events = [
+    contacts.setStatus('authorized')
+    calendar.setEvents([
       eventAt(9, {
         title: 'Standup',
         attendees: [
@@ -225,7 +240,7 @@ describe('DailyEventsSection', () => {
           },
         ],
       }),
-    ]
+    ])
     await renderSection()
     await page.getByRole('button', { name: /standup/i }).click()
 
@@ -246,7 +261,7 @@ describe('DailyEventsSection', () => {
     resolveMeetingAttendees.mockResolvedValueOnce([
       { name: 'Ada Lovelace', emails: ['ada@example.com'] },
     ])
-    events = [
+    calendar.setEvents([
       eventAt(9, {
         title: 'Standup',
         attendees: [
@@ -259,7 +274,7 @@ describe('DailyEventsSection', () => {
           },
         ],
       }),
-    ]
+    ])
     await renderSection()
     await page.getByRole('button', { name: /standup/i }).click()
 
@@ -277,14 +292,14 @@ describe('DailyEventsSection', () => {
   })
 
   it('a removed attendee chip stays out of the submission', async () => {
-    events = [
+    calendar.setEvents([
       eventAt(9, {
         title: 'Standup',
         attendees: [
           { name: 'Ada Lovelace', isCurrentUser: false, isPerson: true, status: 'accepted' },
         ],
       }),
-    ]
+    ])
     await renderSection()
     await page.getByRole('button', { name: /standup/i }).click()
 
@@ -298,7 +313,7 @@ describe('DailyEventsSection', () => {
 
   it('a failed submit surfaces the error and keeps the dialog open', async () => {
     addMeetingToDaily.mockRejectedValueOnce(new Error('disk full'))
-    events = [eventAt(9, { title: 'Standup' })]
+    calendar.setEvents([eventAt(9, { title: 'Standup' })])
     await renderSection()
     await page.getByRole('button', { name: /standup/i }).click()
 

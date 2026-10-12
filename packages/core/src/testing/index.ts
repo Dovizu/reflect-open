@@ -47,3 +47,20 @@ export {
   type TestHttpService,
 } from './http.ts'
 export { createTestStorageService, type TestStorageService } from './storage.ts'
+export {
+  createTestCalendarService,
+  type TestCalendarService,
+  type TestCalendarServiceOptions,
+} from './calendar.ts'
+export {
+  createTestContactsService,
+  type ContactsLookup,
+  type TestContactsService,
+  type TestContactsServiceOptions,
+} from './contacts.ts'
+export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
+export {
+  createTestMobileStorageService,
+  type TestMobileStorageService,
+  type TestMobileStorageServiceOptions,
+} from './mobile-storage.ts'
