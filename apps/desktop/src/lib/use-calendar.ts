@@ -25,7 +25,7 @@ import { useSettings } from '@/providers/settings-provider.tsx'
 
 /** Whether calendar queries can run at all in this environment. */
 function useCalendarAvailable(): boolean {
-  return useBridgeReady() && isMacosDesktop
+  return useBridgeReady() && isMacosDesktop()
 }
 
 /**

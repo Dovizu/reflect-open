@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-import type { EmbedStatus } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultPlatform, type EmbedStatus } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { notePathForRoute, type Route } from '@/routing/route.ts'
 import type { NavigateOptions } from '@/routing/router.tsx'
 import { resetOperations } from '@/lib/operations.ts'
@@ -15,7 +16,6 @@ const embedStatus = vi.hoisted(() =>
 const backfillEmbeddingsVisibly = vi.hoisted(() => vi.fn(async () => 'completed'))
 const runCopyDeepLink = vi.hoisted(() => vi.fn(async () => undefined))
 const runCopyNotePath = vi.hoisted(() => vi.fn(async () => undefined))
-const isNativeShell = vi.hoisted(() => vi.fn(() => true))
 const toggleDevtools = vi.hoisted(() => vi.fn(async () => undefined))
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 const operationFail = vi.hoisted(() => vi.fn())
@@ -28,10 +28,6 @@ vi.mock('@/lib/semantic.ts', async (importOriginal) => ({
 }))
 vi.mock('@/lib/note-deep-link.ts', () => ({ runCopyDeepLink }))
 vi.mock('@/lib/note-copy-path.ts', () => ({ runCopyNotePath }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell,
-}))
 vi.mock('@/lib/windows/open-in-new-window.ts', () => ({ openRouteInNewWindow }))
 vi.mock('@/lib/operations.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/operations.ts')>()),
@@ -47,6 +43,14 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 
 // Importing registers the commands (module side effect, like production).
 const { APP_COMMANDS, keybindingFor } = await import('./app-commands.ts')
+
+beforeEach(() => {
+  setDefaultPlatform(createTestPlatformService())
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
 
 function command(id: string) {
   const found = APP_COMMANDS.find((entry) => entry.id === id)
@@ -325,7 +329,6 @@ describe('app commands', () => {
   })
 
   it('dev.toggleDevtools toggles the inspector through the native shell', async () => {
-    isNativeShell.mockReturnValue(true)
     toggleDevtools.mockClear()
     const { context } = fakeContext()
     await command('dev.toggleDevtools').run(context)
@@ -333,12 +336,11 @@ describe('app commands', () => {
   })
 
   it('dev.toggleDevtools no-ops without a native shell (plain-browser dev)', async () => {
-    isNativeShell.mockReturnValue(false)
+    setDefaultPlatform(createTestPlatformService({ isNativeShell: false }))
     toggleDevtools.mockClear()
     const { context } = fakeContext()
     await expect(command('dev.toggleDevtools').run(context)).resolves.toBeUndefined()
     expect(toggleDevtools).not.toHaveBeenCalled()
-    isNativeShell.mockReturnValue(true)
   })
 
   it('semantic.enable persists the opt-in through the context capability', async () => {

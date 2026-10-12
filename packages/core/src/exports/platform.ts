@@ -64,6 +64,17 @@ export {
   type TimerHandle,
 } from '../app/clock-service.ts'
 export { parseIsoDate, todayIso } from '../lib/dates.ts'
+export {
+  createPlatformService,
+  defaultPlatform,
+  platformFacts,
+  setDefaultPlatform,
+  type ColorScheme,
+  type PlatformFacts,
+  type PlatformMedia,
+  type PlatformService,
+  type PlatformSurface,
+} from '../app/platform-service.ts'
 export { confirmQuit, subscribeQuitRequested } from '../app/quit.ts'
 export {
   beginBackgroundTask,

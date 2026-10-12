@@ -2,16 +2,12 @@ import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { IntegrationsSection } from './integrations-section.tsx'
 
 const openUrl = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }))
-
-// A browser-mode module mock materializes value exports once, so this file
-// keeps the flag statically false; the macOS-specific test lives in
-// `integrations-section-macos.test.tsx`.
-vi.mock('@/lib/platform.ts', () => ({ isMacosDesktop: false, isNativeShell: () => true }))
 
 vi.mock('./calendar-integration-field', () => ({
   CalendarIntegrationField: () => <div>Calendar events</div>,
@@ -60,6 +56,7 @@ async function renderSection(): Promise<void> {
 }
 
 beforeEach(() => {
+  setDefaultPlatform(createTestPlatformService({ isMacosDesktop: false }))
   authorization = 'notDetermined'
   settings.current = { contactsEnabled: false }
   settings.update.mockClear()
@@ -69,6 +66,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setBridge(null)
+  setDefaultPlatform(null)
 })
 
 describe('IntegrationsSection', () => {
@@ -114,5 +112,16 @@ describe('IntegrationsSection', () => {
     await renderSection()
     await vi.waitFor(() => expect(page.getByRole('switch').query()).toBeNull())
     expect(page.getByText('Integrations').query()).toBeNull()
+  })
+})
+
+describe('IntegrationsSection on macOS', () => {
+  it('keeps calendar visible on macOS when contacts are unavailable', async () => {
+    setDefaultPlatform(createTestPlatformService())
+    authorization = 'unavailable'
+    await renderSection()
+
+    await expect.element(page.getByText('Calendar events')).toBeInTheDocument()
+    expect(page.getByRole('switch', { name: 'Contacts' }).query()).toBeNull()
   })
 })

@@ -1,29 +1,11 @@
-import { hasBridge, setBridge, type AppPlatform } from '@reflect/core'
+import { defaultPlatform, hasBridge, setBridge } from '@reflect/core'
 
 import { createDevBridge } from '@/dev/dev-bridge.ts'
 import { createDevFileStore } from '@/dev/dev-file-store.ts'
 import { createDevIndexDb } from '@/dev/dev-index-db.ts'
 import { seedGraphFiles } from '@/dev/seed-graph.ts'
-import { parseEnvPlatform } from '@/lib/env.ts'
 
-const appPlatform: AppPlatform = (() => {
-  if (import.meta.env.DEV && typeof window !== 'undefined') {
-    const query = new URLSearchParams(window.location.search).get('platform')
-    switch (query) {
-      case 'ios':
-        return 'ios'
-      case 'android':
-        return 'android'
-      case 'desktop':
-        return 'desktop'
-    }
-    if (query) {
-      console.warn('[reflect-open] Unknown platform override in query string:', query)
-    }
-  }
-
-  return parseEnvPlatform()
-})()
+const { appPlatform } = defaultPlatform()
 
 if (!hasBridge()) {
   const index = await createDevIndexDb()

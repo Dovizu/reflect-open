@@ -1,23 +1,12 @@
 import { useSyncExternalStore } from 'react'
-
-const QUERY = '(prefers-reduced-motion: reduce)'
+import { defaultPlatform } from '@reflect/core'
 
 function subscribe(onChange: () => void): () => void {
-  if (typeof window.matchMedia !== 'function') {
-    return () => {}
-  }
-  const media = window.matchMedia(QUERY)
-  // Older WebKit exposes only the deprecated listener API.
-  if (typeof media.addEventListener === 'function') {
-    media.addEventListener('change', onChange)
-    return () => media.removeEventListener('change', onChange)
-  }
-  media.addListener(onChange)
-  return () => media.removeListener(onChange)
+  return defaultPlatform().subscribeReducedMotion(onChange)
 }
 
 function getSnapshot(): boolean {
-  return typeof window.matchMedia === 'function' && window.matchMedia(QUERY).matches
+  return defaultPlatform().prefersReducedMotion()
 }
 
 /**

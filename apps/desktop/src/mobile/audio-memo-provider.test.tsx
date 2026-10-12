@@ -1,7 +1,8 @@
 import { act, useState, type ReactElement, type ReactNode } from 'react'
 import { cleanup, renderHook } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { audioMemoIdentity, audioMemoPartPath, setBridge } from '@reflect/core'
+import { audioMemoIdentity, audioMemoPartPath, setBridge, setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import type {
   AiProvidersState,
   AudioMemoIdentity,
@@ -85,7 +86,15 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   deleteAudioMemo,
 }))
 
-vi.mock('@/lib/platform.ts', () => ({ isMacosDesktop: false, isNativeShell: () => true }))
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
 
 vi.mock('@/lib/transcription-reconciler.ts', () => ({
   createTranscriptionReconciler,

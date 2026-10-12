@@ -43,7 +43,7 @@ export function AgentsSection(): ReactElement | null {
   const { data: status } = useQuery({
     queryKey,
     queryFn: agentSkillStatus,
-    enabled: bridgeReady && isMacosDesktop && graph !== null,
+    enabled: bridgeReady && isMacosDesktop() && graph !== null,
   })
   const mutation = useMutation({
     mutationKey: mutationKeys.agentSkill.write(graph?.root),
@@ -54,7 +54,7 @@ export function AgentsSection(): ReactElement | null {
     },
   })
 
-  if (!isMacosDesktop || graph === null) {
+  if (!isMacosDesktop() || graph === null) {
     return null
   }
 

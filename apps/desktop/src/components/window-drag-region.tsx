@@ -15,7 +15,7 @@ import { hasMacosTitleBarOverlay } from '@/lib/window-chrome.ts'
  * outside the macOS desktop webview, where the native title bar still exists.
  */
 export function WindowDragRegion(): ReactElement | null {
-  if (!hasMacosTitleBarOverlay) {
+  if (!hasMacosTitleBarOverlay()) {
     return null
   }
   return <div aria-hidden data-tauri-drag-region className="fixed inset-x-0 top-0 z-40 h-7" />

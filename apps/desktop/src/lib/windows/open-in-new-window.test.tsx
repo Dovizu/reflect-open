@@ -1,26 +1,24 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 
-const isNativeShell = vi.hoisted(() => vi.fn(() => true))
 const openNoteWindow = vi.hoisted(() => vi.fn<(link: string) => Promise<void>>())
-const isMobileSurface = vi.hoisted(() => vi.fn(() => false))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   openNoteWindow,
 }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell,
-}))
-vi.mock('@/lib/platform-surface.ts', () => ({ isMobileSurface }))
 
 import { openDeepLinkInNewWindow, openRouteInNewWindow } from './open-in-new-window.ts'
 
 beforeEach(() => {
   vi.clearAllMocks()
-  isNativeShell.mockReturnValue(true)
-  isMobileSurface.mockReturnValue(false)
+  setDefaultPlatform(createTestPlatformService())
   openNoteWindow.mockResolvedValue(undefined)
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
 })
 
 describe('openRouteInNewWindow', () => {
@@ -50,10 +48,9 @@ describe('openRouteInNewWindow', () => {
   })
 
   it('declines without a native shell and on mobile', async () => {
-    isNativeShell.mockReturnValue(false)
+    setDefaultPlatform(createTestPlatformService({ isNativeShell: false }))
     await expect(openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })).resolves.toBe(false)
-    isNativeShell.mockReturnValue(true)
-    isMobileSurface.mockReturnValue(true)
+    setDefaultPlatform(createTestPlatformService({ surface: { mobileApp: true } }))
     await expect(openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })).resolves.toBe(false)
     expect(openNoteWindow).not.toHaveBeenCalled()
   })

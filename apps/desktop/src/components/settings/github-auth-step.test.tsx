@@ -1,7 +1,8 @@
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runDeviceFlow, setBridge } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { runDeviceFlow, setBridge, setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { fireEvent } from '@/test-utils/fire-event.ts'
@@ -16,10 +17,15 @@ import { GithubAuthStep } from './github-auth-step.tsx'
 // code-handoff view.
 
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn(async () => {}) }))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),

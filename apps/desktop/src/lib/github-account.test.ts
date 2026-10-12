@@ -1,13 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setBridge, setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchSignedInUser } from './github-account.ts'
 
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
 const httpFetch = vi.mocked(tauriFetch)
 
 function fakeKeychain(initial: Record<string, string> = {}): Map<string, string> {

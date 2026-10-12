@@ -17,3 +17,8 @@ export {
   type TestIpcBridgeService,
   type TestIpcBridgeServiceOptions,
 } from './ipc.ts'
+export {
+  createTestPlatformService,
+  type TestPlatformOptions,
+  type TestPlatformService,
+} from './platform.ts'

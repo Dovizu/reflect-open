@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultPlatform } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
 import { fireEvent } from '@/test-utils/fire-event.ts'
@@ -30,10 +31,15 @@ const sync = vi.hoisted(() => ({
 }))
 vi.mock('@/providers/sync-provider.tsx', () => ({ useSync: () => sync }))
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
-vi.mock('@/lib/platform.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
-  isNativeShell: () => true,
-}))
+beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
+  )
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
+})
 vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }))
 const httpFetch = vi.mocked(tauriFetch)
 

@@ -1,4 +1,5 @@
-import type { GraphInfo, NoteRow, PinnedNote } from '@reflect/core'
+import { setDefaultPlatform, type GraphInfo, type NoteRow, type PinnedNote } from '@reflect/core'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import {
   FocusedDailyProvider,
@@ -6,12 +7,13 @@ import {
 } from '@/providers/focused-daily-provider.tsx'
 import { isModEvent } from '@meowdown/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import { renderHook } from 'vitest-browser-react'
 import { PaletteProvider, usePalette } from '@/components/command-palette/palette-provider.tsx'
 import { listRegisteredBindings } from '@/editor/keymap.ts'
 import { registerAppCommands } from '@/lib/commands/app-commands.ts'
+import { dispatchMenuCommand } from '@/lib/native-menu/dispatch.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
@@ -19,6 +21,7 @@ import { MOD_KEY, NON_MOD_KEY } from '@/test-utils/mod-key.ts'
 import { useAppShortcuts } from './app-shortcuts.ts'
 import { RouterProvider, useRouter } from './router.tsx'
 
+const nativeMenu = vi.hoisted(() => ({ installed: false }))
 const commitNoteFrontmatter = vi.hoisted(() => vi.fn(async () => {}))
 const graphState = vi.hoisted((): { graph: GraphInfo | null } => ({
   graph: { root: '/g', name: 'g', generation: 1 },
@@ -46,12 +49,8 @@ vi.mock('@/providers/note-find-provider.tsx', () => ({
 }))
 
 vi.mock('@/lib/native-menu/menu.ts', () => ({
-  isNativeMenuInstalled: () => false,
+  isNativeMenuInstalled: () => nativeMenu.installed,
 }))
-// macOS-only shortcut behavior lives in app-shortcuts-macos.test.tsx: a
-// browser-mode module mock materializes value exports once, so the flag
-// cannot flip per test.
-vi.mock('@/lib/platform.ts', () => ({ isMacosDesktop: false, isNativeShell: () => false }))
 
 vi.mock('@/providers/graph-provider.tsx', () => ({
   useGraph: () => ({
@@ -83,6 +82,15 @@ vi.mock('@/providers/chat-provider.tsx', () => ({
 registerAppCommands() // production does this in main.tsx
 
 beforeEach(() => {
+  setDefaultPlatform(
+    createTestPlatformService({
+      isNativeShell: false,
+      isMacosDesktop: false,
+      isApplePlatform: MOD_KEY.metaKey,
+      hasMacosTitleBarOverlay: false,
+    }),
+  )
+  nativeMenu.installed = false
   graphState.graph = { root: '/g', name: 'g', generation: 1 }
   commitNoteFrontmatter.mockReset().mockResolvedValue(undefined)
   openRecent.mockClear()
@@ -90,6 +98,10 @@ beforeEach(() => {
   openNoteFindForPath.mockClear()
   findNextInNote.mockClear()
   findPreviousInNote.mockClear()
+})
+
+afterEach(() => {
+  setDefaultPlatform(null)
 })
 
 function shortcutsHook(client = new QueryClient()) {
@@ -513,5 +525,45 @@ describe('app shortcuts', () => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', ...MOD_KEY, altKey: true }))
     })
     expect(result.current.router.route).toEqual({ kind: 'today' })
+  })
+})
+
+describe('app shortcuts on macOS', () => {
+  beforeEach(() => {
+    setDefaultPlatform(createTestPlatformService({ isNativeShell: false }))
+  })
+
+  it('keeps the macOS webview fallback until the native menu is installed', async () => {
+    const { result, act } = await shortcutsHook()
+    const event = new KeyboardEvent('keydown', {
+      key: '\\',
+      metaKey: true,
+      cancelable: true,
+    })
+
+    await act(() => {
+      window.dispatchEvent(event)
+    })
+    expect(event.defaultPrevented).toBe(true)
+    expect(result.current.sidebar.collapsed).toBe(true)
+  })
+
+  it(String.raw`leaves ⌘\ to the native macOS menu accelerator`, async () => {
+    nativeMenu.installed = true
+    const { result, act } = await shortcutsHook()
+    const event = new KeyboardEvent('keydown', {
+      key: '\\',
+      metaKey: true,
+      cancelable: true,
+    })
+
+    await act(() => {
+      window.dispatchEvent(event)
+    })
+    expect(event.defaultPrevented).toBe(false)
+    expect(result.current.sidebar.collapsed).toBe(false)
+
+    await act(() => dispatchMenuCommand('sidebar.toggle'))
+    expect(result.current.sidebar.collapsed).toBe(true)
   })
 })
