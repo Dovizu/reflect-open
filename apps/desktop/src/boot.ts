@@ -1,3 +1,4 @@
+import { watchGithubAuth } from '@/lib/github-auth-state.ts'
 import { createDesktopAdapters } from '@/services/create-desktop-services.ts'
 import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
@@ -24,3 +25,4 @@ export const appServices = createAppServices(
 // exception telemetry exist while the rest of the app's modules evaluate.
 installDefaultServices(appServices)
 appServices.exceptionTelemetry.install()
+watchGithubAuth(appServices.githubAuth)

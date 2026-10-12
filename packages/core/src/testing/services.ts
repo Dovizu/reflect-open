@@ -29,7 +29,11 @@ import {
   type TestXArchiveService,
 } from './capture.ts'
 import {
+  createTestGistService,
+  createTestGitHostCredentialService,
   createTestGitRepositoryService,
+  createTestGithubAuthService,
+  createTestGithubRepoService,
   createTestICloudNativeService,
   type TestGitRepositoryService,
   type TestICloudNativeService,
@@ -212,6 +216,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
     noteFile: overrides?.noteFile ?? noteFile,
   })
+  const http = createTestHttpService()
+  const secretStore = createTestSecretStoreService()
   const fileChanges = createTestFileChangeService()
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
@@ -224,7 +230,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     hash,
     platform: createTestPlatformService(),
     storage: createTestStorageService(),
-    http: createTestHttpService(),
+    http,
     dialog: createTestDialogService(),
     clipboard: createTestClipboardService(),
     opener: createTestOpenerService({ logger }),
@@ -250,6 +256,16 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     gitRepository: createTestGitRepositoryService(),
+    githubAuth: createTestGithubAuthService({
+      secretStore: overrides?.secretStore ?? secretStore,
+      http: overrides?.http ?? http,
+      clock: overrides?.clock ?? clock,
+    }),
+    gitHostCredentials: createTestGitHostCredentialService({
+      secretStore: overrides?.secretStore ?? secretStore,
+    }),
+    githubRepos: createTestGithubRepoService({ http: overrides?.http ?? http }),
+    gists: createTestGistService({ http: overrides?.http ?? http }),
     icloudNative: createTestICloudNativeService(),
     captureInbox: createTestCaptureInboxService(),
     webFetch: createTestWebFetchService(),

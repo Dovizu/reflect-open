@@ -26,6 +26,13 @@ import {
   createGitRepositoryService,
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
+import { createGistService, type GistService } from '../sync/gist-service.ts'
+import {
+  createGitHostCredentialService,
+  type GitHostCredentialService,
+} from '../sync/git-host-credential-service.ts'
+import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
+import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
@@ -175,6 +182,10 @@ export interface AppServices {
   readonly chatHistory: ChatHistoryService
   readonly update: UpdateService
   readonly gitRepository: GitRepositoryService
+  readonly githubAuth: GithubAuthService
+  readonly gitHostCredentials: GitHostCredentialService
+  readonly githubRepos: GithubRepoService
+  readonly gists: GistService
   readonly icloudNative: ICloudNativeService
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
@@ -404,6 +415,10 @@ export function createAppServices(adapters: AppAdapters): AppServices {
         })
       : createUnsupportedUpdateService(),
     gitRepository: createGitRepositoryService({ ipc }),
+    githubAuth: createGithubAuthService({ secretStore, http: adapters.http, clock }),
+    gitHostCredentials: createGitHostCredentialService({ secretStore }),
+    githubRepos: createGithubRepoService({ http: adapters.http }),
+    gists: createGistService({ http: adapters.http }),
     icloudNative: createICloudNativeService({ ipc, logger }),
     captureInbox: createCaptureInboxService({ ipc }),
     webFetch: createWebFetchService({ ipc }),
