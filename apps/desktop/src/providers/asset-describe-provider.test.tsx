@@ -34,11 +34,12 @@ describe('AssetDescribeProvider', () => {
   })
 
   it('opens no session while automatic description is off', async () => {
-    const app = createTestAppServices({
-      settings: createTestSettingsService({ describeAssets: false }),
-    })
+    // Loaded before the first render: until the stored settings arrive the
+    // provider sees the default, which is on.
+    const settings = createTestSettingsService({ describeAssets: false })
+    await settings.whenLoaded()
+    const app = createTestAppServices({ settings })
     const view = await renderWithServices(tree(), { app })
-    await app.settings.whenLoaded()
 
     await expect.element(view.getByText('child')).toBeVisible()
     expect(app.assetDescription.sessions()).toEqual([])
