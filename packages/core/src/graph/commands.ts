@@ -58,42 +58,6 @@ export async function readAsset(path: string, generation: number): Promise<strin
   return await defaultAssetStore().readBase64(path, generation)
 }
 
-/** `defaultAssetStore().readBytes`. */
-export async function readAssetBinary(
-  path: string,
-  generation: number,
-): Promise<Uint8Array<ArrayBuffer>> {
-  return await defaultAssetStore().readBytes(path, generation)
-}
-
-/** `defaultAssetStore().readTranscriptCache`. */
-export async function readTranscriptCache(name: string, generation: number): Promise<string> {
-  return await defaultAssetStore().readTranscriptCache(name, generation)
-}
-
-/** `defaultAssetStore().writeTranscriptCache`. */
-export async function writeTranscriptCache(
-  name: string,
-  contents: string,
-  generation: number,
-): Promise<void> {
-  await defaultAssetStore().writeTranscriptCache(name, contents, generation)
-}
-
-/** `defaultAssetStore().deleteAudioMemo`. */
-export async function deleteAudioMemo(path: string, generation: number): Promise<void> {
-  await defaultAssetStore().deleteAudioMemo(path, generation)
-}
-
-/** `defaultAssetStore().importAudioMemo`. */
-export async function importAudioMemo(
-  sourcePath: string,
-  path: string,
-  generation: number,
-): Promise<void> {
-  await defaultAssetStore().importAudioMemo(sourcePath, path, generation)
-}
-
 /** `defaultAssetStore().open`. */
 export async function openAsset(path: string, generation: number): Promise<void> {
   await defaultAssetStore().open(path, generation)

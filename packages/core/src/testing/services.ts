@@ -31,6 +31,11 @@ import {
   type TestLanguageModelService,
 } from './ai.ts'
 import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
+import {
+  createTestAudioMemoService,
+  createTestMobileAudioMemoService,
+  createTestNativeActionService,
+} from './audio-memo.ts'
 import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 import {
   createTestBacklinkTargetService,
@@ -216,6 +221,9 @@ import {
   type TestNativeMenuService,
 } from './commands.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
+import type { AudioMemoService } from '../audio/audio-memo-service.ts'
+import type { MobileAudioMemoService } from '../audio/mobile-audio-memo-service.ts'
+import type { NativeActionService } from '../audio/native-action-service.ts'
 import type { AssetPrivacyService } from '../assets/asset-privacy-service.ts'
 import {
   createTestAssetDescriptionService,
@@ -313,6 +321,9 @@ export interface TestAppServices extends AppServices {
   readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: TestCaptureService
+  readonly audioMemo: AudioMemoService
+  readonly nativeAction: NativeActionService
+  readonly mobileAudioMemo: MobileAudioMemoService
   readonly assetPrivacy: AssetPrivacyService
   readonly assetDescription: TestAssetDescriptionService
 }
@@ -461,6 +472,41 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const storage = createTestStorageService()
+  const audioRecorder = createTestAudioRecorderService()
+  const haptics = createTestHapticsService()
+  const assetStore = createTestAssetStoreService()
+  const transcription = createTestTranscriptionService()
+  const transcriptEnrichment = createTestTranscriptEnrichmentService({
+    languageModel: overrides?.languageModel ?? languageModel,
+  })
+  const backlinkTarget = createTestBacklinkTargetService({
+    noteFile: overrides?.noteFile ?? noteFile,
+    noteCreation: overrides?.noteCreation ?? noteCreation,
+  })
+  const audioMemo = createTestAudioMemoService({
+    assetStore: overrides?.assetStore ?? assetStore,
+    noteFile: overrides?.noteFile ?? noteFile,
+    backlinkTarget: overrides?.backlinkTarget ?? backlinkTarget,
+    transcription: overrides?.transcription ?? transcription,
+    transcriptEnrichment: overrides?.transcriptEnrichment ?? transcriptEnrichment,
+    aiProviderConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
+    aiCredentials: overrides?.aiCredentials ?? aiCredentials,
+    audioRecorder: overrides?.audioRecorder ?? audioRecorder,
+    lifecycle: overrides?.lifecycle ?? lifecycle,
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+    settings: overrides?.settings ?? settings,
+    operations: overrides?.operations ?? operations,
+    clock: overrides?.clock ?? clock,
+    platform: overrides?.platform ?? platform,
+    window: overrides?.window ?? windowService,
+    logger,
+  })
+  const nativeAction = createTestNativeActionService({
+    audioRecorder: overrides?.audioRecorder ?? audioRecorder,
+    clock: overrides?.clock ?? clock,
+    platform: overrides?.platform ?? platform,
+    logger,
+  })
   const chatHistory = createTestChatHistoryService()
   const chatEngine = createTestChatEngineService()
   const chatGraphContext = createTestChatGraphContextService()
@@ -605,8 +651,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       privacy: overrides?.privacy ?? privacy,
       webFetch: overrides?.webFetch ?? webFetch,
     }),
-    audioRecorder: createTestAudioRecorderService(),
-    haptics: createTestHapticsService(),
+    audioRecorder,
+    haptics,
     iap: createTestIapService(),
     appStore: createTestAppStoreService(),
     webAuth: createTestWebAuthService(null),
@@ -615,7 +661,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     appStoreEnvironment: createTestAppStoreEnvironmentService(),
     paywall: createTestPaywallService(),
     noteFile,
-    assetStore: createTestAssetStoreService(),
+    assetStore,
     attachments,
     noteSessions: createTestNoteSessionService({
       noteFile: overrides?.noteFile ?? noteFile,
@@ -724,10 +770,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     pageDescriber: createTestPageDescriberService(),
     assetDescriber: createTestAssetDescriberService(),
-    transcription: createTestTranscriptionService(),
-    transcriptEnrichment: createTestTranscriptEnrichmentService({
-      languageModel: overrides?.languageModel ?? languageModel,
-    }),
+    transcription,
+    transcriptEnrichment,
     noteTools: createTestNoteToolsService({
       retrieval: overrides?.retrieval ?? retrieval,
       noteFile: overrides?.noteFile ?? noteFile,
@@ -751,16 +795,24 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       imageCodec: overrides?.imageCodec ?? imageCodec,
       logger,
     }),
-    backlinkTarget: createTestBacklinkTargetService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      noteCreation: overrides?.noteCreation ?? noteCreation,
-    }),
+    backlinkTarget,
     capture: createTestCaptureService(),
     assetPrivacy: createTestAssetPrivacyService({
       noteFile: overrides?.noteFile ?? noteFile,
       xArchive: overrides?.xArchive ?? xArchive,
     }),
     assetDescription: createTestAssetDescriptionService(),
+    audioMemo,
+    nativeAction,
+    mobileAudioMemo: createTestMobileAudioMemoService({
+      audioMemo: overrides?.audioMemo ?? audioMemo,
+      audioRecorder: overrides?.audioRecorder ?? audioRecorder,
+      nativeAction: overrides?.nativeAction ?? nativeAction,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+      haptics: overrides?.haptics ?? haptics,
+      platform: overrides?.platform ?? platform,
+      logger,
+    }),
   }
   return Object.assign(services, overrides)
 }

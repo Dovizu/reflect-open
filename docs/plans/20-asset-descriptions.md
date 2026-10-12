@@ -36,8 +36,7 @@ single-flight controller, and the Settings UI. This mirrors capture
 ([`actions/capture.ts`](../../packages/core/src/actions/capture.ts) +
 [`lib/capture-controller.ts`](../../apps/desktop/src/lib/capture-controller.ts))
 and audio memos
-([`actions/audio-memo.ts`](../../packages/core/src/actions/audio-memo.ts) +
-[`lib/transcription-reconciler.ts`](../../apps/desktop/src/lib/transcription-reconciler.ts)).
+([`audio/audio-memo-transcription-service.ts`](../../packages/core/src/audio/audio-memo-transcription-service.ts)).
 
 ## Scope
 

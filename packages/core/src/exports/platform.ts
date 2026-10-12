@@ -12,8 +12,6 @@ export { createIpcBridgeService, listenNow, type IpcBridgeService } from '../ipc
 export { call, callBinary } from '../ipc/invoke.ts'
 export { type PluginSubscription } from '../ipc/plugin.ts'
 export {
-  actionPerformed,
-  actionsReady,
   cancelRecording,
   deleteStaged,
   listStaged,
@@ -21,7 +19,6 @@ export {
   startRecording,
   stopRecording,
   subscribeRecordingLevel,
-  subscribeRecordingNativeAction,
   subscribeRecordingSegment,
   subscribeRecordingStopped,
   type RecordingLevelEvent,
@@ -1021,8 +1018,6 @@ export {
   listDir,
   noteExists,
   deleteNote,
-  deleteAudioMemo,
-  importAudioMemo,
   listFiles,
   listAttachments,
   vaultScanStats,

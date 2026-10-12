@@ -57,6 +57,15 @@ import {
   type BacklinkTargetService,
 } from '../capture/backlink-target-service.ts'
 import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
+import { createAudioMemoService, type AudioMemoService } from '../audio/audio-memo-service.ts'
+import {
+  createMobileAudioMemoService,
+  type MobileAudioMemoService,
+} from '../audio/mobile-audio-memo-service.ts'
+import {
+  createNativeActionService,
+  type NativeActionService,
+} from '../audio/native-action-service.ts'
 import {
   createAssetDescriptionService,
   type AssetDescriptionService,
@@ -439,6 +448,11 @@ export interface AppServices {
   readonly chatSessions: ChatSessionService
   readonly backlinkTarget: BacklinkTargetService
   readonly capture: CaptureService
+  readonly audioMemo: AudioMemoService
+  /** Mobile only. */
+  readonly nativeAction?: NativeActionService
+  /** Mobile only. */
+  readonly mobileAudioMemo?: MobileAudioMemoService
   readonly assetPrivacy: AssetPrivacyService
   readonly assetDescription: AssetDescriptionService
 }
@@ -559,6 +573,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     id,
     logger,
   })
+  const audioRecorder = createPlatformAudioRecorder({
+    platform: adapters.platform,
+    ipc,
+    clock,
+    logger,
+  })
   const createMobileServices = () => {
     const iap = createIapService({ ipc, logger })
     const appStore = createAppStoreService({ ipc })
@@ -566,6 +586,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     const appStoreEnvironment = createAppStoreEnvironmentService({ appStore, storage, platform })
     return {
       haptics: createHapticsService({ ipc, logger }),
+      nativeAction: createNativeActionService({ audioRecorder, clock, platform, logger }),
       iap,
       appStore,
       webAuth,
@@ -703,6 +724,30 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     indexLifecycle,
     logger,
   })
+  const transcription = withAppReviewDemoTranscription(
+    createTranscriptionService({ http: adapters.http }),
+  )
+  const transcriptEnrichment = createTranscriptEnrichmentService({ languageModel })
+  const audioMemo = createAudioMemoService({
+    assetStore,
+    noteFile,
+    backlinkTarget,
+    transcription,
+    transcriptEnrichment,
+    aiProviderConfig,
+    aiCredentials,
+    audioRecorder,
+    reconcilers,
+    lifecycle,
+    fileChanges,
+    settings,
+    operations,
+    clock,
+    platform,
+    window: windowService,
+    logger,
+  })
+  const mobileServices = mobile ? createMobileServices() : null
   const chatHistory = createChatHistoryService({ ipc, database, logger })
   const noteTools = createNoteToolsService({
     retrieval,
@@ -845,14 +890,9 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       webFetch,
       parseMetadata: parseLinkPreviewMeta,
     }),
-    audioRecorder: createPlatformAudioRecorder({
-      platform: adapters.platform,
-      ipc,
-      clock,
-      logger,
-    }),
+    audioRecorder,
     classicAccess,
-    ...(mobile ? createMobileServices() : {}),
+    ...mobileServices,
     fileChanges,
     noteFile,
     assetStore,
@@ -948,10 +988,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     pageDescriber,
     assetDescriber,
-    transcription: withAppReviewDemoTranscription(
-      createTranscriptionService({ http: adapters.http }),
-    ),
-    transcriptEnrichment: createTranscriptEnrichmentService({ languageModel }),
+    transcription,
+    transcriptEnrichment,
     noteTools,
     chatEngine,
     chatGraphContext,
@@ -991,6 +1029,21 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
       logger,
     }),
+    audioMemo,
+    ...(mobileServices === null
+      ? {}
+      : {
+          nativeAction: mobileServices.nativeAction,
+          mobileAudioMemo: createMobileAudioMemoService({
+            audioMemo,
+            audioRecorder,
+            nativeAction: mobileServices.nativeAction,
+            lifecycle,
+            haptics: mobileServices.haptics,
+            platform,
+            logger,
+          }),
+        }),
     assetPrivacy,
     assetDescription: createAssetDescriptionService({
       assetStore,
