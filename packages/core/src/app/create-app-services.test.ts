@@ -61,7 +61,6 @@ const SERVICE_KEYS = [
   'linkNavigation',
   'gitRepository',
   'githubAuth',
-  'gitHostCredentials',
   'githubRepos',
   'gists',
   'gistPublish',
@@ -176,7 +175,6 @@ describe('createAppServices', () => {
     expect(services.http).toBe(adapters.http)
     expect(services.dialog).toBe(adapters.dialog)
     expect(services.clipboard).toBe(adapters.clipboard)
-    expect(services.ipc.transport).toBe(adapters.ipc)
     await expect(services.ipc.call('app_version', {}, z.string())).resolves.toBe('1.2.3')
     expect(services.platform.appVersion).toBe('0.0.0-test')
     await expect(services.path.homeDir()).resolves.toBe('/home/test')

@@ -116,10 +116,13 @@ function setup(options?: SetupOptions) {
   }
 }
 
-describe('GistPublishService.publishNote', () => {
+describe('GistPublishService.publish', () => {
   it('creates a secret gist for a fresh note and records it in frontmatter', async () => {
     const { service, files, sent } = setup()
-    await expect(service.publishNote(PATH, 3)).resolves.toBe(PUBLISHED.htmlUrl)
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(sent('POST')).toEqual([
       {
@@ -136,7 +139,10 @@ describe('GistPublishService.publishNote', () => {
 
   it('republishes to the same gist, addressing the file by its previous name', async () => {
     const { service, sent } = setup({ source: REPUBLISH_SOURCE })
-    await service.publishNote(PATH, 3)
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(sent('PATCH')).toEqual([
       {
@@ -151,7 +157,10 @@ describe('GistPublishService.publishNote', () => {
   it('falls back to creating a fresh gist when the old one is gone (update → null)', async () => {
     const { service, files, reply, sent } = setup({ source: REPUBLISH_SOURCE })
     reply('PATCH', { status: 404 })
-    await expect(service.publishNote(PATH, 3)).resolves.toBe(PUBLISHED.htmlUrl)
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(sent('POST')).toHaveLength(1)
     expect(files.getWrites(PATH)[0]).toContain('id: g1')
@@ -160,7 +169,10 @@ describe('GistPublishService.publishNote', () => {
   it('routes the frontmatter write through the live session when the note is open', async () => {
     const session = createTestNoteSession({ path: PATH, content: BODY })
     const { service, files } = setup({ source: null, session })
-    await service.publishNote(PATH, 3)
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(session.getCalls('commitFrontmatter')).toEqual([
       [{ gist: { id: 'g1', url: PUBLISHED.htmlUrl, file: 'A.md', hash: gistBodyHash(BODY) } }],
@@ -171,7 +183,10 @@ describe('GistPublishService.publishNote', () => {
   it('falls back to disk when the session cannot take the patch', async () => {
     const session = createTestNoteSession({ path: PATH, content: BODY, accepts: false })
     const { service, files } = setup({ session })
-    await service.publishNote(PATH, 3)
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
     expect(files.writes()).toHaveLength(1)
   })
 
@@ -181,7 +196,10 @@ describe('GistPublishService.publishNote', () => {
     const session = createTestNoteSession({ path: PATH, loaded: false, accepts: false })
     const { service, files, sent } = setup({ session })
 
-    await service.publishNote(PATH, 3)
+    await expect(service.publish(PATH, 3)).resolves.toEqual({
+      url: PUBLISHED.htmlUrl,
+      stale: false,
+    })
 
     expect(sent('POST').map((request) => request.body)).toEqual([
       { public: false, files: { 'A.md': { content: BODY } } },
@@ -190,137 +208,87 @@ describe('GistPublishService.publishNote', () => {
   })
 
   it('refuses to publish a private note before anything leaves the device', async () => {
-    const { service, http, tokenReads } = setup({ source: '---\nprivate: true\n---\nsecret' })
-    await expect(service.publishNote(PATH, 3)).rejects.toMatchObject({
-      name: 'PrivateNoteError',
+    const { service, http, operations, tokenReads } = setup({
+      source: '---\nprivate: true\n---\nsecret',
+    })
+    await expect(service.publish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+      status: 'failed',
+      message: `"${PATH}" is marked private and cannot be sent to an external service`,
     })
     expect(tokenReads.count).toBe(0)
     expect(http.requests()).toEqual([])
   })
 
   it('refuses an empty note', async () => {
-    const { service, http } = setup({ source: '---\npinned: true\n---\n' })
-    await expect(service.publishNote(PATH, 3)).rejects.toMatchObject({
+    const { service, http, operations } = setup({ source: '---\npinned: true\n---\n' })
+    await expect(service.publish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+      status: 'failed',
       message: expect.stringMatching(/empty/i),
     })
     expect(http.requests()).toEqual([])
   })
 
   it('asks for a GitHub connection when no credential is stored', async () => {
-    const { service } = setup({ token: null })
-    await expect(service.publishNote(PATH, 3)).rejects.toMatchObject({
-      kind: 'auth',
-      message: expect.stringMatching(/connect github/i),
+    const { service, operations } = setup({ token: null })
+    await expect(service.publish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+      status: 'failed',
+      message: 'Connect GitHub in Settings to publish gists',
     })
   })
 
   it('refuses invalid frontmatter before anything reaches GitHub (the record write would refuse)', async () => {
-    const { service, http } = setup({ source: '---\nfoo: [unclosed\n---\nbody' })
-    await expect(service.publishNote(PATH, 3)).rejects.toMatchObject({
-      kind: 'parse',
+    const { service, http, operations } = setup({ source: '---\nfoo: [unclosed\n---\nbody' })
+    await expect(service.publish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+      status: 'failed',
       message: expect.stringMatching(/invalid frontmatter/i),
     })
     expect(http.requests()).toEqual([])
   })
 
   it('deletes a freshly created gist when recording it locally fails (no orphans)', async () => {
-    const { service, failNextWrite, sent } = setup()
+    const { service, failNextWrite, operations, sent } = setup()
     failNextWrite(new Error('disk on fire'))
-    await expect(service.publishNote(PATH, 3)).rejects.toMatchObject({
+    await expect(service.publish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+      status: 'failed',
       message: 'disk on fire',
     })
     expect(sent('DELETE')).toEqual([{ url: `${GISTS_URL}/g1`, token: 'Bearer tok', body: null }])
   })
 
   it('never deletes the existing gist when recording a republish fails (shared links survive)', async () => {
-    const { service, failNextWrite, reply, sent } = setup({ source: REPUBLISH_SOURCE })
+    const { service, failNextWrite, operations, reply, sent } = setup({
+      source: REPUBLISH_SOURCE,
+    })
     reply('PATCH', {
       status: 200,
       json: { id: 'g0', html_url: 'https://gist.github.com/alex/g0' },
     })
     failNextWrite(new Error('disk on fire'))
-    await expect(service.publishNote(PATH, 3)).rejects.toMatchObject({
+    await expect(service.publish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+      status: 'failed',
       message: 'disk on fire',
     })
     expect(sent('DELETE')).toEqual([])
   })
 
   it('still surfaces the record failure when the compensating delete also fails', async () => {
-    const { service, failNextWrite, reply, sent } = setup()
+    const { service, failNextWrite, operations, reply, sent } = setup()
     failNextWrite(new Error('disk on fire'))
     reply('DELETE', { status: 500 })
-    await expect(service.publishNote(PATH, 3)).rejects.toMatchObject({
+    await expect(service.publish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+      status: 'failed',
       message: 'disk on fire',
     })
     expect(sent('DELETE')).toHaveLength(1)
   })
-})
 
-describe('GistPublishService.unpublishNote', () => {
-  it('deletes the existing gist and removes the frontmatter block', async () => {
-    const { service, files, sent } = setup({ source: REPUBLISH_SOURCE })
-    await expect(service.unpublishNote(PATH, 3)).resolves.toBeUndefined()
-
-    expect(sent('DELETE')).toEqual([{ url: `${GISTS_URL}/g0`, token: 'Bearer tok', body: null }])
-    expect(files.writes()).toEqual([{ path: PATH, contents: BODY, generation: 3 }])
-  })
-
-  it('does not delete the remote gist when clearing local frontmatter fails', async () => {
-    const { service, failNextWrite, http } = setup({ source: REPUBLISH_SOURCE })
-    failNextWrite(new Error('disk on fire'))
-
-    await expect(service.unpublishNote(PATH, 3)).rejects.toMatchObject({
-      message: 'disk on fire',
-    })
-
-    expect(http.requests()).toEqual([])
-  })
-
-  it('restores local gist frontmatter when the remote delete fails', async () => {
-    const { service, files, reply } = setup({ source: REPUBLISH_SOURCE })
-    reply('DELETE', { status: 500 })
-
-    await expect(service.unpublishNote(PATH, 3)).rejects.toMatchObject({
-      message: expect.stringContaining('deleting the gist failed'),
-    })
-
-    expect(files.writes()).toEqual([
-      { path: PATH, contents: BODY, generation: 3 },
-      { path: PATH, contents: REPUBLISH_SOURCE, generation: 3 },
-    ])
-  })
-
-  it('routes the gist removal through the live session when the note is open', async () => {
-    const session = createTestNoteSession({ path: PATH, content: REPUBLISH_SOURCE })
-    const { service, files } = setup({ source: null, session })
-
-    await service.unpublishNote(PATH, 3)
-
-    expect(session.getCalls('commitFrontmatter')).toEqual([[{ gist: false }]])
-    expect(files.writes()).toEqual([])
-  })
-
-  it('is a no-op when the note has no gist block', async () => {
-    const { service, files, http } = setup()
-
-    await service.unpublishNote(PATH, 3)
-
-    expect(http.requests()).toEqual([])
-    expect(files.writes()).toEqual([])
-  })
-
-  it('asks for a GitHub connection before deleting the gist', async () => {
-    const { service, http } = setup({ source: REPUBLISH_SOURCE, token: null })
-
-    await expect(service.unpublishNote(PATH, 3)).rejects.toMatchObject({
-      kind: 'auth',
-      message: expect.stringMatching(/connect github/i),
-    })
-    expect(http.requests()).toEqual([])
-  })
-})
-
-describe('GistPublishService.publish', () => {
   it('publishes, copies the link, and confirms through the operations line', async () => {
     const { service, clipboard, operations } = setup()
     await expect(service.publish(PATH, 3)).resolves.toEqual({
@@ -395,6 +363,73 @@ describe('GistPublishService.publish', () => {
 })
 
 describe('GistPublishService.unpublish', () => {
+  it('deletes the existing gist and removes the frontmatter block', async () => {
+    const { service, files, sent } = setup({ source: REPUBLISH_SOURCE })
+    await expect(service.unpublish(PATH, 3)).resolves.toEqual({ url: null, stale: false })
+
+    expect(sent('DELETE')).toEqual([{ url: `${GISTS_URL}/g0`, token: 'Bearer tok', body: null }])
+    expect(files.writes()).toEqual([{ path: PATH, contents: BODY, generation: 3 }])
+  })
+
+  it('does not delete the remote gist when clearing local frontmatter fails', async () => {
+    const { service, failNextWrite, http, operations } = setup({ source: REPUBLISH_SOURCE })
+    failNextWrite(new Error('disk on fire'))
+
+    await expect(service.unpublish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Unpublishing gist')).toMatchObject({
+      status: 'failed',
+      message: 'disk on fire',
+    })
+
+    expect(http.requests()).toEqual([])
+  })
+
+  it('restores local gist frontmatter when the remote delete fails', async () => {
+    const { service, files, operations, reply } = setup({ source: REPUBLISH_SOURCE })
+    reply('DELETE', { status: 500 })
+
+    await expect(service.unpublish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Unpublishing gist')).toMatchObject({
+      status: 'failed',
+      message: expect.stringContaining('deleting the gist failed'),
+    })
+
+    expect(files.writes()).toEqual([
+      { path: PATH, contents: BODY, generation: 3 },
+      { path: PATH, contents: REPUBLISH_SOURCE, generation: 3 },
+    ])
+  })
+
+  it('routes the gist removal through the live session when the note is open', async () => {
+    const session = createTestNoteSession({ path: PATH, content: REPUBLISH_SOURCE })
+    const { service, files } = setup({ source: null, session })
+
+    await expect(service.unpublish(PATH, 3)).resolves.toEqual({ url: null, stale: false })
+
+    expect(session.getCalls('commitFrontmatter')).toEqual([[{ gist: false }]])
+    expect(files.writes()).toEqual([])
+  })
+
+  it('is a no-op when the note has no gist block', async () => {
+    const { service, files, http } = setup()
+
+    await expect(service.unpublish(PATH, 3)).resolves.toEqual({ url: null, stale: false })
+
+    expect(http.requests()).toEqual([])
+    expect(files.writes()).toEqual([])
+  })
+
+  it('asks for a GitHub connection before deleting the gist', async () => {
+    const { service, http, operations } = setup({ source: REPUBLISH_SOURCE, token: null })
+
+    await expect(service.unpublish(PATH, 3)).resolves.toBeNull()
+    expect(operations.findByLabel('Unpublishing gist')).toMatchObject({
+      status: 'failed',
+      message: 'Connect GitHub in Settings to unpublish gists',
+    })
+    expect(http.requests()).toEqual([])
+  })
+
   it('unpublishes and clears the published url in the optimistic overlay', async () => {
     const { service, noteRows, operations } = setup({ source: REPUBLISH_SOURCE })
 

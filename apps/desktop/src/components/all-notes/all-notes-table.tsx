@@ -3,7 +3,7 @@ import { Virtualizer, type VirtualizerHandle } from 'virtua'
 import type { NoteListEntry } from '@reflect/core'
 import type { ListSelection } from '@/lib/selection/use-list-selection.ts'
 import { cn } from '@/lib/utils.ts'
-import type { ModClickEvent } from '@/lib/windows/open-in-new-window.ts'
+import type { ModClickEvent } from '@/hooks/use-note-link-navigation.ts'
 import { ALL_NOTES_GRID, AllNotesRow } from './all-notes-row.tsx'
 
 interface AllNotesTableProps {

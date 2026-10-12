@@ -6,7 +6,6 @@ import { Toaster } from '@/components/ui/toast.tsx'
 import { WindowDragRegion } from '@/components/window-drag-region.tsx'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
-import { trackSubscriptions } from '@/lib/subscriptions.ts'
 import { GraphProvider } from '@/providers/graph-provider.tsx'
 import { SidebarWidthEffect } from '@/providers/sidebar-width.tsx'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
@@ -40,13 +39,7 @@ export function DesktopRoot(): ReactElement {
   // or its open sessions and router history keep the dead path. The origin
   // window also followed in-process; the echo is idempotent (the session no
   // longer matches `from`, and re-routing an absent entry is a no-op).
-  useEffect(() => {
-    const subscriptions = trackSubscriptions()
-    void subscriptions.add(noteMove.followNativeMoves())
-    return () => {
-      subscriptions.disposeAll()
-    }
-  }, [noteMove])
+  useEffect(() => noteMove.followNativeMoves(), [noteMove])
 
   // Every desktop window mirrors its own operations store into toasts (the
   // store is per-webview, matching the per-window mount this replaces). The

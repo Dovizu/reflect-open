@@ -16,7 +16,7 @@ interface DeepLinkProviderProps {
 }
 
 export function DeepLinkProvider({ graph, children }: DeepLinkProviderProps): ReactElement {
-  const { navigate, navigationRevision } = useRouter()
+  const { navigate } = useRouter()
   const { deepLink, linkNavigation } = useAppServices()
 
   // The graph session this provider instance currently serves. Staleness must
@@ -36,15 +36,11 @@ export function DeepLinkProvider({ graph, children }: DeepLinkProviderProps): Re
       navigate,
       generation,
       beginNavigationIntent: () => {
-        const linkIntent = linkNavigation.beginIntent()
-        const issuedAtRevision = navigationRevision()
-        return () =>
-          sessionRef.current !== generation ||
-          navigationRevision() !== issuedAtRevision ||
-          !linkNavigation.isCurrentIntent(linkIntent)
+        const isStale = linkNavigation.beginIntent()
+        return () => sessionRef.current !== generation || isStale()
       },
     })
-  }, [deepLink, linkNavigation, navigate, navigationRevision, graph.generation])
+  }, [deepLink, linkNavigation, navigate, graph.generation])
 
   return <>{children}</>
 }
