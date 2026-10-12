@@ -1,38 +1,26 @@
-import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { MIN_VISIBLE_MS, type GistPublishService, type NoteRow } from '@reflect/core'
 import {
-  setDefaultClipboard,
-  setDefaultOpener,
-  setDefaultStorage,
-  type NoteRow,
-  setDefaultOperations,
-  MIN_VISIBLE_MS,
-} from '@reflect/core'
-import {
-  createTestClipboardService,
-  createTestOpenerService,
-  createTestStorageService,
+  createTestAppServices,
   type TestClipboardService,
   type TestOpenerService,
-  createTestOperationsService,
   type TestOperationsService,
 } from '@reflect/core/testing'
-import { TooltipProvider } from '@/components/ui/tooltip.tsx'
+import { queryKeys } from '@/lib/query-client.ts'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { PublishedUrlSection } from './published-url-section.tsx'
 
-const useNoteRow = vi.hoisted(() => vi.fn<(path: string) => NoteRow | null>(() => null))
-const runGistPublish = vi.hoisted(() =>
-  vi.fn<(path: string, generation: number) => Promise<string | null>>(
-    async () => 'https://gist.github.com/alex/g1',
-  ),
-)
+// What the index answers for the note; each test sets it before `renderSection`.
+let row: NoteRow | null
 
-vi.mock('@/hooks/use-note-row.ts', () => ({ useNoteRow }))
-vi.mock('@/lib/note-gist.ts', () => ({ runGistPublish }))
-vi.mock('@/providers/graph-provider.tsx', () => ({
-  useGraph: () => ({ graph: { root: '/g', name: 'g', generation: 7 } }),
-}))
+// The services of the rendered app; set by `renderSection`.
+let clipboard: TestClipboardService
+let opener: TestOpenerService
+let operations: TestOperationsService
+let publish: MockInstance<GistPublishService['publish']>
+// Scripts the clipboard of the next `renderSection`.
+let clipboardFailure: Error | null
 
 function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
   return {
@@ -47,45 +35,39 @@ function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
   }
 }
 
-function renderSection(path = 'notes/a.md') {
-  return render(
-    <TooltipProvider>
-      <PublishedUrlSection path={path} />
-    </TooltipProvider>,
-  )
+async function renderSection(path = 'notes/a.md') {
+  const app = createTestAppServices()
+  vi.spyOn(app.indexQuery, 'getNote').mockImplementation(async () => row ?? undefined)
+  publish = vi
+    .spyOn(app.gistPublish, 'publish')
+    .mockResolvedValue({ url: 'https://gist.github.com/alex/g1', stale: false })
+  ;({ clipboard, opener, operations } = app)
+  if (clipboardFailure !== null) {
+    clipboard.failWith(clipboardFailure)
+  }
+  return await renderInApp(<PublishedUrlSection path={path} />, {
+    app,
+    graph: { root: '/g', name: 'g', generation: 7 },
+  })
 }
 
-let clipboard: TestClipboardService
-let opener: TestOpenerService
-
-let operations: TestOperationsService
-
 beforeEach(() => {
-  operations = createTestOperationsService()
-  setDefaultOperations(operations)
-  setDefaultStorage(createTestStorageService())
-  useNoteRow.mockReset().mockReturnValue(null)
-  clipboard = createTestClipboardService()
-  setDefaultClipboard(clipboard)
-  opener = createTestOpenerService()
-  setDefaultOpener(opener)
-  runGistPublish.mockReset().mockResolvedValue('https://gist.github.com/alex/g1')
-})
-
-afterEach(() => {
-  setDefaultOperations(null)
-  setDefaultStorage(null)
+  row = null
+  clipboardFailure = null
 })
 
 describe('PublishedUrlSection', () => {
   it('renders nothing for an unpublished note', async () => {
     const view = await renderSection()
+    await vi.waitFor(() =>
+      expect(view.queryClient.getQueryData(queryKeys.index.note('/g', 'notes/a.md'))).toBeNull(),
+    )
     expect(view.getByText('Published URL').query()).toBeNull()
   })
 
   it('shows the published gist URL for a published note', async () => {
     const url = 'https://gist.github.com/alex/g1'
-    useNoteRow.mockReturnValue(noteRow({ gistUrl: url }))
+    row = noteRow({ gistUrl: url })
 
     const view = await renderSection()
     await expect.element(view.getByText('Published URL')).toBeInTheDocument()
@@ -94,7 +76,7 @@ describe('PublishedUrlSection', () => {
 
   it('opens the published URL through the native opener', async () => {
     const url = 'https://gist.github.com/alex/g1'
-    useNoteRow.mockReturnValue(noteRow({ gistUrl: url }))
+    row = noteRow({ gistUrl: url })
 
     const view = await renderSection()
     await userEvent.click(view.getByRole('link', { name: url }))
@@ -103,7 +85,7 @@ describe('PublishedUrlSection', () => {
 
   it('copies the published URL', async () => {
     const url = 'https://gist.github.com/alex/g1'
-    useNoteRow.mockReturnValue(noteRow({ gistUrl: url }))
+    row = noteRow({ gistUrl: url })
 
     const view = await renderSection()
     await userEvent.click(view.getByRole('button', { name: 'Copy published URL' }))
@@ -116,17 +98,17 @@ describe('PublishedUrlSection', () => {
 
   it('updates the published gist from the URL section icon', async () => {
     const url = 'https://gist.github.com/alex/g1'
-    useNoteRow.mockReturnValue(noteRow({ gistUrl: url }))
+    row = noteRow({ gistUrl: url })
 
     const view = await renderSection()
     await userEvent.click(view.getByRole('button', { name: 'Update published gist' }))
 
-    expect(runGistPublish).toHaveBeenCalledWith('notes/a.md', 7)
+    expect(publish).toHaveBeenCalledWith('notes/a.md', 7)
   })
 
   it('shows the stale update affordance beside the copy button', async () => {
     const url = 'https://gist.github.com/alex/g1'
-    useNoteRow.mockReturnValue(noteRow({ gistUrl: url, gistStale: true }))
+    row = noteRow({ gistUrl: url, gistStale: true })
 
     const view = await renderSection()
     await expect
@@ -142,8 +124,8 @@ describe('PublishedUrlSection', () => {
 
   it('surfaces copy failures through the operations status', async () => {
     const url = 'https://gist.github.com/alex/g1'
-    clipboard.failWith(new Error('Document is not focused'))
-    useNoteRow.mockReturnValue(noteRow({ gistUrl: url }))
+    clipboardFailure = new Error('Document is not focused')
+    row = noteRow({ gistUrl: url })
 
     const view = await renderSection()
     await userEvent.click(view.getByRole('button', { name: 'Copy published URL' }))

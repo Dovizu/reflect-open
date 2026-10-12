@@ -11,9 +11,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog.tsx'
 import { deleteOpenNote } from '@/lib/note-delete.ts'
-import { startOperation } from '@/lib/operations.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface NoteTrashActionProps {
   /** Graph-relative path of the regular note to move into trash. */
@@ -28,6 +28,7 @@ interface NoteTrashActionProps {
 export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | null {
   const { graph } = useGraph()
   const { navigate } = useRouter()
+  const { operations } = useAppServices()
   const [confirmingTrash, setConfirmingTrash] = useState(false)
   const [isTrashing, setIsTrashing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -41,7 +42,7 @@ export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | 
     if (generation === undefined) {
       return
     }
-    const operation = startOperation('Trashing note')
+    const operation = operations.start('Trashing note')
     setIsTrashing(true)
     setError(null)
     try {
