@@ -6,7 +6,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * Whether a GitHub credential is stored on this machine (keychain presence,
  * not validity — a dead token surfaces at use time with its real error).
  * Gates GitHub-only affordances like private-link sharing; machine-level, so no
- * graph in the key. Kept fresh by `watchGithubAuth`, which refetches whenever
+ * graph in the key. Kept fresh by `installQueryInvalidation`, which refetches whenever
  * the `GithubAuthService` saves or clears the credential.
  */
 export function useGithubConnected(): boolean {
