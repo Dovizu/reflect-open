@@ -16,7 +16,8 @@ afterEach(() => {
 })
 
 describe('shareNote', () => {
-  it('shares the live editor buffer body (frontmatter stripped, title as subject)', async () => {
+  // What a note shares is covered with `ShareService` in `@reflect/core`.
+  it('hands the live editor buffer body to the OS share sheet', async () => {
     documents.open(
       { liveContent: () => '---\nid: abc123\n---\n# Meeting\n\nAgenda + the unsaved line.\n' },
       'notes/meeting-notes.md',
@@ -29,25 +30,5 @@ describe('shareNote', () => {
       title: 'meeting-notes',
       text: '# Meeting\n\nAgenda + the unsaved line.\n',
     })
-  })
-
-  it('shares the empty body when a ready note was cleared (not stale content)', async () => {
-    documents.open({ liveContent: () => '' }, 'notes/meeting-notes.md')
-    const { shareNote } = await import('./share.ts')
-
-    await shareNote('notes/meeting-notes.md')
-
-    expect(shareMock).toHaveBeenCalledWith({ title: 'meeting-notes', text: '' })
-  })
-
-  it('shares empty rather than reading disk while the session is still loading', async () => {
-    // liveContent() is null until load() lands; reading disk here would
-    // require an await and break navigator.share's transient activation.
-    documents.open({ liveContent: () => null }, 'notes/meeting-notes.md')
-    const { shareNote } = await import('./share.ts')
-
-    await shareNote('notes/meeting-notes.md')
-
-    expect(shareMock).toHaveBeenCalledWith({ title: 'meeting-notes', text: '' })
   })
 })

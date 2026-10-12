@@ -85,6 +85,7 @@ import {
 import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
+import { createTestKeyboardService, createTestShareService } from './mobile.ts'
 import {
   createTestMobileOnboardingService,
   type TestMobileOnboardingService,
@@ -266,6 +267,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     mobileStorage: overrides?.mobileStorage ?? mobileStorage,
     logger,
   })
+  const openDocuments = createTestOpenDocumentsService()
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
     logger: testLogger,
@@ -331,7 +333,9 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       clock: overrides?.clock ?? clock,
       logger,
     }),
-    openDocuments: createTestOpenDocumentsService(),
+    openDocuments,
+    keyboard: createTestKeyboardService(),
+    share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
     ...indexReads,
     noteLinkResolver,
     noteCreation: createTestNoteCreationService({

@@ -84,6 +84,8 @@ const SERVICE_KEYS = [
   'privacy',
   'aiCredentials',
   'aiKeyValidation',
+  'keyboard',
+  'share',
   'languageModel',
   'aiPrompts',
 ] as const satisfies readonly (keyof AppServices)[]

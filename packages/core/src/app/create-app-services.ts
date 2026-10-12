@@ -66,6 +66,8 @@ import {
   createMobileOnboardingService,
   type MobileOnboardingService,
 } from '../graph/mobile-onboarding-service.ts'
+import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
+import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
@@ -238,6 +240,8 @@ export interface AppServices {
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
   readonly mobileOnboarding: MobileOnboardingService
+  readonly keyboard: KeyboardService
+  readonly share: ShareService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: AiKeyValidationService
   readonly languageModel: LanguageModelService
@@ -399,6 +403,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
     operations,
   })
+  const openDocuments = createOpenDocumentsService()
   const graphSession = createGraphSessionService({
     ipc,
     indexLifecycle,
@@ -490,7 +495,9 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
-    openDocuments: createOpenDocumentsService(),
+    openDocuments,
+    keyboard: createKeyboardService(),
+    share: createShareService({ openDocuments }),
     ...indexReads,
     ...createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id }),
     indexLifecycle,

@@ -696,6 +696,20 @@ export {
   type GraphStatus,
 } from '../graph/graph-session-service.ts'
 export {
+  createKeyboardService,
+  defaultKeyboard,
+  setDefaultKeyboard,
+  type KeyboardService,
+} from '../mobile/keyboard-service.ts'
+export {
+  createShareService,
+  defaultShare,
+  noteShareContent,
+  setDefaultShare,
+  type NoteShareContent,
+  type ShareService,
+} from '../mobile/share-service.ts'
+export {
   createV1ImportService,
   type V1ImportService,
   type V1ImportServiceDeps,

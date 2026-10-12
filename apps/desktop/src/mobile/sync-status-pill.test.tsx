@@ -2,9 +2,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getConflictedNotes, type GraphInfo } from '@reflect/core'
+import {
+  getConflictedNotes,
+  setDefaultKeyboard,
+  type GraphInfo,
+  type KeyboardService,
+} from '@reflect/core'
+import { createTestKeyboardService } from '@reflect/core/testing'
 import type { BackupState } from '@/lib/backup-controller.ts'
-import { publishKeyboardHeight } from '@/mobile/use-keyboard.ts'
 import { SyncStatusPill } from './sync-status-pill.tsx'
 
 /**
@@ -38,8 +43,11 @@ function connected(status: Extract<BackupState, { phase: 'connected' }>['status'
 }
 
 let queryClient: QueryClient
+let keyboard: KeyboardService
 
 beforeEach(() => {
+  keyboard = createTestKeyboardService()
+  setDefaultKeyboard(keyboard)
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   sync.backup = connected({ state: 'idle' })
   vi.mocked(getConflictedNotes).mockResolvedValue([])
@@ -48,7 +56,7 @@ beforeEach(() => {
 afterEach(async () => {
   await cleanup()
   queryClient.clear()
-  publishKeyboardHeight(0)
+  setDefaultKeyboard(null)
   vi.clearAllMocks()
 })
 
@@ -105,7 +113,7 @@ describe('SyncStatusPill', () => {
 
   it('yields to the software keyboard', async () => {
     sync.backup = connected({ state: 'syncing' })
-    publishKeyboardHeight(300)
+    keyboard.publish(300)
     await mount()
 
     await Promise.resolve()

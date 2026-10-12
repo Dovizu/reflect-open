@@ -153,6 +153,7 @@ export {
   type TestGraphSessionServiceOptions,
 } from './graph-session.ts'
 export { createTestV1ImportService } from './v1-import.ts'
+export { createTestKeyboardService, createTestShareService } from './mobile.ts'
 export {
   createTestMobileOnboardingService,
   type TestMobileOnboardingService,

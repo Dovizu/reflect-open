@@ -44,6 +44,8 @@ import { setDefaultIpc } from '../ipc/bridge.ts'
 import { setDefaultIap } from '../ipc/iap-plugin.ts'
 import { setDefaultHaptics } from '../ipc/mobile-haptics-plugin.ts'
 import { setDefaultMobileStorage } from '../ipc/mobile-storage-service.ts'
+import { setDefaultKeyboard } from '../mobile/keyboard-service.ts'
+import { setDefaultShare } from '../mobile/share-service.ts'
 import { setDefaultWebAuth } from '../ipc/web-auth-plugin.ts'
 import { setDefaultPrivacy } from '../privacy/privacy-service.ts'
 import { setDefaultSecretStore } from '../secrets/secret-store-service.ts'
@@ -127,6 +129,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultAttachments(services.attachments)
   setDefaultNoteSessions(services.noteSessions)
   setDefaultOpenDocuments(services.openDocuments)
+  setDefaultKeyboard(services.keyboard)
+  setDefaultShare(services.share)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -202,6 +206,8 @@ export function resetDefaultServices(): void {
   setDefaultAttachments(null)
   setDefaultNoteSessions(null)
   setDefaultOpenDocuments(null)
+  setDefaultKeyboard(null)
+  setDefaultShare(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)
