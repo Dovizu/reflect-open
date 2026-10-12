@@ -9,7 +9,7 @@ phase plans reference this doc rather than restating it.
 |---|---|
 | Repo structure | **Turborepo monorepo, adopted now (lightweight)** |
 | Business-logic home | **TypeScript `core`; Rust = native primitives** |
-| Code organization | **Per-domain "actions" pattern, reframed for local-first** |
+| Code organization | **Per-domain services, built once by a composition root** |
 | Database access | **Full Kysely discipline** (`Selectable/Insertable/Updateable`, `json()`, camelCase) |
 
 ## 1. Monorepo layout (adopt now, lightweight)
@@ -26,7 +26,7 @@ reflect-open/
 │   ├── cli/              # Rust CLI (Plan 14) — self-contained `reflect` binary; added at Plan 14
 │   └── extension/        # Chrome MV3 capture extension (Plan 11) — added at Plan 11
 ├── packages/
-│   ├── core/             # ALL TS business logic: actions/<domain>/, the markdown layer
+│   ├── core/             # ALL TS business logic: <domain>/<name>-service.ts, the markdown layer
 │   ├── db/               # Kysely schema/types + the IPC query-builder dialect
 │   └── design-system/    # existing design tokens/components (already present)
 ├── docs/
@@ -35,19 +35,19 @@ reflect-open/
 
 **The load-bearing rule (from picardo):** *no business logic in the app shell.* In
 Reflect that means **no file/DB/AI/sync logic in React components, hooks, or Tauri command
-handlers.** Components and hooks call `@reflect/core` actions; Tauri `#[command]` handlers
-are thin wrappers over native primitives. Picardo's "never write DB queries in a tRPC
-router" becomes Reflect's "never write file/DB/AI logic in a component or a Rust command
-handler — delegate to a core action."
+handlers.** Components and hooks call `@reflect/core` services (§3); Tauri `#[command]`
+handlers are thin wrappers over native primitives. Picardo's "never write DB queries in a
+tRPC router" becomes Reflect's "never write file/DB/AI logic in a component or a Rust
+command handler: put it in a core service."
 
 ## 2. TS core, Rust = primitives
 
 Reflect has no server. The boundary runs between **TypeScript business logic** and a
-**thin Rust primitive surface**, bridged by the Plan 01 IPC layer.
+**thin Rust primitive surface**, bridged by the IPC layer (`IpcBridgeService`, §3).
 
 | Lives in `@reflect/core` (TypeScript) | Lives in `apps/desktop/src-tauri` (Rust primitive) |
 |---|---|
-| Reads (Kysely getters over IPC) | SQLite open/migrate/query/exec; FTS5 + sqlite-vec extension loading |
+| Reads (Kysely queries over IPC) | SQLite open/migrate/query/exec; FTS5 + sqlite-vec extension loading |
 | Orchestration of file writes + reindex | Atomic file IO, OS-trash delete, path-traversal guard, file watching |
 | AI/provider calls, context assembly, patchsets | Local embedding runtime (model download + `embed`) |
 | Privacy/capability guards (`private: true`) | Git operations (libgit2), keychain get/set/delete |
@@ -56,72 +56,202 @@ Reflect has no server. The boundary runs between **TypeScript business logic** a
 
 Rust owns *capabilities*; TypeScript owns *policy and composition*. A Rust command never
 encodes product rules beyond the primitive it exposes (e.g. the watcher emits events; it
-doesn't decide what to reindex — a core action does). One deliberate exception: the CLI
+doesn't decide what to reindex: `IndexLifecycleService` in core does). One deliberate exception: the CLI
 (Plan 14) is a self-contained Rust binary that re-implements the small read-side contract
 rather than reusing `@reflect/core` — see Plan 14 for the rationale and parity-test
 guardrails.
 
-## 3. The actions pattern, reframed for local-first
+## 3. Services and the composition root
 
-Business logic is organized by **domain** under `packages/core/src/actions/<domain>/`,
-using picardo's fixed file vocabulary — reframed because Reflect's source of truth is
-markdown files, not a mutable DB.
+Business logic is organized by **domain** under `packages/core/src/<domain>/`
+(`graph`, `documents`, `indexing`, `daily`, `tasks`, `search`, `embeddings`, `ai`,
+`capture`, `audio`, `sync`, ...). Each domain exposes **services**. There are no
+process-wide instances and no module-level mutable state in `@reflect/core`: a
+composition root builds every service once and passes each one what it needs.
+[docs/contributing/services.md](../contributing/services.md) is the step-by-step guide.
 
-First-wave domains: `graph`, `notes`, `daily`, `backlinks`, `search`, `embeddings`,
-`ai`, `capture`, `sync`.
+### What a service is
 
-Each domain folder:
-
-| File | Role in Reflect |
-|---|---|
-| `getters.ts` | **Reads** — Kysely queries over the IPC dialect against the SQLite projection. Return view interfaces; return `null` when absent (caller decides how to surface). |
-| `setters.ts` | **Markdown mutations + reindex** — the durable write is a file edit (via Rust FS primitives + the Plan 03 minimal-diff helpers), followed by an index refresh. The DB is **read-only** from the app's perspective; "setting" means changing files. |
-| `validators.ts` | Preconditions — zod shape checks + index-backed invariants (e.g. title uniqueness for rename). |
-| `checkers.ts` | **Privacy/capability guards** (not authz — Reflect is single-user). `assertCloudAllowed(note)` is the canonical guard: the `private: true` hard-block. Also `assertProviderKeyPresent`, `assertEmbeddingRuntimeReady`. Composable and throwing, like picardo's `assertCan*`. |
-| domain files | Complex logic (`rename.ts`, `slot`-style engines, `conflict.ts`). |
-| `index.ts` | Barrel — the domain's public surface, re-exported from `@reflect/core`. |
-| `README.md` | Module map for non-trivial domains (picardo's `visits/README.md` style). |
-| `*.test.ts` | Colocated tests; tests are the documentation. |
-
-**Apply the pattern as-needed, don't cargo-cult it.** Picardo earned 4-files-per-domain at
-~90 domains; Reflect's first wave has ~10. Create only the files a domain actually needs
-(`daily` may be getters-only; `checkers.ts` exists only where there's a real guard). The
-vocabulary is the contract, not a mandatory file checklist.
-
-**zod scope.** Validate at genuinely *external* boundaries — file contents, provider
-responses, IPC command payloads crossing from Rust. Do **not** `zod.parse` every row of our
-own SQLite projection (it's our schema, Rust-serialized); trust the Kysely types there.
-
-### Function shape (dependency injection)
-
-Every action takes a single destructured object including the injected handle(s) — the
-Kysely `db` for reads, and a typed `fs`/IPC client for writes — mirroring picardo's
-`{ db, ...args }` convention:
+- An interface `XxxService` and a factory `createXxxService(deps)` in one file:
+  `packages/core/src/<domain>/<name>-service.ts`
+  (`documents/note-move-service.ts`, `indexing/index-store-service.ts`).
+- The factory returns an **object literal**. State lives in the closure. There are no
+  classes.
+- `deps` is one object, destructured on the first line. It holds the other services
+  the service calls, usually narrowed with `Pick<>` to the methods it uses. A service
+  never imports another service's instance.
+- Pure rules (path helpers, markdown transforms, grouping, formatting) stay plain
+  exported functions next to the service. They take no `deps`.
+- The few pure functions that do need a service take it as a first parameter `ctx`
+  (`ensureWelcomeNote(ctx, options)` in `graph/onboarding.ts`).
 
 ```ts
-// packages/core/src/actions/notes/getters.ts
-export async function getNoteById(
-  { db, id }: { db: Kysely<Database>; id: string },
-): Promise<NoteView | null> { /* Kysely read over IPC */ }
-
-// packages/core/src/actions/notes/setters.ts — a "setter" is a markdown mutation
-export async function renameNote(
-  { fs, db, id, title }: { fs: FsClient; db: Kysely<Database>; id: string; title: string },
-): Promise<void> {
-  // 1. minimal-diff edits to files (Plan 03) via fs primitives
-  // 2. request reindex of affected notes (Plan 04)
+// packages/core/src/app/app-info-service.ts
+export interface AppInfoService {
+  /** The application version reported by the native shell. */
+  version(): Promise<string>
 }
 
-// packages/core/src/actions/ai/checkers.ts — the privacy hard-block as a checker
-export function assertCloudAllowed(note: { isPrivate: boolean }): void {
-  if (note.isPrivate) {
-    throw new ReflectError({ kind: 'private-blocked', message: 'Note is marked private: true.' })
+export function createAppInfoService(deps: { ipc: IpcBridgeService }): AppInfoService {
+  const { ipc } = deps
+  return {
+    async version() {
+      return await ipc.call('app_version', {}, appVersionSchema)
+    },
   }
 }
 ```
 
-`ReflectError` is the shared discriminated-union error contract (Plan 01's `AppError`),
-the analog of picardo's `TRPCError`.
+**zod scope.** Validate at genuinely *external* boundaries: file contents, provider
+responses, IPC responses crossing from Rust (`IpcBridgeService.call` takes the schema).
+Do **not** `zod.parse` every row of our own SQLite projection (it's our schema,
+Rust-serialized); trust the Kysely types there.
+
+**Errors.** Services throw the shared discriminated-union `AppError`
+(`packages/core/src/errors.ts`), the same contract Rust serializes.
+
+**Privacy guards.** The `private: true` hard-block is a type, not a convention:
+a `CloudSafe<T>` value (`privacy/cloud-safe.ts`) is minted only by the gate in
+`privacy/privacy-service.ts` (`PrivacyService` and its pure `cloudSafe*` constructors),
+and every provider-bound input requires one.
+
+### `AppServices` and `createAppServices(adapters)`
+
+`packages/core/src/app/create-app-services.ts` is the composition root.
+`createAppServices(adapters)` builds every service in dependency order and returns
+them as one `AppServices` object (`ipc`, `noteFile`, `indexLifecycle`, `settings`,
+`graphSession`, ...). It runs once per webview.
+
+`AppAdapters` is what the host must supply, because core never imports
+`@tauri-apps/*`: the IPC transport (`IpcBridge`: `invoke` + `listen`), the platform
+facts, HTTP, Web storage, dialog, clipboard, opener, path, window and lifecycle
+primitives, and optionally a logger, clock, updater, native menu host and deep-link
+source.
+
+The desktop app's adapters live in `apps/desktop/src/services/`:
+
+- `tauri-*.ts` wrap the Tauri APIs (`tauri-ipc.ts`, `tauri-http.ts`,
+  `tauri-window.ts`, `tauri-dialog.ts`, ...). `browser-*.ts` are the plain-browser
+  equivalents for `pnpm dev` without the shell.
+- `create-desktop-services.ts` (`createDesktopAdapters(facts, ipc)`) picks one set by
+  `facts.isNativeShell`.
+- `apps/desktop/src/boot.ts` detects the platform facts, calls `createAppServices`,
+  and exports the result as `appServices`. Only `main.tsx` and the platform roots
+  import it. In browser dev the transport is a deferred one (`deferred-ipc.ts`): calls
+  made before the in-memory dev backend connects wait for it.
+
+The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
+`paywall`, `mobileAudioMemo`, ...) are optional fields of `AppServices`.
+
+### How code reaches a service
+
+- **Core:** through `deps`. Nothing else.
+- **React:** `main.tsx` renders `<AppServicesProvider services={appServices}>`
+  (`apps/desktop/src/services/services-provider.tsx`). Components and hooks call
+  `useAppServices()` and destructure what they use:
+
+  ```ts
+  const { agentSkill, platform } = useAppServices()
+  ```
+
+  `useAppServices()` throws outside a provider. Do not add per-service hooks. The
+  mobile tree uses `useMobileAppServices()` (`mobile/mobile-services.ts`), which types
+  the mobile-only services as present.
+- **Non-React desktop modules** (`lib/`, `providers/*.ts`): the first parameter is
+  `ctx`, typed as the `Pick` of `AppServices` the function uses. The React caller
+  passes `useAppServices()`:
+
+  ```ts
+  // apps/desktop/src/lib/note-delete.ts
+  export async function deleteOpenNote(
+    ctx: Pick<AppServices, 'noteActions'>,
+    path: string,
+    generation: number,
+  ): Promise<void>
+  ```
+
+- **Commands:** `CommandContext` (`apps/desktop/src/lib/commands/types.ts`) has a
+  `services: AppServices` field. A command that calls a service reads it from the
+  context it runs with, never from an import.
+
+Providers are thin shells. `SettingsProvider`, `ThemeProvider`, `GraphProvider` and
+`SyncProvider` read their service with `useSyncExternalStore` and pass its methods
+through; the state machine is in core.
+(`RouterProvider` uses `subscribe` + `useState`: a `useSyncExternalStore` update inside
+a transition still commits the `Suspense` fallback of a lazy screen.)
+
+### Per-session factories
+
+Some work belongs to one graph session, not to the app: it starts when a graph (or an
+index session) opens and must stop, with its timers and subscriptions, when that graph
+closes. Building it once per app would let a pass or a pending turn of the previous
+graph leak into the next one. For these, `AppServices` holds a **factory** (or an
+`openSession` method), and a provider creates and disposes one instance per mount:
+
+| On `AppServices` | Creates | Lifetime |
+|---|---|---|
+| `backups.create({ generation, indexGeneration })` | `BackupService` | one per (graph, index session), main window only (`SyncProvider`) |
+| `icloudSyncs.create(...)`, `icloudDownloads.create(...)` | `ICloudSyncService`, `ICloudDownloadService` | one per open iCloud graph |
+| `syncEngines.create(options)` | the git sync engine of one backup | owned by its `BackupService` |
+| `chatSessions.create({ graph })` | `ChatSession` | one per workspace mount (`ChatProvider`) |
+| `capture.openSession({ generation })` | the capture drain and enrich loop | one per open graph, main window only |
+| `assetDescription.openSession({ generation })` | the asset description loop | same |
+| `audioMemo.openSession(...)` / `openPipeline(...)` | the recording surface and its transcription pipeline | one per workspace mount |
+| `noteSessions.create(options)` | `NoteSession` | one per open note pane |
+
+The app-lifetime service keeps what is shared across sessions (its `deps`, its event
+listeners such as `capture.onXPostsWritten`). A session exposes `start()` /
+`dispose()`, and `getState()` / `subscribe()` when the UI reads it.
+
+### `GraphSessionService`, `GraphSession`, and `generation`
+
+`GraphSessionService` (`AppServices.graphSession`, `graph/graph-session-service.ts`)
+owns the active graph of a webview: status, recents, and the open, create, switch,
+forget and delete flows. `getState().session` is the open graph as one read-only
+`GraphSession`: `{ root, name, generation, indexGeneration, signal }`. `signal` aborts
+when the graph closes or another one replaces it.
+
+Rust pins every write to a session with two independent counters: the file
+`generation` (from `graph_open`) and the `indexGeneration` (from `index_open`). Rust
+rejects a file write, and drops an index write, that carries a stale one, so a pass
+that outlives a graph switch cannot land in the next graph.
+
+**Today, service methods still take `generation` as a parameter**
+(`noteFile.write(path, contents, generation)`,
+`indexLifecycle.rebuildVisibly(generation)`). All services are app-scoped. The types
+for graph-scoped construction exist (`GraphServices`, `createGraphServices(app,
+session, role)` in `app/create-graph-services.ts`, `useGraphServices()`), but
+`GraphServices` is only `{ app, session, role }` and nothing consumes it yet. Building
+the graph-scoped services per `GraphSession`, and removing the `generation`
+parameters, is future work. Until then: thread the generation through, read it at
+call time, and never cache one across a graph switch.
+
+### Events, not query-cache writes
+
+`@reflect/core` does not know TanStack Query. A service that changes something the UI
+caches **emits an event**: a method `onXxx(listener): Unlisten` (or
+`subscribe(listener)` for a state store). Subscribing is synchronous. The desktop app
+maps events to cache invalidation in a few small adapters:
+
+| Event | Desktop adapter | Effect |
+|---|---|---|
+| `indexLifecycle.onApplied`, `onReconciled`, `onMoved`, `onStalePlaceholders` | `providers/graph-index.ts` (`bindGraphIndex`) | invalidate index queries, reload open documents, follow healed moves, request iCloud downloads |
+| `graphSession.onGraphReleased`, `onGraphDeleted` | `providers/graph-session.ts` (`bootGraphSession`) | drop what the app holds per graph |
+| `capture.onXPostsWritten` | `lib/capture-x-posts.ts` | invalidate X post queries |
+| `assetDescription.onDescriptionsIndexed` | `lib/asset-description-queries.ts` | invalidate index queries |
+| `githubAuth.subscribe` | `lib/github-auth-state.ts` | invalidate the GitHub connection query |
+| `chatSessions.onConversationsChanged` | `providers/chat-provider.tsx` | invalidate chat history queries |
+| `noteMove.onMoved` | `routing/router.tsx` | rewrite history entries to the new path |
+
+Optimistic cache updates stay in the desktop hook or `lib/` function that wraps the
+core call (`lib/note-pin.ts`). The core method returns the data the patch needs
+(`noteActions.togglePinned` resolves with the new `pinned` and `pinOrder`).
+
+### Tests
+
+A service is unit-tested by constructing it over test doubles from
+`@reflect/core/testing`. No module mocks, no fake timers, no console spies. See
+[docs/contributing/testing.md](../contributing/testing.md).
 
 ## 4. Kysely discipline (adopt fully)
 
@@ -139,22 +269,30 @@ the analog of picardo's `TRPCError`.
 State is split **by kind**, not funneled through one global store. Match the tool to the
 shape of the data:
 
-- **Projection / IPC data** (notes, backlinks, search results, file lists, recents) →
-  **TanStack Query** (`@tanstack/react-query`). The `queryFn` is a `@reflect/core` getter;
-  the file-watcher event (Plans 03/04) drives **targeted `queryClient.invalidateQueries`**,
-  and setters (markdown writes) do optimistic update + invalidate. SQLite stays the single
+- **Projection / IPC data** (notes, backlinks, search results, file lists) →
+  **TanStack Query** (`@tanstack/react-query`). The `queryFn` calls a `@reflect/core`
+  service method (`indexQuery`, `backlinks`, `search`, ...); the query options live in
+  `apps/desktop/src/lib/query-options.ts` and take the service as `ctx`. Core services
+  emit events when the index changes, and the desktop adapters of §3 turn them into
+  **targeted `queryClient.invalidateQueries`** (`apps/desktop/src/lib/query-client.ts`).
+  A hook that wraps a markdown write does the optimistic update. SQLite stays the single
   source of truth — **the frontend caches the projection, it never holds a second copy of it.**
+- **Service-owned state** (settings, theme, the active graph and its recents, navigation
+  history, backup status, operations, the chat session) → lives **in the core service**
+  that owns it, exposed as a snapshot getter plus `subscribe()` and read in React with
+  `useSyncExternalStore`. It is not mirrored into TanStack Query or a store.
 - **Editor / document state** → owned by **meowdown/ProseMirror**; the `<Editor>` is
   uncontrolled, so this is never mirrored into a store.
-- **Shared UI / session state** (theme, active graph, route model, command palette,
-  sidebar + AI-context toggles, sync status) → **React context + hooks by default**
-  (what `ThemeProvider`/`GraphProvider` already are). **Zustand** is in the toolbox for when
+- **Shared UI state** (command palette, sidebar + AI-context toggles, the focused daily)
+  → **React context + hooks by default**. The contexts over service-owned state
+  (`ThemeProvider`, `GraphProvider`, `SettingsProvider`, `SyncProvider`) are thin shells
+  that only forward the service. **Zustand** is in the toolbox for when
   a slice outgrows context — frequent updates that re-render too widely, or state needed far
   from where it's provided — but that's a per-slice judgement call, not a mandate. Reach for
   it when it earns its place; otherwise context suffices. Tradeoffs, as always.
 - **Strictly-local ephemeral state** → plain React (`useState` / `useReducer`).
 
-This composes with the actions pattern (§3): getters back query functions, setters invalidate.
+This composes with §3: service reads back query functions, service events invalidate.
 
 **Non-goal:** a global observable domain model (MobX / MobX-Keystone style) that mirrors the
 graph and notes in memory. V1 did this; in V2 the domain model lives in files → SQLite, so an
@@ -166,8 +304,8 @@ deliberately don't have.
 
 - **Plan 01** restructures the scaffold into `apps/desktop` + `packages/core` +
   `packages/db` and stands up Turbo/workspace/project-refs. The IPC boundary and the
-  actions core live in `@reflect/core`.
-- **Plan 04** keeps SQLite in Rust (primitive); **getters** live in `core`; Kysely
+  services live in `@reflect/core`.
+- **Plan 04** keeps SQLite in Rust (primitive); the **read services** live in `core`; Kysely
   discipline above applies.
 - **Plan 14 (CLI)** is a **self-contained Rust binary** (`apps/cli`, bin `reflect`) that
   reads the markdown files and opens `.reflect/index.sqlite` read-only itself — no Node
@@ -177,4 +315,4 @@ deliberately don't have.
 - **Plans 02, 09, 10, 12** follow the primitive/policy split in §2 (Rust does FS/embed/git/
   keychain; core does orchestration, retrieval, AI, and conflict policy).
 - **Plan 11 (extension)** lives in `apps/extension`; all durable writes/AI go through
-  `apps/desktop` + `@reflect/core` actions.
+  `apps/desktop` + `@reflect/core` services.

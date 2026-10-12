@@ -5,14 +5,39 @@ nothing in this package imports `@tauri-apps/*` — the native shell is reached
 through an injected transport, so the same code runs in the desktop app, in
 plain vitest, and (later) in the CLI.
 
-## Services
+## Services and the composition root
 
-The package has no process-wide instances. `createAppServices(adapters)`
-(`app/create-app-services.ts`) builds every service once from the host's
-adapters and returns them as one `AppServices` object. A service receives
-what it needs through its `deps`; the desktop app reads services with
-`useAppServices()`. Tests build `createTestAppServices()` from
-`@reflect/core/testing`, or construct one service over test doubles.
+Everything stateful in this package is a **service**: an interface `XxxService`
+and a factory `createXxxService(deps)` in `<domain>/<name>-service.ts`. The
+factory returns an object literal whose closure holds the state. A service
+receives the other services it calls through `deps`, and nothing else: the
+package has no process-wide instances and no module-level mutable state.
+
+- **`createAppServices(adapters)`** (`app/create-app-services.ts`) is the
+  composition root. It builds every service once, in dependency order, and
+  returns them as one **`AppServices`** object. The host calls it once per
+  webview.
+- **`AppAdapters`** is what the host supplies: the IPC transport, the platform
+  facts, and the HTTP, storage, dialog, clipboard, opener, path, window and
+  lifecycle primitives. The desktop app's adapters are in
+  `apps/desktop/src/services/`, and it reads services in React with
+  `useAppServices()`.
+- **Per-session factories.** Work that belongs to one graph session is created
+  per session, not per app: `backups.create()`, `icloudSyncs.create()`,
+  `chatSessions.create()`, `noteSessions.create()`, `capture.openSession()`,
+  `assetDescription.openSession()`, `audioMemo.openSession()`. The caller
+  disposes what it created when the graph closes.
+- **Events.** A service reports changes through `onXxx(listener)` /
+  `subscribe(listener)`, which return an unsubscribe function synchronously.
+  This package never touches a UI cache; the app maps events to invalidation.
+- **`@reflect/core/testing`** (`testing/`) holds a test double for each service
+  (`createTestXxxService()`) and `createTestAppServices()`, the whole
+  `AppServices` object over them. Tests construct the service under test over
+  these doubles.
+
+The conventions are in
+[architecture-conventions](../../docs/plans/architecture-conventions.md) §3. To
+add a service, follow [services.md](../../docs/contributing/services.md).
 
 ## The transport
 
@@ -32,14 +57,25 @@ Every native call goes through one seam:
 
 | Module | What it owns |
 |---|---|
-| `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, and the typed file services (`NoteFileService`, `AssetStoreService`, recents). |
+| `app/` | The composition root (`create-app-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformService`, `StorageService`, `HttpService`, `OperationsService`, `AppLifecycleService`, `WindowService`, `PersistenceFlushService`, `UpdateService`. |
+| `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, the typed file services (`NoteFileService`, `AssetStoreService`), note creation and link resolution (`NoteCreationService`, `NoteLinkResolverService`), and the open graph (`GraphSessionService`, `MobileOnboardingService`). |
+| `documents/` | Open notes: the `NoteSession` state machine (`NoteSessionService`), the registry of live sessions (`OpenDocumentsService`), session-aware reads and writes (`NoteDocumentService`), moves and title renames (`NoteMoveService`, `TitleRenameService`), note actions (`NoteActionsService`), attachments and templates. |
 | `markdown/` | The document model (Plan 03): frontmatter parsing, the canonical Lezer grammar with the `[[wiki link]]` extension, extraction (`parseNote`), source-level edits, and pure wiki-link resolution policy. |
-| `indexing/` | The SQLite projection pipeline (Plan 04): build/apply note projections, full rebuild and hash-based reconcile, the live watcher subscription, and the Kysely read getters. |
+| `indexing/` | The SQLite projection (Plan 04): `IndexLifecycleService` (open, sync, rebuild, the live watcher subscription), `IndexStoreService` (writes), `FileChangeService`, and the eight read services over `DatabaseService` (`IndexQueryService`, `WikiResolverService`, `BacklinkService`, `SearchService`, `SuggestionService`, `NoteListService`, `GraphStatsService`, `NotePathService`). |
 | `daily/` | The date questions about notes: `DailyNoteService` (today, which days have a daily note, the wake onto a new day) and the pure day-window, week-window and month-grid arithmetic of the daily surfaces. |
 | `tasks/` | Round-checkbox tasks across notes (Plan 18): `TaskService` (open and completed reads, session-aware writes through `NoteDocumentService.commitSourceEdit`, the session's recently-completed set) and the pure Tasks-view model (grouping, visibility, cache transforms). |
+| `search/` | The data layer of the `[[` and `#` menus (`WikiLinkSuggestionService`) and of the command palette (`PaletteSearchService`), plus their pure row assembly. |
+| `navigation/` | `NavigationService` (the webview's history), `DeepLinkService` (`reflect://` intake and handling), `LinkNavigationService` (what an activated link does), and the pure `Route` and deep-link modules. |
+| `commands/` | `CommandService` (the command registry), `KeymapService`, `NativeMenuService`, and the pure keybinding and accelerator rules. |
+| `ai/` | BYOK providers (`AiProviderConfigService`, `AiCredentialService`, `LanguageModelService`), the one-shot tasks (selection transform, page and asset describers, transcription), and `ai/chat/` (`ChatEngineService`, `NoteToolsService`, `ChatSessionService`, `ChatHistoryService`). |
+| `privacy/` | The `private: true` gate: `PrivacyService` and the `CloudSafe<T>` brand that every provider-bound input requires. |
+| `capture/`, `assets/`, `audio/` | The background pipelines of an open graph: link capture, asset descriptions, audio memos (see below). |
+| `sync/` | Git backup (`BackupService`, the sync engine, `GitRepositoryService`, the GitHub services) and iCloud (`ICloudSyncService`, `ICloudDownloadService`, `ConflictResolutionService`). |
 | `calendar/` | The read-only Apple Calendar integration: `CalendarService` (live EventKit reads), `CalendarEventsService` (the day's events, the settings switch and calendar choice), and the pure display policy of the events panel. |
 | `contacts/` | The Apple Contacts integration: `ContactsService` (live lookups), `PersonNoteService` (email identities to `#person` notes), `MeetingService` (a calendar event into its daily note), `ContactSuggestionService` (the suggested-contact card), and the pure matching and Markdown rules. |
+| `settings/` | The settings schema, `SettingsService` (the one settings document) and `ThemeService`. |
 | `ipc/` | The `IpcBridge` transport type and `IpcBridgeService` described above, plus the typed plugin bindings. |
+| `testing/` | The `@reflect/core/testing` entry: test doubles and `createTestAppServices()`. Never imported by production code. |
 | `errors.ts` | The `AppError` discriminated union shared with Rust. |
 
 ## Indexing: which entry point?
@@ -64,7 +100,9 @@ Every native call goes through one seam:
 write carries it; Rust silently drops writes whose generation is stale, so a
 pass started for one graph can never corrupt a newly-opened index. If you add
 a write path, thread the generation through — never cache one across a graph
-switch.
+switch. (File writes carry a second, independent token: the graph's file
+generation from `graph_open`. Service methods take whichever they need as a
+parameter; see "The open graph" below.)
 
 ## Embeddings
 
@@ -109,6 +147,12 @@ boot path: the desktop main window reopens the most recent graph, a note
 window adopts the main window's sessions. Read it with `getState()` /
 `subscribe()`. `getState().session` is the open graph as one `GraphSession`
 object; its `signal` aborts when the graph closes or another open is requested.
+
+All services are app-scoped today, and their methods take `generation` as a
+parameter. `GraphServices` / `createGraphServices(app, session, role)`
+(`app/create-graph-services.ts`) are the types for building graph-scoped
+services per `GraphSession`; that construction is future work, and today the
+object only carries `{ app, session, role }`.
 
 **`MobileOnboardingService`** (`AppServices.mobileOnboarding`) is the mobile
 boot path over that session: `boot()` parks a fresh install on onboarding or
