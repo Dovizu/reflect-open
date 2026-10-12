@@ -14,16 +14,18 @@ export {
   watchStop,
 } from './commands.ts'
 export {
-  FILE_CHANGES_EVENT,
-  RECONCILE_EVENT,
   subscribeFileChanges,
   subscribeReconcileRequests,
   emitFileChanges,
-  type FileChange,
   type FileChangeHandler,
-  type FileChangeSource,
 } from './file-changes.ts'
-export { setLocalWriteEcho, subscribeOwnWrites } from './local-write-echo.ts'
+export {
+  FILE_CHANGES_EVENT,
+  RECONCILE_EVENT,
+  type FileChange,
+  type FileChangeSource,
+} from './file-change-service.ts'
+export { subscribeOwnWrites } from './local-write-echo.ts'
 export { subscribeIcloudConflicts, subscribeIcloudWatchFailed } from './icloud-conflicts.ts'
 export { subscribeIndexApplied, type IndexAppliedListener } from './index-applied.ts'
 export { INDEX_WRITTEN_EVENT, subscribeIndexWritten } from './index-written.ts'

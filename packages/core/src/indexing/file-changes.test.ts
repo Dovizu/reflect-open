@@ -1,29 +1,28 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { setBridge } from '../ipc/bridge.ts'
-import { emitFileChanges, subscribeFileChanges, type FileChange } from './file-changes.ts'
+import { createTestIpcBridgeService } from '../testing/ipc.ts'
+import { createTestLoggerService } from '../testing/logger.ts'
+import {
+  createFileChangeService,
+  setDefaultFileChanges,
+  type FileChange,
+} from './file-change-service.ts'
+import { emitFileChanges, subscribeFileChanges } from './file-changes.ts'
 
 afterEach(() => {
-  setBridge(null)
+  setDefaultFileChanges(null)
 })
 
-/** Bridge fake; `listen` hands the bridge-side emitter back to the test. */
-function fakeBridge() {
-  let emit: ((payload: unknown) => void) | null = null
-  setBridge({
-    invoke: async () => null,
-    listen: async (_event, handler) => {
-      emit = handler
-      return () => {
-        emit = null
-      }
-    },
-  })
-  return { emitFromBridge: (payload: unknown) => emit?.(payload) }
+function install() {
+  const ipc = createTestIpcBridgeService()
+  setDefaultFileChanges(
+    createFileChangeService({ ipc, logger: createTestLoggerService() }, { echoOwnWrites: false }),
+  )
+  return { emitFromBridge: (payload: unknown) => ipc.emit('index:changed', payload) }
 }
 
 describe('subscribeFileChanges', () => {
   it('delivers locally emitted batches (sync merges) like watcher events', async () => {
-    fakeBridge()
+    install()
     const received: FileChange[][] = []
     const unlisten = await subscribeFileChanges((changes) => {
       received.push(changes)
@@ -40,7 +39,7 @@ describe('subscribeFileChanges', () => {
   })
 
   it('stops local delivery after unlisten', async () => {
-    fakeBridge()
+    install()
     const received: FileChange[][] = []
     const unlisten = await subscribeFileChanges((changes) => {
       received.push(changes)
@@ -53,11 +52,12 @@ describe('subscribeFileChanges', () => {
   })
 
   it('delivers both bridge and local batches to the same subscriber', async () => {
-    const { emitFromBridge } = fakeBridge()
+    const { emitFromBridge } = install()
     const received: FileChange[][] = []
     const unlisten = await subscribeFileChanges((changes) => {
       received.push(changes)
     })
+    await Promise.resolve()
 
     emitFromBridge([{ path: 'notes/watched.md', kind: 'upsert' }])
     emitFileChanges([{ path: 'notes/merged.md', kind: 'upsert' }], 'external')

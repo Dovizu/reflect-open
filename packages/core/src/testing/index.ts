@@ -85,7 +85,30 @@ export {
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
 export {
+  createTestCaptureInboxService,
+  createTestWebFetchService,
+  createTestXArchiveService,
+  type TestCaptureInboxService,
+  type TestWebFetchService,
+  type TestXArchiveService,
+  type WebFetchKind,
+} from './capture.ts'
+export {
+  createTestGitRepositoryService,
+  createTestICloudNativeService,
+  type GitRepositoryCall,
+  type GitRepositoryHandler,
+  type ICloudNativeCall,
+  type TestGitRepositoryService,
+  type TestICloudNativeService,
+} from './sync.ts'
+export {
   createTestAppInfoService,
   createTestSecretStoreService,
   type TestSecretStoreService,
 } from './secrets.ts'
+export {
+  createTestFileChangeService,
+  type TestFileChangeService,
+  type TestFileChangeServiceOptions,
+} from './file-change.ts'

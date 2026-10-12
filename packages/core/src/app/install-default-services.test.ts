@@ -3,6 +3,7 @@ import { defaultIpc, getBridge, hasBridge } from '../ipc/bridge.ts'
 import { defaultCalendar } from '../calendar/calendar-service.ts'
 import { defaultContacts } from '../contacts/contacts-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
+import { defaultFileChanges } from '../indexing/file-change-service.ts'
 import { defaultMobileStorage } from '../ipc/mobile-storage-service.ts'
 import { defaultSecretStore } from '../secrets/secret-store-service.ts'
 import { createTestAppServices } from '../testing/services.ts'
@@ -57,6 +58,7 @@ describe('installDefaultServices', () => {
     expect(defaultImageCodec()).toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).toBe(services.exceptionTelemetry)
     expect(defaultDatabase()).toBe(services.database)
+    expect(defaultFileChanges()).toBe(services.fileChanges)
   })
 })
 
@@ -74,6 +76,7 @@ describe('resetDefaultServices', () => {
     expect(defaultImageCodec()).not.toBe(services.imageCodec)
     expect(defaultExceptionTelemetry()).not.toBe(services.exceptionTelemetry)
     expect(defaultDatabase()).not.toBe(services.database)
+    expect(defaultFileChanges()).not.toBe(services.fileChanges)
     expect(() => defaultDialog()).toThrow(/No DialogService/)
     expect(() => defaultClipboard()).toThrow(/No ClipboardService/)
     expect(() => defaultOpener()).toThrow(/No OpenerService/)

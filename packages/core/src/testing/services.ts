@@ -17,6 +17,7 @@ import {
   createTestExceptionTelemetry,
   type TestExceptionTelemetryService,
 } from './exception-telemetry.ts'
+import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
 import { createTestHttpService, type TestHttpService } from './http.ts'
 import {
   createTestHashService,
@@ -74,6 +75,7 @@ export interface TestAppServices extends AppServices {
   readonly imageCodec: TestImageCodecService
   readonly exceptionTelemetry: TestExceptionTelemetryService
   readonly database: TestDatabaseService
+  readonly fileChanges: TestFileChangeService
 }
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
@@ -108,6 +110,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     imageCodec: createTestImageCodec(),
     exceptionTelemetry: createTestExceptionTelemetry(),
     database: createTestDatabaseService(),
+    fileChanges: createTestFileChangeService(),
   }
   return Object.assign(services, overrides)
 }
