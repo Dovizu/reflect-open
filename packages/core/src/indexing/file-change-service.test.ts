@@ -156,7 +156,9 @@ describe('createFileChangeService', () => {
     fileChanges.reportOwnWrite([{ path: 'notes/gone.md', kind: 'remove' }])
 
     expect(ownWrites).toEqual([['notes/gone.md']])
-    expect(seen).toEqual([{ changes: [{ path: 'notes/gone.md', kind: 'remove' }], source: 'own-write' }])
+    expect(seen).toEqual([
+      { changes: [{ path: 'notes/gone.md', kind: 'remove' }], source: 'own-write' },
+    ])
   })
 
   it('logs a failing own-write observer and still notifies the rest', () => {

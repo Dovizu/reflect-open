@@ -46,7 +46,7 @@ export function createTestFileChangeService(
 
   function emit(batch: FileChangeBatch): void {
     delivered.push(batch)
-    for (const listener of [...changeListeners]) {
+    for (const listener of changeListeners) {
       listener(batch)
     }
   }
@@ -59,7 +59,7 @@ export function createTestFileChangeService(
     reportOwnWrite(changes) {
       const paths = changes.map((change) => change.path)
       reported.push(paths)
-      for (const listener of [...ownWriteListeners]) {
+      for (const listener of ownWriteListeners) {
         listener(paths)
       }
       if (echoOwnWrites) {
@@ -73,7 +73,7 @@ export function createTestFileChangeService(
       running = false
     },
     emitReconcile() {
-      for (const listener of [...reconcileListeners]) {
+      for (const listener of reconcileListeners) {
         listener()
       }
     },

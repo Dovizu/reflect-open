@@ -1,5 +1,6 @@
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
 import {
   createIpcBridgeService,
   type IpcBridge,
@@ -25,6 +26,7 @@ import {
 import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
+import { isMobilePlatform } from './platform.ts'
 import { createUnavailableImageCodec, type ImageCodecService } from './image-codec-service.ts'
 import {
   createLifecycleService,
@@ -66,6 +68,7 @@ export interface AppServices {
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
+  readonly fileChanges: FileChangeService
 }
 
 /** The host primitives that {@link createAppServices} builds the services on. */
@@ -126,5 +129,9 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
+    fileChanges: createFileChangeService(
+      { ipc, logger },
+      { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
+    ),
   }
 }

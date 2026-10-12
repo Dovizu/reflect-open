@@ -109,7 +109,7 @@ export function createFileChangeService(
   const ownWriteListeners = new Set<(paths: readonly string[]) => void>()
 
   function emit(batch: FileChangeBatch): void {
-    for (const listener of [...listeners]) {
+    for (const listener of listeners) {
       listener(batch)
     }
   }
@@ -166,7 +166,7 @@ export function createFileChangeService(
 
     reportOwnWrite(changes) {
       const paths = changes.map((change) => change.path)
-      for (const listener of [...ownWriteListeners]) {
+      for (const listener of ownWriteListeners) {
         try {
           listener(paths)
         } catch (error) {
