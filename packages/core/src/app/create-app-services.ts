@@ -122,7 +122,7 @@ import {
 import { parseLinkPreviewMeta } from '../link-preview/metadata.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
-import { createPlatformAudioRecorder } from '../audio/default-audio-recorder.ts'
+import { createPlatformAudioRecorder } from '../audio/platform-audio-recorder.ts'
 import {
   createClassicAccessService,
   type ClassicAccessService,

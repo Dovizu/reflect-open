@@ -41,8 +41,7 @@ const listStagedSchema = z.object({ files: z.array(stagedFileSchema) })
 
 // Command args mirror the serde request models (`StartRequest`,
 // `StagedPathRequest`) under the command's `request` parameter. The commands
-// and events below take the bridge explicitly; the free functions run them on
-// the installed bridge.
+// and events below take the bridge explicitly.
 export const startRecordingCommand = definePluginCommand<
   { request: StartRecordingOptions },
   RecordingSessionStart

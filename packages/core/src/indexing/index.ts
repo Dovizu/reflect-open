@@ -1,4 +1,3 @@
-export { type FileChangeHandler } from './file-changes.ts'
 export {
   FILE_CHANGES_EVENT,
   RECONCILE_EVENT,

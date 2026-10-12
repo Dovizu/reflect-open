@@ -6,13 +6,12 @@ to add a new command. The canonical in-tree example is `app_version` — a real
 and this guide walks the same path with a hypothetical `note_stat` command.
 
 ```text
-React component / hook
-  └─ typed binding            packages/core/src/<domain>/commands.ts
-       └─ call()              packages/core/src/ipc/invoke.ts       (delegates to defaultIpc())
-            └─ ipc.call       packages/core/src/ipc/ipc-service.ts  (zod validation)
-                 └─ bridge.invoke  packages/core/src/ipc/bridge.ts  (injected transport)
-                      └─ Tauri IPC apps/desktop/src/services/tauri-ipc.ts
-                           └─ #[tauri::command]  apps/desktop/src-tauri/src/<module>.rs
+React component / hook        useAppServices()
+  └─ service method           packages/core/src/<domain>/<name>-service.ts
+       └─ ipc.call            packages/core/src/ipc/ipc-service.ts  (zod validation)
+            └─ transport.invoke   the `IpcBridge` given to `createAppServices`
+                 └─ Tauri IPC apps/desktop/src/services/tauri-ipc.ts
+                      └─ #[tauri::command]  apps/desktop/src-tauri/src/<module>.rs
 ```
 
 Before writing any Rust, check whether you actually need a new command. Per
@@ -89,13 +88,14 @@ cargo test -p reflect-open
 
 ## 2. The TypeScript binding
 
-Every command gets a typed binding in `packages/core` — components never call
-`invoke` or touch the bridge directly. In the matching domain module
-(`graph/commands.ts`, `settings/commands.ts`, …):
+Every command gets a typed binding in `packages/core`, as a method of the
+service that owns the domain. Components never call `invoke` or touch the
+transport directly. The service receives the `IpcBridgeService` through its
+`deps` (see `app/app-info-service.ts` for the smallest example):
 
 ```ts
 import { z } from 'zod'
-import { call } from '../ipc/invoke'
+import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 export const noteStatSchema = z.object({
   sizeBytes: z.number(),
@@ -104,45 +104,59 @@ export const noteStatSchema = z.object({
 
 export type NoteStat = z.infer<typeof noteStatSchema>
 
-/** File metadata for one note (graph-relative path). */
-export async function noteStat(path: string): Promise<NoteStat> {
-  return call('note_stat', { path }, noteStatSchema)
+export interface NoteStatService {
+  /** File metadata for one note (graph-relative path). */
+  stat(path: string): Promise<NoteStat>
+}
+
+export function createNoteStatService(deps: { ipc: IpcBridgeService }): NoteStatService {
+  const { ipc } = deps
+  return {
+    stat: async (path) => await ipc.call('note_stat', { path }, noteStatSchema),
+  }
 }
 ```
 
-- `IpcBridgeService.call` (`ipc/ipc-service.ts`, reached through `call()`)
-  is the single boundary where the untyped IPC response becomes a typed value: it validates with your schema (a mismatch
-  throws a `parse` `AppError` naming the command) and coerces any rejection
-  into an `AppError`. Your binding adds no error handling of its own.
+- `IpcBridgeService.call` (`ipc/ipc-service.ts`) is the single boundary where
+  the untyped IPC response becomes a typed value: it validates with your
+  schema (a mismatch throws a `parse` `AppError` naming the command) and
+  coerces any rejection into an `AppError`. Your binding adds no error
+  handling of its own.
 - Commands returning `()` from Rust serialize as `null`: validate with
-  `z.null()` (see the `voidSchema` convention in `graph/commands.ts`).
-- Schemas live next to the binding (or in the domain's `schemas.ts` when
+  `z.null()` (see the `voidSchema` convention in `settings/settings-service.ts`).
+- Schemas live next to the service (or in the domain's `schemas.ts` when
   shared) — zod at the boundary, plain types inside.
-- Export the binding (and its types) from `packages/core/src/index.ts`; the
-  apps only import from the package root.
+- A new service is built in `createAppServices` (`app/create-app-services.ts`),
+  added to `AppServices`, and given a test double in
+  `packages/core/src/testing/` (`createTestAppServices`). There are no
+  process-wide instances: code reaches a service through `useAppServices()`
+  in React, or through its own `deps`.
+- Export the service type (and its schemas) from `packages/core/src/index.ts`;
+  the apps only import from the package root.
 
 ## 3. Tests on the TS side
 
-`@reflect/core` never imports Tauri, so tests install a fake bridge instead of
-module-mocking:
+`@reflect/core` never imports Tauri, so tests construct the service over an
+in-memory transport instead of module-mocking:
 
 ```ts
-import { setBridge } from '@reflect/core' // or '../ipc/bridge' within core
-setBridge({
-  invoke: vi.fn().mockResolvedValue({ sizeBytes: 12, modifiedMs: 99 }),
-  listen: async () => () => {},
+import { createTestIpcBridgeService } from '@reflect/core/testing'
+
+const ipc = createTestIpcBridgeService({
+  commands: { note_stat: () => ({ sizeBytes: 12, modifiedMs: 99 }) },
 })
+const noteStat = createNoteStatService({ ipc })
+await expect(noteStat.stat('notes/a.md')).resolves.toEqual({ sizeBytes: 12, modifiedMs: 99 })
+expect(ipc.calls()).toEqual([{ command: 'note_stat', args: { path: 'notes/a.md' } }])
 ```
 
-`packages/core/src/ipc/ipc-service.test.ts` shows the full pattern, including
-the error paths (well-formed `AppError` pass-through, foreign rejection
-coercion, schema-mismatch → `parse`). Reset with `setBridge(null)` in
-`afterEach`. `createTestIpcBridgeService()` from `@reflect/core/testing` is an
-in-memory fake with `onCommand`, `emit`, and `calls()`; `installTestBridge()`
-installs it through `setBridge`. A
-binding that is a one-line `call()` needs no test of its own — cover the
-schema if it normalizes, and the behavior in whatever core/UI module consumes
-it.
+`createTestIpcBridgeService()` is an in-memory `IpcBridgeService` with
+`onCommand`, `emit`, and `calls()`.
+`packages/core/src/ipc/ipc-service.test.ts` shows the error paths
+(well-formed `AppError` pass-through, foreign rejection coercion,
+schema-mismatch → `parse`). A method that is a one-line `ipc.call()` needs
+little: cover the schema if it normalizes, and the behavior in whatever
+core/UI module consumes it.
 
 ## Checklist
 
@@ -152,7 +166,8 @@ it.
 - [ ] Rust: registered in `lib.rs` `generate_handler!`
 - [ ] Rust: `#[cfg(test)]` tests on the pure helper; `cargo test -p reflect-open`
       passes after staging sidecars when the desktop crate compiles
-- [ ] TS: zod schema + typed binding through `call()` in the domain module
-- [ ] TS: exported from `packages/core/src/index.ts`
-- [ ] TS: behavior covered with a fake bridge where it matters
+- [ ] TS: zod schema + typed method through `ipc.call()` on the domain service
+- [ ] TS: service on `AppServices`, with a test double; types exported from
+      `packages/core/src/index.ts`
+- [ ] TS: behavior covered over `createTestIpcBridgeService()` where it matters
 - [ ] `pnpm typecheck && pnpm lint && pnpm test --run <touched paths>`

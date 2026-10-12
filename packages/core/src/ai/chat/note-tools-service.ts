@@ -131,7 +131,7 @@ export interface NoteToolsService {
   build: (options: BuildNoteToolsOptions) => NoteTools
 }
 
-/** The daily-note range query, as `indexing/queries.ts` has it today. */
+/** The daily-note range query of `DailyNoteService`. */
 export interface DailyNoteQueries {
   listDailyNotes: (range: DailyNotesRange) => Promise<DailyNoteRow[]>
 }

@@ -115,10 +115,10 @@ use the existing shadcn primitive (`Switch`, `Select`, `Dialog`, `Popover`,
 `appearance-section.tsx`, `editor-section.tsx`, and `all-notes-section.tsx` for
 the common shapes). Add the test at the narrowest useful level:
 
-- For a setting whose value should round-trip through the provider, use
-  `settings-screen.test.tsx`: it renders the screen inside the *real* provider
-  over a fake bridge (`setBridge`), interacts with the control, and asserts the
-  document that reaches `settings_save`.
+- For a setting whose value should round-trip through the provider, render
+  the screen with `renderInApp` (the *real* provider over the test services),
+  interact with the control, and assert the saved settings
+  (`app.settings.get()` or `app.settings.saves()`).
 - For a section with its own branching behavior or provider dependencies, add
   a focused section test next to it (for example `backup-section.test.tsx` or
   `rebuild-index-field.test.tsx`) and mock only the surrounding providers.

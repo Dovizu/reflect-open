@@ -361,8 +361,8 @@ export function keybindingFor(commandId: string): string | null {
 const registeredIn = new WeakSet<object>()
 
 /**
- * Register the first-wave commands in `registry` (left out, the process-wide
- * one). Called explicitly from `main.tsx` (and by tests) — registration as an
+ * Register the first-wave commands in `registry`. Called explicitly from
+ * `main.tsx` (and by the test render helpers) — registration as an
  * import side effect couples behavior to module graph order, which is exactly
  * the kind of spooky action a registry invites. Idempotent per registry:
  * hosts and tests can call it without coordinating.

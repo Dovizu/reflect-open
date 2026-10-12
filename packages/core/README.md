@@ -2,45 +2,51 @@
 
 All of Reflect's TypeScript business logic. Platform-agnostic by design:
 nothing in this package imports `@tauri-apps/*` — the native shell is reached
-through an injected bridge, so the same code runs in the desktop app, in plain
-vitest, and (later) in the CLI.
+through an injected transport, so the same code runs in the desktop app, in
+plain vitest, and (later) in the CLI.
 
-## The bridge
+## Services
 
-Every native call funnels through two seams:
+The package has no process-wide instances. `createAppServices(adapters)`
+(`app/create-app-services.ts`) builds every service once from the host's
+adapters and returns them as one `AppServices` object. A service receives
+what it needs through its `deps`; the desktop app reads services with
+`useAppServices()`. Tests build `createTestAppServices()` from
+`@reflect/core/testing`, or construct one service over test doubles.
 
-- **`setBridge(bridge)`** installs the transport (`invoke` + `listen`) once at
-  startup. The desktop app adapts Tauri; tests pass an in-memory fake. With no
-  bridge installed, command bindings throw a descriptive error and
-  `hasBridge()` returns `false` (used to gate native-only features in browser
-  dev).
+## The transport
+
+Every native call goes through one seam:
+
+- **`IpcBridge`** is the transport (`invoke` + `listen`) the host gives to
+  `createAppServices`. The desktop app adapts Tauri; browser dev passes a
+  deferred transport that the in-memory dev backend connects later; tests use
+  `createTestIpcBridgeService()`.
 - **`IpcBridgeService`** (`createIpcBridgeService(transport, { logger })`)
   wraps a transport and is the single point where an untyped IPC response
   becomes a typed value: every response is zod-validated, every rejection is
-  coerced to the shared `AppError` contract. `setBridge` builds one over the
-  installed transport, reachable as `defaultIpc()`; the free `call(command,
-  args, schema)` delegates to it. Application code never calls the bridge
-  directly: it uses the typed per-domain bindings below.
+  coerced to the shared `AppError` contract. Application code never calls the
+  transport directly: it calls a method of the service that owns the domain.
 
 ## Domains
 
 | Module | What it owns |
 |---|---|
-| `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, and the typed file commands (`readNote`, `writeNote`, `listFiles`, recents). |
+| `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, and the typed file services (`NoteFileService`, `AssetStoreService`, recents). |
 | `markdown/` | The document model (Plan 03): frontmatter parsing, the canonical Lezer grammar with the `[[wiki link]]` extension, extraction (`parseNote`), source-level edits, and pure wiki-link resolution policy. |
 | `indexing/` | The SQLite projection pipeline (Plan 04): build/apply note projections, full rebuild and hash-based reconcile, the live watcher subscription, and the Kysely read getters. |
 | `daily/` | The date questions about notes: `DailyNoteService` (today, which days have a daily note, the wake onto a new day) and the pure day-window, week-window and month-grid arithmetic of the daily surfaces. |
 | `tasks/` | Round-checkbox tasks across notes (Plan 18): `TaskService` (open and completed reads, session-aware writes through `NoteDocumentService.commitSourceEdit`, the session's recently-completed set) and the pure Tasks-view model (grouping, visibility, cache transforms). |
 | `calendar/` | The read-only Apple Calendar integration: `CalendarService` (live EventKit reads), `CalendarEventsService` (the day's events, the settings switch and calendar choice), and the pure display policy of the events panel. |
 | `contacts/` | The Apple Contacts integration: `ContactsService` (live lookups), `PersonNoteService` (email identities to `#person` notes), `MeetingService` (a calendar event into its daily note), `ContactSuggestionService` (the suggested-contact card), and the pure matching and Markdown rules. |
-| `ipc/` | The bridge, `IpcBridgeService`, and `call` seam described above. |
+| `ipc/` | The `IpcBridge` transport type and `IpcBridgeService` described above, plus the typed plugin bindings. |
 | `errors.ts` | The `AppError` discriminated union shared with Rust. |
 
 ## Indexing: which entry point?
 
-- **`indexNote(path, { generation })`** — one note changed; parse and apply it.
-- **`IndexLifecycleService`** (`defaultIndexLifecycle()`) runs the open graph's
-  index and owns every whole-graph pass:
+- **`IndexLifecycleService`** (`AppServices.indexLifecycle`) runs the open graph's
+  index and owns every pass:
+  - **`indexNote(path, { generation })`** — one note changed; parse and apply it.
   - **`sync(generation, isStale)`** — the graph-open path: re-index files whose
     content hash changed and drop rows for deleted files (cheap on an
     already-populated index), or rebuild when the stored projection version is
