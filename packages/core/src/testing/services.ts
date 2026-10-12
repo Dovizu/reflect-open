@@ -52,6 +52,7 @@ import {
 } from './sync.ts'
 import { createTestCalendarService, type TestCalendarService } from './calendar.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
+import { createTestDailyNoteService } from './daily.ts'
 import { createTestContactsService, type TestContactsService } from './contacts.ts'
 import { createTestChatHistoryService, type TestChatHistoryService } from './chat.ts'
 import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
@@ -464,6 +465,11 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       id: overrides?.id ?? id,
     }),
     noteRows: createNoteRowService(),
+    dailyNotes: createTestDailyNoteService({
+      database: overrides?.database ?? database,
+      clock: overrides?.clock ?? clock,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
+    }),
     ...indexReads,
     noteLinkResolver,
     noteCreation: createTestNoteCreationService({

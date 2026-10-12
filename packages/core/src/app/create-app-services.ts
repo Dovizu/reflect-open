@@ -91,6 +91,7 @@ import {
   createMobileOnboardingService,
   type MobileOnboardingService,
 } from '../graph/mobile-onboarding-service.ts'
+import { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
 import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
@@ -301,6 +302,7 @@ export interface AppServices {
   readonly noteDocuments: NoteDocumentService
   readonly noteActions: NoteActionsService
   readonly noteRows: NoteRowService
+  readonly dailyNotes: DailyNoteService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -655,6 +657,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       id,
     }),
     noteRows: createNoteRowService(),
+    dailyNotes: createDailyNoteService({ database, clock, lifecycle }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

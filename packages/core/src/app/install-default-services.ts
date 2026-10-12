@@ -24,6 +24,7 @@ import { setDefaultAppStoreEnvironment } from '../monetization/app-store-environ
 import { setDefaultPaywall } from '../monetization/paywall-service.ts'
 import { setDefaultSubscription } from '../monetization/subscription-service.ts'
 import { setDefaultCalendar } from '../calendar/calendar-service.ts'
+import { setDefaultDailyNotes } from '../daily/daily-note-service.ts'
 import { setDefaultContacts } from '../contacts/contacts-service.ts'
 import { setDefaultAssetStore } from '../graph/asset-store-service.ts'
 import { setDefaultNoteCreation } from '../graph/note-creation-service.ts'
@@ -157,6 +158,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultNoteDocuments(services.noteDocuments)
   setDefaultNoteActions(services.noteActions)
   setDefaultNoteRows(services.noteRows)
+  setDefaultDailyNotes(services.dailyNotes)
   setDefaultIndexQuery(services.indexQuery)
   setDefaultWikiResolver(services.wikiResolver)
   setDefaultBacklinks(services.backlinks)
@@ -253,6 +255,7 @@ export function resetDefaultServices(): void {
   setDefaultNoteDocuments(null)
   setDefaultNoteActions(null)
   setDefaultNoteRows(null)
+  setDefaultDailyNotes(null)
   setDefaultIndexQuery(null)
   setDefaultWikiResolver(null)
   setDefaultBacklinks(null)
