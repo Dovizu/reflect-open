@@ -1,5 +1,6 @@
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
+import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
 import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
 import {
   createIpcBridgeService,
@@ -68,6 +69,7 @@ export interface AppServices {
   readonly mobileStorage: MobileStorageService
   readonly imageCodec: ImageCodecService
   readonly exceptionTelemetry: ExceptionTelemetryService
+  readonly database: DatabaseService
   readonly fileChanges: FileChangeService
 }
 
@@ -129,6 +131,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     mobileStorage: createMobileStorageService({ ipc }),
     imageCodec: adapters.imageCodec ?? createUnavailableImageCodec(),
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
+    database: createDatabaseService({ ipc }),
     fileChanges: createFileChangeService(
       { ipc, logger },
       { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },

@@ -1,25 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import { resolveOrCreateNoteWithTitle } from '../graph/create-note.ts'
-import { setBridge } from '../ipc/bridge.ts'
+import { createTestDatabaseService } from '../testing/database.ts'
 import {
-  applyProjection,
   connectIndex,
   expectSuggestionOpensItsPath,
-  openMigratedIndex,
+  disconnectIndex,
   project,
 } from './flow-test-harness.ts'
 import { getBacklinks, suggestWikiLinkTargets } from './queries.ts'
 
 describe('colon and slash title flow', () => {
   it('projects, resolves, backlinks, and autocompletes a colon title', async () => {
-    const database = openMigratedIndex()
+    const database = createTestDatabaseService()
     const targetPath = 'notes/test-long-with-parens-ampersand-follow-up.md'
-    applyProjection(
-      database,
+    database.applyProjection(
       project(targetPath, '# Test: Long With Parens & Ampersand Follow-up\n', 20),
     )
-    applyProjection(
-      database,
+    database.applyProjection(
       project('daily/2026-08-04.md', 'See [[Test: Long With Parens & Ampersand Follow-up]].\n', 10),
     )
     connectIndex(database)
@@ -38,17 +35,15 @@ describe('colon and slash title flow', () => {
       ])
       await expectSuggestionOpensItsPath(suggestions[0]!)
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 
   it('resolves and backlinks a slash title when no file matches the path reading', async () => {
-    const database = openMigratedIndex()
+    const database = createTestDatabaseService()
     const targetPath = 'notes/johnsally-meeting-notes.md'
-    applyProjection(database, project(targetPath, '# john/sally meeting notes\n', 20))
-    applyProjection(
-      database,
+    database.applyProjection(project(targetPath, '# john/sally meeting notes\n', 20))
+    database.applyProjection(
       project('daily/2026-08-04.md', 'See [[john/sally meeting notes]].\n', 10),
     )
     connectIndex(database)
@@ -66,16 +61,15 @@ describe('colon and slash title flow', () => {
       expect(suggestions.map((row) => row.insertText)).toEqual(['john/sally meeting notes'])
       await expectSuggestionOpensItsPath(suggestions[0]!)
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 
   it('keeps the exact file win over a same-spelled title, in resolution and backlinks', async () => {
-    const database = openMigratedIndex()
-    applyProjection(database, project('Projects/Plan.md', '# Weekly Planning\n', 20))
-    applyProjection(database, project('notes/imposter.md', '# Projects/Plan\n', 30))
-    applyProjection(database, project('daily/2026-08-04.md', 'See [[Projects/Plan]].\n', 10))
+    const database = createTestDatabaseService()
+    database.applyProjection(project('Projects/Plan.md', '# Weekly Planning\n', 20))
+    database.applyProjection(project('notes/imposter.md', '# Projects/Plan\n', 30))
+    database.applyProjection(project('daily/2026-08-04.md', 'See [[Projects/Plan]].\n', 10))
     connectIndex(database)
 
     try {
@@ -88,15 +82,14 @@ describe('colon and slash title flow', () => {
       expect(fileBacklinks.map((row) => row.sourcePath)).toEqual(['daily/2026-08-04.md'])
       await expect(getBacklinks('notes/imposter.md')).resolves.toEqual([])
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 
   it('gives a rooted path no name fallback, in resolution or backlinks', async () => {
-    const database = openMigratedIndex()
-    applyProjection(database, project('notes/missing.md', '# /Missing\n', 20))
-    applyProjection(database, project('daily/2026-08-04.md', 'See [[/Missing]].\n', 10))
+    const database = createTestDatabaseService()
+    database.applyProjection(project('notes/missing.md', '# /Missing\n', 20))
+    database.applyProjection(project('daily/2026-08-04.md', 'See [[/Missing]].\n', 10))
     connectIndex(database)
 
     try {
@@ -106,16 +99,15 @@ describe('colon and slash title flow', () => {
       })
       await expect(getBacklinks('notes/missing.md')).resolves.toEqual([])
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 
   it('backlinks a fragment-carrying slashed target through its name fallback', async () => {
-    const database = openMigratedIndex()
+    const database = createTestDatabaseService()
     const targetPath = 'notes/missingplan.md'
-    applyProjection(database, project(targetPath, '# Missing/Plan\n', 20))
-    applyProjection(database, project('daily/2026-08-04.md', 'See [[Missing/Plan#Next]].\n', 10))
+    database.applyProjection(project(targetPath, '# Missing/Plan\n', 20))
+    database.applyProjection(project('daily/2026-08-04.md', 'See [[Missing/Plan#Next]].\n', 10))
     connectIndex(database)
 
     try {
@@ -127,16 +119,15 @@ describe('colon and slash title flow', () => {
       const backlinks = await getBacklinks(targetPath)
       expect(backlinks.map((row) => row.sourcePath)).toEqual(['daily/2026-08-04.md'])
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 
   it('backlinks a .md-suffixed slashed target through its name fallback', async () => {
-    const database = openMigratedIndex()
+    const database = createTestDatabaseService()
     const targetPath = 'notes/missingplan.md'
-    applyProjection(database, project(targetPath, '# Missing/Plan\n', 20))
-    applyProjection(database, project('daily/2026-08-04.md', 'See [[Missing/Plan.md]].\n', 10))
+    database.applyProjection(project(targetPath, '# Missing/Plan\n', 20))
+    database.applyProjection(project('daily/2026-08-04.md', 'See [[Missing/Plan.md]].\n', 10))
     connectIndex(database)
 
     try {
@@ -148,8 +139,7 @@ describe('colon and slash title flow', () => {
       const backlinks = await getBacklinks(targetPath)
       expect(backlinks.map((row) => row.sourcePath)).toEqual(['daily/2026-08-04.md'])
     } finally {
-      setBridge(null)
-      database.close()
+      disconnectIndex(database)
     }
   })
 })
