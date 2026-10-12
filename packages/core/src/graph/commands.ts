@@ -1,9 +1,12 @@
 import { z } from 'zod'
 import { defaultLogger } from '../app/logger-service.ts'
+import { defaultWebFetch } from '../app/web-fetch-service.ts'
 import { defaultWindow } from '../app/window-service.ts'
 import { echoLocalWrite } from '../indexing/local-write-echo.ts'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 import { call } from '../ipc/invoke.ts'
+import type { CloudSafe } from '../privacy/cloud-safe.ts'
+import { defaultCaptureInbox } from './capture-inbox-service.ts'
 import {
   fileMetaSchema,
   graphImportProgressSchema,
@@ -339,7 +342,7 @@ export async function vaultScanStats(generation?: number): Promise<VaultScanStat
  * every graph open — rewriting self-heals app moves (Plan 11).
  */
 export async function captureHostRegister(): Promise<void> {
-  await call('capture_host_register', {}, voidSchema)
+  await defaultCaptureInbox().registerHost()
 }
 
 /**
@@ -348,12 +351,12 @@ export async function captureHostRegister(): Promise<void> {
  * `generation` like every background-pass read.
  */
 export async function captureInboxList(generation: number): Promise<FileMeta[]> {
-  return await call('capture_inbox_list', { generation }, z.array(fileMetaSchema))
+  return await defaultCaptureInbox().list(generation)
 }
 
 /** Read one spooled envelope's JSON text by spool filename (e.g. `<id>.json`). */
 export async function captureInboxRead(name: string, generation: number): Promise<string> {
-  return await call('capture_inbox_read', { name, generation }, z.string())
+  return await defaultCaptureInbox().read(name, generation)
 }
 
 /**
@@ -367,12 +370,12 @@ export async function captureInboxSpool(
   json: string,
   generation: number,
 ): Promise<void> {
-  await call('capture_inbox_spool', { name, json, generation }, voidSchema)
+  await defaultCaptureInbox().spool(name, json, generation)
 }
 
 /** Remove a spool file by filename. Idempotent — crash re-drains re-remove. */
 export async function captureInboxRemove(name: string, generation: number): Promise<void> {
-  await call('capture_inbox_remove', { name, generation }, voidSchema)
+  await defaultCaptureInbox().remove(name, generation)
 }
 
 /**
@@ -382,7 +385,7 @@ export async function captureInboxRemove(name: string, generation: number): Prom
  * called by the mobile capture controller before every drain pass.
  */
 export async function captureSharedInboxRelay(generation: number): Promise<number> {
-  return await call('capture_shared_inbox_relay', { generation }, z.number())
+  return await defaultCaptureInbox().relaySharedInbox(generation)
 }
 
 /**
@@ -391,7 +394,7 @@ export async function captureSharedInboxRelay(generation: number): Promise<numbe
  * envelope a newer extension wrote that this app version can't read yet.
  */
 export async function captureInboxReject(name: string, generation: number): Promise<void> {
-  await call('capture_inbox_reject', { name, generation }, voidSchema)
+  await defaultCaptureInbox().reject(name, generation)
 }
 
 /**
@@ -404,7 +407,7 @@ export async function promoteCaptureScreenshot(
   maxDim: number,
   generation: number,
 ): Promise<void> {
-  await call('capture_screenshot_promote', { spoolName, assetPath, maxDim, generation }, voidSchema)
+  await defaultCaptureInbox().promoteScreenshot(spoolName, assetPath, maxDim, generation)
 }
 
 /**
@@ -412,7 +415,7 @@ export async function promoteCaptureScreenshot(
  * Returns a base64-encoded normalized JPEG, or `null` when unavailable.
  */
 export async function captureLinkPreview(url: string): Promise<string | null> {
-  return await call('capture_link_preview', { url }, z.string().nullable())
+  return await defaultWebFetch().fetchLinkPreviewImage(url as CloudSafe<string>)
 }
 
 /**
@@ -421,7 +424,7 @@ export async function captureLinkPreview(url: string): Promise<string | null> {
  * webview's own HTTP capability. The privacy gate runs before any call here.
  */
 export async function captureMetaFetch(url: string): Promise<string> {
-  return await call('capture_meta_fetch', { url }, z.string())
+  return await defaultWebFetch().fetchMeta(url as CloudSafe<string>)
 }
 
 /**
@@ -431,7 +434,7 @@ export async function captureMetaFetch(url: string): Promise<string> {
  * gate runs before any call here, exactly as for {@link captureMetaFetch}.
  */
 export async function captureOEmbedFetch(url: string): Promise<string> {
-  return await call('capture_oembed_fetch', { url }, z.string())
+  return await defaultWebFetch().fetchOembed(url as CloudSafe<string>)
 }
 
 /** The recently-opened graphs, newest first. */

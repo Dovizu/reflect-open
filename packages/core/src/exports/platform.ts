@@ -175,6 +175,25 @@ export {
   type HttpService,
 } from '../app/http-service.ts'
 export {
+  createWebFetchService,
+  defaultWebFetch,
+  setDefaultWebFetch,
+  type WebFetchService,
+} from '../app/web-fetch-service.ts'
+export {
+  createCaptureInboxService,
+  defaultCaptureInbox,
+  setDefaultCaptureInbox,
+  type CaptureInboxService,
+} from '../graph/capture-inbox-service.ts'
+export {
+  createXArchiveService,
+  defaultXArchive,
+  setDefaultXArchive,
+  type ResolvedArchivedPost,
+  type XArchiveService,
+} from '../x-archive.ts'
+export {
   createWebStorageService,
   defaultStorage,
   getJson,
