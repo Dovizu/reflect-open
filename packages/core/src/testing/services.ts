@@ -138,6 +138,7 @@ import {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
+import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
 import { createTestSettingsService, type TestSettingsService } from './settings.ts'
 import {
   createTestPersistenceFlushService,
@@ -189,6 +190,7 @@ export interface TestAppServices extends AppServices {
   readonly embeddingRuntime: TestEmbeddingRuntimeService
   readonly chatHistory: TestChatHistoryService
   readonly update: TestUpdateService
+  readonly navigation: TestNavigationService
   readonly gitRepository: TestGitRepositoryService
   readonly icloudNative: TestICloudNativeService
   readonly captureInbox: TestCaptureInboxService
@@ -324,6 +326,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     embeddingRuntime: createTestEmbeddingRuntimeService(),
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
+    navigation: createTestNavigationService(),
     gitRepository: createTestGitRepositoryService(),
     githubAuth: createTestGithubAuthService({
       secretStore: overrides?.secretStore ?? secretStore,

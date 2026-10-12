@@ -236,6 +236,12 @@ export {
   type TestPrivacyServiceOptions,
 } from './privacy.ts'
 export {
+  createTestNavigationService,
+  type TestNavigateCall,
+  type TestNavigationService,
+  type TestNavigationServiceOptions,
+} from './navigation.ts'
+export {
   createTestAttachmentService,
   type AttachmentSave,
   type TestAttachmentEntry,

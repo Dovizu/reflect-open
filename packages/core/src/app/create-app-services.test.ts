@@ -54,6 +54,7 @@ const SERVICE_KEYS = [
   'embeddingRuntime',
   'chatHistory',
   'update',
+  'navigation',
   'gitRepository',
   'githubAuth',
   'gitHostCredentials',
