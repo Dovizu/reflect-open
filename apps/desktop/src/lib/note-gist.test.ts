@@ -15,9 +15,8 @@ import {
 import type { NoteSession } from '@/editor/note-session.ts'
 import { getNoteRowOverlay, resetNoteRowOverlays } from '@/hooks/note-row-overlay.ts'
 import { installTestOpenDocuments } from '@/test-utils/open-documents.ts'
+import { installTestNoteFile } from '@/test-utils/note-file.ts'
 
-const readNote = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>())
-const writeNote = vi.hoisted(() => vi.fn(async () => {}))
 const getGithubToken = vi.hoisted(() => vi.fn(async (): Promise<string | null> => 'tok'))
 const createGist = vi.hoisted(() => vi.fn())
 const updateGist = vi.hoisted(() => vi.fn())
@@ -25,8 +24,6 @@ const deleteGist = vi.hoisted(() => vi.fn(async () => {}))
 
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
-  readNote,
-  writeNote,
   getGithubToken,
   createGist,
   updateGist,
@@ -34,6 +31,7 @@ vi.mock('@reflect/core', async (importOriginal) => ({
 }))
 
 const documents = installTestOpenDocuments()
+const noteFile = installTestNoteFile()
 
 const { publishNoteToGist, runGistPublish, runGistUnpublish, unpublishNoteGist } =
   await import('./note-gist.ts')
@@ -56,8 +54,6 @@ let operations: TestOperationsService
 beforeEach(() => {
   operations = createTestOperationsService()
   setDefaultOperations(operations)
-  readNote.mockReset()
-  writeNote.mockClear()
   getGithubToken.mockReset().mockResolvedValue('tok')
   createGist.mockReset().mockResolvedValue(PUBLISHED)
   updateGist.mockReset().mockResolvedValue(PUBLISHED)
@@ -81,7 +77,7 @@ function fakeSession(content: string, canCommit = true, liveContent: string | nu
 
 describe('publishNoteToGist', () => {
   it('creates a secret gist for a fresh note and records it in frontmatter', async () => {
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
     await expect(publishNoteToGist('notes/a.md', 3)).resolves.toBe(PUBLISHED.htmlUrl)
 
     expect(createGist).toHaveBeenCalledWith(
@@ -90,11 +86,15 @@ describe('publishNoteToGist', () => {
       expect.any(Function),
     )
     const gist = { id: 'g1', url: PUBLISHED.htmlUrl, file: 'A.md', hash: gistBodyHash(BODY) }
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', upsertFrontmatter(BODY, { gist }), 3)
+    expect(noteFile.write()).toHaveBeenCalledWith(
+      'notes/a.md',
+      upsertFrontmatter(BODY, { gist }),
+      3,
+    )
   })
 
   it('republishes to the same gist, addressing the file by its previous name', async () => {
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
     await publishNoteToGist('notes/a.md', 3)
 
     expect(updateGist).toHaveBeenCalledWith(
@@ -108,12 +108,12 @@ describe('publishNoteToGist', () => {
   })
 
   it('falls back to creating a fresh gist when the old one is gone (update → null)', async () => {
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
     updateGist.mockResolvedValue(null)
     await expect(publishNoteToGist('notes/a.md', 3)).resolves.toBe(PUBLISHED.htmlUrl)
 
     expect(createGist).toHaveBeenCalled()
-    const written = writeNote.mock.calls[0] as unknown as [string, string, number]
+    const written = noteFile.write().mock.calls[0] as unknown as [string, string, number]
     expect(written[1]).toContain('id: g1')
   })
 
@@ -125,15 +125,15 @@ describe('publishNoteToGist', () => {
     expect(commitFrontmatter).toHaveBeenCalledWith({
       gist: { id: 'g1', url: PUBLISHED.htmlUrl, file: 'A.md', hash: gistBodyHash(BODY) },
     })
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('falls back to disk when the session cannot take the patch', async () => {
     const { session } = fakeSession(BODY, false)
     documents.open(session)
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
     await publishNoteToGist('notes/a.md', 3)
-    expect(writeNote).toHaveBeenCalled()
+    expect(noteFile.write()).toHaveBeenCalled()
   })
 
   it('reads disk, not the empty buffer, when the open session is still loading', async () => {
@@ -141,7 +141,7 @@ describe('publishNoteToGist', () => {
     // read the real body from disk, not publish an empty gist.
     const { session } = fakeSession('', false, null)
     documents.open(session)
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
 
     await publishNoteToGist('notes/a.md', 3)
 
@@ -150,11 +150,11 @@ describe('publishNoteToGist', () => {
       { name: 'A.md', content: BODY },
       expect.any(Function),
     )
-    expect(writeNote).toHaveBeenCalled()
+    expect(noteFile.write()).toHaveBeenCalled()
   })
 
   it('refuses to publish a private note before anything leaves the device', async () => {
-    readNote.mockResolvedValue('---\nprivate: true\n---\nsecret')
+    noteFile.read().mockResolvedValue('---\nprivate: true\n---\nsecret')
     await expect(publishNoteToGist('notes/a.md', 3)).rejects.toMatchObject({
       name: 'PrivateNoteError',
     })
@@ -164,7 +164,7 @@ describe('publishNoteToGist', () => {
   })
 
   it('refuses an empty note', async () => {
-    readNote.mockResolvedValue('---\npinned: true\n---\n')
+    noteFile.read().mockResolvedValue('---\npinned: true\n---\n')
     await expect(publishNoteToGist('notes/a.md', 3)).rejects.toMatchObject({
       message: expect.stringMatching(/empty/i),
     })
@@ -172,7 +172,7 @@ describe('publishNoteToGist', () => {
   })
 
   it('asks for a GitHub connection when no credential is stored', async () => {
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
     getGithubToken.mockResolvedValue(null)
     await expect(publishNoteToGist('notes/a.md', 3)).rejects.toMatchObject({
       kind: 'auth',
@@ -181,7 +181,7 @@ describe('publishNoteToGist', () => {
   })
 
   it('refuses invalid frontmatter before anything reaches GitHub (the record write would refuse)', async () => {
-    readNote.mockResolvedValue('---\nfoo: [unclosed\n---\nbody')
+    noteFile.read().mockResolvedValue('---\nfoo: [unclosed\n---\nbody')
     await expect(publishNoteToGist('notes/a.md', 3)).rejects.toMatchObject({
       kind: 'parse',
       message: expect.stringMatching(/invalid frontmatter/i),
@@ -191,8 +191,8 @@ describe('publishNoteToGist', () => {
   })
 
   it('deletes a freshly created gist when recording it locally fails (no orphans)', async () => {
-    readNote.mockResolvedValue(BODY)
-    writeNote.mockRejectedValueOnce(new Error('disk on fire'))
+    noteFile.read().mockResolvedValue(BODY)
+    noteFile.write().mockRejectedValueOnce(new Error('disk on fire'))
     await expect(publishNoteToGist('notes/a.md', 3)).rejects.toMatchObject({
       message: 'disk on fire',
     })
@@ -200,9 +200,9 @@ describe('publishNoteToGist', () => {
   })
 
   it('never deletes the existing gist when recording a republish fails (shared links survive)', async () => {
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
     updateGist.mockResolvedValue({ id: 'g0', htmlUrl: 'https://gist.github.com/alex/g0' })
-    writeNote.mockRejectedValueOnce(new Error('disk on fire'))
+    noteFile.write().mockRejectedValueOnce(new Error('disk on fire'))
     await expect(publishNoteToGist('notes/a.md', 3)).rejects.toMatchObject({
       message: 'disk on fire',
     })
@@ -210,8 +210,8 @@ describe('publishNoteToGist', () => {
   })
 
   it('still surfaces the record failure when the compensating delete also fails', async () => {
-    readNote.mockResolvedValue(BODY)
-    writeNote.mockRejectedValueOnce(new Error('disk on fire'))
+    noteFile.read().mockResolvedValue(BODY)
+    noteFile.write().mockRejectedValueOnce(new Error('disk on fire'))
     deleteGist.mockRejectedValueOnce(new Error('network down'))
     await expect(publishNoteToGist('notes/a.md', 3)).rejects.toMatchObject({
       message: 'disk on fire',
@@ -221,16 +221,16 @@ describe('publishNoteToGist', () => {
 
 describe('unpublishNoteGist', () => {
   it('deletes the existing gist and removes the frontmatter block', async () => {
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
     await expect(unpublishNoteGist('notes/a.md', 3)).resolves.toBeUndefined()
 
     expect(deleteGist).toHaveBeenCalledWith('tok', 'g0', expect.any(Function))
-    expect(writeNote).toHaveBeenCalledWith('notes/a.md', BODY, 3)
+    expect(noteFile.write()).toHaveBeenCalledWith('notes/a.md', BODY, 3)
   })
 
   it('does not delete the remote gist when clearing local frontmatter fails', async () => {
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
-    writeNote.mockRejectedValueOnce(new Error('disk on fire'))
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.write().mockRejectedValueOnce(new Error('disk on fire'))
 
     await expect(unpublishNoteGist('notes/a.md', 3)).rejects.toMatchObject({
       message: 'disk on fire',
@@ -240,7 +240,8 @@ describe('unpublishNoteGist', () => {
   })
 
   it('restores local gist frontmatter when the remote delete fails', async () => {
-    readNote
+    noteFile
+      .read()
       .mockResolvedValueOnce(REPUBLISH_SOURCE)
       .mockResolvedValueOnce(REPUBLISH_SOURCE)
       .mockResolvedValueOnce(BODY)
@@ -250,8 +251,8 @@ describe('unpublishNoteGist', () => {
       message: 'network down',
     })
 
-    expect(writeNote).toHaveBeenNthCalledWith(1, 'notes/a.md', BODY, 3)
-    expect(writeNote).toHaveBeenNthCalledWith(2, 'notes/a.md', REPUBLISH_SOURCE, 3)
+    expect(noteFile.write()).toHaveBeenNthCalledWith(1, 'notes/a.md', BODY, 3)
+    expect(noteFile.write()).toHaveBeenNthCalledWith(2, 'notes/a.md', REPUBLISH_SOURCE, 3)
   })
 
   it('routes the gist removal through the live session when the note is open', async () => {
@@ -261,20 +262,20 @@ describe('unpublishNoteGist', () => {
     await unpublishNoteGist('notes/a.md', 3)
 
     expect(commitFrontmatter).toHaveBeenCalledWith({ gist: false })
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('is a no-op when the note has no gist block', async () => {
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
 
     await unpublishNoteGist('notes/a.md', 3)
 
     expect(deleteGist).not.toHaveBeenCalled()
-    expect(writeNote).not.toHaveBeenCalled()
+    expect(noteFile.write()).not.toHaveBeenCalled()
   })
 
   it('asks for a GitHub connection before deleting the gist', async () => {
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
     getGithubToken.mockResolvedValue(null)
 
     await expect(unpublishNoteGist('notes/a.md', 3)).rejects.toMatchObject({
@@ -294,7 +295,7 @@ describe('runGistPublish', () => {
   })
 
   it('publishes, copies the link, and confirms through the operations line', async () => {
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBe(PUBLISHED.htmlUrl)
 
     expect(clipboard.writes()).toEqual([PUBLISHED.htmlUrl])
@@ -307,7 +308,7 @@ describe('runGistPublish', () => {
   })
 
   it('records the published url in the optimistic overlay, stamped with the generation', async () => {
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
     await runGistPublish('notes/a.md', 3)
 
     expect(getNoteRowOverlay('notes/a.md', 3)).toMatchObject({
@@ -319,7 +320,7 @@ describe('runGistPublish', () => {
   })
 
   it('leaves no overlay when the publish failed', async () => {
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
     getGithubToken.mockResolvedValue(null)
     await runGistPublish('notes/a.md', 3)
 
@@ -327,7 +328,7 @@ describe('runGistPublish', () => {
   })
 
   it('surfaces failures and resolves null', async () => {
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
     getGithubToken.mockResolvedValue(null)
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBeNull()
 
@@ -341,7 +342,7 @@ describe('runGistPublish', () => {
   })
 
   it('a failed clipboard copy never reads as a failed publish', async () => {
-    readNote.mockResolvedValue(BODY)
+    noteFile.read().mockResolvedValue(BODY)
     clipboard.failWith(new Error('Document is not focused'))
     // The publish landed: the url comes back so the UI flips to its published state.
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBe(PUBLISHED.htmlUrl)
@@ -364,7 +365,7 @@ describe('runGistPublish', () => {
 
 describe('runGistUnpublish', () => {
   it('unpublishes and clears the published url in the optimistic overlay', async () => {
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
 
     await expect(runGistUnpublish('notes/a.md', 3)).resolves.toBe(true)
 
@@ -375,7 +376,7 @@ describe('runGistUnpublish', () => {
   })
 
   it('surfaces failures and leaves no overlay', async () => {
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
     getGithubToken.mockResolvedValue(null)
 
     await expect(runGistUnpublish('notes/a.md', 3)).resolves.toBe(false)
@@ -396,7 +397,7 @@ describe('runGistUnpublish', () => {
       deleteStarted.resolve()
       return pendingDelete.promise
     })
-    readNote.mockResolvedValue(REPUBLISH_SOURCE)
+    noteFile.read().mockResolvedValue(REPUBLISH_SOURCE)
 
     const unpublish = runGistUnpublish('notes/a.md', 3)
     await deleteStarted.promise

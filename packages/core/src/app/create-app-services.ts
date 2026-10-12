@@ -88,6 +88,10 @@ import {
   type GraphSessionService,
 } from '../graph/graph-session-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
+import {
+  createNoteDocumentService,
+  type NoteDocumentService,
+} from '../documents/note-document-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
   createOpenDocumentsService,
@@ -259,6 +263,7 @@ export interface AppServices {
   readonly attachments: AttachmentService
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
+  readonly noteDocuments: NoteDocumentService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -427,6 +432,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   }
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
+  const openDocuments = createOpenDocumentsService()
   const indexReads = createIndexReadServices({ database, noteFile })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
@@ -535,7 +541,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
     }),
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
-    openDocuments: createOpenDocumentsService(),
+    openDocuments,
+    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,
