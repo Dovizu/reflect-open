@@ -160,9 +160,12 @@ export {
   type TestXArchiveService,
   type WebFetchKind,
 } from './capture.ts'
+export { createTestEmbedMediaService, type TestEmbedMediaServiceOptions } from './embeds.ts'
+export { createTestLinkPreviewService, type TestLinkPreviewServiceOptions } from './link-preview.ts'
 export {
   createTestBackupService,
   createTestBackupServiceFactory,
+  createTestGistPublishService,
   createTestConflictResolutionService,
   createTestGistService,
   createTestGitHostCredentialService,
@@ -181,6 +184,7 @@ export {
   type GitRepositoryHandler,
   type ICloudNativeCall,
   type TestBackupService,
+  type TestGistPublishServiceOptions,
   type TestGitRepositoryService,
   type TestGithubAuthOptions,
   type TestGithubAuthService,

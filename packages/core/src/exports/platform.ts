@@ -180,6 +180,13 @@ export {
   setDefaultGists,
   type GistService,
 } from '../sync/gist-service.ts'
+export {
+  createGistPublishService,
+  defaultGistPublish,
+  setDefaultGistPublish,
+  type GistPublishResult,
+  type GistPublishService,
+} from '../sync/gist-publish-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
 export {
   createSystemClock,
@@ -1062,7 +1069,12 @@ export {
   vaultScanStats,
   type VaultScanStats,
 } from '../graph/commands.ts'
-export { fetchYouTubeVideo } from '../youtube-video.ts'
+export {
+  createEmbedMediaService,
+  defaultEmbedMedia,
+  setDefaultEmbedMedia,
+  type EmbedMediaService,
+} from '../embeds/embed-media-service.ts'
 export { createAsset, importAsset } from '../graph/assets.ts'
 export { assetFileName } from '../graph/asset-names.ts'
 export {

@@ -19,6 +19,7 @@ import { setDefaultAssetPrivacy } from '../assets/asset-privacy-service.ts'
 import { setDefaultCaptureInbox } from '../graph/capture-inbox-service.ts'
 import { setDefaultICloudNative } from '../ipc/icloud-native-service.ts'
 import { setDefaultGists } from '../sync/gist-service.ts'
+import { setDefaultGistPublish } from '../sync/gist-publish-service.ts'
 import { setDefaultGitHostCredentials } from '../sync/git-host-credential-service.ts'
 import { setDefaultGitRepository } from '../sync/git-repository-service.ts'
 import { setDefaultGithubAuth } from '../sync/github-auth-service.ts'
@@ -31,6 +32,8 @@ import { setDefaultICloudMigration } from '../sync/icloud-migration-service.ts'
 import { setDefaultICloudSyncs } from '../sync/icloud-sync-service.ts'
 import { setDefaultSyncStatus } from '../sync/sync-status-service.ts'
 import { setDefaultXArchive } from '../x-archive.ts'
+import { setDefaultEmbedMedia } from '../embeds/embed-media-service.ts'
+import { setDefaultLinkPreview } from '../link-preview/link-preview-service.ts'
 import { setDefaultWebFetch } from './web-fetch-service.ts'
 import { setDefaultAudioRecorder } from '../audio/default-audio-recorder.ts'
 import { setDefaultClassicAccess } from '../classic/classic-access-service.ts'
@@ -164,6 +167,7 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultSyncEngines(services.syncEngines)
   setDefaultBackups(services.backups)
   setDefaultGists(services.gists)
+  setDefaultGistPublish(services.gistPublish)
   setDefaultICloudNative(services.icloudNative)
   setDefaultICloudSyncs(services.icloudSyncs)
   setDefaultICloudDownloads(services.icloudDownloads)
@@ -173,6 +177,8 @@ export function installDefaultServices(services: AppServices): void {
   setDefaultCaptureInbox(services.captureInbox)
   setDefaultWebFetch(services.webFetch)
   setDefaultXArchive(services.xArchive)
+  setDefaultEmbedMedia(services.embedMedia)
+  setDefaultLinkPreview(services.linkPreview)
   setDefaultAudioRecorder(services.audioRecorder)
   setDefaultHaptics(services.haptics ?? null)
   setDefaultIap(services.iap ?? null)
@@ -285,6 +291,7 @@ export function resetDefaultServices(): void {
   setDefaultSyncEngines(null)
   setDefaultBackups(null)
   setDefaultGists(null)
+  setDefaultGistPublish(null)
   setDefaultICloudNative(null)
   setDefaultICloudSyncs(null)
   setDefaultICloudDownloads(null)
@@ -294,6 +301,8 @@ export function resetDefaultServices(): void {
   setDefaultCaptureInbox(null)
   setDefaultWebFetch(null)
   setDefaultXArchive(null)
+  setDefaultEmbedMedia(null)
+  setDefaultLinkPreview(null)
   setDefaultAudioRecorder(null)
   setDefaultHaptics(null)
   setDefaultIap(null)

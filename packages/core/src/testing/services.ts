@@ -50,6 +50,7 @@ import {
 } from './capture.ts'
 import {
   createTestBackupServiceFactory,
+  createTestGistPublishService,
   createTestConflictResolutionService,
   createTestGistService,
   createTestGitHostCredentialService,
@@ -230,6 +231,8 @@ import {
   type TestAssetDescriptionService,
 } from './assets.ts'
 import type { CommandService } from '../commands/command-service.ts'
+import { createTestEmbedMediaService } from './embeds.ts'
+import { createTestLinkPreviewService } from './link-preview.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 import { createTestPaletteSearchService, createTestWikiLinkSuggestionService } from './search.ts'
 
@@ -369,6 +372,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const fileChanges = createTestFileChangeService()
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
+  const webFetch = createTestWebFetchService()
   const hash = createTestHashService()
   const aiCredentials = createTestAiCredentialService({
     secretStore: overrides?.secretStore ?? secretStore,
@@ -452,6 +456,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     secretStore: overrides?.secretStore ?? secretStore,
   })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
+  const gists = createTestGistService({ http: overrides?.http ?? http })
+  const noteRows = createNoteRowService()
   const icloudNative = createTestICloudNativeService()
   const syncEngines = createTestSyncEngineFactory({
     git: overrides?.gitRepository ?? gitRepository,
@@ -596,7 +602,16 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       persistenceFlush: overrides?.persistenceFlush ?? persistenceFlush,
       logger,
     }),
-    gists: createTestGistService({ http: overrides?.http ?? http }),
+    gists,
+    gistPublish: createTestGistPublishService({
+      gists: overrides?.gists ?? gists,
+      githubAuth: overrides?.githubAuth ?? githubAuth,
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      noteRows: overrides?.noteRows ?? noteRows,
+      privacy: overrides?.privacy ?? privacy,
+      operations: overrides?.operations ?? operations,
+      clipboard: overrides?.clipboard ?? clipboard,
+    }),
     icloudNative,
     icloudSyncs: createTestICloudSyncServiceFactory({
       icloudNative: overrides?.icloudNative ?? icloudNative,
@@ -623,8 +638,20 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     syncStatus: createTestSyncStatusService(),
     captureInbox,
-    webFetch: createTestWebFetchService(),
+    webFetch,
     xArchive,
+    embedMedia: createTestEmbedMediaService({
+      xArchive: overrides?.xArchive ?? xArchive,
+      webFetch: overrides?.webFetch ?? webFetch,
+      platform: overrides?.platform ?? platform,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
+    linkPreview: createTestLinkPreviewService({
+      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
+      privacy: overrides?.privacy ?? privacy,
+      webFetch: overrides?.webFetch ?? webFetch,
+    }),
     audioRecorder,
     haptics,
     iap: createTestIapService(),
@@ -679,7 +706,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       path: overrides?.path ?? path,
       id: overrides?.id ?? id,
     }),
-    noteRows: createNoteRowService(),
+    noteRows,
     templates: createTestTemplateService({
       noteFile: overrides?.noteFile ?? noteFile,
       indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,

@@ -87,6 +87,7 @@ import {
   type GitRepositoryService,
 } from '../sync/git-repository-service.ts'
 import { createGistService, type GistService } from '../sync/gist-service.ts'
+import { createGistPublishService, type GistPublishService } from '../sync/gist-publish-service.ts'
 import {
   createGitHostCredentialService,
   type GitHostCredentialService,
@@ -113,6 +114,12 @@ import {
 } from '../sync/icloud-sync-service.ts'
 import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
+import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
+import {
+  createLinkPreviewService,
+  type LinkPreviewService,
+} from '../link-preview/link-preview-service.ts'
+import { parseLinkPreviewMeta } from '../link-preview/metadata.ts'
 import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 import { createPlatformAudioRecorder } from '../audio/default-audio-recorder.ts'
@@ -361,6 +368,7 @@ export interface AppServices {
   readonly gitHostCredentials: GitHostCredentialService
   readonly githubRepos: GithubRepoService
   readonly gists: GistService
+  readonly gistPublish: GistPublishService
   /** Builds the sync engine of one graph session. */
   readonly syncEngines: SyncEngineFactory
   /** Builds the backup lifecycle of one (graph, index session) pair. */
@@ -376,6 +384,8 @@ export interface AppServices {
   readonly captureInbox: CaptureInboxService
   readonly webFetch: WebFetchService
   readonly xArchive: XArchiveService
+  readonly embedMedia: EmbedMediaService
+  readonly linkPreview: LinkPreviewService
   readonly audioRecorder: AudioRecorderService
   /** Mobile only. */
   readonly haptics?: HapticsService
@@ -707,6 +717,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
   const gitHostCredentials = createGitHostCredentialService({ secretStore })
   const githubRepos = createGithubRepoService({ http: adapters.http })
+  const gists = createGistService({ http: adapters.http })
+  const noteRows = createNoteRowService()
   const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
   const icloudNative = createICloudNativeService({ ipc, logger })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
@@ -856,7 +868,16 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       persistenceFlush,
       logger,
     }),
-    gists: createGistService({ http: adapters.http }),
+    gists,
+    gistPublish: createGistPublishService({
+      gists,
+      githubAuth,
+      noteDocuments,
+      noteRows,
+      privacy: noteServices.privacy,
+      operations,
+      clipboard: adapters.clipboard,
+    }),
     icloudNative,
     icloudSyncs: createICloudSyncServiceFactory({
       icloudNative,
@@ -874,6 +895,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     captureInbox,
     webFetch,
     xArchive,
+    embedMedia: createEmbedMediaService({ xArchive, webFetch, platform, clock, logger }),
+    linkPreview: createLinkPreviewService({
+      noteDocuments,
+      privacy: noteServices.privacy,
+      webFetch,
+      parseMetadata: parseLinkPreviewMeta,
+    }),
     audioRecorder,
     classicAccess,
     ...mobileServices,
@@ -914,7 +942,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       path,
       id,
     }),
-    noteRows: createNoteRowService(),
+    noteRows,
     dailyNotes: createDailyNoteService({ database, clock, lifecycle }),
     templates: createTemplateService({
       noteFile,

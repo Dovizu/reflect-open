@@ -27,23 +27,24 @@ export {
   githubAppInstallUrl,
   isDeviceFlowConfigured,
   githubAuthSchema,
-  getGithubToken,
   githubCredential,
+  type GithubAuth,
+  type DeviceFlowStart,
+  type DevicePollResult,
+  type RunDeviceFlowOptions,
+  type GithubUser,
+} from './github-auth-service.ts'
+export {
   parseGithubRemote,
   parseRepoInput,
   suggestRepoName,
   githubRemoteUrl,
   newRepoUrl,
   BACKUP_REPO_DESCRIPTION,
-  type GithubAuth,
-  type DeviceFlowStart,
-  type DevicePollResult,
-  type RunDeviceFlowOptions,
   type GithubRepoRef,
   type GithubRepo,
-  type GithubUser,
-} from './github.ts'
-export { createGist, updateGist, deleteGist, type PublishedGist, type GistFile } from './gists.ts'
+} from './github-repo-service.ts'
+export type { PublishedGist, GistFile } from './gist-service.ts'
 export { remoteHost } from './git-host-credential-service.ts'
 export {
   isSyncError,

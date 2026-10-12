@@ -3,7 +3,7 @@ import { cleanup, render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { setBridge } from '@reflect/core'
-import type { resolveArchivedPost } from '@reflect/core/x-archive'
+import type { ResolvedArchivedPost } from '@reflect/core/x-archive'
 import { PaletteProvider } from '@/components/command-palette/palette-provider.tsx'
 import { queryClient } from '@/lib/query-client.ts'
 import { RouterProvider } from '@/routing/router.tsx'
@@ -41,7 +41,7 @@ vi.mock('@/providers/settings-provider.tsx', () => ({
   }),
 }))
 
-type ResolvedArchive = Awaited<ReturnType<typeof resolveArchivedPost>>
+type ResolvedArchive = ResolvedArchivedPost | null
 
 let files: Record<string, string>
 const resolveArchive = vi.fn<(postId: string) => Promise<ResolvedArchive>>()

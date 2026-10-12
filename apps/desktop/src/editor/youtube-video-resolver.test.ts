@@ -1,18 +1,10 @@
-import { afterEach, expect, it, vi } from 'vitest'
-import { fetchYouTubeVideo } from '@reflect/core'
-import { queryClient } from '@/lib/query-client.ts'
+import { afterEach, expect, it } from 'vitest'
+import { setDefaultEmbedMedia } from '@reflect/core'
+import { createTestEmbedMediaService, createTestLoggerService } from '@reflect/core/testing'
 import { resolveYouTubeVideo } from './youtube-video-resolver.ts'
 
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  fetchYouTubeVideo: vi.fn(),
-}))
-const fetchVideo = vi.mocked(fetchYouTubeVideo)
-
 afterEach(() => {
-  queryClient.clear()
-  vi.resetAllMocks()
-  vi.restoreAllMocks()
+  setDefaultEmbedMedia(null)
 })
 
 const URL = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'
@@ -29,28 +21,43 @@ const VIDEO = {
   height: 113,
 }
 
+const { url: _url, ...ANSWER } = VIDEO
+
+/** Install a service whose oEmbed endpoint gives each of `answers` in turn; an `Error` rejects. */
+function install(...answers: (string | null | Error)[]) {
+  const requests: string[] = []
+  const logger = createTestLoggerService()
+  setDefaultEmbedMedia(
+    createTestEmbedMediaService({
+      webFetch: {
+        async fetchOembed(url) {
+          requests.push(url)
+          const answer = answers.shift() ?? null
+          if (answer instanceof Error) {
+            throw answer
+          }
+          return JSON.stringify(answer === null ? null : { ...ANSWER, title: answer })
+        },
+      },
+      logger,
+    }),
+  )
+  return { requests, logger }
+}
+
 it('returns a fetched video synchronously the second time', async () => {
-  fetchVideo.mockResolvedValue(VIDEO)
+  const { requests } = install(VIDEO.title)
   const first = resolveYouTubeVideo(URL)
   expect(first).toBeInstanceOf(Promise)
   expect(await first).toEqual(VIDEO)
   expect(resolveYouTubeVideo(URL)).toEqual(VIDEO)
-  expect(fetchVideo).toHaveBeenCalledExactlyOnceWith(URL)
-})
-
-it('asks again after a missing answer', async () => {
-  fetchVideo.mockResolvedValueOnce(null)
-  expect(await resolveYouTubeVideo(URL)).toBeUndefined()
-  fetchVideo.mockResolvedValueOnce(VIDEO)
-  expect(await resolveYouTubeVideo(URL)).toEqual(VIDEO)
+  expect(requests).toHaveLength(1)
 })
 
 it('logs a failed fetch and asks again', async () => {
-  const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
   const cause = new Error('offline')
-  fetchVideo.mockRejectedValueOnce(cause)
+  const { logger } = install(cause, VIDEO.title)
   expect(await resolveYouTubeVideo(URL)).toBeUndefined()
-  expect(logged).toHaveBeenCalledExactlyOnceWith('YouTube video fetch failed:', URL, cause)
-  fetchVideo.mockResolvedValueOnce(VIDEO)
+  expect(logger.getErrors()).toEqual([{ message: `YouTube video fetch failed: ${URL}`, cause }])
   expect(await resolveYouTubeVideo(URL)).toEqual(VIDEO)
 })
