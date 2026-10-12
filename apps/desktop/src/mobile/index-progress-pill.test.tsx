@@ -1,8 +1,12 @@
-import { setDefaultIndexLifecycle, type IndexFileProgress } from '@reflect/core'
-import { createTestIndexLifecycleService } from '@reflect/core/testing'
+import {
+  setDefaultIndexLifecycle,
+  setDefaultKeyboard,
+  type IndexFileProgress,
+  type KeyboardService,
+} from '@reflect/core'
+import { createTestIndexLifecycleService, createTestKeyboardService } from '@reflect/core/testing'
 import { render } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { publishKeyboardHeight } from '@/mobile/use-keyboard.ts'
 import { IndexProgressPill } from './index-progress-pill.tsx'
 
 /**
@@ -13,9 +17,11 @@ import { IndexProgressPill } from './index-progress-pill.tsx'
  */
 
 let setIndexProgress: (progress: IndexFileProgress | null) => void
+let keyboard: KeyboardService
 
 beforeEach(() => {
-  publishKeyboardHeight(0)
+  keyboard = createTestKeyboardService()
+  setDefaultKeyboard(keyboard)
   const lifecycle = createTestIndexLifecycleService()
   setDefaultIndexLifecycle(lifecycle)
   setIndexProgress = lifecycle.setFileProgress
@@ -23,6 +29,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setDefaultIndexLifecycle(null)
+  setDefaultKeyboard(null)
 })
 
 describe('IndexProgressPill', () => {
@@ -52,7 +59,7 @@ describe('IndexProgressPill', () => {
 
   it('yields to the keyboard', async () => {
     setIndexProgress({ done: 500, total: 7_000, worked: 500 })
-    publishKeyboardHeight(300)
+    keyboard.publish(300)
     const view = await render(<IndexProgressPill />)
     expect(view.getByRole('status').query()).toBeNull()
   })

@@ -13,16 +13,11 @@ import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import { createTestClipboardService } from '../testing/shell.ts'
-import { canTrashNote, type NoteDeepLinkFormat } from './note-actions-service.ts'
+import { canTrashNote } from './note-actions-service.ts'
 import { createNoteSessionService } from './note-session.ts'
 import type { NoteSession, NoteSessionSnapshot } from './note-session-types.ts'
 
 const ULID_RE = /^[0-9a-hjkmnp-tv-z]{26}$/
-
-const format: NoteDeepLinkFormat = {
-  note: (id) => `test://note/${id}`,
-  daily: (date) => `test://daily/${date}`,
-}
 
 function setup(options?: {
   files?: Readonly<Record<string, string>>
@@ -592,8 +587,8 @@ describe('deepLinkFor', () => {
     const { actions, files } = setup()
     const read = vi.spyOn(files, 'read')
 
-    await expect(actions.deepLinkFor('daily/2026-07-01.md', 3, format)).resolves.toBe(
-      'test://daily/2026-07-01',
+    await expect(actions.deepLinkFor('daily/2026-07-01.md', 3)).resolves.toBe(
+      'reflect://daily/2026-07-01',
     )
 
     expect(read).not.toHaveBeenCalled()
@@ -605,9 +600,9 @@ describe('deepLinkFor', () => {
     // would be one the parser rejects.
     const { actions, files } = setup({ files: { 'daily/2026-02-31.md': '# Not a real day\n' } })
 
-    const url = await actions.deepLinkFor('daily/2026-02-31.md', 3, format)
+    const url = await actions.deepLinkFor('daily/2026-02-31.md', 3)
 
-    expect(url.startsWith('test://note/')).toBe(true)
+    expect(url.startsWith('reflect://note/')).toBe(true)
     expect(files.writes()).toHaveLength(1)
   })
 
@@ -616,8 +611,8 @@ describe('deepLinkFor', () => {
       files: { 'notes/a.md': '---\nid: 01hzy3v9k2m4n6p8q0r2s4t6vw\n---\n# A\n' },
     })
 
-    await expect(actions.deepLinkFor('notes/a.md', 3, format)).resolves.toBe(
-      'test://note/01hzy3v9k2m4n6p8q0r2s4t6vw',
+    await expect(actions.deepLinkFor('notes/a.md', 3)).resolves.toBe(
+      'reflect://note/01hzy3v9k2m4n6p8q0r2s4t6vw',
     )
 
     expect(files.writes()).toEqual([])
@@ -627,18 +622,18 @@ describe('deepLinkFor', () => {
   it('treats a blank frontmatter id as absent and mints a real one', async () => {
     const { actions, files } = setup({ files: { 'notes/a.md': '---\nid: ""\n---\n# A\n' } })
 
-    const url = await actions.deepLinkFor('notes/a.md', 3, format)
+    const url = await actions.deepLinkFor('notes/a.md', 3)
 
-    expect(url.replace('test://note/', '')).toMatch(ULID_RE)
+    expect(url.replace('reflect://note/', '')).toMatch(ULID_RE)
     expect(files.writes()).toHaveLength(1)
   })
 
   it('mints a ULID id on first use, lands it on disk, and indexes it immediately', async () => {
     const { actions, files } = setup({ files: { 'notes/a.md': '# A\n' } })
 
-    const url = await actions.deepLinkFor('notes/a.md', 3, format)
+    const url = await actions.deepLinkFor('notes/a.md', 3)
 
-    const id = url.replace('test://note/', '')
+    const id = url.replace('reflect://note/', '')
     expect(id).toMatch(ULID_RE)
     expect(files.writes()).toMatchObject([{ path: 'notes/a.md', generation: 3 }])
     const source = files.files().get('notes/a.md') ?? ''
@@ -657,17 +652,17 @@ describe('deepLinkFor', () => {
       },
     })
 
-    const url = await actions.deepLinkFor('notes/a.md', 3, format)
+    const url = await actions.deepLinkFor('notes/a.md', 3)
 
-    expect(url.startsWith('test://note/')).toBe(true)
+    expect(url.startsWith('reflect://note/')).toBe(true)
   })
 
   it('mints through the live session when one owns the note', async () => {
     const { actions, files, session } = setup({ session: { path: 'notes/a.md', content: '# A\n' } })
 
-    const url = await actions.deepLinkFor('notes/a.md', 3, format)
+    const url = await actions.deepLinkFor('notes/a.md', 3)
 
-    const id = url.replace('test://note/', '')
+    const id = url.replace('reflect://note/', '')
     expect(session?.getCalls('commitFrontmatter')).toEqual([[{ id }]])
     expect(files.writes()).toEqual([])
   })
@@ -677,9 +672,9 @@ describe('copyDeepLink', () => {
   it('copies the link and confirms through operations', async () => {
     const { actions, clipboard, operations } = setup()
 
-    await actions.copyDeepLink('daily/2026-07-01.md', 3, format)
+    await actions.copyDeepLink('daily/2026-07-01.md', 3)
 
-    expect(clipboard.writes()).toEqual(['test://daily/2026-07-01'])
+    expect(clipboard.writes()).toEqual(['reflect://daily/2026-07-01'])
     expect(operations.snapshot()).toMatchObject([{ label: 'Deep link copied', status: 'running' }])
   })
 
@@ -689,7 +684,7 @@ describe('copyDeepLink', () => {
       wrapNoteFile: failing('write', new Error('disk full')),
     })
 
-    await actions.copyDeepLink('notes/a.md', 3, format)
+    await actions.copyDeepLink('notes/a.md', 3)
 
     expect(clipboard.writes()).toEqual([])
     expect(operations.snapshot()).toMatchObject([
@@ -701,7 +696,7 @@ describe('copyDeepLink', () => {
     const { actions, clipboard, operations } = setup()
     clipboard.failWith(new Error('denied'))
 
-    await actions.copyDeepLink('daily/2026-07-01.md', 3, format)
+    await actions.copyDeepLink('daily/2026-07-01.md', 3)
 
     expect(operations.snapshot()).toMatchObject([
       { label: 'Copying deep link', status: 'failed', message: 'denied' },

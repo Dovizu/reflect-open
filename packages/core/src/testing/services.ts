@@ -101,6 +101,11 @@ import {
 import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from './logger.ts'
+import { createTestKeyboardService, createTestShareService } from './mobile.ts'
+import {
+  createTestMobileOnboardingService,
+  type TestMobileOnboardingService,
+} from './mobile-onboarding.ts'
 import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
 import { createTestOperationsService, type TestOperationsService } from './operations.ts'
 import {
@@ -142,7 +147,12 @@ import {
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
-import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
+import {
+  createTestDeepLinkService,
+  createTestNavigationService,
+  type TestDeepLinkService,
+  type TestNavigationService,
+} from './navigation.ts'
 import { createTestSettingsService, type TestSettingsService } from './settings.ts'
 import {
   createTestPersistenceFlushService,
@@ -151,6 +161,14 @@ import {
 import { createTestStorageService, type TestStorageService } from './storage.ts'
 import { createTestThemeService, type TestThemeService } from './theme.ts'
 import { createTestUpdateService, type TestUpdateService } from './update.ts'
+import {
+  createTestCommandService,
+  createTestKeymapService,
+  createTestNativeMenuService,
+  type TestNativeMenuService,
+} from './commands.ts'
+import type { CommandService } from '../commands/command-service.ts'
+import type { KeymapService } from '../commands/keymap-service.ts'
 
 /** {@link AppServices} where every service is its in-memory test double. */
 export interface TestAppServices extends AppServices {
@@ -187,6 +205,7 @@ export interface TestAppServices extends AppServices {
   readonly chatHistory: TestChatHistoryService
   readonly update: TestUpdateService
   readonly navigation: TestNavigationService
+  readonly deepLink: TestDeepLinkService
   readonly gitRepository: TestGitRepositoryService
   readonly icloudNative: TestICloudNativeService
   readonly captureInbox: TestCaptureInboxService
@@ -211,10 +230,14 @@ export interface TestAppServices extends AppServices {
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
   readonly graphSession: TestGraphSessionService
+  readonly mobileOnboarding: TestMobileOnboardingService
   readonly aiCredentials: AiCredentialService
   readonly aiKeyValidation: TestAiKeyValidationService
   readonly languageModel: TestLanguageModelService
   readonly aiPrompts: AiPromptService
+  readonly keymap: KeymapService
+  readonly commands: CommandService
+  readonly nativeMenu: TestNativeMenuService
   readonly aiProviderConfig: AiProviderConfigService
   readonly selectionTransform: SelectionTransformService
   readonly pageDescriber: TestPageDescriberService
@@ -268,9 +291,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     id: overrides?.id ?? id,
   })
   const platform = createTestPlatformService()
+  const commands = createTestCommandService({
+    platform: overrides?.platform ?? platform,
+    logger,
+  })
   const dialog = createTestDialogService()
   const path = createTestPathService()
   const windowService = createTestWindowService()
+  const captureInbox = createTestCaptureInboxService()
   const lifecycle = createTestLifecycleService()
   const mobileStorage = createTestMobileStorageService()
   const indexLifecycle = createTestIndexLifecycleService({
@@ -288,6 +316,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const noteDocuments = createTestNoteDocumentService({
     openDocuments: overrides?.openDocuments ?? openDocuments,
     noteFile: overrides?.noteFile ?? noteFile,
+  })
+  const graphSession = createTestGraphSessionService({
+    ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
+    indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
+    indexStore: overrides?.indexStore ?? indexStore,
+    noteFile: overrides?.noteFile ?? noteFile,
+    id: overrides?.id ?? id,
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+    window: overrides?.window ?? windowService,
+    dialog: overrides?.dialog ?? dialog,
+    path: overrides?.path ?? path,
+    platform: overrides?.platform ?? platform,
+    lifecycle: overrides?.lifecycle ?? lifecycle,
+    mobileStorage: overrides?.mobileStorage ?? mobileStorage,
+    logger,
   })
   const services: TestAppServices = {
     ipc: createTestIpcBridgeService({ logger }),
@@ -323,6 +366,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     chatHistory: createTestChatHistoryService(),
     update: createTestUpdateService(),
     navigation: createTestNavigationService(),
+    deepLink: createTestDeepLinkService({
+      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
+      captureInbox: overrides?.captureInbox ?? captureInbox,
+      operations: overrides?.operations ?? operations,
+      id: overrides?.id ?? id,
+      clock: overrides?.clock ?? clock,
+      logger,
+    }),
     gitRepository: createTestGitRepositoryService(),
     githubAuth: createTestGithubAuthService({
       secretStore: overrides?.secretStore ?? secretStore,
@@ -335,7 +386,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     githubRepos: createTestGithubRepoService({ http: overrides?.http ?? http }),
     gists: createTestGistService({ http: overrides?.http ?? http }),
     icloudNative: createTestICloudNativeService(),
-    captureInbox: createTestCaptureInboxService(),
+    captureInbox,
     webFetch: createTestWebFetchService(),
     xArchive,
     audioRecorder: createTestAudioRecorderService(),
@@ -356,6 +407,8 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       logger,
     }),
     openDocuments,
+    keyboard: createTestKeyboardService(),
+    share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
     noteDocuments,
     noteActions: createTestNoteActionsService({
       noteDocuments: overrides?.noteDocuments ?? noteDocuments,
@@ -376,19 +429,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     privacy,
     indexLifecycle,
-    graphSession: createTestGraphSessionService({
-      ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
-      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-      indexStore: overrides?.indexStore ?? indexStore,
-      noteFile: overrides?.noteFile ?? noteFile,
-      id: overrides?.id ?? id,
-      fileChanges: overrides?.fileChanges ?? fileChanges,
-      window: overrides?.window ?? windowService,
-      dialog: overrides?.dialog ?? dialog,
-      path: overrides?.path ?? path,
-      platform: overrides?.platform ?? platform,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
+    graphSession,
+    mobileOnboarding: createTestMobileOnboardingService({
       mobileStorage: overrides?.mobileStorage ?? mobileStorage,
+      settings: overrides?.settings ?? settings,
+      graphSession: overrides?.graphSession ?? graphSession,
+      platform: overrides?.platform ?? platform,
+      clock: overrides?.clock ?? clock,
       logger,
     }),
     aiCredentials,
@@ -397,6 +444,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     aiPrompts: createTestAiPromptService({
       settings: overrides?.settings ?? settings,
       id: overrides?.id ?? id,
+    }),
+    keymap: createTestKeymapService({ platform: overrides?.platform ?? platform }),
+    commands,
+    nativeMenu: createTestNativeMenuService({
+      commands: overrides?.commands ?? commands,
+      window: overrides?.window ?? windowService,
+      platform: overrides?.platform ?? platform,
+      logger,
     }),
     aiProviderConfig,
     selectionTransform: createTestSelectionTransformService({

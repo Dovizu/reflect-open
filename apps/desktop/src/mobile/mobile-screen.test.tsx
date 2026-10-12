@@ -3,8 +3,17 @@ import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, StrictMode, type ReactElement } from 'react'
-import { setBridge, setDefaultHaptics } from '@reflect/core'
-import { createTestHapticsService, type TestHapticsService } from '@reflect/core/testing'
+import {
+  setBridge,
+  setDefaultHaptics,
+  setDefaultKeyboard,
+  type KeyboardService,
+} from '@reflect/core'
+import {
+  createTestHapticsService,
+  createTestKeyboardService,
+  type TestHapticsService,
+} from '@reflect/core/testing'
 import {
   clearFormattingToolbar,
   publishFormattingToolbar,
@@ -17,7 +26,6 @@ import { fireEvent } from '@/test-utils/fire-event.ts'
 import '@/test-utils/locator.ts'
 import { createWeekWindow, weekOf } from './calendar.ts'
 import { MobileShell } from './mobile-shell.tsx'
-import { publishKeyboardHeight } from './use-keyboard.ts'
 
 let haptics: TestHapticsService
 
@@ -176,12 +184,16 @@ setBridge({
   listen: async () => () => {},
 })
 
+let keyboard: KeyboardService
+
 afterEach(async () => {
   await cleanup()
-  publishKeyboardHeight(0)
+  setDefaultKeyboard(null)
 })
 
 beforeEach(async () => {
+  keyboard = createTestKeyboardService()
+  setDefaultKeyboard(keyboard)
   await page.viewport(375, 700)
   files = {}
   editorProbe.focusCalls = 0
@@ -697,10 +709,10 @@ describe('MobileShell', () => {
     const view = await mount({ kind: 'today' })
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()
 
-    act(() => publishKeyboardHeight(316))
+    act(() => keyboard.publish(316))
     expect(view.getByRole('navigation', { name: 'Sections' }).query()).toBeNull()
 
-    act(() => publishKeyboardHeight(0))
+    act(() => keyboard.publish(0))
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()
   })
 
@@ -710,7 +722,7 @@ describe('MobileShell', () => {
 
     // Keyboard up with no focused editor (the All-tab search field): neither
     // the tab bar nor a dead-button toolbar.
-    act(() => publishKeyboardHeight(316))
+    act(() => keyboard.publish(316))
     expect(view.getByRole('toolbar', { name: 'Formatting' }).query()).toBeNull()
 
     act(() =>
@@ -741,7 +753,7 @@ describe('MobileShell', () => {
 
     act(() => {
       clearFormattingToolbar(owner)
-      publishKeyboardHeight(0)
+      keyboard.publish(0)
     })
     expect(view.getByRole('toolbar', { name: 'Formatting' }).query()).toBeNull()
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()

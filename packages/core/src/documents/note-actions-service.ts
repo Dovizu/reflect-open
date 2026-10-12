@@ -10,6 +10,7 @@ import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.
 import { indexNote } from '../indexing/indexer.ts'
 import type { PinnedNote } from '../indexing/index-query-service.ts'
 import { parseNote } from '../markdown/extract.ts'
+import { dailyDeepLink, noteDeepLink } from '../navigation/deep-link-format.ts'
 import { isPinned } from '../markdown/model.ts'
 import { defaultNoteDocuments, type NoteDocumentService } from './note-document-service.ts'
 import { defaultOpenDocuments, type OpenDocumentsService } from './open-documents-service.ts'
@@ -73,14 +74,6 @@ export interface NoteTrashResult {
 export interface NoteTrashManyOptions {
   /** Called as each note lands in the trash, before the next one starts. */
   onTrashed?: (path: string) => void
-}
-
-/** The write side of the deep-link codec, for the two addresses a note can have. */
-export interface NoteDeepLinkFormat {
-  /** The link of a note addressed by its frontmatter `id`. */
-  note: (id: string) => string
-  /** The link of the daily note of an ISO `YYYY-MM-DD` date. */
-  daily: (date: string) => string
 }
 
 /**
@@ -170,12 +163,12 @@ export interface NoteActionsService {
    * outside Reflect, so the link survives every rename; the id lands through
    * the session-or-disk frontmatter channel like pin and private do.
    */
-  deepLinkFor(path: string, generation: number, format: NoteDeepLinkFormat): Promise<string>
+  deepLinkFor(path: string, generation: number): Promise<string>
   /**
    * Build the deep link, put it on the clipboard, and confirm through the
    * operations status line. Never rejects.
    */
-  copyDeepLink(path: string, generation: number, format: NoteDeepLinkFormat): Promise<void>
+  copyDeepLink(path: string, generation: number): Promise<void>
   /**
    * Resolve the graph-relative `path` to an absolute filesystem path for use
    * in tools outside Reflect (agent chats, editors, terminals), put it on the
@@ -263,18 +256,14 @@ export function createNoteActionsService(deps: {
     }
   }
 
-  async function deepLinkFor(
-    path: string,
-    generation: number,
-    format: NoteDeepLinkFormat,
-  ): Promise<string> {
+  async function deepLinkFor(path: string, generation: number): Promise<string> {
     if (isDaily(path)) {
       const date = dateFromDailyPath(path)
       // Calendar-validated like the router: a daily/ file with an impossible
       // date (2026-02-31) routes as a plain note everywhere else, so it gets a
       // note address too: a date form would be a link the parser rejects.
       if (date !== null && isIsoDate(date)) {
-        return format.daily(date)
+        return dailyDeepLink(date)
       }
     }
     const source = await noteDocuments.readSource(path)
@@ -282,7 +271,7 @@ export function createNoteActionsService(deps: {
     // linking it would emit `reflect://note/`, which the parser rejects.
     const existing = parseNote({ path, source }).frontmatter.id
     if (existing !== undefined && existing.trim() !== '') {
-      return format.note(existing)
+      return noteDeepLink(existing)
     }
     const minted = id.noteId()
     await noteDocuments.commitFrontmatter(path, { id: minted }, generation)
@@ -294,7 +283,7 @@ export function createNoteActionsService(deps: {
     } catch {
       // the copied link still works once the watcher reindexes the note
     }
-    return format.note(minted)
+    return noteDeepLink(minted)
   }
 
   return {
@@ -377,10 +366,10 @@ export function createNoteActionsService(deps: {
       return { succeeded, failed }
     },
     deepLinkFor,
-    async copyDeepLink(path, generation, format) {
+    async copyDeepLink(path, generation) {
       let url: string
       try {
-        url = await deepLinkFor(path, generation, format)
+        url = await deepLinkFor(path, generation)
       } catch (cause) {
         operations.start('Copying deep link').fail(errorMessage(cause))
         return

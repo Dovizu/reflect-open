@@ -294,6 +294,28 @@ export {
   type PrivacyService,
 } from '../privacy/privacy-service.ts'
 export {
+  DEEP_LINK_SCHEME,
+  DEEP_LINK_TEXT_MAX_LENGTH,
+  type DeepLink,
+} from '../navigation/deep-link.ts'
+export { dailyDeepLink, deepLinkForRoute, noteDeepLink } from '../navigation/deep-link-format.ts'
+export {
+  initialRouteForDeepLink,
+  isDeepLinkUrl,
+  parseDeepLink,
+} from '../navigation/deep-link-parse.ts'
+export {
+  createDeepLinkService,
+  createNoDeepLinkSource,
+  defaultDeepLink,
+  setDefaultDeepLink,
+  type DeepLinkIo,
+  type DeepLinkService,
+  type DeepLinkServiceDeps,
+  type DeepLinkSession,
+  type DeepLinkSource,
+} from '../navigation/deep-link-service.ts'
+export {
   createNavigationService,
   defaultNavigation,
   setDefaultNavigation,
@@ -361,7 +383,6 @@ export {
   type NoteActionOptions,
   type NoteActionOutcome,
   type NoteActionsService,
-  type NoteDeepLinkFormat,
   type NotePinOrderWrite,
   type NotePinResult,
   type NotePinToggleOptions,
@@ -749,11 +770,6 @@ export {
 } from '../graph/schemas.ts'
 export {
   windowBootstrap,
-  createGraph,
-  importReflectV1Zip,
-  subscribeImportProgress,
-  cancelReflectV1Import,
-  markReflectV1ImportOwnWrites,
   readNote,
   readNoteLocal,
   type LocalNoteRead,
@@ -807,6 +823,33 @@ export {
   type GraphStatus,
 } from '../graph/graph-session-service.ts'
 export {
+  createKeyboardService,
+  defaultKeyboard,
+  setDefaultKeyboard,
+  type KeyboardService,
+} from '../mobile/keyboard-service.ts'
+export {
+  createShareService,
+  defaultShare,
+  noteShareContent,
+  setDefaultShare,
+  type NoteShareContent,
+  type ShareService,
+} from '../mobile/share-service.ts'
+export {
+  createV1ImportService,
+  type V1ImportService,
+  type V1ImportServiceDeps,
+  type V1ImportState,
+} from '../graph/v1-import-service.ts'
+export {
+  createMobileOnboardingService,
+  type MobileOnboardingService,
+  type MobileOnboardingServiceDeps,
+  type MobileOnboardingState,
+} from '../graph/mobile-onboarding-service.ts'
+export {
+  DEFAULT_GRAPH_NAME,
   cleanGraphName,
   graphNameFromRoot,
   graphRootForName,
@@ -1009,3 +1052,40 @@ export {
   type WebAuthOptions,
   type WebAuthService,
 } from '../ipc/web-auth-plugin.ts'
+export {
+  createCommandService,
+  defaultCommands,
+  setDefaultCommands,
+  type Command,
+  type CommandKeyEvent,
+  type CommandService,
+  type CommandServiceDeps,
+} from '../commands/command-service.ts'
+export { formatBinding } from '../commands/keybindings.ts'
+export {
+  createKeymapService,
+  defaultKeymap,
+  setDefaultKeymap,
+  type KeymapScope,
+  type KeymapService,
+  type KeymapServiceDeps,
+} from '../commands/keymap-service.ts'
+export {
+  createNativeMenuService,
+  createUnsupportedNativeMenuHost,
+  defaultNativeMenu,
+  setDefaultNativeMenu,
+  type AppMenuEntry,
+  type AppSubmenuLayout,
+  type FocusedNoteMenuCommand,
+  type MenuCommandDispatch,
+  type NativeAppMenu,
+  type NativeContextMenuItem,
+  type NativeContextMenuOptions,
+  type NativeMenuHost,
+  type NativeMenuItem,
+  type NativeMenuPredefinedItem,
+  type NativeMenuService,
+  type NativeMenuServiceDeps,
+  type NativeSubmenu,
+} from '../commands/native-menu-service.ts'

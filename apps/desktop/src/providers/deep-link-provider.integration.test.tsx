@@ -1,56 +1,50 @@
-import { createTestOperationsService } from '@reflect/core/testing'
-import { setDefaultOperations } from '@reflect/core'
 import { render } from 'vitest-browser-react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { GraphInfo } from '@reflect/core'
-import { dispatchDeepLink, resetDeepLinkIntakeForTests } from '@/lib/deep-links/intake.ts'
-
-const resolveNoteTarget = vi.hoisted(() => vi.fn())
-const captureInboxSpool = vi.hoisted(() => vi.fn(async () => {}))
-const navigate = vi.hoisted(() => vi.fn())
-const navigation = vi.hoisted(() => ({ revision: 0 }))
-
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  resolveNoteTarget,
-  captureInboxSpool,
-}))
-vi.mock('@/routing/router.tsx', () => ({
-  useRouter: () => ({ navigate, navigationRevision: () => navigation.revision }),
-}))
-
+import {
+  createTestAppServices,
+  createTestCaptureInboxService,
+  createTestDeepLinkService,
+  installTestServices,
+} from '@reflect/core/testing'
+import { dispatchDeepLink } from '@/lib/deep-links/intake.ts'
+import { RouterProvider } from '@/routing/router.tsx'
 import { DeepLinkProvider } from './deep-link-provider.tsx'
 
 const GRAPH: GraphInfo = { root: '/g', name: 'g', generation: 7 }
 
-beforeEach(() => {
-  setDefaultOperations(createTestOperationsService())
-  vi.clearAllMocks()
-  resetDeepLinkIntakeForTests()
-  navigation.revision = 0
-})
-
-afterEach(() => {
-  setDefaultOperations(null)
-  resetDeepLinkIntakeForTests()
-})
-
 describe('DeepLinkProvider navigation intent integration', () => {
   it('keeps a deferred note resolution current when a capture arrives', async () => {
     const pendingResolution = Promise.withResolvers<string>()
-    resolveNoteTarget.mockReturnValue(pendingResolution.promise)
-    await render(<DeepLinkProvider graph={GRAPH}>{null}</DeepLinkProvider>)
+    const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>(
+      () => pendingResolution.promise,
+    )
+    const captureInbox = createTestCaptureInboxService()
+    const app = createTestAppServices({
+      captureInbox,
+      deepLink: createTestDeepLinkService({ indexQuery: { resolveNoteTarget }, captureInbox }),
+    })
+    onTestFinished(installTestServices(app))
+    // Outside an `AppServicesProvider`: the provider and the free functions
+    // meet on the process-wide service.
+    await render(
+      <RouterProvider>
+        <DeepLinkProvider graph={GRAPH}>{null}</DeepLinkProvider>
+      </RouterProvider>,
+    )
 
     dispatchDeepLink('reflect://note/Project%20X')
     expect(resolveNoteTarget).toHaveBeenCalledWith('Project X')
 
     dispatchDeepLink('reflect://append?text=captured%20while%20resolving')
-    await vi.waitFor(() => expect(captureInboxSpool).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(app.captureInbox.spooled()).toHaveLength(1))
 
     pendingResolution.resolve('notes/project-x.md')
 
     await vi.waitFor(() =>
-      expect(navigate).toHaveBeenCalledWith({ kind: 'note', path: 'notes/project-x.md' }),
+      expect(app.navigation.navigations().map((call) => call.route)).toEqual([
+        { kind: 'note', path: 'notes/project-x.md' },
+      ]),
     )
   })
 })

@@ -1,3 +1,6 @@
+/** The graph folder created for a fresh start: reads as `iCloud Drive -> Reflect -> Notes` in Files/Finder. */
+export const DEFAULT_GRAPH_NAME = 'Notes'
+
 /** `/.../Documents/My Notes` -> `My Notes`. */
 export function graphNameFromRoot(root: string, fallback = ''): string {
   return root.split('/').findLast(Boolean) ?? fallback

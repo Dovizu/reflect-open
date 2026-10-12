@@ -167,6 +167,13 @@ export {
   type TestGraphSessionService,
   type TestGraphSessionServiceOptions,
 } from './graph-session.ts'
+export { createTestV1ImportService } from './v1-import.ts'
+export { createTestKeyboardService, createTestShareService } from './mobile.ts'
+export {
+  createTestMobileOnboardingService,
+  type TestMobileOnboardingService,
+  type TestMobileOnboardingServiceOptions,
+} from './mobile-onboarding.ts'
 export {
   createTestIndexLifecycleService,
   type TestIndexLifecycleService,
@@ -236,7 +243,12 @@ export {
   type TestPrivacyServiceOptions,
 } from './privacy.ts'
 export {
+  createTestDeepLinkService,
+  createTestDeepLinkSource,
   createTestNavigationService,
+  type TestDeepLinkService,
+  type TestDeepLinkServiceOptions,
+  type TestDeepLinkSource,
   type TestNavigateCall,
   type TestNavigationService,
   type TestNavigationServiceOptions,
@@ -277,3 +289,13 @@ export {
   type TestPaywallService,
   type TestSubscriptionService,
 } from './monetization.ts'
+export {
+  createTestCommandService,
+  createTestKeymapService,
+  createTestNativeMenuHost,
+  createTestNativeMenuService,
+  type TestNativeMenuHost,
+  type TestNativeMenuHostCall,
+  type TestNativeMenuService,
+  type TestNativeMenuServiceOptions,
+} from './commands.ts'
