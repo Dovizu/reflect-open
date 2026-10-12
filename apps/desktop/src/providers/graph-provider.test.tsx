@@ -2,13 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { open } from '@tauri-apps/plugin-dialog'
-import { setBridge } from '@reflect/core'
+import {
+  createConsoleLogger,
+  createSingleWindowHost,
+  createWindowService,
+  currentIpc,
+  setBridge,
+  setDefaultDialog,
+  setDefaultWindow,
+} from '@reflect/core'
+import { createTestDialogService, type TestDialogService } from '@reflect/core/testing'
 import { GraphProvider, useGraph } from './graph-provider.tsx'
 import { SettingsProvider } from './settings-provider.tsx'
 import { queryClient as appQueryClient, queryKeys } from '@/lib/query-client.ts'
 
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
 vi.mock('@/lib/platform.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
   isNativeShell: () => true,
@@ -156,9 +163,21 @@ function mobileWrapper({ children }: { children: ReactNode }) {
   )
 }
 
+let dialog: TestDialogService
+
 beforeEach(() => {
   installFakeBridge()
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  dialog = createTestDialogService()
+  setDefaultDialog(dialog)
+  // A desktop shell with note windows, so a graph switch closes them over the fake bridge.
+  setDefaultWindow(
+    createWindowService({
+      ipc: currentIpc(),
+      host: { ...createSingleWindowHost(), multiWindow: true },
+      logger: createConsoleLogger(),
+    }),
+  )
 })
 
 afterEach(() => {
@@ -291,7 +310,6 @@ describe('GraphProvider open sequencing', () => {
     })
     await vi.waitFor(() => expect(result.current.status).toBe('ready'))
 
-    vi.mocked(open).mockClear()
     await act(async () => {
       await result.current.chooseGraph()
     })
@@ -299,14 +317,14 @@ describe('GraphProvider open sequencing', () => {
     expect(result.current.status).toBe('choosing')
     expect(result.current.graph).toBeNull()
     expect(result.current.indexGeneration).toBeNull()
-    expect(open).not.toHaveBeenCalled()
+    expect(dialog.calls()).toEqual([])
     expect(result.current.recents).toEqual(storedRecents)
   })
 })
 
 describe('GraphProvider welcome seeding', () => {
   it('seeds an empty unmarked graph and stamps the welcomeSeeded marker', async () => {
-    vi.mocked(open).mockResolvedValue('/fresh')
+    dialog.setFolder('/fresh')
     const { result, act } = await renderHook(() => useGraph(), { wrapper })
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 

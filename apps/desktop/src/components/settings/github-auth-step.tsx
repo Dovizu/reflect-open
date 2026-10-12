@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState, type ReactElement } from 'react'
-import { openUrl } from '@tauri-apps/plugin-opener'
-import { isDeviceFlowConfigured, saveGithubAuth, type GithubUser } from '@reflect/core'
+import {
+  defaultClipboard,
+  isDeviceFlowConfigured,
+  saveGithubAuth,
+  type GithubUser,
+} from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { Input } from '@/components/ui/input.tsx'
@@ -8,6 +12,7 @@ import { useAsyncAction } from '@/hooks/use-async-action.ts'
 import { useDeviceFlowAuth } from '@/hooks/use-device-flow-auth.ts'
 import { fetchSignedInUser } from '@/lib/github-account.ts'
 import { invalidateGithubAuth } from '@/lib/github-auth-state.ts'
+import { openUrl } from '@/lib/open-url.ts'
 
 interface GithubAuthStepProps {
   /**
@@ -106,7 +111,7 @@ export function GithubAuthStep({ onAuthed, repoName }: GithubAuthStepProps): Rea
   }): Promise<void> {
     if (copyState !== 'failed') {
       try {
-        await navigator.clipboard.writeText(flow.userCode)
+        await defaultClipboard().writeText(flow.userCode)
         setCopyState('copied')
       } catch {
         setCopyState('failed')

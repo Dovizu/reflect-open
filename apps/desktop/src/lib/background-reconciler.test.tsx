@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
+import { setDefaultLifecycle } from '@reflect/core'
+import { createTestLifecycleService } from '@reflect/core/testing'
 import { createBackgroundReconciler } from './background-reconciler.ts'
 
 /** Drain the microtask/macrotask queue so the loop's awaits settle. */
@@ -101,7 +103,9 @@ describe('createBackgroundReconciler', () => {
     expect(pass).not.toHaveBeenCalled()
   })
 
-  it('retries on window focus/online and removes the listeners on dispose', async () => {
+  it('retries on wake and stops listening on dispose', async () => {
+    const lifecycle = createTestLifecycleService()
+    setDefaultLifecycle(lifecycle)
     let calls = 0
     const reconciler = createBackgroundReconciler({
       pass: async () => {
@@ -110,16 +114,16 @@ describe('createBackgroundReconciler', () => {
     })
     reconciler.retryOnWake()
 
-    window.dispatchEvent(new Event('focus'))
+    lifecycle.emitWake()
     await tick()
     expect(calls).toBe(1)
 
-    window.dispatchEvent(new Event('online'))
+    lifecycle.emitWake()
     await tick()
     expect(calls).toBe(2)
 
     reconciler.dispose()
-    window.dispatchEvent(new Event('focus'))
+    lifecycle.emitWake()
     await tick()
     expect(calls).toBe(2) // listener removed on dispose
   })

@@ -2,7 +2,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS, getConflictedNotes, type GraphInfo, type Settings } from '@reflect/core'
+import {
+  DEFAULT_SETTINGS,
+  getConflictedNotes,
+  setDefaultOpener,
+  type GraphInfo,
+  type Settings,
+} from '@reflect/core'
+import { createTestOpenerService, type TestOpenerService } from '@reflect/core/testing'
 import type { BackupState } from '@/lib/backup-controller.ts'
 import '@/test-utils/locator.ts'
 import { MobileSettings } from './settings.tsx'
@@ -33,8 +40,7 @@ vi.mock('@/providers/graph-provider.tsx', () => ({
 }))
 vi.mock('@/hooks/use-app-version.ts', () => ({ useAppVersion: () => '1.2.3-beta.4' }))
 
-const openUrl = vi.hoisted(() => vi.fn(() => Promise.resolve()))
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }))
+let opener: TestOpenerService
 
 const settingsState = vi.hoisted(() => ({ current: {} as Settings }))
 const updateSettings = vi.hoisted(() => vi.fn())
@@ -91,6 +97,8 @@ let queryClient: QueryClient
 
 beforeEach(async () => {
   await page.viewport(375, 700)
+  opener = createTestOpenerService()
+  setDefaultOpener(opener)
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   settingsState.current = { ...DEFAULT_SETTINGS }
   graphState.mobileStorageKind = 'icloud'
@@ -138,7 +146,7 @@ describe('MobileSettings', () => {
 
     await user.click(page.getByRole('button', { name: 'Privacy Policy' }))
 
-    expect(openUrl).toHaveBeenCalledWith('https://reflect.app/privacy')
+    await vi.waitFor(() => expect(opener.openedUrls()).toEqual(['https://reflect.app/privacy']))
   })
 
   it('writes appearance choices to the settings document', async () => {

@@ -8,9 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { homeDir, join } from '@tauri-apps/api/path'
-import { open } from '@tauri-apps/plugin-dialog'
 import {
+  defaultDialog,
+  defaultPath,
   deleteGraph as deleteGraphCommand,
   errorMessage,
   forgetRecent,
@@ -116,8 +116,7 @@ async function pickerDefaultPath(hasRecents: boolean): Promise<{ defaultPath: st
     return null
   }
   try {
-    const home = await homeDir()
-    return { defaultPath: await join(home, 'Library', 'Mobile Documents', 'com~apple~CloudDocs') }
+    return { defaultPath: await defaultPath().icloudDriveRoot() }
   } catch (err) {
     console.warn('iCloud Drive picker suggestion failed:', errorMessage(err))
     return null
@@ -411,13 +410,10 @@ export function GraphProvider({
   const pickAndOpen = useCallback(async (): Promise<void> => {
     let selected: string | null = null
     try {
-      const result = await open({
-        directory: true,
-        multiple: false,
+      selected = await defaultDialog().pickFolder({
         title: 'Choose a graph folder',
         ...(await pickerDefaultPath(recents.length > 0)),
       })
-      selected = typeof result === 'string' ? result : null
     } catch (err) {
       setError(errorMessage(err))
       return

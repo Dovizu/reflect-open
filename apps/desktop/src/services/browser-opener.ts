@@ -1,0 +1,13 @@
+import type { OpenerTransport } from '@reflect/core'
+
+/** Plain-browser dev opens URLs in a new tab and has no file manager. */
+export function createBrowserOpenerTransport(): OpenerTransport {
+  return {
+    openUrl: async (url) => {
+      window.open(url, '_blank', 'noopener')
+    },
+    revealItemInDir: async (path) => {
+      throw new Error(`cannot reveal ${path}: the browser has no file manager`)
+    },
+  }
+}

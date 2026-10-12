@@ -1,10 +1,6 @@
-import { z } from 'zod'
-import { call } from '../ipc/invoke.ts'
+import { defaultLifecycle, type BackgroundTaskToken } from './lifecycle-service.ts'
 
-const backgroundTaskTokenSchema = z.string()
-
-/** Opaque handle for one finite-length native background execution assertion. */
-export type BackgroundTaskToken = z.infer<typeof backgroundTaskTokenSchema>
+export type { BackgroundTaskToken } from './lifecycle-service.ts'
 
 /**
  * Ask the native shell to keep a finite persistence pass running after iOS
@@ -12,13 +8,13 @@ export type BackgroundTaskToken = z.infer<typeof backgroundTaskTokenSchema>
  * must still attempt their best-effort flush.
  */
 export function beginBackgroundTask(): Promise<BackgroundTaskToken | null> {
-  return call('background_task_begin', {}, backgroundTaskTokenSchema.nullable())
+  return defaultLifecycle().beginBackgroundTask()
 }
 
 /**
  * Balance {@link beginBackgroundTask}. The shell treats expired or repeated
  * tokens as no-ops, so cleanup is safe from a `finally` block.
  */
-export async function endBackgroundTask(token: BackgroundTaskToken): Promise<void> {
-  await call('background_task_end', { token }, z.null())
+export function endBackgroundTask(token: BackgroundTaskToken): Promise<void> {
+  return defaultLifecycle().endBackgroundTask(token)
 }

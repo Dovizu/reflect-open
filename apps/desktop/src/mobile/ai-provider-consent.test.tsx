@@ -1,13 +1,13 @@
 import { render } from 'vitest-browser-react'
 import { describe, expect, it, vi } from 'vitest'
-import { aiProvider } from '@reflect/core'
+import { aiProvider, setDefaultOpener } from '@reflect/core'
+import { createTestOpenerService } from '@reflect/core/testing'
 import { AiProviderConsent } from './ai-provider-consent.tsx'
-
-const openUrl = vi.hoisted(() => vi.fn(() => Promise.resolve()))
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }))
 
 describe('AiProviderConsent', () => {
   it('opens the privacy policy in the system browser', async () => {
+    const opener = createTestOpenerService()
+    setDefaultOpener(opener)
     const view = await render(
       <AiProviderConsent
         provider={aiProvider('openai')}
@@ -17,7 +17,7 @@ describe('AiProviderConsent', () => {
     )
 
     await view.getByRole('button', { name: 'Privacy policy' }).click()
-    expect(openUrl).toHaveBeenCalledWith('https://reflect.app/privacy')
+    await vi.waitFor(() => expect(opener.openedUrls()).toEqual(['https://reflect.app/privacy']))
   })
 
   it('reports checkbox changes to the owner', async () => {

@@ -1,5 +1,4 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { isNativeShell } from '@/lib/platform.ts'
+import { defaultWindow } from '@reflect/core'
 
 /**
  * Which window this webview is: the main window (the config-declared `main`
@@ -13,19 +12,7 @@ import { isNativeShell } from '@/lib/platform.ts'
  * through this predicate so the ownership rule lives in one place.
  */
 export function isMainWindow(): boolean {
-  if (!isNativeShell()) {
-    return true // no Tauri window metadata (browser dev, tests): one window
-  }
-  try {
-    return getCurrentWindow().label === 'main'
-  } catch (cause) {
-    // In a real Tauri webview the internals are injected before any script
-    // runs, so this can't fire; warn loudly in case that assumption ever
-    // breaks (a misclassified note window would boot the main-window
-    // singletons).
-    console.warn('window label unavailable; assuming the main window:', cause)
-    return true
-  }
+  return defaultWindow().isMainWindow()
 }
 
 /**

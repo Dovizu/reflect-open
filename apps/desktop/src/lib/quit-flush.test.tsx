@@ -33,7 +33,7 @@ vi.mock('@tauri-apps/api/window', () => ({
 
 vi.mock('@reflect/core', () => ({
   confirmQuit: core.confirmQuit,
-  subscribeQuitRequested: async (handler: () => void) => {
+  subscribeQuitRequested: (handler: () => void) => {
     core.quitRequested = handler
     return core.unlisten
   },

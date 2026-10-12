@@ -3,7 +3,8 @@ import { cleanup, renderHook } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import type { LinkClickHandler } from '@meowdown/core'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { setDefaultOpener } from '@reflect/core'
+import { createTestOpenerService, type TestOpenerService } from '@reflect/core/testing'
 import { dispatchDeepLink } from '@/lib/deep-links/intake.ts'
 import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
 import { RouterProvider, useRouter } from '@/routing/router.tsx'
@@ -11,10 +12,6 @@ import { RouterProvider, useRouter } from '@/routing/router.tsx'
 const openDeepLinkInNewWindow = vi.hoisted(() => vi.fn<() => Promise<boolean>>())
 const resolveExistingMarkdownTarget = vi.hoisted(() => vi.fn())
 const openAsset = vi.hoisted(() => vi.fn(async () => {}))
-
-vi.mock('@tauri-apps/plugin-opener', () => ({
-  openUrl: vi.fn(async () => {}),
-}))
 
 vi.mock('@/lib/deep-links/intake.ts', () => ({
   dispatchDeepLink: vi.fn(),
@@ -60,8 +57,12 @@ function click(href: string, metaKey = false): MouseEvent {
   return event
 }
 
+let opener: TestOpenerService
+
 beforeEach(async () => {
   vi.clearAllMocks()
+  opener = createTestOpenerService()
+  setDefaultOpener(opener)
   openDeepLinkInNewWindow.mockResolvedValue(true)
   resolveExistingMarkdownTarget.mockResolvedValue({ kind: 'missing' })
   await mount(7, 'projects/TASKS.md')
@@ -73,7 +74,7 @@ describe('useMarkdownLinkClick', () => {
   it('opens an http(s) link in the OS browser and blocks the frame navigation', async () => {
     const event = click('https://example.com')
 
-    expect(openUrl).toHaveBeenCalledWith('https://example.com')
+    expect(opener.openedUrls()).toEqual(['https://example.com'])
     expect(event.defaultPrevented).toBe(true)
   })
 
@@ -81,7 +82,7 @@ describe('useMarkdownLinkClick', () => {
     click('reflect://note/abc123')
 
     expect(dispatchDeepLink).toHaveBeenCalledWith('reflect://note/abc123')
-    expect(openUrl).not.toHaveBeenCalled()
+    expect(opener.openedUrls()).toEqual([])
   })
 
   it('⌘-clicks a rendered reflect:// link into a secondary window', async () => {
@@ -96,7 +97,9 @@ describe('useMarkdownLinkClick', () => {
   it('opens a custom app scheme in its OS default app', async () => {
     const event = click('x-devonthink-item://40C88434-68B6-4DCB-A258-754679764C3C')
 
-    expect(openUrl).toHaveBeenCalledWith('x-devonthink-item://40C88434-68B6-4DCB-A258-754679764C3C')
+    expect(opener.openedUrls()).toEqual([
+      'x-devonthink-item://40C88434-68B6-4DCB-A258-754679764C3C',
+    ])
     expect(event.defaultPrevented).toBe(true)
   })
 
@@ -109,7 +112,7 @@ describe('useMarkdownLinkClick', () => {
   ])('drops the unsafe scheme %s without opening anything', (href) => {
     const event = click(href)
 
-    expect(openUrl).not.toHaveBeenCalled()
+    expect(opener.openedUrls()).toEqual([])
     expect(dispatchDeepLink).not.toHaveBeenCalled()
     expect(event.defaultPrevented).toBe(true)
   })
@@ -129,7 +132,7 @@ describe('useMarkdownLinkClick', () => {
     await expect
       .element(route)
       .toMatchTextContent('{"kind":"note","path":"projects/roadmap/plan.md"}')
-    expect(openUrl).not.toHaveBeenCalled()
+    expect(opener.openedUrls()).toEqual([])
     expect(event.defaultPrevented).toBe(true)
   })
 
@@ -137,7 +140,7 @@ describe('useMarkdownLinkClick', () => {
     click('assets/cat.png')
 
     await vi.waitFor(() => expect(openAsset).toHaveBeenCalledWith('assets/cat.png', 7))
-    expect(openUrl).not.toHaveBeenCalled()
+    expect(opener.openedUrls()).toEqual([])
     expect(resolveExistingMarkdownTarget).not.toHaveBeenCalled()
   })
 
@@ -149,7 +152,7 @@ describe('useMarkdownLinkClick', () => {
 
     expect(openAsset).not.toHaveBeenCalled()
     expect(resolveExistingMarkdownTarget).not.toHaveBeenCalled()
-    expect(openUrl).not.toHaveBeenCalled()
+    expect(opener.openedUrls()).toEqual([])
     expect(dispatchDeepLink).not.toHaveBeenCalled()
     expect(asset.defaultPrevented).toBe(true)
     expect(note.defaultPrevented).toBe(true)

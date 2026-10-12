@@ -155,8 +155,6 @@ export function NoteFindProvider({ children }: { children: ReactNode }): ReactEl
   // it listens for the shortcuts and the routed menu events itself.
   useEffect(() => {
     if (isMainWindow()) return
-    let disposed = false
-    let unlistenMenu = (): void => {}
 
     function onMenuCommand(command: FocusedNoteMenuCommand): void {
       switch (command) {
@@ -172,14 +170,7 @@ export function NoteFindProvider({ children }: { children: ReactNode }): ReactEl
       }
     }
 
-    void listenForFocusedNoteMenuCommands(onMenuCommand)
-      .then((unlisten) => {
-        if (disposed) unlisten()
-        else unlistenMenu = unlisten
-      })
-      .catch((cause: unknown) => {
-        console.error('note menu listener failed:', cause)
-      })
+    const unlistenMenu = listenForFocusedNoteMenuCommands(onMenuCommand)
 
     function onKeyDown(event: KeyboardEvent): void {
       if (event.defaultPrevented || event.altKey || event.repeat || getIsComposing()) return
@@ -197,7 +188,6 @@ export function NoteFindProvider({ children }: { children: ReactNode }): ReactEl
     }
     window.addEventListener('keydown', onKeyDown)
     return () => {
-      disposed = true
       unlistenMenu()
       window.removeEventListener('keydown', onKeyDown)
     }

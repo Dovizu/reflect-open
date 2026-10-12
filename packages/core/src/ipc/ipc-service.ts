@@ -248,3 +248,41 @@ export function createIpcBridgeService(
     hasPluginEvents: transport.listenPlugin !== undefined,
   }
 }
+
+/**
+ * Run an asynchronous subscription and return its teardown at once. The
+ * teardown also cancels a registration that lands later; a failed
+ * registration goes to `onError`.
+ */
+export function listenNow(
+  register: () => Promise<Unlisten>,
+  onError: (cause: unknown) => void,
+): Unlisten {
+  let disposed = false
+  let unlisten: Unlisten | null = null
+  let pending: Promise<Unlisten>
+  try {
+    pending = register()
+  } catch (error) {
+    pending = Promise.reject(error)
+  }
+  void pending.then(
+    (registered) => {
+      if (disposed) {
+        registered()
+      } else {
+        unlisten = registered
+      }
+    },
+    (error: unknown) => {
+      if (!disposed) {
+        onError(error)
+      }
+    },
+  )
+  return () => {
+    disposed = true
+    unlisten?.()
+    unlisten = null
+  }
+}

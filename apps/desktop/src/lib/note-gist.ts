@@ -1,6 +1,7 @@
 import {
   assertCloudAllowed,
   createGist,
+  defaultClipboard,
   deleteGist,
   errorMessage,
   getGithubToken,
@@ -179,7 +180,7 @@ export async function runGistPublish(path: string, generation: number): Promise<
     // that resolves after a graph switch can't surface on the new graph.
     setNoteRowOverlay(path, generation, { gistUrl: url, gistStale: false })
     try {
-      await navigator.clipboard.writeText(url)
+      await defaultClipboard().writeText(url)
       startOperation('Gist link copied').done()
     } catch (cause) {
       startOperation('Copying the gist link').fail(errorMessage(cause))

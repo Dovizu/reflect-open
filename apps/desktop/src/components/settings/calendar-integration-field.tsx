@@ -1,6 +1,11 @@
 import { useMemo, type ReactElement, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { canReadCalendars, requestCalendarAccess, type CalendarInfo } from '@reflect/core'
+import {
+  canReadCalendars,
+  defaultOpener,
+  requestCalendarAccess,
+  type CalendarInfo,
+} from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { Checkbox } from '@/components/ui/checkbox.tsx'
@@ -13,7 +18,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog.tsx'
-import { openUrlSync } from '@/lib/open-url.ts'
 import { isMacosDesktop } from '@/lib/platform.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import {
@@ -23,10 +27,6 @@ import {
 } from '@/lib/use-calendar.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { SettingsSwitchField } from './switch-field.tsx'
-
-/** The macOS privacy pane where a revoked calendar grant is flipped back on. */
-const CALENDAR_PRIVACY_PANE =
-  'x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars'
 
 const ACTION_BUTTON_CLASS =
   'rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-text-secondary transition-colors duration-100 hover:bg-surface-hover'
@@ -110,7 +110,7 @@ export function CalendarIntegrationField(): ReactElement | null {
             <button
               type="button"
               onClick={() => {
-                openUrlSync(CALENDAR_PRIVACY_PANE)
+                defaultOpener().openSystemSettings('calendar')
               }}
               className={ACTION_BUTTON_CLASS}
             >

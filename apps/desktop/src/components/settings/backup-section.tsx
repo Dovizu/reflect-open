@@ -1,5 +1,4 @@
 import { useRef, useState, type ReactElement } from 'react'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { ConnectGithubDialog } from '@/components/settings/connect-github-dialog.tsx'
@@ -12,6 +11,7 @@ import { useAsyncAction } from '@/hooks/use-async-action.ts'
 import { useBridgeReady } from '@/hooks/use-bridge-ready.ts'
 import { useGithubConnected } from '@/hooks/use-github-connected.ts'
 import { suggestRepoName } from '@/lib/github-repos.ts'
+import { openUrl } from '@/lib/open-url.ts'
 import {
   createConflictedNotesQueryOptions,
   createDuplicateNoteIdsQueryOptions,

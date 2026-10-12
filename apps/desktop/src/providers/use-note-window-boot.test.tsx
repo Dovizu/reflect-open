@@ -3,11 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WindowBootstrap } from '@reflect/core'
 
 const windowBootstrap = vi.hoisted(() => vi.fn<() => Promise<WindowBootstrap>>())
-const subscribeIndexWritten = vi.hoisted(() =>
-  vi.fn<(handler: () => void) => Promise<() => void>>(),
-)
+const subscribeIndexWritten = vi.hoisted(() => vi.fn<(handler: () => void) => () => void>())
 const subscribeWindowNavigate = vi.hoisted(() =>
-  vi.fn<(handler: (url: string) => void) => Promise<() => void>>(),
+  vi.fn<(handler: (url: string) => void) => () => void>(),
 )
 const isMainWindow = vi.hoisted(() => vi.fn(() => false))
 const dispatchDeepLink = vi.hoisted(() => vi.fn())
@@ -49,8 +47,8 @@ beforeEach(() => {
   resetInitialWindowRouteForTests()
   isMainWindow.mockReturnValue(false)
   windowBootstrap.mockResolvedValue(BOOT)
-  subscribeIndexWritten.mockResolvedValue(() => {})
-  subscribeWindowNavigate.mockResolvedValue(() => {})
+  subscribeIndexWritten.mockReturnValue(() => {})
+  subscribeWindowNavigate.mockReturnValue(() => {})
 })
 
 describe('useNoteWindowBoot', () => {
@@ -110,8 +108,8 @@ describe('useNoteWindowBoot', () => {
   it('unsubscribes both listeners on unmount', async () => {
     const unlistenWritten = vi.fn()
     const unlistenNavigate = vi.fn()
-    subscribeIndexWritten.mockResolvedValue(unlistenWritten)
-    subscribeWindowNavigate.mockResolvedValue(unlistenNavigate)
+    subscribeIndexWritten.mockReturnValue(unlistenWritten)
+    subscribeWindowNavigate.mockReturnValue(unlistenNavigate)
     const { onAdopted, view } = await mount()
     await vi.waitFor(() => expect(onAdopted).toHaveBeenCalled())
     await view.unmount()

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { defaultLogger } from '../app/logger-service.ts'
+import { defaultWindow } from '../app/window-service.ts'
 import { echoLocalWrite } from '../indexing/local-write-echo.ts'
 import { getBridge, type Unlisten } from '../ipc/bridge.ts'
 import { call } from '../ipc/invoke.ts'
@@ -10,7 +11,6 @@ import {
   graphInfoSchema,
   noteCreateOutcomeSchema,
   recentGraphSchema,
-  windowBootstrapSchema,
   type FileMeta,
   type GraphImportProgress,
   type GraphImportSummary,
@@ -29,32 +29,13 @@ export async function openGraph(path: string): Promise<GraphInfo> {
 }
 
 /**
- * Open (or focus) a secondary note window on a `reflect://` route link
- * (⌘-click a note link). Desktop-only; requires an open graph, which the new
- * window adopts — see {@link windowBootstrap}.
- */
-export async function openNoteWindow(deepLink: string): Promise<void> {
-  await call('open_note_window', { deepLink }, voidSchema)
-}
-
-/**
  * Adopt the already-open graph for a secondary note window: a pure read of
  * the current graph + index sessions (never `graph_open`/`index_open`, whose
  * generation bumps would strand the main window's pinned commands) plus the
  * one-shot deep link the window was created for. Errors when no graph is open.
  */
 export async function windowBootstrap(): Promise<WindowBootstrap> {
-  return await call('window_bootstrap', {}, windowBootstrapSchema)
-}
-
-/**
- * Close every note window and wait (bounded) for their flushes to land.
- * Call BEFORE anything that bumps the graph/index generations (switch,
- * delete): note windows adopted the outgoing session, and a bump-first
- * ordering would reject their final saves as stale.
- */
-export async function closeNoteWindows(): Promise<void> {
-  await call('close_note_windows', {}, voidSchema)
+  return await defaultWindow().bootstrap()
 }
 
 /** Create a new graph at `path` and open it. */

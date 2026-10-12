@@ -1,5 +1,4 @@
-import { open } from '@tauri-apps/plugin-dialog'
-import { assetFileName, errorMessage, importAsset } from '@reflect/core'
+import { assetFileName, defaultDialog, errorMessage, importAsset } from '@reflect/core'
 import { noteEditorHandleFor } from '@/editor/editor-handle-registry.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { startOperation } from '@/lib/operations.ts'
@@ -35,11 +34,10 @@ export async function attachFilesToNote(context: CommandContext): Promise<void> 
   if (noteEditorHandleFor(notePath) === null) {
     return
   }
-  const picked = await open({ multiple: true, title: 'Attach files' })
-  if (picked === null) {
+  const sources = await defaultDialog().pickFiles({ multiple: true, title: 'Attach files' })
+  if (sources === null) {
     return
   }
-  const sources = Array.isArray(picked) ? picked : [picked]
   const links: string[] = []
   const attachedNames: string[] = []
   const failures: { name: string; cause: unknown }[] = []

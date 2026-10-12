@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { openUrl } from '@tauri-apps/plugin-opener'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { setDefaultOpener } from '@reflect/core'
+import { createTestOpenerService } from '@reflect/core/testing'
 import type { BackupState } from '@/lib/backup-controller.ts'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import '@/test-utils/locator.ts'
@@ -19,10 +20,17 @@ const sync = vi.hoisted(() => ({
   backUpNow: vi.fn(async () => {}),
 }))
 const github = vi.hoisted(() => ({ connected: false }))
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn(async () => {}) }))
 vi.mock('@/providers/sync-provider.tsx', () => ({ useSync: () => sync }))
 vi.mock('@/providers/graph-provider.tsx', () => ({ useGraph: () => ({ graph: null }) }))
 vi.mock('@/hooks/use-github-connected.ts', () => ({ useGithubConnected: () => github.connected }))
+
+let openUrl: MockInstance<(url: string) => Promise<void>>
+
+beforeEach(() => {
+  const opener = createTestOpenerService()
+  setDefaultOpener(opener)
+  openUrl = vi.spyOn(opener, 'openUrl')
+})
 
 afterEach(async () => {
   await cleanup()
@@ -100,7 +108,7 @@ describe('BackupSettingsField', () => {
   })
 
   it('keeps unrelated action errors out of the sign-out dialog', async () => {
-    vi.mocked(openUrl).mockRejectedValueOnce(new Error('No browser'))
+    openUrl.mockRejectedValueOnce(new Error('No browser'))
     await renderSection({
       phase: 'connected',
       remoteUrl: 'https://github.com/alex/notes.git',
@@ -120,7 +128,7 @@ describe('BackupSettingsField', () => {
   })
 
   it('clears stale open-repo errors before retrying', async () => {
-    vi.mocked(openUrl).mockRejectedValueOnce(new Error('No browser'))
+    openUrl.mockRejectedValueOnce(new Error('No browser'))
     await renderSection({
       phase: 'connected',
       remoteUrl: 'https://github.com/alex/notes.git',
@@ -139,7 +147,7 @@ describe('BackupSettingsField', () => {
 
   it('ignores an older open-repo failure after a newer retry succeeds', async () => {
     let rejectFirstOpen: (reason?: unknown) => void = () => {}
-    vi.mocked(openUrl)
+    openUrl
       .mockImplementationOnce(
         () =>
           new Promise<void>((_resolve, reject) => {

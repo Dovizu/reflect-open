@@ -1,5 +1,6 @@
 import {
   dateFromDailyPath,
+  defaultClipboard,
   errorMessage,
   indexNote,
   isDaily,
@@ -63,7 +64,7 @@ export async function runCopyDeepLink(path: string, generation: number): Promise
     return
   }
   try {
-    await navigator.clipboard.writeText(url)
+    await defaultClipboard().writeText(url)
     startOperation('Deep link copied').done()
   } catch (cause) {
     startOperation('Copying deep link').fail(errorMessage(cause))

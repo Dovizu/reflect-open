@@ -1,4 +1,4 @@
-import { errorMessage, openNoteWindow } from '@reflect/core'
+import { defaultWindow } from '@reflect/core'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 import { parseDeepLink } from '@/lib/deep-links/parse.ts'
 import { isNativeShell } from '@/lib/platform.ts'
@@ -19,9 +19,6 @@ export interface ModClickEvent {
   ctrlKey: boolean
 }
 
-/** Coalesce double-clicks before the shell has registered its content-addressed window label. */
-const pendingWindowOpens = new Map<string, Promise<boolean>>()
-
 /**
  * Open `route` in a secondary note window. False — never a throw — when this
  * surface can't (no shell, mobile, a route the deep-link grammar doesn't
@@ -36,7 +33,7 @@ export async function openRouteInNewWindow(route: Route): Promise<boolean> {
   if (link === null) {
     return false
   }
-  return await openWindowFor(link)
+  return await defaultWindow().openNoteWindow(link)
 }
 
 /**
@@ -53,29 +50,5 @@ export async function openDeepLinkInNewWindow(href: string): Promise<boolean> {
   if (link === null || link.kind === 'capture') {
     return false
   }
-  return await openWindowFor(href)
-}
-
-async function openWindowFor(link: string): Promise<boolean> {
-  const pending = pendingWindowOpens.get(link)
-  if (pending !== undefined) {
-    return await pending
-  }
-
-  const opening = (async (): Promise<boolean> => {
-    try {
-      await openNoteWindow(link)
-      return true
-    } catch (cause) {
-      console.error('open in new window failed:', errorMessage(cause))
-      return false
-    }
-  })()
-  pendingWindowOpens.set(link, opening)
-  void opening.finally(() => {
-    if (pendingWindowOpens.get(link) === opening) {
-      pendingWindowOpens.delete(link)
-    }
-  })
-  return await opening
+  return await defaultWindow().openNoteWindow(href)
 }

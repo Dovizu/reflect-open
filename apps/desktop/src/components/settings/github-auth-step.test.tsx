@@ -1,9 +1,13 @@
 import { cleanup, render } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { runDeviceFlow, setBridge } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { runDeviceFlow, setBridge, setDefaultClipboard, setDefaultOpener } from '@reflect/core'
+import {
+  createTestClipboardService,
+  createTestOpenerService,
+  type TestClipboardService,
+} from '@reflect/core/testing'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import '@/test-utils/locator.ts'
 import { GithubAuthStep } from './github-auth-step.tsx'
@@ -20,13 +24,11 @@ vi.mock('@/lib/platform.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
   isNativeShell: () => true,
 }))
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn(async () => {}) }))
 vi.mock('@reflect/core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@reflect/core')>()),
   runDeviceFlow: vi.fn(),
 }))
 const httpFetch = vi.mocked(tauriFetch)
-const openedUrls = vi.mocked(openUrl)
 const mockFlow = vi.mocked(runDeviceFlow)
 
 /** Switch the step from the device-flow lead to PAT entry. */
@@ -47,17 +49,22 @@ async function renderCodeView(): Promise<void> {
   await expect.element(page.getByText('ABCD-1234')).toBeVisible()
 }
 
-function stubClipboard(writeText: (text: string) => Promise<void>): void {
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
-}
+let clipboard: TestClipboardService
+let openedUrls: MockInstance<(url: string) => Promise<void>>
+
+beforeEach(() => {
+  clipboard = createTestClipboardService()
+  setDefaultClipboard(clipboard)
+  const opener = createTestOpenerService()
+  setDefaultOpener(opener)
+  openedUrls = vi.spyOn(opener, 'openUrl')
+})
 
 afterEach(async () => {
   await cleanup()
   setBridge(null)
   httpFetch.mockReset()
-  openedUrls.mockClear() // clear calls, keep the resolving implementation
   mockFlow.mockReset()
-  Reflect.deleteProperty(navigator, 'clipboard')
 })
 
 function fakeKeychain(initial: Record<string, string> = {}) {
@@ -213,8 +220,7 @@ describe('GithubAuthStep', () => {
   })
 
   it('copies the code to the clipboard before opening GitHub', async () => {
-    const writeText = vi.fn(async () => {})
-    stubClipboard(writeText)
+    const writeText = vi.spyOn(clipboard, 'writeText')
     await renderCodeView()
 
     // GitHub's page asks for the code immediately, so the browser must not
@@ -236,7 +242,6 @@ describe('GithubAuthStep', () => {
   it('surfaces the device URL when the browser cannot be opened', async () => {
     // The handoff URL appears only on failure — it is the one way left to
     // reach the page asking for the code.
-    stubClipboard(vi.fn(async () => {}))
     openedUrls.mockRejectedValueOnce(new Error('no handler for https'))
     await renderCodeView()
     await expect.element(page.getByText(/login\/device/)).not.toBeInTheDocument()
@@ -249,9 +254,7 @@ describe('GithubAuthStep', () => {
   })
 
   it('holds the GitHub handoff when the clipboard is unavailable', async () => {
-    stubClipboard(async () => {
-      throw new Error('denied')
-    })
+    clipboard.failWith(new Error('denied'))
     await renderCodeView()
 
     await userEvent.click(page.getByRole('button', { name: 'Copy code and open GitHub' }))

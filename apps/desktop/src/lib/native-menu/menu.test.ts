@@ -1,5 +1,7 @@
 import { isNotNullish } from '@ocavue/utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultWindow } from '@reflect/core'
+import { createTestWindowService, type TestWindowService } from '@reflect/core/testing'
 
 interface MenuItemOptionsForTest {
   readonly id?: string
@@ -7,12 +9,6 @@ interface MenuItemOptionsForTest {
   readonly accelerator?: string
   readonly action?: (commandId: string) => void
 }
-
-interface MenuEventForTest {
-  readonly payload: unknown
-}
-
-type MenuEventHandlerForTest = (event: MenuEventForTest) => void
 
 interface SubmenuOptionsForTest {
   readonly text: string
@@ -33,18 +29,8 @@ const submenuNew = vi.hoisted(() =>
 )
 const menuNew = vi.hoisted(() => vi.fn(async () => ({ setAsAppMenu })))
 const menuItemNew = vi.hoisted(() => vi.fn(async (options: MenuItemOptionsForTest) => options))
-const emitTo = vi.hoisted(() => vi.fn(async () => {}))
-const listen = vi.hoisted(() =>
-  vi.fn(async (_event: string, _handler: MenuEventHandlerForTest) => () => {}),
-)
-const getAllWebviewWindows = vi.hoisted(() => vi.fn())
 
 vi.mock('@tauri-apps/api/core', () => ({ isTauri, invoke }))
-vi.mock('@tauri-apps/api/event', () => ({ emitTo }))
-vi.mock('@tauri-apps/api/webviewWindow', () => ({
-  getAllWebviewWindows,
-  getCurrentWebviewWindow: () => ({ listen }),
-}))
 vi.mock('@tauri-apps/api/menu', () => ({
   Menu: { new: menuNew },
   MenuItem: { new: menuItemNew },
@@ -57,6 +43,8 @@ const { dispatchMenuCommand, listenForFocusedNoteMenuCommands, setMenuCommandDis
   await import('./dispatch.ts')
 const { appMenuLayout, installNativeMenu, isNativeMenuInstalled } = await import('./menu.ts')
 
+let windows: TestWindowService
+
 beforeEach(() => {
   vi.stubGlobal('navigator', { userAgent: 'Macintosh', maxTouchPoints: 0 })
   isTauri.mockReset().mockReturnValue(true)
@@ -68,11 +56,8 @@ beforeEach(() => {
   setAsWindowsMenuForNSApp.mockClear()
   setAsHelpMenuForNSApp.mockClear()
   invoke.mockClear()
-  emitTo.mockClear()
-  listen.mockClear()
-  getAllWebviewWindows
-    .mockReset()
-    .mockResolvedValue([{ label: 'main', isFocused: vi.fn(async () => true) }])
+  windows = createTestWindowService()
+  setDefaultWindow(windows)
 })
 
 afterEach(() => {
@@ -193,71 +178,53 @@ describe('installNativeMenu', () => {
 })
 
 describe('focused note menu dispatch', () => {
+  const event = 'reflect://focused-note-menu-command'
+
   it('routes Find menu actions to the focused secondary note window', async () => {
     const dispatch = vi.fn()
     setMenuCommandDispatch(dispatch)
-    getAllWebviewWindows.mockResolvedValue([
-      { label: 'main', isFocused: vi.fn(async () => false) },
-      { label: 'note-1', isFocused: vi.fn(async () => true) },
-    ])
+    windows.setFocusedWindowLabel('note-1')
 
     dispatchMenuCommand('note.find')
 
     await vi.waitFor(() => {
-      expect(emitTo).toHaveBeenCalledWith(
-        { kind: 'WebviewWindow', label: 'note-1' },
-        'reflect://focused-note-menu-command',
-        'note.find',
-      )
+      expect(windows.emitted()).toEqual([{ label: 'note-1', event, payload: 'note.find' }])
     })
     expect(dispatch).not.toHaveBeenCalled()
   })
 
-  it('ignores a closing window while finding the focused note window', async () => {
+  it('runs Find menu actions in the main window when it has focus', async () => {
     const dispatch = vi.fn()
     setMenuCommandDispatch(dispatch)
-    getAllWebviewWindows.mockResolvedValue([
-      { label: 'closing', isFocused: vi.fn(async () => await Promise.reject(new Error('closed'))) },
-      { label: 'note-1', isFocused: vi.fn(async () => true) },
-    ])
 
     dispatchMenuCommand('note.findNext')
 
-    await vi.waitFor(() => {
-      expect(emitTo).toHaveBeenCalledWith(
-        { kind: 'WebviewWindow', label: 'note-1' },
-        'reflect://focused-note-menu-command',
-        'note.findNext',
-      )
-    })
-    expect(dispatch).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(dispatch).toHaveBeenCalledWith('note.findNext'))
+    expect(windows.emitted()).toEqual([])
   })
 
   it('does not guess the main note when no webview is focused', async () => {
     const dispatch = vi.fn()
     setMenuCommandDispatch(dispatch)
-    getAllWebviewWindows.mockResolvedValue([
-      { label: 'main', isFocused: vi.fn(async () => false) },
-      { label: 'note-1', isFocused: vi.fn(async () => false) },
-    ])
+    windows.setFocusedWindowLabel(null)
+    const focusedWindowLabel = vi.spyOn(windows, 'focusedWindowLabel')
 
     dispatchMenuCommand('note.find')
 
-    await vi.waitFor(() => expect(getAllWebviewWindows).toHaveBeenCalledTimes(1))
-    expect(emitTo).not.toHaveBeenCalled()
+    await vi.waitFor(() => expect(focusedWindowLabel).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+    expect(windows.emitted()).toEqual([])
     expect(dispatch).not.toHaveBeenCalled()
   })
 
-  it('validates routed Find menu event payloads before dispatching them', async () => {
+  it('validates routed Find menu event payloads before dispatching them', () => {
     const dispatch = vi.fn()
-    await listenForFocusedNoteMenuCommands(dispatch)
-    const handler = listen.mock.calls[0]?.[1]
-    if (typeof handler !== 'function') {
-      throw new TypeError('expected a menu event listener')
-    }
+    const unlisten = listenForFocusedNoteMenuCommands(dispatch)
 
-    handler({ payload: 'note.findNext' })
-    handler({ payload: { command: 'note.findNext' } })
+    windows.emitWindowEvent(event, 'note.findNext')
+    windows.emitWindowEvent(event, { command: 'note.findNext' })
+    unlisten()
+    windows.emitWindowEvent(event, 'note.find')
 
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith('note.findNext')

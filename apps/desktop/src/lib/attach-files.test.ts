@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { setBridge, setDefaultDialog } from '@reflect/core'
+import { createTestDialogService, type TestDialogService } from '@reflect/core/testing'
 import {
   registerNoteEditorHandle,
   unregisterNoteEditorHandle,
@@ -8,8 +9,12 @@ import type { NoteEditorHandle } from '@/editor/note-editor.tsx'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { attachFilesToNote } from './attach-files.ts'
 
-const { openMock } = vi.hoisted(() => ({ openMock: vi.fn() }))
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: openMock }))
+let dialog: TestDialogService
+
+beforeEach(() => {
+  dialog = createTestDialogService()
+  setDefaultDialog(dialog)
+})
 
 function contextFor(notePath: string | null, generation: number | null): CommandContext {
   return {
@@ -61,7 +66,6 @@ function editorHandle(): NoteEditorHandle & {
 
 afterEach(() => {
   setBridge(null)
-  openMock.mockReset()
 })
 
 describe('attachFilesToNote', () => {
@@ -70,7 +74,7 @@ describe('attachFilesToNote', () => {
       typeof args['desiredName'] === 'string' ? `assets/${args['desiredName'] as string}` : null,
     )
     setBridge({ invoke, listen: async () => () => {} })
-    openMock.mockResolvedValue(['/Users/me/Q3 Report.pdf', '/Users/me/archive.tar.gz'])
+    dialog.setFiles(['/Users/me/Q3 Report.pdf', '/Users/me/archive.tar.gz'])
     const handle = editorHandle()
     registerNoteEditorHandle('notes/plan.md', handle)
 
@@ -90,7 +94,7 @@ describe('attachFilesToNote', () => {
   it('escapes bracketed filenames in the link label', async () => {
     const invoke = vi.fn(async () => 'assets/report-v2.pdf')
     setBridge({ invoke, listen: async () => () => {} })
-    openMock.mockResolvedValue('/tmp/report [v2].pdf')
+    dialog.setFiles(['/tmp/report [v2].pdf'])
     const handle = editorHandle()
     registerNoteEditorHandle('notes/plan.md', handle)
 
@@ -107,16 +111,16 @@ describe('attachFilesToNote', () => {
     setBridge({ invoke, listen: async () => () => {} })
 
     await attachFilesToNote(contextFor(null, 4))
-    expect(openMock).not.toHaveBeenCalled()
+    expect(dialog.calls()).toEqual([])
 
     // Routed note but no mounted editor for it.
     await attachFilesToNote(contextFor('notes/closed.md', 4))
-    expect(openMock).not.toHaveBeenCalled()
+    expect(dialog.calls()).toEqual([])
 
     // Cancelled picker.
     const handle = editorHandle()
     registerNoteEditorHandle('notes/plan.md', handle)
-    openMock.mockResolvedValue(null)
+    dialog.setFiles(null)
     await attachFilesToNote(contextFor('notes/plan.md', 4))
     expect(invoke).not.toHaveBeenCalled()
     expect(handle.insertMarkdown).not.toHaveBeenCalled()
@@ -129,9 +133,12 @@ describe('attachFilesToNote', () => {
     const handle = editorHandle()
     registerNoteEditorHandle('notes/plan.md', handle)
     // The pane unmounts while the (native, unbounded) picker is open.
-    openMock.mockImplementation(async () => {
-      unregisterNoteEditorHandle('notes/plan.md', handle)
-      return '/tmp/report.pdf'
+    setDefaultDialog({
+      ...dialog,
+      pickFiles: async () => {
+        unregisterNoteEditorHandle('notes/plan.md', handle)
+        return ['/tmp/report.pdf']
+      },
     })
 
     await attachFilesToNote(contextFor('notes/plan.md', 4))
@@ -151,7 +158,7 @@ describe('attachFilesToNote', () => {
     })
     setBridge({ invoke, listen: async () => () => {} })
     // The failure comes FIRST: the files picked after it must still import.
-    openMock.mockResolvedValue(['/tmp/bad.bin', '/tmp/good.pdf', '/tmp/also good.pdf'])
+    dialog.setFiles(['/tmp/bad.bin', '/tmp/good.pdf', '/tmp/also good.pdf'])
     const handle = editorHandle()
     registerNoteEditorHandle('notes/plan.md', handle)
 

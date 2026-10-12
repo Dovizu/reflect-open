@@ -1,4 +1,5 @@
 import { initializeExceptionTelemetry } from '@/lib/exception-telemetry.ts'
+import { installShellServices } from '@/services/shell-services.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
 import { setBridge } from '@reflect/core'
 
@@ -16,3 +17,6 @@ initializeExceptionTelemetry()
 if (isTauri()) {
   setBridge(createTauriIpcTransport())
 }
+
+// The dialog, clipboard, opener, path, window, and lifecycle services.
+installShellServices({ nativeShell: isTauri() })

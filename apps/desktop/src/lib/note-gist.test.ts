@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { gistBodyHash, upsertFrontmatter } from '@reflect/core'
+import { gistBodyHash, setDefaultClipboard, upsertFrontmatter } from '@reflect/core'
+import { createTestClipboardService, type TestClipboardService } from '@reflect/core/testing'
 import type { NoteSession } from '@/editor/note-session.ts'
 import { getNoteRowOverlay, resetNoteRowOverlays } from '@/hooks/note-row-overlay.ts'
 
@@ -275,21 +276,18 @@ describe('unpublishNoteGist', () => {
 })
 
 describe('runGistPublish', () => {
-  const writeText = vi.fn(async () => {})
+  let clipboard: TestClipboardService
 
   beforeEach(() => {
-    writeText.mockClear()
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText },
-      configurable: true,
-    })
+    clipboard = createTestClipboardService()
+    setDefaultClipboard(clipboard)
   })
 
   it('publishes, copies the link, and confirms through the operations line', async () => {
     readNote.mockResolvedValue(BODY)
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBe(PUBLISHED.htmlUrl)
 
-    expect(writeText).toHaveBeenCalledWith(PUBLISHED.htmlUrl)
+    expect(clipboard.writes()).toEqual([PUBLISHED.htmlUrl])
     expect(startOperation).toHaveBeenCalledWith('Publishing gist')
     expect(startOperation).toHaveBeenCalledWith('Gist link copied')
     expect(operationDone).toHaveBeenCalledTimes(2)
@@ -322,12 +320,12 @@ describe('runGistPublish', () => {
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBeNull()
 
     expect(operationFail).toHaveBeenCalledWith(expect.stringMatching(/connect github/i))
-    expect(writeText).not.toHaveBeenCalled()
+    expect(clipboard.writes()).toEqual([])
   })
 
   it('a failed clipboard copy never reads as a failed publish', async () => {
     readNote.mockResolvedValue(BODY)
-    writeText.mockRejectedValueOnce(new Error('Document is not focused'))
+    clipboard.failWith(new Error('Document is not focused'))
     // The publish landed: the url comes back so the UI flips to its published state.
     await expect(runGistPublish('notes/a.md', 3)).resolves.toBe(PUBLISHED.htmlUrl)
 

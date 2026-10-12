@@ -1,3 +1,5 @@
+import { defaultLifecycle } from '@reflect/core'
+
 /**
  * The shared lifecycle for a background reconcile loop — capture enrichment
  * ({@link createCaptureController}), audio-memo transcription
@@ -92,12 +94,7 @@ export function createBackgroundReconciler(
     schedule,
     isStale: () => disposed,
     retryOnWake() {
-      window.addEventListener('focus', schedule)
-      window.addEventListener('online', schedule)
-      disposers.push(
-        () => window.removeEventListener('focus', schedule),
-        () => window.removeEventListener('online', schedule),
-      )
+      disposers.push(defaultLifecycle().subscribeWake(schedule))
     },
     onDispose(teardown) {
       if (disposed) {

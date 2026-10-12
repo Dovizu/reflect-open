@@ -1,38 +1,32 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultLifecycle } from '@reflect/core'
+import { createTestLifecycleService, type TestLifecycleService } from '@reflect/core/testing'
 import { attachResumeListeners } from '@/lib/resume-listeners.ts'
 
-beforeEach(() => {
-  vi.useFakeTimers()
-})
+let lifecycle: TestLifecycleService
 
-afterEach(() => {
-  vi.useRealTimers()
+beforeEach(() => {
+  lifecycle = createTestLifecycleService()
+  setDefaultLifecycle(lifecycle)
 })
 
 describe('attachResumeListeners', () => {
-  it('still calls back for the network coming back right after a resume', () => {
+  it('calls back when the app resumes', () => {
     const onResume = vi.fn()
     const dispose = attachResumeListeners(onResume)
-    window.dispatchEvent(new Event('focus'))
-    onResume.mockClear()
 
-    window.dispatchEvent(new Event('online'))
-    vi.runAllTimers()
+    lifecycle.emitResume()
 
-    expect(onResume).toHaveBeenCalled()
+    expect(onResume).toHaveBeenCalledOnce()
     dispose()
   })
 
-  it('stops calling back after dispose, even with a call still pending', () => {
+  it('stops calling back after dispose', () => {
     const onResume = vi.fn()
     const dispose = attachResumeListeners(onResume)
-    window.dispatchEvent(new Event('focus'))
-    window.dispatchEvent(new Event('online'))
-    onResume.mockClear()
 
     dispose()
-    vi.runAllTimers()
-    window.dispatchEvent(new Event('focus'))
+    lifecycle.emitResume()
 
     expect(onResume).not.toHaveBeenCalled()
   })

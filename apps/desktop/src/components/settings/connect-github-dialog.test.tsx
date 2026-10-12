@@ -1,9 +1,9 @@
 import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { setBridge, setDefaultOpener } from '@reflect/core'
+import { createTestOpenerService } from '@reflect/core/testing'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import type { ConnectExistingResult } from '@/lib/backup-controller.ts'
 import { ConnectGithubDialog } from './connect-github-dialog.tsx'
 
@@ -17,9 +17,8 @@ vi.mock('@/lib/platform.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
   isNativeShell: () => true,
 }))
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }))
 const httpFetch = vi.mocked(tauriFetch)
-const openedUrls = vi.mocked(openUrl)
+let openedUrls: MockInstance<(url: string) => Promise<void>>
 
 /** A keychain holding the given credential; GET /user accepting it makes the auth step skip itself. */
 function storeCredential(auth: Record<string, unknown>): void {
@@ -55,7 +54,9 @@ beforeEach(() => {
   )
   sync.connectNewRepo.mockResolvedValue('connected')
   sync.connectExistingRepo.mockResolvedValue('connected')
-  openedUrls.mockResolvedValue(undefined)
+  const opener = createTestOpenerService()
+  setDefaultOpener(opener)
+  openedUrls = vi.spyOn(opener, 'openUrl')
 })
 
 afterEach(() => {

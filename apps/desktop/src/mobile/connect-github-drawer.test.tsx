@@ -34,7 +34,6 @@ vi.mock('@/lib/platform.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
   isNativeShell: () => true,
 }))
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn() }))
 const httpFetch = vi.mocked(tauriFetch)
 
 beforeEach(() => {

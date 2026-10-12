@@ -101,3 +101,24 @@ export function defaultIpc(): IpcBridgeService {
   }
   return activeService
 }
+
+/** An {@link IpcBridgeService} that forwards each call to the bridge installed at call time. */
+export function currentIpc(): IpcBridgeService {
+  return {
+    call: async (command, args, schema) => await defaultIpc().call(command, args, schema),
+    callBinary: async (command, body, headers, schema) =>
+      await defaultIpc().callBinary(command, body, headers, schema),
+    listen: async (event, handler) => await defaultIpc().listen(event, handler),
+    listenPlugin: async (plugin, event, handler) => {
+      await defaultIpc().listenPlugin(plugin, event, handler)
+    },
+    subscribePlugin: (plugin, event, schema, handler) =>
+      defaultIpc().subscribePlugin(plugin, event, schema, handler),
+    get hasBinaryTransport() {
+      return hasBinaryIpc()
+    },
+    get hasPluginEvents() {
+      return activeBridge !== null && activeBridge.listenPlugin !== undefined
+    },
+  }
+}

@@ -1,13 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { setDefaultWindow } from '@reflect/core'
+import { createTestWindowService, type TestWindowService } from '@reflect/core/testing'
 
 const isNativeShell = vi.hoisted(() => vi.fn(() => true))
-const openNoteWindow = vi.hoisted(() => vi.fn<(link: string) => Promise<void>>())
 const isMobileSurface = vi.hoisted(() => vi.fn(() => false))
 
-vi.mock('@reflect/core', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@reflect/core')>()),
-  openNoteWindow,
-}))
 vi.mock('@/lib/platform.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/platform.ts')>()),
   isNativeShell,
@@ -16,37 +13,27 @@ vi.mock('@/lib/platform-surface.ts', () => ({ isMobileSurface }))
 
 import { openDeepLinkInNewWindow, openRouteInNewWindow } from './open-in-new-window.ts'
 
+let windows: TestWindowService
+let opens: boolean
+
 beforeEach(() => {
   vi.clearAllMocks()
   isNativeShell.mockReturnValue(true)
   isMobileSurface.mockReturnValue(false)
-  openNoteWindow.mockResolvedValue(undefined)
+  opens = true
+  windows = createTestWindowService({ openNoteWindow: () => opens })
+  setDefaultWindow(windows)
 })
 
 describe('openRouteInNewWindow', () => {
   it('opens the route’s deep link', async () => {
     await expect(openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })).resolves.toBe(true)
-    expect(openNoteWindow).toHaveBeenCalledWith('reflect://note/notes%2Ffoo.md')
-  })
-
-  it('shares one native request between concurrent opens of the same note', async () => {
-    const pendingOpen = Promise.withResolvers<void>()
-    openNoteWindow.mockReturnValue(pendingOpen.promise)
-
-    const first = openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })
-    const second = openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })
-
-    expect(openNoteWindow).toHaveBeenCalledTimes(1)
-    pendingOpen.resolve()
-    await expect(Promise.all([first, second])).resolves.toEqual([true, true])
-
-    await expect(openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })).resolves.toBe(true)
-    expect(openNoteWindow).toHaveBeenCalledTimes(2)
+    expect(windows.openedNoteWindows()).toEqual(['reflect://note/notes%2Ffoo.md'])
   })
 
   it('declines routes the deep-link grammar does not name', async () => {
     await expect(openRouteInNewWindow({ kind: 'allNotes', tag: null })).resolves.toBe(false)
-    expect(openNoteWindow).not.toHaveBeenCalled()
+    expect(windows.openedNoteWindows()).toEqual([])
   })
 
   it('declines without a native shell and on mobile', async () => {
@@ -55,31 +42,28 @@ describe('openRouteInNewWindow', () => {
     isNativeShell.mockReturnValue(true)
     isMobileSurface.mockReturnValue(true)
     await expect(openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })).resolves.toBe(false)
-    expect(openNoteWindow).not.toHaveBeenCalled()
+    expect(windows.openedNoteWindows()).toEqual([])
   })
 
-  it('degrades a failed command to false instead of throwing', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    openNoteWindow.mockRejectedValue(new Error('no window for you'))
+  it('answers false when the window does not open', async () => {
+    opens = false
     await expect(openRouteInNewWindow({ kind: 'note', path: 'notes/foo.md' })).resolves.toBe(false)
-    expect(error).toHaveBeenCalled()
-    error.mockRestore()
   })
 })
 
 describe('openDeepLinkInNewWindow', () => {
   it('opens addressing links verbatim', async () => {
     await expect(openDeepLinkInNewWindow('reflect://note/Some%20Note')).resolves.toBe(true)
-    expect(openNoteWindow).toHaveBeenCalledWith('reflect://note/Some%20Note')
+    expect(windows.openedNoteWindows()).toEqual(['reflect://note/Some%20Note'])
   })
 
   it('declines capture links — they are writes, not places', async () => {
     await expect(openDeepLinkInNewWindow('reflect://append?text=hi')).resolves.toBe(false)
-    expect(openNoteWindow).not.toHaveBeenCalled()
+    expect(windows.openedNoteWindows()).toEqual([])
   })
 
   it('declines malformed links', async () => {
     await expect(openDeepLinkInNewWindow('reflect://nonsense/x')).resolves.toBe(false)
-    expect(openNoteWindow).not.toHaveBeenCalled()
+    expect(windows.openedNoteWindows()).toEqual([])
   })
 })

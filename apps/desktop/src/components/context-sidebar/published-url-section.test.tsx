@@ -1,8 +1,13 @@
 import { render } from 'vitest-browser-react'
 import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NoteRow } from '@reflect/core'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { setDefaultClipboard, setDefaultOpener, type NoteRow } from '@reflect/core'
+import {
+  createTestClipboardService,
+  createTestOpenerService,
+  type TestClipboardService,
+  type TestOpenerService,
+} from '@reflect/core/testing'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { PublishedUrlSection } from './published-url-section.tsx'
 
@@ -18,7 +23,6 @@ const runGistPublish = vi.hoisted(() =>
   ),
 )
 
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl: vi.fn(async () => {}) }))
 vi.mock('@/hooks/use-note-row.ts', () => ({ useNoteRow }))
 vi.mock('@/lib/note-gist.ts', () => ({ runGistPublish }))
 vi.mock('@/lib/operations.ts', () => ({ startOperation }))
@@ -47,22 +51,20 @@ function renderSection(path = 'notes/a.md') {
   )
 }
 
-function stubClipboard(writeText: (text: string) => Promise<void>): void {
-  Object.defineProperty(navigator, 'clipboard', {
-    value: { writeText },
-    configurable: true,
-  })
-}
+let clipboard: TestClipboardService
+let opener: TestOpenerService
 
 beforeEach(() => {
   window.sessionStorage.clear()
   useNoteRow.mockReset().mockReturnValue(null)
-  vi.mocked(openUrl).mockClear()
+  clipboard = createTestClipboardService()
+  setDefaultClipboard(clipboard)
+  opener = createTestOpenerService()
+  setDefaultOpener(opener)
   startOperation.mockClear()
   runGistPublish.mockReset().mockResolvedValue('https://gist.github.com/alex/g1')
   operationDone.mockClear()
   operationFail.mockClear()
-  Reflect.deleteProperty(navigator, 'clipboard')
 })
 
 describe('PublishedUrlSection', () => {
@@ -86,19 +88,17 @@ describe('PublishedUrlSection', () => {
 
     const view = await renderSection()
     await userEvent.click(view.getByRole('link', { name: url }))
-    expect(openUrl).toHaveBeenCalledWith(url)
+    await vi.waitFor(() => expect(opener.openedUrls()).toEqual([url]))
   })
 
   it('copies the published URL', async () => {
     const url = 'https://gist.github.com/alex/g1'
-    const writeText = vi.fn(async () => {})
-    stubClipboard(writeText)
     useNoteRow.mockReturnValue(noteRow({ gistUrl: url }))
 
     const view = await renderSection()
     await userEvent.click(view.getByRole('button', { name: 'Copy published URL' }))
 
-    expect(writeText).toHaveBeenCalledWith(url)
+    await vi.waitFor(() => expect(clipboard.writes()).toEqual([url]))
     await vi.waitFor(() => expect(startOperation).toHaveBeenCalledWith('Published URL copied'))
     expect(operationDone).toHaveBeenCalled()
   })
@@ -131,7 +131,7 @@ describe('PublishedUrlSection', () => {
 
   it('surfaces copy failures through the operations status', async () => {
     const url = 'https://gist.github.com/alex/g1'
-    stubClipboard(vi.fn(async () => await Promise.reject(new Error('Document is not focused'))))
+    clipboard.failWith(new Error('Document is not focused'))
     useNoteRow.mockReturnValue(noteRow({ gistUrl: url }))
 
     const view = await renderSection()

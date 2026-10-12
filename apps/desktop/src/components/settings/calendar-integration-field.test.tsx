@@ -2,15 +2,15 @@ import { render } from 'vitest-browser-react'
 import { page, type Locator } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultOpener } from '@reflect/core'
+import { createTestOpenerService, type TestOpenerService } from '@reflect/core/testing'
 import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import { CalendarIntegrationField } from './calendar-integration-field.tsx'
 
 // The section renders only in the macOS desktop webview; jsdom is neither.
 vi.mock('@/lib/platform.ts', () => ({ isMacosDesktop: true, isNativeShell: () => true }))
 
-const openUrl = vi.hoisted(() => vi.fn<(url: string) => Promise<void>>(async () => {}))
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }))
+let opener: TestOpenerService
 
 const CALENDARS = [
   { id: 'cal-work', title: 'Work', source: 'Google', color: '#ff0000' },
@@ -75,7 +75,8 @@ beforeEach(() => {
   accessGranted = true
   calendarsResponse = async () => CALENDARS
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  openUrl.mockClear()
+  opener = createTestOpenerService()
+  setDefaultOpener(opener)
   installFakeBridge()
 })
 
@@ -163,9 +164,9 @@ describe('CalendarIntegrationField', () => {
 
     await open.click()
     await vi.waitFor(() =>
-      expect(openUrl).toHaveBeenCalledWith(
+      expect(opener.openedUrls()).toEqual([
         'x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars',
-      ),
+      ]),
     )
   })
 

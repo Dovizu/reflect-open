@@ -2,11 +2,11 @@ import { render } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { setBridge } from '@reflect/core'
+import { setBridge, setDefaultOpener } from '@reflect/core'
+import { createTestOpenerService, type TestOpenerService } from '@reflect/core/testing'
 import { IntegrationsSection } from './integrations-section.tsx'
 
-const openUrl = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('@tauri-apps/plugin-opener', () => ({ openUrl }))
+let opener: TestOpenerService
 
 // A browser-mode module mock materializes value exports once, so this file
 // keeps the flag statically false; the macOS-specific test lives in
@@ -63,7 +63,8 @@ beforeEach(() => {
   authorization = 'notDetermined'
   settings.current = { contactsEnabled: false }
   settings.update.mockClear()
-  openUrl.mockClear()
+  opener = createTestOpenerService()
+  setDefaultOpener(opener)
   installFakeBridge()
 })
 
@@ -104,8 +105,10 @@ describe('IntegrationsSection', () => {
     await renderSection()
 
     await page.getByRole('button', { name: 'Open System Settings' }).click()
-    expect(openUrl).toHaveBeenCalledWith(
-      'x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts',
+    await vi.waitFor(() =>
+      expect(opener.openedUrls()).toEqual([
+        'x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts',
+      ]),
     )
   })
 

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { isAppError } from '../errors.ts'
-import { createIpcBridgeService, type IpcBridge } from './ipc-service.ts'
+import { createIpcBridgeService, listenNow, type IpcBridge } from './ipc-service.ts'
 
 function createLogger() {
   return { warn: vi.fn<(message: string, cause?: unknown) => void>() }
@@ -237,5 +237,47 @@ describe('subscribePlugin', () => {
 
     const subscription = ipc.subscribePlugin('demo', 'demoEvent', schema, () => {})
     await expect(subscription.ready).rejects.toMatchObject({ kind: 'io' })
+  })
+})
+
+describe('listenNow', () => {
+  it('returns a teardown before the registration lands and applies it afterwards', async () => {
+    const registration = Promise.withResolvers<() => void>()
+    const unlisten = vi.fn()
+    const onError = vi.fn()
+
+    const teardown = listenNow(() => registration.promise, onError)
+    teardown()
+    registration.resolve(unlisten)
+    await registration.promise
+    await Promise.resolve()
+
+    expect(unlisten).toHaveBeenCalledOnce()
+    expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('tears down a landed registration', async () => {
+    const unlisten = vi.fn()
+    const teardown = listenNow(async () => unlisten, vi.fn())
+    await Promise.resolve()
+    await Promise.resolve()
+
+    teardown()
+    teardown()
+
+    expect(unlisten).toHaveBeenCalledOnce()
+  })
+
+  it('reports synchronous and asynchronous registration failures', async () => {
+    const onError = vi.fn()
+    listenNow(() => {
+      throw new Error('no bridge')
+    }, onError)
+    listenNow(async () => {
+      throw new Error('denied')
+    }, onError)
+    await vi.waitFor(() => expect(onError).toHaveBeenCalledTimes(2))
+    expect(onError).toHaveBeenCalledWith(new Error('no bridge'))
+    expect(onError).toHaveBeenCalledWith(new Error('denied'))
   })
 })

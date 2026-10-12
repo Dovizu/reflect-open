@@ -9,8 +9,6 @@ import { SettingsProvider } from '@/providers/settings-provider.tsx'
 import '@/test-utils/locator.ts'
 import { GraphChooser } from './graph-chooser.tsx'
 
-vi.mock('@tauri-apps/plugin-dialog', () => ({ open: vi.fn() }))
-
 let invokeLog: Array<[string, Record<string, unknown>]>
 let recents: Array<{ root: string; name: string; openedMs: number }>
 let storedSettings: Record<string, unknown>

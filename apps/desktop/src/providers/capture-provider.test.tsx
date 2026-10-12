@@ -24,6 +24,7 @@ vi.mock('@reflect/core', () => ({
   subscribeBridgeChanges: () => () => {},
 }))
 vi.mock('@/lib/platform-surface.ts', () => ({ isMobileSurface }))
+vi.mock('@/lib/windows/window-role.ts', () => ({ isMainWindow: () => true }))
 vi.mock('@/providers/settings-provider.tsx', () => ({
   useSettings: () => ({
     settings: { aiProviders: [], defaultAiProviderId: null },

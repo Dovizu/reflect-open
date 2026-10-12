@@ -4,11 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_SETTINGS,
+  setDefaultOpener,
   untitledNotePath,
   type GraphInfo,
   type PinnedNote,
   type Settings,
 } from '@reflect/core'
+import { createTestOpenerService, type TestOpenerService } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import type { NoteRoute, Route } from '@/routing/route.ts'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
@@ -17,8 +19,6 @@ import { RouterProvider } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 
 const getPinnedNotes = vi.hoisted(() => vi.fn<() => Promise<PinnedNote[]>>(async () => []))
-const revealItemInDir = vi.hoisted(() => vi.fn<(path: string) => Promise<void>>(async () => {}))
-const openUrl = vi.hoisted(() => vi.fn<(url: string) => Promise<void>>(async () => {}))
 const openRouteInNewWindow = vi.hoisted(() => vi.fn<(route: NoteRoute) => Promise<boolean>>())
 const openRecent = vi.hoisted(() => vi.fn())
 const pickAndOpen = vi.hoisted(() => vi.fn())
@@ -57,7 +57,6 @@ vi.mock('@reflect/core', async (importOriginal) => ({
   hasBridge: () => true,
   getPinnedNotes,
 }))
-vi.mock('@tauri-apps/plugin-opener', () => ({ revealItemInDir, openUrl }))
 vi.mock('@/lib/windows/open-in-new-window.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/windows/open-in-new-window.ts')>()),
   openRouteInNewWindow,
@@ -119,6 +118,8 @@ const { Sidebar } = await import('./sidebar.tsx')
 const { registerAppCommands } = await import('@/lib/commands/app-commands.ts')
 registerAppCommands()
 
+let opener: TestOpenerService
+
 beforeEach(() => {
   // The hoisted mock is shared module state — restore it so mic-related cases
   // can't inherit mutations from earlier tests.
@@ -126,8 +127,8 @@ beforeEach(() => {
   audioMemo.available = true
   audioMemo.unavailableReason = null
   audioMemo.toggle.mockReset()
-  revealItemInDir.mockClear()
-  openUrl.mockClear()
+  opener = createTestOpenerService()
+  setDefaultOpener(opener)
   openRouteInNewWindow.mockReset().mockResolvedValue(true)
   openRecent.mockClear()
   pickAndOpen.mockClear()
@@ -442,15 +443,12 @@ describe('Sidebar', () => {
     await expect.element(page.getByRole('menu')).not.toBeInTheDocument()
 
     await dialog.getByRole('button', { name: 'Get iOS app' }).click()
-    expect(openUrl).toHaveBeenNthCalledWith(
-      1,
-      'https://apps.apple.com/us/app/reflect-open/id6787385615',
-    )
+    expect(opener.openedUrls()).toEqual(['https://apps.apple.com/us/app/reflect-open/id6787385615'])
     await dialog.getByRole('button', { name: 'Get Chrome extension' }).click()
-    expect(openUrl).toHaveBeenNthCalledWith(
-      2,
+    expect(opener.openedUrls()).toEqual([
+      'https://apps.apple.com/us/app/reflect-open/id6787385615',
       'https://chromewebstore.google.com/detail/reflect-capture/ccabifmooehighoonjeiololjfofkhkd',
-    )
+    ])
 
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     await expect.element(dialog).not.toBeInTheDocument()
@@ -483,7 +481,7 @@ describe('Sidebar', () => {
     await view.getByRole('button', { name: /Notes/ }).click()
     await page.getByRole('menuitem', { name: /reveal graph in finder/i }).click()
 
-    expect(revealItemInDir).toHaveBeenCalledWith('/notes')
+    await vi.waitFor(() => expect(opener.revealedPaths()).toEqual(['/notes']))
   })
 
   it.each([
