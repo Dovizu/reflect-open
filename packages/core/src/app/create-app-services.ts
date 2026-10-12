@@ -93,6 +93,10 @@ import {
   createTitleRenameService,
   type TitleRenameService,
 } from '../documents/title-rename-service.ts'
+import {
+  createNoteDocumentService,
+  type NoteDocumentService,
+} from '../documents/note-document-service.ts'
 import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
 import {
   createOpenDocumentsService,
@@ -258,6 +262,7 @@ export interface AppServices {
   readonly openDocuments: OpenDocumentsService
   readonly noteMove: NoteMoveService
   readonly titleRename: TitleRenameService
+  readonly noteDocuments: NoteDocumentService
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
@@ -420,6 +425,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   }
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
+  const openDocuments = createOpenDocumentsService()
   const indexReads = createIndexReadServices({ database, noteFile })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
@@ -438,7 +444,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const path = createPathService({ transport: adapters.path })
   const mobileStorage = createMobileStorageService({ ipc })
-  const openDocuments = createOpenDocumentsService()
   const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const indexLifecycle = createIndexLifecycleService({
     indexStore,
@@ -542,6 +547,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clock,
       logger,
     }),
+    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     ...indexReads,
     ...noteServices,
     indexLifecycle,

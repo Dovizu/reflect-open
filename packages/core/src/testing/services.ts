@@ -68,6 +68,7 @@ import { createTestAttachmentService, type TestAttachmentService } from './attac
 import {
   createTestNoteMoveService,
   createTestNoteSessionService,
+  createTestNoteDocumentService,
   createTestOpenDocumentsService,
   createTestTitleRenameService,
   type TestNoteMoveService,
@@ -236,6 +237,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   const operations = createTestOperationsService(clock)
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
+  const openDocuments = createTestOpenDocumentsService()
   const id = createTestIdService()
   const secretStore = createTestSecretStoreService()
   const settings = createTestSettingsService(
@@ -285,7 +287,6 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     operations: overrides?.operations ?? operations,
   })
   const ipc = createTestIpcBridgeService({ logger })
-  const openDocuments = createTestOpenDocumentsService()
   const noteMove = createTestNoteMoveService({
     ipc: overrides?.ipc ?? ipc,
     indexStore: overrides?.indexStore ?? indexStore,
@@ -370,6 +371,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       operations: overrides?.operations ?? operations,
       clock: overrides?.clock ?? clock,
       logger,
+    }),
+    noteDocuments: createTestNoteDocumentService({
+      openDocuments: overrides?.openDocuments ?? openDocuments,
+      noteFile: overrides?.noteFile ?? noteFile,
     }),
     ...indexReads,
     noteLinkResolver,

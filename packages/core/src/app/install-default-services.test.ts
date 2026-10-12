@@ -30,6 +30,7 @@ import { defaultPrivacy } from '../privacy/privacy-service.ts'
 import { defaultAttachments } from '../documents/attachment-service.ts'
 import { defaultNoteSessions } from '../documents/note-session.ts'
 import { defaultNoteMove } from '../documents/note-move-service.ts'
+import { defaultNoteDocuments } from '../documents/note-document-service.ts'
 import { defaultOpenDocuments } from '../documents/open-documents-service.ts'
 import { defaultTitleRename } from '../documents/title-rename-service.ts'
 import { defaultDatabase } from '../indexing/database-service.ts'
@@ -136,6 +137,7 @@ describe('installDefaultServices', () => {
     expect(defaultOpenDocuments()).toBe(services.openDocuments)
     expect(defaultNoteMove()).toBe(services.noteMove)
     expect(defaultTitleRename()).toBe(services.titleRename)
+    expect(defaultNoteDocuments()).toBe(services.noteDocuments)
     expect(defaultIndexQuery()).toBe(services.indexQuery)
     expect(defaultWikiResolver()).toBe(services.wikiResolver)
     expect(defaultBacklinks()).toBe(services.backlinks)
@@ -219,6 +221,7 @@ describe('resetDefaultServices', () => {
     expect(defaultOpenDocuments()).not.toBe(services.openDocuments)
     expect(defaultNoteMove()).not.toBe(services.noteMove)
     expect(defaultTitleRename()).not.toBe(services.titleRename)
+    expect(defaultNoteDocuments()).not.toBe(services.noteDocuments)
     expect(defaultIndexQuery()).not.toBe(services.indexQuery)
     expect(defaultWikiResolver()).not.toBe(services.wikiResolver)
     expect(defaultBacklinks()).not.toBe(services.backlinks)
