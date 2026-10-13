@@ -30,9 +30,9 @@ export type TaskMoves = readonly TaskMove[]
  * Drop every row matching one of `tasks` from a cached list.
  */
 export function withoutTasks(
-  rows: OpenTask[] | undefined,
-  tasks: OpenTask[],
-): OpenTask[] | undefined {
+  rows: readonly OpenTask[] | undefined,
+  tasks: readonly OpenTask[],
+): readonly OpenTask[] | undefined {
   return rows?.filter((row) => !tasks.some((task) => isSameTask(row, task)))
 }
 
@@ -100,9 +100,9 @@ export function withChecked(task: OpenTask, checked: boolean): OpenTask {
  * the rows stay visible struck through instead of vanishing until the refetch.
  */
 export function asCompleted(
-  rows: OpenTask[] | undefined,
-  tasks: OpenTask[],
-): OpenTask[] | undefined {
+  rows: readonly OpenTask[] | undefined,
+  tasks: readonly OpenTask[],
+): readonly OpenTask[] | undefined {
   if (rows === undefined) {
     return rows
   }
@@ -115,7 +115,10 @@ export function asCompleted(
  * The open-tasks query is the primary Tasks view data source, so a not-yet-loaded
  * list materializes as just the reopened rows.
  */
-export function asOpen(rows: OpenTask[] | undefined, tasks: OpenTask[]): OpenTask[] {
+export function asOpen(
+  rows: readonly OpenTask[] | undefined,
+  tasks: readonly OpenTask[],
+): readonly OpenTask[] {
   const reopened = tasks.map((task) => withChecked(task, false))
   const reopenedKeys = new Set(reopened.map(getTaskKey))
   return [...(rows ?? []).filter((row) => !reopenedKeys.has(getTaskKey(row))), ...reopened]
@@ -128,10 +131,10 @@ export function asOpen(rows: OpenTask[] | undefined, tasks: OpenTask[]): OpenTas
  * rendering (so search and the row label never see raw `[[…]]`/markup).
  */
 export function withEditedTask(
-  rows: OpenTask[] | undefined,
+  rows: readonly OpenTask[] | undefined,
   task: OpenTask,
   markdown: string,
-): OpenTask[] | undefined {
+): readonly OpenTask[] | undefined {
   const text = renderInlineText(markdown)
   return rows?.map((row) => (isSameTask(row, task) ? { ...row, markdown, text } : row))
 }

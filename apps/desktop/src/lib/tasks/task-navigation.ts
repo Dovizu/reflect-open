@@ -1,5 +1,3 @@
-export { previousTaskKey, todaysDailyTarget } from '@reflect/core'
-
 /**
  * Bring the row carrying `key` into view (V1 scrolls the selection on every
  * keyboard move). `block: 'nearest'` mirrors V1 — no jump when it's already
