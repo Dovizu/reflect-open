@@ -69,6 +69,7 @@ class NativeActionServiceImpl implements NativeActionService {
       return () => {}
     }
     let disposed = false
+    const stopped = new AbortController()
     let confirmTimer: TimerHandle | null = null
     let unlisten: Unlisten | null = null
     void (async () => {
@@ -110,13 +111,14 @@ class NativeActionServiceImpl implements NativeActionService {
         }, ACTION_CONFIRM_DELAY_MS)
       })
       try {
-        await audioRecorder.actionsReady()
+        await audioRecorder.actionsReady({ signal: stopped.signal })
       } catch (cause) {
         logger.error('the native-action handshake is unavailable:', cause)
       }
     })()
     return () => {
       disposed = true
+      stopped.abort()
       if (confirmTimer !== null) {
         clock.clearTimeout(confirmTimer)
       }

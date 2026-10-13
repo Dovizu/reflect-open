@@ -236,7 +236,7 @@ class NativeAudioRecorderImpl implements AudioRecorderService {
     return this.#claimed.has(path)
   }
 
-  async actionsReady(): Promise<void> {
+  async actionsReady(options?: { signal?: AbortSignal }): Promise<void> {
     const { ipc } = this.#deps
     // A queued action is delivered on this call, so the `nativeAction`
     // listener must be registered first.
@@ -245,6 +245,9 @@ class NativeAudioRecorderImpl implements AudioRecorderService {
       await probe.ready
     } finally {
       probe.unlisten()
+    }
+    if (options?.signal?.aborted === true) {
+      return
     }
     await actionsReadyCommand(ipc, {})
   }
