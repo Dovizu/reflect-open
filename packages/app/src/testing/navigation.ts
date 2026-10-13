@@ -1,4 +1,4 @@
-import type { Unlisten } from '../unlisten.ts'
+import type { Unlisten } from '@reflect/core'
 import {
   createDeepLinkService,
   type DeepLinkIo,
@@ -15,12 +15,14 @@ import {
   type NavigationState,
 } from '../navigation/navigation-service.ts'
 import type { Route } from '../navigation/route.ts'
-import { createTestCaptureInboxService } from './capture.ts'
-import { createTestClockService } from './clock.ts'
-import { createTestGraphSessionService } from './graph-session.ts'
-import { createTestIdService } from './id.ts'
-import { createTestLoggerService } from './logger.ts'
-import { createTestOperationsService } from './operations.ts'
+import {
+  createTestCaptureInboxService,
+  createTestClockService,
+  createTestGraphSessionService,
+  createTestIdService,
+  createTestLoggerService,
+  createTestOperationsService,
+} from '@reflect/core/testing'
 
 export interface TestNavigationServiceOptions {
   /**

@@ -72,7 +72,7 @@ below. The command is also exposed in the native Window menu.
    references share `useNoteLinkNavigation`, which applies the convention and
    delegates to `openRouteInNewWindow`; raw in-note links use
    `openDeepLinkInNewWindow` (both on `LinkNavigationService`,
-   `packages/core/src/navigation/link-navigation-service.ts`). Routes
+   `packages/app/src/navigation/link-navigation-service.ts`). Routes
    serialize through the existing deep-link grammar (`deepLinkForRoute`);
    capture links (`append`, `task`) are writes, not places, and never
    window-ify. A declined or failed open falls back to in-window navigation
@@ -131,7 +131,7 @@ new sync or indexing paths exist.
 
 ### Deep-link intake scoping
 
-The intake (`DeepLinkService` in `packages/core/src/navigation/deep-link-service.ts`) is per-webview state.
+The intake (`DeepLinkService` in `packages/app/src/navigation/deep-link-service.ts`) is per-webview state.
 Every window attaches a handler (in-note `reflect://` clicks must work
 everywhere), but only the main window starts the **OS** listener — the
 plugin's event stream reaches every webview, and N windows must not all

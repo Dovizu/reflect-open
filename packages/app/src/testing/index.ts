@@ -10,7 +10,7 @@ export {
   type TestNativeMenuService,
   type TestNativeMenuServiceOptions,
 } from './commands.ts'
-export { createTestAppServices } from './services.ts'
+export { createTestAppServices, type TestAppServices } from './services.ts'
 export {
   createTestExceptionTelemetry,
   type ExceptionReport,
@@ -27,3 +27,14 @@ export {
   type TestUpdaterOptions,
   type TestUpdateService,
 } from './update.ts'
+export {
+  createTestDeepLinkService,
+  createTestDeepLinkSource,
+  createTestNavigationService,
+  type TestDeepLinkService,
+  type TestDeepLinkServiceOptions,
+  type TestDeepLinkSource,
+  type TestNavigateCall,
+  type TestNavigationService,
+  type TestNavigationServiceOptions,
+} from './navigation.ts'

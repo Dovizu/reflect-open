@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { routeForTag } from '@reflect/core'
+import { routeForTag } from '@reflect/app'
 import { useRouter } from '@/routing/router.tsx'
 
 /**

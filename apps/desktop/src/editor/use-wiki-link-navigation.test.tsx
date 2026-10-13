@@ -1,3 +1,4 @@
+import { createTestAppServices } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestGraphSessionService,
@@ -44,10 +45,9 @@ function RouteProbe(): ReactNode {
 function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
   const base = createTestCoreServices()
   const graphSession = createTestGraphSessionService()
-  const app = createTestCoreServices({
-    operations,
-    graphSession,
-    linkNavigation: createTestCoreServices({
+  const app = createTestCoreServices({ operations, graphSession })
+  const linkNavigation = createTestAppServices(
+    createTestCoreServices({
       graphSession,
       wikiResolver: { ...base.wikiResolver, resolveWikiTarget },
       noteLinkResolver: {
@@ -58,9 +58,13 @@ function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
       window: createTestWindowService({ openNoteWindow }),
       operations,
       logger,
-    }).linkNavigation,
+    }),
+  ).linkNavigation
+  return renderInApp(ui, {
+    app,
+    appServices: { linkNavigation },
+    ...(graph === undefined ? {} : { graph }),
   })
-  return renderInApp(ui, { app, ...(graph === undefined ? {} : { graph }) })
 }
 
 function renderHost(options: { graph?: TestOpenGraph | null; readOnly?: boolean } = {}) {

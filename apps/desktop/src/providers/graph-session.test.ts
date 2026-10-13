@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createTestAppServices } from '@reflect/app/testing'
 import type { RecentGraph, WindowBootstrap } from '@reflect/core'
 import {
   createTestCoreServices,
@@ -28,13 +29,14 @@ afterEach(() => {
  */
 function boot(windowService: TestWindowService, recents: readonly RecentGraph[] = []) {
   const session = createTestGraphSessionService({ window: windowService, recents })
-  const app = createTestCoreServices({ window: windowService, graphSession: session })
-  closeDatabase = () => app.database.close()
+  const core = createTestCoreServices({ window: windowService, graphSession: session })
+  const app = createTestAppServices(core)
+  closeDatabase = () => core.database.close()
   const deepLinks: string[] = []
   app.deepLink.setHandler((url) => {
     deepLinks.push(url)
   })
-  const stop = bootGraphSession(app)
+  const stop = bootGraphSession(core, app)
   return { app, windowService, session, deepLinks, stop }
 }
 

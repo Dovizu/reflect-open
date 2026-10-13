@@ -76,13 +76,15 @@ describe('renderInApp', () => {
   })
 
   it('starts on the given route and records navigation in the navigation service', async () => {
-    const { app } = await renderInApp(<Probe />, { route: { kind: 'settings' } })
+    const { appServices } = await renderInApp(<Probe />, { route: { kind: 'settings' } })
     await expect.element(page.getByTestId('route')).toHaveTextContent('{"kind":"settings"}')
 
     await page.getByRole('button', { name: 'tasks' }).click()
 
     await expect.element(page.getByTestId('route')).toHaveTextContent('{"kind":"tasks"}')
-    expect(app.navigation.navigations()).toEqual([{ route: { kind: 'tasks' }, options: undefined }])
+    expect(appServices.navigation.navigations()).toEqual([
+      { route: { kind: 'tasks' }, options: undefined },
+    ])
   })
 
   it('runs a scripted backup for the open graph', async () => {

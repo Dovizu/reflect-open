@@ -1,9 +1,9 @@
 import { StrictMode, type ReactElement, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import { createTestAppServices, createTestDeepLinkService } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestCaptureInboxService,
-  createTestDeepLinkService,
   createTestGraphSessionService,
   createTestOperationsService,
 } from '@reflect/core/testing'
@@ -11,7 +11,7 @@ import { act } from '@/test-utils/act.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { DeepLinkProvider } from './deep-link-provider.tsx'
 
-// The handler itself is covered in `@reflect/core`; these cover how the
+// The handler itself is covered in `@reflect/app`; these cover how the
 // provider ties it to the router and to the graph session.
 
 const GRAPH = { root: '/g', name: 'g', generation: 7 }
@@ -27,7 +27,8 @@ function setup() {
     operations,
     graphSession,
   })
-  const app = createTestCoreServices({ deepLink, captureInbox, operations, graphSession })
+  const app = createTestCoreServices({ captureInbox, operations, graphSession })
+  const appServices = createTestAppServices(app, { deepLink })
 
   function tree(): ReactElement {
     return <DeepLinkProvider>{null}</DeepLinkProvider>
@@ -37,13 +38,13 @@ function setup() {
    * Render under the app's router with `GRAPH` open, as the workspace mounts the provider.
    */
   async function render(ui: ReactNode) {
-    return await renderInApp(ui, { app, graph: GRAPH })
+    return await renderInApp(ui, { app, appServices, graph: GRAPH })
   }
 
   /**
    * The routes navigated to so far, in order.
    */
-  const navigated = () => app.navigation.navigations().map((call) => call.route)
+  const navigated = () => appServices.navigation.navigations().map((call) => call.route)
 
   /**
    * Dispatch a note link whose resolution stays pending until it is resolved.
@@ -63,6 +64,7 @@ function setup() {
 
   return {
     app,
+    appServices,
     deepLink,
     captureInbox,
     resolveNoteTarget,
@@ -122,22 +124,22 @@ describe('DeepLinkProvider', () => {
   })
 
   it('drops a note resolve when navigation changes meanwhile', async () => {
-    const { app, tree, navigated, dispatchPendingNote, render } = setup()
+    const { appServices, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
-    app.navigation.navigate({ kind: 'tasks' })
+    appServices.navigation.navigate({ kind: 'tasks' })
     await pending.resolve()
 
     expect(navigated()).toEqual([{ kind: 'tasks' }])
   })
 
   it('drops a note resolve when a newer note-link intent starts meanwhile', async () => {
-    const { app, tree, navigated, dispatchPendingNote, render } = setup()
+    const { appServices, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
-    app.linkNavigation.beginIntent()
+    appServices.linkNavigation.beginIntent()
     await pending.resolve()
 
     expect(navigated()).toEqual([])

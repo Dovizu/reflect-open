@@ -1,14 +1,16 @@
-import { textCaptureEnvelopeSchema } from '../capture/capture-envelope.ts'
-import type { ClockService } from '../app/clock-service.ts'
-import type { IdService } from '../app/id-service.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
-import type { GraphSession } from '../app/graph-session.ts'
-import { errorMessage } from '../errors.ts'
-import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
-import type { GraphSessionService } from '../graph/graph-session-service.ts'
-import type { IndexQueryService } from '../indexing/index-query-service.ts'
-import type { Unlisten } from '../unlisten.ts'
+import { textCaptureEnvelopeSchema } from '@reflect/core/capture-envelope'
+import {
+  type ClockService,
+  type IdService,
+  type LoggerService,
+  type OperationsService,
+  type GraphSession,
+  errorMessage,
+  type CaptureInboxService,
+  type GraphSessionService,
+  type IndexQueryService,
+  type Unlisten,
+} from '@reflect/core'
 import { parseDeepLink } from './deep-link-parse.ts'
 import { routeForPath, type Route } from './route.ts'
 

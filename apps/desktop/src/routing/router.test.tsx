@@ -15,7 +15,7 @@ function routerHook(initialRoute?: Route, app: TestCoreServices = createTestCore
   })
 }
 
-// The history itself is covered by core's `navigation-service.test.ts`; these
+// The history itself is covered by the app layer's `navigation-service.test.ts`; these
 // cover the React shell over it.
 describe('router', () => {
   it('starts on today with no history', async () => {
@@ -31,7 +31,7 @@ describe('router', () => {
   })
 
   it('renders the navigation service through navigate, back, and forward', async () => {
-    const { result, act, app } = await routerHook()
+    const { result, act, appServices } = await routerHook()
     await act(() => result.current.navigate({ kind: 'daily', date: '2026-06-08' }))
     await act(() =>
       result.current.navigate({ kind: 'note', path: 'notes/a.md' }, { focusEditor: true }),
@@ -40,7 +40,7 @@ describe('router', () => {
     expect(result.current.arrivalSeq).toBe(2)
     expect(result.current.arrivalFocusEditor).toBe(true)
     expect(result.current.backRoute).toEqual({ kind: 'daily', date: '2026-06-08' })
-    expect(app.navigation.getState().route).toEqual({ kind: 'note', path: 'notes/a.md' })
+    expect(appServices.navigation.getState().route).toEqual({ kind: 'note', path: 'notes/a.md' })
 
     await act(() => result.current.back())
     expect(result.current.route).toEqual({ kind: 'daily', date: '2026-06-08' })
@@ -52,8 +52,8 @@ describe('router', () => {
   })
 
   it('follows navigation made on the service itself', async () => {
-    const { result, act, app } = await routerHook()
-    await act(() => app.navigation.navigate({ kind: 'tasks' }))
+    const { result, act, appServices } = await routerHook()
+    await act(() => appServices.navigation.navigate({ kind: 'tasks' }))
     expect(result.current.route).toEqual({ kind: 'tasks' })
   })
 

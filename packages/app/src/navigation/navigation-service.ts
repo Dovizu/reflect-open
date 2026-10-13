@@ -1,4 +1,4 @@
-import type { Unlisten } from '../unlisten.ts'
+import type { Unlisten } from '@reflect/core'
 import { normalizeRoute, routesEqual, type Route } from './route.ts'
 
 /**

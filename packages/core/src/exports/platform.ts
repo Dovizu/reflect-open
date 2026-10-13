@@ -21,6 +21,7 @@ export { type ConflictResolutionService } from '../sync/conflict-resolution-serv
 export { type GistPublishService } from '../sync/gist-publish-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
 export { createSystemClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
+export { type IdService } from '../app/id-service.ts'
 export { localIsoDate, parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
@@ -50,29 +51,11 @@ export { type WebFetchService } from '../app/web-fetch-service.ts'
 export { type NoteFileService } from '../graph/note-file-service.ts'
 export { type NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 export { type NoteCreationService } from '../graph/note-creation-service.ts'
-export { dailyDeepLink, deepLinkForRoute, noteDeepLink } from '../navigation/deep-link-format.ts'
-export {
-  initialRouteForDeepLink,
-  isDeepLinkUrl,
-  parseDeepLink,
-} from '../navigation/deep-link-parse.ts'
-export { type DeepLinkService, type DeepLinkSource } from '../navigation/deep-link-service.ts'
-export {
-  routeForTag,
-  type LinkNavigationHost,
-  type LinkNavigationService,
-} from '../navigation/link-navigation-service.ts'
-export { type NavigateOptions, type NavigationService } from '../navigation/navigation-service.ts'
-export {
-  effectiveDailyDate,
-  focusedNotePathForRoute,
-  normalizeRoute,
-  notePathForRoute,
-  routeForPath,
-  routesEqual,
-  type NoteRoute,
-  type Route,
-} from '../navigation/route.ts'
+export { dailyDeepLink, noteDeepLink } from '../navigation/deep-link-format.ts'
+export { DEEP_LINK_SCHEME, DEEP_LINK_TEXT_MAX_LENGTH } from '../navigation/deep-link.ts'
+export { type CaptureInboxService } from '../graph/capture-inbox-service.ts'
+export { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
+export { normalizeWikiTarget } from '../markdown/resolve.ts'
 export {
   createAttachmentService,
   type AssetSaveError,

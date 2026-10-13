@@ -1,13 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { textCaptureEnvelopeSchema } from '../capture/capture-envelope.ts'
-import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
-import type { Unlisten } from '../unlisten.ts'
-import { createTestCaptureInboxService } from '../testing/capture.ts'
-import { createTestClockService } from '../testing/clock.ts'
-import { createTestGraphSessionService } from '../testing/graph-session.ts'
-import { createTestLoggerService } from '../testing/logger.ts'
+import { textCaptureEnvelopeSchema } from '@reflect/core/capture-envelope'
+import { MIN_VISIBLE_MS, type Unlisten } from '@reflect/core'
+import {
+  createTestCaptureInboxService,
+  createTestClockService,
+  createTestGraphSessionService,
+  createTestLoggerService,
+  createTestOperationsService,
+} from '@reflect/core/testing'
 import { createTestDeepLinkService, createTestDeepLinkSource } from '../testing/navigation.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
 import type { DeepLinkServiceDeps, DeepLinkSession } from './deep-link-service.ts'
 import type { Route } from './route.ts'
 

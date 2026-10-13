@@ -1,8 +1,11 @@
+import type { LinkNavigationService } from '@reflect/app'
+import { createTestAppServices, createTestThemeService } from '@reflect/app/testing'
 import {
   isOstensiblyEmptyNoteSource,
   type ChatSession,
   type GraphSessionService,
   type LinkNavigationService,
+  type NativeMenuService,
   type NoteDocumentService,
 } from '@reflect/core'
 import type { AppServices, NativeMenuService } from '@reflect/app'
@@ -101,7 +104,7 @@ async function shortcutsHook() {
   appLayer = createTestAppServices(services, { theme: createTestThemeService('light') })
   openRecent = vi.spyOn(services.graphSession, 'openRecent').mockResolvedValue(true)
   openRouteInNewWindow = vi
-    .spyOn(services.linkNavigation, 'openRouteInNewWindow')
+    .spyOn(appServices.linkNavigation, 'openRouteInNewWindow')
     .mockResolvedValue(true)
   isNativeMenuInstalled = vi.spyOn(appLayer.nativeMenu, 'isInstalled').mockReturnValue(false)
   const createChatSession = services.chatSessions.create.bind(services.chatSessions)

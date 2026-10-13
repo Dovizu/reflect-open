@@ -242,17 +242,6 @@ export {
   type TestNoteLinkResolverServiceOptions,
 } from './graph.ts'
 export {
-  createTestDeepLinkService,
-  createTestDeepLinkSource,
-  createTestNavigationService,
-  type TestDeepLinkService,
-  type TestDeepLinkServiceOptions,
-  type TestDeepLinkSource,
-  type TestNavigateCall,
-  type TestNavigationService,
-  type TestNavigationServiceOptions,
-} from './navigation.ts'
-export {
   createTestAttachmentService,
   type AttachmentSave,
   type TestAttachmentEntry,

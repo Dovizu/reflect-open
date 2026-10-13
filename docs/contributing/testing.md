@@ -126,7 +126,7 @@ The ones used most:
 | `createTestHttpService(routes)` | `on(method, url, reply)` | `requests()` |
 | `createTestSettingsService(document)` | `seed(patch)`, `failLoad()`, `failNextSave()` | `saves()` |
 | `createTestGraphSessionService()` | `setGraph(graph)`, `setState(patch)` | |
-| `createTestNavigationService()` | | `navigations()` |
+| `createTestNavigationService()` (`@reflect/app/testing`) | | `navigations()` |
 | `createTestLifecycleService()` | `emitHidden()`, `emitVisible()`, `emitWake()`, `emitQuitRequested()` | `backgroundTasks()` |
 | `createTestClipboardService()`, `createTestOpenerService()` | `failWith(error)` | `writes()`, `openedUrls()` |
 

@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { LinkClickHandler } from '@meowdown/core'
 import { useLinkNavigationHost } from '@/hooks/use-link-navigation-host.ts'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * The click policy for a rendered Markdown link: an attachment opens through
@@ -11,7 +11,7 @@ import { useCoreServices } from '@/services/services-provider.tsx'
  * Markdown belongs to no note, so attachment and note links do nothing.
  */
 export function useMarkdownLinkClick(sourcePath: string | null): LinkClickHandler {
-  const { linkNavigation } = useCoreServices()
+  const { linkNavigation } = useAppServices()
   const host = useLinkNavigationHost()
 
   return useCallback<LinkClickHandler>(

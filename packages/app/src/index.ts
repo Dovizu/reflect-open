@@ -35,6 +35,7 @@ export {
   type ConnectGithubWizardService,
   type ConnectWizardStep,
 } from './sync/connect-github-wizard-service.ts'
+<<<<<<< HEAD
 export {
   type AutocompleteSuggestionService,
   type TagMenuItem,
@@ -116,3 +117,28 @@ export {
   type PaletteSections,
 } from './search/palette-entries.ts'
 export { type PaletteSearchService } from './search/palette-search-service.ts'
+=======
+export { deepLinkForRoute } from './navigation/deep-link-format.ts'
+export {
+  initialRouteForDeepLink,
+  isDeepLinkUrl,
+  parseDeepLink,
+} from './navigation/deep-link-parse.ts'
+export { type DeepLinkService, type DeepLinkSource } from './navigation/deep-link-service.ts'
+export {
+  routeForTag,
+  type LinkNavigationHost,
+  type LinkNavigationService,
+} from './navigation/link-navigation-service.ts'
+export { type NavigateOptions, type NavigationService } from './navigation/navigation-service.ts'
+export {
+  effectiveDailyDate,
+  focusedNotePathForRoute,
+  normalizeRoute,
+  notePathForRoute,
+  routeForPath,
+  routesEqual,
+  type NoteRoute,
+  type Route,
+} from './navigation/route.ts'
+>>>>>>> service_r4_g1a

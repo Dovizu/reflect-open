@@ -1,5 +1,5 @@
 /**
- * The typed product routes live in `@reflect/core`; re-exported so imports stay put.
+ * The typed product routes live in `@reflect/app`; re-exported so imports stay put.
  */
 export {
   effectiveDailyDate,
@@ -10,4 +10,4 @@ export {
   routesEqual,
   type NoteRoute,
   type Route,
-} from '@reflect/core'
+} from '@reflect/app'

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /** Start one link activation; the returned probe answers "did it go stale?". */
 export type BeginLinkIntent = () => () => boolean
@@ -16,7 +16,7 @@ export type BeginLinkIntent = () => () => boolean
  * staleness after each await before acting on the result.
  */
 export function useLinkIntentGuard(): BeginLinkIntent {
-  const { linkNavigation } = useCoreServices()
+  const { linkNavigation } = useAppServices()
 
   const unmountedRef = useRef(false)
   useEffect(() => {

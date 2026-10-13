@@ -5,7 +5,11 @@ import type {
   GraphSessionService,
   GraphSessionState,
 } from '@reflect/core'
-import { GraphServicesProvider, useCoreServices } from '@/services/services-provider.tsx'
+import {
+  GraphServicesProvider,
+  useAppServices,
+  useCoreServices,
+} from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 import { bootGraphSession } from './graph-session.ts'
 import { useMobileGraphBoot, type MobileGraphBoot } from './use-mobile-graph-boot.ts'
@@ -61,13 +65,14 @@ export function GraphProvider({
   platform?: AppPlatform
 }) {
   const app = useCoreServices()
+  const appServices = useAppServices()
   const session = app.graphSession
   const state = useServiceState(session, session.getState)
 
   // Desktop main-window boot reopens the most recent graph or shows the
   // chooser; a secondary note window adopts the main window's graph. Mobile
   // boots through its hook below.
-  useEffect(() => bootGraphSession(app), [app])
+  useEffect(() => bootGraphSession(app, appServices), [app, appServices])
 
   // The mobile bootstrap + onboarding slice (Plans 19/21) lives in its own
   // service; it opens and parks through the session.

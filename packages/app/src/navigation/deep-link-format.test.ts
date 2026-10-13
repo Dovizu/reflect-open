@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Route } from './route.ts'
-import { dailyDeepLink, deepLinkForRoute, noteDeepLink } from './deep-link-format.ts'
+import { dailyDeepLink, noteDeepLink } from '@reflect/core'
+import { deepLinkForRoute } from './deep-link-format.ts'
 import { parseDeepLink } from './deep-link-parse.ts'
 
 describe('deepLinkForRoute', () => {

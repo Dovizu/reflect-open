@@ -1,7 +1,7 @@
 import { useEffect, type ReactElement, type ReactNode } from 'react'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Routes incoming `reflect://` URLs into the open graph session: has the
@@ -16,7 +16,7 @@ interface DeepLinkProviderProps {
 
 export function DeepLinkProvider({ children }: DeepLinkProviderProps): ReactElement {
   const { navigate } = useRouter()
-  const { deepLink, linkNavigation } = useCoreServices()
+  const { deepLink, linkNavigation } = useAppServices()
   // Serve again for each graph session: the service acts on the session open
   // when `serve` is called.
   const { session } = useGraph()

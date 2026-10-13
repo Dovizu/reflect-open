@@ -12,7 +12,7 @@ import { ShortcutsProvider } from '@/providers/shortcuts-provider.tsx'
 import { SidebarProvider } from '@/providers/sidebar-provider.tsx'
 import { V1ImportProvider } from '@/providers/v1-import-provider.tsx'
 import { RouterProvider } from '@/routing/router.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 
 interface GraphWorkspaceProps {
   graph: GraphInfo
@@ -26,7 +26,8 @@ interface GraphWorkspaceProps {
  * fresh history.
  */
 export function GraphWorkspace({ graph }: GraphWorkspaceProps): ReactElement {
-  const { deepLink, window: appWindow } = useCoreServices()
+  const { window: appWindow } = useCoreServices()
+  const { deepLink } = useAppServices()
   // A note window's first route is its ⌘-clicked target (seeded by the boot
   // hook) — starting on the default today route would flash the daily note
   // until the deep link navigated.
