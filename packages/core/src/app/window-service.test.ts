@@ -18,7 +18,11 @@ const BOOT = {
 function setup(options?: { host?: Partial<WindowHost>; ipc?: TestIpcBridgeService }) {
   const ipc = options?.ipc ?? createTestIpcBridgeService()
   const logger = createTestLoggerService()
-  const host: WindowHost = { ...createSingleWindowHost(), multiWindow: true, ...options?.host }
+  const host: WindowHost = Object.assign(
+    createSingleWindowHost(),
+    { multiWindow: true },
+    options?.host,
+  )
   const window = createWindowService({ ipc, host, logger })
   return { window, ipc, logger }
 }

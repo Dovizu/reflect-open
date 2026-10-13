@@ -39,12 +39,10 @@ beforeEach(() => {
   noteFile = createTestNoteFileService({ files: { [PATH]: SOURCE } })
   fileChanges = createTestFileChangeService()
   indexed = []
-  indexLifecycle = {
-    ...createTestIndexLifecycleService({ noteFile, fileChanges }),
-    indexNote: async (path, options) => {
-      indexed.push({ path, generation: options.generation, content: options.content })
-    },
-  }
+  indexLifecycle = createTestIndexLifecycleService({ noteFile, fileChanges })
+  vi.spyOn(indexLifecycle, 'indexNote').mockImplementation(async (path, options) => {
+    indexed.push({ path, generation: options.generation, content: options.content })
+  })
 })
 
 /**
