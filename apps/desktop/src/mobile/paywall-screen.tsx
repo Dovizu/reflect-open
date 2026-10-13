@@ -16,6 +16,7 @@ import {
   useClassicSignIn,
 } from '@/mobile/use-classic-access.ts'
 import { useMobileAppServices } from '@/mobile/mobile-services.ts'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 type PurchasePlan = 'monthly' | 'yearly'
 
@@ -28,7 +29,8 @@ interface PurchaseVariables {
 const CLAIM_FREE_YEAR_URL = 'https://reflect.app/claim-reflect-open'
 
 export function PaywallScreen(): ReactElement {
-  const { paywall, opener } = useMobileAppServices()
+  const { paywall } = useMobileAppServices()
+  const { opener } = useAppServices()
   const [selectedPlan, setSelectedPlan] = useState<PurchasePlan>('yearly')
   const [classicDrawerOpen, setClassicDrawerOpen] = useState(false)
 

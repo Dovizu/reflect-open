@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { useAsyncAction } from '@/hooks/use-async-action.ts'
 import { useDeviceFlowAuth } from '@/hooks/use-device-flow-auth.ts'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 
 interface GithubAuthStepProps {
   /**
@@ -33,7 +33,8 @@ const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
  * wizard uses to connect `owner/name` without ever asking for the owner.
  */
 export function GithubAuthStep({ onAuthed, repoName }: GithubAuthStepProps): ReactElement {
-  const { clipboard, githubAuth, opener } = useCoreServices()
+  const { githubAuth } = useCoreServices()
+  const { clipboard, opener } = useAppServices()
   const deviceFlow = useDeviceFlowAuth()
   const pat = useAsyncAction()
   const [patValue, setPatValue] = useState('')

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createTestLoggerService } from '../testing/logger.ts'
+import { createTestLoggerService } from '@reflect/core/testing'
 import { createOpenerService, type OpenerTransport } from './opener-service.ts'
 
 function serviceOver(transport: Partial<OpenerTransport>) {

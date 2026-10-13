@@ -1,6 +1,5 @@
 import {
   type LoggerService,
-  type OpenerService,
   type OperationsService,
   type PlatformService,
   type WindowService,
@@ -13,6 +12,7 @@ import {
   type WikiResolverService,
   normalizeWikiTarget,
 } from '@reflect/core'
+import type { OpenerService } from '../app/opener-service.ts'
 import { deepLinkForRoute } from './deep-link-format.ts'
 import { isDeepLinkUrl, parseDeepLink } from './deep-link-parse.ts'
 import type { DeepLinkService } from './deep-link-service.ts'

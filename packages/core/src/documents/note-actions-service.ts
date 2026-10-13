@@ -1,5 +1,4 @@
 import { isIsoDate } from '@reflect/utils'
-import type { ClipboardService } from '../app/clipboard-service.ts'
 import {
   requireGraphSession,
   type GraphSession,
@@ -161,18 +160,12 @@ export interface NoteActionsService {
    */
   deepLinkFor(path: string): Promise<string>
   /**
-   * Build the deep link, put it on the clipboard, and confirm through the
-   * operations status line. Never rejects; does nothing when no graph is open.
-   */
-  copyDeepLink(path: string): Promise<void>
-  /**
    * Resolve the graph-relative `path` against the open graph's root to an
    * absolute filesystem path for use in tools outside Reflect (agent chats,
-   * editors, terminals), put it on the clipboard, and report through the
-   * operations status line. Joining through the host preserves the host
-   * platform's path syntax. Never rejects.
+   * editors, terminals). Joining through the host preserves the host
+   * platform's path syntax. Rejects when no graph is open.
    */
-  copyPath(path: string): Promise<void>
+  absolutePathFor(path: string): Promise<string>
 }
 
 export interface NoteActionsServiceDeps {
@@ -183,7 +176,6 @@ export interface NoteActionsServiceDeps {
   readonly indexQuery: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
   readonly noteRows: Pick<NoteRowService, 'setOverlay' | 'dropOverlay' | 'getOverlaysOn'>
   readonly operations: OperationsService
-  readonly clipboard: ClipboardService
   readonly path: Pick<PathService, 'join'>
   readonly id: Pick<IdService, 'noteId'>
   readonly graphSession: GraphSessionSource
@@ -320,41 +312,9 @@ class NoteActionsServiceImpl implements NoteActionsService {
     return await this.#deepLinkFor(path, requireGraphSession(this.#deps.graphSession))
   }
 
-  async copyDeepLink(path: string): Promise<void> {
-    const { operations, clipboard, graphSession } = this.#deps
-    const session = graphSession.getState().session
-    if (session === null) {
-      return
-    }
-    let url: string
-    try {
-      url = await this.#deepLinkFor(path, session)
-    } catch (cause) {
-      operations.start('Copying deep link').fail(errorMessage(cause))
-      return
-    }
-    try {
-      await clipboard.writeText(url)
-      operations.start('Deep link copied').done()
-    } catch (cause) {
-      operations.start('Copying deep link').fail(errorMessage(cause))
-    }
-  }
-
-  async copyPath(path: string): Promise<void> {
-    const { operations, clipboard, path: pathService, graphSession } = this.#deps
-    const session = graphSession.getState().session
-    if (session === null) {
-      operations.start('Copying note path').fail('No graph is open')
-      return
-    }
-    try {
-      const absolutePath = await pathService.join(session.root, path)
-      await clipboard.writeText(absolutePath)
-      operations.start('Note path copied').done()
-    } catch (cause) {
-      operations.start('Copying note path').fail(errorMessage(cause))
-    }
+  async absolutePathFor(path: string): Promise<string> {
+    const session = requireGraphSession(this.#deps.graphSession)
+    return await this.#deps.path.join(session.root, path)
   }
 
   /**

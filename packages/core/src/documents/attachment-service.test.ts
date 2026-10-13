@@ -6,7 +6,6 @@ import type { FileMeta } from '../graph/schemas.ts'
 import {
   createTestAssetStoreService,
   createTestClockService,
-  createTestDialogService,
   createTestFileChangeService,
   createTestGraphSessionService,
   createTestNoteFileService,
@@ -41,29 +40,23 @@ function listingNoteFile(
   })
 }
 
-function setup(options?: {
-  assetStore?: AssetStoreService
-  noteFile?: NoteFileService
-  files?: readonly string[] | null
-}) {
+function setup(options?: { assetStore?: AssetStoreService; noteFile?: NoteFileService }) {
   const clock = createTestClockService({ now: 1_700_000_000_000 })
   const assetStore = options?.assetStore ?? createTestAssetStoreService()
   const noteFile = options?.noteFile ?? createTestNoteFileService()
   const fileChanges = createTestFileChangeService()
-  const dialog = createTestDialogService({ files: options?.files ?? null })
   const operations = createTestOperationsService(clock)
   const graph = createTestGraphSessionService({ graph: { generation: 3 } })
   const attachments = createAttachmentService({
     assetStore,
     noteFile,
     fileChanges,
-    dialog,
     operations,
     clock,
     platform: createTestPlatformService(),
     graphSession: graph,
   })
-  return { attachments, assetStore, noteFile, fileChanges, dialog, operations, clock, graph }
+  return { attachments, assetStore, noteFile, fileChanges, operations, clock, graph }
 }
 
 function fileOf(name: string, type: string, size = 16): File {
@@ -556,17 +549,14 @@ describe('attachFilesToNote', () => {
     const assetStore = createTestAssetStoreService({
       sources: { '/Users/me/Q3 Report.pdf': 'a', '/Users/me/archive.tar.gz': 'b' },
     })
-    const { attachments, dialog } = setup({
-      assetStore,
-      files: ['/Users/me/Q3 Report.pdf', '/Users/me/archive.tar.gz'],
-    })
+    const { attachments } = setup({ assetStore })
     const target = editor()
 
-    await attachments.attachFilesToNote({ findEditor: () => target })
+    await attachments.attachFilesToNote({
+      sources: ['/Users/me/Q3 Report.pdf', '/Users/me/archive.tar.gz'],
+      findEditor: () => target,
+    })
 
-    expect(dialog.calls()).toEqual([
-      { kind: 'files', options: { multiple: true, title: 'Attach files' } },
-    ])
     expect(assetStore.uploads()).toEqual([
       { kind: 'import', path: 'assets/q3-report.pdf', generation: 3 },
       { kind: 'import', path: 'assets/archive-tar.gz', generation: 3 },
@@ -580,36 +570,37 @@ describe('attachFilesToNote', () => {
   it('escapes bracketed filenames in the link label', async () => {
     const { attachments } = setup({
       assetStore: createTestAssetStoreService({ sources: { '/tmp/report [v2].pdf': 'a' } }),
-      files: ['/tmp/report [v2].pdf'],
     })
     const target = editor()
 
-    await attachments.attachFilesToNote({ findEditor: () => target })
+    await attachments.attachFilesToNote({
+      sources: ['/tmp/report [v2].pdf'],
+      findEditor: () => target,
+    })
 
     expect(target.inserted).toEqual([String.raw`[report \[v2\].pdf](assets/report-v2.pdf)`])
   })
 
-  it('does nothing without a mounted editor or a pick', async () => {
-    const assetStore = createTestAssetStoreService()
-    const { attachments, dialog } = setup({ assetStore })
+  it('does nothing without a mounted editor or a source', async () => {
+    const assetStore = createTestAssetStoreService({ sources: { '/tmp/report.pdf': 'a' } })
+    const { attachments } = setup({ assetStore })
 
-    await attachments.attachFilesToNote({ findEditor: () => null })
-    expect(dialog.calls()).toEqual([])
+    await attachments.attachFilesToNote({ sources: ['/tmp/report.pdf'], findEditor: () => null })
 
     const target = editor()
-    await attachments.attachFilesToNote({ findEditor: () => target })
-    expect(dialog.calls()).toHaveLength(1)
+    await attachments.attachFilesToNote({ sources: [], findEditor: () => target })
     expect(assetStore.uploads()).toEqual([])
     expect(target.inserted).toEqual([])
   })
 
-  it('looks the editor up again after the picker and reports a closed note', async () => {
+  it('looks the editor up again after the copies and reports a closed note', async () => {
     const assetStore = createTestAssetStoreService({ sources: { '/tmp/report.pdf': 'a' } })
-    const { attachments, operations } = setup({ assetStore, files: ['/tmp/report.pdf'] })
+    const { attachments, operations } = setup({ assetStore })
     const target = editor()
     let mounted = true
 
     const attaching = attachments.attachFilesToNote({
+      sources: ['/tmp/report.pdf'],
       findEditor: () => (mounted ? target : null),
     })
     mounted = false
@@ -626,13 +617,13 @@ describe('attachFilesToNote', () => {
     const assetStore = createTestAssetStoreService({
       sources: { '/tmp/good.pdf': 'a', '/tmp/also good.pdf': 'b' },
     })
-    const { attachments, operations } = setup({
-      assetStore,
-      files: ['/tmp/bad.bin', '/tmp/good.pdf', '/tmp/also good.pdf'],
-    })
+    const { attachments, operations } = setup({ assetStore })
     const target = editor()
 
-    await attachments.attachFilesToNote({ findEditor: () => target })
+    await attachments.attachFilesToNote({
+      sources: ['/tmp/bad.bin', '/tmp/good.pdf', '/tmp/also good.pdf'],
+      findEditor: () => target,
+    })
 
     expect(target.inserted).toEqual([
       '[good.pdf](assets/good.pdf)\n[also good.pdf](assets/also-good.pdf)',
@@ -688,18 +679,20 @@ describe('openOrReveal', () => {
 describe('with no graph open', () => {
   it('saves, attaches, and opens nothing, and rejects a catalog load', async () => {
     const assetStore = createTestAssetStoreService({ sources: { '/tmp/report.pdf': 'a' } })
-    const { attachments, dialog, graph } = setup({ assetStore, files: ['/tmp/report.pdf'] })
+    const { attachments, graph } = setup({ assetStore })
     const scope = attachments.createSaveScope()
     graph.setGraph(null)
 
     await expect(attachments.saveFile(fileOf('a.pdf', 'application/pdf'))).resolves.toBeNull()
     await expect(scope.saveFile(fileOf('a.pdf', 'application/pdf'))).resolves.toBeNull()
-    await attachments.attachFilesToNote({ findEditor: () => editor() })
+    await attachments.attachFilesToNote({
+      sources: ['/tmp/report.pdf'],
+      findEditor: () => editor(),
+    })
     await attachments.openOrReveal('assets/a.pdf')
 
     expect(scope.error()).toBeNull()
     expect(assetStore.uploads()).toEqual([])
-    expect(dialog.calls()).toEqual([])
     expect(attachments.peekCatalog()).toBeNull()
     await expect(attachments.loadCatalog()).rejects.toThrow('No graph is open.')
   })

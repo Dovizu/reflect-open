@@ -9,7 +9,6 @@ import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { gistBodyHash } from '../markdown/gist.ts'
 import { createPrivacyService } from '../privacy/privacy-service.ts'
 import {
-  createTestClipboardService,
   createTestFileChangeService,
   createTestGraphSessionService,
   createTestHttpService,
@@ -83,7 +82,6 @@ function setup(options?: SetupOptions) {
   const graph = createTestGraphSessionService({ graph: { generation: 3 } })
   const noteRows = createNoteRowService({ graphSession: graph })
   const operations = createTestOperationsService()
-  const clipboard = createTestClipboardService()
   const service = createGistPublishService({
     gists: createGistService({ http }),
     githubAuth: {
@@ -103,7 +101,6 @@ function setup(options?: SetupOptions) {
       graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
     }),
     operations,
-    clipboard,
     graphSession: graph,
   })
 
@@ -114,7 +111,6 @@ function setup(options?: SetupOptions) {
     files,
     noteRows,
     operations,
-    clipboard,
     tokenReads,
     /**
      * Make the next disk write reject with `error`.
@@ -316,18 +312,14 @@ describe('GistPublishService.publish', () => {
     expect(sent('DELETE')).toHaveLength(1)
   })
 
-  it('publishes, copies the link, and confirms through the operations line', async () => {
-    const { service, clipboard, operations } = setup()
+  it('publishes and resolves the gist url', async () => {
+    const { service, operations } = setup()
     await expect(service.publish(PATH)).resolves.toEqual({
       url: PUBLISHED.htmlUrl,
       stale: false,
     })
 
-    expect(clipboard.writes()).toEqual([PUBLISHED.htmlUrl])
-    expect(operations.snapshot()).toMatchObject([
-      { label: 'Publishing gist', status: 'running' },
-      { label: 'Gist link copied', status: 'running' },
-    ])
+    expect(operations.snapshot()).toMatchObject([{ label: 'Publishing gist', status: 'running' }])
     await operations.clock.advance(MIN_VISIBLE_MS)
     expect(operations.getAll()).toEqual([])
   })
@@ -352,7 +344,7 @@ describe('GistPublishService.publish', () => {
   })
 
   it('surfaces failures and resolves null', async () => {
-    const { service, clipboard, operations } = setup({ token: null })
+    const { service, operations } = setup({ token: null })
     await expect(service.publish(PATH)).resolves.toBeNull()
 
     expect(operations.snapshot()).toContainEqual(
@@ -361,31 +353,6 @@ describe('GistPublishService.publish', () => {
         message: expect.stringMatching(/connect github/i),
       }),
     )
-    expect(clipboard.writes()).toEqual([])
-  })
-
-  it('a failed clipboard copy never reads as a failed publish', async () => {
-    const { service, clipboard, operations } = setup()
-    clipboard.failWith(new Error('Document is not focused'))
-    // The publish landed: the url comes back so the UI flips to its published state.
-    await expect(service.publish(PATH)).resolves.toEqual({
-      url: PUBLISHED.htmlUrl,
-      stale: false,
-    })
-
-    expect(operations.snapshot()).toMatchObject([
-      { label: 'Publishing gist', status: 'running' },
-      {
-        label: 'Copying the gist link',
-        status: 'failed',
-        message: expect.stringMatching(/not focused/i),
-      },
-    ])
-    // The publish itself completed; only the copy failure lingers.
-    await operations.clock.advance(MIN_VISIBLE_MS)
-    expect(operations.getAll().map((operation) => operation.label)).toEqual([
-      'Copying the gist link',
-    ])
   })
 })
 

@@ -34,8 +34,6 @@ export {
 } from '../app/platform-service.ts'
 
 export { type DialogService, type PickFilesOptions } from '../app/dialog-service.ts'
-export { type ClipboardService } from '../app/clipboard-service.ts'
-export { type OpenerService, type OpenerTransport } from '../app/opener-service.ts'
 export { createPosixPathTransport, type PathTransport } from '../app/path-service.ts'
 export {
   MAIN_WINDOW_LABEL,

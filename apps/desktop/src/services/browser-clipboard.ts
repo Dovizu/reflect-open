@@ -1,4 +1,4 @@
-import type { ClipboardService } from '@reflect/core'
+import type { ClipboardService } from '@reflect/app'
 
 class NavigatorClipboardServiceImpl implements ClipboardService {
   writeText(text: string): Promise<void> {
