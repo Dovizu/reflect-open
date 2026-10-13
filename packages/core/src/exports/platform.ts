@@ -28,6 +28,7 @@ export { parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
   createPlatformService,
+  type BuildPlatform,
   type FileSrcConverter,
   type PlatformFacts,
 } from '../app/platform-service.ts'
