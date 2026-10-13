@@ -93,15 +93,15 @@ export interface SyncStatusService {
    * status shown before the count is known could claim `Backed up` over
    * conflict markers already on disk, then flip.
    */
-  status: (input: SyncStatusInput) => MobileSyncStatus | null
+  status(input: SyncStatusInput): MobileSyncStatus | null
 }
 
 class SyncStatusServiceImpl implements SyncStatusService {
-  readonly status = ({
+  status({
     backup,
     conflictCount,
     conflictCountUnavailable,
-  }: SyncStatusInput): MobileSyncStatus | null => {
+  }: SyncStatusInput): MobileSyncStatus | null {
     const connected = backup !== null && backup.phase === 'connected'
     // Loading hides the status (no flip); a *failed* count must not — the
     // engine-driven states (Syncing, Offline, Needs attention) don't depend on

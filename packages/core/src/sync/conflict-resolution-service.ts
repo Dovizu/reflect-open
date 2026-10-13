@@ -64,13 +64,13 @@ export interface ConflictResolutionService {
    * (unless its index failed to open), and notify open sessions. Never
    * rejects; does nothing when no graph is open.
    */
-  resolve: (path: string, keep: ConflictResolution) => Promise<ConflictResolutionOutcome>
+  resolve(path: string, keep: ConflictResolution): Promise<ConflictResolutionOutcome>
   /**
    * The conflict markers of the note's file on disk, never of an open
    * session's buffer: a dirty session parks an external change without
    * loading it. Rejects when no graph is open.
    */
-  conflictMarkers: (path: string) => Promise<ConflictMarkers>
+  conflictMarkers(path: string): Promise<ConflictMarkers>
 }
 
 class ConflictResolutionServiceImpl implements ConflictResolutionService {
@@ -80,17 +80,14 @@ class ConflictResolutionServiceImpl implements ConflictResolutionService {
     this.#deps = deps
   }
 
-  readonly conflictMarkers = async (path: string): Promise<ConflictMarkers> => {
+  async conflictMarkers(path: string): Promise<ConflictMarkers> {
     const { noteFile, graphSession } = this.#deps
     const session = requireGraphSession(graphSession)
     const source = await noteFile.read(path, session.generation)
     return { labels: conflictMarkerLabels(source), blocks: conflictMarkerBlockCount(source) }
   }
 
-  readonly resolve = async (
-    path: string,
-    keep: ConflictResolution,
-  ): Promise<ConflictResolutionOutcome> => {
+  async resolve(path: string, keep: ConflictResolution): Promise<ConflictResolutionOutcome> {
     const { noteFile, indexLifecycle, fileChanges, graphSession } = this.#deps
     const { session } = graphSession.getState()
     if (session === null) {

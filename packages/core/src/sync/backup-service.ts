@@ -104,7 +104,7 @@ export interface BackupService {
   /**
    * Probe the graph and start the engine if fully connected. Idempotent.
    */
-  start: () => Promise<void>
+  start(): Promise<void>
   getState: () => BackupState
   /**
    * Subscribe to state changes; returns the unsubscribe.
@@ -116,33 +116,33 @@ export interface BackupService {
    * (fine-grained PATs can't call `POST /user/repos`) — the dialog falls
    * back to the prefilled github.com/new handoff and connects afterwards.
    */
-  connectNewRepo: (name: string) => Promise<'connected' | 'manualCreateNeeded'>
+  connectNewRepo(name: string): Promise<'connected' | 'manualCreateNeeded'>
   /**
    * Connect an existing repo. A public repo returns `needsPublicConfirm`
    * unless `allowPublic` — everything in the graph (including `private:
    * true` notes) would be world-readable, so that needs an explicit yes.
    */
-  connectExistingRepo: (
+  connectExistingRepo(
     ref: GithubRepoRef,
     options?: { allowPublic?: boolean },
-  ) => Promise<ConnectExistingResult>
+  ): Promise<ConnectExistingResult>
   /**
    * Stop backing **this graph** up (drops its remote; history and the
    * machine-level GitHub credential stay — other graphs keep syncing).
    */
-  disconnectGraph: () => Promise<void>
+  disconnectGraph(): Promise<void>
   /**
    * Sign this machine out of GitHub — every connected graph stops syncing.
    */
-  signOut: () => Promise<void>
+  signOut(): Promise<void>
   /**
    * Full cycle now: commit, pull/merge, push.
    */
-  backUpNow: () => Promise<void>
+  backUpNow(): Promise<void>
   /**
    * Tear everything down; the service is unusable afterwards.
    */
-  dispose: () => void
+  dispose(): void
 }
 
 class BackupServiceImpl implements BackupService {
@@ -173,7 +173,7 @@ class BackupServiceImpl implements BackupService {
     this.#mobile = isMobilePlatform(deps.platform.appPlatform) || deps.platform.surface.mobileApp
   }
 
-  readonly start = async (): Promise<void> => {
+  async start(): Promise<void> {
     const { git, syncEngines, githubAuth, operations, lifecycle, logger } = this.#deps
     this.#teardown()
     if (this.#disposed) {
@@ -288,7 +288,7 @@ class BackupServiceImpl implements BackupService {
     }
   }
 
-  readonly connectNewRepo = async (name: string): Promise<'connected' | 'manualCreateNeeded'> => {
+  async connectNewRepo(name: string): Promise<'connected' | 'manualCreateNeeded'> {
     const { githubRepos } = this.#deps
     const token = await this.#requireToken()
     const repo = await githubRepos.createRepo(token, name, { isPrivate: true })
@@ -305,10 +305,10 @@ class BackupServiceImpl implements BackupService {
     return 'connected'
   }
 
-  readonly connectExistingRepo = async (
+  async connectExistingRepo(
     ref: GithubRepoRef,
     connectOptions: { allowPublic?: boolean } = {},
-  ): Promise<ConnectExistingResult> => {
+  ): Promise<ConnectExistingResult> {
     const { githubRepos } = this.#deps
     const token = await this.#requireToken()
     const repo = await githubRepos.getRepo(token, ref)
@@ -324,21 +324,21 @@ class BackupServiceImpl implements BackupService {
     return 'connected'
   }
 
-  readonly disconnectGraph = async (): Promise<void> => {
+  async disconnectGraph(): Promise<void> {
     await this.#deps.git.disconnect(this.#generation)
     await this.start()
   }
 
-  readonly signOut = async (): Promise<void> => {
+  async signOut(): Promise<void> {
     await this.#deps.githubAuth.clear()
     await this.start()
   }
 
-  readonly backUpNow = async (): Promise<void> => {
+  async backUpNow(): Promise<void> {
     await this.#engine?.syncNow()
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     this.#disposed = true
     this.#teardown()
     this.#listeners.clear()
