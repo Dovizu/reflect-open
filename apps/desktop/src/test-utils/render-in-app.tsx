@@ -100,8 +100,6 @@ export interface InAppRenderResult<App extends AppServices>
 export interface InAppRenderHookResult<Result, Props, App extends AppServices>
   extends RenderHookResult<Result, Props>, InAppHandles<App> {}
 
-type WithApp<App> = RenderInAppOptions & { app: App }
-type WithoutApp = RenderInAppOptions & { app?: undefined }
 type AnyOptions = RenderInAppOptions & { app?: AppServices | undefined }
 
 /**
@@ -220,42 +218,30 @@ async function prepare(options: AnyOptions | undefined): Promise<
  *
  * Pass your own `app` to replace or spy on a service before the first render.
  */
-export async function renderInApp(
+export async function renderInApp<App extends AppServices = TestAppServices>(
   ui: ReactNode,
-  options?: WithoutApp,
-): Promise<InAppRenderResult<TestAppServices>>
-export async function renderInApp<App extends AppServices>(
-  ui: ReactNode,
-  options: WithApp<App>,
-): Promise<InAppRenderResult<App>>
-export async function renderInApp(
-  ui: ReactNode,
-  options?: AnyOptions,
-): Promise<InAppRenderResult<AppServices>> {
+  options?: RenderInAppOptions & { app?: App },
+): Promise<InAppRenderResult<App>> {
   const { wrap, dispose, ...handles } = await prepare(options)
   const screen = await render(ui, { wrapper: ({ children }) => wrap(children) })
   onTestFinished(async () => {
     await screen.unmount()
     dispose()
   })
-  return Object.assign(screen, handles)
+  return Object.assign(screen, handles as InAppHandles<App>)
 }
 
 /**
  * {@link renderInApp} for a hook: `hook` runs inside the same providers.
  */
-export async function renderHookInApp<Result, Props = undefined>(
+export async function renderHookInApp<
+  Result,
+  Props = undefined,
+  App extends AppServices = TestAppServices,
+>(
   hook: (props?: Props) => Result,
-  options?: WithoutApp & { initialProps?: Props },
-): Promise<InAppRenderHookResult<Result, Props, TestAppServices>>
-export async function renderHookInApp<Result, Props, App extends AppServices>(
-  hook: (props?: Props) => Result,
-  options: WithApp<App> & { initialProps?: Props },
-): Promise<InAppRenderHookResult<Result, Props, App>>
-export async function renderHookInApp<Result, Props>(
-  hook: (props?: Props) => Result,
-  options?: AnyOptions & { initialProps?: Props },
-): Promise<InAppRenderHookResult<Result, Props, AppServices>> {
+  options?: RenderInAppOptions & { app?: App; initialProps?: Props },
+): Promise<InAppRenderHookResult<Result, Props, App>> {
   const { wrap, dispose, ...handles } = await prepare(options)
   const rendered = await renderHook<Props, Result>(hook, {
     wrapper: ({ children }) => wrap(children),
@@ -265,5 +251,5 @@ export async function renderHookInApp<Result, Props>(
     await rendered.unmount()
     dispose()
   })
-  return Object.assign(rendered, handles)
+  return Object.assign(rendered, handles as InAppHandles<App>)
 }

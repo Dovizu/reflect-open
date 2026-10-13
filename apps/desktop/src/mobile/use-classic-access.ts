@@ -17,7 +17,7 @@ export function useClassicAccess(): {
 } {
   const { classicAccess: classic, platform } = useAppServices()
   const enabled = platform.appPlatform === 'ios'
-  const state = useServiceState(classic)
+  const state = useServiceState(classic, classic.getState)
 
   useEffect(() => classic.start(), [classic])
 
@@ -52,7 +52,9 @@ export function useClassicSignIn() {
 
 export type ClassicSignIn = ReturnType<typeof useClassicSignIn>
 
-/** Forgets this device's Reflect Classic verification. */
+/**
+ * Forgets this device's Reflect Classic verification.
+ */
 export function useClassicSignOut() {
   const { classicAccess: classic } = useAppServices()
   return useMutation({
@@ -61,7 +63,9 @@ export function useClassicSignOut() {
   })
 }
 
-/** The status line for a stored verification, or `null` for none. */
+/**
+ * The status line for a stored verification, or `null` for none.
+ */
 export function classicAccessMessage(classicAccess: {
   value: ClassicAccess | null
   active: boolean

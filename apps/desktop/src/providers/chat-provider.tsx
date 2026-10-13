@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { ChatSession, ChatSessionState } from '@reflect/core'
-import { useGraphServices } from '@/services/services-provider.tsx'
+import { useMaybeGraphServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
@@ -19,18 +19,27 @@ const NO_CHAT = {
   getState: (): ChatSessionState | null => null,
 }
 
-/** The chat session of the open graph; `optional` allows none (no graph is open). */
-export function useChatSession(options: { optional: true }): ChatContextValue | null
-export function useChatSession(): ChatContextValue
-export function useChatSession(options?: { optional: true }): ChatContextValue | null { // FIXME: let I said in earlier, function overriding is anti-pattern. Just create two functions.
-  const session = useGraphServices({ optional: true })?.chat ?? null
-  const state = useServiceState<ChatSessionState | null>(session ?? NO_CHAT)
+/**
+ * The chat session of the open graph.
+ */
+export function useChatSession(): ChatContextValue {
+  const value = useMaybeChatSession()
+  if (value === null) {
+    throw new Error('useChatSession must be used while a graph is open')
+  }
+  return value
+}
+
+/**
+ * The chat session of the open graph, or `null` while no graph is open.
+ */
+export function useMaybeChatSession(): ChatContextValue | null {
+  const session = useMaybeGraphServices()?.chat ?? null
+  const store = session ?? NO_CHAT
+  const state = useServiceState<ChatSessionState | null>(store, store.getState)
   const value = useMemo(
     () => (session === null || state === null ? null : { ...session, ...state }),
     [state, session],
   )
-  if (value === null && options?.optional !== true) {
-    throw new Error('useChatSession must be used while a graph is open')
-  }
   return value
 }

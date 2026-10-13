@@ -7,13 +7,15 @@ import type {
 } from '@meowdown/core'
 import type { AssetSaveError } from '@reflect/core'
 import { useNoteAttachments } from '@/editor/use-note-attachments.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
+import { useMaybeGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 export type { AssetSaveError }
 
 export interface AssetPersistence {
-  /** Resolve an image source in the note to a displayable URL, possibly later. */
+  /**
+   * Resolve an image source in the note to a displayable URL, possibly later.
+   */
   resolveImageUrl: ImageUrlResolver
   /**
    * Resolve an image source or link destination in the note to the
@@ -21,9 +23,13 @@ export interface AssetPersistence {
    * note, and unsafe destinations).
    */
   resolveAssetOpenPath: (src: string) => string | null
-  /** Classify the note's `![[embeds]]` (see `useNoteAttachments`). */
+  /**
+   * Classify the note's `![[embeds]]` (see `useNoteAttachments`).
+   */
   resolveWikiEmbed: WikiEmbedResolver
-  /** Claim the note's links to local attachments as file pills. */
+  /**
+   * Claim the note's links to local attachments as file pills.
+   */
   resolveFileLink: FileLinkResolver
   /**
    * Open a vetted graph-relative asset path in the OS default application.
@@ -42,7 +48,9 @@ export interface AssetPersistence {
    * embed; undefined for anything else or a file the catalog doesn't list.
    */
   resolveFileInfo: (href: string) => Promise<FileInfo | undefined>
-  /** The most recent failed save; cleared by the next success. */
+  /**
+   * The most recent failed save; cleared by the next success.
+   */
   saveError: AssetSaveError | null
 }
 
@@ -52,7 +60,7 @@ export interface AssetPersistence {
  * and the graph it is in (a pane is reused across note switches).
  */
 export function useAssetPersistence(path: string): AssetPersistence {
-  const graph = useGraph({ optional: true })?.graph ?? null
+  const graph = useMaybeGraph()?.graph ?? null
   const { attachments } = useAppServices()
   const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(path)
   // The pane outlives the note (and graph session) it shows, so a save that

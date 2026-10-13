@@ -7,7 +7,9 @@ class FakeMediaRecorder {
   static instances: FakeMediaRecorder[] = []
   static supported = ['audio/mp4']
   static failConstruction = false
-  /** While true, `stop()` flushes but withholds `onstop` until released. */
+  /**
+   * While true, `stop()` flushes but withholds `onstop` until released.
+   */
   static holdStop = false
 
   static isTypeSupported(type: string): boolean {
@@ -19,7 +21,7 @@ class FakeMediaRecorder {
   state: RecordingState = 'inactive'
   stopCalls = 0
   readonly mimeType: string
-  private heldStop: (() => void) | null = null
+  #heldStop: (() => void) | null = null
 
   constructor(_stream: MediaStream, options?: { mimeType?: string }) {
     if (FakeMediaRecorder.failConstruction) {
@@ -38,15 +40,15 @@ class FakeMediaRecorder {
     this.state = 'inactive'
     this.ondataavailable?.({ data: new Blob(['audio-bytes']) })
     if (FakeMediaRecorder.holdStop) {
-      this.heldStop = () => this.onstop?.()
+      this.#heldStop = () => this.onstop?.()
       return
     }
     this.onstop?.()
   }
 
   releaseStop(): void {
-    const held = this.heldStop
-    this.heldStop = null
+    const held = this.#heldStop
+    this.#heldStop = null
     held?.()
   }
 }

@@ -13,15 +13,25 @@ import { createOpenDocumentsService } from '../documents/open-documents-service.
 import { createTestFileChangeService } from './file-change.ts'
 
 export interface TestNoteSessionOptions {
-  /** Graph-relative path of the note. */
+  /**
+   * Graph-relative path of the note.
+   */
   path: string
-  /** The full document (frontmatter + body). Defaults to empty. */
+  /**
+   * The full document (frontmatter + body). Defaults to empty.
+   */
   content?: string
-  /** False reports a session that is still loading: `liveContent()` is `null`. Defaults to true. */
+  /**
+   * False reports a session that is still loading: `liveContent()` is `null`. Defaults to true.
+   */
   loaded?: boolean
-  /** Defaults to false. */
+  /**
+   * Defaults to false.
+   */
   dirty?: boolean
-  /** Defaults to false. */
+  /**
+   * Defaults to false.
+   */
   unpersisted?: boolean
   /**
    * False makes `updateFrontmatter`, `commitFrontmatter`, `commitSourceEdit`
@@ -36,9 +46,13 @@ export interface NoteSessionCall {
 }
 
 export interface TestNoteSession extends NoteSession {
-  /** Every method call, in order. */
+  /**
+   * Every method call, in order.
+   */
   calls(): readonly NoteSessionCall[]
-  /** The arguments of every call of `method`, in order. */
+  /**
+   * The arguments of every call of `method`, in order.
+   */
   getCalls(method: keyof NoteSession): ReadonlyArray<readonly unknown[]>
 }
 
@@ -47,7 +61,6 @@ export interface TestNoteSession extends NoteSession {
  * edit `content` at once, and nothing loads, saves or reconciles.
  */
 export function createTestNoteSession(options: TestNoteSessionOptions): TestNoteSession {
-  let path = options.path
   let content = options.content ?? ''
   const loaded = options.loaded ?? true
   const accepts = options.accepts ?? true
@@ -57,13 +70,11 @@ export function createTestNoteSession(options: TestNoteSessionOptions): TestNote
     callLog.push({ method, args })
   }
 
-  return {
-    get path() {
-      return path
-    },
+  const session: { path: string } & Omit<TestNoteSession, 'path'> = {
+    path: options.path,
     retarget: (to) => {
       record('retarget', to)
-      path = to
+      session.path = to
     },
     load: () => {
       record('load')
@@ -135,10 +146,13 @@ export function createTestNoteSession(options: TestNoteSessionOptions): TestNote
     calls: () => [...callLog],
     getCalls: (method) => callLog.filter((call) => call.method === method).map((call) => call.args),
   }
+  return session
 }
 
 export interface TestNoteMoveService extends NoteMoveService {
-  /** Every move announced to the subscribers, in order. */
+  /**
+   * Every move announced to the subscribers, in order.
+   */
   moved(): ReadonlyArray<readonly [from: string, to: string]>
 }
 

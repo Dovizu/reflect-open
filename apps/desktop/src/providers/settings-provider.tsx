@@ -6,34 +6,26 @@ export type { SettingsLoadOutcome } from '@reflect/core'
 
 interface SettingsValue {
   settings: Settings
-  /** Merge `patch` into the settings: applied immediately, persisted async. */
+  /**
+   * Merge `patch` into the settings: applied immediately, persisted async.
+   */
   updateSettings: (patch: Partial<Settings>) => void
-  /** Compute a patch from the latest settings; pre-load calls replay after hydration. */
+  /**
+   * Compute a patch from the latest settings; pre-load calls replay after hydration.
+   */
   updateSettingsWith: (updater: (current: Settings) => Partial<Settings>) => void
-  /** Resolve after the initial disk load; `'failed'` means session-only updates. */
+  /**
+   * Resolve after the initial disk load; `'failed'` means session-only updates.
+   */
   whenSettingsLoaded: () => Promise<SettingsLoadOutcome>
 }
 
-interface SettingsStore {
-  readonly subscribe: (listener: () => void) => () => void
-  readonly get: () => Settings | null
-}
-
-const NO_STORE: SettingsStore = {
-  subscribe: () => () => {},
-  get: () => null,
-}
-
-/** Access the current settings and the updater. Use within an `AppServicesProvider`. */
-export function useSettings(options: { optional: true }): SettingsValue | null
-export function useSettings(): SettingsValue
-export function useSettings(options?: { optional: true }): SettingsValue | null {
-  const service = useAppServices(options)?.settings ?? null
-  const store: SettingsStore = service ?? NO_STORE
-  const settings = useServiceState(store, store.get)
-  if (service === null || settings === null) {
-    return null
-  }
+/**
+ * Access the current settings and the updater. Use within an `AppServicesProvider`.
+ */
+export function useSettings(): SettingsValue {
+  const service = useAppServices().settings
+  const settings = useServiceState(service, service.get)
   return {
     settings,
     updateSettings: service.update,

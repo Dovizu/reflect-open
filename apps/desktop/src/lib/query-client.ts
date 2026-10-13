@@ -3,7 +3,9 @@ import { QueryClient } from '@tanstack/react-query'
 type GraphRoot = string | undefined
 type PaletteSearchMode = 'hybrid' | 'lexical'
 
-/** The single source of truth for every TanStack Query cache identity. */
+/**
+ * The single source of truth for every TanStack Query cache identity.
+ */
 export const queryKeys = {
   index: {
     all: ['index'] as const,
@@ -113,18 +115,14 @@ export const queryKeys = {
   },
   calendar: {
     all: ['calendar'] as const,
-    get calendars() {
-      return [...this.all, 'calendars'] as const
-    },
+    calendars: ['calendar', 'calendars'] as const,
     events(date: string, calendarIds: readonly string[]) {
       return [...this.all, 'events', date, calendarIds] as const
     },
   },
   icloud: {
     all: ['icloud'] as const,
-    get status() {
-      return [...this.all, 'status'] as const
-    },
+    status: ['icloud', 'status'] as const,
     pendingNotes(root: GraphRoot) {
       return [...this.all, root, 'pending-notes'] as const
     },
@@ -137,19 +135,17 @@ export const queryKeys = {
   },
   iap: {
     all: ['iap'] as const,
-    get products() {
-      return [...this.all, 'products'] as const
-    },
+    products: ['iap', 'products'] as const,
   },
   mobile: {
     all: ['mobile'] as const,
-    get storage() {
-      return [...this.all, 'storage'] as const
-    },
+    storage: ['mobile', 'storage'] as const,
   },
 } as const
 
-/** Stable identities for mutations that are observed outside their owning hook. */
+/**
+ * Stable identities for mutations that are observed outside their owning hook.
+ */
 export const mutationKeys = {
   tasks: {
     all: ['tasks'] as const,
@@ -195,24 +191,14 @@ export const mutationKeys = {
   },
   classic: {
     all: ['classic'] as const,
-    get signIn() {
-      return [...this.all, 'sign-in'] as const
-    },
-    get signOut() {
-      return [...this.all, 'sign-out'] as const
-    },
+    signIn: ['classic', 'sign-in'] as const,
+    signOut: ['classic', 'sign-out'] as const,
   },
   iap: {
     all: ['iap'] as const,
-    get purchase() {
-      return [...this.all, 'purchase'] as const
-    },
-    get restore() {
-      return [...this.all, 'restore'] as const
-    },
-    get redeem() {
-      return [...this.all, 'redeem'] as const
-    },
+    purchase: ['iap', 'purchase'] as const,
+    restore: ['iap', 'restore'] as const,
+    redeem: ['iap', 'redeem'] as const,
   },
 } as const
 
@@ -247,7 +233,9 @@ export const queryClient = new QueryClient({
 queryClient.setQueryDefaults(queryKeys.index.all, { staleTime: Infinity })
 queryClient.setQueryDefaults(queryKeys.chat.all, { staleTime: Infinity })
 
-/** Refetch all index-backed queries; called after index rows change. */
+/**
+ * Refetch all index-backed queries; called after index rows change.
+ */
 export function invalidateIndexQueries(): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.index.all })
 }
@@ -317,7 +305,9 @@ export function dropIcloudStatusQuery(): void {
   queryClient.removeQueries({ queryKey: queryKeys.icloud.status })
 }
 
-/** Refetch chat-history queries; called after a turn save or a delete. */
+/**
+ * Refetch chat-history queries; called after a turn save or a delete.
+ */
 export function invalidateChatQueries(): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.chat.all })
 }
@@ -330,7 +320,9 @@ export function dropXPostQueries(): void {
   queryClient.removeQueries({ queryKey: queryKeys.xPost.all })
 }
 
-/** Re-read archived X posts; called after a capture pass writes archive JSON. */
+/**
+ * Re-read archived X posts; called after a capture pass writes archive JSON.
+ */
 export function invalidateXPostQueries(): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.xPost.all })
 }

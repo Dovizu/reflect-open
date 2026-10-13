@@ -21,10 +21,14 @@ import { getTaskKey, isSameTask } from './task-identity.ts'
  * shared by every Tasks write — single-row and bulk alike.
  */
 
-/** Where a note write left each of its tasks: `applyTaskEdits`'s `moved`. */
+/**
+ * Where a note write left each of its tasks: `applyTaskEdits`'s `moved`.
+ */
 export type TaskMoves = readonly TaskMove[]
 
-/** Drop every row matching one of `tasks` from a cached list. */
+/**
+ * Drop every row matching one of `tasks` from a cached list.
+ */
 export function withoutTasks(
   rows: OpenTask[] | undefined,
   tasks: OpenTask[],
@@ -36,7 +40,9 @@ function isSameLabels(left: readonly string[], right: readonly string[]): boolea
   return left.length === right.length && left.every((label, i) => label === right[i])
 }
 
-/** The row as the write left its task; the row itself when nothing differs. */
+/**
+ * The row as the write left its task; the row itself when nothing differs.
+ */
 function withSnapshot(task: OpenTask, to: TaskSnapshot): OpenTask {
   const next = { ...task, ...renderTaskSnapshot(to) }
   const same =
@@ -53,18 +59,6 @@ function withSnapshot(task: OpenTask, to: TaskSnapshot): OpenTask {
  * moved takes its new address and content, and untouched rows are kept as is.
  * Returns the same array when nothing changed.
  */
-export function withRelocatedTasks(
-  ctx: TaskLogContext,
-  rows: OpenTask[] | undefined,
-  notePath: string,
-  moved: TaskMoves,
-): OpenTask[] | undefined
-export function withRelocatedTasks(
-  ctx: TaskLogContext,
-  rows: readonly OpenTask[],
-  notePath: string,
-  moved: TaskMoves,
-): readonly OpenTask[]
 export function withRelocatedTasks(
   ctx: TaskLogContext,
   rows: readonly OpenTask[] | undefined,
@@ -93,7 +87,9 @@ export function withRelocatedTasks(
   return changed ? relocated : rows
 }
 
-/** The same task with its checkbox set to `checked`. */
+/**
+ * The same task with its checkbox set to `checked`.
+ */
 export function withChecked(task: OpenTask, checked: boolean): OpenTask {
   return task.checked === checked ? task : { ...task, checked }
 }

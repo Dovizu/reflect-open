@@ -65,7 +65,8 @@ The rules:
   entry needs a measured reason in that file.
 - App code does not call `console` at all (lint enforces it); it logs through
   `LoggerService`.
-- Import `act` from `@/test-utils/act.ts`, not from `react`: it sets React's
+- Import `act` (synchronous) or `actAsync` (awaited) from
+  `@/test-utils/act.ts`, not `act` from `react`: they set React's
   act-environment flag for the call, which avoids the "not configured to
   support act" warning.
 - Core services log through `LoggerService`, not the console. A test of an

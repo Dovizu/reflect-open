@@ -6,22 +6,24 @@ import { createWebStorageService, getJson, setJson } from './storage-service.ts'
 
 function createStorage(entries: Record<string, string> = {}): Storage {
   const values = new Map(Object.entries(entries))
-  return {
-    get length() {
-      return values.size
-    },
+  const storage: Storage & { length: number } = {
+    length: values.size,
     key: (index) => [...values.keys()][index] ?? null,
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => {
       values.set(key, value)
+      storage.length = values.size
     },
     removeItem: (key) => {
       values.delete(key)
+      storage.length = values.size
     },
     clear: () => {
       values.clear()
+      storage.length = 0
     },
   }
+  return storage
 }
 
 describe('createWebStorageService', () => {

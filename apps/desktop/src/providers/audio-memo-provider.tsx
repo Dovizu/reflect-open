@@ -36,13 +36,17 @@ export type { AudioMemoPhase }
 
 type AudioMemoContextValue = AudioMemoSessionState &
   Pick<AudioMemoSession, 'cancel' | 'retry' | 'discard'> & {
-    /** Idle → start recording (expanding a collapsed sidebar); recording → stop & save. */
+    /**
+     * Idle → start recording (expanding a collapsed sidebar); recording → stop & save.
+     */
     toggle: () => void
   }
 
 const AudioMemoContext = createContext<AudioMemoContextValue | null>(null)
 
-/** What the surface shows before the session opens. */
+/**
+ * What the surface shows before the session opens.
+ */
 const CLOSED_STATE: AudioMemoSessionState = {
   phase: 'idle',
   elapsedMs: 0,
@@ -97,7 +101,8 @@ export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): 
     }
   }, [audioMemo, graph.generation])
 
-  const state = useServiceState(session ?? CLOSED_SESSION)
+  const store = session ?? CLOSED_SESSION
+  const state = useServiceState(store, store.getState)
 
   // The mic button (and its popover) unmount with the sidebar. The session
   // decides what a hidden surface means for a live recording or a pending
@@ -121,7 +126,9 @@ export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): 
   return <AudioMemoContext value={value}>{children}</AudioMemoContext>
 }
 
-/** Access the audio-memo surface. Use within an AudioMemoProvider. */
+/**
+ * Access the audio-memo surface. Use within an AudioMemoProvider.
+ */
 export function useAudioMemo(): AudioMemoContextValue {
   const context = use(AudioMemoContext)
   if (!context) {

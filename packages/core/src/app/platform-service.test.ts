@@ -15,6 +15,7 @@ const FACTS: PlatformFacts = {
 interface FakeQuery {
   matches: boolean
   listeners: Set<(event: MediaQueryListEvent) => void>
+  lists: Array<{ matches: boolean }>
 }
 
 function createFakeMedia(initial: Record<string, boolean>): {
@@ -26,7 +27,7 @@ function createFakeMedia(initial: Record<string, boolean>): {
   function entry(query: string): FakeQuery {
     let found = queries.get(query)
     if (!found) {
-      found = { matches: initial[query] ?? false, listeners: new Set() }
+      found = { matches: initial[query] ?? false, listeners: new Set(), lists: [] }
       queries.set(query, found)
     }
     return found
@@ -35,9 +36,7 @@ function createFakeMedia(initial: Record<string, boolean>): {
     matchMedia(query) {
       const state = entry(query)
       const list = {
-        get matches() {
-          return state.matches
-        },
+        matches: state.matches,
         addEventListener(_type: string, listener: (event: MediaQueryListEvent) => void) {
           state.listeners.add(listener)
         },
@@ -45,11 +44,15 @@ function createFakeMedia(initial: Record<string, boolean>): {
           state.listeners.delete(listener)
         },
       }
+      state.lists.push(list)
       return list as unknown as MediaQueryList
     },
     set(query, matches) {
       const state = entry(query)
       state.matches = matches
+      for (const list of state.lists) {
+        list.matches = matches
+      }
       for (const listener of state.listeners) {
         listener({ matches } as MediaQueryListEvent)
       }

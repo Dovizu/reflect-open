@@ -3,10 +3,12 @@ import type { XPostResolver } from '@meowdown/core'
 import { queryOptions } from '@tanstack/react-query'
 import { parseXPostId } from '@post-embed/schema'
 import { queryClient, queryKeys } from '@/lib/query-client.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
+import { useMaybeGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
-/** The services the X post archive reads go through. */
+/**
+ * The services the X post archive reads go through.
+ */
 export type XPostContext = Pick<AppServices, 'embedMedia'>
 
 export const X_MEDIA_URL_PROTOCOLS = ['reflect-asset:']
@@ -52,5 +54,5 @@ export function getXPostResolver(ctx: XPostContext, graph: GraphInfo | null): XP
 
 export function useXPostResolver() {
   const { embedMedia } = useAppServices()
-  return getXPostResolver({ embedMedia }, useGraph({ optional: true })?.graph ?? null)
+  return getXPostResolver({ embedMedia }, useMaybeGraph()?.graph ?? null)
 }

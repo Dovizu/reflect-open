@@ -23,7 +23,9 @@ import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 const suggestWikiTargets = vi.fn<SuggestionService['suggestWikiTargets']>()
 const searchWithFilters = vi.fn<SearchService['searchWithFilters']>()
 const retrieve = vi.fn<RetrievalService['retrieve']>()
-/** Receives the `reflect://` link of every note window a test opens. */
+/**
+ * Receives the `reflect://` link of every note window a test opens.
+ */
 const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 // The preview keeps the stub from the route-content tests: hosting the real
 // ProseMirror editor is out of scope here; the preview's data path stays real.
@@ -38,7 +40,9 @@ vi.mock('@/editor/markdown-preview.tsx', () => ({
 // halves of the hybrid opt-in.
 let embedReady = false
 let semanticEnabled = false
-/** The note files the preview pane reads; a missing one previews as Empty. */
+/**
+ * The note files the preview pane reads; a missing one previews as Empty.
+ */
 let files: Record<string, string> = {}
 
 beforeEach(() => {
@@ -51,7 +55,9 @@ beforeEach(() => {
   openNoteWindow.mockReset().mockResolvedValue(true)
 })
 
-/** A search hit with the fields the palette does not read filled in. */
+/**
+ * A search hit with the fields the palette does not read filled in.
+ */
 function hit(fields: {
   path: string
   title: string
@@ -82,10 +88,28 @@ function RouteProbe(): ReactNode {
 
 async function renderPalette(query: string, context?: Partial<CommandContext>) {
   const navigate = vi.fn()
-  const fullContext: CommandContext = {
-    get services() {
-      return app
+  const app = createTestAppServices({
+    suggestions: {
+      suggestWikiTargets,
+      suggestWikiLinkTargets: async () => ({
+        suggestions: [],
+        claimedTargetKeys: [],
+        queryReadsAsDate: false,
+      }),
+      suggestTags: async () => [],
     },
+    search: { searchWithFilters },
+    retrieval: createTestRetrievalService({ retrieve }),
+    embeddingRuntime: createTestEmbeddingRuntimeService({
+      status: embedReady
+        ? { status: 'ready', model: 'all-MiniLM-L6-v2' }
+        : { status: 'uninitialized' },
+    }),
+    noteFile: createTestNoteFileService({ files }),
+    window: createTestWindowService({ openNoteWindow }),
+  })
+  const fullContext: CommandContext = {
+    services: app,
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,
@@ -109,26 +133,6 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
     enableSemanticSearch: vi.fn(),
     ...context,
   }
-  const app = createTestAppServices({
-    suggestions: {
-      suggestWikiTargets,
-      suggestWikiLinkTargets: async () => ({
-        suggestions: [],
-        claimedTargetKeys: [],
-        queryReadsAsDate: false,
-      }),
-      suggestTags: async () => [],
-    },
-    search: { searchWithFilters },
-    retrieval: createTestRetrievalService({ retrieve }),
-    embeddingRuntime: createTestEmbeddingRuntimeService({
-      status: embedReady
-        ? { status: 'ready', model: 'all-MiniLM-L6-v2' }
-        : { status: 'uninitialized' },
-    }),
-    noteFile: createTestNoteFileService({ files }),
-    window: createTestWindowService({ openNoteWindow }),
-  })
   const view = await renderInApp(
     <PaletteProvider>
       <OpenOnMount query={query} />

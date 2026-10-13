@@ -6,7 +6,7 @@ import {
   type NoteSessionSnapshot,
   type RenameCoordinator,
 } from '@reflect/core'
-import { useGraph } from '@/providers/graph-provider.tsx'
+import { useMaybeGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { checkRoundTrip } from './roundtrip.ts'
@@ -23,13 +23,21 @@ import { checkRoundTrip } from './roundtrip.ts'
  */
 
 export interface NoteDocument extends NoteSessionSnapshot {
-  /** Wire to the editor: every document change enters the pipeline here. */
+  /**
+   * Wire to the editor: every document change enters the pipeline here.
+   */
   onEditorChange: (markdown: string) => void
-  /** Wire to the editor's imperative handle (reload/conflict application). */
+  /**
+   * Wire to the editor's imperative handle (reload/conflict application).
+   */
   bindEditor: (handle: NoteEditorHandle | null) => void
-  /** Resolve a conflict by keeping the buffer (rewrites the file). */
+  /**
+   * Resolve a conflict by keeping the buffer (rewrites the file).
+   */
   keepMine: () => void
-  /** Resolve a conflict by loading the external content (discards the buffer). */
+  /**
+   * Resolve a conflict by loading the external content (discards the buffer).
+   */
   loadTheirs: () => void
   /**
    * Stable identity of the underlying session: increments when a session is
@@ -72,9 +80,13 @@ export function useNoteDocument(path: string | null, options?: NoteDocumentOptio
   const missingSeed = options?.missingSeed
   const [snapshot, setSnapshot] = useState<NoteSessionSnapshot>(INITIAL_NOTE_SNAPSHOT)
   const editorRef = useRef<NoteEditorHandle | null>(null)
-  /** Mirrors the snapshot's conflict for non-reactive checks (rename gating). */
+  /**
+   * Mirrors the snapshot's conflict for non-reactive checks (rename gating).
+   */
   const conflictRef = useRef<string | null>(null)
-  /** The pane's lifecycle policy object — one per hook instance. */
+  /**
+   * The pane's lifecycle policy object — one per hook instance.
+   */
   const { noteSessions, openDocuments, titleRename } = useAppServices()
   const [binding] = useState<DocumentBinding<RenameCoordinator>>(() =>
     createDocumentBinding({ openDocuments }),
@@ -83,7 +95,7 @@ export function useNoteDocument(path: string | null, options?: NoteDocumentOptio
   // The session is keyed on whether a graph is open, not on its generation:
   // reopening the *same* graph bumps the generation without remounting the
   // pane, and the session's writes follow that reopen on their own.
-  const canWrite = useGraph({ optional: true })?.graph != null
+  const canWrite = useMaybeGraph()?.graph != null
 
   useEffect(() => {
     if (!path) {

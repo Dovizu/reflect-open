@@ -16,7 +16,7 @@ export function useActiveSubscription(): {
   refetch: () => Promise<ActiveSubscription>
 } {
   const { subscription } = useMobileAppServices()
-  const state = useServiceState(subscription)
+  const state = useServiceState(subscription, subscription.getState)
 
   useEffect(() => {
     void subscription.activeSubscription()

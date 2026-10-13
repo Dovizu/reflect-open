@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { renderHook } from 'vitest-browser-react'
 import { StrictMode, type ReactNode } from 'react'
 import { createTestAppServices, createTestSettingsService } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
@@ -44,10 +43,5 @@ describe('useSettings', () => {
     })
     const loads = settings.ipc.calls().filter(({ command }) => command === 'settings_load')
     expect(loads).toHaveLength(1)
-  })
-
-  it('returns null outside an AppServicesProvider when optional', async () => {
-    const { result } = await renderHook(() => useSettings({ optional: true }))
-    expect(result.current).toBeNull()
   })
 })

@@ -13,38 +13,27 @@ declare global {
  *
  * Tests import this instead of `act` from `react`.
  */
-export function act(callback: () => void | undefined): void
-export function act<T>(callback: () => T | Promise<T>): Promise<T>
-export function act<T>(callback: () => T | Promise<T>): void | Promise<T> {
+export function act(callback: () => void): void {
   const previous = globalThis.IS_REACT_ACT_ENVIRONMENT
-  const restore = (): void => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  try {
+    // A synchronous scope: React has flushed the work before it returns.
+    void reactAct(callback)
+  } finally {
     globalThis.IS_REACT_ACT_ENVIRONMENT = previous
   }
-  const scope = { isAsync: false }
+}
+
+/**
+ * {@link act} for a callback that returns a promise: the flag stays on until
+ * the promise settles and React has flushed.
+ */
+export async function actAsync<T>(callback: () => T | Promise<T>): Promise<T> {
+  const previous = globalThis.IS_REACT_ACT_ENVIRONMENT
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
-  let result: PromiseLike<T>
   try {
-    result = reactAct((): Promise<T> => {
-      const returned = callback()
-      scope.isAsync = returned instanceof Promise
-      return returned as Promise<T>
-    })
-  } catch (error) {
-    restore()
-    throw error
+    return await reactAct(async () => await callback())
+  } finally {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = previous
   }
-  if (scope.isAsync) {
-    return Promise.resolve(result).finally(restore)
-  }
-  // A synchronous scope: React has flushed the work before it returns. A
-  // caller that awaits the result anyway makes React flush once more, so the
-  // flag is on again for that flush.
-  restore()
-  const awaited: PromiseLike<T> = {
-    then: (onFulfilled, onRejected) => {
-      globalThis.IS_REACT_ACT_ENVIRONMENT = true
-      return Promise.resolve(result).finally(restore).then(onFulfilled, onRejected)
-    },
-  }
-  return awaited as Promise<T>
 }

@@ -28,45 +28,31 @@ export function GraphServicesProvider({
 }
 
 /**
- * The {@link AppServices} of the nearest `AppServicesProvider`; `optional` allows none.
+ * The {@link AppServices} of the nearest `AppServicesProvider`.
  */
-export function useAppServices(options: { optional: true }): AppServices | null
-export function useAppServices(): AppServices
-export function useAppServices(options?: { optional: true }): AppServices | null
-export function useAppServices(options?: { optional: true }): AppServices | null {
+export function useAppServices(): AppServices {
   const services = use(AppServicesContext)
-  if (services === null && options?.optional !== true) {
+  if (services === null) {
     throw new Error('useAppServices() must be called inside an <AppServicesProvider>')
   }
   return services
 }
 
 /**
- * The {@link GraphServices} of the nearest `GraphServicesProvider`; `optional` allows none.
+ * The {@link GraphServices} of the nearest `GraphServicesProvider`.
  */
-export function useGraphServices(options: { optional: true }): GraphServices | null
-export function useGraphServices(): GraphServices
-export function useGraphServices(options?: { optional: true }): GraphServices | null {
-  const services = use(GraphServicesContext)
-  if (services === null && options?.optional !== true) {
+export function useGraphServices(): GraphServices {
+  const services = useMaybeGraphServices()
+  if (services === null) {
     throw new Error('useGraphServices() must be called inside a <GraphServicesProvider>')
   }
   return services
 }
 
-/*
-FIXME 1: use function overrides is anti-pattern. Fix all functions in reflect-open and avoid function overrides. See example below
-
-
-BAD:
-export function useAppServices(options: { optional: true }): AppServices | null
-export function useAppServices(): AppServices
-export function useAppServices(options?: { optional: true }): AppServices | null
-export function useAppServices(options?: { optional: true }): AppServices | null { ... }
-
-GOOD 2:
-export function useMaybeAppServices() : AppServices | null { ... }
-export function useAppServices() : AppServices { ... }
-
-FIXME 2: is `{ optional: true }` still needed?
-*/
+/**
+ * The {@link GraphServices} of the nearest `GraphServicesProvider`, or `null`
+ * while no graph session is open.
+ */
+export function useMaybeGraphServices(): GraphServices | null {
+  return use(GraphServicesContext)
+}

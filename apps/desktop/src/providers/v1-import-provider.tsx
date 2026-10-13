@@ -14,9 +14,13 @@ import { useAppServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 type V1ImportContextValue = { state: V1ImportState } & Pick<V1ImportService, 'dismiss'> & {
-    /** `V1ImportService.start`. */
+    /**
+     * `V1ImportService.start`.
+     */
     startImport: V1ImportService['start']
-    /** `V1ImportService.cancel`. */
+    /**
+     * `V1ImportService.cancel`.
+     */
     cancelImport: V1ImportService['cancel']
   }
 
@@ -38,7 +42,7 @@ export function V1ImportProvider({ children }: V1ImportProviderProps): ReactElem
   const [service] = useState(() =>
     createV1ImportService({ ipc, fileChanges, graphSession, clock, logger }),
   )
-  const state = useServiceState(service)
+  const state = useServiceState(service, service.getState)
 
   // Unmounting mid-import (graph switch, app teardown) cancels the import.
   useEffect(() => service.attach(), [service])
@@ -56,7 +60,9 @@ export function V1ImportProvider({ children }: V1ImportProviderProps): ReactElem
   )
 }
 
-/** The workspace's Reflect V1 import (state + controls). */
+/**
+ * The workspace's Reflect V1 import (state + controls).
+ */
 export function useV1Import(): V1ImportContextValue {
   const context = use(V1ImportContext)
   if (context === null) {

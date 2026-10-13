@@ -101,10 +101,14 @@ import {
 import { createTestThemeService } from './theme.ts'
 import { createTestUpdateService } from './update.ts'
 
-/** Replacements for the services of {@link createTestAppServices}. */
+/**
+ * Replacements for the services of {@link createTestAppServices}.
+ */
 export type TestAppServiceOverrides = Partial<AppServices & InternalServices>
 
-/** The services that {@link createTestAppServices} passes as adapters. */
+/**
+ * The services that {@link createTestAppServices} passes as adapters.
+ */
 function createTestEdgeServices() {
   return {
     logger: createTestLoggerService(),
@@ -121,7 +125,9 @@ function createTestEdgeServices() {
 
 type TestEdgeServices = ReturnType<typeof createTestEdgeServices>
 
-/** {@link createNoteServices} with doubles that record each resolution and creation. */
+/**
+ * {@link createNoteServices} with doubles that record each resolution and creation.
+ */
 function createTestNoteServices(deps: {
   noteFile: NoteFileService
   wikiResolver: WikiResolverService
@@ -135,12 +141,16 @@ function createTestNoteServices(deps: {
   } satisfies NoteServices
 }
 
-/** The services whose test double is not the real service: in-memory, scripted, or recording. */
+/**
+ * The services whose test double is not the real service: in-memory, scripted, or recording.
+ */
 function createTestServiceFactories(
   shared: { ipc: TestIpcBridgeService; platform: TestPlatformService; clock: TestClockService },
   overrides: TestAppServiceOverrides | undefined,
 ) {
-  /** Puts the overrides of a group's members in place of the built ones. */
+  /**
+   * Puts the overrides of a group's members in place of the built ones.
+   */
   function withOverrides<Group extends object>(group: Group): Group {
     const result = { ...group } as Record<string, unknown>
     for (const key of Object.keys(group)) {
@@ -225,19 +235,25 @@ function createTestServiceFactories(
 
 type TestServiceFactories = ReturnType<typeof createTestServiceFactories>
 
-/** The service each factory builds. */
+/**
+ * The service each factory builds.
+ */
 type Built<Factories> = {
   readonly [Key in keyof Factories]: Factories[Key] extends (...args: never) => infer Service
     ? Service
     : never
 }
 
-/** `Base` with the members of `Narrow` in place of its own. */
+/**
+ * `Base` with the members of `Narrow` in place of its own.
+ */
 type Override<Base, Narrow> = Omit<Base, keyof Narrow> & Narrow
 
 type MobileKey = 'iap' | 'appStore' | 'subscription' | 'appStoreEnvironment' | 'haptics' | 'paywall'
 
-/** {@link MobileServices} where each service with a test double is that double. */
+/**
+ * {@link MobileServices} where each service with a test double is that double.
+ */
 export type TestMobileServices = Override<
   MobileServices,
   Pick<Built<TestServiceFactories>, 'haptics' | 'subscription' | 'appStoreEnvironment' | 'paywall'>
@@ -258,11 +274,11 @@ export type TestAppServices = Override<
  * {@link createAppServices} over test adapters, with the test double of each
  * service that has one and `overrides` in place of the matching services.
  */
-export function createTestAppServices(): TestAppServices
-export function createTestAppServices<Overrides extends TestAppServiceOverrides>(
-  overrides: Overrides,
-): Omit<TestAppServices, keyof Overrides> & Overrides
-export function createTestAppServices(overrides?: TestAppServiceOverrides): TestAppServices {
+export function createTestAppServices<
+  Overrides extends TestAppServiceOverrides = Record<never, never>,
+>(
+  overrides?: Overrides & TestAppServiceOverrides,
+): Omit<TestAppServices, keyof Overrides> & Overrides {
   const defaults = createTestEdgeServices()
   const edge = { ...defaults, ...overrides }
   const ipc = createTestIpcBridgeService({ logger: edge.logger })
@@ -293,5 +309,5 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
     ...createTestServiceFactories({ ipc, platform, clock: defaults.clock }, overrides),
     ...(fixed as Partial<ServiceFactories>),
   })
-  return { ...services, ...internal } as TestAppServices
+  return { ...services, ...internal } as Omit<TestAppServices, keyof Overrides> & Overrides
 }

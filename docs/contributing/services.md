@@ -321,7 +321,7 @@ useEffect(
 ```
 
 - An event subscription is a `useEffect` that returns the unsubscribe.
-- A store is read with `useServiceState(service)` (or
+- A store is read with `useServiceState(service, service.getState)` (or
   `useServiceState(service, service.get)` for a getter with another name),
   from `apps/desktop/src/services/use-service-state.ts`. Read an app-scoped
   service where it is used, as `useSettings()` does. Read a graph-scoped

@@ -5,7 +5,9 @@ import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { AppStoreEnvironment } from '@reflect/core'
 
-/** The live or startup-seeded App Store install channel, verified on mount. */
+/**
+ * The live or startup-seeded App Store install channel, verified on mount.
+ */
 export function useAppStoreEnvironment(): {
   value: AppStoreEnvironment
   isLoading: boolean
@@ -13,7 +15,7 @@ export function useAppStoreEnvironment(): {
   invalidate: VoidFunction
 } {
   const { appStoreEnvironment: environment } = useMobileAppServices()
-  const state = useServiceState(environment)
+  const state = useServiceState(environment, environment.getState)
 
   useEffect(() => {
     void environment.environment()

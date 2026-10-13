@@ -24,13 +24,17 @@ type MobileAudioMemoContextValue = MobileAudioMemoSessionState &
     MobileAudioMemoSession,
     'toggle' | 'stopAndSave' | 'cancelRecording' | 'retry' | 'discard'
   > & {
-    /** Drawer dismissal: a live recording stops-and-saves, never silently drops. */
+    /**
+     * Drawer dismissal: a live recording stops-and-saves, never silently drops.
+     */
     onDrawerOpenChange: (open: boolean) => void
   }
 
 const MobileAudioMemoContext = createContext<MobileAudioMemoContextValue | null>(null)
 
-/** What the surface shows before the session opens. */
+/**
+ * What the surface shows before the session opens.
+ */
 const CLOSED_STATE: MobileAudioMemoSessionState = {
   phase: 'idle',
   elapsedMs: 0,
@@ -71,7 +75,8 @@ export function MobileAudioMemoProvider({
     }
   }, [mobileAudioMemo, graph.generation])
 
-  const state = useServiceState(session ?? CLOSED_SESSION)
+  const store = session ?? CLOSED_SESSION
+  const state = useServiceState(store, store.getState)
 
   const controls = useMemo(
     () => ({
@@ -92,7 +97,9 @@ export function MobileAudioMemoProvider({
   return <MobileAudioMemoContext value={value}>{children}</MobileAudioMemoContext>
 }
 
-/** Access the mobile audio-memo surface. Use within MobileAudioMemoProvider. */
+/**
+ * Access the mobile audio-memo surface. Use within MobileAudioMemoProvider.
+ */
 export function useMobileAudioMemo(): MobileAudioMemoContextValue {
   const context = use(MobileAudioMemoContext)
   if (!context) {

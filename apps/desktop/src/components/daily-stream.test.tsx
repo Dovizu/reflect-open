@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi } from 'vitest'
 import { useEffect, type ReactElement, type ReactNode } from 'react'
-import { act } from '@/test-utils/act.ts'
+import { act, actAsync } from '@/test-utils/act.ts'
 import { createSystemClock, type ClockService } from '@reflect/core'
 import { createTestAppServices, createTestClockService } from '@reflect/core/testing'
 import { FocusedDailyProvider, useFocusedDailyDate } from '@/providers/focused-daily-provider.tsx'
@@ -25,7 +25,9 @@ import { DailyStream, ESTIMATED_DAY_HEIGHT } from './daily-stream.tsx'
 vi.mock('@/editor/note-editor.tsx', () => ({
   NoteEditor: () => <div data-testid="fake-editor" />,
 }))
-/** A test clock at 23:59 on 2026-06-27, for the app of {@link renderStream}. */
+/**
+ * A test clock at 23:59 on 2026-06-27, for the app of {@link renderStream}.
+ */
 function clockBeforeMidnight(): ReturnType<typeof createTestClockService> {
   return createTestClockService({ now: new Date(2026, 5, 27, 23, 59, 0).getTime() })
 }
@@ -34,7 +36,9 @@ function Stream({ children }: { children: ReactNode }): ReactElement {
   return <div style={{ height: 800 }}>{children}</div>
 }
 
-/** Render `children` in a stream-sized box; the app runs on `clock` (the system clock by default). */
+/**
+ * Render `children` in a stream-sized box; the app runs on `clock` (the system clock by default).
+ */
 async function renderStream(children: ReactNode, clock: ClockService = createSystemClock()) {
   const app = createTestAppServices({ clock })
   // Reads never resolve: every day stays a loading placeholder.
@@ -47,7 +51,9 @@ async function renderStream(children: ReactNode, clock: ClockService = createSys
   })
 }
 
-/** Records `offset` on the current history entry, as a view's scroll would. */
+/**
+ * Records `offset` on the current history entry, as a view's scroll would.
+ */
 function SaveScrollProbe({ offset }: { offset: number }): ReactElement | null {
   const { saveScrollState } = useRouter()
   useEffect(() => {
@@ -93,10 +99,10 @@ describe('DailyStream', () => {
     )
 
     const dayWindow = createDayWindow('2026-06-27')
-    await act(async () => {
+    await actAsync(async () => {
       await clock.advance(2 * 60 * 1000)
     })
-    await act(async () => {
+    await actAsync(async () => {
       navigateToday()
     })
 
@@ -129,10 +135,10 @@ describe('DailyStream', () => {
 
     // Simulated sleep: the wall clock jumps but no timer fires (DOM timers
     // run on a monotonic clock that pauses while the machine sleeps).
-    await act(async () => {
+    await actAsync(async () => {
       clock.setNow(new Date(2026, 5, 28, 9, 0, 0).getTime())
     })
-    await act(async () => {
+    await actAsync(async () => {
       navigateToday()
     })
 

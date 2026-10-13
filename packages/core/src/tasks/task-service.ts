@@ -20,40 +20,60 @@ import { compareTasksByNote, type OpenTask } from './open-task.ts'
 import { withChecked, withRelocatedTasks, type TaskMoves } from './task-cache.ts'
 import { getTaskKey } from './task-identity.ts'
 
-/** A task's locator ({@link TaskLocator}) plus the note it lives in. */
+/**
+ * A task's locator ({@link TaskLocator}) plus the note it lives in.
+ */
 export interface TaskRef extends TaskLocator {
   notePath: string
 }
 
-/** A task write's {@link TaskEditResult} plus when the write landed. */
+/**
+ * A task write's {@link TaskEditResult} plus when the write landed.
+ */
 export interface TaskWriteResult extends TaskEditResult {
-  /** Epoch milliseconds read right after the write, for optimistic rows. */
+  /**
+   * Epoch milliseconds read right after the write, for optimistic rows.
+   */
   readonly updatedAt: number
 }
 
-/** A write that added one task: the new row's address and where the note's other tasks went. */
+/**
+ * A write that added one task: the new row's address and where the note's other tasks went.
+ */
 export interface InsertedTask {
-  /** The new empty task, as the written note addresses it. */
+  /**
+   * The new empty task, as the written note addresses it.
+   */
   readonly created: TaskSnapshot
-  /** Where every pre-existing task of the note ended up after the write. */
+  /**
+   * Where every pre-existing task of the note ended up after the write.
+   */
   readonly moved: TaskEditResult['moved']
-  /** Epoch milliseconds read right after the write, for the optimistic row. */
+  /**
+   * Epoch milliseconds read right after the write, for the optimistic row.
+   */
   readonly updatedAt: number
 }
 
 export interface WriteTaskEditsOptions {
-  /** Treat a missing note as empty: the first task creates it (today's daily). */
+  /**
+   * Treat a missing note as empty: the first task creates it (today's daily).
+   */
   readonly createIfMissing?: boolean
 }
 
-/** One change to the task `writeTask` addresses; `writeTask` supplies the locator. */
+/**
+ * One change to the task `writeTask` addresses; `writeTask` supplies the locator.
+ */
 export type TaskAction =
   | { kind: 'toggle' }
   | { kind: 'setMarkdown'; markdown: string }
   | { kind: 'remove' }
   | { kind: 'toBullet' }
 
-/** A click on the `index`th checkbox of a rendered snippet, as the view reports it. */
+/**
+ * A click on the `index`th checkbox of a rendered snippet, as the view reports it.
+ */
 export interface SnippetTaskClick {
   index: number
   checked: boolean
@@ -165,9 +185,13 @@ export interface TaskService {
    * on it, so a stale `false` would later fail a reopen/edit/delete.
    */
   markRecentlyCompleted(root: string | null, completed: readonly OpenTask[]): void
-  /** Drop these keys — a completion rolled back, or the task was deleted. */
+  /**
+   * Drop these keys — a completion rolled back, or the task was deleted.
+   */
   forgetRecentlyCompleted(root: string | null, keys: readonly string[]): void
-  /** Whether a task is currently being kept visible by the session's struck set. */
+  /**
+   * Whether a task is currently being kept visible by the session's struck set.
+   */
   hasRecentlyCompleted(root: string | null, key: string): boolean
   /**
    * Apply a note write's task moves to the session's struck rows. Unlike the
@@ -182,11 +206,17 @@ export interface TaskService {
    * agree with what the surfaces render.
    */
   reconcileRecentlyCompleted(root: string | null, open: readonly OpenTask[]): void
-  /** Archive: stop showing the session's completed tasks (they stay `[x]` on disk). */
+  /**
+   * Archive: stop showing the session's completed tasks (they stay `[x]` on disk).
+   */
   archiveRecentlyCompleted(root: string | null): void
-  /** The session's struck rows for `root`; a stable empty list for any other graph. */
+  /**
+   * The session's struck rows for `root`; a stable empty list for any other graph.
+   */
   getRecentlyCompleted(root: string | null): readonly OpenTask[]
-  /** Calls `listener` whenever the recently-completed set changes. */
+  /**
+   * Calls `listener` whenever the recently-completed set changes.
+   */
   subscribeRecentlyCompleted: (listener: () => void) => () => void
 }
 
@@ -232,7 +262,9 @@ interface TaskRecord {
   updatedAt: number
 }
 
-/** Only the locator goes to the core edit: the note path merely picks the owner. */
+/**
+ * Only the locator goes to the core edit: the note path merely picks the owner.
+ */
 function toLocator(task: TaskRef): TaskLocator {
   return { astPath: task.astPath, markdown: task.markdown, checked: task.checked }
 }
@@ -314,7 +346,9 @@ export function createTaskService(deps: {
     }
   }
 
-  /** Switch the active graph, discarding any other graph's set. */
+  /**
+   * Switch the active graph, discarding any other graph's set.
+   */
   function adopt(root: string | null): void {
     if (root !== graphRoot) {
       graphRoot = root
@@ -389,7 +423,7 @@ export function createTaskService(deps: {
         const result = await service.writeTask(task, actionsFor(task))
         onWritten?.(task, result)
         const rest: readonly OpenTask[] = pending.slice(1)
-        pending = withRelocatedTasks({ logger }, rest, task.notePath, result.moved)
+        pending = withRelocatedTasks({ logger }, rest, task.notePath, result.moved) ?? []
       }
     },
     async continueTaskInContext(task, content) {
@@ -475,7 +509,7 @@ export function createTaskService(deps: {
       if (root !== graphRoot || moved.length === 0) {
         return
       }
-      const next = withRelocatedTasks({ logger }, struck, notePath, moved)
+      const next = withRelocatedTasks({ logger }, struck, notePath, moved) ?? []
       if (next !== struck) {
         struck = next
         emit()

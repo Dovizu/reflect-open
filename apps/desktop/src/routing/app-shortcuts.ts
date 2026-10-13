@@ -4,7 +4,7 @@ import { usePalette } from '@/components/command-palette/palette-provider.tsx'
 import { todayIso } from '@/lib/dates.ts'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { useAudioMemo } from '@/providers/audio-memo-provider.tsx'
-import { useChatSession } from '@/providers/chat-provider.tsx'
+import { useMaybeChatSession } from '@/providers/chat-provider.tsx'
 import { useFocusedDailyDate } from '@/providers/focused-daily-provider.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useNoteFindActions } from '@/providers/note-find-provider.tsx'
@@ -65,7 +65,7 @@ export function useAppShortcuts(): CommandContext {
   const { toggleSidebar } = useSidebar()
   const { toggle: toggleAudioMemo } = useAudioMemo()
   // The hook can outlive the open graph, and its chat session with it.
-  const newChat = useChatSession({ optional: true })?.newChat ?? doNothing
+  const newChat = useMaybeChatSession()?.newChat ?? doNothing
   const { updateSettings } = useSettings()
   const {
     openForPath: openNoteFindForPath,

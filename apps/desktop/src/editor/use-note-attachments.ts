@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver } from '@meowdown/core'
 import type { AttachmentService, GraphInfo } from '@reflect/core'
-import { useGraph } from '@/providers/graph-provider.tsx'
+import { useMaybeGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
-/** How one note's images, `![[embeds]]`, and attachment links render. */
+/**
+ * How one note's images, `![[embeds]]`, and attachment links render.
+ */
 export interface NoteAttachments {
   /**
    * The graph-relative attachment a link or image destination names (the
@@ -18,7 +20,9 @@ export interface NoteAttachments {
    * the catalog is loaded and waits for it before that.
    */
   resolveImageUrl: ImageUrlResolver
-  /** Classifies an Obsidian `![[target]]` embed. */
+  /**
+   * Classifies an Obsidian `![[target]]` embed.
+   */
   resolveWikiEmbed: WikiEmbedResolver
 }
 
@@ -45,7 +49,7 @@ export function createNoteAttachments(
  * The caller re-renders whenever the catalog changes.
  */
 export function useNoteAttachments(notePath: string): NoteAttachments {
-  const graph = useGraph({ optional: true })?.graph ?? null
+  const graph = useMaybeGraph()?.graph ?? null
   const { attachments } = useAppServices()
   const subscribeCatalog = useCallback(
     (listener: () => void) => attachments.onCatalogChanged(listener),

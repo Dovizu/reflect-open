@@ -46,14 +46,16 @@ export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): Re
     }
   }, [update, supported, resolvedAutoCheck, logger])
 
-  const state = useServiceState(update)
+  const state = useServiceState(update, update.getState)
 
   const value = useMemo<UpdateContextValue>(() => ({ ...update, state }), [update, state])
 
   return <UpdateContext value={value}>{children}</UpdateContext>
 }
 
-/** Update state + actions; must be used under an {@link UpdateProvider}. */
+/**
+ * Update state + actions; must be used under an {@link UpdateProvider}.
+ */
 export function useUpdate(): UpdateContextValue {
   const value = use(UpdateContext)
   if (value === null) {
