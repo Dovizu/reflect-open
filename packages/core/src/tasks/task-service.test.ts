@@ -29,6 +29,7 @@ import {
 import { createTestNoteSession, type TestNoteSession } from '../testing/documents.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
+import { createTestIpcBridgeService, type TestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createTestProgressPort, type TestProgressPort } from '../testing/ports.ts'
 import { makeOpenTask } from '../testing/tasks.ts'
@@ -79,6 +80,7 @@ let database: TestDatabaseService
 let noteFile: TestNoteFileService
 let openDocuments: OpenDocumentsService
 let progress: TestProgressPort
+let ipc: TestIpcBridgeService
 let clock: TestClockService
 let logger: TestLoggerService
 let tasks: TaskService
@@ -110,7 +112,10 @@ function sessionSource(read: () => GraphSession | null): TaskServiceDeps['graphS
   }
 }
 
-function createTasks(graphSession: TaskServiceDeps['graphSession']): TaskService {
+function createTasks(
+  graphSession: TaskServiceDeps['graphSession'],
+  role: TaskServiceDeps['role'] = 'main',
+): TaskService {
   return createTaskService({
     database,
     noteDocuments: createNoteDocumentService({
@@ -136,8 +141,8 @@ function createTasks(graphSession: TaskServiceDeps['graphSession']): TaskService
         }
       },
     },
-    role: 'main',
-    peerIndexWrites: () => () => {},
+    role,
+    ipc,
   })
 }
 
@@ -156,6 +161,7 @@ beforeEach(() => {
   noteFile = createTestNoteFileService()
   openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   progress = createTestProgressPort()
+  ipc = createTestIpcBridgeService()
   clock = createTestClockService()
   logger = createTestLoggerService()
   appliedListeners = new Set()
@@ -882,6 +888,26 @@ describe('task list state', () => {
     tasks.subscribe(() => {})
     await flushMicrotasks()
     expect(getOpenTasks).toHaveBeenCalledTimes(4)
+  })
+
+  it('re-reads on an index:written broadcast in a note window only', async () => {
+    for (const [role, reads] of [
+      ['main', 1],
+      ['note-window', 2],
+    ] as const) {
+      tasks = createTasks(
+        sessionSource(() => openGraph),
+        role,
+      )
+      const getOpenTasks = vi.spyOn(tasks, 'getOpenTasks').mockResolvedValue([one])
+      tasks.subscribe(() => {})
+      await flushMicrotasks()
+
+      ipc.emit('index:written', null)
+      await flushMicrotasks()
+
+      expect(getOpenTasks).toHaveBeenCalledTimes(reads)
+    }
   })
 
   it('re-reads after a requested rebuild but not after a sync pass', async () => {

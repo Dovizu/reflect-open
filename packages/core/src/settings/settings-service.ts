@@ -131,7 +131,7 @@ class SettingsServiceImpl implements SettingsService {
           return 'loaded'
         },
         (error: unknown): SettingsLoadOutcome => {
-          progress.start('Loading settings').fail(errorMessage(error))
+          progress.fail('Loading settings', errorMessage(error))
           return 'failed'
         },
       )
@@ -169,7 +169,7 @@ class SettingsServiceImpl implements SettingsService {
           this.#dirty = false
         }
       } catch (error) {
-        progress.start('Saving settings').fail(errorMessage(error))
+        progress.fail('Saving settings', errorMessage(error))
       }
     })
   }
@@ -205,7 +205,7 @@ class SettingsServiceImpl implements SettingsService {
     ipc.call('settings_load', {}, settingsSchema).then(
       (document) => this.#hydrate('loaded', document),
       (error: unknown) => {
-        progress.start('Loading settings').fail(errorMessage(error))
+        progress.fail('Loading settings', errorMessage(error))
         this.#hydrate('failed', DEFAULT_SETTINGS)
       },
     )

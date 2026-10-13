@@ -384,7 +384,7 @@ class AudioMemoTranscriptionSessionImpl implements AudioMemoTranscriptionSession
       return
     }
     this.#surfacedStop = stopped.message
-    this.#deps.progress.start('Transcribing audio memo').fail(stopped.message)
+    this.#deps.progress.fail('Transcribing audio memo', stopped.message)
   }
 
   /**

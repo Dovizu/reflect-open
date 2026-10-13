@@ -594,7 +594,7 @@ class AudioMemoPipelineImpl implements AudioMemoPipeline {
           if (!this.#isErrorSurfaceVisible()) {
             // The error UI is off screen, the failure must still surface
             // somewhere.
-            progress.start('Saving audio memo').fail(outcome.message)
+            progress.fail('Saving audio memo', outcome.message)
           }
         }
       }

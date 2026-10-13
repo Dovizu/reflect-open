@@ -190,7 +190,7 @@ export interface LinkNavigationServiceDeps {
   readonly deepLinkRouter: Pick<DeepLinkRouter, 'dispatch'>
   readonly navigation: Pick<NavigationService, 'navigationRevision'>
   readonly attachments: Pick<AttachmentService, 'resolveAssetOpenPath' | 'openOrReveal'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly operations: Pick<OperationsService, 'fail'>
   readonly logger: Pick<LoggerService, 'error'>
   readonly graphSession: Pick<GraphSessionService, 'getState'>
 }
@@ -335,7 +335,7 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
         }
       } catch (err) {
         logger.error('wiki-link resolution failed:', err)
-        operations.start('Opening link').fail(errorMessage(err))
+        operations.fail('Opening link', errorMessage(err))
       }
     })()
   }
@@ -409,15 +409,14 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
   }
 
   reportAmbiguousNoteTitle(operationLabel: string, title: string): void {
-    this.#deps.operations.start(operationLabel).fail(ambiguousNoteTitleMessage(title))
+    this.#deps.operations.fail(operationLabel, ambiguousNoteTitleMessage(title))
   }
 
   #reportUnavailableNote(name: string): void {
-    this.#deps.operations
-      .start('Opening link')
-      .fail(
-        `Couldn’t open “${name}” because a matching note is currently unavailable. Try again when it is available on this device.`,
-      )
+    this.#deps.operations.fail(
+      'Opening link',
+      `Couldn’t open “${name}” because a matching note is currently unavailable. Try again when it is available on this device.`,
+    )
   }
 
   #currentGeneration(): number | null {
@@ -458,7 +457,7 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
         }
       } catch (err) {
         logger.error('markdown-link resolution failed:', err)
-        operations.start('Opening link').fail(errorMessage(err))
+        operations.fail('Opening link', errorMessage(err))
       }
     })()
   }
