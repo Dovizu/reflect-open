@@ -37,6 +37,12 @@ function setup(options?: {
   const fileChanges = createTestFileChangeService()
   const logger = createTestLoggerService()
   const reads: string[] = []
+  const readFile = files.read.bind(files)
+  vi.spyOn(files, 'read').mockImplementation(async (path, generation) => {
+    reads.push(path)
+    await options?.read?.(path)
+    return await readFile(path, generation)
+  })
   const appliedListeners = new Set<ChangesAppliedEmitter>()
   /** Listen for the batches the live index reports as applied. */
   function subscribeIndexApplied(listener: ChangesAppliedEmitter): () => void {
@@ -52,14 +58,7 @@ function setup(options?: {
       }
     },
     indexStore: store,
-    noteFile: {
-      ...files,
-      read: async (path, generation) => {
-        reads.push(path)
-        await options?.read?.(path)
-        return await files.read(path, generation)
-      },
-    },
+    noteFile: files,
     fileChanges,
     indexQuery: createIndexQueryService({ database }),
     database,

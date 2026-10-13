@@ -138,7 +138,9 @@ describe('useAssetPersistence', () => {
     const upload = Promise.withResolvers<string>()
     const clock = createTestClockService()
     attachmentService = createAttachmentService({
-      assetStore: { ...createTestAssetStoreService(), uploadBlob: () => upload.promise },
+      assetStore: Object.assign(createTestAssetStoreService(), {
+        uploadBlob: () => upload.promise,
+      }),
       noteFile: createTestNoteFileService(),
       fileChanges: createTestFileChangeService(),
       dialog: createTestDialogService(),

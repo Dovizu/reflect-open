@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { overrideNoteFileService } from '../testing/graph.ts'
 import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
@@ -56,8 +57,7 @@ function setup(options?: SetupOptions) {
 
   const files = createTestNoteFileService(source === null ? {} : { files: { [PATH]: source } })
   let writeFailure: Error | null = null
-  const noteFile: typeof files = {
-    ...files,
+  const noteFile = overrideNoteFileService(files, {
     async write(...args) {
       if (writeFailure !== null) {
         const error = writeFailure
@@ -66,7 +66,7 @@ function setup(options?: SetupOptions) {
       }
       return await files.write(...args)
     },
-  }
+  })
   const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   if (options?.session !== undefined) {
     openDocuments.register({ session: options.session })

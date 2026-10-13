@@ -79,7 +79,7 @@ async function setup(options?: SetupOptions) {
         { tag: 'home', count: 1 },
       ],
     },
-    noteCreation: { ...base.noteCreation, ...noteCreation },
+    noteCreation: Object.assign(base.noteCreation, noteCreation),
     contacts,
     personNotes,
     settings,

@@ -254,6 +254,89 @@ export function createTestNoteFileService(
   return new TestNoteFileServiceImpl(options)
 }
 
+/**
+ * A {@link NoteFileService} that forwards each member to `inner`, except the
+ * ones `overrides` replaces. The inner service keeps its own behavior.
+ */
+class NoteFileOverrideService implements NoteFileService {
+  readonly #inner: NoteFileService
+  readonly #overrides: Partial<NoteFileService>
+
+  constructor(inner: NoteFileService, overrides: Partial<NoteFileService>) {
+    this.#inner = inner
+    this.#overrides = overrides
+  }
+
+  read(path: string, generation?: number): Promise<string> {
+    return (this.#overrides.read ?? this.#inner.read.bind(this.#inner))(path, generation)
+  }
+
+  readLocal(path: string, generation?: number): Promise<LocalNoteRead> {
+    return (this.#overrides.readLocal ?? this.#inner.readLocal.bind(this.#inner))(path, generation)
+  }
+
+  write(
+    path: string,
+    contents: string,
+    generation: number,
+    expectedContents?: string | null,
+  ): Promise<number> {
+    return (this.#overrides.write ?? this.#inner.write.bind(this.#inner))(
+      path,
+      contents,
+      generation,
+      expectedContents,
+    )
+  }
+
+  create(path: string, contents: string, generation: number): Promise<NoteCreateOutcome> {
+    return (this.#overrides.create ?? this.#inner.create.bind(this.#inner))(
+      path,
+      contents,
+      generation,
+    )
+  }
+
+  exists(path: string): Promise<boolean> {
+    return (this.#overrides.exists ?? this.#inner.exists.bind(this.#inner))(path)
+  }
+
+  delete(path: string, generation: number): Promise<void> {
+    return (this.#overrides.delete ?? this.#inner.delete.bind(this.#inner))(path, generation)
+  }
+
+  listNotes(generation?: number): Promise<FileMeta[]> {
+    return (this.#overrides.listNotes ?? this.#inner.listNotes.bind(this.#inner))(generation)
+  }
+
+  listAttachments(generation?: number): Promise<FileMeta[]> {
+    return (this.#overrides.listAttachments ?? this.#inner.listAttachments.bind(this.#inner))(
+      generation,
+    )
+  }
+
+  listDir(dir: string, generation: number): Promise<FileMeta[]> {
+    return (this.#overrides.listDir ?? this.#inner.listDir.bind(this.#inner))(dir, generation)
+  }
+
+  vaultScanStats(generation?: number): Promise<VaultScanStats> {
+    return (this.#overrides.vaultScanStats ?? this.#inner.vaultScanStats.bind(this.#inner))(
+      generation,
+    )
+  }
+}
+
+/**
+ * `inner` with some members replaced. Use it instead of spreading a note file
+ * service, which would drop its prototype methods.
+ */
+export function overrideNoteFileService(
+  inner: NoteFileService,
+  overrides: Partial<NoteFileService>,
+): NoteFileService {
+  return new NoteFileOverrideService(inner, overrides)
+}
+
 type Bytes = string | Uint8Array
 
 function toBytes(contents: Bytes): Uint8Array<ArrayBuffer> {

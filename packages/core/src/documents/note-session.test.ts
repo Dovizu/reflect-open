@@ -1,10 +1,9 @@
 import type { RoundTripFidelity } from '@meowdown/markdown'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NoteFileService } from '../graph/note-file-service.ts'
 import { applyTaskEdits, projectTasks, TaskStaleError } from '../markdown/task-ast.ts'
 import type { TaskLocator } from '../markdown/task-model.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
-import { createTestNoteFileService } from '../testing/graph.ts'
+import { createTestNoteFileService, overrideNoteFileService } from '../testing/graph.ts'
 import {
   createTestGraphSessionService,
   type TestGraphSessionService,
@@ -83,8 +82,7 @@ function harness(options?: {
   // One file, whatever path the session asks for: a retargeted session finds
   // its document at the new path, as it does after a real file move.
   const files = createTestNoteFileService(disk === null ? {} : { files: { [PATH]: disk } })
-  const noteFile: NoteFileService = {
-    ...files,
+  const noteFile = overrideNoteFileService(files, {
     read: async () => {
       await options?.beforeRead?.()
       return await files.read(PATH)
@@ -99,7 +97,7 @@ function harness(options?: {
       writes.push({ path, contents })
       return modifiedMs
     },
-  }
+  })
   const graph = createTestGraphSessionService({ graph: { generation: 1 } })
   const session = createNoteSessionService({ noteFile, clock, logger, graphSession: graph }).create(
     {

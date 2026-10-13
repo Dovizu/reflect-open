@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseNote } from '../markdown/index.ts'
 import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
@@ -84,6 +84,12 @@ function setup(options?: {
   const clock = createTestClockService({ now: NOW })
   const logger = createTestLoggerService()
   const reads: string[] = []
+  const readFile = files.read.bind(files)
+  vi.spyOn(files, 'read').mockImplementation(async (path, generation) => {
+    reads.push(path)
+    options?.read?.(path)
+    return await readFile(path, generation)
+  })
   const appliedListeners = new Set<ChangesAppliedEmitter>()
   /** Listen for the batches the indexer and the live index report as applied. */
   function subscribeIndexApplied(listener: ChangesAppliedEmitter): () => void {
@@ -99,14 +105,7 @@ function setup(options?: {
       }
     },
     indexStore: store,
-    noteFile: {
-      ...files,
-      read: async (path: string, generation?: number) => {
-        reads.push(path)
-        options?.read?.(path)
-        return await files.read(path, generation)
-      },
-    },
+    noteFile: files,
     fileChanges: createTestFileChangeService(),
     indexQuery: createIndexQueryService({ database }),
     database,
