@@ -26,7 +26,14 @@ import type { EmbeddingRuntimeService } from './embedding-runtime-service.ts'
 
 export interface EmbedNoteOptions {
   path: string
+  /**
+   * The index generation the chunk write carries.
+   */
   generation: number
+  /**
+   * The file generation the note and asset description reads carry.
+   */
+  fileGeneration: number
   /**
    * The model recorded per vector (from the runtime's `ready` status).
    */
@@ -61,6 +68,7 @@ export type EmbeddingBackfillResult = 'completed' | 'aborted' | 'failed'
 
 export interface EmbeddingBackfillOptions {
   generation: number
+  fileGeneration: number
   modelId: string
   onProgress?: (done: number, total: number) => void
   /**
@@ -91,8 +99,8 @@ export interface EmbeddingIndexService {
    */
   backfill(options: EmbeddingBackfillOptions): Promise<EmbeddingBackfillResult>
   /**
-   * Keep the index at `generation` embedded with `modelId` until the returned
-   * function is called: one backfill, then every applied index batch (changed
+   * Keep the index at `generation` embedded with `modelId`, reading files at
+   * `fileGeneration`, until the returned function is called: one backfill, then every applied index batch (changed
    * notes re-embed, removed notes drop their vectors). The work runs on one
    * serial queue that outlives each call, so passes never interleave; work
    * still queued when the follow stops is skipped.
@@ -106,7 +114,7 @@ export interface EmbeddingIndexService {
    * signal, and those notes must re-embed for the description text to reach
    * semantic search.
    */
-  follow(options: { generation: number; modelId: string }): Unlisten
+  follow(options: { generation: number; fileGeneration: number; modelId: string }): Unlisten
 }
 
 const voidSchema = z.null()
@@ -133,7 +141,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
 
   async embedNote(options: EmbedNoteOptions): Promise<number> {
     const { embeddingRuntime, noteFile, database, hash } = this.#deps
-    const { path, generation, modelId } = options
+    const { path, generation, fileGeneration, modelId } = options
     if (isTemplatePath(path)) {
       return 0 // templates are boilerplate — never embedded, never retrieved
     }
@@ -141,7 +149,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
     if (content === undefined) {
       let read: LocalNoteRead
       try {
-        read = await noteFile.readLocal(path, generation)
+        read = await noteFile.readLocal(path, fileGeneration)
       } catch {
         return 0 // deleted between event and read; the remove path handles it
       }
@@ -159,7 +167,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
     const parsed = parseNote({ path, source: content })
     const gathered = await this.#assetDescriptionText.gatherBodies(
       parsed.assets.map((asset) => asset.path),
-      generation,
+      fileGeneration,
     )
     if (gathered.evicted.length > 0) {
       // A referenced sidecar is iCloud-evicted. `embed_apply` replaces the
@@ -238,9 +246,9 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
     }
   }
 
-  follow(options: { generation: number; modelId: string }): Unlisten {
+  follow(options: { generation: number; fileGeneration: number; modelId: string }): Unlisten {
     const { indexLifecycle, logger } = this.#deps
-    const { generation, modelId } = options
+    const { generation, fileGeneration, modelId } = options
     const stopped = new AbortController()
 
     this.#queue = this.#queue
@@ -248,7 +256,12 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
         if (stopped.signal.aborted) {
           return
         }
-        return this.backfill({ generation, modelId, signal: stopped.signal }).then(() => {})
+        return this.backfill({
+          generation,
+          fileGeneration,
+          modelId,
+          signal: stopped.signal,
+        }).then(() => {})
       })
       .catch((cause: unknown) => {
         // A rejection here must not poison the queue (later change items
@@ -271,7 +284,9 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
             }
             return change.kind === 'remove'
               ? this.removeNote(change.path, generation)
-              : this.embedNote({ path: change.path, generation, modelId }).then(() => {})
+              : this.embedNote({ path: change.path, generation, fileGeneration, modelId }).then(
+                  () => {},
+                )
           })
           .catch((cause: unknown) => {
             logger.error(`embedding sync failed for ${change.path}:`, cause)
@@ -294,7 +309,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
 
   async #backfillNotes(options: EmbeddingBackfillOptions): Promise<'completed' | 'aborted'> {
     const { database, logger } = this.#deps
-    const { generation, modelId, onProgress, signal } = options
+    const { generation, fileGeneration, modelId, onProgress, signal } = options
     const rows = await database.db
       .selectFrom('notes')
       .where('kind', '!=', 'template')
@@ -307,7 +322,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
         return 'aborted'
       }
       try {
-        await this.embedNote({ path: row.path, generation, modelId })
+        await this.embedNote({ path: row.path, generation, fileGeneration, modelId })
       } catch (cause) {
         logger.error(`embedding backfill failed for ${row.path}:`, cause)
       }

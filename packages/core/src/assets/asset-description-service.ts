@@ -424,7 +424,10 @@ class AssetDescriptionSessionImpl implements AssetDescriptionSession {
     // one cheap extra cycle, no loop (a clean pass writes nothing new).
     if (outcome.describedAssetPaths.length > 0 && indexGeneration !== null) {
       try {
-        await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, indexGeneration)
+        await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, {
+          generation: indexGeneration,
+          fileGeneration: generation,
+        })
       } catch (cause) {
         logger.warn('asset-description re-index failed:', cause)
       }
@@ -829,7 +832,10 @@ class AssetDescriptionServiceImpl implements AssetDescriptionService {
     // the next re-index or a rebuild.
     if (outcome.describedAssetPaths.length > 0 && indexGeneration !== null) {
       try {
-        await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, indexGeneration)
+        await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, {
+          generation: indexGeneration,
+          fileGeneration: generation,
+        })
       } catch (cause) {
         logger.warn('asset-description re-index failed:', cause)
       }

@@ -437,7 +437,7 @@ class TestEmbeddingIndexServiceImpl implements TestEmbeddingIndexService {
     return this.#backfillOverride?.(backfillOptions) ?? this.#inner.backfill(backfillOptions)
   }
 
-  follow(followOptions: { generation: number; modelId: string }): Unlisten {
+  follow(followOptions: { generation: number; fileGeneration: number; modelId: string }): Unlisten {
     this.#followLog.push({ generation: followOptions.generation, modelId: followOptions.modelId })
     return this.#inner.follow(followOptions)
   }

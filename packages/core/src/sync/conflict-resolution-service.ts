@@ -102,7 +102,11 @@ class ConflictResolutionServiceImpl implements ConflictResolutionService {
       await noteFile.write(path, resolved, generation)
       wrote = true
       if (indexGeneration !== null) {
-        await indexLifecycle.indexNote(path, { generation: indexGeneration, content: resolved })
+        await indexLifecycle.indexNote(path, {
+          generation: indexGeneration,
+          fileGeneration: generation,
+          content: resolved,
+        })
       }
     } catch (caught: unknown) {
       error = errorMessage(caught)

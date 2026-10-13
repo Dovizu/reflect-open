@@ -522,7 +522,10 @@ class NoteActionsServiceImpl implements NoteActionsService {
     // Best-effort: the watcher pass covers this on its own schedule anyway.
     if (session.indexGeneration !== null) {
       try {
-        await indexLifecycle.indexNote(path, { generation: session.indexGeneration })
+        await indexLifecycle.indexNote(path, {
+          generation: session.indexGeneration,
+          fileGeneration: session.generation,
+        })
       } catch {
         // the copied link still works once the watcher reindexes the note
       }

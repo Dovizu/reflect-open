@@ -83,6 +83,7 @@ describe('embedNote', () => {
     const count = await index.embedNote({
       path: 'templates/journal.md',
       generation: 1,
+      fileGeneration: 1,
       modelId: MODEL,
     })
     expect(count).toBe(0)
@@ -100,7 +101,12 @@ describe('embedNote', () => {
       storedRows: [],
       evicted: true,
     })
-    const count = await index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    const count = await index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     expect(count).toBe(0)
     expect(embedded()).toHaveLength(0)
     expect(applied()).toHaveLength(0)
@@ -112,7 +118,12 @@ describe('embedNote', () => {
       content: '# One\n\nAlpha text.\n\n# Two\n\nBeta text.\n',
       storedRows: [],
     })
-    const count = await index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    const count = await index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     expect(count).toBe(2)
     expect(embedded()).toHaveLength(1) // one batched embed_texts call
     expect(applied()[0]!.chunks.every((chunk) => chunk.vector !== null)).toBe(true)
@@ -122,7 +133,12 @@ describe('embedNote', () => {
     const content = '# One\n\nAlpha text.\n'
     // First pass captures the chunk hash the second pass will find "stored".
     const first = await setup({ content, storedRows: [] })
-    await first.index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    await first.index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     const hash = first.applied()[0]!.chunks[0]!.contentHash
 
     const second = await setup({
@@ -132,6 +148,7 @@ describe('embedNote', () => {
     const count = await second.index.embedNote({
       path: 'notes/a.md',
       generation: 1,
+      fileGeneration: 1,
       modelId: MODEL,
     })
     expect(count).toBe(0)
@@ -142,7 +159,12 @@ describe('embedNote', () => {
   it('a model change re-embeds chunks whose hashes are unchanged', async () => {
     const content = '# One\n\nAlpha text.\n'
     const first = await setup({ content, storedRows: [] })
-    await first.index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    await first.index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     const hash = first.applied()[0]!.chunks[0]!.contentHash
 
     const second = await setup({
@@ -152,6 +174,7 @@ describe('embedNote', () => {
     const count = await second.index.embedNote({
       path: 'notes/a.md',
       generation: 1,
+      fileGeneration: 1,
       modelId: MODEL,
     })
     expect(count).toBe(1) // same hash, different model → new vector
@@ -164,7 +187,12 @@ describe('embedNote', () => {
     const section = `# A\n\n${'The same sentence again. '.repeat(12)}\n`
     const dup = section + section
     const first = await setup({ content: dup, storedRows: [] })
-    await first.index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    await first.index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     const hashes = first.applied()[0]!.chunks.map((chunk) => chunk.contentHash)
     expect(hashes[0]).toBe(hashes[1]) // genuinely duplicated chunks
 
@@ -177,6 +205,7 @@ describe('embedNote', () => {
     const count = await second.index.embedNote({
       path: 'notes/a.md',
       generation: 1,
+      fileGeneration: 1,
       modelId: MODEL,
     })
     expect(count).toBe(1)
@@ -187,7 +216,12 @@ describe('embedNote', () => {
 
   it('an emptied note drops its chunks via embed_remove', async () => {
     const { index, applied, removed } = await setup({ content: '\n', storedRows: [] })
-    const count = await index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    const count = await index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     expect(count).toBe(0)
     expect(applied()).toHaveLength(0)
     expect(removed()).toEqual([{ path: 'notes/a.md', generation: 1 }])
@@ -203,7 +237,12 @@ describe('embedNote', () => {
       storedRows: [],
       descriptions: { 'assets/pic.png.reflect.md': PIC_DESCRIPTION },
     })
-    const count = await index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    const count = await index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     expect(count).toBeGreaterThanOrEqual(2) // note chunk(s) + the asset chunk
 
     const chunks = applied()[0]!.chunks
@@ -225,7 +264,12 @@ describe('embedNote', () => {
       storedRows: [{ content_hash: 'previously-stored', model_id: MODEL }],
       evictedSidecars: ['assets/pic.png.reflect.md'],
     })
-    const count = await index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    const count = await index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     expect(count).toBe(0)
     expect(embedded()).toHaveLength(0)
     expect(applied()).toHaveLength(0)
@@ -234,14 +278,19 @@ describe('embedNote', () => {
 
   it('a note without a description for its asset embeds only its own text', async () => {
     const { index, applied } = await setup({ content: IMAGE_NOTE, storedRows: [] })
-    await index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    await index.embedNote({ path: 'notes/a.md', generation: 1, fileGeneration: 1, modelId: MODEL })
     expect(applied()[0]!.chunks.every((chunk) => chunk.posFrom < IMAGE_NOTE.length)).toBe(true)
   })
 
   it('the hash-skip covers unchanged asset description chunks', async () => {
     const descriptions = { 'assets/pic.png.reflect.md': PIC_DESCRIPTION }
     const first = await setup({ content: IMAGE_NOTE, storedRows: [], descriptions })
-    await first.index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    await first.index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     const storedRows = first.applied()[0]!.chunks.map((chunk) => ({
       content_hash: chunk.contentHash,
       model_id: MODEL,
@@ -251,6 +300,7 @@ describe('embedNote', () => {
     const count = await second.index.embedNote({
       path: 'notes/a.md',
       generation: 1,
+      fileGeneration: 1,
       modelId: MODEL,
     })
     expect(count).toBe(0)
@@ -263,7 +313,12 @@ describe('embedNote', () => {
       storedRows: [],
       descriptions: { 'assets/pic.png.reflect.md': PIC_DESCRIPTION },
     })
-    await first.index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
+    await first.index.embedNote({
+      path: 'notes/a.md',
+      generation: 1,
+      fileGeneration: 1,
+      modelId: MODEL,
+    })
     const storedRows = first.applied()[0]!.chunks.map((chunk) => ({
       content_hash: chunk.contentHash,
       model_id: MODEL,
@@ -279,6 +334,7 @@ describe('embedNote', () => {
     const count = await second.index.embedNote({
       path: 'notes/a.md',
       generation: 1,
+      fileGeneration: 1,
       modelId: MODEL,
     })
     expect(count).toBe(1)
@@ -347,8 +403,8 @@ async function queueDrained(): Promise<void> {
 describe('removeNote', () => {
   it('drops the chunks and vectors of a note', async () => {
     const { index, storedPaths } = setupGraph()
-    await index.embedNote({ path: 'notes/a.md', generation: 1, modelId: MODEL })
-    await index.embedNote({ path: 'notes/b.md', generation: 1, modelId: MODEL })
+    await index.embedNote({ path: 'notes/a.md', generation: 1, fileGeneration: 1, modelId: MODEL })
+    await index.embedNote({ path: 'notes/b.md', generation: 1, fileGeneration: 1, modelId: MODEL })
 
     await index.removeNote('notes/a.md', 1)
 
@@ -364,6 +420,7 @@ describe('backfill', () => {
 
     const result = await index.backfill({
       generation: 3,
+      fileGeneration: 1,
       modelId: MODEL,
       onProgress: (done, total) => {
         progress.push([done, total])
@@ -384,10 +441,12 @@ describe('backfill', () => {
 
   it('embeds nothing on a second pass (the hash-skip)', async () => {
     const { index, runtime } = setupGraph()
-    await index.backfill({ generation: 3, modelId: MODEL })
+    await index.backfill({ generation: 3, fileGeneration: 1, modelId: MODEL })
     const embedded = runtime.embedCalls().length
 
-    await expect(index.backfill({ generation: 3, modelId: MODEL })).resolves.toBe('completed')
+    await expect(
+      index.backfill({ generation: 3, fileGeneration: 1, modelId: MODEL }),
+    ).resolves.toBe('completed')
 
     expect(runtime.embedCalls()).toHaveLength(embedded)
   })
@@ -398,6 +457,7 @@ describe('backfill', () => {
 
     const result = await index.backfill({
       generation: 3,
+      fileGeneration: 1,
       modelId: MODEL,
       onProgress: () => {
         controller.abort()
@@ -412,7 +472,9 @@ describe('backfill', () => {
   it('logs a note that fails and goes on with the next', async () => {
     const { index, logger } = setupGraph({ unreadable: ['Alpha'] })
 
-    await expect(index.backfill({ generation: 3, modelId: MODEL })).resolves.toBe('completed')
+    await expect(
+      index.backfill({ generation: 3, fileGeneration: 1, modelId: MODEL }),
+    ).resolves.toBe('completed')
 
     expect(index.applied().map((apply) => apply.path)).toEqual(['notes/b.md'])
     expect(logger.getErrors()).toHaveLength(1)
@@ -423,14 +485,16 @@ describe('backfill', () => {
     const { index, database } = setupGraph()
     database.close()
 
-    await expect(index.backfill({ generation: 3, modelId: MODEL })).resolves.toBe('failed')
+    await expect(
+      index.backfill({ generation: 3, fileGeneration: 1, modelId: MODEL }),
+    ).resolves.toBe('failed')
   })
 })
 
 describe('follow', () => {
   it('backfills, then embeds the notes of each applied batch', async () => {
     const { index, indexLifecycle, noteFile } = setupGraph()
-    const stop = index.follow({ generation: 7, modelId: MODEL })
+    const stop = index.follow({ generation: 7, fileGeneration: 1, modelId: MODEL })
     await queueDrained()
     expect(index.applied().map((apply) => apply.path)).toEqual(['notes/a.md', 'notes/b.md'])
 
@@ -446,7 +510,7 @@ describe('follow', () => {
 
   it('drops the vectors of a removed note', async () => {
     const { index, indexLifecycle, storedPaths } = setupGraph()
-    const stop = index.follow({ generation: 7, modelId: MODEL })
+    const stop = index.follow({ generation: 7, fileGeneration: 1, modelId: MODEL })
     await queueDrained()
 
     indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
@@ -459,7 +523,7 @@ describe('follow', () => {
 
   it('ignores a sync pass', async () => {
     const { index, indexLifecycle } = setupGraph()
-    const stop = index.follow({ generation: 7, modelId: MODEL })
+    const stop = index.follow({ generation: 7, fileGeneration: 1, modelId: MODEL })
     await queueDrained()
     const before = index.applied().length
 
@@ -473,7 +537,7 @@ describe('follow', () => {
 
   it('ignores a delayed emit from a superseded index session', async () => {
     const { index, indexLifecycle } = setupGraph()
-    const stop = index.follow({ generation: 7, modelId: MODEL })
+    const stop = index.follow({ generation: 7, fileGeneration: 1, modelId: MODEL })
     await queueDrained()
     const applied = index.applied().length
 
@@ -488,7 +552,7 @@ describe('follow', () => {
 
   it('never embeds asset-file changes riding the same batches', async () => {
     const { index, indexLifecycle } = setupGraph()
-    const stop = index.follow({ generation: 7, modelId: MODEL })
+    const stop = index.follow({ generation: 7, fileGeneration: 1, modelId: MODEL })
     await queueDrained()
     const applied = index.applied().length
 
@@ -508,7 +572,7 @@ describe('follow', () => {
 
   it('skips the work still queued when it stops, and hears no later batch', async () => {
     const { index, indexLifecycle } = setupGraph()
-    const stop = index.follow({ generation: 7, modelId: MODEL })
+    const stop = index.follow({ generation: 7, fileGeneration: 1, modelId: MODEL })
     // Queued behind the backfill, which has not started yet.
     indexLifecycle.emitApplied([{ kind: 'remove', path: 'notes/a.md' }], 7)
     stop()
@@ -521,7 +585,7 @@ describe('follow', () => {
 
   it('logs one failing note and goes on with the queue', async () => {
     const { index, indexLifecycle, logger, noteFile, unwritable } = setupGraph()
-    const stop = index.follow({ generation: 7, modelId: MODEL })
+    const stop = index.follow({ generation: 7, fileGeneration: 1, modelId: MODEL })
     await queueDrained()
     const applied = index.applied().length
 

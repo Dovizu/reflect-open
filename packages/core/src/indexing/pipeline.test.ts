@@ -31,6 +31,10 @@ const DEFAULT_SCAN = {
 }
 
 const hash = createWebCryptoHashService()
+/**
+ * The file generation of the test graph; the note file double rejects reads at any other.
+ */
+const FILE_GENERATION = 9
 const databases: { close(): void }[] = []
 
 afterEach(() => {
@@ -75,7 +79,7 @@ function setup(options?: {
     )
   }
   const store = createTestIndexStoreService({ scan: DEFAULT_SCAN, ...options?.store })
-  const files = createTestNoteFileService()
+  const files = createTestNoteFileService({ generation: FILE_GENERATION })
   const listing = options?.files ?? {
     'notes/a.md': { contents: '# Hello\n\n[[World]]', modifiedMs: 5 },
   }
@@ -155,7 +159,11 @@ function notes(...paths: string[]): Record<string, { contents: string; modifiedM
 describe('indexNote', () => {
   it('reads, parses, and applies a built index payload with its generation', async () => {
     const { indexer, findCall } = setup()
-    await indexer.indexNote('notes/a.md', { generation: 7, mtime: 5 })
+    await indexer.indexNote('notes/a.md', {
+      generation: 7,
+      fileGeneration: FILE_GENERATION,
+      mtime: 5,
+    })
     const apply = findCall('apply')
     expect(apply).toBeDefined()
     expect(apply!.generation).toBe(7)
@@ -168,7 +176,7 @@ describe('indexNote', () => {
 
   it('stamps "now" when no mtime is given', async () => {
     const { indexer, findCall } = setup()
-    await indexer.indexNote('notes/a.md', { generation: 7 })
+    await indexer.indexNote('notes/a.md', { generation: 7, fileGeneration: FILE_GENERATION })
     expect(findCall('apply')!.note.mtime).toBe(NOW)
   })
 })
@@ -186,7 +194,10 @@ describe('reindexNotesReferencing', () => {
       emitted.push([changes, generation])
     })
     try {
-      await indexer.reindexNotesReferencing(['assets/pic.png'], 7)
+      await indexer.reindexNotesReferencing(['assets/pic.png'], {
+        generation: 7,
+        fileGeneration: FILE_GENERATION,
+      })
     } finally {
       unsubscribe()
     }
@@ -221,7 +232,12 @@ describe('reindexNotesReferencing', () => {
       emitted.push(changes)
     })
     try {
-      await expect(indexer.reindexNotesReferencing(['assets/pic.png'], 7)).rejects.toMatchObject({
+      await expect(
+        indexer.reindexNotesReferencing(['assets/pic.png'], {
+          generation: 7,
+          fileGeneration: FILE_GENERATION,
+        }),
+      ).rejects.toMatchObject({
         kind: 'io',
       })
     } finally {
@@ -238,7 +254,10 @@ describe('reindexNotesReferencing', () => {
       emitted.push(changes)
     })
     try {
-      await indexer.reindexNotesReferencing(['assets/pic.png'], 7)
+      await indexer.reindexNotesReferencing(['assets/pic.png'], {
+        generation: 7,
+        fileGeneration: FILE_GENERATION,
+      })
     } finally {
       unsubscribe()
     }
@@ -252,6 +271,7 @@ describe('rebuild', () => {
     const progress: Array<[number, number, number]> = []
     await indexer.rebuild({
       generation: 1,
+      fileGeneration: FILE_GENERATION,
       onFileProgress: (done, total, worked) => {
         progress.push([done, total, worked])
       },
@@ -283,7 +303,7 @@ describe('rebuild', () => {
       },
     })
 
-    await indexer.rebuild({ generation: 1 })
+    await indexer.rebuild({ generation: 1, fileGeneration: FILE_GENERATION })
 
     const attempted = store
       .calls()
@@ -319,6 +339,7 @@ describe('rebuild', () => {
 
     await indexer.rebuild({
       generation: 1,
+      fileGeneration: FILE_GENERATION,
       onSkippedNote: (note) => {
         skipped.push(note)
       },
@@ -337,7 +358,9 @@ describe('rebuild', () => {
       },
     })
 
-    await expect(indexer.rebuild({ generation: 1 })).rejects.toThrow('single note refused')
+    await expect(
+      indexer.rebuild({ generation: 1, fileGeneration: FILE_GENERATION }),
+    ).rejects.toThrow('single note refused')
     expect(methods()).not.toContain('setMeta')
   })
 
@@ -348,7 +371,11 @@ describe('rebuild', () => {
       read: () => controller.abort(),
     })
 
-    await indexer.rebuild({ generation: 1, signal: controller.signal })
+    await indexer.rebuild({
+      generation: 1,
+      fileGeneration: FILE_GENERATION,
+      signal: controller.signal,
+    })
 
     expect(methods()).toContain('clear') // began while foregrounded
     expect(methods()).not.toContain('applyBatch')
@@ -363,7 +390,7 @@ describe('sync', () => {
     const { indexer, logger, methods } = setup({
       store: { meta: { [PROJECTION_VERSION_KEY]: String(PROJECTION_VERSION) } },
     })
-    await indexer.sync({ generation: 2 })
+    await indexer.sync({ generation: 2, fileGeneration: FILE_GENERATION })
     expect(methods()).toContain('reconcileScan')
     expect(methods()).not.toContain('clear')
     expect(methods()).not.toContain('setMeta')
@@ -373,7 +400,7 @@ describe('sync', () => {
   it('rebuilds and stamps when the index predates the current projection', async () => {
     // never stamped (or written by an older app)
     const { indexer, logger, methods, findCall } = setup()
-    await indexer.sync({ generation: 3 })
+    await indexer.sync({ generation: 3, fileGeneration: FILE_GENERATION })
     expect(methods()).toContain('clear')
     expect(findCall('setMeta')).toMatchObject({
       key: PROJECTION_VERSION_KEY,
@@ -395,6 +422,7 @@ describe('LiveIndex.apply (watcher dispatch)', () => {
         { path: 'notes/gone.md', kind: 'remove' },
       ],
       9,
+      FILE_GENERATION,
     )
     const apply = findCall('applyBatch')
     expect(apply!.generation).toBe(9)
@@ -406,7 +434,7 @@ describe('LiveIndex.apply (watcher dispatch)', () => {
 
   it('stamps "now" — never epoch zero — when an upsert carries no modifiedMs', async () => {
     const { liveIndex, store } = setup()
-    await liveIndex.apply([{ path: 'notes/a.md', kind: 'upsert' }], 9)
+    await liveIndex.apply([{ path: 'notes/a.md', kind: 'upsert' }], 9, FILE_GENERATION)
     expect(store.applied()[0]!.mtime).toBe(NOW)
   })
 
@@ -421,6 +449,7 @@ describe('LiveIndex.apply (watcher dispatch)', () => {
     const mutations = await liveIndex.apply(
       [{ path: 'notes/a.md', kind: 'upsert', modifiedMs: 1_000 }],
       9,
+      FILE_GENERATION,
     )
 
     expect(mutations).toBe(0)
@@ -446,6 +475,7 @@ describe('LiveIndex.apply (watcher dispatch)', () => {
     const mutations = await liveIndex.apply(
       [{ path: 'notes/a.md', kind: 'upsert', modifiedMs: 2_000 }],
       9,
+      FILE_GENERATION,
     )
 
     // The re-stamp counts as a mutation: `updated_at` moved, so
@@ -471,6 +501,7 @@ describe('LiveIndex.apply (watcher dispatch)', () => {
     const mutations = await liveIndex.apply(
       [{ path: 'notes/a.md', kind: 'upsert', modifiedMs: NOW - 10 }],
       9,
+      FILE_GENERATION,
     )
 
     expect(mutations).toBe(1)
@@ -503,7 +534,7 @@ describe('reconcile move healing (Plan 17)', () => {
   it('moves the rows and skips the re-index when content is unchanged', async () => {
     const { indexer, store, findCall } = setupRename({ storedHash: await hash.sha256Hex(CONTENT) })
 
-    await indexer.reconcile({ generation: 4 })
+    await indexer.reconcile({ generation: 4, fileGeneration: FILE_GENERATION })
 
     expect(findCall('move')).toEqual({ method: 'move', from: OLD, to: NEW, generation: 4 })
     // The moved row carried its hash: identical content means no re-apply —
@@ -518,6 +549,7 @@ describe('reconcile move healing (Plan 17)', () => {
 
     await indexer.reconcile({
       generation: 4,
+      fileGeneration: FILE_GENERATION,
       onMoved: (from, to) => {
         moves.push([from, to])
       },
@@ -531,7 +563,7 @@ describe('reconcile move healing (Plan 17)', () => {
       storedHash: 'stale-hash-from-before-the-edit',
     })
 
-    await indexer.reconcile({ generation: 4 })
+    await indexer.reconcile({ generation: 4, fileGeneration: FILE_GENERATION })
 
     expect(store.moved()).toEqual([{ from: OLD, to: NEW }])
     expect(store.removed()).toEqual([])
@@ -544,7 +576,7 @@ describe('reconcile move healing (Plan 17)', () => {
       content: '# Meeting Notes\n',
     })
 
-    await indexer.reconcile({ generation: 4 })
+    await indexer.reconcile({ generation: 4, fileGeneration: FILE_GENERATION })
 
     expect(store.moved()).toEqual([])
     expect(store.applied().map((note) => note.path)).toEqual([NEW])
@@ -566,7 +598,7 @@ describe('reconcile move healing (Plan 17)', () => {
       },
     })
 
-    await indexer.reconcile({ generation: 4 })
+    await indexer.reconcile({ generation: 4, fileGeneration: FILE_GENERATION })
 
     expect(logger.getErrors().map((entry) => entry.message)).toEqual([
       `id-based move failed (${OLD} → ${NEW}):`,
@@ -588,6 +620,7 @@ describe('reconcile over the native scan delta', () => {
 
     await indexer.reconcile({
       generation: 4,
+      fileGeneration: FILE_GENERATION,
       onFileProgress: (done, total, worked) => {
         progress.push([done, total, worked])
       },
@@ -619,6 +652,7 @@ describe('reconcile over the native scan delta', () => {
 
     await indexer.reconcile({
       generation: 4,
+      fileGeneration: FILE_GENERATION,
       onFileProgress: (done, total, worked) => {
         progress.push([done, total, worked])
       },
@@ -653,7 +687,7 @@ describe('reconcile over the native scan delta', () => {
       },
     })
 
-    await indexer.reconcile({ generation: 4 })
+    await indexer.reconcile({ generation: 4, fileGeneration: FILE_GENERATION })
 
     const applied = store.applied()
     expect(applied.map((note) => note.path)).toEqual(['notes/changed.md'])
@@ -676,7 +710,7 @@ describe('reconcile over the native scan delta', () => {
       },
     })
 
-    await indexer.reconcile({ generation: 4 })
+    await indexer.reconcile({ generation: 4, fileGeneration: FILE_GENERATION })
 
     expect(findCall('remove')).toMatchObject({ path: 'notes/ghost.md', generation: 4 })
   })
@@ -698,6 +732,7 @@ describe('iCloud eviction placeholders (Plan 21)', () => {
     const stale: string[][] = []
     await indexer.rebuild({
       generation: 6,
+      fileGeneration: FILE_GENERATION,
       onStalePlaceholders: (paths) => {
         stale.push([...paths])
       },
@@ -726,6 +761,7 @@ describe('iCloud eviction placeholders (Plan 21)', () => {
     const stale: string[][] = []
     await indexer.reconcile({
       generation: 4,
+      fileGeneration: FILE_GENERATION,
       onStalePlaceholders: (paths) => {
         stale.push([...paths])
       },

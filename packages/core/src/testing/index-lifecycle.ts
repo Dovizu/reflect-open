@@ -156,9 +156,10 @@ class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
   applyChanges(
     changes: FileChange[],
     generation: number,
+    fileGeneration: number,
     canApply?: () => boolean,
   ): Promise<number> {
-    return this.#inner.applyChanges(changes, generation, canApply)
+    return this.#inner.applyChanges(changes, generation, fileGeneration, canApply)
   }
 
   onReconciled(listener: (event: IndexReconciledEvent) => void | Promise<void>): Unlisten {
@@ -199,13 +200,21 @@ class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
 
   indexNote(
     path: string,
-    options: { generation: number; content?: string | undefined; mtime?: number | undefined },
+    options: {
+      generation: number
+      fileGeneration: number
+      content?: string | undefined
+      mtime?: number | undefined
+    },
   ): Promise<void> {
     return this.#inner.indexNote(path, options)
   }
 
-  reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void> {
-    return this.#inner.reindexNotesReferencing(assetPaths, generation)
+  reindexNotesReferencing(
+    assetPaths: readonly string[],
+    options: { generation: number; fileGeneration: number },
+  ): Promise<void> {
+    return this.#inner.reindexNotesReferencing(assetPaths, options)
   }
 
   setFileProgress(progress: IndexFileProgress | null): void {

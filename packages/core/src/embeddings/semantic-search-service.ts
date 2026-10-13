@@ -115,15 +115,17 @@ class SemanticSearchServiceImpl implements SemanticSearchService {
     this.#deps = deps
     this.#mainWindow = deps.role === 'main'
     const { embeddingRuntime, embeddingIndex, indexLifecycle } = deps
-    this.#stopFollowingRebuilds = indexLifecycle.onReconciled(async ({ generation, source }) => {
-      if (source !== 'rebuild') {
-        return
-      }
-      const embed = await embeddingRuntime.status()
-      if (embed.status === 'ready') {
-        await embeddingIndex.backfill({ generation, modelId: embed.model })
-      }
-    })
+    this.#stopFollowingRebuilds = indexLifecycle.onReconciled(
+      async ({ generation, fileGeneration, source }) => {
+        if (source !== 'rebuild') {
+          return
+        }
+        const embed = await embeddingRuntime.status()
+        if (embed.status === 'ready') {
+          await embeddingIndex.backfill({ generation, fileGeneration, modelId: embed.model })
+        }
+      },
+    )
   }
 
   start(): Unlisten {
@@ -159,7 +161,12 @@ class SemanticSearchServiceImpl implements SemanticSearchService {
       const { graph, indexGeneration: generation } = graphSession.getState()
       const target =
         enabled && status.status === 'ready' && generation !== null && graph !== null
-          ? { generation, modelId: status.model, root: graph.root }
+          ? {
+              generation,
+              fileGeneration: graph.generation,
+              modelId: status.model,
+              root: graph.root,
+            }
           : null
       const next = target === null ? null : JSON.stringify(target)
       if (next !== followed) {
@@ -170,7 +177,11 @@ class SemanticSearchServiceImpl implements SemanticSearchService {
         stopFollowing =
           target === null
             ? null
-            : embeddingIndex.follow({ generation: target.generation, modelId: target.modelId })
+            : embeddingIndex.follow({
+                generation: target.generation,
+                fileGeneration: target.fileGeneration,
+                modelId: target.modelId,
+              })
       }
     }
 
