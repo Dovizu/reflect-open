@@ -1,3 +1,6 @@
+/** The main window owns the graph; a note window adopts the main window's sessions. */
+export type GraphRole = 'main' | 'note-window'
+
 /** One open graph: its identity, both session generations, and its lifetime. */
 export interface GraphSession {
   /** Absolute path of the graph root. */
@@ -6,8 +9,8 @@ export interface GraphSession {
   readonly name: string
   /** The file session generation from `graph_open`. */
   readonly generation: number
-  /** The index session generation from `index_open`. */
-  readonly indexGeneration: number
+  /** The index session generation from `index_open`; null when the index failed to open. */
+  readonly indexGeneration: number | null
   /** Aborts when the graph closes or another graph replaces it. */
   readonly signal: AbortSignal
 }

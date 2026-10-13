@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createGraphSession } from '../app/graph-session.ts'
 import {
   createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
@@ -387,7 +388,9 @@ describe('after an index rebuild', () => {
   it('re-embeds nothing after a background sync pass', async () => {
     const { indexLifecycle, embeddingIndex } = await setup()
 
-    indexLifecycle.sync(7, () => false)
+    indexLifecycle.sync(
+      createGraphSession({ root: '/g', name: 'g', generation: 1, indexGeneration: 7 }),
+    )
     await indexLifecycle.settled()
 
     expect(embeddingIndex.backfills()).toEqual([])

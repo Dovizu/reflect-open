@@ -76,7 +76,7 @@ async function renderSection(): Promise<void> {
       <SyncSection />
       <RouteProbe />
     </>,
-    { app, graph, route: { kind: 'settings' }, sync: true },
+    { app, graph, route: { kind: 'settings' } },
   )
 }
 

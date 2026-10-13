@@ -1,14 +1,6 @@
-import { createContext, use, useMemo, useState, type ReactElement, type ReactNode } from 'react'
-import {
-  isICloudRoot,
-  ReflectError,
-  type BackupService,
-  type BackupState,
-  type GraphInfo,
-} from '@reflect/core'
-import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useMemo } from 'react'
+import { ReflectError, type BackupService, type BackupState } from '@reflect/core'
+import { useGraphServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { BackupState, ConnectExistingResult } from '@reflect/core'
@@ -18,77 +10,23 @@ type SyncContextValue = { backup: BackupState } & Pick<
   'connectNewRepo' | 'connectExistingRepo' | 'disconnectGraph' | 'signOut' | 'backUpNow'
 >
 
-const SyncContext = createContext<SyncContextValue | null>(null)
-
 const LOADING: BackupState = { phase: 'loading' }
 
-/** What the surface reads before the main window's backup service exists. */
+/** What the surface reads where the graph runs no backup service. */
 const NO_BACKUP = {
   subscribe: () => () => {},
   getState: (): BackupState => LOADING,
 }
 
-interface SyncProviderProps {
-  graph: GraphInfo
-  children: ReactNode
-}
-
 /**
- * Thin React shim over core's `BackupService` lifecycle (Plan 12): one
- * service per (graph, index session), created and disposed by an effect,
- * surfaced through `useServiceState`. All sync behavior lives in the
- * service — this component owns nothing but the mounting. The service comes
- * from the nearest `AppServicesProvider`'s factory.
+ * Backup state + actions of the open graph's `BackupService`. A note window
+ * runs none: its state stays 'loading' (the note window edits, main syncs).
  */
-export function SyncProvider({ graph, children }: SyncProviderProps): ReactElement {
-  const { indexGeneration } = useGraph()
-  const { backups, icloudSyncs, platform } = useAppServices()
-  const metadataWatch = platform.surface.mobileApp
-  const [controller, setController] = useState<BackupService | null>(null)
-
-  // One backup service per app: a secondary note window mounting a
-  // second one would race commits/pulls against the main window's. Its
-  // sync state stays 'loading' — the note window edits, main syncs.
-  useMainWindowEffect(() => {
-    const next = backups.create({
-      generation: graph.generation,
-      indexGeneration,
-    })
-    // The service is an imperative lifecycle object created per (graph, index
-    // session); it must be instantiated in an effect (it subscribes and starts)
-    // and stored so useServiceState can read it.
-    setController(next)
-    void next.start()
-    return () => {
-      next.dispose()
-      setController((current) => (current === next ? null : current))
-    }
-  }, [backups, graph, indexGeneration])
-
-  // iCloud-hosted graphs additionally get the conflict lifecycle (Plan 21):
-  // debounced conflict sweeps and shadow-base bookkeeping, plus — on mobile
-  // only — the metadata-query watch that stands in for the file watcher.
-  // Same per-(graph, index session) shape as the backup service; a graph
-  // outside iCloud mounts nothing.
-  useMainWindowEffect(() => {
-    if (!isICloudRoot(graph.root)) {
-      return
-    }
-    const icloud = icloudSyncs.create({
-      root: graph.root,
-      generation: graph.generation,
-      indexGeneration,
-      metadataWatch,
-    })
-    void icloud.start()
-    return () => {
-      icloud.dispose()
-    }
-  }, [icloudSyncs, graph, indexGeneration, metadataWatch])
-
+export function useSync(): SyncContextValue {
+  const controller = useGraphServices({ optional: true })?.backup ?? null
   const backup = useServiceState(controller ?? NO_BACKUP)
 
-  const value = useMemo<SyncContextValue>(() => {
+  return useMemo<SyncContextValue>(() => {
     const require = (): BackupService => {
       if (controller === null) {
         throw new ReflectError('io', 'backup is still initializing')
@@ -104,25 +42,15 @@ export function SyncProvider({ graph, children }: SyncProviderProps): ReactEleme
       backUpNow: () => require().backUpNow(),
     }
   }, [controller, backup])
-
-  return <SyncContext value={value}>{children}</SyncContext>
-}
-
-/** Backup state + actions; must be used under a {@link SyncProvider}. */
-export function useSync(): SyncContextValue {
-  const value = use(SyncContext)
-  if (value === null) {
-    throw new Error('useSync must be used within a SyncProvider')
-  }
-  return value
 }
 
 /**
- * Like {@link useSync}, but `null` outside a provider. For surfaces that also
- * render where no backup lifecycle is mounted — the mobile settings sheet in
- * the plain-browser dev harness and in screen tests — and degrade by hiding
- * their sync rows instead of crashing.
+ * Like {@link useSync}, but `null` where the graph runs no backup service:
+ * no graph session is open (the mobile settings sheet in the plain-browser
+ * dev harness and in screen tests), and those surfaces hide their sync rows.
  */
 export function useSyncContext(): SyncContextValue | null {
-  return use(SyncContext)
+  const sync = useSync()
+  const backup = useGraphServices({ optional: true })?.backup ?? null
+  return backup === null ? null : sync
 }

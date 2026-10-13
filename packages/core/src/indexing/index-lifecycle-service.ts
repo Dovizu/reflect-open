@@ -1,3 +1,4 @@
+import type { GraphSession } from '../app/graph-session.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
 import { isNotePath } from '../graph/paths.ts'
@@ -62,7 +63,7 @@ export interface IndexReconciledEvent {
  * await index.stop()                       // halt the previous graph's sync pass
  * const generation = await index.open()    // open the new graph's index
  * if (stale) return
- * index.sync(generation, () => stale)      // background reconcile + live watch
+ * index.sync(session)                      // background reconcile + live watch
  * await index.close()                      // no graph/index remains active
  * ```
  *
@@ -80,21 +81,21 @@ export interface IndexLifecycleService {
    */
   open: () => Promise<number | null>
   /**
-   * Background-sync the open index at `generation`: sync the whole graph
+   * Background-sync the open index of `session`: sync the whole graph
    * (hash reconcile, or a full rebuild when the stored projection version is
    * stale), then subscribe to live file changes, then start the Rust watcher,
-   * sequenced so the passes never write concurrently. `isStale` is checked
-   * between steps and bails when a newer open supersedes this one. Call only
-   * after the graph row is committed.
+   * sequenced so the passes never write concurrently. The pass bails between
+   * steps once `session.signal` aborts; a session without an index runs none.
+   * Call only after the graph row is committed.
    */
-  sync: (generation: number, isStale: () => boolean) => void
+  sync: (session: GraphSession) => void
   /**
    * Re-run the sync pass, coalescing concurrent triggers (resume, poll-end,
    * watch-failed can fire together): while one refresh is settling, further
    * calls fold into a single queued rerun instead of stacking abort/restart
    * cycles — on a large graph each stacked cycle was a full pass.
    */
-  refresh: (generation: number, isStale: () => boolean) => void
+  refresh: (session: GraphSession) => void
   /**
    * Abort the in-flight reconcile (if any) and wait for the sync pass to fully
    * settle, so a stale pass can't keep running into the next graph's open.
@@ -120,10 +121,10 @@ export interface IndexLifecycleService {
   /**
    * Resume after {@link IndexLifecycleService.suspend} and run one coalesced
    * full sync for anything that changed while the live subscription was
-   * absent. A null generation clears suspension without starting work
-   * (foreground can precede graph open).
+   * absent. A null session, or one without an index, clears suspension
+   * without starting work (foreground can precede graph open).
    */
-  resume: (generation: number | null, isStale: () => boolean) => void
+  resume: (session: GraphSession | null) => void
   /**
    * Install a dynamic guard for platforms that must not start index work
    * while the app is suspended; `null` removes it. Checked at every lifecycle
@@ -328,13 +329,13 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     emitProgress('idle')
   }
 
-  function resume(generation: number | null, isStale: () => boolean): void {
+  function resume(session: GraphSession | null): void {
     suspended = false
-    if (generation !== null && !isStale()) {
+    if (session !== null && session.indexGeneration !== null && !session.signal.aborted) {
       // Events intentionally dropped while suspended are recovered by the
       // full reconcile. `refresh` also folds a rapid resume/poll burst into a
       // single queued rerun when a prior pass is still settling.
-      refresh(generation, isStale)
+      refresh(session)
     }
   }
 
@@ -365,13 +366,15 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     }
   }
 
-  function sync(generation: number, isStale: () => boolean): void {
+  function sync(session: GraphSession): void {
+    const generation = session.indexGeneration
+    const isStale = (): boolean => session.signal.aborted
     // Tear down the previous graph's live subscription unconditionally, so a
     // failed/absent open can't leave it bound to a different graph.
     live.unlisten?.()
     live.unlisten = null
 
-    if (isSuspended()) {
+    if (generation === null || isSuspended()) {
       return
     }
 
@@ -469,7 +472,7 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
   let refreshRunning = false
   let refreshQueued = false
 
-  function refresh(generation: number, isStale: () => boolean): void {
+  function refresh(session: GraphSession): void {
     if (isSuspended()) {
       return
     }
@@ -485,10 +488,10 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
           // Settle (abort) any in-flight pass first so two passes never write
           // concurrently, then bail if a newer open superseded this graph.
           await stop()
-          if (isStale() || isSuspended()) {
+          if (session.signal.aborted || isSuspended()) {
             return
           }
-          sync(generation, isStale)
+          sync(session)
           await settled()
         } while (refreshQueued)
       } finally {

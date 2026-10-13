@@ -47,6 +47,9 @@ const NATIVE_MACOS_MENU_COMMAND_IDS = new Set([
  * the native menu's command items dispatch into the same guard path while
  * mounted (`setMenuCommandDispatch`).
  */
+
+function doNothing(): void {}
+
 export function useAppShortcuts(): CommandContext {
   const services = useAppServices()
   const { route, navigate, back, forward, clearScrollState } = useRouter()
@@ -65,7 +68,8 @@ export function useAppShortcuts(): CommandContext {
   } = useNoteTemplates()
   const { toggleSidebar } = useSidebar()
   const { toggle: toggleAudioMemo } = useAudioMemo()
-  const { newChat } = useChatSession()
+  // The hook can outlive the open graph, and its chat session with it.
+  const newChat = useChatSession({ optional: true })?.newChat ?? doNothing
   const { updateSettings } = useSettings()
   const {
     openForPath: openNoteFindForPath,

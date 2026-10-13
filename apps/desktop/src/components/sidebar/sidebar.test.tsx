@@ -142,7 +142,6 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
       ],
     },
     settings: { dateFormat: 'mdy', graphColors: {} },
-    sync: true,
     ...(initialRoute === undefined ? {} : { route: initialRoute }),
     wrapper: (children: ReactNode) => (
       <div style={{ width: 260, height: 560 }}>

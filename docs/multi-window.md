@@ -44,9 +44,10 @@ harness — get the single-window host (`createSingleWindowHost`), whose label i
 | Update checks, OS deep-link intake                | ✓ | — |
 | Graph management (open / switch / delete)         | ✓ | refused |
 
-The gate is structural: singleton mounts go through `useMainWindowEffect`
-(`src/hooks/use-main-window-effect.ts`), so a new per-session background
-service declares its ownership rather than remembering a guard. Graph-mutating
+The gate is structural: `createGraphServices` (`@reflect/core`) builds the
+per-graph background lifecycles only for the main window's role, so a new one
+declares its ownership rather than remembering a guard. A note window's deep
+link intake has no OS source, and `UpdateService.start` does nothing there. Graph-mutating
 actions are refused off-main in `GraphSessionService` (`requireMainWindow`) —
 opening a graph from a note window would re-root the shared `GraphState`
 under every window at once.

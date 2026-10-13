@@ -1,7 +1,6 @@
-import { createContext, use, useMemo, type ReactElement, type ReactNode } from 'react'
+import { createContext, use, useEffect, useMemo, type ReactElement, type ReactNode } from 'react'
 import type { UpdateService, UpdateState } from '@reflect/core'
 import { attachUpdateToasts } from '@/components/update-toasts.ts'
-import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
@@ -32,8 +31,8 @@ export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): Re
   const supported = update.supported
   const resolvedAutoCheck = autoCheck ?? !platform.isDev
 
-  // One checker per app: secondary note windows never poll for updates.
-  useMainWindowEffect(() => {
+  // One checker per app: `start` does nothing in a secondary note window.
+  useEffect(() => {
     if (!supported) {
       return
     }

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createTestAppServices, createTestAttachmentService } from '@reflect/core/testing'
-import { useAttachmentCatalogSync } from '@/lib/attachment-catalog.ts'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useNoteAttachments, type NoteAttachments } from './use-note-attachments.ts'
 
@@ -60,26 +59,5 @@ describe('useNoteAttachments', () => {
     expect(attachments?.resolveImageUrl('garden-budget.png')).toBe(
       assetUrl(3, 'attachments/garden-budget.png'),
     )
-  })
-})
-
-describe('useAttachmentCatalogSync', () => {
-  it('watches the graph session catalog while mounted', async () => {
-    const view = await renderHookInApp(
-      ({ generation }: { generation: number | null } = { generation: null }) => {
-        useAttachmentCatalogSync(generation)
-      },
-      { initialProps: { generation: 3 as number | null } },
-    )
-    const service = view.app.attachments
-    expect(service.watchers()).toBe(1)
-
-    await view.rerender({ generation: null })
-    expect(service.watchers()).toBe(0)
-
-    await view.rerender({ generation: 4 })
-    expect(service.watchers()).toBe(1)
-    await view.unmount()
-    expect(service.watchers()).toBe(0)
   })
 })

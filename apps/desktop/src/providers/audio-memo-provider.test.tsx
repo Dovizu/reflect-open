@@ -230,6 +230,8 @@ describe('AudioMemoProvider', () => {
     await unmount()
 
     expect(app.audioRecorder.state()).toBe('idle')
+    // The graph's own lifecycles listen until the graph closes.
+    app.graphSession.setGraph(null)
     expect(app.fileChanges.listenerCount().changes).toBe(0)
   })
 })

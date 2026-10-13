@@ -1,19 +1,61 @@
 import type { AppServices, Unlisten } from '@reflect/core'
-import { invalidateIndexQueries, invalidateXPostQueries } from '@/lib/query-client.ts'
+import {
+  dropIcloudStatusQuery,
+  dropSimilarNotesQueries,
+  invalidateChatQueries,
+  invalidateIndexQueries,
+  invalidateXPostQueries,
+  throttledInvalidateIndexQueries,
+} from '@/lib/query-client.ts'
 
 /**
  * Invalidate the queries that service events make stale. Queries cache
- * forever (`staleTime: Infinity`), so each write must signal here: archived X
- * posts after a capture pass, and the index-backed queries after new asset
- * descriptions.
+ * forever (`staleTime: Infinity`), so each write must signal here: the
+ * index-backed queries after index changes and new asset descriptions,
+ * archived X posts after a capture pass, the chat history after a saved turn,
+ * and what the app holds per graph when graphs change.
  */
 export function installQueryInvalidation(
-  app: Pick<AppServices, 'capture' | 'assetDescription'>,
+  app: Pick<
+    AppServices,
+    'capture' | 'assetDescription' | 'chatSessions' | 'indexLifecycle' | 'graphSession' | 'window'
+  >,
 ): Unlisten {
   const unlisteners = [
     app.capture.onXPostsWritten(invalidateXPostQueries),
     app.assetDescription.onDescriptionsIndexed(invalidateIndexQueries),
+    // The history menus list conversations through React Query.
+    app.chatSessions.onConversationsChanged(invalidateChatQueries),
+    // Applied watcher batches stream every couple of seconds during a bulk
+    // sync — the throttled variant collapses them to one refetch round per
+    // window (an isolated batch still invalidates immediately).
+    app.indexLifecycle.onApplied(throttledInvalidateIndexQueries),
+    app.indexLifecycle.onReconciled((event) => {
+      // A manual rebuild bypasses the watcher pipeline (whose onApplied
+      // refreshes the caches), so cached note lists, backlinks, and tags
+      // would otherwise show pre-rebuild rows until some unrelated change
+      // invalidated them.
+      if (event.source !== 'sync') {
+        invalidateIndexQueries()
+      }
+    }),
+    // On a switch, the session-held "Similar notes" results of the prior graph go.
+    app.graphSession.onGraphReleased((reason) => {
+      if (reason === 'switch') {
+        dropSimilarNotesQueries()
+      }
+    }),
+    // The delete trashed a directory the chooser may list: drop the cached
+    // iCloud listing so the chooser refetches it rather than showing the
+    // deleted graph.
+    app.graphSession.onGraphDeleted(dropIcloudStatusQuery),
   ]
+  if (!app.window.isMainWindow()) {
+    // A note window runs no indexer: the Rust `index:written` broadcast
+    // (fired after the main window's applies commit) keeps its index-backed
+    // queries fresh.
+    unlisteners.push(app.window.subscribeIndexWritten(throttledInvalidateIndexQueries))
+  }
   return () => {
     for (const unlisten of unlisteners) {
       unlisten()

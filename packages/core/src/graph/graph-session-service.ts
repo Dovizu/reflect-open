@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { DialogService } from '../app/dialog-service.ts'
-import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
+import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
 import type { IdService } from '../app/id-service.ts'
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
@@ -8,10 +8,14 @@ import type { PathService } from '../app/path-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import type { WindowService } from '../app/window-service.ts'
+import type { NoteMoveService } from '../documents/note-move-service.ts'
+import type { NoteRowService } from '../documents/note-row-service.ts'
+import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import type { IndexStoreService } from '../indexing/index-store-service.ts'
+import type { ICloudNativeService } from '../ipc/icloud-native-service.ts'
 import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
 import type { MobileStorageService } from '../ipc/mobile-storage-service.ts'
 import type { NoteFileService } from './note-file-service.ts'
@@ -30,8 +34,11 @@ export type GraphStatus = 'loading' | 'choosing' | 'opening' | 'ready'
 /** Why the active graph's in-memory leftovers can go. */
 export type GraphReleaseReason = 'switch' | 'close'
 
-/** What a {@link GraphSessionService} publishes. Replaced, never mutated, on every change. */
-export interface GraphSessionState {
+/**
+ * What a {@link GraphSessionService} publishes. Replaced, never mutated, on
+ * every change. `Services` is what the graph-scoped container of a session is.
+ */
+export interface GraphSessionState<Services = unknown> {
   readonly status: GraphStatus
   readonly graph: GraphInfo | null
   /**
@@ -45,11 +52,12 @@ export interface GraphSessionState {
   readonly error: string | null
   readonly recents: RecentGraph[]
   /**
-   * The open graph as one object. Null while no graph is open and while the
-   * graph is open without an index session. Its `signal` aborts when the
-   * graph closes or another open is requested.
+   * The open graph as one object; null while no graph is open. Its `signal`
+   * aborts when the graph closes or another open is requested.
    */
   readonly session: GraphSession | null
+  /** The graph-scoped services of `session`; null whenever `session` is null or ended. */
+  readonly services: Services | null
 }
 
 /** What the host does at fixed points of {@link GraphSessionService.boot}. */
@@ -68,8 +76,8 @@ export interface GraphBootHooks {
  * the boot paths. Members are function properties so surfaces can pass them
  * around unbound.
  */
-export interface GraphSessionService {
-  getState: () => GraphSessionState
+export interface GraphSessionService<Services = unknown> {
+  getState: () => GraphSessionState<Services>
   subscribe: (listener: () => void) => Unlisten
   /**
    * Start this webview's graph: follow the index lifecycle, then run the boot
@@ -117,7 +125,7 @@ export interface GraphSessionService {
   onGraphDeleted: (listener: (root: string) => void) => Unlisten
 }
 
-export interface GraphSessionServiceDeps {
+export interface GraphSessionServiceDeps<Services = unknown> {
   readonly ipc: IpcBridgeService
   readonly indexLifecycle: IndexLifecycleService
   readonly indexStore: IndexStoreService
@@ -130,13 +138,25 @@ export interface GraphSessionServiceDeps {
   readonly platform: Pick<PlatformFacts, 'appPlatform' | 'isMacosDesktop'>
   readonly lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeHidden' | 'subscribeVisible'>
   readonly mobileStorage: Pick<MobileStorageService, 'createGraph'>
+  readonly noteRows: Pick<NoteRowService, 'reset'>
+  readonly openDocuments: Pick<OpenDocumentsService, 'reloadAll'>
+  readonly noteMove: Pick<NoteMoveService, 'followHealedMove'>
+  readonly icloudNative: Pick<ICloudNativeService, 'requestDownloads'>
   readonly logger: LoggerService
+  /**
+   * Build the graph-scoped services of a session that just opened. They must
+   * dispose themselves when `session.signal` aborts. Without it, `services`
+   * stays null.
+   */
+  readonly createServices?: (session: GraphSession, role: GraphRole) => Services
 }
 
 /** Commands that return `()` from Rust serialize as `null` over IPC. */
 const voidSchema = z.null()
 
-export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphSessionService {
+export function createGraphSessionService<Services = unknown>(
+  deps: GraphSessionServiceDeps<Services>,
+): GraphSessionService<Services> {
   const {
     ipc,
     indexLifecycle: index,
@@ -150,10 +170,15 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
     platform,
     lifecycle,
     mobileStorage,
+    noteRows,
+    openDocuments,
+    noteMove,
+    icloudNative,
     logger,
+    createServices,
   } = deps
 
-  let state: GraphSessionState = {
+  let state: GraphSessionState<Services> = {
     status: 'loading',
     graph: null,
     indexGeneration: null,
@@ -161,6 +186,7 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
     error: null,
     recents: [],
     session: null,
+    services: null,
   }
   const listeners = new Set<() => void>()
   const releasedListeners = new Set<(reason: GraphReleaseReason) => void>()
@@ -188,9 +214,9 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
     return isMobilePlatform(platform.appPlatform)
   }
 
-  function setState(patch: Partial<GraphSessionState>): void {
+  function setState(patch: Partial<GraphSessionState<Services>>): void {
     const next = { ...state, ...patch }
-    const keys = Object.keys(next) as (keyof GraphSessionState)[]
+    const keys = Object.keys(next) as (keyof GraphSessionState<Services>)[]
     if (keys.every((key) => next[key] === state[key])) {
       return
     }
@@ -212,11 +238,8 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
     return openSeq
   }
 
-  /** The session object of an open graph; null when its index failed to open. */
-  function sessionFor(graph: GraphInfo, indexGeneration: number | null): GraphSession | null {
-    if (indexGeneration === null) {
-      return null
-    }
+  /** The session object of an open graph. */
+  function sessionFor(graph: GraphInfo, indexGeneration: number | null): GraphSession {
     const controller = new AbortController()
     sessionAbort?.abort()
     sessionAbort = controller
@@ -224,6 +247,28 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
       { root: graph.root, name: graph.name, generation: graph.generation, indexGeneration },
       controller.signal,
     )
+  }
+
+  /** Publish `graph` as ready, then the graph-scoped services of its session. */
+  function commitReady(
+    graph: GraphInfo,
+    indexGeneration: number | null,
+    role: GraphRole,
+  ): GraphSession {
+    const session = sessionFor(graph, indexGeneration)
+    setState({ graph, indexGeneration, status: 'ready', session, services: null })
+    if (createServices !== undefined && !session.signal.aborted) {
+      setState({ services: createServices(session, role) })
+    }
+    return session
+  }
+
+  /** The prior graph's in-memory leftovers can go. */
+  function release(reason: GraphReleaseReason): void {
+    noteRows.reset()
+    for (const listener of releasedListeners) {
+      listener(reason)
+    }
   }
 
   /**
@@ -274,7 +319,7 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
       return Promise.resolve(false)
     }
     const seq = supersede()
-    setState({ status: 'opening', error: null })
+    setState({ status: 'opening', error: null, services: null })
     // Resolves true only when this open actually reached 'ready': callers
     // (mobile onboarding) gate side effects like persisting the onboarded
     // flag on a confirmed open, never on a clone that failed to open.
@@ -293,9 +338,7 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
         // Listeners reclaim what they hold for the prior graph. It is already
         // invisible here (scoped by generation / graph root), so this is
         // memory hygiene, not correctness.
-        for (const listener of releasedListeners) {
-          listener('switch')
-        }
+        release('switch')
         // Open the index *before* 'ready' so reads can't hit the previous
         // graph's index. Best-effort: an index failure doesn't block editing.
         const generation = await index.open()
@@ -303,12 +346,7 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
           return false
         }
         // Transition to 'ready' immediately: the user can start editing.
-        setState({
-          graph: info,
-          indexGeneration: generation,
-          status: 'ready',
-          session: sessionFor(info, generation),
-        })
+        const session = commitReady(info, generation, 'main')
         opened = true
         // Onboarding, considered exactly once per graph (the `welcomeSeeded`
         // meta marker): an empty graph gets the pinned "How to use Reflect"
@@ -328,10 +366,10 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
               logger.error('welcome seed failed:', errorMessage(err))
             })
             .finally(() => {
-              if (seq === openSeq) {
+              if (!session.signal.aborted) {
                 // Background-sync the index (reconcile → subscribe → watch),
                 // bailing if a newer open supersedes this one.
-                index.sync(generation, () => seq !== openSeq)
+                index.sync(session)
               }
             })
         } else {
@@ -415,9 +453,7 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
   async function closeActiveGraph(): Promise<void> {
     supersede()
     await index.close()
-    for (const listener of releasedListeners) {
-      listener('close')
-    }
+    release('close')
     setState({
       graph: null,
       indexGeneration: null,
@@ -425,6 +461,7 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
       error: null,
       status: 'choosing',
       session: null,
+      services: null,
     })
   }
 
@@ -491,15 +528,14 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
   }
 
   function refreshIndex(): void {
-    const { indexGeneration } = state
+    const { session } = state
     // Off-main, a refresh would start a second concurrent index writer.
-    if (indexGeneration === null || !windowService.isMainWindow()) {
+    if (session === null || session.indexGeneration === null || !windowService.isMainWindow()) {
       return
     }
     // The index lifecycle coalesces stacked triggers (resume + poll-end +
     // watch-failed can fire together) into a single queued rerun.
-    const seq = openSeq
-    index.refresh(indexGeneration, () => seq !== openSeq)
+    index.refresh(session)
   }
 
   function park(error: string | null): void {
@@ -524,12 +560,11 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
       index.suspend()
     })
     const stopVisible = lifecycle.subscribeVisible(() => {
-      const seq = openSeq
-      // A null generation still clears suspension: mobile can foreground
+      // A null session still clears suspension: mobile can foreground
       // before onboarding/open has produced an index session. With a session,
       // the full pass recovers every event missed while hidden; stacked
       // resume/iCloud triggers fold into the lifecycle's queued rerun.
-      index.resume(state.indexGeneration, () => seq !== openSeq)
+      index.resume(state.session)
     })
     return () => {
       suspensionFollowers -= 1
@@ -555,6 +590,27 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
       // rerun.
       fileChanges.subscribeReconcile(() => {
         refreshIndex()
+      }),
+      // A completed reconcile read changed files into the index without
+      // per-file events; open sessions re-read so the visible note converges
+      // with the index (unchanged files are no-op reads).
+      index.onReconciled((event) => {
+        if (event.source === 'sync') {
+          openDocuments.reloadAll()
+        }
+      }),
+      // External renames healed by id follow through to sessions and routes,
+      // exactly as for an in-app rename (Plan 17).
+      index.onMoved((from, to) => {
+        noteMove.followHealedMove(from, to)
+      }),
+      // iCloud-evicted notes whose content the index lacks: request exactly
+      // those downloads; the materialized files index via ordinary watcher
+      // upserts. Rust resolves against the active root itself.
+      index.onStalePlaceholders((paths) => {
+        icloudNative.requestDownloads(paths).catch((err: unknown) => {
+          logger.error('iCloud download request failed:', errorMessage(err))
+        })
       }),
     ]
 
@@ -584,12 +640,7 @@ export function createGraphSessionService(deps: GraphSessionServiceDeps): GraphS
           if (!active) {
             return
           }
-          setState({
-            graph: adopted.graph,
-            indexGeneration: adopted.indexGeneration,
-            status: 'ready',
-            session: sessionFor(adopted.graph, adopted.indexGeneration),
-          })
+          commitReady(adopted.graph, adopted.indexGeneration, 'note-window')
         } catch (err) {
           if (active) {
             // Off-main, 'choosing' renders as an error screen, never the

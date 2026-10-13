@@ -54,7 +54,6 @@ export {
   captureWireMessageSchema,
   type CaptureWireMessage,
 } from '../capture/capture-envelope.ts'
-export { type CaptureService } from '../capture/capture-service.ts'
 export {
   canReadCalendars,
   calendarEventSchema,
@@ -64,4 +63,3 @@ export {
 } from '../calendar/commands.ts'
 export { displayEvents, defaultAttendees } from '../calendar/events.ts'
 export { type MeetingAttendee } from '../contacts/meeting-service.ts'
-export { type AssetDescriptionService } from '../assets/asset-description-service.ts'

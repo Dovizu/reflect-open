@@ -88,7 +88,7 @@ vi.mock('@/components/daily-stream.tsx', () => ({
 vi.mock('@/components/settings-screen.tsx', () => ({
   SettingsScreen: () => <div data-testid="settings-screen" />,
 }))
-// The chat screen needs the ChatProvider stack (covered by its own tests);
+// The chat screen needs a chat session (covered by its own tests);
 // here only the route → view mapping is under test.
 vi.mock('@/components/chat/chat-screen.tsx', () => ({
   ChatScreen: () => <div data-testid="chat-screen" />,

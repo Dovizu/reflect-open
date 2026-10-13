@@ -7,15 +7,10 @@ export { type MobileStorageInfo, type MobileStorageKind } from '../ipc/mobile-st
 export { type GithubAuthService } from '../sync/github-auth-service.ts'
 export {
   type BackupService,
-  type BackupServiceOptions,
   type BackupState,
   type ConnectExistingResult,
 } from '../sync/backup-service.ts'
-export { isICloudRoot, type ICloudSyncServiceOptions } from '../sync/icloud-sync-service.ts'
-export {
-  type ICloudDownloadService,
-  type ICloudDownloadServiceOptions,
-} from '../sync/icloud-download-service.ts'
+export { isICloudRoot } from '../sync/icloud-sync-service.ts'
 export { type ConflictResolutionService } from '../sync/conflict-resolution-service.ts'
 export { type MobileSyncStatus, type SyncStatusService } from '../sync/sync-status-service.ts'
 export {
@@ -199,7 +194,7 @@ export {
   type AppServices,
   type MobileServices,
 } from '../app/create-app-services.ts'
-export { createGraphServices, type GraphServices } from '../app/create-graph-services.ts'
+export type { GraphServices } from '../app/create-graph-services.ts'
 export { type AgentSkillStatus } from '../app/agent-skill-service.ts'
 export { type AgentSkillService } from '../app/agent-skill-service.ts'
 export {

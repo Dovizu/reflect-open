@@ -6,6 +6,7 @@ import {
   createTestAppInfoService,
   createTestAppServices,
   createTestScriptedBackupServiceFactory,
+  createTestWindowService,
   seedNotes,
   type TestBackupService,
 } from '@reflect/core/testing'
@@ -18,7 +19,7 @@ import { MobileSettings } from './settings.tsx'
  * sheet): the graph row disclosing into the Graphs screen, appearance and
  * editor preferences writing the shared settings document, the backup group's
  * plain-language status + Disconnect through the backup controller, and
- * graceful degradation where no SyncProvider is mounted.
+ * graceful degradation where the graph runs no backup.
  */
 
 // The prompt editor's state and save wiring render through this open-state shell.
@@ -51,7 +52,7 @@ interface MountOptions {
   settings?: Partial<Settings>
   /** Where the open graph is stored. */
   storageKind?: 'icloud' | 'local'
-  /** The backup state. `null` mounts no sync lifecycle. */
+  /** The backup state. `null` runs no backup. */
   backup?: BackupState | null
 }
 
@@ -63,6 +64,8 @@ async function mount(options?: MountOptions) {
   const app = createTestAppServices({
     appInfo: createTestAppInfoService('1.2.3-beta.4'),
     backups,
+    // A note window's graph runs no backup.
+    window: createTestWindowService(options?.backup === null ? { label: 'note-1' } : {}),
   })
   seedNotes(app.database, [
     { path: 'notes/a.md', markdown: '# A\n' },
@@ -75,7 +78,6 @@ async function mount(options?: MountOptions) {
     graph: { root: '/g', name: 'Field Notes', generation: 1 },
     mobile: { kind: options?.storageKind ?? 'icloud' },
     route: { kind: 'settings' },
-    sync: options?.backup !== null,
     ...(options?.settings === undefined ? {} : { settings: options.settings }),
   })
   const backup: TestBackupService = backups.backup

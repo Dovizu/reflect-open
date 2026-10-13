@@ -47,7 +47,6 @@ async function mount(options?: MountOptions): Promise<void> {
   await renderInApp(<SyncStatusPill />, {
     app,
     graph: { root: '/g', name: 'G', generation: 3 },
-    sync: true,
   })
 }
 

@@ -2,7 +2,7 @@ import { createContext, use, type ReactElement, type ReactNode } from 'react'
 import type { AppServices, GraphServices } from '@reflect/core'
 
 const AppServicesContext = createContext<AppServices | null>(null)
-const GraphServicesContext = createContext<GraphServices | null>(null)
+const GraphServicesContext = createContext<GraphServices<AppServices> | null>(null)
 
 export function AppServicesProvider({
   services,
@@ -19,7 +19,7 @@ export function GraphServicesProvider({
   services,
   children,
 }: {
-  services: GraphServices | null
+  services: GraphServices<AppServices> | null
   children: ReactNode
 }): ReactElement {
   return <GraphServicesContext value={services}>{children}</GraphServicesContext>
@@ -37,10 +37,12 @@ export function useAppServices(options?: { optional: true }): AppServices | null
   return services
 }
 
-/** The {@link GraphServices} of the nearest `GraphServicesProvider`. */
-export function useGraphServices(): GraphServices {
+/** The {@link GraphServices} of the nearest `GraphServicesProvider`; `optional` allows none. */
+export function useGraphServices(options: { optional: true }): GraphServices<AppServices> | null
+export function useGraphServices(): GraphServices<AppServices>
+export function useGraphServices(options?: { optional: true }): GraphServices<AppServices> | null {
   const services = use(GraphServicesContext)
-  if (services === null) {
+  if (services === null && options?.optional !== true) {
     throw new Error('useGraphServices() must be called inside a <GraphServicesProvider>')
   }
   return services

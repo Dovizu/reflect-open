@@ -32,7 +32,6 @@ import {
 import type { NoteEditorHandle } from '@/editor/note-editor.tsx'
 import { registerAppKeymaps } from '@/lib/shortcuts.ts'
 import { AudioMemoProvider } from '@/providers/audio-memo-provider.tsx'
-import { ChatProvider } from '@/providers/chat-provider.tsx'
 import { NoteFindProvider, useNoteFind } from '@/providers/note-find-provider.tsx'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.tsx'
@@ -44,7 +43,7 @@ import { useRouter } from './router.tsx'
 
 const GRAPH = { root: '/g', name: 'g', generation: 1 } satisfies TestOpenGraph
 
-// `newChat` of the chat session the rendered `ChatProvider` created; set by `shortcutsHook`.
+// `newChat` of the chat session the open graph created; set by `shortcutsHook`.
 let newChat: MockInstance<ChatSession['newChat']>
 
 /** An editor handle that records the Find traversal and ignores the rest. */
@@ -144,9 +143,7 @@ async function shortcutsHook(client?: QueryClient) {
               <SidebarProvider>
                 <FocusedDailyProvider>
                   <NoteFindProvider>
-                    <AudioMemoProvider graph={GRAPH}>
-                      <ChatProvider graph={GRAPH}>{children}</ChatProvider>
-                    </AudioMemoProvider>
+                    <AudioMemoProvider graph={GRAPH}>{children}</AudioMemoProvider>
                   </NoteFindProvider>
                 </FocusedDailyProvider>
               </SidebarProvider>

@@ -150,6 +150,7 @@ import { createNoteFileService, type NoteFileService } from '../graph/note-file-
 import {
   createGraphSessionService,
   type GraphSessionService,
+  type GraphSessionServiceDeps,
 } from '../graph/graph-session-service.ts'
 import {
   createMobileOnboardingService,
@@ -312,6 +313,7 @@ import {
   type NativeMenuHost,
   type NativeMenuService,
 } from '../commands/native-menu-service.ts'
+import { createGraphServices, type GraphServices } from './create-graph-services.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 
 /** The app-scoped services: one instance each for the lifetime of the webview. */
@@ -355,13 +357,7 @@ export interface AppServices {
   readonly linkNavigation: LinkNavigationService
   readonly githubAuth: GithubAuthService
   readonly gistPublish: GistPublishService
-  /** Builds the backup lifecycle of one (graph, index session) pair. */
-  readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
-  /** Builds the iCloud conflict lifecycle of one (graph, index session) pair. */
-  readonly icloudSyncs: ICloudSyncServiceFactory
-  /** Builds the download refresh of one open iCloud graph (mobile). */
-  readonly icloudDownloads: ICloudDownloadServiceFactory
   readonly icloudMigration: ICloudMigrationService
   readonly conflictResolution: ConflictResolutionService
   readonly syncStatus: SyncStatusService
@@ -388,7 +384,8 @@ export interface AppServices {
   readonly notePath: NotePathService
   readonly noteCreation: NoteCreationService
   readonly indexLifecycle: IndexLifecycleService
-  readonly graphSession: GraphSessionService
+  /** The active graph; its state carries the graph-scoped services of the open session. */
+  readonly graphSession: GraphSessionService<GraphServices<AppServices>>
   readonly semanticSearch: SemanticSearchService
   readonly mobileOnboarding: MobileOnboardingService
   readonly keyboard: KeyboardService
@@ -559,7 +556,10 @@ export const appServiceFactories = {
   assetDescriber: createAssetDescriberService,
   backlinkTarget: createBacklinkTargetService,
   indexLifecycle: createIndexLifecycleService,
-  graphSession: createGraphSessionService,
+  graphSession: (
+    deps: GraphSessionServiceDeps<GraphServices<AppServices>>,
+  ): GraphSessionService<GraphServices<AppServices>> => createGraphSessionService(deps),
+  graphServices: createGraphServices,
   opener: createOpenerService,
   navigation: createNavigationService,
   deepLink: createDeepLinkService,
@@ -675,6 +675,9 @@ export interface InternalServices {
   readonly chatGraphContext: ChatGraphContextService
   readonly backlinkTarget: BacklinkTargetService
   readonly assetPrivacy: AssetPrivacyService
+  readonly backups: BackupServiceFactory
+  readonly icloudSyncs: ICloudSyncServiceFactory
+  readonly icloudDownloads: ICloudDownloadServiceFactory
 }
 
 export function createAppServices(
@@ -814,6 +817,8 @@ export function composeAppServices(
     logger,
     operations,
   })
+  const noteRows = create.noteRows()
+  const icloudNative = create.icloudNative({ ipc, logger })
   const graphSession = create.graphSession({
     ipc,
     indexLifecycle,
@@ -827,12 +832,32 @@ export function composeAppServices(
     platform,
     lifecycle,
     mobileStorage,
+    noteRows,
+    openDocuments,
+    noteMove,
+    icloudNative,
     logger,
+    createServices: (session, role) =>
+      create.graphServices(services, session, role, {
+        backups,
+        icloudSyncs,
+        icloudDownloads,
+        capture: services.capture,
+        assetDescription: services.assetDescription,
+        chatSessions: services.chatSessions,
+        attachments,
+        settings,
+        mobileOnboarding: services.mobileOnboarding,
+        graphSession,
+        platform,
+      }),
   })
   const opener = create.opener({ transport: adapters.opener, logger })
   const navigation = create.navigation()
   const deepLink = create.deepLink({
-    source: adapters.deepLink ?? createNoDeepLinkSource(),
+    // The OS delivers deep links to every webview; only the main window takes them.
+    source:
+      (windowService.isMainWindow() ? adapters.deepLink : undefined) ?? createNoDeepLinkSource(),
     indexQuery: indexReads.indexQuery,
     captureInbox,
     operations,
@@ -861,9 +886,7 @@ export function composeAppServices(
   const githubAuth = create.githubAuth({ secretStore, http: adapters.http, clock })
   const githubRepos = create.githubRepos({ http: adapters.http })
   const gists = create.gists({ http: adapters.http })
-  const noteRows = create.noteRows()
   const syncEngines = create.syncEngines({ git: gitRepository, clock })
-  const icloudNative = create.icloudNative({ ipc, logger })
   const embeddingRuntime = create.embeddingRuntime({ ipc, logger })
   const retrieval = create.retrieval({
     database,
@@ -928,6 +951,29 @@ export function composeAppServices(
     privacy: noteServices.privacy,
   })
   const imageCodec = adapters.imageCodec ?? createUnavailableImageCodec()
+  const backups = create.backups({
+    git: gitRepository,
+    syncEngines,
+    githubAuth,
+    githubRepos,
+    fileChanges,
+    indexLifecycle,
+    operations,
+    lifecycle,
+    platform,
+    persistenceFlush,
+    logger,
+  })
+  const icloudSyncs = create.icloudSyncs({
+    icloudNative,
+    fileChanges,
+    indexLifecycle,
+    openDocuments,
+    lifecycle,
+    clock,
+    logger,
+  })
+  const icloudDownloads = create.icloudDownloads({ icloudNative, lifecycle, clock, logger })
   const services: AppServices = {
     ipc,
     logger,
@@ -1002,19 +1048,6 @@ export function composeAppServices(
       window: windowService,
     }),
     githubAuth,
-    backups: create.backups({
-      git: gitRepository,
-      syncEngines,
-      githubAuth,
-      githubRepos,
-      fileChanges,
-      indexLifecycle,
-      operations,
-      lifecycle,
-      platform,
-      persistenceFlush,
-      logger,
-    }),
     gistPublish: create.gistPublish({
       gists,
       githubAuth,
@@ -1025,16 +1058,6 @@ export function composeAppServices(
       clipboard: adapters.clipboard,
     }),
     icloudNative,
-    icloudSyncs: create.icloudSyncs({
-      icloudNative,
-      fileChanges,
-      indexLifecycle,
-      openDocuments,
-      lifecycle,
-      clock,
-      logger,
-    }),
-    icloudDownloads: create.icloudDownloads({ icloudNative, lifecycle, clock, logger }),
     icloudMigration: create.icloudMigration({ icloudNative }),
     conflictResolution: create.conflictResolution({ noteFile, indexLifecycle, fileChanges }),
     syncStatus: create.syncStatus(),
@@ -1243,6 +1266,9 @@ export function composeAppServices(
     chatGraphContext,
     backlinkTarget,
     assetPrivacy,
+    backups,
+    icloudSyncs,
+    icloudDownloads,
   }
   return { services, internal }
 }
