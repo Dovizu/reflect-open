@@ -42,16 +42,15 @@ export type VaultScanStats = z.infer<typeof vaultScanStatsSchema>
  */
 export interface NoteFileService {
   /**
-   * A note's markdown. `generation`, when given, pins the read to the issuing
-   * graph session; reads that can span a graph switch must pin it.
+   * A note's markdown, pinned to the issuing graph session's `generation`.
    */
-  read(path: string, generation?: number): Promise<string>
+  read(path: string, generation: number): Promise<string>
   /**
    * A note's markdown only when its bytes are local: an iCloud-evicted note
    * reports `evicted` instead of being downloaded. A missing file still
    * rejects with `notFound`.
    */
-  readLocal(path: string, generation?: number): Promise<LocalNoteRead>
+  readLocal(path: string, generation: number): Promise<LocalNoteRead>
   /**
    * Write a note atomically, pinned to `generation`. `expectedContents`
    * rejects a stale source revision (`null` requires a missing file);
@@ -79,11 +78,11 @@ export interface NoteFileService {
   /**
    * Every eligible Markdown note in the graph.
    */
-  listNotes(generation?: number): Promise<FileMeta[]>
+  listNotes(generation: number): Promise<FileMeta[]>
   /**
    * Every supported local attachment in the graph.
    */
-  listAttachments(generation?: number): Promise<FileMeta[]>
+  listAttachments(generation: number): Promise<FileMeta[]>
   /**
    * Every file under a graph-relative directory. A missing directory lists as empty.
    */
@@ -91,7 +90,7 @@ export interface NoteFileService {
   /**
    * Counts from the vault catalog, including what the walk skipped.
    */
-  vaultScanStats(generation?: number): Promise<VaultScanStats>
+  vaultScanStats(generation: number): Promise<VaultScanStats>
 }
 
 export interface NoteFileServiceDeps {
@@ -107,11 +106,11 @@ class NoteFileServiceImpl implements NoteFileService {
     this.#deps = deps
   }
 
-  async read(path: string, generation?: number): Promise<string> {
+  async read(path: string, generation: number): Promise<string> {
     return await this.#deps.ipc.call('note_read', { path, generation }, z.string())
   }
 
-  async readLocal(path: string, generation?: number): Promise<LocalNoteRead> {
+  async readLocal(path: string, generation: number): Promise<LocalNoteRead> {
     return await this.#deps.ipc.call('note_read_local', { path, generation }, localNoteReadSchema)
   }
 
@@ -161,11 +160,11 @@ class NoteFileServiceImpl implements NoteFileService {
     this.#deps.fileChanges.reportOwnWrite([{ path, kind: 'remove' }])
   }
 
-  async listNotes(generation?: number): Promise<FileMeta[]> {
+  async listNotes(generation: number): Promise<FileMeta[]> {
     return await this.#deps.ipc.call('list_files', { generation }, z.array(fileMetaSchema))
   }
 
-  async listAttachments(generation?: number): Promise<FileMeta[]> {
+  async listAttachments(generation: number): Promise<FileMeta[]> {
     return await this.#deps.ipc.call('list_attachments', { generation }, z.array(fileMetaSchema))
   }
 
@@ -173,7 +172,7 @@ class NoteFileServiceImpl implements NoteFileService {
     return await this.#deps.ipc.call('dir_list', { dir, generation }, z.array(fileMetaSchema))
   }
 
-  async vaultScanStats(generation?: number): Promise<VaultScanStats> {
+  async vaultScanStats(generation: number): Promise<VaultScanStats> {
     return await this.#deps.ipc.call('vault_scan_stats', { generation }, vaultScanStatsSchema)
   }
 }

@@ -140,7 +140,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
     if (content === undefined) {
       let read: LocalNoteRead
       try {
-        read = await noteFile.readLocal(path)
+        read = await noteFile.readLocal(path, generation)
       } catch {
         return 0 // deleted between event and read; the remove path handles it
       }

@@ -67,7 +67,7 @@ describe('createConflictResolutionService', () => {
   it('a failed write reports the error and notifies nothing', async () => {
     const outcome = await createConflictResolutionService({
       noteFile: {
-        read: (path) => noteFile.read(path),
+        read: (path, generation) => noteFile.read(path, generation),
         write: async () => {
           throw new ReflectError('io', 'disk full')
         },

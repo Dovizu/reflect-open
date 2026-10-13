@@ -182,7 +182,11 @@ class NoteDocumentServiceImpl implements NoteDocumentService {
         }
         return
       }
-      const source = await this.#readForEdit(path, options.createIfMissing === true)
+      const source = await this.#readForEdit(
+        path,
+        options.createIfMissing === true,
+        options.generation,
+      )
       await noteFile.write(path, transform(source), options.generation)
     })
   }
@@ -229,9 +233,9 @@ class NoteDocumentServiceImpl implements NoteDocumentService {
     return result
   }
 
-  async #readForEdit(path: string, createIfMissing: boolean): Promise<string> {
+  async #readForEdit(path: string, createIfMissing: boolean, generation: number): Promise<string> {
     try {
-      return await this.#deps.noteFile.read(path)
+      return await this.#deps.noteFile.read(path, generation)
     } catch (cause) {
       if (createIfMissing && isAppError(cause) && cause.kind === 'notFound') {
         return ''

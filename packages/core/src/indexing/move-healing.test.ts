@@ -53,7 +53,7 @@ describe('MoveHealing.detectExternalMoves', () => {
   it('pairs an orphan with the arrival carrying its id and hands back the content', async () => {
     const { healing } = setup()
 
-    const scan = await healing.detectExternalMoves([ORPHAN], [ARRIVAL])
+    const scan = await healing.detectExternalMoves([ORPHAN], [ARRIVAL], 1)
     expect(scan.moves).toEqual([{ from: ORPHAN, to: ARRIVAL }])
     expect(scan.content.get(ARRIVAL)).toBe(CONTENT)
   })
@@ -65,7 +65,7 @@ describe('MoveHealing.detectExternalMoves', () => {
       },
     })
 
-    const scan = await healing.detectExternalMoves([ORPHAN], [ARRIVAL])
+    const scan = await healing.detectExternalMoves([ORPHAN], [ARRIVAL], 1)
     expect(scan.moves).toEqual([])
     expect(scan.content.size).toBe(0)
   })
@@ -73,8 +73,8 @@ describe('MoveHealing.detectExternalMoves', () => {
   it('never reads or queries when either side is empty', async () => {
     const { healing, calls } = setup()
 
-    expect((await healing.detectExternalMoves([], [ARRIVAL])).moves).toEqual([])
-    expect((await healing.detectExternalMoves([ORPHAN], [])).moves).toEqual([])
+    expect((await healing.detectExternalMoves([], [ARRIVAL], 1)).moves).toEqual([])
+    expect((await healing.detectExternalMoves([ORPHAN], [], 1)).moves).toEqual([])
     expect(calls).toEqual([])
   })
 
@@ -82,7 +82,7 @@ describe('MoveHealing.detectExternalMoves', () => {
     const controller = new AbortController()
     const { healing } = setup({ lookup: () => controller.abort() })
 
-    const scan = await healing.detectExternalMoves([ORPHAN], [ARRIVAL], {
+    const scan = await healing.detectExternalMoves([ORPHAN], [ARRIVAL], 1, {
       signal: controller.signal,
     })
     expect(scan.moves).toEqual([])

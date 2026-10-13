@@ -177,7 +177,7 @@ class LiveIndexImpl implements LiveIndex {
         if (matchesTrustedMtime(facts?.mtime, change.modifiedMs, now)) {
           continue // already indexed at this mtime — e.g. the watch's initial gather
         }
-        const content = await noteFile.read(change.path)
+        const content = await noteFile.read(change.path, generation)
         const fileHash = await hash.sha256Hex(content)
         if (!canApply()) {
           return mutations
@@ -300,6 +300,7 @@ class LiveIndexImpl implements LiveIndex {
     const { moves, content } = await this.#moveHealing.detectExternalMoves(
       removes.map((change) => change.path),
       arrivals.map((change) => change.path),
+      generation,
     )
     const mtimeByPath = new Map(arrivals.map((change) => [change.path, change.modifiedMs]))
     for (const move of moves) {

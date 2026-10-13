@@ -53,6 +53,7 @@ export interface MoveHealing {
   detectExternalMoves(
     orphanPaths: string[],
     arrivalPaths: string[],
+    generation: number,
     options?: { signal?: AbortSignal | undefined },
   ): Promise<ExternalMoveScan>
 }
@@ -67,6 +68,7 @@ class MoveHealingImpl implements MoveHealing {
   async detectExternalMoves(
     orphanPaths: string[],
     arrivalPaths: string[],
+    generation: number,
     options?: { signal?: AbortSignal | undefined },
   ): Promise<ExternalMoveScan> {
     const { noteFile, indexQuery } = this.#deps
@@ -81,7 +83,7 @@ class MoveHealingImpl implements MoveHealing {
         return { moves: [], content }
       }
       try {
-        const source = await noteFile.read(path)
+        const source = await noteFile.read(path, generation)
         content.set(path, source)
         const parsed = parseNote({ path, source })
         arrivalIds.set(path, parsed.frontmatter.id ?? null)

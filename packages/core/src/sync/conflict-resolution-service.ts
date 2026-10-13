@@ -67,7 +67,7 @@ class ConflictResolutionServiceImpl implements ConflictResolutionService {
     let wrote = false
     let error: string | null = null
     try {
-      const source = await noteFile.read(path)
+      const source = await noteFile.read(path, generation)
       const resolved = resolveConflictMarkers(source, keep)
       await noteFile.write(path, resolved, generation)
       wrote = true
