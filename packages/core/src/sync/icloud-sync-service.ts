@@ -17,9 +17,14 @@ export function isICloudRoot(root: string): boolean {
   return root.includes('/Mobile Documents/')
 }
 
-/** How long after a save a watcher event still counts as our own write. */
+/**
+ * How long after a save a watcher event still counts as our own write.
+ */
 const OWN_WRITE_TTL_MS = 5_000
-/** Debounce between a change signal and the sweep it triggers. */
+
+/**
+ * Debounce between a change signal and the sweep it triggers.
+ */
 const SCAN_DEBOUNCE_MS = 1_000
 /**
  * Debounce for scans triggered purely by external file arrivals. During an
@@ -40,14 +45,22 @@ const INGEST_SCAN_DEBOUNCE_MS = 5_000
  */
 const INGEST_SCAN_MIN_SPACING_MS = 30_000
 
-/** The (graph, index session) pair one {@link ICloudSyncService} serves. */
+/**
+ * The (graph, index session) pair one {@link ICloudSyncService} serves.
+ */
 export interface ICloudSyncServiceOptions {
-  /** The open graph's root — the metadata watch runs over it. */
-  root: string
-  /** The open graph's generation — every sweep is pinned to it. */
-  generation: number
-  /** The open index session; sweep results reindex under it. */
-  indexGeneration: number | null
+  /**
+   * The open graph's root — the metadata watch runs over it.
+   */
+  readonly root: string
+  /**
+   * The open graph's generation — every sweep is pinned to it.
+   */
+  readonly generation: number
+  /**
+   * The open index session; sweep results reindex under it.
+   */
+  readonly indexGeneration: number | null
   /**
    * Install the native metadata-query watch — true on mobile, where the
    * query is the only external-change source and the conflict signal; false
@@ -55,20 +68,26 @@ export interface ICloudSyncServiceOptions {
    * write and the query's container-wide gather is what pinned
    * `fileproviderd` (issue #1180; see `icloud/watch.rs`).
    */
-  metadataWatch: boolean
+  readonly metadataWatch: boolean
 }
 
-/** The services an {@link ICloudSyncService} runs on. */
+/**
+ * The services an {@link ICloudSyncService} runs on.
+ */
 export interface ICloudSyncServiceDeps {
-  icloudNative: ICloudNativeService
-  fileChanges: FileChangeService
-  /** Applies the notes a sweep rewrote. */
-  indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
-  /** Notes with unsaved edits; their conflicts defer to the next sweep. */
-  openDocuments: Pick<OpenDocumentsService, 'dirtyPaths'>
-  lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeResume'>
-  clock: ClockService
-  logger: LoggerService
+  readonly icloudNative: ICloudNativeService
+  readonly fileChanges: FileChangeService
+  /**
+   * Applies the notes a sweep rewrote.
+   */
+  readonly indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
+  /**
+   * Notes with unsaved edits; their conflicts defer to the next sweep.
+   */
+  readonly openDocuments: Pick<OpenDocumentsService, 'dirtyPaths'>
+  readonly lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeResume'>
+  readonly clock: ClockService
+  readonly logger: LoggerService
 }
 
 /**
@@ -104,11 +123,15 @@ export interface ICloudSyncServiceDeps {
  */
 export interface ICloudSyncService {
   start: () => Promise<void>
-  /** Tear everything down; the service is unusable afterwards. */
+  /**
+   * Tear everything down; the service is unusable afterwards.
+   */
   dispose: () => void
 }
 
-/** Builds the {@link ICloudSyncService} of one (graph, index session) pair. */
+/**
+ * Builds the {@link ICloudSyncService} of one (graph, index session) pair.
+ */
 export interface ICloudSyncServiceFactory {
   create(options: ICloudSyncServiceOptions): ICloudSyncService
 }
@@ -120,22 +143,25 @@ export function createICloudSyncServiceFactory(
   return { create: (options) => createICloudSyncService(deps, options) }
 }
 
-export function createICloudSyncService(
-  deps: ICloudSyncServiceDeps,
-  options: ICloudSyncServiceOptions,
-): ICloudSyncService {
-  const { icloudNative, fileChanges, indexLifecycle, openDocuments, lifecycle, clock, logger } =
-    deps
-  const { root, generation, indexGeneration, metadataWatch } = options
-  let disposed = false
-  let baselinePending = true
-  const disposers: Unlisten[] = []
-  const ownWrites = new Map<string, number>()
-  let pendingIngest = new Set<string>()
-  let applyingSweepResult = false
-  let scanTimer: TimerHandle | null = null
-  let scanTimerDue = 0
-  let scanRunning = false
+class ICloudSyncServiceImpl implements ICloudSyncService {
+  readonly #deps: ICloudSyncServiceDeps
+  readonly #options: ICloudSyncServiceOptions
+  readonly #disposers: Unlisten[] = []
+  readonly #ownWrites = new Map<string, number>()
+  /**
+   * The narrow scope for arrival-driven sweeps: the watch's candidate set
+   * where a watch runs, else the arrivals themselves. Everything that is
+   * not `'full'` merges to this one value, so a queued replay can never be
+   * narrower than what this surface can actually answer.
+   */
+  readonly #arrivalScope: IcloudSweepScope
+  #disposed = false
+  #baselinePending = true
+  #pendingIngest = new Set<string>()
+  #applyingSweepResult = false
+  #scanTimer: TimerHandle | null = null
+  #scanTimerDue = 0
+  #scanRunning = false
   /**
    * The request that arrived while a sweep was running, replayed on its own
    * window once the sweep ends: `'prompt'` urgency (conflict signal, resume)
@@ -145,14 +171,14 @@ export function createICloudSyncService(
    * straight into the next one (ingest) nor delays conflict handling by the
    * wide window (prompt). The requested scope rides along and merges the
    * same way scopes always merge (`'full'` is sticky). Mechanically the
-   * sweep's coverage always comes from {@link nextScanScope}; what carrying
-   * the scope prevents is the replay's `scheduleScan` call passing the
+   * sweep's coverage always comes from `#nextScanScope`; what carrying
+   * the scope prevents is the replay's `#scheduleScan` call passing the
    * *default* `'full'` and re-arming the sticky flag — which turned every
    * mid-sweep conflict signal into another O(N) version pass, in exactly
    * the overlap case the scoping exists for.
    */
-  let queuedScan: { urgency: 'prompt' | 'ingest'; scope: IcloudSweepScope } | null = null
-  let lastScanEndedAt = 0
+  #queuedScan: { urgency: 'prompt' | 'ingest'; scope: IcloudSweepScope } | null = null
+  #lastScanEndedAt = 0
   /**
    * Version-check coverage for the next sweep. `'full'` is sticky until a
    * sweep consumes it — a resume request must not be narrowed by a later
@@ -161,81 +187,194 @@ export function createICloudSyncService(
    * Rust degrades it to full whenever the watch can't answer), and a failed
    * sweep re-arms `'full'` so the retry is thorough.
    */
-  let nextScanScope: IcloudSweepScope = 'full'
-  /**
-   * The narrow scope for arrival-driven sweeps: the watch's candidate set
-   * where a watch runs, else the arrivals themselves. Everything that is
-   * not `'full'` merges to this one value, so a queued replay can never be
-   * narrower than what this surface can actually answer.
-   */
-  const arrivalScope: IcloudSweepScope = metadataWatch ? 'candidates' : 'ingested'
+  #nextScanScope: IcloudSweepScope = 'full'
 
-  function scanSuspended(): boolean {
+  constructor(deps: ICloudSyncServiceDeps, options: ICloudSyncServiceOptions) {
+    this.#deps = deps
+    this.#options = options
+    this.#arrivalScope = options.metadataWatch ? 'candidates' : 'ingested'
+  }
+
+  readonly start = async (): Promise<void> => {
+    const { icloudNative, fileChanges, lifecycle, clock, logger } = this.#deps
+    const { root, metadataWatch } = this.#options
+    if (this.#disposed) {
+      return
+    }
+    if (metadataWatch) {
+      try {
+        await icloudNative.watchStart(root)
+      } catch (err) {
+        logger.error('iCloud watch failed to start:', err)
+        // Sweeps still run off file-change batches; carry on.
+      }
+    }
+    this.#disposers.push(
+      fileChanges.subscribeOwnWrites((paths) => {
+        const now = clock.now()
+        for (const path of paths) {
+          this.#ownWrites.set(path, now)
+        }
+        this.#pruneOwnWrites(now)
+      }),
+    )
+    // Subscriptions are defensive like the watch above: a failed listen must
+    // not reject start() (an unhandled rejection at the provider's call site)
+    // or skip the initial sweep below — resume triggers and the baseline scan
+    // keep conflict handling alive without them.
+    try {
+      this.#disposers.push(
+        fileChanges.subscribe(({ changes }) => {
+          if (this.#disposed || this.#applyingSweepResult) {
+            return
+          }
+          const now = clock.now()
+          this.#pruneOwnWrites(now)
+          for (const change of changes) {
+            if (change.kind !== 'upsert' || !isNotePath(change.path)) {
+              continue
+            }
+            if (this.#ownWrites.has(change.path)) {
+              continue // our own save landing — never advances the base
+            }
+            this.#pendingIngest.add(change.path)
+          }
+          // Arrival-driven: the wide window plus the minimum spacing, so a
+          // download burst folds into a handful of sweeps rather than one
+          // per watch batch.
+          this.#scheduleIngestScan()
+        }),
+      )
+      if (metadataWatch) {
+        this.#disposers.push(
+          icloudNative.subscribeConflicts(() => {
+            if (!this.#disposed) {
+              // The signal and the candidate set come from the same
+              // notification round, so the flagged paths are already in the
+              // watch's view — the prompt sweep needn't re-check every note.
+              this.#scheduleScan(SCAN_DEBOUNCE_MS, 'candidates')
+            }
+          }),
+        )
+        this.#disposers.push(
+          icloudNative.subscribeWatchFailed(() => {
+            if (this.#disposed) {
+              return
+            }
+            // The live watch never started (fire-and-forget install failed
+            // after the command returned). Freshness now rides file-change
+            // batches and the resume sweeps — say so loudly for debugging
+            // stale-state reports, and sweep once right away.
+            logger.error('iCloud watch failed to start; relying on resume-triggered sweeps')
+            this.#scheduleScan()
+          }),
+        )
+      }
+    } catch (err) {
+      logger.error('iCloud change subscriptions failed to start:', err)
+    }
+    this.#disposers.push(
+      lifecycle.subscribeResume(() => {
+        if (metadataWatch) {
+          void this.#restartWatch()
+        }
+        this.#scheduleScan()
+      }),
+    )
+    // The adoption baseline + any conflicts that accrued while closed.
+    this.#scheduleScan()
+  }
+
+  readonly dispose = (): void => {
+    const { icloudNative, clock } = this.#deps
+    const { metadataWatch } = this.#options
+    this.#disposed = true
+    if (this.#scanTimer !== null) {
+      clock.clearTimeout(this.#scanTimer)
+      this.#scanTimer = null
+    }
+    for (const disposeOne of this.#disposers.splice(0)) {
+      disposeOne()
+    }
+    if (metadataWatch) {
+      void icloudNative.watchStop().catch(() => {
+        // Shutdown/switch race — the next start replaces the watch anyway.
+      })
+    }
+  }
+
+  #scanSuspended(): boolean {
+    const { lifecycle } = this.#deps
+    const { metadataWatch } = this.#options
     return metadataWatch && lifecycle.isHidden()
   }
 
-  function scheduleScan(
-    delayMs: number = SCAN_DEBOUNCE_MS,
-    scope: IcloudSweepScope = 'full',
-  ): void {
-    if (disposed || scanSuspended()) {
+  #scheduleScan(delayMs: number = SCAN_DEBOUNCE_MS, scope: IcloudSweepScope = 'full'): void {
+    const { clock } = this.#deps
+    if (this.#disposed || this.#scanSuspended()) {
       return
     }
     if (scope === 'full') {
-      nextScanScope = 'full' // sticky until a sweep consumes it
+      this.#nextScanScope = 'full' // sticky until a sweep consumes it
     }
-    if (scanRunning) {
+    if (this.#scanRunning) {
       const urgency = delayMs <= SCAN_DEBOUNCE_MS ? 'prompt' : 'ingest'
-      queuedScan = {
-        urgency: urgency === 'prompt' || queuedScan?.urgency === 'prompt' ? 'prompt' : 'ingest',
-        scope: scope === 'full' || queuedScan?.scope === 'full' ? 'full' : arrivalScope,
+      this.#queuedScan = {
+        urgency:
+          urgency === 'prompt' || this.#queuedScan?.urgency === 'prompt' ? 'prompt' : 'ingest',
+        scope: scope === 'full' || this.#queuedScan?.scope === 'full' ? 'full' : this.#arrivalScope,
       }
       return
     }
     const due = clock.now() + delayMs
-    if (scanTimer !== null) {
-      if (due >= scanTimerDue) {
+    if (this.#scanTimer !== null) {
+      if (due >= this.#scanTimerDue) {
         return // a sooner (or equal) scan is already on its way
       }
-      clock.clearTimeout(scanTimer)
+      clock.clearTimeout(this.#scanTimer)
     }
-    scanTimerDue = due
-    scanTimer = clock.setTimeout(() => {
-      scanTimer = null
-      void runScan()
+    this.#scanTimerDue = due
+    this.#scanTimer = clock.setTimeout(() => {
+      this.#scanTimer = null
+      void this.#runScan()
     }, delayMs)
   }
 
-  /** Arrival-triggered sweeps: the wide debounce, stretched further to keep
+  /**
+   * Arrival-triggered sweeps: the wide debounce, stretched further to keep
    * {@link INGEST_SCAN_MIN_SPACING_MS} from the previous sweep's end. Scoped
-   * to {@link arrivalScope} — during a bulk sync these fire every spacing
+   * to `#arrivalScope` — during a bulk sync these fire every spacing
    * window, and a full per-note version check each time was the sweep's
-   * dominant cost on a large graph. */
-  function scheduleIngestScan(scope: IcloudSweepScope = arrivalScope): void {
-    const sinceLastScan = clock.now() - lastScanEndedAt
-    scheduleScan(
+   * dominant cost on a large graph.
+   */
+  #scheduleIngestScan(scope: IcloudSweepScope = this.#arrivalScope): void {
+    const { clock } = this.#deps
+    const sinceLastScan = clock.now() - this.#lastScanEndedAt
+    this.#scheduleScan(
       Math.max(INGEST_SCAN_DEBOUNCE_MS, INGEST_SCAN_MIN_SPACING_MS - sinceLastScan),
       scope,
     )
   }
 
-  async function runScan(): Promise<void> {
-    if (disposed || scanSuspended()) {
+  async #runScan(): Promise<void> {
+    const { icloudNative, openDocuments, clock, logger } = this.#deps
+    const { generation } = this.#options
+    if (this.#disposed || this.#scanSuspended()) {
       return
     }
-    if (scanRunning) {
+    if (this.#scanRunning) {
       // Unreachable in the current shape (mid-run requests never arm a
       // timer), kept as a safe fallback: replay promptly and thoroughly.
-      queuedScan = { urgency: 'prompt', scope: 'full' }
+      this.#queuedScan = { urgency: 'prompt', scope: 'full' }
       return
     }
-    scanRunning = true
-    const ingested = [...pendingIngest]
-    pendingIngest = new Set()
-    const recordBaseline = baselinePending
-    baselinePending = false
-    const scope = recordBaseline ? 'full' : nextScanScope
-    nextScanScope = arrivalScope // consumed; the next full trigger re-arms it
+    this.#scanRunning = true
+    const ingested = [...this.#pendingIngest]
+    this.#pendingIngest = new Set()
+    const recordBaseline = this.#baselinePending
+    this.#baselinePending = false
+    const scope = recordBaseline ? 'full' : this.#nextScanScope
+    this.#nextScanScope = this.#arrivalScope // consumed; the next full trigger re-arms it
     try {
       const outcome = await icloudNative.conflictsScan({
         generation,
@@ -244,29 +383,29 @@ export function createICloudSyncService(
         recordBaseline,
         scope,
       })
-      if (!disposed && outcome.changed.length > 0) {
-        applySweepChanges(outcome.changed)
+      if (!this.#disposed && outcome.changed.length > 0) {
+        this.#applySweepChanges(outcome.changed)
       }
     } catch (err) {
       // A failed sweep leaves versions unresolved; the next signal retries.
       logger.error('iCloud conflict sweep failed:', err)
       for (const path of ingested) {
-        pendingIngest.add(path) // don't lose the base advances
+        this.#pendingIngest.add(path) // don't lose the base advances
       }
       if (recordBaseline) {
-        baselinePending = true // the adoption baseline must survive a failed first sweep
+        this.#baselinePending = true // the adoption baseline must survive a failed first sweep
       }
-      nextScanScope = 'full' // whatever failed, retry thoroughly
+      this.#nextScanScope = 'full' // whatever failed, retry thoroughly
     } finally {
-      lastScanEndedAt = clock.now()
-      scanRunning = false
-      if (queuedScan !== null) {
-        const replay = queuedScan
-        queuedScan = null
+      this.#lastScanEndedAt = clock.now()
+      this.#scanRunning = false
+      if (this.#queuedScan !== null) {
+        const replay = this.#queuedScan
+        this.#queuedScan = null
         if (replay.urgency === 'prompt') {
-          scheduleScan(SCAN_DEBOUNCE_MS, replay.scope)
+          this.#scheduleScan(SCAN_DEBOUNCE_MS, replay.scope)
         } else {
-          scheduleIngestScan(replay.scope)
+          this.#scheduleIngestScan(replay.scope)
         }
       }
     }
@@ -278,7 +417,9 @@ export function createICloudSyncService(
    * exactly like the backup service's pull path — the sweep must never
    * wait on the watcher to notice its own writes.
    */
-  function applySweepChanges(changes: FileChange[]): void {
+  #applySweepChanges(changes: FileChange[]): void {
+    const { fileChanges, indexLifecycle, lifecycle, clock } = this.#deps
+    const { indexGeneration, metadataWatch } = this.#options
     // Sweep rewrites ARE this device's writes, but they don't route through
     // the note file service, so no own-write echo fires — and
     // `applyingSweepResult` below can't cover the *debounced* watcher echo
@@ -288,13 +429,13 @@ export function createICloudSyncService(
     // useless rescans.)
     const now = clock.now()
     for (const change of changes) {
-      ownWrites.set(change.path, now)
+      this.#ownWrites.set(change.path, now)
     }
-    applyingSweepResult = true
+    this.#applyingSweepResult = true
     try {
       fileChanges.emit({ changes, source: 'icloud-sweep' })
     } finally {
-      applyingSweepResult = false
+      this.#applyingSweepResult = false
     }
     const indexable = changes.filter((change) => isNotePath(change.path))
     if (indexGeneration !== null && indexable.length > 0) {
@@ -306,10 +447,10 @@ export function createICloudSyncService(
     }
   }
 
-  function pruneOwnWrites(now: number): void {
-    for (const [path, stamp] of ownWrites) {
+  #pruneOwnWrites(now: number): void {
+    for (const [path, stamp] of this.#ownWrites) {
       if (now - stamp > OWN_WRITE_TTL_MS) {
-        ownWrites.delete(path)
+        this.#ownWrites.delete(path)
       }
     }
   }
@@ -324,7 +465,9 @@ export function createICloudSyncService(
    * learns of it — which closes the resume race where the nudge-and-poll
    * backstop runs before the OS even knows a newer version exists.
    */
-  async function restartWatch(): Promise<void> {
+  async #restartWatch(): Promise<void> {
+    const { icloudNative, logger } = this.#deps
+    const { root } = this.#options
     try {
       await icloudNative.watchStop()
     } catch (err) {
@@ -333,7 +476,7 @@ export function createICloudSyncService(
       // is safe — and the reinstall is the half that matters here.
       logger.error('iCloud watch stop failed during restart:', err)
     }
-    if (disposed) {
+    if (this.#disposed) {
       return // closed mid-restart: never leave a watch running for a dead graph
     }
     try {
@@ -347,110 +490,11 @@ export function createICloudSyncService(
       logger.error('iCloud watch restart failed; relying on resume-triggered sweeps:', err)
     }
   }
+}
 
-  async function start(): Promise<void> {
-    if (disposed) {
-      return
-    }
-    if (metadataWatch) {
-      try {
-        await icloudNative.watchStart(root)
-      } catch (err) {
-        logger.error('iCloud watch failed to start:', err)
-        // Sweeps still run off file-change batches; carry on.
-      }
-    }
-    disposers.push(
-      fileChanges.subscribeOwnWrites((paths) => {
-        const now = clock.now()
-        for (const path of paths) {
-          ownWrites.set(path, now)
-        }
-        pruneOwnWrites(now)
-      }),
-    )
-    // Subscriptions are defensive like the watch above: a failed listen must
-    // not reject start() (an unhandled rejection at the provider's call site)
-    // or skip the initial sweep below — resume triggers and the baseline scan
-    // keep conflict handling alive without them.
-    try {
-      disposers.push(
-        fileChanges.subscribe(({ changes }) => {
-          if (disposed || applyingSweepResult) {
-            return
-          }
-          const now = clock.now()
-          pruneOwnWrites(now)
-          for (const change of changes) {
-            if (change.kind !== 'upsert' || !isNotePath(change.path)) {
-              continue
-            }
-            if (ownWrites.has(change.path)) {
-              continue // our own save landing — never advances the base
-            }
-            pendingIngest.add(change.path)
-          }
-          // Arrival-driven: the wide window plus the minimum spacing, so a
-          // download burst folds into a handful of sweeps rather than one
-          // per watch batch.
-          scheduleIngestScan()
-        }),
-      )
-      if (metadataWatch) {
-        disposers.push(
-          icloudNative.subscribeConflicts(() => {
-            if (!disposed) {
-              // The signal and the candidate set come from the same
-              // notification round, so the flagged paths are already in the
-              // watch's view — the prompt sweep needn't re-check every note.
-              scheduleScan(SCAN_DEBOUNCE_MS, 'candidates')
-            }
-          }),
-        )
-        disposers.push(
-          icloudNative.subscribeWatchFailed(() => {
-            if (disposed) {
-              return
-            }
-            // The live watch never started (fire-and-forget install failed
-            // after the command returned). Freshness now rides file-change
-            // batches and the resume sweeps — say so loudly for debugging
-            // stale-state reports, and sweep once right away.
-            logger.error('iCloud watch failed to start; relying on resume-triggered sweeps')
-            scheduleScan()
-          }),
-        )
-      }
-    } catch (err) {
-      logger.error('iCloud change subscriptions failed to start:', err)
-    }
-    disposers.push(
-      lifecycle.subscribeResume(() => {
-        if (metadataWatch) {
-          void restartWatch()
-        }
-        scheduleScan()
-      }),
-    )
-    // The adoption baseline + any conflicts that accrued while closed.
-    scheduleScan()
-  }
-
-  function dispose(): void {
-    disposed = true
-    if (scanTimer !== null) {
-      clock.clearTimeout(scanTimer)
-      scanTimer = null
-    }
-    for (const disposeOne of disposers.splice(0)) {
-      disposeOne()
-    }
-    if (metadataWatch) {
-      void icloudNative.watchStop().catch(() => {
-        // Shutdown/switch race — the next start replaces the watch anyway.
-      })
-    }
-  }
-
-  return { start, dispose }
+export function createICloudSyncService(
+  deps: ICloudSyncServiceDeps,
+  options: ICloudSyncServiceOptions,
+): ICloudSyncService {
+  return new ICloudSyncServiceImpl(deps, options)
 }

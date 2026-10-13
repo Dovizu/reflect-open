@@ -1,6 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../errors.ts'
-import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IcloudScanOptions, IcloudSweepOutcome } from '../ipc/icloud-native-service.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
@@ -79,10 +78,10 @@ afterEach(() => {
 })
 
 /** A desktop service by default; `watch: true` is the mobile shape. */
-function service(overrides: { watch?: boolean; fileChanges?: FileChangeService } = {}) {
+function service(overrides: { watch?: boolean } = {}) {
   active = createICloudSyncServiceFactory({
     icloudNative: icloud,
-    fileChanges: overrides.fileChanges ?? fileChanges,
+    fileChanges,
     indexLifecycle: {
       applyChanges: async (changes, generation, canApply) => {
         indexApplies.push({
@@ -320,13 +319,7 @@ describe('createICloudSyncService', () => {
   })
 
   it('a watch that fails to start is logged and the baseline sweep still runs', async () => {
-    const failing: TestICloudNativeService = {
-      ...icloud,
-      watchStart: async () => {
-        throw new ReflectError('io', 'no container')
-      },
-    }
-    icloud = failing
+    vi.spyOn(icloud, 'watchStart').mockRejectedValue(new ReflectError('io', 'no container'))
     const sync = service({ watch: true })
     await sync.start()
     await settleScan()
@@ -338,14 +331,10 @@ describe('createICloudSyncService', () => {
   })
 
   it('a failed change subscription is logged and the baseline sweep still runs', async () => {
-    const sync = service({
-      fileChanges: {
-        ...fileChanges,
-        subscribe: () => {
-          throw new ReflectError('io', 'watcher unavailable')
-        },
-      },
+    vi.spyOn(fileChanges, 'subscribe').mockImplementation(() => {
+      throw new ReflectError('io', 'watcher unavailable')
     })
+    const sync = service()
     await sync.start()
     await settleScan()
 

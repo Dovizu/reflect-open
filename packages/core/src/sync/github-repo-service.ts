@@ -8,7 +8,9 @@ export interface GithubRepoRef {
   name: string
 }
 
-/** The description stamped on backup repos we create or prefill. */
+/**
+ * The description stamped on backup repos we create or prefill.
+ */
 export const BACKUP_REPO_DESCRIPTION = 'Reflect notes backup'
 
 /**
@@ -25,7 +27,9 @@ export function newRepoUrl(name: string): string {
   return `https://github.com/new?${params.toString()}`
 }
 
-/** Parse `https://github.com/owner/repo(.git)` → ref, or `null` for any other remote. */
+/**
+ * Parse `https://github.com/owner/repo(.git)` → ref, or `null` for any other remote.
+ */
 export function parseGithubRemote(url: string): GithubRepoRef | null {
   const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(url)
   if (match === null) {
@@ -34,7 +38,9 @@ export function parseGithubRemote(url: string): GithubRepoRef | null {
   return { owner: match[1]!, name: match[2]! }
 }
 
-/** The host of an HTTPS remote URL (lowercase, with any port), else `null`. */
+/**
+ * The host of an HTTPS remote URL (lowercase, with any port), else `null`.
+ */
 export function remoteHost(remoteUrl: string): string | null {
   const match = /^https?:\/\/([^/@]+@)?([^/]+)\//i.exec(
     remoteUrl.endsWith('/') ? remoteUrl : `${remoteUrl}/`,
@@ -42,7 +48,9 @@ export function remoteHost(remoteUrl: string): string | null {
   return match === null ? null : match[2]!.toLowerCase()
 }
 
-/** The canonical HTTPS remote URL for a repo (token never embedded). */
+/**
+ * The canonical HTTPS remote URL for a repo (token never embedded).
+ */
 export function githubRemoteUrl(ref: GithubRepoRef): string {
   return `https://github.com/${ref.owner}/${ref.name}.git`
 }
@@ -75,7 +83,9 @@ export function suggestRepoName(graphName: string | undefined): string {
 
 export interface GithubRepo {
   fullName: string
-  /** Backups must default private; a public repo needs explicit confirmation. */
+  /**
+   * Backups must default private; a public repo needs explicit confirmation.
+   */
   isPrivate: boolean
   defaultBranch: string
   htmlUrl: string
@@ -97,7 +107,9 @@ function toRepo(parsed: z.infer<typeof repoResponseSchema>): GithubRepo {
   }
 }
 
-/** The backup repository on GitHub, over its REST API. */
+/**
+ * The backup repository on GitHub, over its REST API.
+ */
 export interface GithubRepoService {
   /**
    * Create a repo for the signed-in user (private by default — the backup
@@ -108,54 +120,74 @@ export interface GithubRepoService {
     name: string,
     options?: { isPrivate?: boolean },
   ): Promise<GithubRepo | null>
-  /** Look up a repo (visibility check before connecting); `null` when missing. */
+  /**
+   * Look up a repo (visibility check before connecting); `null` when missing.
+   */
   getRepo(token: string, ref: GithubRepoRef): Promise<GithubRepo | null>
 }
 
-export function createGithubRepoService(deps: { http: HttpService }): GithubRepoService {
-  const { http } = deps
-  return {
-    async createRepo(token, name, options) {
-      const response = await http.fetch('https://api.github.com/user/repos', {
-        method: 'POST',
-        headers: { ...apiHeaders(token), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          private: options?.isPrivate ?? true,
-          description: BACKUP_REPO_DESCRIPTION,
-          auto_init: false,
-        }),
-      })
-      if (response.status === 403) {
-        const body = (await response.text()).toLowerCase()
-        if (body.includes('not accessible')) {
-          return null
-        }
-        throw new ReflectError('auth', 'GitHub rejected the token (403)')
-      }
-      if (response.status === 401) {
-        throw new ReflectError('auth', 'GitHub rejected the token (401)')
-      }
-      if (!response.ok) {
-        const body = await response.text()
-        throw new ReflectError('io', `creating the repo failed (${response.status}): ${body}`)
-      }
-      return toRepo(await readJson(response, repoResponseSchema, 'repo creation'))
-    },
-    async getRepo(token, ref) {
-      const response = await http.fetch(`https://api.github.com/repos/${ref.owner}/${ref.name}`, {
-        headers: apiHeaders(token),
-      })
-      if (response.status === 404) {
+export interface GithubRepoServiceDeps {
+  readonly http: HttpService
+}
+
+class GithubRepoServiceImpl implements GithubRepoService {
+  readonly #deps: GithubRepoServiceDeps
+
+  constructor(deps: GithubRepoServiceDeps) {
+    this.#deps = deps
+  }
+
+  async createRepo(
+    token: string,
+    name: string,
+    options?: { isPrivate?: boolean },
+  ): Promise<GithubRepo | null> {
+    const { http } = this.#deps
+    const response = await http.fetch('https://api.github.com/user/repos', {
+      method: 'POST',
+      headers: { ...apiHeaders(token), 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        private: options?.isPrivate ?? true,
+        description: BACKUP_REPO_DESCRIPTION,
+        auto_init: false,
+      }),
+    })
+    if (response.status === 403) {
+      const body = (await response.text()).toLowerCase()
+      if (body.includes('not accessible')) {
         return null
       }
-      if (response.status === 401 || response.status === 403) {
-        throw new ReflectError('auth', `GitHub rejected the token (${response.status})`)
-      }
-      if (!response.ok) {
-        throw new ReflectError('io', `looking up the repo failed (${response.status})`)
-      }
-      return toRepo(await readJson(response, repoResponseSchema, 'repo lookup'))
-    },
+      throw new ReflectError('auth', 'GitHub rejected the token (403)')
+    }
+    if (response.status === 401) {
+      throw new ReflectError('auth', 'GitHub rejected the token (401)')
+    }
+    if (!response.ok) {
+      const body = await response.text()
+      throw new ReflectError('io', `creating the repo failed (${response.status}): ${body}`)
+    }
+    return toRepo(await readJson(response, repoResponseSchema, 'repo creation'))
   }
+
+  async getRepo(token: string, ref: GithubRepoRef): Promise<GithubRepo | null> {
+    const { http } = this.#deps
+    const response = await http.fetch(`https://api.github.com/repos/${ref.owner}/${ref.name}`, {
+      headers: apiHeaders(token),
+    })
+    if (response.status === 404) {
+      return null
+    }
+    if (response.status === 401 || response.status === 403) {
+      throw new ReflectError('auth', `GitHub rejected the token (${response.status})`)
+    }
+    if (!response.ok) {
+      throw new ReflectError('io', `looking up the repo failed (${response.status})`)
+    }
+    return toRepo(await readJson(response, repoResponseSchema, 'repo lookup'))
+  }
+}
+
+export function createGithubRepoService(deps: GithubRepoServiceDeps): GithubRepoService {
+  return new GithubRepoServiceImpl(deps)
 }

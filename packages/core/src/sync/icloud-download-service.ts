@@ -22,27 +22,39 @@ const RESUME_REFRESH_DEDUPE_MS = 1500
  */
 const PENDING_POLL_MS = 1000
 
-/** The backoff ceiling between pending-count polls. */
+/**
+ * The backoff ceiling between pending-count polls.
+ */
 const PENDING_POLL_MAX_MS = 4000
 
-/** Give up polling after this long; the metadata watch and the next resume
- * still cover stragglers (a large asset on a slow link, say). */
+/**
+ * Give up polling after this long; the metadata watch and the next resume
+ * still cover stragglers (a large asset on a slow link, say).
+ */
 const PENDING_POLL_LIMIT_MS = 20_000
 
-/** The open iCloud graph one {@link ICloudDownloadService} keeps fresh. */
+/**
+ * The open iCloud graph one {@link ICloudDownloadService} keeps fresh.
+ */
 export interface ICloudDownloadServiceOptions {
-  /** The open graph's root. */
-  root: string
-  /** Run the ordinary full index refresh (`GraphSessionService.refreshIndex`). */
-  refreshIndex: () => void
+  /**
+   * The open graph's root.
+   */
+  readonly root: string
+  /**
+   * Run the ordinary full index refresh (`GraphSessionService.refreshIndex`).
+   */
+  readonly refreshIndex: () => void
 }
 
-/** The services an {@link ICloudDownloadService} runs on. */
+/**
+ * The services an {@link ICloudDownloadService} runs on.
+ */
 export interface ICloudDownloadServiceDeps {
-  icloudNative: Pick<ICloudNativeService, 'downloadPending' | 'pendingCount'>
-  lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeFocus' | 'subscribeVisible'>
-  clock: ClockService
-  logger: LoggerService
+  readonly icloudNative: Pick<ICloudNativeService, 'downloadPending' | 'pendingCount'>
+  readonly lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeFocus' | 'subscribeVisible'>
+  readonly clock: ClockService
+  readonly logger: LoggerService
 }
 
 /**
@@ -68,13 +80,19 @@ export interface ICloudDownloadServiceDeps {
  * bytes never compete with the first index pass.
  */
 export interface ICloudDownloadService {
-  /** Nudge the pending note downloads once and start following resumes. */
+  /**
+   * Nudge the pending note downloads once and start following resumes.
+   */
   start: () => void
-  /** Stop polling and listening; the service is unusable afterwards. */
+  /**
+   * Stop polling and listening; the service is unusable afterwards.
+   */
   dispose: () => void
 }
 
-/** Builds the {@link ICloudDownloadService} of one open iCloud graph. */
+/**
+ * Builds the {@link ICloudDownloadService} of one open iCloud graph.
+ */
 export interface ICloudDownloadServiceFactory {
   create(options: ICloudDownloadServiceOptions): ICloudDownloadService
 }
@@ -85,16 +103,53 @@ export function createICloudDownloadServiceFactory(
   return { create: (options) => createICloudDownloadService(deps, options) }
 }
 
-export function createICloudDownloadService(
-  deps: ICloudDownloadServiceDeps,
-  options: ICloudDownloadServiceOptions,
-): ICloudDownloadService {
-  const { icloudNative, lifecycle, clock, logger } = deps
-  const { root, refreshIndex } = options
-  let disposed = false
-  let lastRefreshAt = 0
-  let retryTimer: TimerHandle | null = null
-  const disposers: Unlisten[] = []
+class ICloudDownloadServiceImpl implements ICloudDownloadService {
+  readonly #deps: ICloudDownloadServiceDeps
+  readonly #options: ICloudDownloadServiceOptions
+  readonly #disposers: Unlisten[] = []
+  #disposed = false
+  #lastRefreshAt = 0
+  #retryTimer: TimerHandle | null = null
+
+  readonly #onResume = (): void => {
+    const now = this.#deps.clock.now()
+    if (now - this.#lastRefreshAt < RESUME_REFRESH_DEDUPE_MS) {
+      return
+    }
+    this.#lastRefreshAt = now
+    void this.#refresh({ reconcile: true })
+  }
+
+  constructor(deps: ICloudDownloadServiceDeps, options: ICloudDownloadServiceOptions) {
+    this.#deps = deps
+    this.#options = options
+  }
+
+  readonly start = (): void => {
+    const { lifecycle, clock } = this.#deps
+    if (this.#disposed) {
+      return
+    }
+    // Once on open: the reconcile that ran at open indexed what was already
+    // local, so this pass only asks iCloud for the rest — the poll (or the
+    // live watch) reconciles once something actually lands.
+    this.#lastRefreshAt = clock.now()
+    void this.#refresh({ reconcile: false })
+    this.#disposers.push(
+      lifecycle.subscribeFocus(this.#onResume),
+      lifecycle.subscribeVisible(this.#onResume),
+    )
+  }
+
+  readonly dispose = (): void => {
+    this.#disposed = true
+    if (this.#retryTimer !== null) {
+      this.#deps.clock.clearTimeout(this.#retryTimer)
+    }
+    for (const disposeOne of this.#disposers.splice(0)) {
+      disposeOne()
+    }
+  }
 
   // Notes download first; everything else (assets are most of the bytes)
   // is requested only once the note placeholders drain. Kicking thousands
@@ -103,20 +158,23 @@ export function createICloudDownloadService(
   // crawled until it finished. Fire-and-forget: nothing polls or
   // reconciles for assets (they aren't indexed; images appear as they
   // land), and a failed request is retried by the next resume's drain.
-  const requestRemainingDownloads = (): void => {
-    void icloudNative.downloadPending(root, 'all').catch((err: unknown) => {
+  #requestRemainingDownloads(): void {
+    const { icloudNative, logger } = this.#deps
+    void icloudNative.downloadPending(this.#options.root, 'all').catch((err: unknown) => {
       logger.error('iCloud asset download request failed:', errorMessage(err))
     })
   }
 
-  const pollPending = (startedAt: number, attempt: number): void => {
-    if (retryTimer !== null) {
+  #pollPending(startedAt: number, attempt: number): void {
+    const { icloudNative, lifecycle, clock, logger } = this.#deps
+    const { root, refreshIndex } = this.#options
+    if (this.#retryTimer !== null) {
       return
     }
     const delayMs = Math.min(PENDING_POLL_MS * 2 ** attempt, PENDING_POLL_MAX_MS)
-    retryTimer = clock.setTimeout(() => {
-      retryTimer = null
-      if (disposed) {
+    this.#retryTimer = clock.setTimeout(() => {
+      this.#retryTimer = null
+      if (this.#disposed) {
         return
       }
       if (lifecycle.isHidden()) {
@@ -125,19 +183,19 @@ export function createICloudDownloadService(
         // hidden). The next resume restarts the whole sequence — clear the
         // dedupe stamp so even a resume inside the dedupe window counts
         // (otherwise a quick hide → show would leave nothing scheduled).
-        lastRefreshAt = 0
+        this.#lastRefreshAt = 0
         return
       }
       void icloudNative.pendingCount(root, 'notes').then(
         (pending) => {
-          if (disposed) {
+          if (this.#disposed) {
             return
           }
           if (pending === 0) {
             // The notes landed — one reconcile picks the batch up
             // together, and the deferred bulk (assets) may start.
             refreshIndex()
-            requestRemainingDownloads()
+            this.#requestRemainingDownloads()
             return
           }
           if (clock.now() - startedAt >= PENDING_POLL_LIMIT_MS) {
@@ -147,11 +205,11 @@ export function createICloudDownloadService(
             refreshIndex()
             return
           }
-          pollPending(startedAt, attempt + 1)
+          this.#pollPending(startedAt, attempt + 1)
         },
         (err: unknown) => {
           logger.error('iCloud pending poll failed:', errorMessage(err))
-          if (!disposed) {
+          if (!this.#disposed) {
             refreshIndex()
           }
         },
@@ -159,7 +217,9 @@ export function createICloudDownloadService(
     }, delayMs)
   }
 
-  const refresh = async (refreshOptions: { reconcile: boolean }): Promise<void> => {
+  async #refresh(refreshOptions: { reconcile: boolean }): Promise<void> {
+    const { icloudNative, clock, logger } = this.#deps
+    const { root, refreshIndex } = this.#options
     let pending = 0
     let nudged = false
     try {
@@ -169,51 +229,26 @@ export function createICloudDownloadService(
       // Best-effort: reconcile anyway — already-downloaded changes still land.
       logger.error('iCloud download nudge failed:', errorMessage(err))
     }
-    if (disposed) {
+    if (this.#disposed) {
       return
     }
     if (refreshOptions.reconcile) {
       refreshIndex()
     }
     if (pending > 0) {
-      pollPending(clock.now(), 0)
+      this.#pollPending(clock.now(), 0)
     } else if (nudged) {
       // A confirmed-empty note count — never a failed nudge, which would
       // start the bulk while notes may still be pending. The next resume
       // retries the whole sequence.
-      requestRemainingDownloads()
+      this.#requestRemainingDownloads()
     }
   }
+}
 
-  const onResume = (): void => {
-    const now = clock.now()
-    if (now - lastRefreshAt < RESUME_REFRESH_DEDUPE_MS) {
-      return
-    }
-    lastRefreshAt = now
-    void refresh({ reconcile: true })
-  }
-
-  return {
-    start() {
-      if (disposed) {
-        return
-      }
-      // Once on open: the reconcile that ran at open indexed what was already
-      // local, so this pass only asks iCloud for the rest — the poll (or the
-      // live watch) reconciles once something actually lands.
-      lastRefreshAt = clock.now()
-      void refresh({ reconcile: false })
-      disposers.push(lifecycle.subscribeFocus(onResume), lifecycle.subscribeVisible(onResume))
-    },
-    dispose() {
-      disposed = true
-      if (retryTimer !== null) {
-        clock.clearTimeout(retryTimer)
-      }
-      for (const disposeOne of disposers.splice(0)) {
-        disposeOne()
-      }
-    },
-  }
+export function createICloudDownloadService(
+  deps: ICloudDownloadServiceDeps,
+  options: ICloudDownloadServiceOptions,
+): ICloudDownloadService {
+  return new ICloudDownloadServiceImpl(deps, options)
 }

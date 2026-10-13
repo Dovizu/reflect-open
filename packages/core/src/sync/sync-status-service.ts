@@ -7,7 +7,9 @@ import type { BackupState } from './backup-service.ts'
  * no commits, branches, or merges, just what the user's notes are doing.
  */
 export interface MobileSyncStatus {
-  /** What the user reads: `Backed up`, `Syncing`, `Needs review`, … */
+  /**
+   * What the user reads: `Backed up`, `Syncing`, `Needs review`, …
+   */
   label: string
   /**
    * Drives the indicator color: calm, working, or wants a look. `ok` is the
@@ -15,7 +17,9 @@ export interface MobileSyncStatus {
    * the floating pill hides (quiet UI — no chrome when nothing's wrong).
    */
   tone: 'ok' | 'active' | 'attention'
-  /** A plain-language line with more detail (offline/error states), if any. */
+  /**
+   * A plain-language line with more detail (offline/error states), if any.
+   */
   detail: string | null
 }
 
@@ -59,17 +63,27 @@ export function mobileSyncStatus(
   return { label: 'Backed up', tone: 'ok', detail: null }
 }
 
-/** What a {@link SyncStatusService} derives the status from. */
+/**
+ * What a {@link SyncStatusService} derives the status from.
+ */
 export interface SyncStatusInput {
-  /** The open graph's backup state; `null` when no backup lifecycle is mounted. */
+  /**
+   * The open graph's backup state; `null` when no backup lifecycle is mounted.
+   */
   backup: BackupState | null
-  /** The graph's conflicted-note count; `undefined` until it is known. */
+  /**
+   * The graph's conflicted-note count; `undefined` until it is known.
+   */
   conflictCount: number | undefined
-  /** Whether reading the conflicted-note count failed. */
+  /**
+   * Whether reading the conflicted-note count failed.
+   */
   conflictCountUnavailable: boolean
 }
 
-/** The derivation behind the mobile sync status surfaces (settings sheet, status pill). */
+/**
+ * The derivation behind the mobile sync status surfaces (settings sheet, status pill).
+ */
 export interface SyncStatusService {
   /**
    * The mobile sync status, ready to display — engine state joined with the
@@ -82,22 +96,28 @@ export interface SyncStatusService {
   status: (input: SyncStatusInput) => MobileSyncStatus | null
 }
 
-export function createSyncStatusService(): SyncStatusService {
-  return {
-    status: ({ backup, conflictCount, conflictCountUnavailable }) => {
-      const connected = backup !== null && backup.phase === 'connected'
-      // Loading hides the status (no flip); a *failed* count must not — the
-      // engine-driven states (Syncing, Offline, Needs attention) don't depend on
-      // it, and blanking them over an unreadable index would hide real signal.
-      // The degradation is losing the Needs-review headline until the index
-      // recovers.
-      if (
-        backup === null ||
-        (connected && conflictCount === undefined && !conflictCountUnavailable)
-      ) {
-        return null
-      }
-      return mobileSyncStatus(backup, conflictCount ?? 0)
-    },
+class SyncStatusServiceImpl implements SyncStatusService {
+  readonly status = ({
+    backup,
+    conflictCount,
+    conflictCountUnavailable,
+  }: SyncStatusInput): MobileSyncStatus | null => {
+    const connected = backup !== null && backup.phase === 'connected'
+    // Loading hides the status (no flip); a *failed* count must not — the
+    // engine-driven states (Syncing, Offline, Needs attention) don't depend on
+    // it, and blanking them over an unreadable index would hide real signal.
+    // The degradation is losing the Needs-review headline until the index
+    // recovers.
+    if (
+      backup === null ||
+      (connected && conflictCount === undefined && !conflictCountUnavailable)
+    ) {
+      return null
+    }
+    return mobileSyncStatus(backup, conflictCount ?? 0)
   }
+}
+
+export function createSyncStatusService(): SyncStatusService {
+  return new SyncStatusServiceImpl()
 }

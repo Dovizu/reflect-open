@@ -15,7 +15,9 @@ import { apiHeaders, JSON_HEADERS, readJson } from './github-api.ts'
  */
 export const GITHUB_APP_CLIENT_ID = 'Iv23liURhf4d0EazsLl4'
 
-/** The app's public slug — `github.com/apps/<slug>`. */
+/**
+ * The app's public slug — `github.com/apps/<slug>`.
+ */
 export const GITHUB_APP_SLUG = 'reflect-github-app'
 
 /**
@@ -29,12 +31,16 @@ export function githubAppInstallUrl(): string {
   return `https://github.com/apps/${GITHUB_APP_SLUG}/installations/new`
 }
 
-/** Whether the guided device flow is available (a GitHub App is registered). */
+/**
+ * Whether the guided device flow is available (a GitHub App is registered).
+ */
 export function isDeviceFlowConfigured(): boolean {
   return GITHUB_APP_CLIENT_ID.length > 0
 }
 
-/** The keychain entry holding the GitHub credential (one per machine). */
+/**
+ * The keychain entry holding the GitHub credential (one per machine).
+ */
 export const GITHUB_AUTH_SECRET = 'github-auth'
 
 /**
@@ -47,7 +53,9 @@ export const githubAuthSchema = z.discriminatedUnion('kind', [
     kind: z.literal('app'),
     accessToken: z.string(),
     refreshToken: z.string(),
-    /** Epoch ms when `accessToken` expires. */
+    /**
+     * Epoch ms when `accessToken` expires.
+     */
     expiresAt: z.number(),
     /**
      * The client id that obtained the token, when it wasn't the built-in
@@ -61,10 +69,14 @@ export type GithubAuth = z.infer<typeof githubAuthSchema>
 
 export interface DeviceFlowStart {
   deviceCode: string
-  /** The code the user types at {@link DeviceFlowStart.verificationUri}. */
+  /**
+   * The code the user types at {@link DeviceFlowStart.verificationUri}.
+   */
   userCode: string
   verificationUri: string
-  /** Minimum seconds between polls (GitHub enforces it). */
+  /**
+   * Minimum seconds between polls (GitHub enforces it).
+   */
   intervalSeconds: number
   expiresInSeconds: number
 }
@@ -93,11 +105,17 @@ export type DevicePollResult =
   | { status: 'authorized'; auth: GithubAuth }
 
 export interface RunDeviceFlowOptions {
-  /** Called once GitHub issues the code — show it and the verification URI. */
+  /**
+   * Called once GitHub issues the code — show it and the verification URI.
+   */
   onCode: (code: { userCode: string; verificationUri: string }) => void
-  /** Aborting stops polling and resolves `null` (the dialog was closed). */
+  /**
+   * Aborting stops polling and resolves `null` (the dialog was closed).
+   */
   signal?: AbortSignal | undefined
-  /** Defaults to the registered {@link GITHUB_APP_CLIENT_ID}. */
+  /**
+   * Defaults to the registered {@link GITHUB_APP_CLIENT_ID}.
+   */
   clientId?: string
 }
 
@@ -111,12 +129,16 @@ const userResponseSchema = z.object({
   avatar_url: z.string().optional(),
 })
 
-/** GitHub accepts any token as the password of the `x-access-token` user. */
+/**
+ * GitHub accepts any token as the password of the `x-access-token` user.
+ */
 export function githubCredential(token: string): GitCredential {
   return { username: 'x-access-token', secret: token }
 }
 
-/** Proactive-refresh margin: refresh when within 5 minutes of expiry. */
+/**
+ * Proactive-refresh margin: refresh when within 5 minutes of expiry.
+ */
 const REFRESH_MARGIN_MS = 5 * 60 * 1000
 
 function toAuth(
@@ -137,12 +159,16 @@ function toAuth(
   return { kind: 'pat', token: accessToken }
 }
 
-/** The token a stored credential would supply right now (no refresh). */
+/**
+ * The token a stored credential would supply right now (no refresh).
+ */
 function usableToken(auth: GithubAuth): string {
   return auth.kind === 'pat' ? auth.token : auth.accessToken
 }
 
-/** What a {@link GithubAuthService} knows of the stored credential. */
+/**
+ * What a {@link GithubAuthService} knows of the stored credential.
+ */
 export interface GithubAuthState {
   /**
    * Whether a credential is stored (keychain presence, not validity: a dead
@@ -152,16 +178,26 @@ export interface GithubAuthState {
   readonly connected: boolean | null
 }
 
-/** The one GitHub sign-in of this machine (not graph-scoped), kept in the keychain. */
+/**
+ * The one GitHub sign-in of this machine (not graph-scoped), kept in the keychain.
+ */
 export interface GithubAuthService {
   getState: () => GithubAuthState
-  /** The stored credential, or `null` when absent or unreadable (re-connect). Updates the state. */
+  /**
+   * The stored credential, or `null` when absent or unreadable (re-connect). Updates the state.
+   */
   load: () => Promise<GithubAuth | null>
-  /** Stores `auth` and notifies subscribers. */
+  /**
+   * Stores `auth` and notifies subscribers.
+   */
   save: (auth: GithubAuth) => Promise<void>
-  /** Removes the stored credential and notifies subscribers. */
+  /**
+   * Removes the stored credential and notifies subscribers.
+   */
   clear: () => Promise<void>
-  /** Called after the state changes. */
+  /**
+   * Called after the state changes.
+   */
   subscribe: (listener: () => void) => Unlisten
   /**
    * The token for git/API calls, silently refreshing app tokens near expiry.
@@ -169,9 +205,13 @@ export interface GithubAuthService {
    * reconnect.
    */
   getToken: () => Promise<string | null>
-  /** Begin the device flow: returns the code to show + where the user enters it. */
+  /**
+   * Begin the device flow: returns the code to show + where the user enters it.
+   */
   deviceFlowStart: (clientId?: string) => Promise<DeviceFlowStart>
-  /** One poll of the device flow; the caller loops on `pending`/`slowDown`. */
+  /**
+   * One poll of the device flow; the caller loops on `pending`/`slowDown`.
+   */
   deviceFlowPoll: (deviceCode: string, clientId?: string) => Promise<DevicePollResult>
   /**
    * Drive the whole device flow: start it, surface the user code, poll at
@@ -201,72 +241,83 @@ export interface GithubAuthService {
   getSignedInUser: () => Promise<GithubUser | null>
 }
 
-export function createGithubAuthService(deps: {
-  secretStore: SecretStoreService
-  http: HttpService
-  clock: ClockService
-}): GithubAuthService {
-  const { secretStore, http, clock } = deps
-  const listeners = new Set<() => void>()
-  let state: GithubAuthState = { connected: null }
+export interface GithubAuthServiceDeps {
+  readonly secretStore: SecretStoreService
+  readonly http: HttpService
+  readonly clock: ClockService
+}
+
+class GithubAuthServiceImpl implements GithubAuthService {
+  readonly #deps: GithubAuthServiceDeps
+  readonly #listeners = new Set<() => void>()
+  #state: GithubAuthState = { connected: null }
   // Bumped by every save and clear, so a read that started before one does not
   // overwrite its answer.
-  let writes = 0
+  #writes = 0
 
-  function notify(): void {
-    for (const listener of listeners) {
-      listener()
-    }
+  constructor(deps: GithubAuthServiceDeps) {
+    this.#deps = deps
   }
 
-  function setConnected(connected: boolean): void {
-    if (state.connected === connected) {
-      return
-    }
-    state = { connected }
-    notify()
-  }
+  readonly getState = (): GithubAuthState => this.#state
 
-  async function store(auth: GithubAuth): Promise<void> {
-    await secretStore.set(GITHUB_AUTH_SECRET, JSON.stringify(auth))
-  }
-
-  async function save(auth: GithubAuth): Promise<void> {
-    writes += 1
-    await store(auth)
-    setConnected(true)
-  }
-
-  async function readStored(): Promise<GithubAuth | null> {
-    const raw = await secretStore.get(GITHUB_AUTH_SECRET)
-    if (raw === null) {
-      return null
-    }
-    try {
-      return githubAuthSchema.parse(JSON.parse(raw))
-    } catch {
-      return null
-    }
-  }
-
-  async function load(): Promise<GithubAuth | null> {
-    const before = writes
-    const auth = await readStored()
-    if (writes === before) {
-      setConnected(auth !== null)
+  readonly load = async (): Promise<GithubAuth | null> => {
+    const before = this.#writes
+    const auth = await this.#readStored()
+    if (this.#writes === before) {
+      this.#setConnected(auth !== null)
     }
     return auth
   }
 
-  async function clear(): Promise<void> {
-    writes += 1
-    await secretStore.delete(GITHUB_AUTH_SECRET)
-    setConnected(false)
+  readonly save = async (auth: GithubAuth): Promise<void> => {
+    this.#writes += 1
+    await this.#store(auth)
+    this.#setConnected(true)
   }
 
-  async function deviceFlowStart(
+  readonly clear = async (): Promise<void> => {
+    this.#writes += 1
+    await this.#deps.secretStore.delete(GITHUB_AUTH_SECRET)
+    this.#setConnected(false)
+  }
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    // Wrapped for identity, so one function added twice detaches independently.
+    const deliver = (): void => {
+      listener()
+    }
+    this.#listeners.add(deliver)
+    return () => {
+      this.#listeners.delete(deliver)
+    }
+  }
+
+  readonly getToken = async (): Promise<string | null> => {
+    const { clock } = this.#deps
+    const auth = await this.#readStored()
+    if (auth === null) {
+      return null
+    }
+    if (auth.kind === 'pat') {
+      return auth.token
+    }
+    if (clock.now() < auth.expiresAt - REFRESH_MARGIN_MS) {
+      return auth.accessToken
+    }
+    const refreshed = await this.#refresh(auth)
+    if (refreshed === null) {
+      return null
+    }
+    // A refresh keeps the machine connected, so subscribers are not notified.
+    await this.#store(refreshed)
+    return refreshed.kind === 'pat' ? refreshed.token : refreshed.accessToken
+  }
+
+  readonly deviceFlowStart = async (
     clientId: string = GITHUB_APP_CLIENT_ID,
-  ): Promise<DeviceFlowStart> {
+  ): Promise<DeviceFlowStart> => {
+    const { http } = this.#deps
     if (clientId.length === 0) {
       throw new ReflectError('auth', 'GitHub device flow is not configured (no app client id)')
     }
@@ -288,10 +339,11 @@ export function createGithubAuthService(deps: {
     }
   }
 
-  async function deviceFlowPoll(
+  readonly deviceFlowPoll = async (
     deviceCode: string,
     clientId: string = GITHUB_APP_CLIENT_ID,
-  ): Promise<DevicePollResult> {
+  ): Promise<DevicePollResult> => {
+    const { http, clock } = this.#deps
     const response = await http.fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
       headers: JSON_HEADERS,
@@ -328,10 +380,11 @@ export function createGithubAuthService(deps: {
     }
   }
 
-  async function runDeviceFlow(options: RunDeviceFlowOptions): Promise<GithubAuth | null> {
+  readonly runDeviceFlow = async (options: RunDeviceFlowOptions): Promise<GithubAuth | null> => {
+    const { clock } = this.#deps
     const clientId = options.clientId ?? GITHUB_APP_CLIENT_ID
 
-    const flow = await deviceFlowStart(clientId)
+    const flow = await this.deviceFlowStart(clientId)
     options.onCode({ userCode: flow.userCode, verificationUri: flow.verificationUri })
     let intervalSeconds = flow.intervalSeconds
     const deadline = clock.now() + flow.expiresInSeconds * 1000
@@ -341,7 +394,7 @@ export function createGithubAuthService(deps: {
       if (options.signal?.aborted === true) {
         return null
       }
-      const result = await deviceFlowPoll(flow.deviceCode, clientId)
+      const result = await this.deviceFlowPoll(flow.deviceCode, clientId)
       switch (result.status) {
         case 'pending':
           continue
@@ -349,7 +402,7 @@ export function createGithubAuthService(deps: {
           intervalSeconds = result.intervalSeconds
           continue
         case 'authorized':
-          await save(result.auth)
+          await this.save(result.auth)
           return result.auth
         case 'denied':
           throw new ReflectError('auth', 'GitHub sign-in was denied.')
@@ -360,12 +413,86 @@ export function createGithubAuthService(deps: {
     throw new ReflectError('auth', 'The sign-in code expired — try again.')
   }
 
+  readonly getAuthenticatedUser = async (token: string): Promise<GithubUser> => {
+    const { http } = this.#deps
+    const response = await http.fetch('https://api.github.com/user', {
+      headers: apiHeaders(token),
+    })
+    if (response.status === 401) {
+      throw new ReflectError('auth', 'GitHub rejected the token (401)')
+    }
+    if (response.status === 403) {
+      const body = (await response.text()).toLowerCase()
+      if (body.includes('bad credentials')) {
+        throw new ReflectError('auth', 'GitHub rejected the token (403)')
+      }
+      throw new ReflectError(
+        'network',
+        'GitHub temporarily refused the signed-in user lookup (403, likely rate limiting)',
+      )
+    }
+    if (!response.ok) {
+      throw new ReflectError('network', `looking up the signed-in user failed (${response.status})`)
+    }
+    const parsed = await readJson(response, userResponseSchema, 'signed-in user lookup')
+    return { login: parsed.login, avatarUrl: parsed.avatar_url ?? null }
+  }
+
+  readonly getSignedInUser = async (): Promise<GithubUser | null> => {
+    const token = await this.getToken()
+    if (token === null) {
+      return null
+    }
+    try {
+      return await this.getAuthenticatedUser(token)
+    } catch (error: unknown) {
+      if (isAppError(error) && error.kind === 'auth') {
+        const current = await this.#readStored()
+        if (current !== null && usableToken(current) === token) {
+          await this.clear()
+        }
+      }
+      throw error
+    }
+  }
+
+  #notify(): void {
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  #setConnected(connected: boolean): void {
+    if (this.#state.connected === connected) {
+      return
+    }
+    this.#state = { connected }
+    this.#notify()
+  }
+
+  async #store(auth: GithubAuth): Promise<void> {
+    await this.#deps.secretStore.set(GITHUB_AUTH_SECRET, JSON.stringify(auth))
+  }
+
+  async #readStored(): Promise<GithubAuth | null> {
+    const raw = await this.#deps.secretStore.get(GITHUB_AUTH_SECRET)
+    if (raw === null) {
+      return null
+    }
+    try {
+      return githubAuthSchema.parse(JSON.parse(raw))
+    } catch {
+      return null
+    }
+  }
+
   /**
    * Refresh an expiring app token. `null` means the refresh token itself is
    * dead (lapsed/revoked) and the user must reconnect — that is the **only**
    * `null` case. Transient failures throw instead.
    */
-  async function refresh(auth: Extract<GithubAuth, { kind: 'app' }>): Promise<GithubAuth | null> {
+  async #refresh(auth: Extract<GithubAuth, { kind: 'app' }>): Promise<GithubAuth | null> {
+    const { http, clock } = this.#deps
     const clientId = auth.clientId ?? GITHUB_APP_CLIENT_ID
     const response = await http.fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
@@ -394,89 +521,8 @@ export function createGithubAuthService(deps: {
       `GitHub token refresh failed${parsed.error === undefined ? '' : ` (${parsed.error})`}`,
     )
   }
+}
 
-  async function getToken(): Promise<string | null> {
-    const auth = await readStored()
-    if (auth === null) {
-      return null
-    }
-    if (auth.kind === 'pat') {
-      return auth.token
-    }
-    if (clock.now() < auth.expiresAt - REFRESH_MARGIN_MS) {
-      return auth.accessToken
-    }
-    const refreshed = await refresh(auth)
-    if (refreshed === null) {
-      return null
-    }
-    // A refresh keeps the machine connected, so subscribers are not notified.
-    await store(refreshed)
-    return refreshed.kind === 'pat' ? refreshed.token : refreshed.accessToken
-  }
-
-  async function getAuthenticatedUser(token: string): Promise<GithubUser> {
-    const response = await http.fetch('https://api.github.com/user', {
-      headers: apiHeaders(token),
-    })
-    if (response.status === 401) {
-      throw new ReflectError('auth', 'GitHub rejected the token (401)')
-    }
-    if (response.status === 403) {
-      const body = (await response.text()).toLowerCase()
-      if (body.includes('bad credentials')) {
-        throw new ReflectError('auth', 'GitHub rejected the token (403)')
-      }
-      throw new ReflectError(
-        'network',
-        'GitHub temporarily refused the signed-in user lookup (403, likely rate limiting)',
-      )
-    }
-    if (!response.ok) {
-      throw new ReflectError('network', `looking up the signed-in user failed (${response.status})`)
-    }
-    const parsed = await readJson(response, userResponseSchema, 'signed-in user lookup')
-    return { login: parsed.login, avatarUrl: parsed.avatar_url ?? null }
-  }
-
-  async function getSignedInUser(): Promise<GithubUser | null> {
-    const token = await getToken()
-    if (token === null) {
-      return null
-    }
-    try {
-      return await getAuthenticatedUser(token)
-    } catch (error: unknown) {
-      if (isAppError(error) && error.kind === 'auth') {
-        const current = await readStored()
-        if (current !== null && usableToken(current) === token) {
-          await clear()
-        }
-      }
-      throw error
-    }
-  }
-
-  return {
-    getState: () => state,
-    load,
-    save,
-    clear,
-    subscribe(listener) {
-      // Wrapped for identity, so one function added twice detaches independently.
-      const deliver = (): void => {
-        listener()
-      }
-      listeners.add(deliver)
-      return () => {
-        listeners.delete(deliver)
-      }
-    },
-    getToken,
-    deviceFlowStart,
-    deviceFlowPoll,
-    runDeviceFlow,
-    getAuthenticatedUser,
-    getSignedInUser,
-  }
+export function createGithubAuthService(deps: GithubAuthServiceDeps): GithubAuthService {
+  return new GithubAuthServiceImpl(deps)
 }

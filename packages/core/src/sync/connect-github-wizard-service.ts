@@ -13,7 +13,9 @@ import { newRepoUrl, parseRepoInput, type GithubRepoRef } from './github-repo-se
 
 export type ConnectWizardStep = 'repo' | 'auth' | 'finish'
 
-/** Which credential the sign-in stored — decides the can't-find-repo remedy. */
+/**
+ * Which credential the sign-in stored — decides the can't-find-repo remedy.
+ */
 export type ConnectAuthKind = 'app' | 'pat' | null
 
 /**
@@ -33,24 +35,36 @@ export type ConnectFinishView =
   | { kind: 'idle' }
 
 export interface ConnectGithubWizardOptions {
-  /** A suggested name for a newly created backup repo. */
+  /**
+   * A suggested name for a newly created backup repo.
+   */
   suggestedRepoName: string
-  /** Called once the repository is connected (the surface dismisses itself). */
+  /**
+   * Called once the repository is connected (the surface dismisses itself).
+   */
   onClose: () => void
-  /** Delay between repo-existence polls on the create/grant handoffs (test hook). */
+  /**
+   * Delay between repo-existence polls on the create/grant handoffs (test hook).
+   */
   pollIntervalMs?: number | undefined
 }
 
-/** What a "Connect GitHub" surface renders. The object changes identity on every change. */
+/**
+ * What a "Connect GitHub" surface renders. The object changes identity on every change.
+ */
 export interface ConnectGithubWizardState {
   readonly step: ConnectWizardStep
   readonly mode: 'create' | 'existing'
   readonly repoName: string
   readonly existingRepo: string
-  /** The verified sign-in shown on the finish step; null before auth. */
+  /**
+   * The verified sign-in shown on the finish step; null before auth.
+   */
   readonly user: GithubUser | null
   readonly authKind: ConnectAuthKind
-  /** The finish step's current view — shells render it, never re-derive it. */
+  /**
+   * The finish step's current view — shells render it, never re-derive it.
+   */
   readonly finishView: ConnectFinishView
   readonly pending: boolean
   readonly error: string | null
@@ -92,30 +106,46 @@ export interface ConnectGithubWizardService {
   setMode: (mode: 'create' | 'existing') => void
   setRepoName: (name: string) => void
   setExistingRepo: (value: string) => void
-  /** Validate the repo step and advance to sign-in. */
+  /**
+   * Validate the repo step and advance to sign-in.
+   */
   continueFromRepo: () => void
-  /** Call once the sign-in step verified the user — advances and connects. */
+  /**
+   * Call once the sign-in step verified the user — advances and connects.
+   */
   onAuthed: (user: GithubUser) => void
-  /** The public-repo consent button: retry the connect with consent given. */
+  /**
+   * The public-repo consent button: retry the connect with consent given.
+   */
   confirmPublic: () => void
-  /** Back to the repo step — every finish-step dead end must offer this. */
+  /**
+   * Back to the repo step — every finish-step dead end must offer this.
+   */
   backToRepo: () => void
-  /** Open the prefilled github.com/new page for the chosen name. */
+  /**
+   * Open the prefilled github.com/new page for the chosen name.
+   */
   openCreatePage: () => void
-  /** Open the GitHub App installation page (grant repository access). */
+  /**
+   * Open the GitHub App installation page (grant repository access).
+   */
   openInstallPage: () => void
 }
 
-/** The services a {@link ConnectGithubWizardService} runs on. */
+/**
+ * The services a {@link ConnectGithubWizardService} runs on.
+ */
 export interface ConnectGithubWizardDeps {
-  backup: Pick<BackupService, 'connectNewRepo' | 'connectExistingRepo'>
-  githubAuth: Pick<GithubAuthService, 'load'>
-  opener: Pick<OpenerService, 'openUrl'>
-  lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeVisible' | 'subscribeHidden'>
-  clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
+  readonly backup: Pick<BackupService, 'connectNewRepo' | 'connectExistingRepo'>
+  readonly githubAuth: Pick<GithubAuthService, 'load'>
+  readonly opener: Pick<OpenerService, 'openUrl'>
+  readonly lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeVisible' | 'subscribeHidden'>
+  readonly clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
 }
 
-/** The fields the wizard stores; the rest of its state derives from them. */
+/**
+ * The fields the wizard stores; the rest of its state derives from them.
+ */
 interface WizardFields {
   step: ConnectWizardStep
   mode: 'create' | 'existing'
@@ -130,31 +160,123 @@ interface WizardFields {
   error: string | null
 }
 
-export function createConnectGithubWizardService(
-  deps: ConnectGithubWizardDeps,
-  options: ConnectGithubWizardOptions,
-): ConnectGithubWizardService {
-  const { backup, githubAuth, opener, lifecycle, clock } = deps
-  const pollIntervalMs = options.pollIntervalMs ?? 3000
+class ConnectGithubWizardServiceImpl implements ConnectGithubWizardService {
+  readonly #deps: ConnectGithubWizardDeps
+  readonly #options: ConnectGithubWizardOptions
+  readonly #pollIntervalMs: number
+  readonly #listeners = new Set<() => void>()
+  #fields: WizardFields
+  #state: ConnectGithubWizardState
+  #attached = 0
+  #stopPoll: (() => void) | null = null
 
-  let fields: WizardFields = {
-    step: 'repo',
-    mode: 'create',
-    repoName: options.suggestedRepoName,
-    existingRepo: '',
-    user: null,
-    authKind: null,
-    publicConfirm: null,
-    showCreateGuide: false,
-    showGrantAccess: false,
-    pending: false,
-    error: null,
+  constructor(deps: ConnectGithubWizardDeps, options: ConnectGithubWizardOptions) {
+    this.#deps = deps
+    this.#options = options
+    this.#pollIntervalMs = options.pollIntervalMs ?? 3000
+    this.#fields = {
+      step: 'repo',
+      mode: 'create',
+      repoName: options.suggestedRepoName,
+      existingRepo: '',
+      user: null,
+      authKind: null,
+      publicConfirm: null,
+      showCreateGuide: false,
+      showGrantAccess: false,
+      pending: false,
+      error: null,
+    }
+    this.#state = this.#derive()
   }
-  const listeners = new Set<() => void>()
-  let attached = 0
-  let stopPoll: (() => void) | null = null
 
-  function targetRef(forUser: GithubUser): GithubRepoRef | null {
+  readonly getState = (): ConnectGithubWizardState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    // Wrapped for identity, so one function added twice detaches independently.
+    const deliver = (): void => {
+      listener()
+    }
+    this.#listeners.add(deliver)
+    return () => {
+      this.#listeners.delete(deliver)
+    }
+  }
+
+  readonly attach = (): Unlisten => {
+    this.#attached += 1
+    this.#syncPoll()
+    let detached = false
+    return () => {
+      if (detached) {
+        return
+      }
+      detached = true
+      this.#attached -= 1
+      this.#syncPoll()
+    }
+  }
+
+  readonly setMode = (mode: 'create' | 'existing'): void => {
+    this.#patch({ mode })
+  }
+
+  readonly setRepoName = (repoName: string): void => {
+    this.#patch({ repoName })
+  }
+
+  readonly setExistingRepo = (existingRepo: string): void => {
+    this.#patch({ existingRepo })
+  }
+
+  readonly continueFromRepo = (): void => {
+    const fields = this.#fields
+    if (fields.mode === 'create' && fields.repoName.trim().length === 0) {
+      this.#patch({ error: 'Name the repository.' })
+      return
+    }
+    if (fields.mode === 'existing' && parseRepoInput(fields.existingRepo) === null) {
+      this.#patch({ error: 'Enter the repository as owner/name or a GitHub URL.' })
+      return
+    }
+    this.#patch({ error: null, step: 'auth' })
+  }
+
+  readonly onAuthed = (authedUser: GithubUser): void => {
+    this.#patch({ user: authedUser, step: 'finish' })
+    void this.#deps.githubAuth.load().then((auth) => {
+      const kind = auth?.kind ?? null
+      this.#patch({ authKind: kind })
+      return this.#finish(authedUser, { kind })
+    })
+  }
+
+  readonly confirmPublic = (): void => {
+    if (this.#fields.user !== null) {
+      void this.#finish(this.#fields.user, { allowPublic: true })
+    }
+  }
+
+  readonly backToRepo = (): void => {
+    this.#patch({
+      error: null,
+      publicConfirm: null,
+      showCreateGuide: false,
+      showGrantAccess: false,
+      step: 'repo',
+    })
+  }
+
+  readonly openCreatePage = (): void => {
+    this.#openExternal(newRepoUrl(this.#fields.repoName.trim()))
+  }
+
+  readonly openInstallPage = (): void => {
+    this.#openExternal(githubAppInstallUrl())
+  }
+
+  #targetRef(forUser: GithubUser): GithubRepoRef | null {
+    const fields = this.#fields
     if (fields.mode === 'existing') {
       return parseRepoInput(fields.existingRepo)
     }
@@ -164,22 +286,24 @@ export function createConnectGithubWizardService(
 
   // The repo we're trying to reach, resolved from the verified sign-in (the
   // owner is never typed). Drives both the poll and the grant-access copy.
-  function targetForUser(): GithubRepoRef | null {
-    return fields.user !== null ? targetRef(fields.user) : null
+  #targetForUser(): GithubRepoRef | null {
+    return this.#fields.user !== null ? this.#targetRef(this.#fields.user) : null
   }
 
   // While the create handoff or the grant-access step is showing, poll for the
   // repository instead of making the user click a button: the connect fires the
   // moment the repo exists and the app can see it. A 404 just keeps waiting; a
   // public repo stops the poll for consent.
-  function pollTarget(): GithubRepoRef | null {
+  #pollTarget(): GithubRepoRef | null {
+    const fields = this.#fields
     return (fields.showCreateGuide || fields.showGrantAccess) && fields.publicConfirm === null
-      ? targetForUser()
+      ? this.#targetForUser()
       : null
   }
 
-  function derive(): ConnectGithubWizardState {
-    const target = targetForUser()
+  #derive(): ConnectGithubWizardState {
+    const fields = this.#fields
+    const target = this.#targetForUser()
     // The parked handoffs outrank the transient states: a consent question or
     // an open poll must never be painted over by "Connecting…".
     const finishView: ConnectFinishView =
@@ -205,27 +329,25 @@ export function createConnectGithubWizardService(
     }
   }
 
-  let state = derive()
-
-  async function tick(): Promise<'continue' | 'stop'> {
-    const target = pollTarget()
+  async #tick(): Promise<'continue' | 'stop'> {
+    const target = this.#pollTarget()
     if (target === null) {
       return 'stop'
     }
-    const result = await backup.connectExistingRepo(target, { allowPublic: false })
+    const result = await this.#deps.backup.connectExistingRepo(target, { allowPublic: false })
     if (result === 'connected') {
-      options.onClose()
+      this.#options.onClose()
       return 'stop'
     }
     if (result === 'needsPublicConfirm') {
-      patch({ publicConfirm: target })
+      this.#patch({ publicConfirm: target })
       return 'stop'
     }
     return 'continue'
   }
 
   /**
-   * Run {@link tick} every `pollIntervalMs`, starting one interval from now
+   * Run the poll tick every `pollIntervalMs`, starting one interval from now
    * (the caller typically just ran the same check inline). Ticks never
    * overlap — the next wait starts when the previous tick settles — and a tick
    * that throws keeps the loop alive: the network check fails transiently.
@@ -238,13 +360,14 @@ export function createConnectGithubWizardService(
    * moment the user comes back is exactly when the polled condition is
    * likeliest to have just become true.
    */
-  function startPoll(): () => void {
+  #startPoll(): () => void {
+    const { lifecycle, clock } = this.#deps
     let cancelled = false
     let stopped = false
     let inFlight = false
     let timer: TimerHandle | null = null
 
-    function settle(result: 'continue' | 'stop'): void {
+    const settle = (result: 'continue' | 'stop'): void => {
       inFlight = false
       if (cancelled) {
         return
@@ -256,10 +379,10 @@ export function createConnectGithubWizardService(
       schedule()
     }
 
-    function runTick(): void {
+    const runTick = (): void => {
       inFlight = true
       try {
-        void tick().then(settle, () => settle('continue'))
+        void this.#tick().then(settle, () => settle('continue'))
       } catch {
         // A synchronous throw must not strand `inFlight` — that would block
         // the visibility resume forever. Same rule as a rejection.
@@ -267,7 +390,7 @@ export function createConnectGithubWizardService(
       }
     }
 
-    function schedule(): void {
+    const schedule = (): void => {
       if (lifecycle.isHidden()) {
         return // paused — the visibility listener resumes with an immediate tick
       }
@@ -277,7 +400,7 @@ export function createConnectGithubWizardService(
           return // went hidden in the firing gap; the listener resumes us
         }
         runTick()
-      }, pollIntervalMs)
+      }, this.#pollIntervalMs)
     }
 
     const removeHidden = lifecycle.subscribeHidden(() => {
@@ -304,22 +427,24 @@ export function createConnectGithubWizardService(
     }
   }
 
-  /** Start or cancel the poll to match the mounted state and the poll target. */
-  function syncPoll(): void {
-    const enabled = attached > 0 && pollTarget() !== null
-    if (enabled && stopPoll === null) {
-      stopPoll = startPoll()
-    } else if (!enabled && stopPoll !== null) {
-      stopPoll()
-      stopPoll = null
+  /**
+   * Start or cancel the poll to match the mounted state and the poll target.
+   */
+  #syncPoll(): void {
+    const enabled = this.#attached > 0 && this.#pollTarget() !== null
+    if (enabled && this.#stopPoll === null) {
+      this.#stopPoll = this.#startPoll()
+    } else if (!enabled && this.#stopPoll !== null) {
+      this.#stopPoll()
+      this.#stopPoll = null
     }
   }
 
-  function patch(next: Partial<WizardFields>): void {
-    fields = { ...fields, ...next }
-    state = derive()
-    syncPoll()
-    for (const listener of listeners) {
+  #patch(next: Partial<WizardFields>): void {
+    this.#fields = { ...this.#fields, ...next }
+    this.#state = this.#derive()
+    this.#syncPoll()
+    for (const listener of this.#listeners) {
       listener()
     }
   }
@@ -328,32 +453,33 @@ export function createConnectGithubWizardService(
    * Run one async action: clears the previous error, flips `pending` for the
    * duration, and captures a failure as a display message.
    */
-  async function run(action: () => Promise<void>): Promise<void> {
-    patch({ error: null, pending: true })
+  async #run(action: () => Promise<void>): Promise<void> {
+    this.#patch({ error: null, pending: true })
     try {
       await action()
     } catch (caught: unknown) {
-      patch({ error: errorMessage(caught), pending: false })
+      this.#patch({ error: errorMessage(caught), pending: false })
       return
     }
-    patch({ pending: false })
+    this.#patch({ pending: false })
   }
 
-  async function finish(
+  async #finish(
     forUser: GithubUser,
     finishOptions: { allowPublic?: boolean; kind?: ConnectAuthKind } = {},
   ): Promise<void> {
+    const { backup } = this.#deps
     // The choices this attempt was started with: a change made while it is in
     // flight belongs to the next attempt.
-    const kind = finishOptions.kind ?? fields.authKind
-    const mode = fields.mode
-    const ref = fields.publicConfirm ?? targetRef(forUser)
-    await run(async () => {
+    const kind = finishOptions.kind ?? this.#fields.authKind
+    const mode = this.#fields.mode
+    const ref = this.#fields.publicConfirm ?? this.#targetRef(forUser)
+    await this.#run(async () => {
       // Each attempt re-derives the guidance from its own outcome — a stale
       // create guide or grant-access step from an earlier path must not outlive
       // the detour (e.g. consent → choose another repo).
       if (ref === null) {
-        patch({
+        this.#patch({
           showCreateGuide: false,
           showGrantAccess: false,
           error:
@@ -364,16 +490,16 @@ export function createConnectGithubWizardService(
         })
         return
       }
-      patch({ showCreateGuide: false, showGrantAccess: false })
+      this.#patch({ showCreateGuide: false, showGrantAccess: false })
       const result = await backup.connectExistingRepo(ref, {
         allowPublic: finishOptions.allowPublic ?? false,
       })
       if (result === 'connected') {
-        options.onClose()
+        this.#options.onClose()
         return
       }
       if (result === 'needsPublicConfirm') {
-        patch({ publicConfirm: ref })
+        this.#patch({ publicConfirm: ref })
         return
       }
       if (mode === 'existing') {
@@ -384,9 +510,9 @@ export function createConnectGithubWizardService(
         // lands. PAT users reach repos by token scope, not an installation, so
         // they get token-scope guidance instead.
         if (kind === 'app') {
-          patch({ showGrantAccess: true })
+          this.#patch({ showGrantAccess: true })
         } else {
-          patch({
+          this.#patch({
             error: 'Repository not found. Check the name and your token’s repository access.',
           })
         }
@@ -396,92 +522,26 @@ export function createConnectGithubWizardService(
       // can, by the guided handoff (plus polling) otherwise.
       const created = await backup.connectNewRepo(ref.name)
       if (created === 'connected') {
-        options.onClose()
+        this.#options.onClose()
         return
       }
-      patch({ showCreateGuide: true })
+      this.#patch({ showCreateGuide: true })
     })
   }
 
-  /** Open in the browser; an opener failure surfaces the URL to visit by hand. */
-  function openExternal(url: string): void {
-    void opener.openUrl(url).catch(() => {
-      patch({ error: `Couldn’t open the browser — visit ${url} yourself.` })
+  /**
+   * Open in the browser; an opener failure surfaces the URL to visit by hand.
+   */
+  #openExternal(url: string): void {
+    void this.#deps.opener.openUrl(url).catch(() => {
+      this.#patch({ error: `Couldn’t open the browser — visit ${url} yourself.` })
     })
   }
+}
 
-  return {
-    getState: () => state,
-    subscribe: (listener) => {
-      // Wrapped for identity, so one function added twice detaches independently.
-      const deliver = (): void => {
-        listener()
-      }
-      listeners.add(deliver)
-      return () => {
-        listeners.delete(deliver)
-      }
-    },
-    attach: () => {
-      attached += 1
-      syncPoll()
-      let detached = false
-      return () => {
-        if (detached) {
-          return
-        }
-        detached = true
-        attached -= 1
-        syncPoll()
-      }
-    },
-    setMode: (mode) => {
-      patch({ mode })
-    },
-    setRepoName: (repoName) => {
-      patch({ repoName })
-    },
-    setExistingRepo: (existingRepo) => {
-      patch({ existingRepo })
-    },
-    continueFromRepo: () => {
-      if (fields.mode === 'create' && fields.repoName.trim().length === 0) {
-        patch({ error: 'Name the repository.' })
-        return
-      }
-      if (fields.mode === 'existing' && parseRepoInput(fields.existingRepo) === null) {
-        patch({ error: 'Enter the repository as owner/name or a GitHub URL.' })
-        return
-      }
-      patch({ error: null, step: 'auth' })
-    },
-    onAuthed: (authedUser) => {
-      patch({ user: authedUser, step: 'finish' })
-      void githubAuth.load().then((auth) => {
-        const kind = auth?.kind ?? null
-        patch({ authKind: kind })
-        return finish(authedUser, { kind })
-      })
-    },
-    confirmPublic: () => {
-      if (fields.user !== null) {
-        void finish(fields.user, { allowPublic: true })
-      }
-    },
-    backToRepo: () => {
-      patch({
-        error: null,
-        publicConfirm: null,
-        showCreateGuide: false,
-        showGrantAccess: false,
-        step: 'repo',
-      })
-    },
-    openCreatePage: () => {
-      openExternal(newRepoUrl(fields.repoName.trim()))
-    },
-    openInstallPage: () => {
-      openExternal(githubAppInstallUrl())
-    },
-  }
+export function createConnectGithubWizardService(
+  deps: ConnectGithubWizardDeps,
+  options: ConnectGithubWizardOptions,
+): ConnectGithubWizardService {
+  return new ConnectGithubWizardServiceImpl(deps, options)
 }
