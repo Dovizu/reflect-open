@@ -5,7 +5,7 @@ import { createTestLoggerService, type TestLoggerService } from '../testing/logg
 import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
 import { createTestICloudNativeService, type TestICloudNativeService } from '../testing/sync.ts'
 import {
-  createICloudDownloadServiceFactory,
+  createICloudDownloadService,
   type ICloudDownloadService,
 } from './icloud-download-service.ts'
 
@@ -32,12 +32,10 @@ afterEach(() => {
 })
 
 function start(native: TestICloudNativeService = icloud): ICloudDownloadService {
-  active = createICloudDownloadServiceFactory({
-    icloudNative: native,
-    lifecycle,
-    clock,
-    logger,
-  }).create({ root: ROOT, refreshIndex })
+  active = createICloudDownloadService(
+    { icloudNative: native, lifecycle, clock, logger },
+    { root: ROOT, refreshIndex },
+  )
   active.start()
   return active
 }

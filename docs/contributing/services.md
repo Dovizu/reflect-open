@@ -462,7 +462,7 @@ or give it an `openSession(options)` method, when an instance must **start and
 stop with something shorter-lived**:
 
 - it runs a loop, timers or subscriptions for one open graph or one index
-  session (`backups.create({ generation, indexGeneration })`,
+  session (`createBackupService(deps, { generation, indexGeneration })`,
   `capture.openSession({ generation })`);
 - its state must not survive a graph switch (`chatSessions.create({ session })`:
   a pending turn of the previous graph must not be saved into the next one);
@@ -470,8 +470,14 @@ stop with something shorter-lived**:
 
 The shape:
 
-- `AppServices` holds the factory (`backups: BackupServiceFactory`). The factory
-  closes over the `deps`; `create(options)` takes what identifies the session.
+- A per-graph service keeps the `createXxxService(deps, options)` factory:
+  `options` identify the session, they are not dependencies. Its factory goes
+  in the `graphServiceFactories` table in `app/create-graph-services.ts`, and
+  `GraphServicesDeps` carries its deps (`backup: BackupServiceDeps`), which
+  `composeAppServices` builds once. A test swaps a factory through the
+  `factories` argument of `createGraphServices`.
+- A per-session method on an app-scoped service (`capture.openSession(options)`,
+  `chatSessions.create(options)`) takes what identifies the session.
 - The instance exposes `start()` and `dispose()`, plus `getState()` /
   `subscribe()` when the UI reads it.
 - A per-graph lifecycle is constructed in `createGraphServices`

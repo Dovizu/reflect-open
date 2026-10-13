@@ -5,10 +5,9 @@ import type { BackupState, Settings } from '@reflect/core'
 import {
   createTestAppInfoService,
   createTestAppServices,
-  createTestScriptedBackupServiceFactory,
+  createTestBackupService,
   createTestWindowService,
   seedNotes,
-  type TestBackupService,
 } from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -66,12 +65,12 @@ interface MountOptions {
  * The graph "Field Notes" with two indexed notes, on a backup that is connected and idle.
  */
 async function mount(options?: MountOptions) {
-  const backups = createTestScriptedBackupServiceFactory({
+  const backup = createTestBackupService({
     state: options?.backup ?? connected({ state: 'idle' }),
   })
   const app = createTestAppServices({
     appInfo: createTestAppInfoService('1.2.3-beta.4'),
-    backups,
+    backup,
     // A note window's graph runs no backup.
     window: createTestWindowService(options?.backup === null ? { label: 'note-1' } : {}),
   })
@@ -88,7 +87,6 @@ async function mount(options?: MountOptions) {
     route: { kind: 'settings' },
     ...(options?.settings === undefined ? {} : { settings: options.settings }),
   })
-  const backup: TestBackupService = backups.backup
   return Object.assign(view, { backup, updateSettings })
 }
 

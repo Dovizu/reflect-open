@@ -6,9 +6,20 @@ import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { MobileOnboardingService } from '../graph/mobile-onboarding-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
-import type { BackupService, BackupServiceFactory } from '../sync/backup-service.ts'
-import type { ICloudDownloadServiceFactory } from '../sync/icloud-download-service.ts'
-import { isICloudRoot, type ICloudSyncServiceFactory } from '../sync/icloud-sync-service.ts'
+import {
+  createBackupService,
+  type BackupService,
+  type BackupServiceDeps,
+} from '../sync/backup-service.ts'
+import {
+  createICloudDownloadService,
+  type ICloudDownloadServiceDeps,
+} from '../sync/icloud-download-service.ts'
+import {
+  createICloudSyncService,
+  isICloudRoot,
+  type ICloudSyncServiceDeps,
+} from '../sync/icloud-sync-service.ts'
 import type { GraphRole, GraphSession } from './graph-session.ts'
 import { isMobilePlatform } from './platform.ts'
 import type { PlatformFacts } from './platform-service.ts'
@@ -17,18 +28,65 @@ import type { PlatformFacts } from './platform-service.ts'
  * What {@link createGraphServices} builds the lifecycles of one graph session from.
  */
 export interface GraphServicesDeps {
-  readonly backups: BackupServiceFactory
-  readonly icloudSyncs: ICloudSyncServiceFactory
-  readonly icloudDownloads: ICloudDownloadServiceFactory
+  /**
+   * The deps of the backup service that each main-window session builds.
+   */
+  readonly backup: BackupServiceDeps
+  /**
+   * The deps of the iCloud conflict service that each main-window session of an iCloud root builds.
+   */
+  readonly icloudSync: ICloudSyncServiceDeps
+  /**
+   * The deps of the iCloud download service that runs while the mobile graph is stored in iCloud.
+   */
+  readonly icloudDownload: ICloudDownloadServiceDeps
+  /**
+   * Opens the capture drain session of a main-window session.
+   */
   readonly capture: Pick<CaptureService, 'openSession'>
+  /**
+   * Opens the asset description session of a desktop main-window session.
+   */
   readonly assetDescription: Pick<AssetDescriptionService, 'openSession'>
+  /**
+   * Creates the chat session of every session.
+   */
   readonly chatSessions: Pick<ChatSessionService, 'create'>
+  /**
+   * Watches the attachment catalog of every session.
+   */
   readonly attachments: Pick<AttachmentService, 'watchCatalog'>
+  /**
+   * Turns the asset description session on and off with `describeAssets`.
+   */
   readonly settings: Pick<SettingsService, 'get' | 'subscribe'>
+  /**
+   * Turns the iCloud download service on and off with the iCloud storage choice.
+   */
   readonly mobileOnboarding: Pick<MobileOnboardingService, 'getState' | 'subscribe'>
+  /**
+   * Gives the iCloud download service the index refresh it calls after downloads land.
+   */
   readonly graphSession: Pick<GraphSessionService, 'refreshIndex'>
+  /**
+   * Tells mobile from desktop, and the mobile app from a mobile web view.
+   */
   readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
 }
+
+/**
+ * The factory of each per-session service that {@link createGraphServices} builds.
+ */
+export const graphServiceFactories = {
+  backup: createBackupService,
+  icloudSync: createICloudSyncService,
+  icloudDownload: createICloudDownloadService,
+}
+
+/**
+ * The factory of each per-session service; a replacement gets the same deps and options.
+ */
+export type GraphServiceFactories = typeof graphServiceFactories
 
 /**
  * The graph-scoped services: one set per {@link GraphSession}, disposed when
@@ -43,7 +101,13 @@ export interface GraphServicesDeps {
  * lifecycles that no surface reads run inside and have no field.
  */
 export interface GraphServices {
+  /**
+   * The graph session these services run for.
+   */
   readonly session: GraphSession
+  /**
+   * The role of this window for the session; it decides which lifecycles run.
+   */
   readonly role: GraphRole
   /**
    * The chat session of this graph.
@@ -88,12 +152,11 @@ export function createGraphServices(
   session: GraphSession,
   role: GraphRole,
   deps: GraphServicesDeps,
+  factories?: Partial<GraphServiceFactories>,
 ): GraphServices {
   const { root, generation, indexGeneration, signal } = session
+  const create = { ...graphServiceFactories, ...factories }
   const {
-    backups,
-    icloudSyncs,
-    icloudDownloads,
     capture,
     assetDescription,
     chatSessions,
@@ -112,14 +175,14 @@ export function createGraphServices(
 
   let backup: BackupService | null = null
   if (role === 'main') {
-    const mainBackup = backups.create({ generation, indexGeneration })
+    const mainBackup = create.backup(deps.backup, { generation, indexGeneration })
     backup = mainBackup
     void mainBackup.start()
     disposers.push(() => {
       mainBackup.dispose()
     })
     if (isICloudRoot(root)) {
-      const icloud = icloudSyncs.create({
+      const icloud = create.icloudSync(deps.icloudSync, {
         root,
         generation,
         indexGeneration,
@@ -156,7 +219,10 @@ export function createGraphServices(
       () => mobileOnboarding.getState().kind === 'icloud',
       mobileOnboarding.subscribe,
       () => {
-        const downloads = icloudDownloads.create({ root, refreshIndex: graphSession.refreshIndex })
+        const downloads = create.icloudDownload(deps.icloudDownload, {
+          root,
+          refreshIndex: graphSession.refreshIndex,
+        })
         downloads.start()
         return () => {
           downloads.dispose()

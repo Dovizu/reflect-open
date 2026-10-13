@@ -6,7 +6,7 @@ import {
   createTestHttpService,
   createTestOpenerService,
   createTestPlatformService,
-  createTestScriptedBackupServiceFactory,
+  createTestBackupService,
   createTestSecretStoreService,
   type TestOpenerService,
 } from '@reflect/core/testing'
@@ -24,12 +24,16 @@ let openedUrls: MockInstance<(url: string) => Promise<void>>
 // The credential in the keychain of the next `renderWizard`.
 let credential: Record<string, unknown>
 
-/** A keychain holding the given credential; GET /user accepting it makes the auth step skip itself. */
+/**
+ * A keychain holding the given credential; GET /user accepting it makes the auth step skip itself.
+ */
 function storeCredential(auth: Record<string, unknown>): void {
   credential = auth
 }
 
-/** A device-flow (GitHub App) credential with a comfortably unexpired token. */
+/**
+ * A device-flow (GitHub App) credential with a comfortably unexpired token.
+ */
 function appCredential(): Record<string, unknown> {
   return {
     kind: 'app',
@@ -57,11 +61,11 @@ afterEach(() => {
 })
 
 async function renderWizard(onClose = vi.fn()): Promise<ReturnType<typeof vi.fn>> {
-  const backups = createTestScriptedBackupServiceFactory({ state: { phase: 'disconnected' } })
-  backups.backup.onConnectNewRepo(sync.connectNewRepo)
-  backups.backup.onConnectExistingRepo(sync.connectExistingRepo)
+  const backup = createTestBackupService({ state: { phase: 'disconnected' } })
+  backup.onConnectNewRepo(sync.connectNewRepo)
+  backup.onConnectExistingRepo(sync.connectExistingRepo)
   const app = createTestAppServices({
-    backups,
+    backup,
     opener,
     // The wizard polls on the clock: real time, so `pollIntervalMs` elapses.
     clock: createSystemClock(),

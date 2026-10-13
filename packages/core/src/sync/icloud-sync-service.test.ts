@@ -7,7 +7,7 @@ import { createTestLoggerService, type TestLoggerService } from '../testing/logg
 import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
 import { createTestICloudNativeService, type TestICloudNativeService } from '../testing/sync.ts'
 import {
-  createICloudSyncServiceFactory,
+  createICloudSyncService,
   isICloudRoot,
   type ICloudSyncService,
 } from './icloud-sync-service.ts'
@@ -83,29 +83,32 @@ afterEach(() => {
  * A desktop service by default; `watch: true` is the mobile shape.
  */
 function service(overrides: { watch?: boolean } = {}) {
-  active = createICloudSyncServiceFactory({
-    icloudNative: icloud,
-    fileChanges,
-    indexLifecycle: {
-      applyChanges: async (changes, generation, canApply) => {
-        indexApplies.push({
-          paths: changes.map((change) => change.path),
-          generation,
-          canApply: canApply?.() ?? true,
-        })
-        return changes.length
+  active = createICloudSyncService(
+    {
+      icloudNative: icloud,
+      fileChanges,
+      indexLifecycle: {
+        applyChanges: async (changes, generation, canApply) => {
+          indexApplies.push({
+            paths: changes.map((change) => change.path),
+            generation,
+            canApply: canApply?.() ?? true,
+          })
+          return changes.length
+        },
       },
+      openDocuments: { dirtyPaths: () => dirtyPaths },
+      lifecycle,
+      clock,
+      logger,
     },
-    openDocuments: { dirtyPaths: () => dirtyPaths },
-    lifecycle,
-    clock,
-    logger,
-  }).create({
-    root: ROOT,
-    generation: GENERATION,
-    indexGeneration: INDEX_GENERATION,
-    metadataWatch: overrides.watch ?? false,
-  })
+    {
+      root: ROOT,
+      generation: GENERATION,
+      indexGeneration: INDEX_GENERATION,
+      metadataWatch: overrides.watch ?? false,
+    },
+  )
   return active
 }
 

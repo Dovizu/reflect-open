@@ -12,7 +12,7 @@ import {
 } from '@reflect/core'
 import {
   createTestAppServices,
-  createTestScriptedBackupServiceFactory,
+  createTestBackupService,
   createTestWindowService,
   type TestOpenerService,
   type TestOperationsService,
@@ -93,7 +93,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
       isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
     },
     window: createTestWindowService({ openNoteWindow }),
-    backups: createTestScriptedBackupServiceFactory({ state: { phase: 'disconnected' } }),
+    backup: createTestBackupService({ state: { phase: 'disconnected' } }),
   })
   const context: CommandContext = {
     services: app,

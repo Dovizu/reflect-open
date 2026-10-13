@@ -86,23 +86,17 @@ import { createGistPublishService, type GistPublishService } from '../sync/gist-
 import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
 import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
 import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
-import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
+import type { BackupServiceDeps } from '../sync/backup-service.ts'
 import {
   createConflictResolutionService,
   type ConflictResolutionService,
 } from '../sync/conflict-resolution-service.ts'
-import {
-  createICloudDownloadServiceFactory,
-  type ICloudDownloadServiceFactory,
-} from '../sync/icloud-download-service.ts'
+import type { ICloudDownloadServiceDeps } from '../sync/icloud-download-service.ts'
 import {
   createICloudMigrationService,
   type ICloudMigrationService,
 } from '../sync/icloud-migration-service.ts'
-import {
-  createICloudSyncServiceFactory,
-  type ICloudSyncServiceFactory,
-} from '../sync/icloud-sync-service.ts'
+import type { ICloudSyncServiceDeps } from '../sync/icloud-sync-service.ts'
 import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
@@ -643,10 +637,7 @@ export const appServiceFactories = {
   theme: createThemeService,
   linkNavigation: createLinkNavigationService,
   update: createUpdateService,
-  backups: createBackupServiceFactory,
   gistPublish: createGistPublishService,
-  icloudSyncs: createICloudSyncServiceFactory,
-  icloudDownloads: createICloudDownloadServiceFactory,
   icloudMigration: createICloudMigrationService,
   conflictResolution: createConflictResolutionService,
   syncStatus: createSyncStatusService,
@@ -716,9 +707,6 @@ export interface InternalServices {
   readonly chatGraphContext: ChatGraphContextService
   readonly backlinkTarget: BacklinkTargetService
   readonly assetPrivacy: AssetPrivacyService
-  readonly backups: BackupServiceFactory
-  readonly icloudSyncs: ICloudSyncServiceFactory
-  readonly icloudDownloads: ICloudDownloadServiceFactory
 }
 
 export function createAppServices(
@@ -891,9 +879,9 @@ export function composeAppServices(
     logger,
     createServices: (session, role) =>
       create.graphServices(session, role, {
-        backups,
-        icloudSyncs,
-        icloudDownloads,
+        backup: backupDeps,
+        icloudSync: icloudSyncDeps,
+        icloudDownload: icloudDownloadDeps,
         capture: services.capture,
         assetDescription: services.assetDescription,
         chatSessions: services.chatSessions,
@@ -1006,7 +994,7 @@ export function composeAppServices(
     privacy: noteServices.privacy,
   })
   const imageCodec = adapters.imageCodec ?? createUnavailableImageCodec()
-  const backups = create.backups({
+  const backupDeps: BackupServiceDeps = {
     git: gitRepository,
     syncEngines,
     githubAuth,
@@ -1018,8 +1006,8 @@ export function composeAppServices(
     platform,
     persistenceFlush,
     logger,
-  })
-  const icloudSyncs = create.icloudSyncs({
+  }
+  const icloudSyncDeps: ICloudSyncServiceDeps = {
     icloudNative,
     fileChanges,
     indexLifecycle,
@@ -1027,8 +1015,8 @@ export function composeAppServices(
     lifecycle,
     clock,
     logger,
-  })
-  const icloudDownloads = create.icloudDownloads({ icloudNative, lifecycle, clock, logger })
+  }
+  const icloudDownloadDeps: ICloudDownloadServiceDeps = { icloudNative, lifecycle, clock, logger }
   const services: AppServices = {
     ipc,
     logger,
@@ -1338,9 +1326,6 @@ export function composeAppServices(
     chatGraphContext,
     backlinkTarget,
     assetPrivacy,
-    backups,
-    icloudSyncs,
-    icloudDownloads,
   }
   return { services, internal }
 }

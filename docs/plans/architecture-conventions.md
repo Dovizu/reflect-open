@@ -186,15 +186,16 @@ a transition still commits the `Suspense` fallback of a lazy screen.)
 Some work belongs to one graph session, not to the app: it starts when a graph (or an
 index session) opens and must stop, with its timers and subscriptions, when that graph
 closes. Building it once per app would let a pass or a pending turn of the previous
-graph leak into the next one. For these, the app holds a **factory** (or an
-`openSession` method), and `createGraphServices` (`app/create-graph-services.ts`)
+graph leak into the next one. For these, a **factory** (in the `graphServiceFactories`
+table of `app/create-graph-services.ts`) or an app-scoped `openSession` method builds the
+instance, and `createGraphServices` (`app/create-graph-services.ts`)
 creates one instance per `GraphSession` and disposes it when `session.signal` aborts:
 
-| On `AppServices` | Creates | Lifetime |
+| Created by | Creates | Lifetime |
 |---|---|---|
-| `backups.create({ generation, indexGeneration })` | `BackupService` | one per graph session, main window only (`GraphServices.backup`) |
-| `icloudSyncs.create(...)` | `ICloudSyncService` | one per iCloud graph session, main window only |
-| `icloudDownloads.create(...)` | `ICloudDownloadService` | while the mobile graph is stored in iCloud |
+| `graphServiceFactories.backup(deps, { generation, indexGeneration })` | `BackupService` | one per graph session, main window only (`GraphServices.backup`) |
+| `graphServiceFactories.icloudSync(deps, ...)` | `ICloudSyncService` | one per iCloud graph session, main window only |
+| `graphServiceFactories.icloudDownload(deps, ...)` | `ICloudDownloadService` | while the mobile graph is stored in iCloud |
 | `syncEngines.create(options)` | the git sync engine of one backup | owned by its `BackupService` |
 | `chatSessions.create({ session })` | `ChatSession` | one per graph session, every window (`GraphServices.chat`) |
 | `capture.openSession({ generation })` | the capture drain and enrich loop | one per graph session, main window only |

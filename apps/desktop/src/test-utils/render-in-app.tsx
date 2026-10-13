@@ -13,7 +13,8 @@ import type {
 import {
   createTestAppServices,
   createTestPlatformService,
-  createTestScriptedBackupServiceFactory,
+  createTestBackupService,
+  type TestAppServiceOverrides,
   type TestAppServices,
   type TestBackupService,
   type TestOpenGraph,
@@ -60,7 +61,7 @@ export interface RenderInAppOptions {
    */
   route?: Route | null
   /**
-   * Swap the backup factory for a scripted one that starts in this state; the
+   * Swap the backup service for a scripted one that starts in this state; the
    * result's `backup` drives it. Needs an open graph.
    */
   sync?: BackupState
@@ -111,20 +112,18 @@ async function prepare(options: AnyOptions | undefined): Promise<
     dispose: () => void
   }
 > {
-  const scriptedBackups =
-    options?.sync === undefined
-      ? null
-      : createTestScriptedBackupServiceFactory({ state: options.sync })
-  if (options?.app !== undefined && (scriptedBackups !== null || options.platform !== undefined)) {
+  const backup =
+    options?.sync === undefined ? null : createTestBackupService({ state: options.sync })
+  if (options?.app !== undefined && (backup !== null || options.platform !== undefined)) {
     throw new Error(
-      'renderInApp: with your own `app`, give it the platform and the backup factory yourself',
+      'renderInApp: with your own `app`, give it the platform and the backup service yourself',
     )
   }
-  const overrides: Partial<AppServices> = {
+  const overrides: TestAppServiceOverrides = {
     ...(options?.platform === undefined
       ? {}
       : { platform: createTestPlatformService(options.platform) }),
-    ...(scriptedBackups === null ? {} : { backups: scriptedBackups }),
+    ...(backup === null ? {} : { backup }),
   }
   const app: AppServices = options?.app ?? (createTestAppServices(overrides) as AppServices)
   const servicesOnly = options?.servicesOnly ?? false
@@ -200,7 +199,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   return {
     app,
     queryClient,
-    backup: scriptedBackups?.backup ?? null,
+    backup,
     wrap,
     dispose: () => {
       queryClient.clear()
