@@ -1,9 +1,8 @@
-import { createWebCryptoHashService } from '../app/hash-service.ts'
-import { describe, expect, it, vi } from 'vitest'
+import { sha256Hex } from '@reflect/utils'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssetDescriptionRejectedError } from '../ai/asset-describer-service.ts'
 import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import { ReflectError } from '../errors.ts'
-import type { HashService } from '../app/hash-service.ts'
 import { descriptionPathFor } from '../graph/paths.ts'
 import type { FileChange } from '../indexing/file-change-service.ts'
 import type { IndexAppliedEvent } from '../indexing/index-lifecycle-service.ts'
@@ -52,22 +51,23 @@ const GENERATION = 7
 const INDEX_GENERATION = 11
 const NOW = Date.parse('2026-06-16T00:00:00.000Z')
 
-const realHashService = createWebCryptoHashService()
 let hashing = 0
 
 /**
- * The test hash service, counting digests in flight so {@link flush} can wait for them.
+ * Count the digests in flight so {@link flush} can wait for them.
  */
-const hashService: HashService = {
-  async sha256Hex(text) {
+beforeEach(() => {
+  const subtle = globalThis.crypto.subtle
+  const digest = subtle.digest.bind(subtle)
+  vi.spyOn(subtle, 'digest').mockImplementation(async (...args) => {
     hashing += 1
     try {
-      return await realHashService.sha256Hex(text)
+      return await digest(...args)
     } finally {
       hashing -= 1
     }
-  },
-}
+  })
+})
 
 /**
  * A public note referencing `assetPath`.
@@ -197,7 +197,6 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     assetDescriber: describer,
     aiProviderConfig,
     aiCredentials,
-    hash: hashService,
     clock,
     reconcilers: createBackgroundReconcilerFactory({ activity }),
     indexLifecycle,
@@ -305,7 +304,7 @@ describe('AssetDescriptionService.reconcile', () => {
     expect(outcome.described).toBe(1)
     expect(outcome.describedAssetPaths).toEqual(['assets/a.png'])
     expect(outcome.stopped).toBeNull()
-    const hash = await hashService.sha256Hex('aGVsbG8=')
+    const hash = await sha256Hex('aGVsbG8=')
     const written = files.files().get('assets/a.png.reflect.md')!
     expect(readManagedDescription(written)).toMatchObject({ sourceHash: hash })
     expect(written).toContain('A flow diagram.')
@@ -321,7 +320,7 @@ describe('AssetDescriptionService.reconcile', () => {
     await addAsset('assets/a.png', 'aGVsbG8=')
     files.set('notes/pub.md', publicNote('assets/a.png'))
     refs.set('assets/a.png', ['notes/pub.md'])
-    const hash = await hashService.sha256Hex('aGVsbG8=')
+    const hash = await sha256Hex('aGVsbG8=')
     files.set(
       'assets/a.png.reflect.md',
       buildDescriptionSource(

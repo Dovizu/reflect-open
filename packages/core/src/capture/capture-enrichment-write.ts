@@ -1,4 +1,5 @@
 import type { CaptureIdentity } from './capture-identity.ts'
+import { sha256Hex } from '@reflect/utils'
 import {
   captureNoteMeta,
   notePrivate,
@@ -7,7 +8,6 @@ import {
   type CaptureNoteMeta,
   type CaptureStatus,
 } from './capture-note.ts'
-import type { HashService } from '../app/hash-service.ts'
 import { isAppError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { dailyPath } from '../graph/paths.ts'
@@ -20,7 +20,6 @@ import type { AiProviderConfig } from '../settings/schema.ts'
  */
 export interface CaptureWriteContext {
   noteFile: NoteFileService
-  hash: HashService
 }
 
 export interface PendingCaptureSnapshot {
@@ -125,7 +124,7 @@ export async function finishCaptureWrite(
   if (
     snapshot.isPrivate ||
     notePrivate(dailySource) ||
-    (await ctx.hash.sha256Hex(snapshot.body)) !== expectedHash
+    (await sha256Hex(snapshot.body)) !== expectedHash
   ) {
     return null
   }
@@ -149,7 +148,7 @@ export async function finishCaptureWrite(
     currentTransaction.status !== transaction.status ||
     snapshot.isPrivate ||
     notePrivate(dailySource) ||
-    (await ctx.hash.sha256Hex(snapshot.body)) !== expectedHash
+    (await sha256Hex(snapshot.body)) !== expectedHash
   ) {
     return null
   }
@@ -174,7 +173,7 @@ export async function persistCaptureEnrichment(
   ctx: CaptureWriteContext,
   input: PersistCaptureEnrichmentInput,
 ): Promise<string | null> {
-  const captureHash = await ctx.hash.sha256Hex(input.body)
+  const captureHash = await sha256Hex(input.body)
   const snapshot = await readPendingCaptureSnapshot(ctx, input.identity, input.generation)
   const dailySource = await noteSource(
     ctx.noteFile,
@@ -186,7 +185,7 @@ export async function persistCaptureEnrichment(
     snapshot.title !== input.fromTitle ||
     snapshot.isPrivate ||
     notePrivate(dailySource) ||
-    (await ctx.hash.sha256Hex(snapshot.body)) !== input.expectedHash
+    (await sha256Hex(snapshot.body)) !== input.expectedHash
   ) {
     return null
   }

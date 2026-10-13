@@ -1,4 +1,3 @@
-import { createWebCryptoHashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import type { StorageService } from '../app/storage-service.ts'
@@ -416,7 +415,6 @@ class TestEmbeddingIndexServiceImpl implements TestEmbeddingIndexService {
       noteFile: options?.noteFile ?? createTestNoteFileService(),
       database,
       indexLifecycle: options?.indexLifecycle ?? createTestIndexLifecycleService({ database }),
-      hash: createWebCryptoHashService(),
       logger: options?.logger ?? createTestLoggerService(),
     })
   }

@@ -1,4 +1,3 @@
-import { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { vi, type Mock, type MockInstance } from 'vitest'
 import type { CaptureEnvelope } from './capture-envelope.ts'
@@ -146,7 +145,6 @@ class CaptureTestKitImpl implements CaptureTestKit {
   readonly #assetStore: AssetStoreService
   readonly #webFetch: WebFetchService
   readonly #pageDescriber: PageDescriberService
-  readonly #hash: HashService
   readonly #drainService: CaptureDrainService
   #secretStore: SecretStoreService
 
@@ -160,7 +158,6 @@ class CaptureTestKitImpl implements CaptureTestKit {
       title: null,
       description: 'An AI description of the page.',
     })
-    const hash = createWebCryptoHashService()
     const clock = createTestClockService({ now: Date.now() })
 
     const scrapeMock = vi
@@ -187,14 +184,12 @@ class CaptureTestKitImpl implements CaptureTestKit {
     this.#assetStore = assetStore
     this.#webFetch = webFetch
     this.#pageDescriber = pageDescriber
-    this.#hash = hash
     this.#secretStore = createTestSecretStoreService({ [API_KEY_SECRET]: 'sk-live-key' })
     this.#drainService = createCaptureDrainService({
       captureInbox,
       noteFile,
       xArchive,
       backlinkTarget: { ensure: ensureBacklinkTargetMock },
-      hash,
       clock,
       logger: createTestLoggerService(),
     })
@@ -257,7 +252,6 @@ class CaptureTestKitImpl implements CaptureTestKit {
         noteFile: this.noteFile,
         graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
       }),
-      hash: this.#hash,
     })
     return await enrichment.reconcile({ generation: 3, ...input })
   }

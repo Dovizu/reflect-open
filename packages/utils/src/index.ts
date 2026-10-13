@@ -11,3 +11,4 @@ export {
   parseIsoUtc,
   weekdayIso,
 } from './dates.ts'
+export { sha256Hex } from './sha256.ts'

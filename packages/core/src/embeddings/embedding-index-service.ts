@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { LocalNoteRead, NoteFileService } from '../graph/note-file-service.ts'
 import { isNotePath, isTemplatePath } from '../graph/paths.ts'
@@ -125,7 +124,6 @@ export interface EmbeddingIndexServiceDeps {
   readonly noteFile: NoteFileService
   readonly database: DatabaseService
   readonly indexLifecycle: IndexLifecycleService
-  readonly hash: HashService
   readonly logger: LoggerService
 }
 
@@ -140,7 +138,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
   }
 
   async embedNote(options: EmbedNoteOptions): Promise<number> {
-    const { embeddingRuntime, noteFile, database, hash } = this.#deps
+    const { embeddingRuntime, noteFile, database } = this.#deps
     const { path, generation, fileGeneration, modelId } = options
     if (isTemplatePath(path)) {
       return 0 // templates are boilerplate — never embedded, never retrieved
@@ -179,8 +177,8 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
       return 0
     }
     const chunks = [
-      ...(await chunkNote({ hash }, path, content, parsed)),
-      ...(await chunkAssetDescriptions({ hash }, gathered.bodies, content.length + 1)),
+      ...(await chunkNote(path, content, parsed)),
+      ...(await chunkAssetDescriptions(gathered.bodies, content.length + 1)),
     ]
     if (chunks.length === 0) {
       await this.removeNote(path, generation)

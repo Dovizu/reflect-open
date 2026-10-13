@@ -1,4 +1,5 @@
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
+import { sha256Hex } from '@reflect/utils'
 import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import {
   isAssetDescriptionRejected,
@@ -10,7 +11,6 @@ import type {
 } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
-import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { ProgressPort } from '../app/ports.ts'
 import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
@@ -286,7 +286,6 @@ export interface AssetDescriptionServiceDeps {
   readonly assetDescriber: AssetDescriberService
   readonly aiProviderConfig: AiProviderConfigService
   readonly aiCredentials: AiCredentialService
-  readonly hash: HashService
   readonly clock: ClockService
   readonly reconcilers: BackgroundReconcilerFactory
   readonly indexLifecycle: IndexLifecycleService
@@ -662,7 +661,7 @@ class AssetDescriptionServiceImpl implements AssetDescriptionService {
    * Process one asset. Throws on transient (auth/network) failure to stop the pass.
    */
   async #processAsset(assetPath: string, ctx: AssetContext): Promise<AssetStep> {
-    const { assetStore, noteFile, assetPrivacy, assetDescriber, hash, clock } = this.#deps
+    const { assetStore, noteFile, assetPrivacy, assetDescriber, clock } = this.#deps
     const assetType = assetTypeFor(assetPath)
     if (assetType === null) {
       return { kind: 'skipped', reason: 'gone' } // defensive: an ineligible path slipped in
@@ -721,7 +720,7 @@ class AssetDescriptionServiceImpl implements AssetDescriptionService {
       return { kind: 'skipped', reason: 'oversize' } // belt: no stat was available
     }
 
-    const sourceHash = await hash.sha256Hex(base64)
+    const sourceHash = await sha256Hex(base64)
     if (managed !== null && managed.sourceHash === sourceHash) {
       return { kind: 'skipped', reason: 'up-to-date' } // mtime moved but content identical
     }

@@ -29,7 +29,6 @@ import {
 import { createThemeService, type ThemeService } from './settings/theme-service.ts'
 import { createKeyboardService, type KeyboardService } from './mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from './mobile/share-service.ts'
-import { createSyncStatusService, type SyncStatusService } from './sync/sync-status-service.ts'
 import {
   createAutocompleteSuggestionService,
   type AutocompleteSuggestionService,
@@ -174,10 +173,6 @@ export interface AppServices {
    */
   readonly operations: OperationsService
   /**
-   * Derives the mobile sync status that the settings sheet and the status pill show.
-   */
-  readonly syncStatus: SyncStatusService
-  /**
    * The software keyboard's overlap height, as the UI last measured it.
    */
   readonly keyboard: KeyboardService
@@ -300,7 +295,6 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       window: host.window,
     }),
     operations: host.operations,
-    syncStatus: createSyncStatusService(),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments: core.openDocuments }),
     autocompleteSuggestions: createAutocompleteSuggestionService({

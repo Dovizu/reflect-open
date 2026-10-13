@@ -1,5 +1,5 @@
 import type { ClockService } from '../app/clock-service.ts'
-import type { HashService } from '../app/hash-service.ts'
+import { sha256Hex } from '@reflect/utils'
 import type { LoggerService } from '../app/logger-service.ts'
 import { isAppError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
@@ -44,7 +44,6 @@ export interface IndexingDeps {
   readonly indexQuery: IndexQueryService
   readonly database: DatabaseService
   readonly xArchive: XArchiveService
-  readonly hash: HashService
   readonly clock: ClockService
   readonly logger: LoggerService
 }
@@ -256,9 +255,9 @@ class NoteIndexerImpl implements NoteIndexer {
       mtime?: number | undefined
     },
   ): Promise<void> {
-    const { indexStore: store, noteFile, hash, clock } = this.#deps
+    const { indexStore: store, noteFile, clock } = this.#deps
     const content = options.content ?? (await noteFile.read(path, options.fileGeneration))
-    const fileHash = await hash.sha256Hex(content)
+    const fileHash = await sha256Hex(content)
     const note = await this.buildNoteProjection(path, content, {
       fileHash,
       mtime: options.mtime ?? clock.now(),
@@ -306,7 +305,7 @@ class NoteIndexerImpl implements NoteIndexer {
   }
 
   async rebuild(options: IndexPassOptions): Promise<void> {
-    const { indexStore: store, noteFile, hash } = this.#deps
+    const { indexStore: store, noteFile } = this.#deps
     const { generation, fileGeneration, onSkippedNote, onFileProgress, onStalePlaceholders } =
       options
     if (options.signal?.aborted) {
@@ -343,7 +342,7 @@ class NoteIndexerImpl implements NoteIndexer {
       }
       worked += 1
       const content = await noteFile.read(file.path, fileGeneration)
-      const fileHash = await hash.sha256Hex(content)
+      const fileHash = await sha256Hex(content)
       const projection = await this.buildNoteProjection(file.path, content, {
         fileHash,
         mtime: file.modifiedMs,
@@ -373,7 +372,7 @@ class NoteIndexerImpl implements NoteIndexer {
   }
 
   async reconcile(options: IndexPassOptions): Promise<void> {
-    const { indexStore: store, noteFile, hash, logger } = this.#deps
+    const { indexStore: store, noteFile, logger } = this.#deps
     const {
       generation,
       fileGeneration,
@@ -494,7 +493,7 @@ class NoteIndexerImpl implements NoteIndexer {
           continue
         }
       }
-      const fileHash = await hash.sha256Hex(content)
+      const fileHash = await sha256Hex(content)
       if (stored?.fileHash === fileHash) {
         // Content unchanged. If the stored mtime doesn't match the listing (an
         // echo-time stamp, or a provider rewrote it), re-stamp it so the next

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { HashService } from '../app/hash-service.ts'
+import { sha256Hex } from '@reflect/utils'
 import { isAppError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { wikiLinkSafe } from '../markdown/edit.ts'
@@ -116,7 +116,6 @@ function firstSectionStart(body: string): number {
 }
 
 export async function captureNoteSource(
-  hash: HashService,
   envelope: CaptureEnvelope,
   identity: CaptureIdentity,
   options: { hasScreenshot: boolean; status: CaptureStatus; selectionHash?: string | undefined },
@@ -128,7 +127,7 @@ export async function captureNoteSource(
     capturedAt: envelope.capturedAt,
     captureSource: envelope.source,
     captureStatus: options.status,
-    captureHash: await hash.sha256Hex(body),
+    captureHash: await sha256Hex(body),
     captureSelectionHash: options.selectionHash,
     captureScreenshot: options.hasScreenshot ? identity.assetPath : undefined,
   })

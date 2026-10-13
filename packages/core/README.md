@@ -19,7 +19,7 @@ no module-level mutable state.
   webview, before `createAppServices`. `CoreInternalServices` holds the services
   that only other services use.
 - **`CoreAdapters`** is what the host supplies: the IPC bridge, the platform
-  facts, HTTP, Web storage, path, and the optional logger, clock, id, hash,
+  facts, HTTP, Web storage, path, and the optional logger, clock, id,
   image codec and deep-link source. The desktop builds them in
   `apps/desktop/src/services/create-desktop-services.ts`
   (`createDesktopAdapters`).
@@ -54,7 +54,7 @@ shares it with the app layer. Code never calls the transport directly.
 
 | Module | What it owns |
 |---|---|
-| `app/` | The composition roots (`create-core-services.ts`, `create-graph-services.ts`), the `GraphSession` type, the ports (`ports.ts`), and the primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformFacts`, `StorageService`, `HttpService`, `PathService`, `PersistenceFlushService`. |
+| `app/` | The composition roots (`create-core-services.ts`, `create-graph-services.ts`), the `GraphSession` type, the ports (`ports.ts`), and the primitives: `LoggerService`, `ClockService`, `IdService`, `PlatformFacts`, `StorageService`, `HttpService`, `PathService`, `PersistenceFlushService`. |
 | `graph/` | Graph file storage: path helpers, the typed file services (`NoteFileService`, `AssetStoreService`), note creation and link resolution, the capture inbox, and the open graph (`GraphSessionService`). |
 | `documents/` | Open notes: `NoteSessionService`, `OpenDocumentsService`, `NoteDocumentService`, moves and title renames, `NoteActionsService`, attachments and templates. |
 | `markdown/` | The document model: frontmatter, the Lezer grammar with `[[wiki link]]`, extraction (`parseNote`), source-level edits. |

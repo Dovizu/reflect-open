@@ -1,4 +1,5 @@
 import type { Unlisten } from '../unlisten.ts'
+import { sha256Hex } from '@reflect/utils'
 import { isAssetPath, isNotePath } from '../graph/paths.ts'
 import type { FileChange, FileChangeService } from './file-change-service.ts'
 import { matchesTrustedMtime } from './hash.ts'
@@ -112,7 +113,7 @@ class LiveIndexImpl implements LiveIndex {
     onMoved?: MovedHandler,
     canApply: () => boolean = () => true,
   ): Promise<number> {
-    const { indexStore, noteFile, hash, clock, logger } = this.#deps
+    const { indexStore, noteFile, clock, logger } = this.#deps
     if (!canApply()) {
       return 0
     }
@@ -194,7 +195,7 @@ class LiveIndexImpl implements LiveIndex {
           continue // already indexed at this mtime — e.g. the watch's initial gather
         }
         const content = await noteFile.read(change.path, fileGeneration)
-        const fileHash = await hash.sha256Hex(content)
+        const fileHash = await sha256Hex(content)
         if (!canApply()) {
           return mutations
         }
