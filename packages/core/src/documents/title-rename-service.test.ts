@@ -13,7 +13,7 @@ import {
 } from '../testing/documents.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestGraphSessionService, type TestOpenGraph } from '../testing/graph-session.ts'
-import { createTestNoteFileService } from '../testing/graph.ts'
+import { createTestNoteFileService, overrideNoteFileService } from '../testing/graph.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
@@ -123,15 +123,14 @@ function setup(options?: SetupOptions) {
     noteFile:
       readError === undefined
         ? noteFile
-        : {
-            ...noteFile,
+        : overrideNoteFileService(noteFile, {
             read: async (forPath, generation) => {
               if (forPath === path) {
                 throw readError
               }
               return await noteFile.read(forPath, generation)
             },
-          },
+          }),
     wikiResolver:
       resolveError === undefined
         ? wikiResolver

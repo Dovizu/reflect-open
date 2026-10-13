@@ -105,15 +105,14 @@ function setup(options?: {
     steps.push('watchStop')
     await stopWatcher()
   })
+  const readFile = files.read.bind(files)
+  vi.spyOn(files, 'read').mockImplementation(async (path, generation) => {
+    options?.onRead?.()
+    return await readFile(path, generation)
+  })
   const index = createIndexLifecycleService({
     indexStore: store,
-    noteFile: {
-      ...files,
-      read: async (path, generation) => {
-        options?.onRead?.()
-        return await files.read(path, generation)
-      },
-    },
+    noteFile: files,
     fileChanges,
     indexQuery: createIndexQueryService({ database }),
     database,

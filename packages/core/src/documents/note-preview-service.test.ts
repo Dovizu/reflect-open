@@ -51,12 +51,11 @@ function notePreviewOver(
 /** A real `AttachmentService` whose catalog lists `listing()`. */
 function attachmentsOver(listing: () => Promise<readonly { path: string; size: number }[]>) {
   const clock = createTestClockService()
-  const noteFile: NoteFileService = {
-    ...createTestNoteFileService(),
+  const noteFile: NoteFileService = Object.assign(createTestNoteFileService(), {
     async listAttachments(): Promise<FileMeta[]> {
       return (await listing()).map((entry) => ({ ...entry, modifiedMs: 0 }))
     },
-  }
+  })
   return createAttachmentService({
     assetStore: createTestAssetStoreService(),
     noteFile,

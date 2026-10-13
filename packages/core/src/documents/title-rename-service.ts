@@ -14,7 +14,11 @@ import type { NoteMoveService } from './note-move-service.ts'
 import type { NoteContentOrigin } from './note-session-types.ts'
 import type { OpenDocumentsService } from './open-documents-service.ts'
 import { composeRenameFailure, type RenamePhaseFailures } from './rename-failure.ts'
-import { createTitleRenameTracker, type TitleRename } from './title-rename-tracker.ts'
+import {
+  createTitleRenameTracker,
+  type TitleRename,
+  type TitleRenameTracker,
+} from './title-rename-tracker.ts'
 
 /**
  * Owns one note's auto-rename lifecycle: the settled-title tracker, serialized
@@ -48,7 +52,9 @@ import { createTitleRenameTracker, type TitleRename } from './title-rename-track
  */
 
 export interface RenameCoordinatorOptions {
-  /** Graph-relative path of the (possibly renamed) note. */
+  /**
+   * Graph-relative path of the (possibly renamed) note.
+   */
   path: string
   /**
    * Gate: no rename fires while false (a parked conflict contests the very
@@ -58,16 +64,24 @@ export interface RenameCoordinatorOptions {
 }
 
 export interface RenameCoordinator {
-  /** Wire into the session's `onContent` stream (load/external/saved). */
-  content(this: void, content: string, origin: NoteContentOrigin): void
-  /** A settle point (blur, teardown, quit): fire any pending rename now. */
+  /**
+   * Wire into the session's `onContent` stream (load/external/saved).
+   */
+  content: (content: string, origin: NoteContentOrigin) => void
+  /**
+   * A settle point (blur, teardown, quit): fire any pending rename now.
+   */
   settle(): void
-  /** Resolves once settled renames' writes have landed (quit awaits this). */
+  /**
+   * Resolves once settled renames' writes have landed (quit awaits this).
+   */
   settled(): Promise<void>
   dispose(): void
 }
 
-/** Keeps inbound links, aliases and filenames following each note's settled title. */
+/**
+ * Keeps inbound links, aliases and filenames following each note's settled title.
+ */
 export interface TitleRenameService {
   /**
    * The auto-rename lifecycle of one open note on the open graph; the caller
@@ -78,72 +92,114 @@ export interface TitleRenameService {
 }
 
 export interface TitleRenameServiceDeps {
-  noteFile: Pick<NoteFileService, 'read' | 'write'>
-  wikiResolver: Pick<
+  readonly noteFile: Pick<NoteFileService, 'read' | 'write'>
+  readonly wikiResolver: Pick<
     WikiResolverService,
     'resolveWikiTarget' | 'getLinkSources' | 'getPathLinkSources'
   >
-  backlinks: Pick<BacklinkService, 'getBacklinks'>
-  notePath: Pick<NotePathService, 'slugPathForTitle'>
-  noteMove: Pick<NoteMoveService, 'moveNote'>
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  operations: Pick<OperationsService, 'start'>
-  /** Runs each title tracker's quiet timer. */
-  clock: ClockService
-  logger: Pick<LoggerService, 'error'>
-  graphSession: GraphSessionSource
+  readonly backlinks: Pick<BacklinkService, 'getBacklinks'>
+  readonly notePath: Pick<NotePathService, 'slugPathForTitle'>
+  readonly noteMove: Pick<NoteMoveService, 'moveNote'>
+  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly operations: Pick<OperationsService, 'start'>
+  /**
+   * Runs each title tracker's quiet timer.
+   */
+  readonly clock: ClockService
+  readonly logger: Pick<LoggerService, 'error'>
+  readonly graphSession: GraphSessionSource
 }
 
-export function createTitleRenameService(deps: TitleRenameServiceDeps): TitleRenameService {
-  return {
-    createCoordinator: (options) => createRenameCoordinator(deps, options),
+class TitleRenameServiceImpl implements TitleRenameService {
+  readonly #deps: TitleRenameServiceDeps
+
+  constructor(deps: TitleRenameServiceDeps) {
+    this.#deps = deps
+  }
+
+  createCoordinator(options: RenameCoordinatorOptions): RenameCoordinator {
+    return new RenameCoordinatorImpl(this.#deps, options)
   }
 }
 
-function createRenameCoordinator(
-  deps: TitleRenameServiceDeps,
-  options: RenameCoordinatorOptions,
-): RenameCoordinator {
-  const {
-    noteFile,
-    wikiResolver,
-    backlinks,
-    notePath,
-    noteMove,
-    openDocuments,
-    operations,
-    clock,
-    logger,
-    graphSession,
-  } = deps
-  const { canFire } = options
-  const graph = graphSession.getState().session
-  /** The note's current path — a landed move advances it (Plan 17). */
-  let currentPath = options.path
-  /** Serializes rewrites — a second settle waits for the first. */
-  let chain: Promise<void> = Promise.resolve()
-  /** Latest source saved or adopted by this session, used only for move ownership. */
-  let latestSource = ''
-  /** Aliases the previous rename in this session added, for the next one to prune. */
-  let autoAliases: string[] = []
+export function createTitleRenameService(deps: TitleRenameServiceDeps): TitleRenameService {
+  return new TitleRenameServiceImpl(deps)
+}
+
+class RenameCoordinatorImpl implements RenameCoordinator {
+  readonly #deps: TitleRenameServiceDeps
+  readonly #graph: ReturnType<GraphSessionSource['getState']>['session']
+  readonly #tracker: TitleRenameTracker
+  /**
+   * The note's current path — a landed move advances it (Plan 17).
+   */
+  #currentPath: string
+  /**
+   * Serializes rewrites — a second settle waits for the first.
+   */
+  #chain: Promise<void> = Promise.resolve()
+  /**
+   * Latest source saved or adopted by this session, used only for move ownership.
+   */
+  #latestSource = ''
+  /**
+   * Aliases the previous rename in this session added, for the next one to prune.
+   */
+  #autoAliases: string[] = []
+
+  constructor(deps: TitleRenameServiceDeps, options: RenameCoordinatorOptions) {
+    this.#deps = deps
+    this.#graph = deps.graphSession.getState().session
+    this.#currentPath = options.path
+    this.#tracker = createTitleRenameTracker({
+      path: options.path,
+      onRename: (rename) => {
+        this.#runRename(rename)
+      },
+      canFire: options.canFire,
+      clock: deps.clock,
+    })
+  }
+
+  readonly content = (content: string, origin: NoteContentOrigin): void => {
+    this.#latestSource = content
+    if (origin === 'saved') {
+      this.#tracker.saved(content)
+    } else {
+      this.#tracker.baseline(content) // load/external: new ground truth, no rewrite
+    }
+  }
+
+  settle(): void {
+    this.#tracker.settle()
+  }
+
+  settled(): Promise<void> {
+    return this.#chain
+  }
+
+  dispose(): void {
+    this.#tracker.dispose()
+  }
 
   /**
    * Move the file onto its title's slug path (Plan 17). A failed move leaves
    * the filename drifting (cosmetic — resolution never reads filenames) until
    * the next settled rename re-derives it.
    */
-  const runMove = async (
+  async #runMove(
     title: string,
     gen: number,
     options?: { rewriteInboundPathLinks?: boolean },
-  ): Promise<void> => {
-    const target = await notePath.slugPathForTitle(currentPath, title)
-    if (target === currentPath) {
+  ): Promise<void> {
+    const { noteFile, wikiResolver, notePath, noteMove, logger } = this.#deps
+    const target = await notePath.slugPathForTitle(this.#currentPath, title)
+    if (target === this.#currentPath) {
       return
     }
-    const from = currentPath
+    const from = this.#currentPath
     await noteMove.moveNote(from, target, gen)
-    currentPath = target
+    this.#currentPath = target
     // Retarget inbound `[[notes/…]]` path links only after the move landed: a
     // refused move then touches nothing (rollback for free), while the
     // reverse order would strand every rewritten source on a destination that
@@ -172,21 +228,23 @@ function createRenameCoordinator(
   // write carries the generation read at run time (stale → loud rejection in
   // Rust). A rename pending across a graph switch is dropped, never
   // cross-written.
-  const runRename = (rename: TitleRename): void => {
-    chain = chain.then(async () => {
-      const gen = graph === null ? null : writeGenerationFor(graphSession, graph)
+  #runRename(rename: TitleRename): void {
+    const { noteFile, wikiResolver, backlinks, openDocuments, operations, logger, graphSession } =
+      this.#deps
+    this.#chain = this.#chain.then(async () => {
+      const gen = this.#graph === null ? null : writeGenerationFor(graphSession, this.#graph)
       if (gen === null) {
         // Unreachable in the current wiring (a rename only arms after a save,
         // which requires an open graph) — but the tracker's baseline has
         // already advanced, so if a future caller gets here the drop must be
         // loud, not silent.
         logger.error(
-          `rename dropped (no graph generation): "${rename.from ?? ''}" → "${rename.to}" on ${currentPath}`,
+          `rename dropped (no graph generation): "${rename.from ?? ''}" → "${rename.to}" on ${this.#currentPath}`,
         )
         return
       }
       if (rename.from === null) {
-        if (!isReflectManagedNote(currentPath, latestSource)) {
+        if (!isReflectManagedNote(this.#currentPath, this.#latestSource)) {
           return
         }
         // A birth: the first authored title on an untitled note. Nothing
@@ -194,7 +252,7 @@ function createRenameCoordinator(
         // the file sheds its placeholder name for the title's slug.
         const operation = operations.start(`Naming "${rename.to}"`)
         try {
-          await runMove(rename.to, gen)
+          await this.#runMove(rename.to, gen)
           operation.done()
         } catch (cause) {
           logger.error('note file move failed:', cause)
@@ -213,7 +271,7 @@ function createRenameCoordinator(
         let collision = false
         try {
           const result = await rewriteLinksForTitleChange({
-            path: currentPath,
+            path: this.#currentPath,
             from,
             to: rename.to,
             io: {
@@ -240,13 +298,13 @@ function createRenameCoordinator(
         // rename left behind); what that rename actually added is remembered
         // here, so a chained rename prunes exactly those and never an alias
         // the user authored.
-        const previousAutoAliases = rename.previousAutoAlias === null ? [] : autoAliases
-        autoAliases = []
+        const previousAutoAliases = rename.previousAutoAlias === null ? [] : this.#autoAliases
+        this.#autoAliases = []
         if (!collision) {
           try {
-            autoAliases = await placeOldTitleAlias(
+            this.#autoAliases = await placeOldTitleAlias(
               { noteFile, openDocuments },
-              currentPath,
+              this.#currentPath,
               { from, to: rename.to, previousAutoAliases },
               gen,
             )
@@ -257,9 +315,9 @@ function createRenameCoordinator(
         }
         // Link maintenance applies to every editable note. Filename projection
         // is a separate capability: stable-path and adopted notes stay put.
-        if (isReflectManagedNote(currentPath, latestSource)) {
+        if (isReflectManagedNote(this.#currentPath, this.#latestSource)) {
           try {
-            await runMove(rename.to, gen, { rewriteInboundPathLinks: true })
+            await this.#runMove(rename.to, gen, { rewriteInboundPathLinks: true })
           } catch (cause) {
             failures.move = errorMessage(cause)
             logger.error('note file move failed:', cause)
@@ -274,32 +332,5 @@ function createRenameCoordinator(
         }
       }
     })
-  }
-
-  const tracker = createTitleRenameTracker({
-    path: options.path,
-    onRename: runRename,
-    canFire,
-    clock,
-  })
-
-  return {
-    content(content: string, origin: NoteContentOrigin): void {
-      latestSource = content
-      if (origin === 'saved') {
-        tracker.saved(content)
-      } else {
-        tracker.baseline(content) // load/external: new ground truth, no rewrite
-      }
-    },
-    settle(): void {
-      tracker.settle()
-    },
-    settled(): Promise<void> {
-      return chain
-    },
-    dispose(): void {
-      tracker.dispose()
-    },
   }
 }

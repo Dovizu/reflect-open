@@ -116,20 +116,85 @@ const MAX_CREATE_ATTEMPTS = 1000
 
 type ExistingTitleResolution = Exclude<ExistingWikiTargetResolution, { kind: 'missing' }>
 
-export function createNoteCreationService(deps: {
-  noteFile: NoteFileService
-  noteLinkResolver: NoteLinkResolverService
-  id: IdService
-}): NoteCreationService {
-  const { noteFile, noteLinkResolver, id } = deps
+export interface NoteCreationServiceDeps {
+  readonly noteFile: NoteFileService
+  readonly noteLinkResolver: NoteLinkResolverService
+  readonly id: IdService
+}
+
+class NoteCreationServiceImpl implements NoteCreationService {
+  readonly #deps: NoteCreationServiceDeps
+
+  constructor(deps: NoteCreationServiceDeps) {
+    this.#deps = deps
+  }
+
+  newNoteId(): string {
+    return this.#deps.id.noteId()
+  }
+
+  untitledNoteSeed(): string {
+    return upsertFrontmatter('#\n', { id: this.#deps.id.noteId() })
+  }
+
+  untitledNotePath(): string {
+    return notePath(this.#deps.id.noteId())
+  }
+
+  async createNoteWithTitle(title: string, generation: number, body?: string): Promise<string> {
+    const claimed = await this.#claimNotePathForSlug<never>(
+      slugForTitle(title),
+      this.#newNoteSource(title, body),
+      generation,
+      async () => null,
+    )
+    return claimed.path
+  }
+
+  async resolveOrCreateNoteWithTitle(
+    title: string,
+    generation: number,
+    body?: string,
+  ): Promise<ResolveOrCreateNoteResult> {
+    const { noteLinkResolver } = this.#deps
+    const existing = await noteLinkResolver.resolveWikiTarget(title, generation)
+    if (existing.kind !== 'missing') {
+      return existing
+    }
+
+    // A bare name invents a titled note under `notes/`; so does an ambiguous
+    // slashed spelling once both of its readings have missed, because the
+    // author typed it where a title goes. Only an explicitly rooted path (one
+    // exact missing file) and a `#heading` or unsafe target (which name
+    // nothing creatable) refuse.
+    const reference = wikiNoteReference(title)
+    if (reference?.kind !== 'key' && reference?.kind !== 'pathOrKey') {
+      return {
+        kind: 'unavailable',
+        paths: reference?.kind === 'path' ? [reference.path] : [],
+      }
+    }
+
+    // On a lost claim, re-resolve both projections before considering a
+    // suffix: the winner may be the note this link meant.
+    return await this.#claimNotePathForSlug<ExistingTitleResolution>(
+      slugForTitle(title),
+      this.#newNoteSource(title, body),
+      generation,
+      async () => {
+        const collision = await noteLinkResolver.resolveWikiTarget(title, generation)
+        return collision.kind === 'missing' ? null : collision
+      },
+    )
+  }
 
   /**
    * The on-disk source for a brand-new note: `id:` frontmatter + H1 title,
    * plus an optional body block under the title.
    */
-  function newNoteSource(title: string, body?: string): string {
+  #newNoteSource(title: string, body?: string): string {
     const content = body ? `# ${title.trim()}\n\n${body.trim()}\n` : `# ${title.trim()}\n`
-    return upsertFrontmatter(content, { id: id.noteId() })
+    return upsertFrontmatter(content, { id: this.#deps.id.noteId() })
   }
 
   /**
@@ -138,7 +203,7 @@ export function createNoteCreationService(deps: {
    * runs after each lost claim; a non-null result short-circuits instead of
    * trying the next suffix.
    */
-  async function claimNotePathForSlug<Resolution>(
+  async #claimNotePathForSlug<Resolution>(
     slug: string,
     source: string,
     generation: number,
@@ -146,7 +211,7 @@ export function createNoteCreationService(deps: {
   ): Promise<{ kind: 'created'; path: string } | Resolution> {
     for (let ordinal = 1; ordinal <= MAX_CREATE_ATTEMPTS; ordinal += 1) {
       const path = notePath(ordinal === 1 ? slug : `${slug}-${ordinal}`)
-      const outcome = await noteFile.create(path, source, generation)
+      const outcome = await this.#deps.noteFile.create(path, source, generation)
       if (outcome.kind === 'created') {
         return { kind: 'created', path }
       }
@@ -159,52 +224,8 @@ export function createNoteCreationService(deps: {
       `no available note path for slug "${slug}" after ${MAX_CREATE_ATTEMPTS} attempts`,
     )
   }
+}
 
-  return {
-    newNoteId: () => id.noteId(),
-    untitledNoteSeed: () => upsertFrontmatter('#\n', { id: id.noteId() }),
-    untitledNotePath: () => notePath(id.noteId()),
-
-    async createNoteWithTitle(title, generation, body) {
-      const claimed = await claimNotePathForSlug<never>(
-        slugForTitle(title),
-        newNoteSource(title, body),
-        generation,
-        async () => null,
-      )
-      return claimed.path
-    },
-
-    async resolveOrCreateNoteWithTitle(title, generation, body) {
-      const existing = await noteLinkResolver.resolveWikiTarget(title, generation)
-      if (existing.kind !== 'missing') {
-        return existing
-      }
-
-      // A bare name invents a titled note under `notes/`; so does an ambiguous
-      // slashed spelling once both of its readings have missed, because the
-      // author typed it where a title goes. Only an explicitly rooted path (one
-      // exact missing file) and a `#heading` or unsafe target (which name
-      // nothing creatable) refuse.
-      const reference = wikiNoteReference(title)
-      if (reference?.kind !== 'key' && reference?.kind !== 'pathOrKey') {
-        return {
-          kind: 'unavailable',
-          paths: reference?.kind === 'path' ? [reference.path] : [],
-        }
-      }
-
-      // On a lost claim, re-resolve both projections before considering a
-      // suffix: the winner may be the note this link meant.
-      return await claimNotePathForSlug<ExistingTitleResolution>(
-        slugForTitle(title),
-        newNoteSource(title, body),
-        generation,
-        async () => {
-          const collision = await noteLinkResolver.resolveWikiTarget(title, generation)
-          return collision.kind === 'missing' ? null : collision
-        },
-      )
-    },
-  }
+export function createNoteCreationService(deps: NoteCreationServiceDeps): NoteCreationService {
+  return new NoteCreationServiceImpl(deps)
 }

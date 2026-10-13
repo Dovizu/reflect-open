@@ -42,7 +42,9 @@ export interface TitleRename {
 }
 
 export interface TitleRenameTrackerOptions {
-  /** Graph-relative path (feeds title derivation's path fallback). */
+  /**
+   * Graph-relative path (feeds title derivation's path fallback).
+   */
   path: string
   onRename: (rename: TitleRename) => void
   /**
@@ -53,31 +55,106 @@ export interface TitleRenameTrackerOptions {
    */
   canFire?: (() => boolean) | undefined
   quietMs?: number
-  /** Runs the quiet timer. */
+  /**
+   * Runs the quiet timer.
+   */
   clock: ClockService
 }
 
 export interface TitleRenameTracker {
-  /** New ground truth from disk (load / adopted external change): re-baseline. */
+  /**
+   * New ground truth from disk (load / adopted external change): re-baseline.
+   */
   baseline(content: string): void
-  /** A user-driven save landed; arms (or re-arms) the quiet timer. */
+  /**
+   * A user-driven save landed; arms (or re-arms) the quiet timer.
+   */
   saved(content: string): void
-  /** A settle point (blur, teardown): fire any pending rename now. */
+  /**
+   * A settle point (blur, teardown): fire any pending rename now.
+   */
   settle(): void
   dispose(): void
 }
 
 const DEFAULT_QUIET_MS = 5000
 
-export function createTitleRenameTracker(options: TitleRenameTrackerOptions): TitleRenameTracker {
-  const { path, onRename, canFire, clock } = options
-  const quietMs = options.quietMs ?? DEFAULT_QUIET_MS
+class TitleRenameTrackerImpl implements TitleRenameTracker {
+  readonly #path: string
+  readonly #onRename: (rename: TitleRename) => void
+  readonly #canFire: (() => boolean) | undefined
+  readonly #clock: ClockService
+  readonly #quietMs: number
+  #baselineTitle: string | null = null
+  #pending: string | null = null
+  #previousAutoAlias: string | null = null
+  #timer: TimerHandle | null = null
+  #disposed = false
 
-  let baselineTitle: string | null = null
-  let pending: string | null = null
-  let previousAutoAlias: string | null = null
-  let timer: TimerHandle | null = null
-  let disposed = false
+  constructor(options: TitleRenameTrackerOptions) {
+    this.#path = options.path
+    this.#onRename = options.onRename
+    this.#canFire = options.canFire
+    this.#clock = options.clock
+    this.#quietMs = options.quietMs ?? DEFAULT_QUIET_MS
+  }
+
+  baseline(content: string): void {
+    this.#cancelTimer()
+    this.#pending = null
+    this.#baselineTitle = this.#titleOf(content)
+    // External content is a new ground truth: the alias chain this session was
+    // building no longer describes it, so pruning stops here.
+    this.#previousAutoAlias = null
+  }
+
+  saved(content: string): void {
+    if (this.#disposed) {
+      return
+    }
+    const title = this.#titleOf(content)
+    if (title === null) {
+      // The title was removed mid-edit (or the note is still untitled): there
+      // is nothing to rename *to*. Clear any pending rename but keep the
+      // baseline — re-titling later still compares against the old title.
+      this.#cancelTimer()
+      this.#pending = null
+      return
+    }
+    if (this.#baselineTitle === null) {
+      // The first authored title on an untitled note is a **birth**, not a
+      // rename — nothing links to a title that never existed, so no rewrite.
+      // It still settles through the quiet timer: the birth event is what
+      // moves the file onto its slug name (Plan 17), and firing it per save
+      // would rename the file under a half-typed title.
+      this.#pending = title
+      this.#cancelTimer()
+      this.#timer = this.#clock.setTimeout(this.#fire, this.#quietMs)
+      return
+    }
+    if (foldKey(title) === foldKey(this.#baselineTitle)) {
+      // Same key: resolution is case-insensitive, so a pure case tweak is not
+      // a rename — and a reverted edit clears whatever was pending.
+      this.#cancelTimer()
+      this.#pending = null
+      return
+    }
+    this.#pending = title
+    this.#cancelTimer()
+    this.#timer = this.#clock.setTimeout(this.#fire, this.#quietMs)
+  }
+
+  settle(): void {
+    if (this.#pending !== null) {
+      this.#fire()
+    }
+  }
+
+  dispose(): void {
+    this.#disposed = true
+    this.#cancelTimer()
+    this.#pending = null
+  }
 
   // A title only counts when the *content* declares one (frontmatter `title:`
   // or an H1) — `hasAuthoredTitle`, the same predicate the title derivation
@@ -87,96 +164,41 @@ export function createTitleRenameTracker(options: TitleRenameTrackerOptions): Ti
   // make a fresh lazy note's first heading look like a rename from its ULID
   // filename, spraying a junk alias (and potentially rewrites) on every new
   // note. Untitled is `null` here.
-  const titleOf = (content: string): string | null => {
-    const parsed = parseNote({ path, source: content })
+  #titleOf(content: string): string | null {
+    const parsed = parseNote({ path: this.#path, source: content })
     return hasAuthoredTitle(parsed) ? parsed.title : null
   }
 
-  function cancelTimer(): void {
-    if (timer !== null) {
-      clock.clearTimeout(timer)
-      timer = null
+  #cancelTimer(): void {
+    if (this.#timer !== null) {
+      this.#clock.clearTimeout(this.#timer)
+      this.#timer = null
     }
   }
 
-  function fire(): void {
-    cancelTimer()
-    if (disposed || pending === null) {
+  readonly #fire = (): void => {
+    this.#cancelTimer()
+    if (this.#disposed || this.#pending === null) {
       return
     }
-    if (canFire !== undefined && !canFire()) {
+    if (this.#canFire !== undefined && !this.#canFire()) {
       return // blocked (conflict parked): keep pending, mutate nothing
     }
     const rename: TitleRename = {
-      from: baselineTitle,
-      to: pending,
-      previousAutoAlias: baselineTitle === null ? null : previousAutoAlias,
+      from: this.#baselineTitle,
+      to: this.#pending,
+      previousAutoAlias: this.#baselineTitle === null ? null : this.#previousAutoAlias,
     }
     // The title we just renamed away from marks the chain: a follow-up rename
     // prunes what this one added instead of accreting one alias per edit. A
     // birth (`from: null`) leaves no alias behind, so the chain stays empty.
-    previousAutoAlias = baselineTitle
-    baselineTitle = pending
-    pending = null
-    onRename(rename)
+    this.#previousAutoAlias = this.#baselineTitle
+    this.#baselineTitle = this.#pending
+    this.#pending = null
+    this.#onRename(rename)
   }
+}
 
-  function baseline(content: string): void {
-    cancelTimer()
-    pending = null
-    baselineTitle = titleOf(content)
-    // External content is a new ground truth: the alias chain this session was
-    // building no longer describes it, so pruning stops here.
-    previousAutoAlias = null
-  }
-
-  function saved(content: string): void {
-    if (disposed) {
-      return
-    }
-    const title = titleOf(content)
-    if (title === null) {
-      // The title was removed mid-edit (or the note is still untitled): there
-      // is nothing to rename *to*. Clear any pending rename but keep the
-      // baseline — re-titling later still compares against the old title.
-      cancelTimer()
-      pending = null
-      return
-    }
-    if (baselineTitle === null) {
-      // The first authored title on an untitled note is a **birth**, not a
-      // rename — nothing links to a title that never existed, so no rewrite.
-      // It still settles through the quiet timer: the birth event is what
-      // moves the file onto its slug name (Plan 17), and firing it per save
-      // would rename the file under a half-typed title.
-      pending = title
-      cancelTimer()
-      timer = clock.setTimeout(fire, quietMs)
-      return
-    }
-    if (foldKey(title) === foldKey(baselineTitle)) {
-      // Same key: resolution is case-insensitive, so a pure case tweak is not
-      // a rename — and a reverted edit clears whatever was pending.
-      cancelTimer()
-      pending = null
-      return
-    }
-    pending = title
-    cancelTimer()
-    timer = clock.setTimeout(fire, quietMs)
-  }
-
-  function settle(): void {
-    if (pending !== null) {
-      fire()
-    }
-  }
-
-  function dispose(): void {
-    disposed = true
-    cancelTimer()
-    pending = null
-  }
-
-  return { baseline, saved, settle, dispose }
+export function createTitleRenameTracker(options: TitleRenameTrackerOptions): TitleRenameTracker {
+  return new TitleRenameTrackerImpl(options)
 }

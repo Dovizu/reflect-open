@@ -31,474 +31,533 @@ export {
  * File access of one session, with the graph generation bound to its writes.
  */
 interface NoteSessionIo {
-  read: (path: string) => Promise<string>
-  write:
+  readonly read: (path: string) => Promise<string>
+  readonly write:
     | ((path: string, contents: string, expectedContents?: string | null) => Promise<void>)
     | null
 }
 
 const DEFAULT_SAVE_DEBOUNCE_MS = 800
 
-interface NoteSessionDeps {
-  noteFile: NoteFileService
-  clock: ClockService
-  logger: LoggerService
-  graphSession: GraphSessionSource
+export interface NoteSessionServiceDeps {
+  readonly noteFile: NoteFileService
+  readonly clock: ClockService
+  readonly logger: LoggerService
+  readonly graphSession: GraphSessionSource
 }
 
-export function createNoteSessionService(deps: NoteSessionDeps): NoteSessionService {
-  return {
-    create: (options) => createNoteSession(deps, options),
+class NoteSessionServiceImpl implements NoteSessionService {
+  readonly #deps: NoteSessionServiceDeps
+
+  constructor(deps: NoteSessionServiceDeps) {
+    this.#deps = deps
   }
+
+  create(options: NoteSessionOptions): NoteSession {
+    return new NoteSessionImpl(this.#deps, options)
+  }
+}
+
+export function createNoteSessionService(deps: NoteSessionServiceDeps): NoteSessionService {
+  return new NoteSessionServiceImpl(deps)
 }
 
 /**
- * Create the document session for one note. See note-session-types.ts for semantics.
+ * The document session for one note. See note-session-types.ts for semantics.
  */
-function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): NoteSession {
-  const { noteFile, clock, logger, graphSession } = deps
-  const { classify, onSnapshot, applyContent, onContent, reconcilePendingEditorInput } = options
-  const graph = graphSession.getState().session
-  const io: NoteSessionIo = {
-    read: (forPath) => noteFile.read(forPath),
-    write:
-      options.readOnly === true || graph === null
-        ? null
-        : async (forPath, contents, expectedContents) => {
-            const generation = writeGenerationFor(graphSession, graph)
-            await noteFile.write(forPath, contents, generation, expectedContents)
-          },
-  }
+class NoteSessionImpl implements NoteSession {
+  readonly #deps: NoteSessionServiceDeps
+  readonly #io: NoteSessionIo
+  readonly #classify: NoteSessionOptions['classify']
+  readonly #onSnapshot: NoteSessionOptions['onSnapshot']
+  readonly #applyContent: NoteSessionOptions['applyContent']
+  readonly #onContent: NoteSessionOptions['onContent']
+  readonly #reconcilePendingEditorInput: NoteSessionOptions['reconcilePendingEditorInput']
+  readonly #createIfMissing: boolean
+  readonly #missingSeed: NoteSessionOptions['missingSeed']
+  readonly #saveDebounceMs: number
+
   /**
    * Mutable: a rename retargets the session in place (Plan 17).
    */
-  let path = options.path
-  const createIfMissing = options.createIfMissing ?? false
-  const missingSeed = options.missingSeed
-  const saveDebounceMs = options.saveDebounceMs ?? DEFAULT_SAVE_DEBOUNCE_MS
+  path: string
 
   // Snapshot state (surfaces via onSnapshot).
-  let status: NoteSessionStatus = 'loading'
-  let initialContent = ''
-  let isProtected = false
-  let dirty = false
-  let missing = false
-  let conflict: string | null = null
-  let error: string | null = null
+  #status: NoteSessionStatus = 'loading'
+  #initialContent = ''
+  #isProtected = false
+  #dirty = false
+  #missing = false
+  #conflict: string | null = null
+  #error: string | null = null
 
   // Pipeline state (never surfaces).
   /**
    * The **body** as of the last editor change (the editor never sees frontmatter).
    */
-  let buffer = ''
+  #buffer = ''
   /**
    * The exact frontmatter bytes (with delimiters), `''` when none.
    */
-  let header = ''
+  #header = ''
   /**
    * The full content most recently read from or written to disk.
    */
-  let disk = ''
-  let saveTimer: TimerHandle | null = null
+  #disk = ''
+  #saveTimer: TimerHandle | null = null
   /**
    * Serializes writes so a flush can't interleave with a debounced save.
    */
-  let saveChain: Promise<void> = Promise.resolve()
+  #saveChain: Promise<void> = Promise.resolve()
   /**
    * Settles when the current initial load has committed its state.
    */
-  let loadPromise: Promise<void> = Promise.resolve()
+  #loadPromise: Promise<void> = Promise.resolve()
   /**
    * Content of the write currently in flight (set when dispatched, before the
    * write resolves). The watcher event for our own save can arrive before the
    * write settles and `disk` updates — matching against this prevents a false
    * conflict when the user kept typing during the save.
    */
-  let inFlightWrite: string | null = null
+  #inFlightWrite: string | null = null
   /**
    * True while we push external content into the editor via `applyContent`.
    */
-  let applyingContent = false
+  #applyingContent = false
   /**
    * True while the initial `load()` read is in flight.
    */
-  let loading = false
+  #loading = false
   /**
    * A watcher event arrived during the load; replay reconciliation after it.
    */
-  let missedChange = false
-  let disposed = false
+  #missedChange = false
+  #disposed = false
   /**
    * True while deletion has paused this session's persistence pipeline.
    */
-  let deleting = false
+  #deleting = false
   // Set by `discard` — tells `dispose` to skip its flush (the file is being
   // deleted, so rewriting it would recreate it).
-  let discarded = false
+  #discarded = false
 
-  let lastEmitted: NoteSessionSnapshot | null = null
+  #lastEmitted: NoteSessionSnapshot | null = null
 
-  function emit(): void {
-    if (disposed) {
+  constructor(deps: NoteSessionServiceDeps, options: NoteSessionOptions) {
+    this.#deps = deps
+    const { noteFile, graphSession } = deps
+    this.#classify = options.classify
+    this.#onSnapshot = options.onSnapshot
+    this.#applyContent = options.applyContent
+    this.#onContent = options.onContent
+    this.#reconcilePendingEditorInput = options.reconcilePendingEditorInput
+    const graph = graphSession.getState().session
+    this.#io = {
+      read: (forPath) => noteFile.read(forPath),
+      write:
+        options.readOnly === true || graph === null
+          ? null
+          : async (forPath, contents, expectedContents) => {
+              const generation = writeGenerationFor(graphSession, graph)
+              await noteFile.write(forPath, contents, generation, expectedContents)
+            },
+    }
+    this.path = options.path
+    this.#createIfMissing = options.createIfMissing ?? false
+    this.#missingSeed = options.missingSeed
+    this.#saveDebounceMs = options.saveDebounceMs ?? DEFAULT_SAVE_DEBOUNCE_MS
+  }
+
+  readonly retarget = (to: string): void => {
+    this.path = to
+  }
+
+  readonly content = (): string => this.#header + this.#buffer
+
+  readonly liveContent = (): string | null =>
+    this.#status === 'ready' ? this.#header + this.#buffer : null
+
+  readonly isDirty = (): boolean => this.#dirty
+
+  readonly isUnpersisted = (): boolean =>
+    this.#status === 'ready' && this.#missing && this.#inFlightWrite === null
+
+  #emit(): void {
+    if (this.#disposed) {
       return
     }
     const next: NoteSessionSnapshot = {
-      status,
-      initialContent,
-      protected: isProtected,
-      dirty,
-      missing,
-      conflict,
-      error,
+      status: this.#status,
+      initialContent: this.#initialContent,
+      protected: this.#isProtected,
+      dirty: this.#dirty,
+      missing: this.#missing,
+      conflict: this.#conflict,
+      error: this.#error,
     }
     if (
-      lastEmitted !== null &&
-      lastEmitted.status === next.status &&
-      lastEmitted.initialContent === next.initialContent &&
-      lastEmitted.protected === next.protected &&
-      lastEmitted.dirty === next.dirty &&
-      lastEmitted.missing === next.missing &&
-      lastEmitted.conflict === next.conflict &&
-      lastEmitted.error === next.error
+      this.#lastEmitted !== null &&
+      this.#lastEmitted.status === next.status &&
+      this.#lastEmitted.initialContent === next.initialContent &&
+      this.#lastEmitted.protected === next.protected &&
+      this.#lastEmitted.dirty === next.dirty &&
+      this.#lastEmitted.missing === next.missing &&
+      this.#lastEmitted.conflict === next.conflict &&
+      this.#lastEmitted.error === next.error
     ) {
       return
     }
-    lastEmitted = next
-    onSnapshot(next)
+    this.#lastEmitted = next
+    this.#onSnapshot(next)
   }
 
-  function save(): void {
+  #save(): void {
     // A discarded session never writes: its file is being deleted, so any
     // save — including a teardown `flush()` (the pane unmounts via flush →
     // dispose) or an already-queued step — would recreate it. A parked
     // conflict likewise pauses all saves: writing the buffer before the user
     // chooses Keep mine / Load theirs would clobber the external change and
     // defeat the non-destructive flow.
-    if (discarded || deleting || io.write === null || !dirty || isProtected || conflict !== null) {
+    if (
+      this.#discarded ||
+      this.#deleting ||
+      this.#io.write === null ||
+      !this.#dirty ||
+      this.#isProtected ||
+      this.#conflict !== null
+    ) {
       return
     }
-    const write = io.write
-    saveChain = saveChain
+    const write = this.#io.write
+    this.#saveChain = this.#saveChain
       .then(async () => {
         // Re-check at execution time and take the freshest buffer — a queued
         // step can run behind a slow prior write, during which the user may
         // have reverted or kept typing, or the session may have been discarded
         // for a delete. (After dispose the buffer is frozen, so this same step
         // doubles as the final flush.)
-        if (discarded || deleting || !dirty || isProtected || conflict !== null) {
+        if (
+          this.#discarded ||
+          this.#deleting ||
+          !this.#dirty ||
+          this.#isProtected ||
+          this.#conflict !== null
+        ) {
           return
         }
-        const content = header + buffer
-        inFlightWrite = content
+        const content = this.#header + this.#buffer
+        this.#inFlightWrite = content
         try {
-          await write(path, content, missing ? null : disk)
-          disk = content
-          dirty = header + buffer !== content
-          missing = false // the landed write created the file if it was missing
-          error = null // a previous save failure is resolved by this success
-          emit()
-          onContent?.(content, 'saved')
+          await write(this.path, content, this.#missing ? null : this.#disk)
+          this.#disk = content
+          this.#dirty = this.#header + this.#buffer !== content
+          this.#missing = false // the landed write created the file if it was missing
+          this.#error = null // a previous save failure is resolved by this success
+          this.#emit()
+          this.#onContent?.(content, 'saved')
         } finally {
-          inFlightWrite = null
+          this.#inFlightWrite = null
         }
       })
       .catch(async (cause) => {
-        logger.error('failed to save note:', cause)
-        error = errorMessage(cause)
-        await reconcileFromDisk()
-        emit()
+        this.#deps.logger.error('failed to save note:', cause)
+        this.#error = errorMessage(cause)
+        await this.#reconcileFromDisk()
+        this.#emit()
       })
   }
 
-  function scheduleSave(): void {
-    if (deleting) {
+  #scheduleSave(): void {
+    if (this.#deleting) {
       return
     }
-    if (saveTimer !== null) {
-      clock.clearTimeout(saveTimer)
+    if (this.#saveTimer !== null) {
+      this.#deps.clock.clearTimeout(this.#saveTimer)
     }
-    saveTimer = clock.setTimeout(() => {
-      saveTimer = null
-      save()
-    }, saveDebounceMs)
+    this.#saveTimer = this.#deps.clock.setTimeout(() => {
+      this.#saveTimer = null
+      this.#save()
+    }, this.#saveDebounceMs)
   }
 
-  function cancelScheduledSave(): void {
-    if (saveTimer !== null) {
-      clock.clearTimeout(saveTimer)
-      saveTimer = null
+  #cancelScheduledSave(): void {
+    if (this.#saveTimer !== null) {
+      this.#deps.clock.clearTimeout(this.#saveTimer)
+      this.#saveTimer = null
     }
   }
 
-  function flush(): Promise<void> {
-    reconcilePendingEditorInput?.()
-    cancelScheduledSave()
-    save()
+  readonly flush = (): Promise<void> => {
+    this.#reconcilePendingEditorInput?.()
+    this.#cancelScheduledSave()
+    this.#save()
     // save() extended the chain synchronously (or left it settled when there
     // was nothing to do) — the chain as of now is exactly this flush's write.
-    return saveChain
+    return this.#saveChain
   }
 
-  function editorChanged(markdown: string): void {
-    if (applyingContent) {
+  readonly editorChanged = (markdown: string): void => {
+    if (this.#applyingContent) {
       // This change is our own applyContent pushing disk content, not a user
       // edit. The editor's serialization may normalize (trailing newline, loose
       // lists) and differ from the disk bytes — that must not dirty the buffer
       // or schedule a save, or a reload would rewrite a file the user never
       // touched. Track the serialized form; dirtiness resumes with the next
       // real edit.
-      buffer = markdown
+      this.#buffer = markdown
       return
     }
-    buffer = markdown
-    dirty = header + markdown !== disk
-    if (missing && markdown.trim() === '') {
+    this.#buffer = markdown
+    this.#dirty = this.#header + markdown !== this.#disk
+    if (this.#missing && markdown.trim() === '') {
       // A still-unwritten note cleared back to nothing (e.g. the seeded
       // empty-title template deleted wholesale) stays unwritten: creating an
       // empty file would break the lazy no-litter contract. Dirtiness — and
       // the file's birth — resume with the next real content.
-      dirty = false
+      this.#dirty = false
     }
-    emit()
-    if (dirty) {
-      scheduleSave()
+    this.#emit()
+    if (this.#dirty) {
+      this.#scheduleSave()
     }
   }
 
   /**
    * Apply external content to the live editor without entering the save path.
    */
-  function applyToEditor(content: string): void {
-    applyingContent = true
+  #applyToEditor(content: string): void {
+    this.#applyingContent = true
     try {
       // The editor dispatches synchronously, so its change handler runs (and is
       // suppressed) within this call.
-      applyContent(content)
+      this.#applyContent(content)
     } finally {
-      applyingContent = false
+      this.#applyingContent = false
     }
   }
 
   /**
    * Adopt `content` as the new clean document state, re-gating protection.
    */
-  function adoptCleanContent(content: string): void {
+  #adoptCleanContent(content: string): void {
     const doc = splitDoc(content)
-    header = doc.header
-    buffer = doc.body
-    disk = content
-    dirty = false
-    missing = false // external content means the file exists on disk now
+    this.#header = doc.header
+    this.#buffer = doc.body
+    this.#disk = content
+    this.#dirty = false
+    this.#missing = false // external content means the file exists on disk now
     // Re-gate: the content may have introduced (or removed) syntax the editor
     // can't round-trip. When protection flips the pane remounts via
     // initialContent; otherwise reload the live editor in place.
-    const unsafe = detectConflictMarkers(content) || classify(doc.body) === 'lossy'
-    const flipped = unsafe !== isProtected
-    isProtected = unsafe
-    initialContent = unsafe ? content : doc.body
-    emit()
+    const unsafe = detectConflictMarkers(content) || this.#classify(doc.body) === 'lossy'
+    const flipped = unsafe !== this.#isProtected
+    this.#isProtected = unsafe
+    this.#initialContent = unsafe ? content : doc.body
+    this.#emit()
     // While protected there is no live editor mounted (the pane shows the
     // read-only view), and unsafe content must never enter one regardless.
     if (!flipped && !unsafe) {
-      applyToEditor(doc.body)
+      this.#applyToEditor(doc.body)
     }
-    onContent?.(content, 'external')
+    this.#onContent?.(content, 'external')
   }
 
   /**
    * Re-read the note and reconcile the buffer with what's on disk (the
    * external-change path).
    */
-  async function reconcileFromDisk(): Promise<void> {
+  async #reconcileFromDisk(): Promise<void> {
     let content: string
     try {
-      content = await io.read(path)
+      content = await this.#io.read(this.path)
     } catch (cause) {
-      if (!disposed && isAppError(cause) && cause.kind === 'notFound') {
-        missing = true
-        emit()
+      if (!this.#disposed && isAppError(cause) && cause.kind === 'notFound') {
+        this.#missing = true
+        this.#emit()
       }
       return // preserve the buffer if the file disappeared or cannot be read
     }
-    if (disposed) {
+    if (this.#disposed) {
       return
     }
-    if (content === disk || content === inFlightWrite) {
+    if (content === this.#disk || content === this.#inFlightWrite) {
       // Nothing to reconcile (stale, or an echo of our own possibly
       // still-settling save) — but a successful read of a previously-missing
       // note means the file exists now (e.g. another device wrote the seed
       // verbatim), so record that transition before skipping.
-      if (missing) {
-        missing = false
-        emit()
+      if (this.#missing) {
+        this.#missing = false
+        this.#emit()
       }
       return
     }
-    if (dirty) {
+    if (this.#dirty) {
       // Never clobber unsaved edits — park the external content and pause the
       // save pipeline (cancel any pending debounce) until the user chooses; a
       // save landing now would overwrite "theirs" first.
-      cancelScheduledSave()
-      conflict = content
-      emit()
+      this.#cancelScheduledSave()
+      this.#conflict = content
+      this.#emit()
       return
     }
-    adoptCleanContent(content)
+    this.#adoptCleanContent(content)
   }
 
   /**
    * The initial read; with `createIfMissing`, a missing file is an empty note.
    */
-  async function readInitial(): Promise<{ content: string; fileMissing: boolean }> {
+  async #readInitial(): Promise<{ content: string; fileMissing: boolean }> {
     try {
-      return { content: await io.read(path), fileMissing: false }
+      return { content: await this.#io.read(this.path), fileMissing: false }
     } catch (cause) {
-      if (createIfMissing && isAppError(cause) && cause.kind === 'notFound') {
+      if (this.#createIfMissing && isAppError(cause) && cause.kind === 'notFound') {
         return { content: '', fileMissing: true } // lazy note: created by the first save
       }
       throw cause
     }
   }
 
-  function load(): void {
-    loading = true
-    missedChange = false
-    status = 'loading'
-    conflict = null
-    error = null
-    emit()
-    loadPromise = (async () => {
+  readonly load = (): void => {
+    this.#loading = true
+    this.#missedChange = false
+    this.#status = 'loading'
+    this.#conflict = null
+    this.#error = null
+    this.#emit()
+    this.#loadPromise = (async () => {
       try {
-        const { content, fileMissing } = await readInitial()
-        if (disposed) {
+        const { content, fileMissing } = await this.#readInitial()
+        if (this.#disposed) {
           return
         }
         // A missing note adopts the seed as its clean baseline: the editor
         // shows the template, but disk-comparison sees no difference, so
         // nothing is written until a real edit (the lazy no-litter contract).
-        const adopted = fileMissing && missingSeed !== undefined ? missingSeed : content
+        const adopted = fileMissing && this.#missingSeed !== undefined ? this.#missingSeed : content
         const doc = splitDoc(adopted)
-        header = doc.header
-        buffer = doc.body
-        disk = adopted
-        dirty = false
-        missing = fileMissing
+        this.#header = doc.header
+        this.#buffer = doc.body
+        this.#disk = adopted
+        this.#dirty = false
+        this.#missing = fileMissing
         // The data-loss gate: a note the editor can't reproduce opens read-only.
         // Conflict markers need their own check: the round trip mangles them
         // but still classifies `normalizing` (meowdown 0.65.3).
-        isProtected = detectConflictMarkers(adopted) || classify(doc.body) === 'lossy'
-        initialContent = isProtected ? adopted : doc.body
-        status = 'ready'
-        emit()
+        this.#isProtected = detectConflictMarkers(adopted) || this.#classify(doc.body) === 'lossy'
+        this.#initialContent = this.#isProtected ? adopted : doc.body
+        this.#status = 'ready'
+        this.#emit()
         // The real disk content, not the seed: the rename tracker must
         // baseline untitled so the first authored title is a birth.
-        onContent?.(content, 'load')
+        this.#onContent?.(content, 'load')
       } catch (cause) {
-        if (!disposed) {
-          error = errorMessage(cause)
-          status = 'error'
-          emit()
+        if (!this.#disposed) {
+          this.#error = errorMessage(cause)
+          this.#status = 'error'
+          this.#emit()
         }
       } finally {
-        if (!disposed) {
-          loading = false
+        if (!this.#disposed) {
+          this.#loading = false
           // A change event during the load was deferred (reconciling mid-load
           // could be overwritten by this load's older read committing later);
           // replay it now against the committed state.
-          if (missedChange) {
-            missedChange = false
-            void reconcileFromDisk()
+          if (this.#missedChange) {
+            this.#missedChange = false
+            void this.#reconcileFromDisk()
           }
         }
       }
     })()
-    void loadPromise
+    void this.#loadPromise
   }
 
-  function externalChanged(): void {
-    if (disposed) {
+  readonly externalChanged = (): void => {
+    if (this.#disposed) {
       return
     }
-    if (loading) {
-      missedChange = true // deferred; replayed when the load commits
+    if (this.#loading) {
+      this.#missedChange = true // deferred; replayed when the load commits
       return
     }
-    void reconcileFromDisk()
+    void this.#reconcileFromDisk()
   }
 
-  function keepMine(): void {
-    if (conflict !== null) {
-      disk = conflict
-      missing = false
+  readonly keepMine = (): void => {
+    if (this.#conflict !== null) {
+      this.#disk = this.#conflict
+      this.#missing = false
     }
-    conflict = null
-    dirty = true // force the rewrite even if content drifted equal
-    emit()
-    save()
+    this.#conflict = null
+    this.#dirty = true // force the rewrite even if content drifted equal
+    this.#emit()
+    this.#save()
   }
 
-  function loadTheirs(): void {
-    if (conflict === null) {
+  readonly loadTheirs = (): void => {
+    if (this.#conflict === null) {
       return
     }
-    const content = conflict
-    conflict = null
+    const content = this.#conflict
+    this.#conflict = null
     // Same re-gating as the clean-reload path: never load lossy content into a
     // live editor whose next save would drop what it can't model.
-    adoptCleanContent(content)
+    this.#adoptCleanContent(content)
   }
 
-  function updateFrontmatter(patch: FrontmatterPatch): boolean {
-    if (disposed || isProtected || status !== 'ready') {
+  readonly updateFrontmatter = (patch: FrontmatterPatch): boolean => {
+    if (this.#disposed || this.#isProtected || this.#status !== 'ready') {
       return false
     }
-    header = splitDoc(upsertFrontmatter(header + buffer, frontmatterPatchToYaml(patch))).header
-    dirty = header + buffer !== disk
-    emit()
-    if (dirty) {
-      scheduleSave()
+    this.#header = splitDoc(
+      upsertFrontmatter(this.#header + this.#buffer, frontmatterPatchToYaml(patch)),
+    ).header
+    this.#dirty = this.#header + this.#buffer !== this.#disk
+    this.#emit()
+    if (this.#dirty) {
+      this.#scheduleSave()
     }
     return true
   }
 
-  async function commitFrontmatter(patch: FrontmatterPatch): Promise<boolean> {
+  readonly commitFrontmatter = async (patch: FrontmatterPatch): Promise<boolean> => {
     // No write channel (no graph generation yet) means the patch can't land —
     // say so, rather than riding `updateFrontmatter`'s in-memory success while
     // `save()` silently no-ops. A `true` here would let publish/pin/private
     // skip their disk fallback and treat an unwritten flag as persisted.
-    if (io.write === null) {
+    if (this.#io.write === null) {
       return false
     }
-    const previousHeader = header
-    if (!updateFrontmatter(patch)) {
+    const previousHeader = this.#header
+    if (!this.updateFrontmatter(patch)) {
       return false
     }
-    const attemptedHeader = header
+    const attemptedHeader = this.#header
     try {
-      if (conflict === null) {
-        const shouldPersist = dirty
-        await flush()
-        if (shouldPersist && error !== null) {
-          throw new Error(error)
+      if (this.#conflict === null) {
+        const shouldPersist = this.#dirty
+        await this.flush()
+        if (shouldPersist && this.#error !== null) {
+          throw new Error(this.#error)
         }
       } else {
         // Keep both conflict resolutions consistent with the persisted flag.
-        const patched = upsertFrontmatter(conflict, frontmatterPatchToYaml(patch))
-        if (patched !== conflict) {
-          await io.write(path, patched)
-          conflict = patched
-          disk = patched
-          emit()
+        const patched = upsertFrontmatter(this.#conflict, frontmatterPatchToYaml(patch))
+        if (patched !== this.#conflict) {
+          await this.#io.write(this.path, patched)
+          this.#conflict = patched
+          this.#disk = patched
+          this.#emit()
         }
       }
       return true
     } catch (cause) {
       // Preserve body edits and any newer metadata change made during the write.
-      if (header === attemptedHeader) {
-        header = previousHeader
+      if (this.#header === attemptedHeader) {
+        this.#header = previousHeader
       }
-      dirty = header + buffer !== disk
-      emit()
+      this.#dirty = this.#header + this.#buffer !== this.#disk
+      this.#emit()
       throw cause
     }
   }
@@ -519,122 +578,100 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
    * all-or-nothing: a failed flush reverts the in-memory edit so the editor and
    * the Tasks list can't diverge, then re-throws the failure.
    */
-  async function commitBodyEdit(transform: (full: string) => string): Promise<boolean> {
+  readonly commitSourceEdit = async (transform: (full: string) => string): Promise<boolean> => {
     // What the load can't change is refused at once; a stalled read must not
     // hold a session that could never write.
-    if (io.write === null || disposed) {
+    if (this.#io.write === null || this.#disposed) {
       return false
     }
-    if (status === 'loading') {
+    if (this.#status === 'loading') {
       // Never rejects: a failed load settles as `status === 'error'`, which the
       // gate below refuses like any other unready session.
-      await loadPromise
+      await this.#loadPromise
     }
     // Protection is decided by the load, so this gate runs after the wait.
-    if (disposed || isProtected || status !== 'ready' || conflict !== null) {
+    if (
+      this.#disposed ||
+      this.#isProtected ||
+      this.#status !== 'ready' ||
+      this.#conflict !== null
+    ) {
       return false
     }
-    reconcilePendingEditorInput?.()
-    const previousHeader = header
-    const previousBuffer = buffer
-    const previousInitialContent = initialContent
-    const doc = splitDoc(transform(header + buffer))
-    header = doc.header
-    buffer = doc.body
+    this.#reconcilePendingEditorInput?.()
+    const previousHeader = this.#header
+    const previousBuffer = this.#buffer
+    const previousInitialContent = this.#initialContent
+    const doc = splitDoc(transform(this.#header + this.#buffer))
+    this.#header = doc.header
+    this.#buffer = doc.body
     // The pane seeds a mounting editor from `initialContent`; after a wait on
     // the load no editor is mounted yet, so the seed must carry the edit too.
-    initialContent = doc.body
-    applyToEditor(doc.body) // an already open editor shows the edited line
-    dirty = header + buffer !== disk
+    this.#initialContent = doc.body
+    this.#applyToEditor(doc.body) // an already open editor shows the edited line
+    this.#dirty = this.#header + this.#buffer !== this.#disk
     // A no-op edit (transform changed nothing) writes nothing, so a *prior*
     // surfaced save error must not be mistaken for this edit's failure.
-    const shouldPersist = dirty
-    emit()
-    await flush()
+    const shouldPersist = this.#dirty
+    this.#emit()
+    await this.flush()
     // `flush()` resolves even when the write failed (captured in `error`, not
     // thrown). Revert and surface the failure: it persists, or nothing changes.
-    if (shouldPersist && error !== null) {
-      const message = error
-      if (header === doc.header) header = previousHeader
-      if (buffer === doc.body) {
-        buffer = previousBuffer
-        initialContent = previousInitialContent
-        applyToEditor(previousBuffer)
+    if (shouldPersist && this.#error !== null) {
+      const message = this.#error
+      if (this.#header === doc.header) this.#header = previousHeader
+      if (this.#buffer === doc.body) {
+        this.#buffer = previousBuffer
+        this.#initialContent = previousInitialContent
+        this.#applyToEditor(previousBuffer)
       }
-      dirty = header + buffer !== disk
-      error = null
-      emit()
+      this.#dirty = this.#header + this.#buffer !== this.#disk
+      this.#error = null
+      this.#emit()
       throw new Error(message)
     }
     return true
   }
 
-  function commitBodyAppend(block: string): Promise<boolean> {
+  readonly commitBodyAppend = (block: string): Promise<boolean> => {
     if (block.trim() === '') {
       return Promise.resolve(false)
     }
-    return commitBodyEdit((full) => appendBlock(full, block))
+    return this.commitSourceEdit((full) => appendBlock(full, block))
   }
 
-  function dispose(): void {
+  readonly dispose = (): void => {
     // A discarded session must not write: its file is being deleted, and a
     // flush would recreate it. Otherwise flush first — the queued save step
     // reads the (now frozen) buffer, so pending edits persist to this
     // session's path even after the UI moves on.
-    if (!discarded) {
-      void flush()
+    if (!this.#discarded) {
+      void this.flush()
     }
-    disposed = true
+    this.#disposed = true
   }
 
-  function discard(): void {
-    cancelScheduledSave()
-    discarded = true
-    disposed = true
+  readonly discard = (): void => {
+    this.#cancelScheduledSave()
+    this.#discarded = true
+    this.#disposed = true
   }
 
-  async function prepareDelete(): Promise<boolean> {
-    deleting = true
-    cancelScheduledSave()
-    await loadPromise
-    await saveChain
-    return status === 'ready' && missing && inFlightWrite === null
+  readonly prepareDelete = async (): Promise<boolean> => {
+    this.#deleting = true
+    this.#cancelScheduledSave()
+    await this.#loadPromise
+    await this.#saveChain
+    return this.#status === 'ready' && this.#missing && this.#inFlightWrite === null
   }
 
-  function cancelDelete(): void {
-    if (!deleting || discarded) {
+  readonly cancelDelete = (): void => {
+    if (!this.#deleting || this.#discarded) {
       return
     }
-    deleting = false
-    if (!disposed && dirty) {
-      scheduleSave()
+    this.#deleting = false
+    if (!this.#disposed && this.#dirty) {
+      this.#scheduleSave()
     }
   }
-
-  const session = {
-    path,
-    retarget: (to: string) => {
-      path = to
-      session.path = to
-    },
-    load,
-    editorChanged,
-    externalChanged,
-    flush,
-    keepMine,
-    loadTheirs,
-    content: () => header + buffer,
-    liveContent: () => (status === 'ready' ? header + buffer : null),
-    isDirty: () => dirty,
-    isUnpersisted: () => status === 'ready' && missing && inFlightWrite === null,
-    prepareDelete,
-    cancelDelete,
-    updateFrontmatter,
-    commitFrontmatter,
-    commitBodyAppend,
-    commitSourceEdit: commitBodyEdit,
-    dispose,
-    discard,
-  }
-  return session
 }

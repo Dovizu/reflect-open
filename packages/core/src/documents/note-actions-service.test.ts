@@ -13,7 +13,7 @@ import {
 } from '../testing/graph-session.ts'
 import { createTestIdService } from '../testing/id.ts'
 import { parseNote } from '../markdown/extract.ts'
-import { createTestNoteFileService } from '../testing/graph.ts'
+import { createTestNoteFileService, overrideNoteFileService } from '../testing/graph.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import { createTestClipboardService } from '../testing/shell.ts'
@@ -69,7 +69,7 @@ function createNoteActions(deps: {
     id: createTestIdService(),
     graphSession: graph,
   })
-  return { actions: { ...service, indexed: () => [...indexLog] }, openDocuments }
+  return { actions: Object.assign(service, { indexed: () => [...indexLog] }), openDocuments }
 }
 
 function setup(options?: {
@@ -128,12 +128,12 @@ function indexRow(path: string, overrides: Partial<NoteRow> = {}): NoteRow {
 }
 
 function failing(method: 'read' | 'write' | 'delete', error: unknown) {
-  return (files: NoteFileService): NoteFileService => ({
-    ...files,
-    [method]: async () => {
-      throw error
-    },
-  })
+  return (files: NoteFileService): NoteFileService =>
+    overrideNoteFileService(files, {
+      [method]: async () => {
+        throw error
+      },
+    })
 }
 
 describe('togglePinned', () => {
@@ -295,15 +295,15 @@ describe('togglePinned', () => {
     let fail = true
     const { actions, files, operations, noteRows } = setup({
       files: { 'notes/a.md': '# A\n' },
-      wrapNoteFile: (inner) => ({
-        ...inner,
-        read: async (...args) => {
-          if (fail) {
-            throw { kind: 'io', message: 'disk on fire' }
-          }
-          return await inner.read(...args)
-        },
-      }),
+      wrapNoteFile: (inner) =>
+        overrideNoteFileService(inner, {
+          read: async (...args) => {
+            if (fail) {
+              throw { kind: 'io', message: 'disk on fire' }
+            }
+            return await inner.read(...args)
+          },
+        }),
     })
 
     await expect(actions.togglePinned('notes/a.md')).resolves.toEqual({ status: 'failed' })
@@ -385,13 +385,13 @@ describe('reorderPinned', () => {
     const gate = Promise.withResolvers<void>()
     const { actions, files, noteRows } = setup({
       files: { 'notes/a.md': '# A\n' },
-      wrapNoteFile: (inner) => ({
-        ...inner,
-        write: async (...args) => {
-          await gate.promise
-          return await inner.write(...args)
-        },
-      }),
+      wrapNoteFile: (inner) =>
+        overrideNoteFileService(inner, {
+          write: async (...args) => {
+            await gate.promise
+            return await inner.write(...args)
+          },
+        }),
     })
 
     const first = actions.reorderPinned([{ path: 'notes/a.md', pinnedOrder: 1024 }])
@@ -494,13 +494,13 @@ describe('togglePrivate', () => {
     const gate = Promise.withResolvers<void>()
     const { actions, files } = setup({
       files: { 'notes/a.md': '# A\n' },
-      wrapNoteFile: (inner) => ({
-        ...inner,
-        read: async (...args) => {
-          await gate.promise
-          return await inner.read(...args)
-        },
-      }),
+      wrapNoteFile: (inner) =>
+        overrideNoteFileService(inner, {
+          read: async (...args) => {
+            await gate.promise
+            return await inner.read(...args)
+          },
+        }),
     })
     const first = actions.togglePrivate('notes/a.md')
     const second = actions.togglePrivate('notes/a.md')
@@ -543,13 +543,12 @@ function lazySession(
   beforeWrite: () => Promise<void>,
 ): { readonly session: NoteSession; readonly snapshots: NoteSessionSnapshot[] } {
   const snapshots: NoteSessionSnapshot[] = []
-  const noteFile: NoteFileService = {
-    ...files,
+  const noteFile = overrideNoteFileService(files, {
     write: async (...args) => {
       await beforeWrite()
       return await files.write(...args)
     },
-  }
+  })
   const session = createNoteSessionService({
     noteFile,
     clock: createTestClockService(),
@@ -750,15 +749,15 @@ describe('trashMany', () => {
   it('keeps going past a failure and fails the operation with the last error', async () => {
     const { actions, files, operations, noteRows } = setup({
       files: { 'notes/a.md': '# A\n', 'notes/b.md': '# B\n', 'notes/c.md': '# C\n' },
-      wrapNoteFile: (inner) => ({
-        ...inner,
-        delete: async (path, generation) => {
-          if (path === 'notes/b.md') {
-            throw new Error('locked')
-          }
-          await inner.delete(path, generation)
-        },
-      }),
+      wrapNoteFile: (inner) =>
+        overrideNoteFileService(inner, {
+          delete: async (path, generation) => {
+            if (path === 'notes/b.md') {
+              throw new Error('locked')
+            }
+            await inner.delete(path, generation)
+          },
+        }),
     })
     const result = await actions.trashMany([
       'notes/a.md',

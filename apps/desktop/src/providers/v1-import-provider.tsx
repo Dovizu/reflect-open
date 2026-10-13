@@ -48,7 +48,12 @@ export function V1ImportProvider({ children }: V1ImportProviderProps): ReactElem
   useEffect(() => service.attach(), [service])
 
   const value = useMemo<V1ImportContextValue>(
-    () => ({ ...service, state, startImport: service.start, cancelImport: service.cancel }),
+    () => ({
+      state,
+      dismiss: service.dismiss,
+      startImport: service.start,
+      cancelImport: service.cancel,
+    }),
     [state, service],
   )
 

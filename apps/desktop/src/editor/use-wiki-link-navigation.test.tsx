@@ -52,7 +52,7 @@ function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
         resolveWikiTarget: resolveExistingWikiTarget,
         resolveMarkdownHref: vi.fn(),
       },
-      noteCreation: { ...base.noteCreation, resolveOrCreateNoteWithTitle },
+      noteCreation: Object.assign(base.noteCreation, { resolveOrCreateNoteWithTitle }),
       window: createTestWindowService({ openNoteWindow }),
       operations,
       logger,

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createIndexQueryService } from './index-query-service.ts'
@@ -29,15 +29,14 @@ function setup(options?: { read?: () => void; lookup?: () => void }) {
   const files = createTestNoteFileService({ files: { [ARRIVAL]: CONTENT } })
   const indexQuery = createIndexQueryService({ database })
   const calls: string[] = []
+  const readFile = files.read.bind(files)
+  vi.spyOn(files, 'read').mockImplementation(async (path, generation) => {
+    calls.push('read')
+    options?.read?.()
+    return await readFile(path, generation)
+  })
   const healing = createMoveHealing({
-    noteFile: {
-      ...files,
-      read: async (path, generation) => {
-        calls.push('read')
-        options?.read?.()
-        return await files.read(path, generation)
-      },
-    },
+    noteFile: files,
     indexQuery: {
       ...indexQuery,
       getNoteIdsByPath: async (paths) => {

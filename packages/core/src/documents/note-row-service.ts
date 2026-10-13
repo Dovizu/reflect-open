@@ -14,7 +14,9 @@ import { isValidPinOrder } from './pin-order.ts'
  */
 export interface NoteRowOverlay {
   readonly isPinned?: boolean
-  /** The shelf order a pin wrote; `null` for a bare `pinned: true`. */
+  /**
+   * The shelf order a pin wrote; `null` for a bare `pinned: true`.
+   */
   readonly pinnedOrder?: number | null
   readonly isPrivate?: boolean
   readonly gistUrl?: string | null
@@ -40,7 +42,11 @@ export type NoteRowFacts = {
   readonly [Key in Exclude<keyof NoteRowOverlay, 'trashed'>]?: NoteRowOverlay[Key] | undefined
 }
 
-/** A listed note's {@link NoteRowFacts}, keyed by its path. */
+/**
+
+ * A listed note's {@link NoteRowFacts}, keyed by its path.
+
+ */
 export type NoteListRowFacts = NoteRowFacts & { readonly path: string }
 
 export interface NoteRowReconcileOptions {
@@ -73,7 +79,9 @@ const ROW_KEYS = [
 ] as const satisfies readonly (keyof NoteRowFacts)[]
 
 interface OverlayEntry {
-  /** The graph (file) generation this optimism was written under. */
+  /**
+   * The graph (file) generation this optimism was written under.
+   */
   readonly generation: number
   readonly overlay: NoteRowOverlay
 }
@@ -118,7 +126,9 @@ export interface NoteRowService {
    * action's value stays.
    */
   dropOverlay(path: string, generation: number, patch: NoteRowOverlayPatch): void
-  /** The overlay for `path` on the open graph, or `null` when none applies or no graph is open. */
+  /**
+   * The overlay for `path` on the open graph, or `null` when none applies or no graph is open.
+   */
   getOverlay(path: string): NoteRowOverlay | null
   /**
    * Every overlay on the open graph, by path. The same map is returned until
@@ -126,7 +136,9 @@ export interface NoteRowService {
    * subscription.
    */
   getOverlays(): ReadonlyMap<string, NoteRowOverlay>
-  /** Every overlay on `generation`, by path. */
+  /**
+   * Every overlay on `generation`, by path.
+   */
   getOverlaysOn(generation: number): ReadonlyMap<string, NoteRowOverlay>
   /**
    * Drop overlay fields the freshly-read index `row` has caught up to (and the
@@ -135,15 +147,25 @@ export interface NoteRowService {
    * may not be indexed yet). Only overlays on the open graph reconcile.
    */
   reconcile(path: string, row: NoteRowFacts | null): void
-  /** {@link NoteRowService.reconcile} for each listed row. */
+  /**
+   * {@link NoteRowService.reconcile} for each listed row.
+   */
   reconcileRows(rows: readonly NoteListRowFacts[], options?: NoteRowReconcileOptions): void
-  /** Drop every overlay: graph teardown reclaims memory (correctness is by generation). */
+  /**
+   * Drop every overlay: graph teardown reclaims memory (correctness is by generation).
+   */
   reset(): void
-  /** Call `listener` whenever an overlay or the open graph changes. */
+  /**
+   * Call `listener` whenever an overlay or the open graph changes.
+   */
   subscribe(listener: () => void): Unlisten
 }
 
-/** Strip `undefined` fields: an all-`undefined` patch must never be stored. */
+/**
+
+ * Strip `undefined` fields: an all-`undefined` patch must never be stored.
+
+ */
 function definedFields(patch: NoteRowOverlayPatch): MutableNoteRowOverlay {
   const result: Record<string, unknown> = {}
   for (const key of OVERLAY_KEYS) {
@@ -154,7 +176,11 @@ function definedFields(patch: NoteRowOverlayPatch): MutableNoteRowOverlay {
   return result as MutableNoteRowOverlay
 }
 
-/** Copy the `overlay` fields that `row` carries onto it; `null` when none changes a value. */
+/**
+
+ * Copy the `overlay` fields that `row` carries onto it; `null` when none changes a value.
+
+ */
 function mergeOverlay<Row extends object>(row: Row, overlay: NoteRowOverlay): Row | null {
   let merged: Row | null = null
   for (const key of ROW_KEYS) {
@@ -269,7 +295,11 @@ export function applyPinnedNoteOverlays(
   return sorted
 }
 
-/** The overlay with the fields `row` agrees with removed; `null` when none agrees. */
+/**
+
+ * The overlay with the fields `row` agrees with removed; `null` when none agrees.
+
+ */
 function retireAgreeing(overlay: NoteRowOverlay, row: NoteRowFacts): MutableNoteRowOverlay | null {
   const remaining: MutableNoteRowOverlay = { ...overlay }
   let retired = false
@@ -283,36 +313,159 @@ function retireAgreeing(overlay: NoteRowOverlay, row: NoteRowFacts): MutableNote
   return retired ? remaining : null
 }
 
-export function createNoteRowService(deps: {
-  graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
-}): NoteRowService {
-  const { graphSession } = deps
-  const overlays = new Map<string, OverlayEntry>()
-  const listeners = new Set<() => void>()
-  let snapshot: { generation: number; overlays: ReadonlyMap<string, NoteRowOverlay> } | null = null
+export interface NoteRowServiceDeps {
+  readonly graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
+}
 
-  function emit(): void {
-    snapshot = null
-    for (const listener of listeners) {
+class NoteRowServiceImpl implements NoteRowService {
+  readonly #deps: NoteRowServiceDeps
+  readonly #overlays = new Map<string, OverlayEntry>()
+  readonly #listeners = new Set<() => void>()
+  #snapshot: { generation: number; overlays: ReadonlyMap<string, NoteRowOverlay> } | null = null
+
+  constructor(deps: NoteRowServiceDeps) {
+    this.#deps = deps
+  }
+
+  setOverlay(path: string, generation: number, patch: NoteRowOverlayPatch): void {
+    const defined = definedFields(patch)
+    if (Object.keys(defined).length === 0) {
+      return
+    }
+    const existing = this.#overlays.get(path)
+    // Never let an older generation's late write clobber a newer graph's overlay.
+    // Rust already rejects stale-generation file writes before an action reaches
+    // here, so this is defence in depth: the store owns the invariant rather
+    // than trusting the caller.
+    if (existing !== undefined && existing.generation > generation) {
+      return
+    }
+    const base: MutableNoteRowOverlay =
+      existing?.generation === generation ? { ...existing.overlay } : {}
+    if (defined.isPinned === false) {
+      delete base.pinnedOrder
+    }
+    if (defined.trashed === undefined) {
+      delete base.trashed
+    }
+    this.#overlays.set(path, { generation, overlay: { ...base, ...defined } })
+    this.#emit()
+  }
+
+  dropOverlay(path: string, generation: number, patch: NoteRowOverlayPatch): void {
+    const entry = this.#overlays.get(path)
+    if (entry === undefined || entry.generation !== generation) {
+      return
+    }
+    const remaining: MutableNoteRowOverlay = { ...entry.overlay }
+    let dropped = false
+    for (const [key, value] of Object.entries(definedFields(patch))) {
+      const field = key as keyof NoteRowOverlay
+      if (remaining[field] === value) {
+        delete remaining[field]
+        dropped = true
+      }
+    }
+    if (dropped) {
+      this.#store(path, generation, remaining)
+      this.#emit()
+    }
+  }
+
+  getOverlay(path: string): NoteRowOverlay | null {
+    const generation = this.#openGeneration()
+    if (generation === null) {
+      return null
+    }
+    const entry = this.#overlays.get(path)
+    return entry !== undefined && entry.generation === generation ? entry.overlay : null
+  }
+
+  getOverlays(): ReadonlyMap<string, NoteRowOverlay> {
+    const generation = this.#openGeneration()
+    if (generation === null) {
+      return EMPTY_OVERLAYS
+    }
+    if (this.#snapshot?.generation !== generation) {
+      this.#snapshot = { generation, overlays: this.#collect(generation) }
+    }
+    return this.#snapshot.overlays
+  }
+
+  getOverlaysOn(generation: number): ReadonlyMap<string, NoteRowOverlay> {
+    return this.#snapshot?.generation === generation
+      ? this.#snapshot.overlays
+      : this.#collect(generation)
+  }
+
+  reconcile(path: string, row: NoteRowFacts | null): void {
+    const generation = this.#openGeneration()
+    if (generation !== null && this.#reconcileEntry(path, generation, row)) {
+      this.#emit()
+    }
+  }
+
+  reconcileRows(rows: readonly NoteListRowFacts[], options?: NoteRowReconcileOptions): void {
+    const generation = this.#openGeneration()
+    if (generation === null) {
+      return
+    }
+    let changed = false
+    for (const row of rows) {
+      changed = this.#reconcileEntry(row.path, generation, row) || changed
+    }
+    if (options?.complete === true) {
+      const listed = new Set(rows.map((row) => row.path))
+      for (const [path, entry] of this.#overlays) {
+        if (!listed.has(path) && entry.generation === generation) {
+          changed = this.#reconcileEntry(path, generation, null) || changed
+        }
+      }
+    }
+    if (changed) {
+      this.#emit()
+    }
+  }
+
+  reset(): void {
+    if (this.#overlays.size === 0) {
+      return
+    }
+    this.#overlays.clear()
+    this.#emit()
+  }
+
+  subscribe(listener: () => void): Unlisten {
+    this.#listeners.add(listener)
+    const stopGraph = this.#deps.graphSession.subscribe(listener)
+    return () => {
+      this.#listeners.delete(listener)
+      stopGraph()
+    }
+  }
+
+  #emit(): void {
+    this.#snapshot = null
+    for (const listener of this.#listeners) {
       listener()
     }
   }
 
-  function store(path: string, generation: number, overlay: MutableNoteRowOverlay): void {
+  #store(path: string, generation: number, overlay: MutableNoteRowOverlay): void {
     if (Object.keys(overlay).length === 0) {
-      overlays.delete(path)
+      this.#overlays.delete(path)
     } else {
-      overlays.set(path, { generation, overlay })
+      this.#overlays.set(path, { generation, overlay })
     }
   }
 
-  function openGeneration(): number | null {
-    return graphSession.getState().session?.generation ?? null
+  #openGeneration(): number | null {
+    return this.#deps.graphSession.getState().session?.generation ?? null
   }
 
-  function collect(generation: number): ReadonlyMap<string, NoteRowOverlay> {
+  #collect(generation: number): ReadonlyMap<string, NoteRowOverlay> {
     const current = new Map<string, NoteRowOverlay>()
-    for (const [path, entry] of overlays) {
+    for (const [path, entry] of this.#overlays) {
       if (entry.generation === generation) {
         current.set(path, entry.overlay)
       }
@@ -320,9 +473,11 @@ export function createNoteRowService(deps: {
     return current.size === 0 ? EMPTY_OVERLAYS : current
   }
 
-  /** Reconcile one entry without emitting; `true` when it changed. */
-  function reconcileEntry(path: string, generation: number, row: NoteRowFacts | null): boolean {
-    const entry = overlays.get(path)
+  /**
+   * Reconcile one entry without emitting; `true` when it changed.
+   */
+  #reconcileEntry(path: string, generation: number, row: NoteRowFacts | null): boolean {
+    const entry = this.#overlays.get(path)
     if (entry === undefined || entry.generation !== generation) {
       return false
     }
@@ -330,123 +485,18 @@ export function createNoteRowService(deps: {
       if (entry.overlay.trashed !== true) {
         return false
       }
-      overlays.delete(path)
+      this.#overlays.delete(path)
       return true
     }
     const remaining = retireAgreeing(entry.overlay, row)
     if (remaining === null) {
       return false
     }
-    store(path, generation, remaining)
+    this.#store(path, generation, remaining)
     return true
   }
+}
 
-  return {
-    setOverlay(path, generation, patch) {
-      const defined = definedFields(patch)
-      if (Object.keys(defined).length === 0) {
-        return
-      }
-      const existing = overlays.get(path)
-      // Never let an older generation's late write clobber a newer graph's overlay.
-      // Rust already rejects stale-generation file writes before an action reaches
-      // here, so this is defence in depth: the store owns the invariant rather
-      // than trusting the caller.
-      if (existing !== undefined && existing.generation > generation) {
-        return
-      }
-      const base: MutableNoteRowOverlay =
-        existing?.generation === generation ? { ...existing.overlay } : {}
-      if (defined.isPinned === false) {
-        delete base.pinnedOrder
-      }
-      if (defined.trashed === undefined) {
-        delete base.trashed
-      }
-      overlays.set(path, { generation, overlay: { ...base, ...defined } })
-      emit()
-    },
-    dropOverlay(path, generation, patch) {
-      const entry = overlays.get(path)
-      if (entry === undefined || entry.generation !== generation) {
-        return
-      }
-      const remaining: MutableNoteRowOverlay = { ...entry.overlay }
-      let dropped = false
-      for (const [key, value] of Object.entries(definedFields(patch))) {
-        const field = key as keyof NoteRowOverlay
-        if (remaining[field] === value) {
-          delete remaining[field]
-          dropped = true
-        }
-      }
-      if (dropped) {
-        store(path, generation, remaining)
-        emit()
-      }
-    },
-    getOverlay(path) {
-      const generation = openGeneration()
-      if (generation === null) {
-        return null
-      }
-      const entry = overlays.get(path)
-      return entry !== undefined && entry.generation === generation ? entry.overlay : null
-    },
-    getOverlays() {
-      const generation = openGeneration()
-      if (generation === null) {
-        return EMPTY_OVERLAYS
-      }
-      if (snapshot?.generation !== generation) {
-        snapshot = { generation, overlays: collect(generation) }
-      }
-      return snapshot.overlays
-    },
-    getOverlaysOn(generation) {
-      return snapshot?.generation === generation ? snapshot.overlays : collect(generation)
-    },
-    reconcile(path, row) {
-      const generation = openGeneration()
-      if (generation !== null && reconcileEntry(path, generation, row)) {
-        emit()
-      }
-    },
-    reconcileRows(rows, options) {
-      const generation = openGeneration()
-      if (generation === null) {
-        return
-      }
-      let changed = false
-      for (const row of rows) {
-        changed = reconcileEntry(row.path, generation, row) || changed
-      }
-      if (options?.complete === true) {
-        const listed = new Set(rows.map((row) => row.path))
-        for (const [path, entry] of overlays) {
-          if (!listed.has(path) && entry.generation === generation) {
-            changed = reconcileEntry(path, generation, null) || changed
-          }
-        }
-      }
-      if (changed) {
-        emit()
-      }
-    },
-    reset() {
-      if (overlays.size === 0) {
-        return
-      }
-      overlays.clear()
-      emit()
-    },
-    subscribe(listener) {
-      listeners.add(listener)
-      const stopGraph = graphSession.subscribe(listener)
-      return () => {
-        listeners.delete(listener)
-        stopGraph()
-      }
-    },
-  }
+export function createNoteRowService(deps: NoteRowServiceDeps): NoteRowService {
+  return new NoteRowServiceImpl(deps)
 }

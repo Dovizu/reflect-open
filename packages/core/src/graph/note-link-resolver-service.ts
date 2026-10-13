@@ -10,7 +10,9 @@ import { markdownNoteReference, wikiNoteReference, type NoteReference } from './
 import { dailyPath, foldGraphPath, NOTES_DIR } from './paths.ts'
 import type { FileMeta } from './schemas.ts'
 
-/** The side-effect-free outcome of resolving one existing note-link target. */
+/**
+ * The side-effect-free outcome of resolving one existing note-link target.
+ */
 export type ExistingWikiTargetResolution =
   | { readonly kind: 'resolved'; readonly path: string }
   | { readonly kind: 'ambiguous'; readonly paths: readonly string[] }
@@ -34,7 +36,9 @@ export interface NoteLinkResolverService {
     generation: number,
     sourcePath?: string,
   ): Promise<ExistingWikiTargetResolution>
-  /** Resolve a standard Markdown note href from the note that contains it. */
+  /**
+   * Resolve a standard Markdown note href from the note that contains it.
+   */
   resolveMarkdownHref(
     sourcePath: string,
     href: string,
@@ -64,7 +68,9 @@ function resolutionForPaths(paths: readonly string[]): ExistingMatchResolution |
   return null
 }
 
-/** Does `path` belong to `slug.md`, `slug-2.md`, ... under `notes/`? */
+/**
+ * Does `path` belong to `slug.md`, `slug-2.md`, ... under `notes/`?
+ */
 function isSlugFamilyPath(path: string, slug: string): boolean {
   const prefix = `${NOTES_DIR}/`
   const suffix = '.md'
@@ -102,22 +108,51 @@ function diskTitleResolution(disk: DiskTitleMatch): ExistingMatchResolution | nu
   return null
 }
 
-export function createNoteLinkResolverService(deps: {
-  wikiResolver: WikiResolverService
-  noteFile: NoteFileService
-}): NoteLinkResolverService {
-  const { wikiResolver, noteFile } = deps
+export interface NoteLinkResolverServiceDeps {
+  readonly wikiResolver: WikiResolverService
+  readonly noteFile: NoteFileService
+}
+
+class NoteLinkResolverServiceImpl implements NoteLinkResolverService {
+  readonly #deps: NoteLinkResolverServiceDeps
+
+  constructor(deps: NoteLinkResolverServiceDeps) {
+    this.#deps = deps
+  }
+
+  async resolveWikiTarget(
+    target: string,
+    generation: number,
+    sourcePath = '',
+  ): Promise<ExistingWikiTargetResolution> {
+    const reference = wikiNoteReference(target)
+    return reference === null
+      ? { kind: 'missing' }
+      : await this.#resolveReference(reference, sourcePath, generation)
+  }
+
+  async resolveMarkdownHref(
+    sourcePath: string,
+    href: string,
+    generation: number,
+  ): Promise<ExistingWikiTargetResolution> {
+    const reference = markdownNoteReference(sourcePath, href)
+    return reference === null
+      ? { kind: 'missing' }
+      : await this.#resolveReference(reference, sourcePath, generation)
+  }
 
   /**
    * Inspect only the target's title-derived filename family. This deliberately
    * is not a graph-wide alias scan: link resolution must remain bounded even
    * when the index is rebuilding.
    */
-  async function matchTitleOnDisk(
+  async #matchTitleOnDisk(
     title: string,
     generation: number,
     listNoteFiles: ListNoteFiles,
   ): Promise<DiskTitleMatch> {
+    const { noteFile } = this.#deps
     const slug = slugForTitle(title)
     const candidates = (await listNoteFiles())
       .filter((file) => isSlugFamilyPath(file.path, slug))
@@ -177,11 +212,12 @@ export function createNoteLinkResolverService(deps: {
     }
   }
 
-  async function dailyFileResolution(
+  async #dailyFileResolution(
     date: string,
     generation: number,
     listNoteFiles: ListNoteFiles,
   ): Promise<ExistingMatchResolution | null> {
+    const { noteFile } = this.#deps
     const path = dailyPath(date)
     try {
       await noteFile.read(path, generation)
@@ -203,7 +239,7 @@ export function createNoteLinkResolverService(deps: {
    * Apply index precedence while letting an index-lagging daily file outrank an
    * indexed regular title or alias with the same ISO date spelling.
    */
-  async function indexedResolution(
+  async #indexedResolution(
     match: WikiTargetMatch,
     date: string | undefined,
     generation: number,
@@ -213,7 +249,7 @@ export function createNoteLinkResolverService(deps: {
       return resolutionForPaths(match.paths)
     }
     if (date !== undefined) {
-      const daily = await dailyFileResolution(date, generation, listNoteFiles)
+      const daily = await this.#dailyFileResolution(date, generation, listNoteFiles)
       if (daily !== null) {
         return daily
       }
@@ -229,10 +265,8 @@ export function createNoteLinkResolverService(deps: {
    * during the disk scan. An alias stored outside its title's slug family
    * therefore remains missing until the index sees it.
    */
-  async function resolveBareKey(
-    key: string,
-    generation: number,
-  ): Promise<ExistingWikiTargetResolution> {
+  async #resolveBareKey(key: string, generation: number): Promise<ExistingWikiTargetResolution> {
+    const { wikiResolver, noteFile } = this.#deps
     const normalized = normalizeWikiTarget(key)
     if (normalized.key === '') {
       return { kind: 'missing' }
@@ -243,7 +277,7 @@ export function createNoteLinkResolverService(deps: {
       return listedFiles
     }
 
-    const indexed = await indexedResolution(
+    const indexed = await this.#indexedResolution(
       await wikiResolver.findWikiTargetMatch(normalized.key),
       normalized.date,
       generation,
@@ -254,13 +288,13 @@ export function createNoteLinkResolverService(deps: {
     }
 
     const disk = diskTitleResolution(
-      await matchTitleOnDisk(normalized.raw, generation, listNoteFiles),
+      await this.#matchTitleOnDisk(normalized.raw, generation, listNoteFiles),
     )
     if (disk !== null) {
       return disk
     }
 
-    const reResolved = await indexedResolution(
+    const reResolved = await this.#indexedResolution(
       await wikiResolver.findWikiTargetMatch(normalized.key),
       normalized.date,
       generation,
@@ -274,10 +308,8 @@ export function createNoteLinkResolverService(deps: {
    * exactly one read. This is why path links need none of the bounded
    * slug-family scan a bare name needs.
    */
-  async function pathResolution(
-    path: string,
-    generation: number,
-  ): Promise<ExistingMatchResolution | null> {
+  async #pathResolution(path: string, generation: number): Promise<ExistingMatchResolution | null> {
+    const { wikiResolver, noteFile } = this.#deps
     const indexed = await wikiResolver.findNotesByPathKey(foldGraphPath(path))
     const resolution = resolutionForPaths(indexed)
     if (resolution !== null) {
@@ -297,7 +329,7 @@ export function createNoteLinkResolverService(deps: {
     }
   }
 
-  async function resolveReference(
+  async #resolveReference(
     reference: NoteReference,
     sourcePath: string,
     generation: number,
@@ -308,33 +340,24 @@ export function createNoteLinkResolverService(deps: {
       return sourcePath === '' ? { kind: 'missing' } : { kind: 'resolved', path: sourcePath }
     }
     if (reference.kind === 'path') {
-      return (await pathResolution(reference.path, generation)) ?? { kind: 'missing' }
+      return (await this.#pathResolution(reference.path, generation)) ?? { kind: 'missing' }
     }
     if (reference.kind === 'pathOrKey') {
       // The path reading is more specific, so an existing (or unavailable) file
       // wins; a target that names no file falls back to the name it also
       // spells. Only an explicit leading `/` opts out of this fallback.
-      const asPath = await pathResolution(reference.path, generation)
+      const asPath = await this.#pathResolution(reference.path, generation)
       if (asPath !== null) {
         return asPath
       }
-      return await resolveBareKey(reference.key, generation)
+      return await this.#resolveBareKey(reference.key, generation)
     }
-    return await resolveBareKey(reference.key, generation)
+    return await this.#resolveBareKey(reference.key, generation)
   }
+}
 
-  return {
-    async resolveWikiTarget(target, generation, sourcePath = '') {
-      const reference = wikiNoteReference(target)
-      return reference === null
-        ? { kind: 'missing' }
-        : await resolveReference(reference, sourcePath, generation)
-    },
-    async resolveMarkdownHref(sourcePath, href, generation) {
-      const reference = markdownNoteReference(sourcePath, href)
-      return reference === null
-        ? { kind: 'missing' }
-        : await resolveReference(reference, sourcePath, generation)
-    },
-  }
+export function createNoteLinkResolverService(
+  deps: NoteLinkResolverServiceDeps,
+): NoteLinkResolverService {
+  return new NoteLinkResolverServiceImpl(deps)
 }

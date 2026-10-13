@@ -80,14 +80,8 @@ describe('useConflictResolution', () => {
   })
 
   it('a failed write surfaces the error and notifies nothing', async () => {
-    const { result, act } = await mount({
-      noteFile: {
-        ...noteFile,
-        write: async () => {
-          throw new ReflectError('io', 'disk full')
-        },
-      },
-    })
+    vi.spyOn(noteFile, 'write').mockRejectedValue(new ReflectError('io', 'disk full'))
+    const { result, act } = await mount()
 
     await act(async () => {
       await result.current.resolve('theirs')

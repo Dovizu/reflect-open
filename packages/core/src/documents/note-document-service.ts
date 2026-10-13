@@ -62,14 +62,20 @@ export interface NoteDocumentService {
     transform: (source: string) => string,
     options: CommitSourceEditOptions,
   ): Promise<void>
-  /** {@link isOstensiblyEmptyNoteSource}. */
+  /**
+   * {@link isOstensiblyEmptyNoteSource}.
+   */
   isOstensiblyEmpty(source: string): boolean
 }
 
 export interface CommitSourceEditOptions {
-  /** The index generation the disk write carries. */
+  /**
+   * The index generation the disk write carries.
+   */
   readonly generation: number
-  /** Treat a missing note as empty: the edit creates it (today's daily). */
+  /**
+   * Treat a missing note as empty: the edit creates it (today's daily).
+   */
   readonly createIfMissing?: boolean
 }
 
@@ -97,31 +103,13 @@ export function isOstensiblyEmptyNoteSource(source: string): boolean {
   return body.replaceAll(/[-+*#>[\]\s]/g, '') === ''
 }
 
-export function createNoteDocumentService(deps: {
-  openDocuments: OpenDocumentsService
-  noteFile: NoteFileService
-}): NoteDocumentService {
-  const { openDocuments, noteFile } = deps
+export interface NoteDocumentServiceDeps {
+  readonly openDocuments: OpenDocumentsService
+  readonly noteFile: NoteFileService
+}
 
-  /**
-   * The note's content, where a missing file reads as an empty note — the lazy
-   * contract: dailies (and ⌘N notes) are valid frontmatter-toggle targets before
-   * their file exists, and the toggle's write is what creates the file. Covers
-   * the gap where the pane's session exists but can't take patches yet (still
-   * loading) — its post-load reconcile then adopts our write like any external
-   * change.
-   */
-  async function readOrEmpty(path: string): Promise<string> {
-    try {
-      return await noteFile.read(path)
-    } catch (cause) {
-      if (isAppError(cause) && cause.kind === 'notFound') {
-        return ''
-      }
-      throw cause
-    }
-  }
-
+class NoteDocumentServiceImpl implements NoteDocumentService {
+  readonly #deps: NoteDocumentServiceDeps
   /**
    * One pending-write chain per note path. Source edits read-modify-write a
    * note, so two firing at once on the same note (two checkbox clicks, a bulk
@@ -131,10 +119,99 @@ export function createNoteDocumentService(deps: {
    * serialized by the session's save chain; this closes the disk path and any
    * open↔closed gap.)
    */
-  const writeChains = new Map<string, Promise<unknown>>()
+  readonly #writeChains = new Map<string, Promise<unknown>>()
 
-  function serializeByPath<T>(path: string, op: () => Promise<T>): Promise<T> {
-    const previous = writeChains.get(path) ?? Promise.resolve()
+  constructor(deps: NoteDocumentServiceDeps) {
+    this.#deps = deps
+  }
+
+  async readSource(path: string): Promise<string> {
+    return (
+      this.#deps.openDocuments.sessionFor(path)?.liveContent() ?? (await this.#readOrEmpty(path))
+    )
+  }
+
+  async readExisting(path: string, generation: number): Promise<string> {
+    const { openDocuments, noteFile } = this.#deps
+    const session = openDocuments.sessionFor(path)
+    if (session !== null) {
+      const liveContent = session.liveContent()
+      if (liveContent !== null) {
+        // The index and open-document registry can briefly outlive an external
+        // delete or iCloud eviction. Prove the generation-pinned file is still
+        // locally readable before publishing a live buffer; the already-mounted
+        // watcher guards changes that race this read.
+        await noteFile.read(path, generation)
+        return liveContent
+      }
+    }
+    return await noteFile.read(path, generation)
+  }
+
+  async commitFrontmatter(
+    path: string,
+    patch: FrontmatterPatch,
+    generation: number,
+  ): Promise<void> {
+    const { openDocuments, noteFile } = this.#deps
+    const owner = openDocuments.sessionFor(path)
+    if (owner !== null && (await owner.commitFrontmatter(patch))) {
+      return
+    }
+    const onDisk = await this.#readOrEmpty(path)
+    const patched = upsertFrontmatter(onDisk, frontmatterPatchToYaml(patch))
+    if (patched !== onDisk) {
+      await noteFile.write(path, patched, generation)
+    }
+  }
+
+  commitSourceEdit(
+    path: string,
+    transform: (source: string) => string,
+    options: CommitSourceEditOptions,
+  ): Promise<void> {
+    const { openDocuments, noteFile } = this.#deps
+    // Serialize per note: a concurrent change to the same note must not read the
+    // pre-write source and clobber this one.
+    return this.#serializeByPath(path, async (): Promise<void> => {
+      const owner = openDocuments.sessionFor(path)
+      if (owner !== null) {
+        const applied = await owner.commitSourceEdit(transform)
+        if (!applied) {
+          throw new NoteBusyError('This note can’t be updated right now — try again in a moment.')
+        }
+        return
+      }
+      const source = await this.#readForEdit(path, options.createIfMissing === true)
+      await noteFile.write(path, transform(source), options.generation)
+    })
+  }
+
+  isOstensiblyEmpty(source: string): boolean {
+    return isOstensiblyEmptyNoteSource(source)
+  }
+
+  /**
+   * The note's content, where a missing file reads as an empty note — the lazy
+   * contract: dailies (and ⌘N notes) are valid frontmatter-toggle targets before
+   * their file exists, and the toggle's write is what creates the file. Covers
+   * the gap where the pane's session exists but can't take patches yet (still
+   * loading) — its post-load reconcile then adopts our write like any external
+   * change.
+   */
+  async #readOrEmpty(path: string): Promise<string> {
+    try {
+      return await this.#deps.noteFile.read(path)
+    } catch (cause) {
+      if (isAppError(cause) && cause.kind === 'notFound') {
+        return ''
+      }
+      throw cause
+    }
+  }
+
+  #serializeByPath<T>(path: string, op: () => Promise<T>): Promise<T> {
+    const previous = this.#writeChains.get(path) ?? Promise.resolve()
     // Run `op` whether the previous write resolved or rejected — one failure must
     // not wedge the chain for the note.
     const result = previous.then(op, op)
@@ -142,19 +219,19 @@ export function createNoteDocumentService(deps: {
       () => {},
       () => {},
     )
-    writeChains.set(path, settled)
+    this.#writeChains.set(path, settled)
     void settled.then(() => {
       // Drop the entry once the chain goes idle, so the map can't grow unbounded.
-      if (writeChains.get(path) === settled) {
-        writeChains.delete(path)
+      if (this.#writeChains.get(path) === settled) {
+        this.#writeChains.delete(path)
       }
     })
     return result
   }
 
-  async function readForEdit(path: string, createIfMissing: boolean): Promise<string> {
+  async #readForEdit(path: string, createIfMissing: boolean): Promise<string> {
     try {
-      return await noteFile.read(path)
+      return await this.#deps.noteFile.read(path)
     } catch (cause) {
       if (createIfMissing && isAppError(cause) && cause.kind === 'notFound') {
         return ''
@@ -162,53 +239,8 @@ export function createNoteDocumentService(deps: {
       throw cause
     }
   }
+}
 
-  return {
-    async readSource(path) {
-      return openDocuments.sessionFor(path)?.liveContent() ?? (await readOrEmpty(path))
-    },
-    async readExisting(path, generation) {
-      const session = openDocuments.sessionFor(path)
-      if (session !== null) {
-        const liveContent = session.liveContent()
-        if (liveContent !== null) {
-          // The index and open-document registry can briefly outlive an external
-          // delete or iCloud eviction. Prove the generation-pinned file is still
-          // locally readable before publishing a live buffer; the already-mounted
-          // watcher guards changes that race this read.
-          await noteFile.read(path, generation)
-          return liveContent
-        }
-      }
-      return await noteFile.read(path, generation)
-    },
-    async commitFrontmatter(path, patch, generation) {
-      const owner = openDocuments.sessionFor(path)
-      if (owner !== null && (await owner.commitFrontmatter(patch))) {
-        return
-      }
-      const onDisk = await readOrEmpty(path)
-      const patched = upsertFrontmatter(onDisk, frontmatterPatchToYaml(patch))
-      if (patched !== onDisk) {
-        await noteFile.write(path, patched, generation)
-      }
-    },
-    commitSourceEdit(path, transform, options) {
-      // Serialize per note: a concurrent change to the same note must not read the
-      // pre-write source and clobber this one.
-      return serializeByPath(path, async (): Promise<void> => {
-        const owner = openDocuments.sessionFor(path)
-        if (owner !== null) {
-          const applied = await owner.commitSourceEdit(transform)
-          if (!applied) {
-            throw new NoteBusyError('This note can’t be updated right now — try again in a moment.')
-          }
-          return
-        }
-        const source = await readForEdit(path, options.createIfMissing === true)
-        await noteFile.write(path, transform(source), options.generation)
-      })
-    },
-    isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
-  }
+export function createNoteDocumentService(deps: NoteDocumentServiceDeps): NoteDocumentService {
+  return new NoteDocumentServiceImpl(deps)
 }

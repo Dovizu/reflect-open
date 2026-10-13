@@ -2,7 +2,9 @@ import { z } from 'zod'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import { fileMetaSchema, type FileMeta } from './schemas.ts'
 
-/** Commands that return `()` from Rust serialize as `null` over IPC. */
+/**
+ * Commands that return `()` from Rust serialize as `null` over IPC.
+ */
 const voidSchema = z.null()
 
 /**
@@ -16,15 +18,25 @@ export interface CaptureInboxService {
    * and rewrite the native-messaging manifests for detected browsers.
    */
   registerHost(): Promise<void>
-  /** The spooled `.json` envelopes and their screenshot siblings. A missing inbox lists as empty. */
+  /**
+   * The spooled `.json` envelopes and their screenshot siblings. A missing inbox lists as empty.
+   */
   list(generation: number): Promise<FileMeta[]>
-  /** One spooled envelope's JSON text, by spool filename (for example `<id>.json`). */
+  /**
+   * One spooled envelope's JSON text, by spool filename (for example `<id>.json`).
+   */
   read(name: string, generation: number): Promise<string>
-  /** Spool an envelope this app produced, atomically. The caller validates its shape. */
+  /**
+   * Spool an envelope this app produced, atomically. The caller validates its shape.
+   */
   spool(name: string, json: string, generation: number): Promise<void>
-  /** Remove a spool file by filename. Idempotent. */
+  /**
+   * Remove a spool file by filename. Idempotent.
+   */
   remove(name: string, generation: number): Promise<void>
-  /** Move an unparseable spool file into `.reflect/inbox-rejected/`. It is never deleted. */
+  /**
+   * Move an unparseable spool file into `.reflect/inbox-rejected/`. It is never deleted.
+   */
   reject(name: string, generation: number): Promise<void>
   /**
    * Move envelopes the iOS share extension spooled into the App Group inbox
@@ -44,36 +56,59 @@ export interface CaptureInboxService {
   ): Promise<void>
 }
 
-export function createCaptureInboxService(deps: { ipc: IpcBridgeService }): CaptureInboxService {
-  const { ipc } = deps
-  return {
-    async registerHost() {
-      await ipc.call('capture_host_register', {}, voidSchema)
-    },
-    async list(generation) {
-      return await ipc.call('capture_inbox_list', { generation }, z.array(fileMetaSchema))
-    },
-    async read(name, generation) {
-      return await ipc.call('capture_inbox_read', { name, generation }, z.string())
-    },
-    async spool(name, json, generation) {
-      await ipc.call('capture_inbox_spool', { name, json, generation }, voidSchema)
-    },
-    async remove(name, generation) {
-      await ipc.call('capture_inbox_remove', { name, generation }, voidSchema)
-    },
-    async reject(name, generation) {
-      await ipc.call('capture_inbox_reject', { name, generation }, voidSchema)
-    },
-    async relaySharedInbox(generation) {
-      return await ipc.call('capture_shared_inbox_relay', { generation }, z.number())
-    },
-    async promoteScreenshot(spoolName, assetPath, maxDim, generation) {
-      await ipc.call(
-        'capture_screenshot_promote',
-        { spoolName, assetPath, maxDim, generation },
-        voidSchema,
-      )
-    },
+export interface CaptureInboxServiceDeps {
+  readonly ipc: IpcBridgeService
+}
+
+class CaptureInboxServiceImpl implements CaptureInboxService {
+  readonly #deps: CaptureInboxServiceDeps
+
+  constructor(deps: CaptureInboxServiceDeps) {
+    this.#deps = deps
   }
+
+  async registerHost(): Promise<void> {
+    await this.#deps.ipc.call('capture_host_register', {}, voidSchema)
+  }
+
+  async list(generation: number): Promise<FileMeta[]> {
+    return await this.#deps.ipc.call('capture_inbox_list', { generation }, z.array(fileMetaSchema))
+  }
+
+  async read(name: string, generation: number): Promise<string> {
+    return await this.#deps.ipc.call('capture_inbox_read', { name, generation }, z.string())
+  }
+
+  async spool(name: string, json: string, generation: number): Promise<void> {
+    await this.#deps.ipc.call('capture_inbox_spool', { name, json, generation }, voidSchema)
+  }
+
+  async remove(name: string, generation: number): Promise<void> {
+    await this.#deps.ipc.call('capture_inbox_remove', { name, generation }, voidSchema)
+  }
+
+  async reject(name: string, generation: number): Promise<void> {
+    await this.#deps.ipc.call('capture_inbox_reject', { name, generation }, voidSchema)
+  }
+
+  async relaySharedInbox(generation: number): Promise<number> {
+    return await this.#deps.ipc.call('capture_shared_inbox_relay', { generation }, z.number())
+  }
+
+  async promoteScreenshot(
+    spoolName: string,
+    assetPath: string,
+    maxDim: number,
+    generation: number,
+  ): Promise<void> {
+    await this.#deps.ipc.call(
+      'capture_screenshot_promote',
+      { spoolName, assetPath, maxDim, generation },
+      voidSchema,
+    )
+  }
+}
+
+export function createCaptureInboxService(deps: CaptureInboxServiceDeps): CaptureInboxService {
+  return new CaptureInboxServiceImpl(deps)
 }

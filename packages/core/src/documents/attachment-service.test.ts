@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
@@ -29,15 +29,14 @@ function listingNoteFile(
   listing: () => readonly Listing[] | Promise<readonly Listing[]>,
 ): NoteFileService & { listings: () => number } {
   let calls = 0
-  return {
-    ...createTestNoteFileService(),
+  return Object.assign(createTestNoteFileService(), {
     async listAttachments(): Promise<FileMeta[]> {
       calls += 1
       const entries = await listing()
       return entries.map((entry) => ({ ...entry, modifiedMs: 0 }))
     },
     listings: () => calls,
-  }
+  })
 }
 
 function setup(options?: {
@@ -134,7 +133,9 @@ describe('saveFile', () => {
 
   it('reports failures keyed by how the file was named, never rejecting', async () => {
     const { attachments } = setup({
-      assetStore: { ...createTestAssetStoreService(), uploadBlob: failing('disk full') },
+      assetStore: Object.assign(createTestAssetStoreService(), {
+        uploadBlob: failing('disk full'),
+      }),
     })
 
     await expect(attachments.saveFile(fileOf('a.png', 'image/png'))).resolves.toEqual({
@@ -152,16 +153,15 @@ describe('createSaveScope', () => {
   it('holds the latest failure until the next success', async () => {
     const assetStore = createTestAssetStoreService()
     let failure: string | null = 'disk full'
+    const uploadBlob = assetStore.uploadBlob.bind(assetStore)
+    vi.spyOn(assetStore, 'uploadBlob').mockImplementation(async (name, contents, generation) => {
+      if (failure !== null) {
+        throw new ReflectError('io', failure)
+      }
+      return await uploadBlob(name, contents, generation)
+    })
     const { attachments } = setup({
-      assetStore: {
-        ...assetStore,
-        uploadBlob: async (name, contents, generation) => {
-          if (failure !== null) {
-            throw new ReflectError('io', failure)
-          }
-          return await assetStore.uploadBlob(name, contents, generation)
-        },
-      },
+      assetStore,
     })
     const scope = attachments.createSaveScope()
     let notified = 0
@@ -181,7 +181,9 @@ describe('createSaveScope', () => {
   it('drops an outcome that lands after a reset', async () => {
     const upload = Promise.withResolvers<string>()
     const { attachments } = setup({
-      assetStore: { ...createTestAssetStoreService(), uploadBlob: () => upload.promise },
+      assetStore: Object.assign(createTestAssetStoreService(), {
+        uploadBlob: () => upload.promise,
+      }),
     })
     const scope = attachments.createSaveScope()
 
@@ -195,7 +197,9 @@ describe('createSaveScope', () => {
 
   it('keeps each scope separate', async () => {
     const { attachments } = setup({
-      assetStore: { ...createTestAssetStoreService(), uploadBlob: failing('disk full') },
+      assetStore: Object.assign(createTestAssetStoreService(), {
+        uploadBlob: failing('disk full'),
+      }),
     })
     const first = attachments.createSaveScope()
     const second = attachments.createSaveScope()
@@ -271,7 +275,9 @@ describe('resolveImageUrl', () => {
 
   it('falls back to the vault-root reading when the listing fails', async () => {
     const { attachments } = setup({
-      noteFile: { ...createTestNoteFileService(), listAttachments: failing('bridge down') },
+      noteFile: Object.assign(createTestNoteFileService(), {
+        listAttachments: failing('bridge down'),
+      }),
     })
 
     await expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png')).resolves.toBe(
@@ -429,7 +435,9 @@ describe('resolveFileInfo', () => {
 
   it('degrades to no size when the listing fails', async () => {
     const { attachments } = setup({
-      noteFile: { ...createTestNoteFileService(), listAttachments: failing('bridge down') },
+      noteFile: Object.assign(createTestNoteFileService(), {
+        listAttachments: failing('bridge down'),
+      }),
     })
 
     await expect(
@@ -648,7 +656,7 @@ describe('openOrReveal', () => {
   it('degrades a refused file type to a reveal, with a status-line note', async () => {
     const assetStore = createTestAssetStoreService()
     const { attachments, operations } = setup({
-      assetStore: { ...assetStore, open: failing('not a supported attachment path') },
+      assetStore: Object.assign(assetStore, { open: failing('not a supported attachment path') }),
     })
 
     await attachments.openOrReveal('assets/tool.xyz')
@@ -661,11 +669,10 @@ describe('openOrReveal', () => {
 
   it('surfaces the open error when the reveal fails too', async () => {
     const { attachments, operations } = setup({
-      assetStore: {
-        ...createTestAssetStoreService(),
+      assetStore: Object.assign(createTestAssetStoreService(), {
         open: failing('not a supported attachment path: assets/tool.xyz'),
         reveal: failing('asset not found: assets/tool.xyz'),
-      },
+      }),
     })
 
     await attachments.openOrReveal('assets/tool.xyz')

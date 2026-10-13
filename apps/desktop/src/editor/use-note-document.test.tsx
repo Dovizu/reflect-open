@@ -24,6 +24,10 @@ let logger: TestLoggerService
 let noteFile: TestNoteFileService
 /** What a note write does; a test replaces it to hold or fail a write. */
 let writeNote: NoteFileService['write']
+/**
+ * The unspied `write` of `noteFile`, which the app reaches through `writeNote`.
+ */
+let realWrite: NoteFileService['write']
 let app: ReturnType<typeof createApp>
 
 /** Run every pending timer, and the timers those arm. */
@@ -61,10 +65,6 @@ function fakeEditor(): NoteEditorHandle & { applied: string[] } {
 
 /** The app of one test: the real document services over `noteFile`, `clock` and `logger`. */
 function createApp(database: TestDatabaseService) {
-  const files: NoteFileService = {
-    ...noteFile,
-    write: (...args) => writeNote(...args),
-  }
   const indexStore = createTestIndexStoreService()
   const moveIndexed = indexStore.moveIndexed.bind(indexStore)
   // Mirrors the Rust command for the paths these tests exercise: a free
@@ -81,7 +81,7 @@ function createApp(database: TestDatabaseService) {
     clock,
     logger,
     database,
-    noteFile: files,
+    noteFile,
     indexStore,
   })
 }
@@ -90,7 +90,9 @@ beforeEach(async () => {
   clock = createTestClockService()
   logger = createTestLoggerService()
   noteFile = createTestNoteFileService({ files: { 'notes/a.md': '# Hello\n' } })
-  writeNote = (...args) => noteFile.write(...args)
+  realWrite = noteFile.write.bind(noteFile)
+  vi.spyOn(noteFile, 'write').mockImplementation((...args) => writeNote(...args))
+  writeNote = (...args) => realWrite(...args)
   // Opened here, so every index read of a rename settles in microtasks.
   app = createApp(await createWasmTestDatabaseService())
 })
@@ -750,7 +752,7 @@ describe('useNoteDocument', () => {
     // simulating the watcher event racing the IPC promise settlement.
     let resolveWrite: (() => void) | null = null
     writeNote = async (...args) => {
-      const written = noteFile.write(...args)
+      const written = realWrite(...args)
       await new Promise<void>((resolve) => {
         resolveWrite = resolve
       })
@@ -781,7 +783,7 @@ describe('useNoteDocument', () => {
     let resolveWrite: (() => void) | null = null
     let writeCount = 0
     writeNote = async (...args) => {
-      const written = noteFile.write(...args)
+      const written = realWrite(...args)
       writeCount += 1
       if (writeCount === 1) {
         await new Promise<void>((resolve) => {
@@ -818,7 +820,7 @@ describe('useNoteDocument', () => {
         failNext = false
         throw new Error('disk full')
       }
-      return await noteFile.write(...args)
+      return await realWrite(...args)
     }
 
     const hook = await mount(() => useNoteDocument('notes/a.md'))

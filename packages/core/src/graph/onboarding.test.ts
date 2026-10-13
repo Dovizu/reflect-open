@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { overrideNoteFileService } from '../testing/graph.ts'
 import { parseNote } from '../markdown/extract.ts'
 import { isPinned } from '../markdown/model.ts'
 import {
@@ -22,14 +23,13 @@ function setup(options?: {
   const noteFile =
     stats === undefined
       ? files
-      : {
-          ...files,
+      : overrideNoteFileService(files, {
           vaultScanStats: async () => ({
             notes: stats.notes ?? 0,
             attachments: stats.attachments ?? 0,
             skipped: stats.skipped ?? 0,
           }),
-        }
+        })
   const id = createTestIdService()
   return { indexStore, files, ctx: { indexStore, noteFile, id }, id }
 }

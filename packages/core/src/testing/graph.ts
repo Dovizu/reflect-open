@@ -6,14 +6,14 @@ import {
   type NoteCreationService,
   type ResolveOrCreateNoteResult,
 } from '../graph/note-creation-service.ts'
-import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { LocalNoteRead, NoteFileService, VaultScanStats } from '../graph/note-file-service.ts'
 import {
   createNoteLinkResolverService,
   type ExistingWikiTargetResolution,
   type NoteLinkResolverService,
 } from '../graph/note-link-resolver-service.ts'
 import { ASSETS_DIR, AUDIO_MEMOS_DIR, isAttachmentPath, isNotePath } from '../graph/paths.ts'
-import type { FileMeta } from '../graph/schemas.ts'
+import type { FileMeta, NoteCreateOutcome } from '../graph/schemas.ts'
 import {
   createWikiResolverService,
   type WikiResolverService,
@@ -30,7 +30,11 @@ function byteSize(contents: string): number {
   return new TextEncoder().encode(contents).length
 }
 
-/** Rejects a call pinned to a generation other than `current`, like Rust does. */
+/**
+
+ * Rejects a call pinned to a generation other than `current`, like Rust does.
+
+ */
 function checkGeneration(current: number | undefined, generation: number | undefined): void {
   if (current !== undefined && generation !== undefined && generation !== current) {
     throw new ReflectError('io', 'the graph changed since this command was issued; dropping it')
@@ -38,11 +42,17 @@ function checkGeneration(current: number | undefined, generation: number | undef
 }
 
 export interface TestNoteFileServiceOptions {
-  /** Graph-relative paths to file contents. */
+  /**
+   * Graph-relative paths to file contents.
+   */
   files?: Readonly<Record<string, string>>
-  /** When set, calls pinned to another generation reject. */
+  /**
+   * When set, calls pinned to another generation reject.
+   */
   generation?: number
-  /** Paths whose bytes are offloaded to iCloud. */
+  /**
+   * Paths whose bytes are offloaded to iCloud.
+   */
   evicted?: readonly string[]
 }
 
@@ -58,20 +68,180 @@ export interface NoteFileRead {
 }
 
 export interface TestNoteFileService extends NoteFileService {
-  /** Put a file into the graph without recording a write. */
+  /**
+   * Put a file into the graph without recording a write.
+   */
   set(path: string, contents: string, options?: { modifiedMs?: number }): void
-  /** Mark a path as offloaded to iCloud until it is written again. */
+  /**
+   * Mark a path as offloaded to iCloud until it is written again.
+   */
   evict(path: string): void
-  /** The current files by graph-relative path. */
+  /**
+   * The current files by graph-relative path.
+   */
   files(): ReadonlyMap<string, string>
-  /** Every successful `write` and `create`, in order. */
+  /**
+   * Every successful `write` and `create`, in order.
+   */
   writes(): readonly NoteFileWrite[]
-  /** The contents of every successful `write` and `create` of `path`, in order. */
+  /**
+   * The contents of every successful `write` and `create` of `path`, in order.
+   */
   getWrites(path: string): readonly string[]
-  /** Every `read` call, in order, including the ones that rejected. */
+  /**
+   * Every `read` call, in order, including the ones that rejected.
+   */
   getReads(): readonly NoteFileRead[]
-  /** Every path moved to the trash, in order. */
+  /**
+   * Every path moved to the trash, in order.
+   */
   trashed(): readonly string[]
+}
+
+class TestNoteFileServiceImpl implements TestNoteFileService {
+  readonly #files = new Map<string, { contents: string; modifiedMs: number }>()
+  readonly #evicted: Set<string>
+  readonly #writeLog: NoteFileWrite[] = []
+  readonly #readLog: NoteFileRead[] = []
+  readonly #trashLog: string[] = []
+  readonly #generation: number | undefined
+  #tick = 0
+
+  constructor(options?: TestNoteFileServiceOptions) {
+    this.#evicted = new Set<string>(options?.evicted ?? [])
+    this.#generation = options?.generation
+    for (const [path, contents] of Object.entries(options?.files ?? {})) {
+      this.#files.set(path, { contents, modifiedMs: 0 })
+    }
+  }
+
+  async read(path: string, pinned?: number): Promise<string> {
+    this.#readLog.push({ path, generation: pinned })
+    checkGeneration(this.#generation, pinned)
+    return this.#contentsOf(path)
+  }
+
+  async readLocal(path: string, pinned?: number): Promise<LocalNoteRead> {
+    checkGeneration(this.#generation, pinned)
+    const content = this.#contentsOf(path)
+    return this.#evicted.has(path) ? { kind: 'evicted' } : { kind: 'content', content }
+  }
+
+  async write(
+    path: string,
+    contents: string,
+    pinned: number,
+    expectedContents?: string | null,
+  ): Promise<number> {
+    checkGeneration(this.#generation, pinned)
+    if (expectedContents !== undefined) {
+      const current = this.#files.get(path)?.contents ?? null
+      if (current !== expectedContents) {
+        throw new ReflectError('io', 'Note changed on disk; reload before retrying')
+      }
+    }
+    return this.#store(path, contents, pinned)
+  }
+
+  async create(path: string, contents: string, pinned: number): Promise<NoteCreateOutcome> {
+    checkGeneration(this.#generation, pinned)
+    if (this.#files.has(path)) {
+      return { kind: 'collision' }
+    }
+    return { kind: 'created', modifiedMs: this.#store(path, contents, pinned) }
+  }
+
+  async exists(path: string): Promise<boolean> {
+    return this.#files.has(path)
+  }
+
+  async delete(path: string, pinned: number): Promise<void> {
+    checkGeneration(this.#generation, pinned)
+    if (this.#files.delete(path)) {
+      this.#evicted.delete(path)
+      this.#trashLog.push(path)
+    }
+  }
+
+  async listNotes(pinned?: number): Promise<FileMeta[]> {
+    checkGeneration(this.#generation, pinned)
+    return this.#list(isNotePath)
+  }
+
+  async listAttachments(pinned?: number): Promise<FileMeta[]> {
+    checkGeneration(this.#generation, pinned)
+    return this.#list(isAttachmentPath)
+  }
+
+  async listDir(dir: string, pinned: number): Promise<FileMeta[]> {
+    checkGeneration(this.#generation, pinned)
+    const prefix = dir.endsWith('/') ? dir : `${dir}/`
+    return this.#list((path) => path.startsWith(prefix))
+  }
+
+  async vaultScanStats(pinned?: number): Promise<VaultScanStats> {
+    checkGeneration(this.#generation, pinned)
+    return {
+      notes: this.#list(isNotePath).length,
+      attachments: this.#list(isAttachmentPath).length,
+      skipped: 0,
+    }
+  }
+
+  set(path: string, contents: string, setOptions?: { modifiedMs?: number }): void {
+    this.#files.set(path, { contents, modifiedMs: setOptions?.modifiedMs ?? 0 })
+  }
+
+  evict(path: string): void {
+    this.#evicted.add(path)
+  }
+
+  files(): ReadonlyMap<string, string> {
+    return new Map([...this.#files].map(([path, file]) => [path, file.contents]))
+  }
+
+  writes(): readonly NoteFileWrite[] {
+    return [...this.#writeLog]
+  }
+
+  getWrites(path: string): readonly string[] {
+    return this.#writeLog.filter((write) => write.path === path).map((write) => write.contents)
+  }
+
+  getReads(): readonly NoteFileRead[] {
+    return this.#readLog.map((read) => ({ ...read }))
+  }
+
+  trashed(): readonly string[] {
+    return [...this.#trashLog]
+  }
+
+  #store(path: string, contents: string, pinned: number): number {
+    this.#tick += 1
+    this.#files.set(path, { contents, modifiedMs: this.#tick })
+    this.#evicted.delete(path)
+    this.#writeLog.push({ path, contents, generation: pinned })
+    return this.#tick
+  }
+
+  #contentsOf(path: string): string {
+    const file = this.#files.get(path)
+    if (file === undefined) {
+      throw notFound(path)
+    }
+    return file.contents
+  }
+
+  #list(include: (path: string) => boolean): FileMeta[] {
+    return [...this.#files]
+      .filter(([path]) => include(path))
+      .map(([path, file]) => ({
+        path,
+        size: byteSize(file.contents),
+        modifiedMs: file.modifiedMs,
+        ...(this.#evicted.has(path) ? { placeholder: true } : {}),
+      }))
+  }
 }
 
 /**
@@ -81,117 +251,90 @@ export interface TestNoteFileService extends NoteFileService {
 export function createTestNoteFileService(
   options?: TestNoteFileServiceOptions,
 ): TestNoteFileService {
-  const files = new Map<string, { contents: string; modifiedMs: number }>()
-  const evicted = new Set<string>(options?.evicted ?? [])
-  const writeLog: NoteFileWrite[] = []
-  const readLog: NoteFileRead[] = []
-  const trashLog: string[] = []
-  const generation = options?.generation
-  let tick = 0
+  return new TestNoteFileServiceImpl(options)
+}
 
-  for (const [path, contents] of Object.entries(options?.files ?? {})) {
-    files.set(path, { contents, modifiedMs: 0 })
+/**
+ * A {@link NoteFileService} that forwards each member to `inner`, except the
+ * ones `overrides` replaces. The inner service keeps its own behavior.
+ */
+class NoteFileOverrideService implements NoteFileService {
+  readonly #inner: NoteFileService
+  readonly #overrides: Partial<NoteFileService>
+
+  constructor(inner: NoteFileService, overrides: Partial<NoteFileService>) {
+    this.#inner = inner
+    this.#overrides = overrides
   }
 
-  function store(path: string, contents: string, pinned: number): number {
-    tick += 1
-    files.set(path, { contents, modifiedMs: tick })
-    evicted.delete(path)
-    writeLog.push({ path, contents, generation: pinned })
-    return tick
+  read(path: string, generation?: number): Promise<string> {
+    return (this.#overrides.read ?? this.#inner.read.bind(this.#inner))(path, generation)
   }
 
-  function contentsOf(path: string): string {
-    const file = files.get(path)
-    if (file === undefined) {
-      throw notFound(path)
-    }
-    return file.contents
+  readLocal(path: string, generation?: number): Promise<LocalNoteRead> {
+    return (this.#overrides.readLocal ?? this.#inner.readLocal.bind(this.#inner))(path, generation)
   }
 
-  function list(include: (path: string) => boolean): FileMeta[] {
-    return [...files]
-      .filter(([path]) => include(path))
-      .map(([path, file]) => ({
-        path,
-        size: byteSize(file.contents),
-        modifiedMs: file.modifiedMs,
-        ...(evicted.has(path) ? { placeholder: true } : {}),
-      }))
+  write(
+    path: string,
+    contents: string,
+    generation: number,
+    expectedContents?: string | null,
+  ): Promise<number> {
+    return (this.#overrides.write ?? this.#inner.write.bind(this.#inner))(
+      path,
+      contents,
+      generation,
+      expectedContents,
+    )
   }
 
-  return {
-    async read(path, pinned) {
-      readLog.push({ path, generation: pinned })
-      checkGeneration(generation, pinned)
-      return contentsOf(path)
-    },
-    async readLocal(path, pinned) {
-      checkGeneration(generation, pinned)
-      const content = contentsOf(path)
-      return evicted.has(path) ? { kind: 'evicted' } : { kind: 'content', content }
-    },
-    async write(path, contents, pinned, expectedContents) {
-      checkGeneration(generation, pinned)
-      if (expectedContents !== undefined) {
-        const current = files.get(path)?.contents ?? null
-        if (current !== expectedContents) {
-          throw new ReflectError('io', 'Note changed on disk; reload before retrying')
-        }
-      }
-      return store(path, contents, pinned)
-    },
-    async create(path, contents, pinned) {
-      checkGeneration(generation, pinned)
-      if (files.has(path)) {
-        return { kind: 'collision' }
-      }
-      return { kind: 'created', modifiedMs: store(path, contents, pinned) }
-    },
-    async exists(path) {
-      return files.has(path)
-    },
-    async delete(path, pinned) {
-      checkGeneration(generation, pinned)
-      if (files.delete(path)) {
-        evicted.delete(path)
-        trashLog.push(path)
-      }
-    },
-    async listNotes(pinned) {
-      checkGeneration(generation, pinned)
-      return list(isNotePath)
-    },
-    async listAttachments(pinned) {
-      checkGeneration(generation, pinned)
-      return list(isAttachmentPath)
-    },
-    async listDir(dir, pinned) {
-      checkGeneration(generation, pinned)
-      const prefix = dir.endsWith('/') ? dir : `${dir}/`
-      return list((path) => path.startsWith(prefix))
-    },
-    async vaultScanStats(pinned) {
-      checkGeneration(generation, pinned)
-      return {
-        notes: list(isNotePath).length,
-        attachments: list(isAttachmentPath).length,
-        skipped: 0,
-      }
-    },
-    set(path, contents, setOptions) {
-      files.set(path, { contents, modifiedMs: setOptions?.modifiedMs ?? 0 })
-    },
-    evict(path) {
-      evicted.add(path)
-    },
-    files: () => new Map([...files].map(([path, file]) => [path, file.contents])),
-    writes: () => [...writeLog],
-    getWrites: (path) =>
-      writeLog.filter((write) => write.path === path).map((write) => write.contents),
-    getReads: () => readLog.map((read) => ({ ...read })),
-    trashed: () => [...trashLog],
+  create(path: string, contents: string, generation: number): Promise<NoteCreateOutcome> {
+    return (this.#overrides.create ?? this.#inner.create.bind(this.#inner))(
+      path,
+      contents,
+      generation,
+    )
   }
+
+  exists(path: string): Promise<boolean> {
+    return (this.#overrides.exists ?? this.#inner.exists.bind(this.#inner))(path)
+  }
+
+  delete(path: string, generation: number): Promise<void> {
+    return (this.#overrides.delete ?? this.#inner.delete.bind(this.#inner))(path, generation)
+  }
+
+  listNotes(generation?: number): Promise<FileMeta[]> {
+    return (this.#overrides.listNotes ?? this.#inner.listNotes.bind(this.#inner))(generation)
+  }
+
+  listAttachments(generation?: number): Promise<FileMeta[]> {
+    return (this.#overrides.listAttachments ?? this.#inner.listAttachments.bind(this.#inner))(
+      generation,
+    )
+  }
+
+  listDir(dir: string, generation: number): Promise<FileMeta[]> {
+    return (this.#overrides.listDir ?? this.#inner.listDir.bind(this.#inner))(dir, generation)
+  }
+
+  vaultScanStats(generation?: number): Promise<VaultScanStats> {
+    return (this.#overrides.vaultScanStats ?? this.#inner.vaultScanStats.bind(this.#inner))(
+      generation,
+    )
+  }
+}
+
+/**
+ * `inner` with some members replaced. Use it instead of spreading a note file
+ * service, which would drop its prototype methods.
+ */
+export function overrideNoteFileService(
+  inner: NoteFileService,
+  overrides: Partial<NoteFileService>,
+): NoteFileService {
+  return new NoteFileOverrideService(inner, overrides)
 }
 
 type Bytes = string | Uint8Array
@@ -206,13 +349,21 @@ function toBytes(contents: Bytes): Uint8Array<ArrayBuffer> {
 }
 
 export interface TestAssetStoreServiceOptions {
-  /** Graph-relative paths to file bytes; strings are stored UTF-8 encoded. */
+  /**
+   * Graph-relative paths to file bytes; strings are stored UTF-8 encoded.
+   */
   assets?: Readonly<Record<string, Bytes>>
-  /** OS paths that `importFile` and `importAudioMemo` can copy from. */
+  /**
+   * OS paths that `importFile` and `importAudioMemo` can copy from.
+   */
   sources?: Readonly<Record<string, Bytes>>
-  /** Transcript cache entries by name. */
+  /**
+   * Transcript cache entries by name.
+   */
   transcripts?: Readonly<Record<string, string>>
-  /** When set, calls pinned to another generation reject. */
+  /**
+   * When set, calls pinned to another generation reject.
+   */
   generation?: number
 }
 
@@ -223,16 +374,175 @@ export interface AssetUpload {
 }
 
 export interface TestAssetStoreService extends AssetStoreService {
-  /** The current files by graph-relative path. */
+  /**
+   * The current files by graph-relative path.
+   */
   assets(): ReadonlyMap<string, Uint8Array>
-  /** Every successful write, in order. */
+  /**
+   * Every successful write, in order.
+   */
   uploads(): readonly AssetUpload[]
-  /** The transcript cache by name. */
+  /**
+   * The transcript cache by name.
+   */
   transcripts(): ReadonlyMap<string, string>
-  /** Every path passed to `open`, in order. */
+  /**
+   * Every path passed to `open`, in order.
+   */
   opened(): readonly string[]
-  /** Every path passed to `reveal`, in order. */
+  /**
+   * Every path passed to `reveal`, in order.
+   */
   revealed(): readonly string[]
+}
+
+class TestAssetStoreServiceImpl implements TestAssetStoreService {
+  readonly #files = new Map<string, Uint8Array<ArrayBuffer>>()
+  readonly #sources = new Map<string, Uint8Array<ArrayBuffer>>()
+  readonly #transcripts: Map<string, string>
+  readonly #uploadLog: AssetUpload[] = []
+  readonly #openLog: string[] = []
+  readonly #revealLog: string[] = []
+  readonly #generation: number | undefined
+
+  constructor(options?: TestAssetStoreServiceOptions) {
+    this.#transcripts = new Map<string, string>(Object.entries(options?.transcripts ?? {}))
+    this.#generation = options?.generation
+    for (const [path, contents] of Object.entries(options?.assets ?? {})) {
+      this.#files.set(path, toBytes(contents))
+    }
+    for (const [path, contents] of Object.entries(options?.sources ?? {})) {
+      this.#sources.set(path, toBytes(contents))
+    }
+  }
+
+  async uploadBlob(desiredName: string, contents: Blob, pinned: number): Promise<string> {
+    checkGeneration(this.#generation, pinned)
+    const path = this.#freePath(desiredName)
+    this.#store('blob', path, await blobBytes(contents), pinned)
+    return path
+  }
+
+  async uploadToPath(path: string, contents: Blob, pinned: number): Promise<void> {
+    checkGeneration(this.#generation, pinned)
+    this.#store('path', path, await blobBytes(contents), pinned)
+  }
+
+  async importFile(sourcePath: string, desiredName: string, pinned: number): Promise<string> {
+    checkGeneration(this.#generation, pinned)
+    const bytes = this.#bytesOf(sourcePath, this.#sources)
+    const path = this.#freePath(desiredName)
+    this.#store('import', path, bytes, pinned)
+    return path
+  }
+
+  async writeBase64(path: string, contentsBase64: string, pinned: number): Promise<void> {
+    checkGeneration(this.#generation, pinned)
+    this.#store('base64', path, base64ToBytes(contentsBase64), pinned)
+  }
+
+  async readBase64(path: string, pinned: number): Promise<string> {
+    checkGeneration(this.#generation, pinned)
+    return bytesToBase64(this.#bytesOf(path, this.#files))
+  }
+
+  async readBytes(path: string, pinned: number): Promise<Uint8Array<ArrayBuffer>> {
+    checkGeneration(this.#generation, pinned)
+    return toBytes(this.#bytesOf(path, this.#files))
+  }
+
+  async open(path: string, pinned: number): Promise<void> {
+    checkGeneration(this.#generation, pinned)
+    this.#openLog.push(path)
+  }
+
+  async reveal(path: string, pinned: number): Promise<void> {
+    checkGeneration(this.#generation, pinned)
+    this.#revealLog.push(path)
+  }
+
+  async deleteAudioMemo(path: string, pinned: number): Promise<void> {
+    checkGeneration(this.#generation, pinned)
+    if (!path.startsWith(`${AUDIO_MEMOS_DIR}/`)) {
+      throw new ReflectError('io', `not an audio memo: ${path}`)
+    }
+    this.#files.delete(path)
+  }
+
+  async importAudioMemo(sourcePath: string, path: string, pinned: number): Promise<void> {
+    checkGeneration(this.#generation, pinned)
+    if (this.#files.has(path)) {
+      return
+    }
+    this.#store('audio-memo', path, this.#bytesOf(sourcePath, this.#sources), pinned)
+  }
+
+  async readTranscriptCache(name: string, pinned: number): Promise<string> {
+    checkGeneration(this.#generation, pinned)
+    const contents = this.#transcripts.get(name)
+    if (contents === undefined) {
+      throw notFound(name)
+    }
+    return contents
+  }
+
+  async writeTranscriptCache(name: string, contents: string, pinned: number): Promise<void> {
+    checkGeneration(this.#generation, pinned)
+    this.#transcripts.set(name, contents)
+  }
+
+  assets(): ReadonlyMap<string, Uint8Array> {
+    return new Map(this.#files)
+  }
+
+  uploads(): readonly AssetUpload[] {
+    return [...this.#uploadLog]
+  }
+
+  transcripts(): ReadonlyMap<string, string> {
+    return new Map(this.#transcripts)
+  }
+
+  opened(): readonly string[] {
+    return [...this.#openLog]
+  }
+
+  revealed(): readonly string[] {
+    return [...this.#revealLog]
+  }
+
+  #freePath(desiredName: string): string {
+    const dot = desiredName.lastIndexOf('.')
+    const stem = dot > 0 ? desiredName.slice(0, dot) : desiredName
+    const extension = dot > 0 ? desiredName.slice(dot) : ''
+    let path = `${ASSETS_DIR}/${desiredName}`
+    for (let suffix = 2; this.#files.has(path); suffix++) {
+      path = `${ASSETS_DIR}/${stem}-${suffix}${extension}`
+    }
+    return path
+  }
+
+  #store(
+    kind: AssetUpload['kind'],
+    path: string,
+    bytes: Uint8Array<ArrayBuffer>,
+    pinned: number,
+  ): void {
+    this.#files.set(path, bytes)
+    this.#uploadLog.push({ kind, path, generation: pinned })
+  }
+
+  #bytesOf(path: string, from: ReadonlyMap<string, Uint8Array<ArrayBuffer>>) {
+    const bytes = from.get(path)
+    if (bytes === undefined) {
+      throw notFound(path)
+    }
+    return bytes
+  }
+}
+
+async function blobBytes(blob: Blob): Promise<Uint8Array<ArrayBuffer>> {
+  return new Uint8Array(await blob.arrayBuffer())
 }
 
 /**
@@ -242,134 +552,25 @@ export interface TestAssetStoreService extends AssetStoreService {
 export function createTestAssetStoreService(
   options?: TestAssetStoreServiceOptions,
 ): TestAssetStoreService {
-  const files = new Map<string, Uint8Array<ArrayBuffer>>()
-  const sources = new Map<string, Uint8Array<ArrayBuffer>>()
-  const transcripts = new Map<string, string>(Object.entries(options?.transcripts ?? {}))
-  const uploadLog: AssetUpload[] = []
-  const openLog: string[] = []
-  const revealLog: string[] = []
-  const generation = options?.generation
-
-  for (const [path, contents] of Object.entries(options?.assets ?? {})) {
-    files.set(path, toBytes(contents))
-  }
-  for (const [path, contents] of Object.entries(options?.sources ?? {})) {
-    sources.set(path, toBytes(contents))
-  }
-
-  function freePath(desiredName: string): string {
-    const dot = desiredName.lastIndexOf('.')
-    const stem = dot > 0 ? desiredName.slice(0, dot) : desiredName
-    const extension = dot > 0 ? desiredName.slice(dot) : ''
-    let path = `${ASSETS_DIR}/${desiredName}`
-    for (let suffix = 2; files.has(path); suffix++) {
-      path = `${ASSETS_DIR}/${stem}-${suffix}${extension}`
-    }
-    return path
-  }
-
-  function store(
-    kind: AssetUpload['kind'],
-    path: string,
-    bytes: Uint8Array<ArrayBuffer>,
-    pinned: number,
-  ): void {
-    files.set(path, bytes)
-    uploadLog.push({ kind, path, generation: pinned })
-  }
-
-  function bytesOf(path: string, from: ReadonlyMap<string, Uint8Array<ArrayBuffer>>) {
-    const bytes = from.get(path)
-    if (bytes === undefined) {
-      throw notFound(path)
-    }
-    return bytes
-  }
-
-  async function blobBytes(blob: Blob): Promise<Uint8Array<ArrayBuffer>> {
-    return new Uint8Array(await blob.arrayBuffer())
-  }
-
-  return {
-    async uploadBlob(desiredName, contents, pinned) {
-      checkGeneration(generation, pinned)
-      const path = freePath(desiredName)
-      store('blob', path, await blobBytes(contents), pinned)
-      return path
-    },
-    async uploadToPath(path, contents, pinned) {
-      checkGeneration(generation, pinned)
-      store('path', path, await blobBytes(contents), pinned)
-    },
-    async importFile(sourcePath, desiredName, pinned) {
-      checkGeneration(generation, pinned)
-      const bytes = bytesOf(sourcePath, sources)
-      const path = freePath(desiredName)
-      store('import', path, bytes, pinned)
-      return path
-    },
-    async writeBase64(path, contentsBase64, pinned) {
-      checkGeneration(generation, pinned)
-      store('base64', path, base64ToBytes(contentsBase64), pinned)
-    },
-    async readBase64(path, pinned) {
-      checkGeneration(generation, pinned)
-      return bytesToBase64(bytesOf(path, files))
-    },
-    async readBytes(path, pinned) {
-      checkGeneration(generation, pinned)
-      return toBytes(bytesOf(path, files))
-    },
-    async open(path, pinned) {
-      checkGeneration(generation, pinned)
-      openLog.push(path)
-    },
-    async reveal(path, pinned) {
-      checkGeneration(generation, pinned)
-      revealLog.push(path)
-    },
-    async deleteAudioMemo(path, pinned) {
-      checkGeneration(generation, pinned)
-      if (!path.startsWith(`${AUDIO_MEMOS_DIR}/`)) {
-        throw new ReflectError('io', `not an audio memo: ${path}`)
-      }
-      files.delete(path)
-    },
-    async importAudioMemo(sourcePath, path, pinned) {
-      checkGeneration(generation, pinned)
-      if (files.has(path)) {
-        return
-      }
-      store('audio-memo', path, bytesOf(sourcePath, sources), pinned)
-    },
-    async readTranscriptCache(name, pinned) {
-      checkGeneration(generation, pinned)
-      const contents = transcripts.get(name)
-      if (contents === undefined) {
-        throw notFound(name)
-      }
-      return contents
-    },
-    async writeTranscriptCache(name, contents, pinned) {
-      checkGeneration(generation, pinned)
-      transcripts.set(name, contents)
-    },
-    assets: () => new Map(files),
-    uploads: () => [...uploadLog],
-    transcripts: () => new Map(transcripts),
-    opened: () => [...openLog],
-    revealed: () => [...revealLog],
-  }
+  return new TestAssetStoreServiceImpl(options)
 }
 
 export interface TestNoteLinkResolverServiceOptions {
-  /** The index the resolver's tiers read; defaults to one over an empty test database. */
+  /**
+   * The index the resolver's tiers read; defaults to one over an empty test database.
+   */
   wikiResolver?: WikiResolverService
-  /** The files the resolver probes; defaults to an empty test note file service. */
+  /**
+   * The files the resolver probes; defaults to an empty test note file service.
+   */
   noteFile?: NoteFileService
 }
 
-/** One call to a {@link TestNoteLinkResolverService}, with its result. */
+/**
+
+ * One call to a {@link TestNoteLinkResolverService}, with its result.
+
+ */
 export type NoteLinkResolution =
   | {
       readonly kind: 'wiki'
@@ -387,78 +588,145 @@ export type NoteLinkResolution =
     }
 
 export interface TestNoteLinkResolverService extends NoteLinkResolverService {
-  /** Every settled resolution, in order. */
+  /**
+   * Every settled resolution, in order.
+   */
   calls(): readonly NoteLinkResolution[]
 }
 
-/** The real {@link NoteLinkResolverService} over test doubles, recording each resolution. */
-export function createTestNoteLinkResolverService(
-  options?: TestNoteLinkResolverServiceOptions,
-): TestNoteLinkResolverService {
-  const service = createNoteLinkResolverService({
-    wikiResolver:
-      options?.wikiResolver ?? createWikiResolverService({ database: createTestDatabaseService() }),
-    noteFile: options?.noteFile ?? createTestNoteFileService(),
-  })
-  const log: NoteLinkResolution[] = []
-  return {
-    async resolveWikiTarget(target, generation, sourcePath) {
-      const result = await service.resolveWikiTarget(target, generation, sourcePath)
-      log.push({ kind: 'wiki', target, generation, sourcePath, result })
-      return result
-    },
-    async resolveMarkdownHref(sourcePath, href, generation) {
-      const result = await service.resolveMarkdownHref(sourcePath, href, generation)
-      log.push({ kind: 'markdown', sourcePath, href, generation, result })
-      return result
-    },
-    calls: () => [...log],
+/**
+ * Forwards every member to the real service and records each resolution.
+ */
+class TestNoteLinkResolverServiceImpl implements TestNoteLinkResolverService {
+  readonly #inner: NoteLinkResolverService
+  readonly #log: NoteLinkResolution[] = []
+
+  constructor(inner: NoteLinkResolverService) {
+    this.#inner = inner
+  }
+
+  async resolveWikiTarget(
+    target: string,
+    generation: number,
+    sourcePath?: string,
+  ): Promise<ExistingWikiTargetResolution> {
+    const result = await this.#inner.resolveWikiTarget(target, generation, sourcePath)
+    this.#log.push({ kind: 'wiki', target, generation, sourcePath, result })
+    return result
+  }
+
+  async resolveMarkdownHref(
+    sourcePath: string,
+    href: string,
+    generation: number,
+  ): Promise<ExistingWikiTargetResolution> {
+    const result = await this.#inner.resolveMarkdownHref(sourcePath, href, generation)
+    this.#log.push({ kind: 'markdown', sourcePath, href, generation, result })
+    return result
+  }
+
+  calls(): readonly NoteLinkResolution[] {
+    return [...this.#log]
   }
 }
 
+/**
+ * The real {@link NoteLinkResolverService} over test doubles, recording each resolution.
+ */
+export function createTestNoteLinkResolverService(
+  options?: TestNoteLinkResolverServiceOptions,
+): TestNoteLinkResolverService {
+  return new TestNoteLinkResolverServiceImpl(
+    createNoteLinkResolverService({
+      wikiResolver:
+        options?.wikiResolver ??
+        createWikiResolverService({ database: createTestDatabaseService() }),
+      noteFile: options?.noteFile ?? createTestNoteFileService(),
+    }),
+  )
+}
+
 export interface TestNoteCreationServiceOptions {
-  /** Where notes are created; defaults to an empty test note file service. */
+  /**
+   * Where notes are created; defaults to an empty test note file service.
+   */
   noteFile?: NoteFileService
-  /** Defaults to a {@link createTestNoteLinkResolverService} over `noteFile`. */
+  /**
+   * Defaults to a {@link createTestNoteLinkResolverService} over `noteFile`.
+   */
   noteLinkResolver?: NoteLinkResolverService
-  /** Defaults to {@link createTestIdService}. */
+  /**
+   * Defaults to {@link createTestIdService}.
+   */
   id?: IdService
 }
 
 export interface TestNoteCreationService extends NoteCreationService {
-  /** Every path `createNoteWithTitle` or `resolveOrCreateNoteWithTitle` created, in order. */
+  /**
+   * Every path `createNoteWithTitle` or `resolveOrCreateNoteWithTitle` created, in order.
+   */
   created(): readonly string[]
 }
 
-/** The real {@link NoteCreationService} over test doubles, recording each created path. */
+/**
+ * Forwards every member to the real service and records each created path.
+ */
+class TestNoteCreationServiceImpl implements TestNoteCreationService {
+  readonly #inner: NoteCreationService
+  readonly #createdLog: string[] = []
+
+  constructor(inner: NoteCreationService) {
+    this.#inner = inner
+  }
+
+  newNoteId(): string {
+    return this.#inner.newNoteId()
+  }
+
+  untitledNoteSeed(): string {
+    return this.#inner.untitledNoteSeed()
+  }
+
+  untitledNotePath(): string {
+    return this.#inner.untitledNotePath()
+  }
+
+  async createNoteWithTitle(title: string, generation: number, body?: string): Promise<string> {
+    const path = await this.#inner.createNoteWithTitle(title, generation, body)
+    this.#createdLog.push(path)
+    return path
+  }
+
+  async resolveOrCreateNoteWithTitle(
+    title: string,
+    generation: number,
+    body?: string,
+  ): Promise<ResolveOrCreateNoteResult> {
+    const result = await this.#inner.resolveOrCreateNoteWithTitle(title, generation, body)
+    if (result.kind === 'created') {
+      this.#createdLog.push(result.path)
+    }
+    return result
+  }
+
+  created(): readonly string[] {
+    return [...this.#createdLog]
+  }
+}
+
+/**
+ * The real {@link NoteCreationService} over test doubles, recording each created path.
+ */
 export function createTestNoteCreationService(
   options?: TestNoteCreationServiceOptions,
 ): TestNoteCreationService {
   const noteFile = options?.noteFile ?? createTestNoteFileService()
-  const service = createNoteCreationService({
-    noteFile,
-    noteLinkResolver: options?.noteLinkResolver ?? createTestNoteLinkResolverService({ noteFile }),
-    id: options?.id ?? createTestIdService(),
-  })
-  const createdLog: string[] = []
-  return {
-    ...service,
-    async createNoteWithTitle(title, generation, body) {
-      const path = await service.createNoteWithTitle(title, generation, body)
-      createdLog.push(path)
-      return path
-    },
-    async resolveOrCreateNoteWithTitle(
-      title,
-      generation,
-      body,
-    ): Promise<ResolveOrCreateNoteResult> {
-      const result = await service.resolveOrCreateNoteWithTitle(title, generation, body)
-      if (result.kind === 'created') {
-        createdLog.push(result.path)
-      }
-      return result
-    },
-    created: () => [...createdLog],
-  }
+  return new TestNoteCreationServiceImpl(
+    createNoteCreationService({
+      noteFile,
+      noteLinkResolver:
+        options?.noteLinkResolver ?? createTestNoteLinkResolverService({ noteFile }),
+      id: options?.id ?? createTestIdService(),
+    }),
+  )
 }

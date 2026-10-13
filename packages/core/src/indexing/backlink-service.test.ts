@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import {
   createTestDatabaseService,
@@ -26,13 +26,12 @@ describe('getBacklinksWithContext', () => {
       files: Object.fromEntries(notes.map((note) => [note.path, note.markdown])),
     })
     const reads: string[] = []
-    const noteFile: NoteFileService = {
-      ...files,
-      read: async (path, generation) => {
-        reads.push(path)
-        return await files.read(path, generation)
-      },
-    }
+    const readFile = files.read.bind(files)
+    vi.spyOn(files, 'read').mockImplementation(async (path, generation) => {
+      reads.push(path)
+      return await readFile(path, generation)
+    })
+    const noteFile: NoteFileService = files
     return { database, backlinks: createBacklinkService({ database, noteFile }), reads }
   }
 
