@@ -1,3 +1,6 @@
+/** The main window owns the graph; a note window adopts the main window's sessions. */
+export type GraphRole = 'main' | 'note-window'
+
 /** One open graph: its identity, both session generations, and its lifetime. */
 export interface GraphSession {
   /** Absolute path of the graph root. */

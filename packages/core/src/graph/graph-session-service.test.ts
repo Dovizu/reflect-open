@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
+import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
@@ -8,6 +10,7 @@ import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestMobileStorageService } from '../testing/mobile-storage.ts'
 import { createTestPlatformService, type TestPlatformOptions } from '../testing/platform.ts'
+import { createTestICloudNativeService } from '../testing/sync.ts'
 import {
   createTestDialogService,
   createTestLifecycleService,
@@ -103,6 +106,11 @@ function setup(options?: SetupOptions) {
   const dialog = createTestDialogService()
   const lifecycle = createTestLifecycleService({ hidden: options?.hidden ?? false })
   const mobileStorage = createTestMobileStorageService()
+  const noteRows = createNoteRowService()
+  const icloudNative = createTestICloudNativeService()
+  const reloads: number[] = []
+  const healedMoves: [string, string][] = []
+  const built: { session: GraphSession; role: GraphRole; services: { id: number } }[] = []
   const session = createTestGraphSessionService({
     ipc,
     indexLifecycle,
@@ -115,9 +123,26 @@ function setup(options?: SetupOptions) {
     platform: createTestPlatformService(options?.platform),
     lifecycle,
     mobileStorage,
+    noteRows,
+    openDocuments: {
+      reloadAll: () => {
+        reloads.push(reloads.length + 1)
+      },
+    },
+    noteMove: {
+      followHealedMove: (from, to) => {
+        healedMoves.push([from, to])
+      },
+    },
+    icloudNative,
     logger,
+    createServices: (opened, role) => {
+      const services = { id: built.length + 1 }
+      built.push({ session: opened, role, services })
+      return services
+    },
   })
-  const states: GraphSessionState[] = []
+  const states: GraphSessionState<{ id: number }>[] = []
   session.subscribe(() => {
     states.push(session.getState())
   })
@@ -142,6 +167,11 @@ function setup(options?: SetupOptions) {
     dialog,
     lifecycle,
     mobileStorage,
+    noteRows,
+    icloudNative,
+    reloads,
+    healedMoves,
+    built,
     failures,
     states,
     released,
@@ -683,7 +713,9 @@ describe('GraphSessionService index following', () => {
     expect(context.fileChanges.listenerCount().reconcile).toBe(0)
 
     const count = context.states.length
-    context.indexLifecycle.sync(1, () => false)
+    context.indexLifecycle.sync(
+      createGraphSession({ root: '/a', name: 'a', generation: 1, indexGeneration: 1 }),
+    )
     await settleIndex(context)
     expect(context.states).toHaveLength(count)
   })
@@ -756,8 +788,95 @@ describe('GraphSessionService mobile suspension', () => {
     stop()
     context.lifecycle.setHidden(true)
 
-    context.indexLifecycle.sync(1, () => false)
+    context.indexLifecycle.sync(
+      createGraphSession({ root: '/a', name: 'a', generation: 1, indexGeneration: 1 }),
+    )
     await settleIndex(context)
     expect(passes(context)).toBe(1)
+  })
+})
+
+describe('GraphSessionService graph services', () => {
+  it('builds the services of each opened session and ends them with it', async () => {
+    const context = await bootDesktop()
+    await context.session.openRecent('/a')
+    const first = context.session.getState()
+    expect(context.built.map(({ role }) => role)).toEqual(['main'])
+    expect(context.built[0]?.session).toBe(first.session)
+    expect(first.services).toBe(context.built[0]?.services)
+
+    const opening = context.session.openRecent('/b')
+    expect(first.session?.signal.aborted).toBe(true)
+    expect(context.session.getState().services).toBeNull()
+    await opening
+    expect(context.session.getState().services).toEqual({ id: 2 })
+
+    await context.session.chooseGraph()
+    expect(context.built[1]?.session.signal.aborted).toBe(true)
+    expect(context.session.getState().services).toBeNull()
+  })
+
+  it('builds note-window services for an adopted session', async () => {
+    const context = setup({ windowLabel: 'note-1', bootstrap: BOOT })
+    context.session.boot()
+    await expect.poll(() => context.session.getState().services).toEqual({ id: 1 })
+    expect(context.built.map(({ role, session }) => [role, session.indexGeneration])).toEqual([
+      ['note-window', 5],
+    ])
+  })
+
+  it('builds no services without an index session', async () => {
+    const context = await bootDesktop({ indexOpenFails: true })
+    await context.session.openRecent('/a')
+    expect(context.session.getState()).toMatchObject({ status: 'ready', services: null })
+    expect(context.built).toEqual([])
+  })
+})
+
+describe('GraphSessionService index reactions', () => {
+  it('drops the note-row overlays when a graph is released', async () => {
+    const context = await bootDesktop()
+    await context.session.openRecent('/a')
+    context.noteRows.setOverlay('notes/a.md', 1, { gistStale: true })
+    await context.session.openRecent('/b')
+    expect(context.noteRows.getOverlay('notes/a.md', 1)).toBeNull()
+
+    context.noteRows.setOverlay('notes/b.md', 2, { gistStale: true })
+    await context.session.chooseGraph()
+    expect(context.noteRows.getOverlay('notes/b.md', 2)).toBeNull()
+  })
+
+  it('reloads the open documents after a sync pass, not after a rebuild', async () => {
+    const context = await bootDesktop()
+    await context.session.openRecent('/a')
+    await expect.poll(() => context.reloads).toHaveLength(1)
+
+    await context.indexLifecycle.rebuildVisibly(1)
+    expect(context.reloads).toHaveLength(1)
+  })
+
+  it('follows healed moves and requests downloads for stale placeholders', async () => {
+    const context = setup()
+    const onMoved = vi.spyOn(context.indexLifecycle, 'onMoved')
+    const onStale = vi.spyOn(context.indexLifecycle, 'onStalePlaceholders')
+    const stop = context.session.boot()
+
+    onMoved.mock.calls[0]?.[0]('notes/a.md', 'notes/b.md')
+    onStale.mock.calls[0]?.[0](['notes/evicted.md'])
+
+    expect(context.healedMoves).toEqual([['notes/a.md', 'notes/b.md']])
+    expect(context.icloudNative.calls()).toContainEqual({
+      method: 'requestDownloads',
+      args: [['notes/evicted.md']],
+    })
+    stop()
+  })
+
+  it('stops reacting to the index once the boot is stopped', async () => {
+    const context = await bootDesktop()
+    context.stop()
+    await context.session.openRecent('/a')
+    await settleIndex(context)
+    expect(context.reloads).toEqual([])
   })
 })

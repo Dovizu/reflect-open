@@ -5,7 +5,7 @@ import type { AgentSkillService, AgentSkillStatus } from '@reflect/core'
 import {
   createTestAppServices,
   createTestPlatformService,
-  type TestGraphSessionService,
+  type TestAppServices,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
@@ -44,7 +44,7 @@ const agentSkill: AgentSkillService = {
 }
 
 interface SectionView {
-  graphSession: TestGraphSessionService
+  graphSession: TestAppServices['graphSession']
   queryClient: QueryClient
 }
 

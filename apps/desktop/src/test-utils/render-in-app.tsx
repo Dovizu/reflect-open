@@ -5,6 +5,7 @@ import { render, renderHook, type RenderHookResult, type RenderResult } from 'vi
 import type {
   AppServices,
   BackupState,
+  GraphServices,
   GraphSessionState,
   MobileOnboardingState,
   Settings,
@@ -20,8 +21,7 @@ import {
 } from '@reflect/core/testing'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { registerAppCommands } from '@/lib/commands/app-commands.ts'
-import { GraphProvider, useGraph } from '@/providers/graph-provider.tsx'
-import { SyncProvider } from '@/providers/sync-provider.tsx'
+import { GraphProvider } from '@/providers/graph-provider.tsx'
 import type { Route } from '@/routing/route.ts'
 import { RouterProvider } from '@/routing/router.tsx'
 import { AppServicesProvider } from '@/services/services-provider.tsx'
@@ -42,7 +42,7 @@ export interface RenderInAppOptions {
    */
   graph?: TestOpenGraph | null
   /** Reported over the graph state, e.g. `{ indexing: true }`, `{ error }`, `{ recents }`. */
-  graphState?: Partial<GraphSessionState>
+  graphState?: Partial<GraphSessionState<GraphServices<AppServices>>>
   /** The stored settings document, loaded before the first render. */
   settings?: Partial<Settings>
   /** Reported over the mobile onboarding state, e.g. `{ kind: 'icloud' }`. */
@@ -50,11 +50,10 @@ export interface RenderInAppOptions {
   /** The route the router starts on; defaults to today. `null` mounts no router. */
   route?: Route | null
   /**
-   * Mount the real `SyncProvider` for the open graph. A `BackupState` also
-   * swaps the backup factory for a scripted one that starts in this state;
-   * the result's `backup` drives it. Needs an open graph.
+   * Swap the backup factory for a scripted one that starts in this state; the
+   * result's `backup` drives it. Needs an open graph.
    */
-  sync?: boolean | BackupState
+  sync?: BackupState
   /** The facts of the test platform. Only without `app`; see {@link MOBILE_PLATFORM}. */
   platform?: TestPlatformOptions
   /** Defaults to a fresh client without retries, cleared when the test ends. */
@@ -87,11 +86,6 @@ type WithApp<App> = RenderInAppOptions & { app: App }
 type WithoutApp = RenderInAppOptions & { app?: undefined }
 type AnyOptions = RenderInAppOptions & { app?: AppServices | undefined }
 
-function GraphSync({ children }: { children: ReactNode }): ReactNode {
-  const { graph } = useGraph()
-  return graph === null ? children : <SyncProvider graph={graph}>{children}</SyncProvider>
-}
-
 /** Prepare `app` and the provider tree; the caller renders `wrap(ui)` and calls `dispose` after. */
 async function prepare(options: AnyOptions | undefined): Promise<
   InAppHandles<AppServices> & {
@@ -100,9 +94,9 @@ async function prepare(options: AnyOptions | undefined): Promise<
   }
 > {
   const scriptedBackups =
-    typeof options?.sync === 'object'
-      ? createTestScriptedBackupServiceFactory({ state: options.sync })
-      : null
+    options?.sync === undefined
+      ? null
+      : createTestScriptedBackupServiceFactory({ state: options.sync })
   if (options?.app !== undefined && (scriptedBackups !== null || options.platform !== undefined)) {
     throw new Error(
       'renderInApp: with your own `app`, give it the platform and the backup factory yourself',
@@ -168,17 +162,16 @@ async function prepare(options: AnyOptions | undefined): Promise<
         </AppServicesProvider>
       )
     }
-    const synced = (options?.sync ?? false) === false ? wrapped : <GraphSync>{wrapped}</GraphSync>
     return (
       <AppServicesProvider services={app}>
         <QueryClientProvider client={queryClient}>
           <GraphProvider platform={app.platform.appPlatform}>
             <TooltipProvider>
               {route === null ? (
-                synced
+                wrapped
               ) : (
                 <RouterProvider {...(route === undefined ? {} : { initialRoute: route })}>
-                  {synced}
+                  {wrapped}
                 </RouterProvider>
               )}
             </TooltipProvider>
@@ -201,8 +194,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
 /**
  * Render `ui` the way the app does: inside `AppServicesProvider`, a query
  * client, and the real `GraphProvider` (which provides
- * the graph services), `RouterProvider` and, on request, `SyncProvider`. All
- * of them read `app`, which defaults to test doubles. Tests drive and observe
+ * the graph services) and `RouterProvider`. All of them read `app`, which defaults to test doubles. Tests drive and observe
  * the app through the returned `app`: `app.graphSession.setGraph()`,
  * `app.settings.get()`, `app.navigation.navigations()`,
  * `app.operations.getAll()`.

@@ -51,6 +51,7 @@ function setup(options?: { graph?: GraphInfo | null }) {
         error: null,
         recents: [],
         session: null,
+        services: null,
       }),
       refreshIndex: () => {
         refreshes += 1

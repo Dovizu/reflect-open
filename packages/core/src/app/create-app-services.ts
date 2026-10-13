@@ -59,23 +59,17 @@ import { createGistPublishService, type GistPublishService } from '../sync/gist-
 import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
 import { createGithubRepoService } from '../sync/github-repo-service.ts'
 import { createSyncEngineFactory } from '../sync/engine.ts'
-import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
+import { createBackupServiceFactory } from '../sync/backup-service.ts'
 import {
   createConflictResolutionService,
   type ConflictResolutionService,
 } from '../sync/conflict-resolution-service.ts'
-import {
-  createICloudDownloadServiceFactory,
-  type ICloudDownloadServiceFactory,
-} from '../sync/icloud-download-service.ts'
+import { createICloudDownloadServiceFactory } from '../sync/icloud-download-service.ts'
 import {
   createICloudMigrationService,
   type ICloudMigrationService,
 } from '../sync/icloud-migration-service.ts'
-import {
-  createICloudSyncServiceFactory,
-  type ICloudSyncServiceFactory,
-} from '../sync/icloud-sync-service.ts'
+import { createICloudSyncServiceFactory } from '../sync/icloud-sync-service.ts'
 import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import { createXArchiveService } from '../x-archive.ts'
 import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
@@ -275,6 +269,7 @@ import {
   type NativeMenuHost,
   type NativeMenuService,
 } from '../commands/native-menu-service.ts'
+import { createGraphServices, type GraphServices } from './create-graph-services.ts'
 
 /** The app-scoped services: one instance each for the lifetime of the webview. */
 export interface AppServices {
@@ -317,13 +312,7 @@ export interface AppServices {
   readonly linkNavigation: LinkNavigationService
   readonly githubAuth: GithubAuthService
   readonly gistPublish: GistPublishService
-  /** Builds the backup lifecycle of one (graph, index session) pair. */
-  readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
-  /** Builds the iCloud conflict lifecycle of one (graph, index session) pair. */
-  readonly icloudSyncs: ICloudSyncServiceFactory
-  /** Builds the download refresh of one open iCloud graph (mobile). */
-  readonly icloudDownloads: ICloudDownloadServiceFactory
   readonly icloudMigration: ICloudMigrationService
   readonly conflictResolution: ConflictResolutionService
   readonly syncStatus: SyncStatusService
@@ -350,7 +339,8 @@ export interface AppServices {
   readonly notePath: NotePathService
   readonly noteCreation: NoteCreationService
   readonly indexLifecycle: IndexLifecycleService
-  readonly graphSession: GraphSessionService
+  /** The active graph; its state carries the graph-scoped services of the open session. */
+  readonly graphSession: GraphSessionService<GraphServices<AppServices>>
   readonly semanticSearch: SemanticSearchService
   readonly mobileOnboarding: MobileOnboardingService
   readonly keyboard: KeyboardService
@@ -599,7 +589,9 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
     operations,
   })
-  const graphSession = createGraphSessionService({
+  const noteRows = createNoteRowService()
+  const icloudNative = createICloudNativeService({ ipc, logger })
+  const graphSession: GraphSessionService<GraphServices<AppServices>> = createGraphSessionService({
     ipc,
     indexLifecycle,
     indexStore,
@@ -612,12 +604,32 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     platform,
     lifecycle,
     mobileStorage,
+    noteRows,
+    openDocuments,
+    noteMove,
+    icloudNative,
     logger,
+    createServices: (session, role) =>
+      createGraphServices(app, session, role, {
+        backups,
+        icloudSyncs,
+        icloudDownloads,
+        capture: app.capture,
+        assetDescription: app.assetDescription,
+        chatSessions: app.chatSessions,
+        attachments,
+        settings,
+        mobileOnboarding: app.mobileOnboarding,
+        graphSession,
+        platform,
+      }),
   })
   const opener = createOpenerService({ transport: adapters.opener, logger })
   const navigation = createNavigationService()
   const deepLink = createDeepLinkService({
-    source: adapters.deepLink ?? createNoDeepLinkSource(),
+    // The OS delivers deep links to every webview; only the main window takes them.
+    source:
+      (windowService.isMainWindow() ? adapters.deepLink : undefined) ?? createNoDeepLinkSource(),
     indexQuery: indexReads.indexQuery,
     captureInbox,
     operations,
@@ -646,9 +658,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
   const githubRepos = createGithubRepoService({ http: adapters.http })
   const gists = createGistService({ http: adapters.http })
-  const noteRows = createNoteRowService()
   const syncEngines = createSyncEngineFactory({ git: gitRepository, clock })
-  const icloudNative = createICloudNativeService({ ipc, logger })
   const embeddingRuntime = createEmbeddingRuntimeService({ ipc, logger })
   const retrieval = createRetrievalService({
     database,
@@ -712,7 +722,35 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     privacy: noteServices.privacy,
   })
   const imageCodec = adapters.imageCodec ?? createUnavailableImageCodec()
-  return {
+  const backups = createBackupServiceFactory({
+    git: gitRepository,
+    syncEngines,
+    githubAuth,
+    githubRepos,
+    fileChanges,
+    indexLifecycle,
+    operations,
+    lifecycle,
+    platform,
+    persistenceFlush,
+    logger,
+  })
+  const icloudSyncs = createICloudSyncServiceFactory({
+    icloudNative,
+    fileChanges,
+    indexLifecycle,
+    openDocuments,
+    lifecycle,
+    clock,
+    logger,
+  })
+  const icloudDownloads = createICloudDownloadServiceFactory({
+    icloudNative,
+    lifecycle,
+    clock,
+    logger,
+  })
+  const app: AppServices = {
     ipc,
     logger,
     clock,
@@ -788,19 +826,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
         })
       : createUnsupportedUpdateService(),
     githubAuth,
-    backups: createBackupServiceFactory({
-      git: gitRepository,
-      syncEngines,
-      githubAuth,
-      githubRepos,
-      fileChanges,
-      indexLifecycle,
-      operations,
-      lifecycle,
-      platform,
-      persistenceFlush,
-      logger,
-    }),
     gistPublish: createGistPublishService({
       gists,
       githubAuth,
@@ -811,16 +836,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       clipboard: adapters.clipboard,
     }),
     icloudNative,
-    icloudSyncs: createICloudSyncServiceFactory({
-      icloudNative,
-      fileChanges,
-      indexLifecycle,
-      openDocuments,
-      lifecycle,
-      clock,
-      logger,
-    }),
-    icloudDownloads: createICloudDownloadServiceFactory({ icloudNative, lifecycle, clock, logger }),
     icloudMigration: createICloudMigrationService({ icloudNative }),
     conflictResolution: createConflictResolutionService({ noteFile, indexLifecycle, fileChanges }),
     syncStatus: createSyncStatusService(),
@@ -994,4 +1009,5 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     }),
     mobile: mobileServices,
   }
+  return app
 }

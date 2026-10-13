@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
@@ -24,6 +25,16 @@ import { PROJECTION_VERSION } from './indexed-note.ts'
 import { PROJECTION_VERSION_KEY } from './indexer.ts'
 
 const databases: { close(): void }[] = []
+
+/** A graph session at index generation `indexGeneration` that ends when `signal` aborts. */
+function sessionAt(indexGeneration: number, signal?: AbortSignal): GraphSession {
+  return createGraphSession({ root: '/g', name: 'g', generation: 1, indexGeneration }, signal)
+}
+
+/** A graph session at index generation `indexGeneration` that already ended. */
+function endedSessionAt(indexGeneration: number): GraphSession {
+  return sessionAt(indexGeneration, AbortSignal.abort())
+}
 
 afterEach(() => {
   for (const database of databases.splice(0)) {
@@ -191,9 +202,9 @@ describe('createIndexLifecycleService', () => {
     expect(steps).toEqual(['watchStop'])
   })
 
-  it('sync(generation) reconciles, then subscribes, then starts the watcher', async () => {
+  it('sync(session) reconciles, then subscribes, then starts the watcher', async () => {
     const { index, store, fileChanges, steps, applied, subscriptions } = setup()
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled() // settle without aborting: `stop()` skips the tail
 
     expect(store.calls()).toContainEqual({ method: 'reconcileScan', generation: 5 })
@@ -211,7 +222,7 @@ describe('createIndexLifecycleService', () => {
     const unlisten = index.onApplied((event) => {
       batches.push(event)
     })
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
     expect(batches).toEqual([{ generation: 5, changes: null }]) // a sync pass reports no batch
 
@@ -268,7 +279,7 @@ describe('createIndexLifecycleService', () => {
         },
       },
     })
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
     expect(moved).toEqual([[OLD, NEW]])
   })
@@ -277,7 +288,7 @@ describe('createIndexLifecycleService', () => {
     // The pass reads changed files into the index without emitting per-file
     // events; open note sessions re-read off this event.
     const { index, order, reconciled } = setup()
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled() // settle without aborting: `stop()` would suppress it
     expect(order).toEqual(['applied', 'reconciled'])
     expect(reconciled).toEqual([{ generation: 5, source: 'sync' }])
@@ -285,7 +296,7 @@ describe('createIndexLifecycleService', () => {
 
   it('logs a completed pass with its read counters', async () => {
     const { index, logger } = setup()
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
     expect(logger.getInfos().map((entry) => entry.message)).toEqual([
       'index: pass finished in 0ms — read 0 of 0 files',
@@ -298,23 +309,23 @@ describe('createIndexLifecycleService', () => {
       failStore: (call) =>
         fail && call.method === 'reconcileScan' ? new Error('boom') : undefined,
     })
-    index.sync(5, () => true) // stale right after the reconcile
+    index.sync(endedSessionAt(5)) // stale right after the reconcile
     await index.settled()
     expect(reconciled).toEqual([])
 
     fail = true
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
     expect(reconciled).toEqual([])
   })
 
   it('an aborted pass runs no tail: no events, no subscribe, no watcher', async () => {
-    // `stop()` aborts without making `isStale()` true, so an interrupted pass
+    // `stop()` aborts without ending the session, so an interrupted pass
     // bails on its own signal. Whoever stopped it either starts a replacement
     // pass (`refresh`, a graph switch) or tears the lifecycle down (`close`),
     // so a tail here is only undone and redone moments later.
     const { index, steps, applied, reconciled, logger } = setup()
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.stop()
     expect(applied).toEqual([])
     expect(reconciled).toEqual([])
@@ -325,7 +336,7 @@ describe('createIndexLifecycleService', () => {
 
   it('reports progress: reconciling → live; idle when closed', async () => {
     const { index, progress } = setup()
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
     expect(progress).toEqual(['reconciling', 'live'])
 
@@ -337,27 +348,27 @@ describe('createIndexLifecycleService', () => {
     const { index, progress } = setup({
       failStore: (call) => (call.method === 'reconcileScan' ? new Error('boom') : undefined),
     })
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.stop()
     expect(progress).toEqual(['reconciling', 'idle'])
   })
 
   it('bails after reconcile when superseded — no subscribe, no watcher', async () => {
     const { index, steps } = setup()
-    index.sync(5, () => true) // stale immediately after reconcile
+    index.sync(endedSessionAt(5)) // stale immediately after reconcile
     await index.settled()
     expect(steps).toEqual(['scan'])
   })
 
   it('tears down a subscription created after supersession (no listener leak)', async () => {
-    let stale = false
+    const opened = new AbortController()
     // Fresh through the reconcile, stale by the time the subscription exists.
     const { index, steps, subscriptions } = setup({
       onSubscribe: () => {
-        stale = true
+        opened.abort()
       },
     })
-    index.sync(5, () => stale)
+    index.sync(sessionAt(5, opened.signal))
     await index.settled()
     expect(steps).toEqual(['scan', 'subscribe'])
     expect(subscriptions()).toBe(0) // pending subscription cleaned up
@@ -369,7 +380,7 @@ describe('createIndexLifecycleService', () => {
         void harness.index.stop()
       },
     })
-    harness.index.sync(5, () => false)
+    harness.index.sync(sessionAt(5))
     await harness.index.settled()
     expect(harness.steps).toEqual(['scan', 'subscribe'])
     expect(harness.subscriptions()).toBe(0) // pending subscription cleaned up
@@ -381,7 +392,7 @@ describe('createIndexLifecycleService', () => {
         void harness.index.stop()
       },
     })
-    harness.index.sync(5, () => false)
+    harness.index.sync(sessionAt(5))
     await harness.index.settled()
     // Dropped rather than adopted, and the pass never claims to be live. The
     // watcher stays up for the replacement pass; only `close` stops it.
@@ -395,7 +406,7 @@ describe('createIndexLifecycleService', () => {
       failStore: (call) =>
         call.method === 'reconcileScan' ? new Error('reconcile boom') : undefined,
     })
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.stop()
     expect(logger.getErrors()).toEqual([{ message: 'index sync failed:', cause: 'reconcile boom' }])
   })
@@ -403,7 +414,7 @@ describe('createIndexLifecycleService', () => {
   it('stop() aborts the running reconcile and waits for it to settle', async () => {
     const held = heldScans()
     const { index, steps } = setup({ onScan: held.onScan })
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await vi.waitFor(() => expect(held.settles).toHaveLength(1))
 
     let stopped = false
@@ -425,7 +436,7 @@ describe('createIndexLifecycleService', () => {
 
   it('close() drops an active subscription', async () => {
     const { index, fileChanges, subscriptions } = setup()
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
     expect(subscriptions()).toBe(1)
 
@@ -437,10 +448,10 @@ describe('createIndexLifecycleService', () => {
 
   it('sync() drops the previous live subscription before the next pass', async () => {
     const { index, subscriptions } = setup()
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
 
-    index.sync(6, () => true)
+    index.sync(endedSessionAt(6))
     expect(subscriptions()).toBe(0)
     await index.settled()
   })
@@ -451,11 +462,11 @@ describe('createIndexLifecycleService', () => {
     const held = heldScans()
     const { index, passes } = setup({ onScan: held.onScan })
 
-    index.refresh(5, () => false)
+    index.refresh(sessionAt(5))
     await vi.waitFor(() => expect(held.settles).toHaveLength(1))
-    index.refresh(5, () => false)
-    index.refresh(5, () => false)
-    index.refresh(5, () => false)
+    index.refresh(sessionAt(5))
+    index.refresh(sessionAt(5))
+    index.refresh(sessionAt(5))
 
     held.settles[0]!()
     // The three stacked triggers fold into exactly one rerun…
@@ -468,7 +479,7 @@ describe('createIndexLifecycleService', () => {
 
   it('refresh() bails without a rerun when superseded', async () => {
     const { index, passes } = setup()
-    index.refresh(5, () => true) // a newer open owns the lifecycle
+    index.refresh(endedSessionAt(5)) // a newer open owns the lifecycle
     await index.settled()
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(passes()).toBe(0)
@@ -479,12 +490,12 @@ describe('createIndexLifecycleService', () => {
     const { index, steps, passes } = setup()
     index.setSuspendGuard(() => backgrounded)
 
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await Promise.resolve()
     expect(steps).toEqual([])
 
     backgrounded = false
-    index.resume(5, () => false)
+    index.resume(sessionAt(5))
     await vi.waitFor(() => expect(passes()).toBe(1))
     await index.settled()
 
@@ -495,11 +506,11 @@ describe('createIndexLifecycleService', () => {
     const { index, steps, passes } = setup()
     index.suspend()
 
-    index.resume(null, () => false)
+    index.resume(null)
     await Promise.resolve()
     expect(passes()).toBe(0)
 
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
     expect(steps).toEqual(['scan', 'subscribe', 'watchStart'])
   })
@@ -517,7 +528,7 @@ describe('createIndexLifecycleService', () => {
         }
       },
     })
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
     expect(subscriptions()).toBe(1)
 
@@ -531,10 +542,10 @@ describe('createIndexLifecycleService', () => {
     expect(store.applied()).toEqual([])
 
     hold = true
-    index.resume(5, () => false)
+    index.resume(sessionAt(5))
     await vi.waitFor(() => expect(settles).toHaveLength(1))
-    index.refresh(5, () => false)
-    index.refresh(5, () => false)
+    index.refresh(sessionAt(5))
+    index.refresh(sessionAt(5))
 
     settles[0]!()
     await vi.waitFor(() => expect(settles).toHaveLength(2))
@@ -553,14 +564,14 @@ describe('createIndexLifecycleService', () => {
       stalePlaceholders: ['notes/evicted.md'],
     }
     const current = setup({ store: { scan } })
-    current.index.sync(5, () => false)
+    current.index.sync(sessionAt(5))
     await current.index.settled()
     expect(current.stalePlaceholders).toEqual([['notes/evicted.md']])
 
     // Opening a graph swaps the root before the old pass is stopped: a
     // superseded pass must not request its old paths against the new graph.
     const superseded = setup({ store: { scan } })
-    superseded.index.sync(5, () => true)
+    superseded.index.sync(endedSessionAt(5))
     await superseded.index.settled()
     expect(superseded.stalePlaceholders).toEqual([])
   })
@@ -597,7 +608,7 @@ describe('file progress', () => {
     })
     expect(index.fileProgress()).toBeNull()
 
-    index.sync(5, () => false)
+    index.sync(sessionAt(5))
     await index.settled()
 
     expect(fileProgress).toEqual([
@@ -619,14 +630,14 @@ describe('file progress', () => {
 
   it('stops reporting file progress once the pass is superseded', async () => {
     let reads = 0
-    let stale = false
+    const opened = new AbortController()
     const { index, fileProgress } = setupLargePass(() => {
       reads += 1
       if (reads === 20) {
-        stale = true // a superseded pass must go quiet
+        opened.abort() // a superseded pass must go quiet
       }
     })
-    index.sync(5, () => stale)
+    index.sync(sessionAt(5, opened.signal))
     await index.settled()
 
     expect(fileProgress).toEqual([[16, 32, 15]])

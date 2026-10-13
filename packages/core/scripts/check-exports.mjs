@@ -20,7 +20,6 @@ const ALLOWLIST = [
   'AppAdapters',
   'AppServices',
   'GraphServices',
-  'createGraphServices',
   'GraphSession',
   'IpcBridge',
   'WindowHost',

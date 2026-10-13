@@ -1,13 +1,13 @@
 import { createContext, use, useEffect, useMemo, type ReactNode } from 'react'
-import {
-  createGraphServices,
-  type AppPlatform,
-  type GraphSessionService,
-  type GraphSessionState,
+import type {
+  AppPlatform,
+  AppServices,
+  GraphServices,
+  GraphSessionService,
+  GraphSessionState,
 } from '@reflect/core'
 import { GraphServicesProvider, useAppServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
-import { bindGraphIndex } from './graph-index.ts'
 import { bootGraphSession } from './graph-session.ts'
 import { useMobileGraphBoot, type MobileGraphBoot } from './use-mobile-graph-boot.ts'
 
@@ -17,7 +17,7 @@ export type { GraphStatus } from '@reflect/core'
  * The graph context surface: the session state and its actions, the
  * mobile-only slice documented on {@link MobileGraphBoot}, and the platform.
  */
-type GraphContextValue = GraphSessionState &
+type GraphContextValue = GraphSessionState<GraphServices<AppServices>> &
   Pick<
     GraphSessionService,
     'pickAndOpen' | 'chooseGraph' | 'openRecent' | 'deleteGraph' | 'refreshIndex'
@@ -60,22 +60,6 @@ export function GraphProvider({
   const app = useAppServices()
   const session = app.graphSession
   const state = useServiceState(session)
-  const graphSession = state.session
-  // Graph-scoped services exist per open session, over the app services.
-  const graphServices = useMemo(
-    () =>
-      graphSession === null
-        ? null
-        : createGraphServices(
-            app,
-            graphSession,
-            app.window.isMainWindow() ? 'main' : 'note-window',
-          ),
-    [app, graphSession],
-  )
-
-  // What the app does when the active graph's index reports.
-  useEffect(() => bindGraphIndex(app), [app])
 
   // Desktop main-window boot reopens the most recent graph or shows the
   // chooser; a secondary note window adopts the main window's graph. Mobile
@@ -100,7 +84,7 @@ export function GraphProvider({
 
   return (
     <GraphContext value={value}>
-      <GraphServicesProvider services={graphServices}>{children}</GraphServicesProvider>
+      <GraphServicesProvider services={state.services}>{children}</GraphServicesProvider>
     </GraphContext>
   )
 }

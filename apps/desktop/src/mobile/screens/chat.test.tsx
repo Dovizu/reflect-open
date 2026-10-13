@@ -8,7 +8,6 @@ import {
   createTestSecretStoreService,
   type TestChatEngineService,
 } from '@reflect/core/testing'
-import { ChatProvider } from '@/providers/chat-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -73,7 +72,7 @@ function FocusChatProbe(): ReactElement {
   )
 }
 
-/** The screen inside the real provider stack, unmountable like a tab switch. */
+/** The screen over the graph's chat session, unmountable like a tab switch. */
 function Harness(): ReactElement {
   const [showScreen, setShowScreen] = useState(true)
   return (
@@ -83,7 +82,7 @@ function Harness(): ReactElement {
       <button type="button" onClick={() => setShowScreen((shown) => !shown)}>
         switch tab
       </button>
-      <ChatProvider graph={GRAPH}>{showScreen ? <MobileChat /> : null}</ChatProvider>
+      {showScreen ? <MobileChat /> : null}
     </>
   )
 }
@@ -93,10 +92,9 @@ async function renderHarness() {
     secretStore: createTestSecretStoreService({ [aiKeySecretName(MODEL.id)]: 'sk-test' }),
     chatEngine,
   })
-  // The index is not open, so the history drawer reads nothing.
   return await renderInApp(<Harness />, {
     app,
-    graph: { ...GRAPH, indexGeneration: null },
+    graph: GRAPH,
     settings: { aiProviders: settingsState.models, defaultAiProviderId: settingsState.defaultId },
   })
 }

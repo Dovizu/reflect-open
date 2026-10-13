@@ -85,7 +85,7 @@ describe('renderInApp', () => {
     expect(app.navigation.navigations()).toEqual([{ route: { kind: 'tasks' }, options: undefined }])
   })
 
-  it('mounts the sync provider over a scripted backup', async () => {
+  it('runs a scripted backup for the open graph', async () => {
     const { backup } = await renderInApp(<Probe />, { sync: { phase: 'disconnected' } })
     await expect.element(page.getByTestId('backup')).toHaveTextContent('disconnected')
 

@@ -40,7 +40,7 @@ async function renderSection(backup: BackupState): Promise<void> {
   if (githubConnected) {
     await app.githubAuth.save({ kind: 'pat', token: 'ghp_test' })
   }
-  await renderInApp(<BackupSettingsField />, { app, sync: true })
+  await renderInApp(<BackupSettingsField />, { app })
 }
 
 const AUTH_ERROR = {

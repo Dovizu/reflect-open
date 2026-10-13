@@ -1,12 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
-import {
-  aiKeySecretName,
-  type AiProviderConfig,
-  type ChatTurn,
-  type GraphInfo,
-  type Settings,
-} from '@reflect/core'
+import { aiKeySecretName, type AiProviderConfig, type ChatTurn, type Settings } from '@reflect/core'
 import {
   createTestAppServices,
   createTestChatEngineService,
@@ -14,21 +8,21 @@ import {
   createTestSecretStoreService,
   createTestSettingsService,
   type TestChatConversation,
+  type TestOpenGraph,
 } from '@reflect/core/testing'
-import { queryClient, queryKeys } from '@/lib/query-client.ts'
-import { ChatProvider, useChatSession } from '@/providers/chat-provider.tsx'
+import { useChatSession } from '@/providers/chat-provider.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 
 /**
- * The provider as a shell over the core chat session: it creates the session
- * for its graph, keeps it attached while mounted, publishes its state and
- * controls through the context, and refreshes the chat history queries. The
- * session's own lifecycle is covered by `chat-session-service.test.ts`.
+ * The hook as a shell over the open graph's chat session: it publishes the
+ * session state and controls. The session's own lifecycle is covered by
+ * `chat-session-service.test.ts`, and its creation by
+ * `create-graph-services.test.ts`.
  */
 
 const MODEL: AiProviderConfig = { id: 'm1', provider: 'openai', model: 'gpt-5.4', keyHint: '12345' }
 
-const GRAPH: GraphInfo = { root: '/g', name: 'test-graph', generation: 1 }
+const GRAPH: TestOpenGraph = { root: '/g', name: 'test-graph', generation: 1, indexGeneration: 7 }
 
 const RESTORED_TURN: ChatTurn = {
   id: 'turn-old',
@@ -70,18 +64,11 @@ async function renderProvider(options?: {
     chatHistory,
     chatEngine,
   })
-  // The open graph, as the graph session service reports it.
-  app.graphSession.setState({ graph: GRAPH, indexGeneration: 7 })
-  const view = await renderInApp(
-    <ChatProvider graph={GRAPH}>
-      <SessionProbe />
-    </ChatProvider>,
-    { app, servicesOnly: true },
-  )
+  const view = await renderInApp(<SessionProbe />, { app, graph: GRAPH, route: null })
   return { view, app, chatHistory, chatEngine }
 }
 
-describe('ChatProvider', () => {
+describe('useChatSession', () => {
   it('resumes the latest conversation of the graph on mount', async () => {
     await renderProvider({
       conversations: [
@@ -120,21 +107,6 @@ describe('ChatProvider', () => {
     })
   })
 
-  it('refreshes the chat history queries after a save', async () => {
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    try {
-      await renderProvider()
-
-      await session?.send('hello')
-
-      await vi.waitFor(() =>
-        expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.chat.all }),
-      )
-    } finally {
-      invalidate.mockRestore()
-    }
-  })
-
   it('holds the composer draft and clears it when a send goes through', async () => {
     await renderProvider()
 
@@ -156,8 +128,8 @@ describe('ChatProvider', () => {
     expect(app.settings.get().chatModelSelection).toEqual({ configId: 'm1', modelId: 'gpt-5.5' })
   })
 
-  it('aborts the in-flight turn when it unmounts (graph switch)', async () => {
-    const { view, chatEngine } = await renderProvider()
+  it('aborts the in-flight turn when the graph session ends', async () => {
+    const { app, chatEngine } = await renderProvider()
     let signal: AbortSignal | undefined
     chatEngine.setScript(async function* (request) {
       signal = request.signal
@@ -170,7 +142,7 @@ describe('ChatProvider', () => {
     await vi.waitFor(() => expect(signal).toBeDefined())
     expect(signal?.aborted).toBe(false)
 
-    await view.unmount()
+    app.graphSession.setGraph({ root: '/other' })
     expect(signal?.aborted).toBe(true)
   })
 })

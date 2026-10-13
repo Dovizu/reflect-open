@@ -56,7 +56,7 @@ async function mount(
     ]),
     backups,
   })
-  const view = await renderInApp(ui, { app, sync: true })
+  const view = await renderInApp(ui, { app })
   return Object.assign(view, { backup: backups.backup })
 }
 

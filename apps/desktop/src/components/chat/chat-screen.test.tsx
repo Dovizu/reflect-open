@@ -8,7 +8,6 @@ import {
   type ChatModelSelection,
   type ChatStreamEvent,
   type CloudGraphContext,
-  type GraphInfo,
 } from '@reflect/core'
 import {
   createTestAppServices,
@@ -19,8 +18,9 @@ import {
   type TestAppServices,
   type TestChatEngineService,
   type TestChatGraphContextService,
+  type TestOpenGraph,
 } from '@reflect/core/testing'
-import { ChatProvider, useChatSession } from '@/providers/chat-provider.tsx'
+import { useChatSession } from '@/providers/chat-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { ChatScreen } from './chat-screen.tsx'
@@ -31,7 +31,7 @@ import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
  * the screen are real, the engine's turns are scripted. Covers the
  * no-provider call-to-action, a full grounded turn (user bubble → tool chip →
  * cited answer), the model picker, live markdown rendering,
- * abort-on-unmount, New chat, and photo attachments (drop → preview →
+ * abort on a graph switch, New chat, and photo attachments (drop → preview →
  * image-only send).
  */
 
@@ -43,7 +43,7 @@ const settingsState = {
   apiKey: 'sk-test' as string | null,
 }
 
-const GRAPH: GraphInfo = { root: '/graphs/test', name: 'test-graph', generation: 1 }
+const GRAPH: TestOpenGraph = { root: '/graphs/test', name: 'test-graph', generation: 1 }
 
 const GRAPH_CONTEXT: CloudGraphContext = {
   graphName: 'test-graph',
@@ -124,19 +124,15 @@ async function renderChat() {
   // The cited `[[Atlas]]` links resolve through the index.
   seedNotes(app.database, [{ path: 'notes/atlas.md', markdown: '# Atlas\n' }])
   noteWindows = app.window
-  // The history menu reads the index generation: no graph is open, so it lists
-  // nothing. The session reads the graph session service, which has no open
-  // graph either, so persistence stays inert; chat-session-service.test.ts
-  // covers it.
   return await renderInApp(
-    <ChatProvider graph={GRAPH}>
+    <>
       <ChatScreen />
       <SendProbe />
       <RouteProbe />
-    </ChatProvider>,
+    </>,
     {
       app,
-      graph: null,
+      graph: GRAPH,
       settings: {
         aiProviders: settingsState.models,
         defaultAiProviderId: settingsState.defaultId,
@@ -578,7 +574,7 @@ describe('ChatScreen', () => {
     expect(chatEngine.calls()).toEqual([])
   })
 
-  it('aborts an in-flight turn when the provider unmounts (graph switch)', async () => {
+  it('aborts an in-flight turn when the graph session ends (graph switch)', async () => {
     configureModel()
     let signal: AbortSignal | undefined
     chatEngine.setScript((options) => {
@@ -595,9 +591,8 @@ describe('ChatScreen', () => {
     await vi.waitFor(() => expect(signal).toBeDefined())
     expect(signal?.aborted).toBe(false)
 
-    // Switching graphs remounts the workspace tree: the dead conversation
-    // must not keep reading whichever graph is open now.
-    await view.unmount()
+    // The dead conversation must not keep reading whichever graph is open now.
+    view.app.graphSession.setGraph({ root: '/graphs/other' })
     expect(signal?.aborted).toBe(true)
   })
 

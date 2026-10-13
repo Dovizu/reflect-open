@@ -382,17 +382,17 @@ describe('backfill', () => {
     expect(runtime.embedCalls()).toHaveLength(embedded)
   })
 
-  it('aborts between notes once stale', async () => {
+  it('aborts between notes once the signal aborts', async () => {
     const { index } = setupGraph()
-    let stale = false
+    const controller = new AbortController()
 
     const result = await index.backfill({
       generation: 3,
       modelId: MODEL,
       onProgress: () => {
-        stale = true
+        controller.abort()
       },
-      isStale: () => stale,
+      signal: controller.signal,
     })
 
     expect(result).toBe('aborted')

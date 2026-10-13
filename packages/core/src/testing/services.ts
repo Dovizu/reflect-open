@@ -137,6 +137,10 @@ import {
 } from './exception-telemetry.ts'
 import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
+import { createGraphServices, type GraphServices } from '../app/create-graph-services.ts'
+import type { BackupServiceFactory } from '../sync/backup-service.ts'
+import type { ICloudDownloadServiceFactory } from '../sync/icloud-download-service.ts'
+import type { ICloudSyncServiceFactory } from '../sync/icloud-sync-service.ts'
 import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
 import {
   createTestNoteActionsService,
@@ -301,6 +305,9 @@ export interface InternalServices {
   readonly backlinkTarget: BacklinkTargetService
   readonly nativeAction: NativeActionService
   readonly assetPrivacy: AssetPrivacyService
+  readonly backups: BackupServiceFactory
+  readonly icloudSyncs: ICloudSyncServiceFactory
+  readonly icloudDownloads: ICloudDownloadServiceFactory
 }
 
 /** {@link MobileServices} where every service is its in-memory test double. */
@@ -372,7 +379,7 @@ export interface TestAppServices extends AppServices, InternalServices {
   readonly noteCreation: TestNoteCreationService
   readonly privacy: TestPrivacyService
   readonly indexLifecycle: TestIndexLifecycleService
-  readonly graphSession: TestGraphSessionService
+  readonly graphSession: TestGraphSessionService<GraphServices<AppServices>>
   readonly retrieval: TestRetrievalService
   readonly embeddingIndex: TestEmbeddingIndexService
   readonly semanticSearch: TestSemanticSearchService
@@ -499,7 +506,9 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
     openDocuments: overrides?.openDocuments ?? openDocuments,
     logger,
   })
-  const graphSession = createTestGraphSessionService({
+  const noteRows = createNoteRowService()
+  const icloudNative = createTestICloudNativeService()
+  const graphSession = createTestGraphSessionService<GraphServices<AppServices>>({
     ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
     indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
     indexStore: overrides?.indexStore ?? indexStore,
@@ -512,7 +521,25 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
     platform: overrides?.platform ?? platform,
     lifecycle: overrides?.lifecycle ?? lifecycle,
     mobileStorage: overrides?.mobileStorage ?? mobileStorage,
+    noteRows: overrides?.noteRows ?? noteRows,
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+    noteMove: overrides?.noteMove ?? noteMove,
+    icloudNative: overrides?.icloudNative ?? icloudNative,
     logger,
+    createServices: (session, role) =>
+      createGraphServices(services, session, role, {
+        backups: services.backups,
+        icloudSyncs: services.icloudSyncs,
+        icloudDownloads: services.icloudDownloads,
+        capture: services.capture,
+        assetDescription: services.assetDescription,
+        chatSessions: services.chatSessions,
+        attachments: services.attachments,
+        settings: services.settings,
+        mobileOnboarding: services.mobileOnboarding,
+        graphSession: services.graphSession,
+        platform: services.platform,
+      }),
   })
   const opener = createTestOpenerService({ logger })
   const navigation = createTestNavigationService()
@@ -536,8 +563,6 @@ export function createTestAppServices(overrides?: TestAppServiceOverrides): Test
   })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
   const gists = createTestGistService({ http: overrides?.http ?? http })
-  const noteRows = createNoteRowService()
-  const icloudNative = createTestICloudNativeService()
   const syncEngines = createTestSyncEngineFactory({
     git: overrides?.gitRepository ?? gitRepository,
     clock: overrides?.clock ?? clock,

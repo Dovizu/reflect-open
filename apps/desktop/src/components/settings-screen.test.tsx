@@ -59,7 +59,6 @@ async function renderScreen(): Promise<void> {
       app,
       graph: openGraph,
       settings: stored,
-      sync: true,
       queryClient: new QueryClient({
         defaultOptions: { queries: { retry: false, staleTime: Infinity } },
       }),

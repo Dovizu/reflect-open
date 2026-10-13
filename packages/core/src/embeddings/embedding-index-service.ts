@@ -43,7 +43,7 @@ export interface EmbedChunkPayload {
   vector: number[] | null
 }
 
-/** How a backfill ended: every note visited, stopped by `isStale`, or the note list unreadable. */
+/** How a backfill ended: every note visited, stopped by `signal`, or the note list unreadable. */
 export type EmbeddingBackfillResult = 'completed' | 'aborted' | 'failed'
 
 export interface EmbeddingBackfillOptions {
@@ -51,7 +51,7 @@ export interface EmbeddingBackfillOptions {
   modelId: string
   onProgress?: (done: number, total: number) => void
   /** Abort between notes (e.g. graph switch). */
-  isStale?: () => boolean
+  signal?: AbortSignal
 }
 
 /** Keeps each note's chunk vectors current (Plan 09). */
@@ -212,7 +212,7 @@ export function createEmbeddingIndexService(deps: {
   async function backfillNotes(
     options: EmbeddingBackfillOptions,
   ): Promise<'completed' | 'aborted'> {
-    const { generation, modelId, onProgress, isStale } = options
+    const { generation, modelId, onProgress, signal } = options
     const rows = await database.db
       .selectFrom('notes')
       .where('kind', '!=', 'template')
@@ -221,7 +221,7 @@ export function createEmbeddingIndexService(deps: {
       .execute()
     let done = 0
     for (const row of rows) {
-      if (isStale?.()) {
+      if (signal?.aborted === true) {
         return 'aborted'
       }
       try {
@@ -245,14 +245,14 @@ export function createEmbeddingIndexService(deps: {
 
   function follow(options: { generation: number; modelId: string }): Unlisten {
     const { generation, modelId } = options
-    let active = true
+    const stopped = new AbortController()
 
     queue = queue
       .then(() => {
-        if (!active) {
+        if (stopped.signal.aborted) {
           return
         }
-        return backfill({ generation, modelId, isStale: () => !active }).then(() => {})
+        return backfill({ generation, modelId, signal: stopped.signal }).then(() => {})
       })
       .catch((cause: unknown) => {
         // A rejection here must not poison the queue (later change items
@@ -261,7 +261,7 @@ export function createEmbeddingIndexService(deps: {
       })
 
     const unlisten = indexLifecycle.onApplied((event) => {
-      if (!active || event.generation !== generation || event.changes === null) {
+      if (stopped.signal.aborted || event.generation !== generation || event.changes === null) {
         return // torn down, a delayed emit from a superseded index session, or a sync pass
       }
       for (const change of event.changes) {
@@ -270,7 +270,7 @@ export function createEmbeddingIndexService(deps: {
         }
         queue = queue
           .then(() => {
-            if (!active) {
+            if (stopped.signal.aborted) {
               return
             }
             return change.kind === 'remove'
@@ -284,7 +284,7 @@ export function createEmbeddingIndexService(deps: {
     })
 
     return () => {
-      active = false
+      stopped.abort()
       unlisten()
     }
   }

@@ -5,7 +5,6 @@ import { attachOperationToasts } from '@/components/operation-toasts.ts'
 import { Toaster } from '@/components/ui/toast.tsx'
 import { WindowDragRegion } from '@/components/window-drag-region.tsx'
 import { TooltipProvider } from '@/components/ui/tooltip.tsx'
-import { useMainWindowEffect } from '@/hooks/use-main-window-effect.ts'
 import { GraphProvider } from '@/providers/graph-provider.tsx'
 import { SidebarWidthEffect } from '@/providers/sidebar-width.tsx'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
@@ -21,11 +20,11 @@ export function DesktopRoot(): ReactElement {
   // Deep-link intake starts with the surface, not the workspace: a
   // `reflect://` URL that launched the app (or arrived on the graph chooser)
   // buffers in `intake.ts` until a graph opens. Browser dev has no plugin.
-  // Main window only: the plugin's event stream reaches every webview, and a
-  // ⌘-clicked note window must not also navigate itself on OS-delivered URLs
-  // (in-note `reflect://` clicks still work — the intake and the handler
-  // are per-webview state).
-  useMainWindowEffect(() => {
+  // A note window's intake has no OS source: the plugin's event stream reaches
+  // every webview, and a ⌘-clicked note window must not also navigate itself
+  // on OS-delivered URLs (in-note `reflect://` clicks still work — the intake
+  // and the handler are per-webview state).
+  useEffect(() => {
     if (!platform.isNativeShell) {
       return
     }

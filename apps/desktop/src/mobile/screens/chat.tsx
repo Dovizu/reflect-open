@@ -18,9 +18,19 @@ import { useRouter } from '@/routing/router.tsx'
  * call-to-action into Settings, where keys are added per device.
  */
 export function MobileChat(): ReactElement {
-  const { providers, turns, newChat } = useChatSession()
+  const chat = useChatSession({ optional: true })
   const { navigate } = useRouter()
   const [historyOpen, setHistoryOpen] = useState(false)
+
+  if (chat === null) {
+    return (
+      <div className="flex h-full w-screen items-center justify-center px-6 text-center text-sm text-text-muted">
+        Chat needs the search index, which couldn’t open for this graph.
+      </div>
+    )
+  }
+
+  const { providers, turns, newChat } = chat
   const hasProvider = providers.length > 0
 
   return (
