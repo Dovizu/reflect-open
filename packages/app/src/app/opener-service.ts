@@ -1,5 +1,4 @@
-import { errorMessage } from '../errors.ts'
-import type { LoggerService } from './logger-service.ts'
+import { errorMessage, type LoggerService } from '@reflect/core'
 
 /**
  * A macOS System Settings privacy pane.

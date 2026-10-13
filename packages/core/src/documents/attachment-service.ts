@@ -1,5 +1,4 @@
 import type { ClockService } from '../app/clock-service.ts'
-import type { DialogService } from '../app/dialog-service.ts'
 import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { PlatformService } from '../app/platform-service.ts'
@@ -107,6 +106,10 @@ export interface AttachmentInsertTarget {
 
 export interface AttachFilesRequest {
   /**
+   * The absolute source paths the user picked.
+   */
+  readonly sources: readonly string[]
+  /**
    * The target note's mounted editor, or null; looked up again after every await.
    */
   readonly findEditor: () => AttachmentInsertTarget | null
@@ -191,7 +194,7 @@ export interface AttachmentService {
   saveFile(file: File): Promise<AssetSaveResult | null>
   createSaveScope(): AttachmentSaveScope
   /**
-   * The Attach file… command: native file picker, each pick copied into
+   * The Attach file… command: each picked source copied into
    * `assets/`, one `[name](assets/…)` link per landed file inserted into the
    * note's editor. Copy failures and a closed editor are reported as one
    * failed operation. Does nothing when no graph is open.
@@ -355,7 +358,6 @@ export interface AttachmentServiceDeps {
   readonly assetStore: AssetStoreService
   readonly noteFile: NoteFileService
   readonly fileChanges: FileChangeService
-  readonly dialog: DialogService
   readonly operations: OperationsService
   readonly clock: ClockService
   readonly platform: PlatformService
@@ -523,14 +525,10 @@ class AttachmentServiceImpl implements AttachmentService {
     return createAttachmentSaveScope({ save: (file) => this.saveFile(file) })
   }
 
-  async attachFilesToNote({ findEditor }: AttachFilesRequest): Promise<void> {
-    const { assetStore, dialog, operations } = this.#deps
+  async attachFilesToNote({ sources, findEditor }: AttachFilesRequest): Promise<void> {
+    const { assetStore, operations } = this.#deps
     const generation = this.#openGeneration()
     if (generation === null || findEditor() === null) {
-      return
-    }
-    const sources = await dialog.pickFiles({ multiple: true, title: 'Attach files' })
-    if (sources === null) {
       return
     }
     const links: string[] = []

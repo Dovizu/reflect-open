@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAppServices } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import { buildIndexedNote, parseNote } from '@reflect/core'
 import {
   createTestCoreServices,
@@ -49,9 +49,10 @@ function fakeContext(overrides?: Partial<CommandContext>) {
   const navigated: Route[] = []
   const navigateOptions: (NavigateOptions | undefined)[] = []
   const route: () => Route = overrides?.route ?? (() => ({ kind: 'today' }))
+  const appLayer = createTestAppServices(app)
   const context: CommandContext = {
     services: app,
-    app: createAppServices(app, {}),
+    app: appLayer,
     navigate: (target, options) => {
       navigated.push(target)
       navigateOptions.push(options)
@@ -80,7 +81,7 @@ function fakeContext(overrides?: Partial<CommandContext>) {
     enableSemanticSearch: vi.fn(),
     ...overrides,
   }
-  return { context, navigated, navigateOptions }
+  return { context, appLayer, navigated, navigateOptions }
 }
 
 describe('keybindingFor', () => {
@@ -278,32 +279,148 @@ describe('app commands', () => {
     expect(context.togglePrivate).toHaveBeenCalledOnce()
   })
 
-  it('note.copyDeepLink copies the route note through the keyboard command', async () => {
-    const copyDeepLink = vi.spyOn(app.noteActions, 'copyDeepLink').mockResolvedValue()
-    const { context } = fakeContext({ route: () => ({ kind: 'note', path: 'notes/a.md' }) })
+  it('note.copyDeepLink copies the route note link and confirms through operations', async () => {
+    app.graphSession.setGraph({ generation: 1 })
+    const deepLinkFor = vi.spyOn(app.noteActions, 'deepLinkFor').mockResolvedValue('reflect://x')
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
     await command('note.copyDeepLink').run(context)
-    expect(copyDeepLink).toHaveBeenCalledWith('notes/a.md')
+    expect(deepLinkFor).toHaveBeenCalledWith('notes/a.md')
+    expect(appLayer.clipboard.writes()).toEqual(['reflect://x'])
+    expect(app.operations.snapshot()).toMatchObject([{ label: 'Deep link copied' }])
+  })
+
+  it('note.copyDeepLink reports a failure to build the link', async () => {
+    app.graphSession.setGraph({ generation: 1 })
+    vi.spyOn(app.noteActions, 'deepLinkFor').mockRejectedValue(new Error('disk full'))
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
+    await command('note.copyDeepLink').run(context)
+    expect(appLayer.clipboard.writes()).toEqual([])
+    expect(app.operations.snapshot()).toMatchObject([
+      { label: 'Copying deep link', status: 'failed', message: 'disk full' },
+    ])
+  })
+
+  it('note.copyDeepLink reports a clipboard failure', async () => {
+    app.graphSession.setGraph({ generation: 1 })
+    vi.spyOn(app.noteActions, 'deepLinkFor').mockResolvedValue('reflect://x')
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
+    appLayer.clipboard.failWith(new Error('denied'))
+    await command('note.copyDeepLink').run(context)
+    expect(app.operations.snapshot()).toMatchObject([
+      { label: 'Copying deep link', status: 'failed', message: 'denied' },
+    ])
+  })
+
+  it('note.copyDeepLink does nothing without an open graph', async () => {
+    app.graphSession.setGraph(null)
+    const deepLinkFor = vi.spyOn(app.noteActions, 'deepLinkFor').mockResolvedValue('reflect://x')
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
+    await command('note.copyDeepLink').run(context)
+    expect(deepLinkFor).not.toHaveBeenCalled()
+    expect(appLayer.clipboard.writes()).toEqual([])
+    expect(app.operations.getAll()).toEqual([])
   })
 
   it('note.copyDeepLink no-ops on note-less routes', async () => {
-    const copyDeepLink = vi.spyOn(app.noteActions, 'copyDeepLink').mockResolvedValue()
-    const { context } = fakeContext({ route: () => ({ kind: 'settings' }) })
+    const deepLinkFor = vi.spyOn(app.noteActions, 'deepLinkFor').mockResolvedValue('reflect://x')
+    const { context, appLayer } = fakeContext({ route: () => ({ kind: 'settings' }) })
     await command('note.copyDeepLink').run(context)
-    expect(copyDeepLink).not.toHaveBeenCalled()
+    expect(deepLinkFor).not.toHaveBeenCalled()
+    expect(appLayer.clipboard.writes()).toEqual([])
   })
 
-  it('note.copyPath hands the route note to the service', async () => {
-    const copyPath = vi.spyOn(app.noteActions, 'copyPath').mockResolvedValue()
-    const { context } = fakeContext({ route: () => ({ kind: 'note', path: 'notes/a.md' }) })
+  it('note.copyPath copies the route note absolute path and confirms through operations', async () => {
+    app.graphSession.setGraph({ generation: 1 })
+    const absolutePathFor = vi
+      .spyOn(app.noteActions, 'absolutePathFor')
+      .mockResolvedValue('/g/notes/a.md')
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
     await command('note.copyPath').run(context)
-    expect(copyPath).toHaveBeenCalledWith('notes/a.md')
+    expect(absolutePathFor).toHaveBeenCalledWith('notes/a.md')
+    expect(appLayer.clipboard.writes()).toEqual(['/g/notes/a.md'])
+    expect(app.operations.snapshot()).toMatchObject([{ label: 'Note path copied' }])
+  })
+
+  it('note.copyPath fails loudly when no graph is open', async () => {
+    app.graphSession.setGraph(null)
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
+    await command('note.copyPath').run(context)
+    expect(appLayer.clipboard.writes()).toEqual([])
+    expect(app.operations.snapshot()).toMatchObject([
+      { label: 'Copying note path', status: 'failed', message: 'No graph is open' },
+    ])
+  })
+
+  it('note.copyPath reports a clipboard failure', async () => {
+    app.graphSession.setGraph({ generation: 1 })
+    vi.spyOn(app.noteActions, 'absolutePathFor').mockResolvedValue('/g/notes/a.md')
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
+    appLayer.clipboard.failWith(new Error('denied'))
+    await command('note.copyPath').run(context)
+    expect(app.operations.snapshot()).toMatchObject([
+      { label: 'Copying note path', status: 'failed', message: 'denied' },
+    ])
   })
 
   it('note.copyPath no-ops on note-less routes', async () => {
-    const copyPath = vi.spyOn(app.noteActions, 'copyPath').mockResolvedValue()
+    const absolutePathFor = vi
+      .spyOn(app.noteActions, 'absolutePathFor')
+      .mockResolvedValue('/g/notes/a.md')
     const { context } = fakeContext({ route: () => ({ kind: 'settings' }) })
     await command('note.copyPath').run(context)
-    expect(copyPath).not.toHaveBeenCalled()
+    expect(absolutePathFor).not.toHaveBeenCalled()
+  })
+
+  it('note.publishGist publishes, copies the link, and confirms through operations', async () => {
+    app.graphSession.setGraph({ generation: 1 })
+    const publish = vi
+      .spyOn(app.gistPublish, 'publish')
+      .mockResolvedValue({ url: 'https://gist.github.com/g1', stale: false })
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
+    await command('note.publishGist').run(context)
+    expect(publish).toHaveBeenCalledWith('notes/a.md')
+    expect(appLayer.clipboard.writes()).toEqual(['https://gist.github.com/g1'])
+    expect(app.operations.snapshot()).toMatchObject([{ label: 'Gist link copied' }])
+  })
+
+  it('note.publishGist reports a failed copy without reading as a failed publish', async () => {
+    vi.spyOn(app.gistPublish, 'publish').mockResolvedValue({
+      url: 'https://gist.github.com/g1',
+      stale: false,
+    })
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
+    appLayer.clipboard.failWith(new Error('Document is not focused'))
+    await command('note.publishGist').run(context)
+    expect(app.operations.snapshot()).toMatchObject([
+      { label: 'Copying the gist link', status: 'failed', message: 'Document is not focused' },
+    ])
+  })
+
+  it('note.publishGist copies nothing when the publish failed', async () => {
+    vi.spyOn(app.gistPublish, 'publish').mockResolvedValue(null)
+    const { context, appLayer } = fakeContext({
+      route: () => ({ kind: 'note', path: 'notes/a.md' }),
+    })
+    await command('note.publishGist').run(context)
+    expect(appLayer.clipboard.writes()).toEqual([])
   })
 
   it('dev.toggleDevtools toggles the inspector through the native shell', async () => {

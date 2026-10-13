@@ -3,15 +3,17 @@ import { act } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import type { LinkClickHandler } from '@meowdown/core'
-import { createTestAppServices } from '@reflect/app/testing'
+import {
+  createTestAppServices,
+  createTestOpenerService,
+  type TestOpenerService,
+} from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestAttachmentService,
   createTestGraphSessionService,
-  createTestOpenerService,
   createTestWindowService,
   type TestAttachmentService,
-  type TestOpenerService,
 } from '@reflect/core/testing'
 import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
 import { useRouter } from '@/routing/router.tsx'
@@ -33,16 +35,16 @@ let onLinkClick: LinkClickHandler
 
 async function mount(sourcePath: string | null): Promise<void> {
   const graphSession = createTestGraphSessionService()
-  const app = createTestCoreServices({ opener, attachments, graphSession })
+  const app = createTestCoreServices({ attachments, graphSession })
   const linkNavigation = createTestAppServices(
     createTestCoreServices({
       graphSession,
       noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
       window: createTestWindowService({ openNoteWindow }),
-      opener,
       attachments,
     }),
     {
+      opener,
       deepLink: Object.assign(createTestAppServices().deepLink, { dispatch: dispatchDeepLink }),
     },
   ).linkNavigation

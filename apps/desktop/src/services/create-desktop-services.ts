@@ -44,7 +44,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
       local: reachWebStorage(logger, 'localStorage'),
       session: reachWebStorage(logger, 'sessionStorage'),
     },
-    clipboard: createNavigatorClipboardService(),
     lifecycle: createDomLifecycleAdapter(),
     imageCodec: createBrowserImageCodec(),
   }
@@ -53,7 +52,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
       ...common,
       http: createTauriHttpService(),
       dialog: createTauriDialogService(),
-      opener: createTauriOpenerTransport(),
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
       convertFileSrc,
@@ -63,7 +61,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
     ...common,
     http: createBrowserHttpService(),
     dialog: createBrowserDialogService(),
-    opener: createBrowserOpenerTransport(),
     path: createPosixPathTransport('/'),
     window: createSingleWindowHost(),
   }
@@ -75,6 +72,7 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
  */
 export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost {
   void ipc
+  const common = { clipboard: createNavigatorClipboardService() }
   const exceptionTelemetry = createExceptionTelemetry({
     dsn: buildExceptionTelemetryDsn(),
     release: `reflect@${facts.appVersion}`,
@@ -83,11 +81,13 @@ export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost
   })
   if (facts.isNativeShell) {
     return {
+      ...common,
+      opener: createTauriOpenerTransport(),
       exceptionTelemetry,
       updater: createTauriUpdaterAdapter(),
       nativeMenu: createTauriNativeMenuHost(),
       deepLink: createTauriDeepLinkSource(),
     }
   }
-  return { exceptionTelemetry }
+  return { ...common, opener: createBrowserOpenerTransport(), exceptionTelemetry }
 }

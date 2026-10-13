@@ -1,7 +1,9 @@
 import type { CoreServices } from '@reflect/core'
 import { createTestCoreServices } from '@reflect/core/testing'
-import { createAppServices, type AppServices } from '../create-app-services.ts'
+import { createAppServices, type AppHost, type AppServices } from '../create-app-services.ts'
+import { createTestClipboardService, type TestClipboardService } from './clipboard.ts'
 import { createTestNativeMenuHost } from './commands.ts'
+import { createTestOpenerService, type TestOpenerService } from './opener.ts'
 import { createLinkNavigationService } from '../navigation/link-navigation-service.ts'
 import { createTestExceptionTelemetry } from './exception-telemetry.ts'
 import {
@@ -16,9 +18,26 @@ import { createTestUpdaterAdapter } from './update.ts'
 /**
  * {@link AppServices} where each service with a test double is that double.
  */
-export type TestAppServices = Omit<AppServices, 'navigation' | 'deepLink'> & {
+export type TestAppServices = Omit<
+  AppServices,
+  'navigation' | 'deepLink' | 'clipboard' | 'opener'
+> & {
+  readonly clipboard: TestClipboardService
+  readonly opener: TestOpenerService
   readonly navigation: TestNavigationService
   readonly deepLink: TestDeepLinkService
+}
+
+/**
+ * A host of silent doubles: a recording clipboard and an opener that opens
+ * nothing. `overrides` replace fields of the result.
+ */
+export function createTestAppHost(overrides: Partial<AppHost> = {}): AppHost {
+  return {
+    clipboard: createTestClipboardService(),
+    opener: { openUrl: async () => {}, revealItemInDir: async () => {} },
+    ...overrides,
+  }
 }
 
 /**
@@ -30,6 +49,8 @@ export function createTestAppServices(
   core: CoreServices = createTestCoreServices(),
   overrides: Partial<AppServices> = {},
 ): TestAppServices {
+  const clipboard = overrides.clipboard ?? createTestClipboardService()
+  const opener = overrides.opener ?? createTestOpenerService({ logger: core.logger })
   const navigation = overrides.navigation ?? createTestNavigationService()
   const deepLink =
     overrides.deepLink ??
@@ -51,7 +72,7 @@ export function createTestAppServices(
       wikiResolver: core.wikiResolver,
       window: core.window,
       platform: core.platform,
-      opener: core.opener,
+      opener,
       deepLink,
       navigation,
       attachments: core.attachments,
@@ -61,11 +82,14 @@ export function createTestAppServices(
     })
   return {
     ...createAppServices(core, {
+      ...createTestAppHost({ clipboard }),
       exceptionTelemetry: createTestExceptionTelemetry(),
       updater: createTestUpdaterAdapter(),
       nativeMenu: createTestNativeMenuHost(),
     }),
     ...overrides,
+    clipboard,
+    opener,
     navigation,
     deepLink,
     linkNavigation,

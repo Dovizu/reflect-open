@@ -128,7 +128,7 @@ The ones used most:
 | `createTestGraphSessionService()` | `setGraph(graph)`, `setState(patch)` | |
 | `createTestNavigationService()` (`@reflect/app/testing`) | | `navigations()` |
 | `createTestLifecycleService()` | `emitHidden()`, `emitVisible()`, `emitWake()`, `emitQuitRequested()` | `backgroundTasks()` |
-| `createTestClipboardService()`, `createTestOpenerService()` | `failWith(error)` | `writes()`, `openedUrls()` |
+| `createTestClipboardService()`, `createTestOpenerService()` (`@reflect/app/testing`) | `failWith(error)` | `writes()`, `openedUrls()` |
 
 The test clock starts at epoch 0. `createTestDatabaseService()` is a real
 in-memory SQLite index built from the production migrations, so index reads

@@ -1,12 +1,12 @@
 import { page } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Settings } from '@reflect/core'
+import type { TestOpenerService } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestContactsService,
   createTestPlatformService,
   type TestContactsService,
-  type TestOpenerService,
   type TestPlatformOptions,
   type TestSettingsService,
 } from '@reflect/core/testing'
@@ -26,8 +26,9 @@ let settings: TestSettingsService
  */
 async function renderSection(stored: Partial<Settings> = {}): Promise<void> {
   const app = createTestCoreServices({ contacts, platform: createTestPlatformService(platform) })
-  ;({ opener, settings } = app)
-  await renderInApp(<IntegrationsSection />, { app, settings: stored })
+  ;({ settings } = app)
+  const view = await renderInApp(<IntegrationsSection />, { app, settings: stored })
+  opener = view.appServices.opener
 }
 
 beforeEach(() => {
