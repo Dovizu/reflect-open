@@ -125,6 +125,17 @@ interface SharedListener<Payload> {
   fanOut: FanOut<Payload>
 }
 
+// FIXME:
+// I feel that returning a literal object in createXxxxService is bad for readability and maintainability. Let's consider refactoring this to a class-based implementation. use this patter:
+// 1. we have an interface call `export interface FooService`, just like what we're doing now.
+// 2. we have a class `class FooServiceImpl implements FooService` that implements the interface.
+// 3. we export a function `export function createFooService(): FooService { return new FooServiceImpl() }`.
+// 4. Only FooService and createFooService are exported, FooServiceImpl is not exported. In other words, `FooServiceImpl` is just an implementation detail. We do not force the caller to understand that the underlying implementation is a class. If we want, we can use an object-based implementation without changing any callers.
+// 5. inside the class, try to avoid using getter and setter. Just use plain `getXxxValue()` and `setXxxValue()` methods.
+// 6. inside the class, try to avoid using `private`. use `#` instead.
+// 7. I knonw in reflect-open's document, we said "we perfer object to class". Update the document to correct this and refer to the new pattern.
+// 8. Use many cheap sub-agents to do this migration.
+
 export function createIpcBridgeService(
   transport: IpcBridge,
   deps: { logger: LoggerService },
