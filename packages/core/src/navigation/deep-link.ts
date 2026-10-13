@@ -2,8 +2,8 @@ import { TEXT_CAPTURE_MAX_LENGTH, type TextCaptureKind } from '../capture/captur
 
 /**
  * The `reflect://` deep-link vocabulary (docs/deep-links.md). URLs are a codec
- * over the existing `Route` union plus two capture verbs — never a
- * second navigation grammar. `deep-link-parse.ts` and `deep-link-format.ts` are the only modules
+ * over the places the app can open (`today`, `tasks`, a daily note, a search, a note)
+ * plus two capture verbs — never a second navigation grammar. `deep-link-parse.ts` and `deep-link-format.ts` are the only modules
  * that read or write this syntax.
  */
 

@@ -188,24 +188,3 @@ class LifecycleServiceImpl implements AppLifecycleService {
 export function createLifecycleService(deps: LifecycleServiceDeps): AppLifecycleService {
   return new LifecycleServiceImpl(deps)
 }
-
-class DetachedLifecycleDomImpl implements LifecycleDomAdapter {
-  onPageEvent(_type: LifecyclePageEvent, _listener: () => void): Unlisten {
-    return () => {}
-  }
-
-  onVisibilityChange(_listener: () => void): Unlisten {
-    return () => {}
-  }
-
-  isHidden(): boolean {
-    return false
-  }
-}
-
-/**
- * A {@link LifecycleDomAdapter} with no page: no events, never hidden.
- */
-export function createDetachedLifecycleDom(): LifecycleDomAdapter {
-  return new DetachedLifecycleDomImpl()
-}

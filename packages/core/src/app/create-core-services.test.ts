@@ -44,7 +44,6 @@ const SERVICE_KEYS = [
   'fileChanges',
   'embeddingRuntime',
   'chatHistory',
-  'captureInbox',
   'deepLinkIntake',
   'wikiResolver',
   'noteLinkResolver',
