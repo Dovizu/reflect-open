@@ -105,10 +105,12 @@ interface IndexServices {
   readonly suggestions: SuggestionService
 }
 
-/** The index read services over a transport that answers `db_query` from `db`. */
+/**
+ * The index read services over a transport that answers `db_query` from `db`.
+ */
 function connectIndex(db: DevIndexDb, captured: CapturedQuery[] = []): IndexServices {
-  const ipc = createIpcBridgeService(
-    {
+  const ipc = createIpcBridgeService({
+    transport: {
       invoke: async (command, args) => {
         if (command !== 'db_query') {
           throw new Error(`Unexpected command: ${command}`)
@@ -120,8 +122,8 @@ function connectIndex(db: DevIndexDb, captured: CapturedQuery[] = []): IndexServ
       },
       listen: async () => () => {},
     },
-    { logger: createTestLoggerService() },
-  )
+    logger: createTestLoggerService(),
+  })
   const database = createDatabaseService({ ipc })
   const wikiResolver = createWikiResolverService({ database })
   return {

@@ -13,7 +13,7 @@ function createLogger() {
 
 function serviceOver(transport: IpcBridge) {
   const logger = createLogger()
-  return { ipc: createIpcBridgeService(transport, { logger }), logger }
+  return { ipc: createIpcBridgeService({ transport, logger }), logger }
 }
 
 describe('call', () => {

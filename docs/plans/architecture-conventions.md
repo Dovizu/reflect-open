@@ -72,14 +72,15 @@ composition root builds every service once and passes each one what it needs.
 
 ### What a service is
 
-- An interface `XxxService` and a factory `createXxxService(deps)` in one file:
+- An interface `XxxService`, a deps interface `XxxServiceDeps`, an unexported class
+  `XxxServiceImpl` and a factory `createXxxService(deps)` in one file:
   `packages/core/src/<domain>/<name>-service.ts`
   (`documents/note-move-service.ts`, `indexing/index-store-service.ts`).
-- The factory returns an **object literal**. State lives in the closure. There are no
-  classes.
-- `deps` is one object, destructured on the first line. It holds the other services
-  the service calls, usually narrowed with `Pick<>` to the methods it uses. A service
-  never imports another service's instance.
+- The factory returns `new XxxServiceImpl(deps)`. State lives in `#` fields of the
+  class. Callers only see the interface.
+- `deps` is one object, stored in the `readonly #deps` field. It holds the other
+  services the service calls, usually narrowed with `Pick<>` to the methods it uses. A
+  service never imports another service's instance.
 - Pure rules (path helpers, markdown transforms, grouping, formatting) stay plain
   exported functions next to the service. They take no `deps`.
 - The few pure functions that do need a service take it as a first parameter `ctx`

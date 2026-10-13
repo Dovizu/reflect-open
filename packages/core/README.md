@@ -9,7 +9,8 @@ plain vitest, and (later) in the CLI.
 
 Everything stateful in this package is a **service**: an interface `XxxService`
 and a factory `createXxxService(deps)` in `<domain>/<name>-service.ts`. The
-factory returns an object literal whose closure holds the state. A service
+factory returns an instance of an unexported class that holds the state in `#`
+fields. A service
 receives the other services it calls through `deps`, and nothing else: the
 package has no process-wide instances and no module-level mutable state.
 
@@ -48,7 +49,7 @@ Every native call goes through one seam:
   `createAppServices`. The desktop app adapts Tauri; browser dev passes a
   deferred transport that the in-memory dev backend connects later; tests use
   `createTestIpcBridgeService()`.
-- **`IpcBridgeService`** (`createIpcBridgeService(transport, { logger })`)
+- **`IpcBridgeService`** (`createIpcBridgeService({ transport, logger })`)
   wraps a transport and is the single point where an untyped IPC response
   becomes a typed value: every response is zod-validated, every rejection is
   coerced to the shared `AppError` contract. Application code never calls the

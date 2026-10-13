@@ -15,16 +15,18 @@ import { createDevIndexDb } from '@/dev/dev-index-db.ts'
 let appStore: AppStoreService
 let iap: IapService
 
-/** The App Store and IAP services over a fresh dev bridge. */
+/**
+ * The App Store and IAP services over a fresh dev bridge.
+ */
 async function openPreview(): Promise<void> {
   const logger = createTestLoggerService()
-  const ipc = createIpcBridgeService(
-    createDevBridge({
+  const ipc = createIpcBridgeService({
+    transport: createDevBridge({
       files: createDevFileStore({}),
       index: await createDevIndexDb(),
     }),
-    { logger },
-  )
+    logger,
+  })
   appStore = createAppStoreService({ ipc })
   iap = createIapService({ ipc, logger })
 }

@@ -207,7 +207,7 @@ const MODULE_LET_SELECTORS = [
     selector:
       ':matches(Program > VariableDeclaration[kind="let"], Program > ExportNamedDeclaration > VariableDeclaration[kind="let"])',
     message:
-      'No module-level mutable state in `@reflect/core`: state lives in the closure of `createXxxService(deps)`, so each `createAppServices()` (and each test) gets its own.',
+      'No module-level mutable state in `@reflect/core`: state lives in the `#` fields of the service that `createXxxService(deps)` builds, so each `createAppServices()` (and each test) gets its own.',
   },
 ]
 
@@ -291,7 +291,7 @@ export const architectureConfigs = [
 
   // Rule: no default instances and no module-level state in core. Every
   // service is built by `createAppServices(adapters)` and holds its state in
-  // its closure.
+  // its own `#` fields.
   {
     files: [`packages/core/src/**/*.${SOURCE_EXTENSIONS}`],
     ignores: [`**/*.test.${SOURCE_EXTENSIONS}`],

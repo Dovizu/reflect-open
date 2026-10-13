@@ -9,7 +9,7 @@ walks through the work of adding one, with `NoteMoveService`
 is small, and it has dependencies, state, an event and a test double.
 
 ```text
-packages/core/src/documents/note-move-service.ts       interface + factory
+packages/core/src/documents/note-move-service.ts       deps + interface + class + factory
 packages/core/src/documents/note-move-service.test.ts  the test: the real service over test doubles of its deps
 packages/core/src/testing/documents.ts                 createTestNoteMoveService
 packages/core/src/app/create-app-services.ts           AppServices.noteMove
@@ -27,61 +27,108 @@ apps/desktop/src/routing/router.tsx                    useAppServices().noteMove
 - **A new service** is for a new unit with its own dependencies or its own state:
   a cache, a queue, a set of listeners, a lifecycle.
 
-## 1. The interface and the factory
+## 1. The interface, the class and the factory
 
-One file, `packages/core/src/<domain>/<name>-service.ts`, exports the interface
-`XxxService` and the factory `createXxxService(deps)`:
+One file, `packages/core/src/<domain>/<name>-service.ts`, exports the deps
+interface `XxxServiceDeps`, the interface `XxxService` and the factory
+`createXxxService(deps)`. The class `XxxServiceImpl` implements the interface
+and is not exported:
 
 ```ts
 // packages/core/src/documents/note-move-service.ts
+export interface NoteMoveServiceDeps {
+  readonly ipc: Pick<IpcBridgeService, 'listen'>
+  readonly indexStore: Pick<IndexStoreService, 'moveIndexed'>
+  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
+  readonly logger: Pick<LoggerService, 'error' | 'warn'>
+}
+
 export interface NoteMoveService {
-  /** Move a note's file and projection, carrying any live editor session along. */
+  /**
+   * Move a note's file and projection, carrying any live editor session along.
+   */
   moveNote(from: string, to: string, generation: number): Promise<void>
-  /** Follow a move the index healed by id. */
-  followHealedMove(this: void, from: string, to: string): void
-  /** Subscribe to landed note moves; returns the unsubscribe. */
-  onMoved(listener: NoteMovedListener): Unlisten
-  /** Follow the Rust-side `note:moved` broadcast. */
+  /**
+   * Follow a move the index healed by id.
+   */
+  followHealedMove: (from: string, to: string) => void
+  /**
+   * Subscribe to landed note moves; returns the unsubscribe.
+   */
+  onMoved: (listener: NoteMovedListener) => Unlisten
+  /**
+   * Follow the Rust-side `note:moved` broadcast.
+   */
   followNativeMoves(): Unlisten
 }
 
-export interface NoteMoveServiceDeps {
-  ipc: Pick<IpcBridgeService, 'listen'>
-  indexStore: Pick<IndexStoreService, 'moveIndexed'>
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
-  logger: Pick<LoggerService, 'error' | 'warn'>
+class NoteMoveServiceImpl implements NoteMoveService {
+  readonly #deps: NoteMoveServiceDeps
+  readonly #listeners = new Set<NoteMovedListener>()
+
+  constructor(deps: NoteMoveServiceDeps) {
+    this.#deps = deps
+  }
+
+  async moveNote(from: string, to: string, generation: number): Promise<void> {
+    const { indexStore, openDocuments } = this.#deps
+    // ...
+  }
+
+  readonly followHealedMove = (from: string, to: string): void => {
+    // ...
+  }
+
+  readonly onMoved = (listener: NoteMovedListener): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  followNativeMoves(): Unlisten {
+    // ...
+  }
+
+  #emitMoved(from: string, to: string): void {
+    // ...
+  }
 }
 
 export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveService {
-  const { ipc, indexStore, openDocuments, logger } = deps
-  const listeners = new Set<NoteMovedListener>()
-  // ...
-  return {
-    async moveNote(from, to, generation) {
-      // ...
-    },
-    followHealedMove,
-    onMoved(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    // ...
-  }
+  return new NoteMoveServiceImpl(deps)
 }
 ```
 
 Rules:
 
-- The factory returns an **object literal**. Do not write a class. // FIXME: as I said in another FIXME comment, let's use class instead. 
+- A service is a **class behind an interface and a factory**. Only the factory
+  constructs the class; callers see the interface. The `XxxServiceDeps`
+  interface is exported from the module but not from the barrel.
 - Document the interface, not the implementation: the doc comments on the
   interface are the service's contract.
 - The interface never mentions `deps`.
-- A method that callers pass around without its object (to
-  `useSyncExternalStore`, as an event listener) must not depend on `this`.
-  Declare it as a function property (`get: () => Settings` in
-  `SettingsService`) or with `this: void`, as `followHealedMove` does.
+- Class members keep this order: `#` fields, the constructor, the public
+  members in the interface's order, `#` methods.
+- A member that callers pass around without its object (to
+  `useSyncExternalStore`, as an event listener) is a **function property** in
+  the interface (`onMoved: (listener) => Unlisten`) and an **arrow-function
+  field** in the class (`readonly onMoved = (...) => { ... }`). A member
+  declared as a method signature (`moveNote(...)`) is a prototype method. Do
+  not write `this: void`. Lint (`@typescript-eslint/unbound-method`) reports a
+  method that is passed unbound.
+- No getters and no setters: write `getX()` / `setX()`. No `private`,
+  `protected`, `public` or parameter properties: use `#`. Lint enforces both.
+- A field that needs a constructor argument is assigned in the constructor
+  body, not in a field initializer: initializers run before the body.
+- Never spread a service instance (`{ ...service, extra }`): a spread drops the
+  prototype methods. List the members one by one, or forward them (§6).
+- No function overloads: write one function per signature. Lint enforces it.
+- A JSDoc comment is always multi-line (`/**`, ` * text`, ` */`), also for one
+  sentence.
+- Containers (`AppServices`, `MobileServices`, `InternalServices`,
+  `GraphServices`) and pure value builders (`createGraphSession`) are not
+  services. They stay object literals and plain functions.
 - A method that writes to the graph pins the write to one graph session. §2
   says how the method gets that session.
 - Throw `AppError` for failures a caller handles. Validate IPC responses and
@@ -89,7 +136,11 @@ Rules:
 
 ## 2. `deps`
 
-`deps` is one object, destructured on the first line of the factory.
+`deps` is one object of type `XxxServiceDeps`, stored in `readonly #deps`. Its
+fields are `readonly`. A long method may start with `const { a, b } = this.#deps`.
+A factory takes only `deps`: no positional parameters. A per-session factory
+keeps a second `options` parameter for what identifies the session
+(`createBackupService(deps, options)`).
 
 - Put in it every other service the new one calls: `ipc` for native commands,
   `logger` instead of `console.*`, `clock` instead of `Date.now()` and
@@ -135,10 +186,9 @@ then.
 
 ## 3. Where state lives
 
-State is a `const` or `let` inside the factory, captured by the returned
-methods: `listeners` in the example, `current` and `dirty` in
-`settings/settings-service.ts`. One call to the factory is one independent
-instance. Module-level `let` and module-level caches are not allowed: two tests,
+State is a `#` field of the class: `#listeners` in the example. A helper that
+reads or writes the state is a `#method()`; a pure helper stays a module-level
+function. One call to the factory is one independent instance. Module-level `let` and module-level caches are not allowed: two tests,
 or two webviews in one process, would share them.
 
 If the UI reads the state, expose it as a store: a snapshot getter that returns
@@ -153,7 +203,7 @@ others care about **emits an event** instead of writing to a cache:
 
 - The method is `onXxx(listener): Unlisten` (`onMoved`, `onApplied`,
   `onXPostsWritten`). It registers synchronously and returns the unsubscribe.
-- Isolate listeners. `emitMoved` in the example wraps each call in `try` /
+- Isolate listeners. `#emitMoved` in the example wraps each call in `try` /
   `catch` and logs, because a throwing subscriber must not turn a move that
   landed into a reported failure.
 - Optimistic state is a core overlay (`NoteRowService`); the app only
@@ -225,26 +275,55 @@ script or observe it:
 ```ts
 // packages/core/src/testing/documents.ts
 export interface TestNoteMoveService extends NoteMoveService {
-  /** Every move announced to the subscribers, in order. */
+  /**
+   * Every move announced to the subscribers, in order.
+   */
   moved(): ReadonlyArray<readonly [from: string, to: string]>
+}
+
+class TestNoteMoveServiceImpl implements TestNoteMoveService {
+  readonly #inner: NoteMoveService
+  readonly #moves: Array<readonly [string, string]> = []
+
+  constructor(inner: NoteMoveService) {
+    this.#inner = inner
+    inner.onMoved((from, to) => {
+      this.#moves.push([from, to])
+    })
+  }
+
+  moveNote(from: string, to: string, generation: number): Promise<void> {
+    return this.#inner.moveNote(from, to, generation)
+  }
+
+  readonly followHealedMove = (from: string, to: string): void => {
+    this.#inner.followHealedMove(from, to)
+  }
+
+  readonly onMoved = (listener: NoteMovedListener): Unlisten => this.#inner.onMoved(listener)
+
+  followNativeMoves(): Unlisten {
+    return this.#inner.followNativeMoves()
+  }
+
+  moved(): ReadonlyArray<readonly [from: string, to: string]> {
+    return [...this.#moves]
+  }
 }
 
 export function createTestNoteMoveService(
   options?: Partial<NoteMoveServiceDeps>,
 ): TestNoteMoveService {
-  const service = createNoteMoveService({
-    ipc: options?.ipc ?? createTestIpcBridgeService(),
-    indexStore: options?.indexStore ?? createTestIndexStoreService(),
-    openDocuments:
-      options?.openDocuments ??
-      createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
-    logger: options?.logger ?? createTestLoggerService(),
-  })
-  const moves: Array<readonly [string, string]> = []
-  service.onMoved((from, to) => {
-    moves.push([from, to])
-  })
-  return { ...service, moved: () => [...moves] }
+  return new TestNoteMoveServiceImpl(
+    createNoteMoveService({
+      ipc: options?.ipc ?? createTestIpcBridgeService(),
+      indexStore: options?.indexStore ?? createTestIndexStoreService(),
+      openDocuments:
+        options?.openDocuments ??
+        createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
+      logger: options?.logger ?? createTestLoggerService(),
+    }),
+  )
 }
 ```
 
@@ -253,6 +332,9 @@ Rules:
 - Do not write a `createTestXxxService` that only calls `createXxxService`
   over default doubles. A test builds the real service over the doubles it
   needs, or takes it from `createTestAppServices()`.
+- A recording wrapper is a class `TestXxxServiceImpl implements
+  TestXxxService` that holds the real service in `#inner` and forwards every
+  interface member explicitly. Do not spread the real service.
 - `TestXxxService extends XxxService`. The extra members only **observe**
   (`moved()`, `calls()`, `getWrites()`) or **seed and drive** (`set()`,
   `emit()`, `setState()`). They never change what the real methods mean.
@@ -415,11 +497,13 @@ Ordinary services stay app-scoped and read the open graph's session per call
 
 ## Checklist
 
-- [ ] `packages/core/src/<domain>/<name>-service.ts`: documented `XxxService`
-      interface, `createXxxService(deps)` returning an object literal
+- [ ] `packages/core/src/<domain>/<name>-service.ts`: `XxxServiceDeps`, a
+      documented `XxxService` interface, an unexported `XxxServiceImpl` class
+      (`#` fields, no accessors, arrow fields for function properties), and
+      `createXxxService(deps)` returning `new XxxServiceImpl(deps)`
 - [ ] Every collaborator comes through `deps`, narrowed with `Pick<>`; no
       `console.*`, `Date.now()`, `setTimeout`, `fetch` or `@tauri-apps/*`
-- [ ] State inside the factory; changes reported through `onXxx(listener)` /
+- [ ] State in `#` fields; changes reported through `onXxx(listener)` /
       `subscribe(listener)`
 - [ ] In `appServiceFactories` and built in `composeAppServices`; on
       `AppServices` (key in `SERVICE_KEYS`) only when the app reads it, else in
@@ -428,7 +512,7 @@ Ordinary services stay app-scoped and read the open graph's session per call
 - [ ] A `createTestXxxService` in `packages/core/src/testing/` and an entry in
       the test factory table of `testing/services.ts`, only for a fake or a
       recording wrapper (see §6)
-- [ ] `<name>-service.test.ts` constructing the service over test doubles
+- [ ] `<name>-service.test.ts`: the real service over test doubles of its deps
 - [ ] App code reads it with `useAppServices()`, `ctx`, or
       `CommandContext.services`
 - [ ] Adapter in `apps/desktop/src/services/` and a field on `AppAdapters`, only

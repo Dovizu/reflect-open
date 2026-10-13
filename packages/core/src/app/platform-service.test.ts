@@ -66,13 +66,13 @@ const DARK = '(prefers-color-scheme: dark)'
 
 describe('createPlatformService', () => {
   it('exposes the facts it was given', () => {
-    const platform = createPlatformService(FACTS, {})
+    const platform = createPlatformService({ facts: FACTS, media: {} })
     expect(platform).toMatchObject(FACTS)
   })
 
   it('reads and follows the reduced-motion preference', () => {
     const media = createFakeMedia({ [REDUCED_MOTION]: true })
-    const platform = createPlatformService(FACTS, media)
+    const platform = createPlatformService({ facts: FACTS, media })
     expect(platform.prefersReducedMotion()).toBe(true)
 
     const seen: boolean[] = []
@@ -89,7 +89,7 @@ describe('createPlatformService', () => {
 
   it('reads and follows the color scheme', () => {
     const media = createFakeMedia({})
-    const platform = createPlatformService(FACTS, media)
+    const platform = createPlatformService({ facts: FACTS, media })
     expect(platform.colorScheme()).toBe('light')
 
     const seen: string[] = []
@@ -112,8 +112,9 @@ describe('createPlatformService', () => {
       removeListener: (listener: (event: MediaQueryListEvent) => void) =>
         listeners.delete(listener),
     }
-    const platform = createPlatformService(FACTS, {
-      matchMedia: () => list as unknown as MediaQueryList,
+    const platform = createPlatformService({
+      facts: FACTS,
+      media: { matchMedia: () => list as unknown as MediaQueryList },
     })
 
     const seen: boolean[] = []
@@ -129,7 +130,7 @@ describe('createPlatformService', () => {
   })
 
   it('answers no preference without `matchMedia`', () => {
-    const platform = createPlatformService(FACTS, {})
+    const platform = createPlatformService({ facts: FACTS, media: {} })
     expect(platform.prefersReducedMotion()).toBe(false)
     expect(platform.colorScheme()).toBe('light')
     const unsubscribe = platform.subscribeColorScheme(() => {})

@@ -2,7 +2,9 @@ import type { ZodType } from 'zod'
 import type { LoggerService } from '../app/logger-service.ts'
 import { toAppError, type AppError } from '../errors.ts'
 
-/** Tears down a subscription created by {@link IpcBridge.listen}. */
+/**
+ * Tears down a subscription created by {@link IpcBridge.listen}.
+ */
 export type Unlisten = () => void
 
 /**
@@ -12,9 +14,13 @@ export type Unlisten = () => void
  * and error coercion.
  */
 export interface IpcBridge {
-  /** Invoke a native command, resolving with its raw (untyped) response. */
+  /**
+   * Invoke a native command, resolving with its raw (untyped) response.
+   */
   invoke: (command: string, args: Record<string, unknown>) => Promise<unknown>
-  /** Subscribe to a native event stream, resolving with an unlisten function. */
+  /**
+   * Subscribe to a native event stream, resolving with an unlisten function.
+   */
   listen: (event: string, handler: (payload: unknown) => void) => Promise<Unlisten>
   /**
    * Invoke a native command with a **raw binary body** instead of JSON args —
@@ -82,7 +88,9 @@ export interface IpcBridgeService {
     headers: Record<string, string>,
     schema: ZodType<TOutput, unknown>,
   ): Promise<TOutput>
-  /** Subscribe to a native event stream, resolving with an unlisten function. */
+  /**
+   * Subscribe to a native event stream, resolving with an unlisten function.
+   */
   listen(event: string, handler: (payload: unknown) => void): Promise<Unlisten>
   /**
    * Attach a raw handler to a plugin event stream. Rejects with an `io`
@@ -102,45 +110,24 @@ export interface IpcBridgeService {
     schema: ZodType<Payload, unknown>,
     handler: (payload: Payload) => void,
   ): PluginSubscription
-  /** True when the transport can carry raw binary bodies. */
+  /**
+   * True when the transport can carry raw binary bodies.
+   */
   readonly hasBinaryTransport: boolean
 }
-
-
-// FIXME: for all new functions / interfaces etc.added in this pull request.use the following pattern for jsdoc.
-//
-// BAD:
-// /** True when the transport can carry raw binary bodies. */
-// readonly hasBinaryTransport: boolean
-//
-// GOOD:
-// /**
-//  * True when the transport can carry raw binary bodies.
-//  */
-// readonly hasBinaryTransport: boolean
-//
 
 interface SharedListener<Payload> {
   ready: Promise<void>
   fanOut: FanOut<Payload>
 }
 
-// FIXME:
-// I feel that returning a literal object in createXxxxService is bad for readability and maintainability. Let's consider refactoring this to a class-based implementation. use this patter:
-// 1. we have an interface call `export interface FooService`, just like what we're doing now.
-// 2. we have a class `class FooServiceImpl implements FooService` that implements the interface.
-// 3. we export a function `export function createFooService(): FooService { return new FooServiceImpl() }`.
-// 4. Only FooService and createFooService are exported, FooServiceImpl is not exported. In other words, `FooServiceImpl` is just an implementation detail. We do not force the caller to understand that the underlying implementation is a class. If we want, we can use an object-based implementation without changing any callers.
-// 5. inside the class, try to avoid using getter and setter. Just use plain `getXxxValue()` and `setXxxValue()` methods.
-// 6. inside the class, try to avoid using `private`. use `#` instead.
-// 7. I knonw in reflect-open's document, we said "we perfer object to class". Update the document to correct this and refer to the new pattern.
-// 8. Use many cheap sub-agents to do this migration.
+export interface IpcBridgeServiceDeps {
+  readonly transport: IpcBridge
+  readonly logger: LoggerService
+}
 
-export function createIpcBridgeService(
-  transport: IpcBridge,
-  deps: { logger: LoggerService },
-): IpcBridgeService {
-  const { logger } = deps
+export function createIpcBridgeService(deps: IpcBridgeServiceDeps): IpcBridgeService {
+  const { transport, logger } = deps
 
   // Heterogeneous (each key carries its own payload type), so entries are
   // stored erased; `subscribePlugin` restores the type its schema defines.
@@ -261,14 +248,18 @@ export function createIpcBridgeService(
   }
 }
 
-/** A set of handlers fed by one shared source. */
+/**
+ * A set of handlers fed by one shared source.
+ */
 export interface FanOut<T> {
   /**
    * Add a handler and return its detach. The first handler starts the source;
    * the last detach stops it.
    */
   subscribe(handler: (value: T) => void): Unlisten
-  /** Deliver `value` to every current handler. */
+  /**
+   * Deliver `value` to every current handler.
+   */
   emit(this: void, value: T): void
 }
 

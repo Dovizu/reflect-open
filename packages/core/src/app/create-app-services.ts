@@ -306,19 +306,6 @@ import {
 import { createGraphServices, type GraphServices } from './create-graph-services.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 
-// FIXME: for all new functions / interfaces etc.added in this pull request.use the following pattern for jsdoc.
-//
-// BAD:
-// /** The app-scoped services: one instance each for the lifetime of the webview. */
-// export interface AppServices { ... }
-//
-// GOOD:
-// /**
-//  * The app-scoped services: one instance each for the lifetime of the webview.
-//  */
-// export interface AppServices { ... }
-//
-
 /**
  * The app-scoped services: one instance each for the lifetime of the webview.
  */
@@ -749,9 +736,9 @@ export function composeAppServices(
   const create: ServiceFactories = { ...appServiceFactories, ...factories }
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
-  const ipc = create.ipc(adapters.ipc, { logger })
+  const ipc = create.ipc({ transport: adapters.ipc, logger })
   const database = create.database({ ipc })
-  const platform = create.platform(adapters.platform, undefined, adapters.convertFileSrc)
+  const platform = create.platform({ facts: adapters.platform, fileSrc: adapters.convertFileSrc })
   const windowService = create.window({ ipc, host: adapters.window, logger })
   const operations = create.operations({ clock })
   const settings = create.settings({ ipc, operations })
@@ -761,10 +748,11 @@ export function composeAppServices(
     sessionStorage: adapters.storage.session,
   })
   const lifecycle = create.lifecycle({ ipc, dom: adapters.lifecycle, clock, logger })
-  const fileChanges = create.fileChanges(
-    { ipc, logger },
-    { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
-  )
+  const fileChanges = create.fileChanges({
+    ipc,
+    logger,
+    echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform),
+  })
   const id = adapters.id ?? createSystemIdService()
   const secretStore = create.secretStore({ ipc })
   // The desktop shell's web-auth plugin answers every sign-in as cancelled.

@@ -1,5 +1,7 @@
+import type { Unlisten } from '../ipc/ipc-service.ts'
 import {
   createNoteMoveService,
+  type NoteMovedListener,
   type NoteMoveService,
   type NoteMoveServiceDeps,
 } from '../documents/note-move-service.ts'
@@ -157,26 +159,53 @@ export interface TestNoteMoveService extends NoteMoveService {
 }
 
 /**
+ * Forwards every member to the real service and records each landed move.
+ */
+class TestNoteMoveServiceImpl implements TestNoteMoveService {
+  readonly #inner: NoteMoveService
+  readonly #moves: Array<readonly [string, string]> = []
+
+  constructor(inner: NoteMoveService) {
+    this.#inner = inner
+    inner.onMoved((from, to) => {
+      this.#moves.push([from, to])
+    })
+  }
+
+  moveNote(from: string, to: string, generation: number): Promise<void> {
+    return this.#inner.moveNote(from, to, generation)
+  }
+
+  readonly followHealedMove = (from: string, to: string): void => {
+    this.#inner.followHealedMove(from, to)
+  }
+
+  readonly onMoved = (listener: NoteMovedListener): Unlisten => this.#inner.onMoved(listener)
+
+  followNativeMoves(): Unlisten {
+    return this.#inner.followNativeMoves()
+  }
+
+  moved(): ReadonlyArray<readonly [from: string, to: string]> {
+    return [...this.#moves]
+  }
+}
+
+/**
  * The real {@link NoteMoveService} over `ipc`, `indexStore`, `openDocuments`
  * and `logger` (fresh test doubles by default).
  */
 export function createTestNoteMoveService(
   options?: Partial<NoteMoveServiceDeps>,
 ): TestNoteMoveService {
-  const service = createNoteMoveService({
-    ipc: options?.ipc ?? createTestIpcBridgeService(),
-    indexStore: options?.indexStore ?? createTestIndexStoreService(),
-    openDocuments:
-      options?.openDocuments ??
-      createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
-    logger: options?.logger ?? createTestLoggerService(),
-  })
-  const moves: Array<readonly [string, string]> = []
-  service.onMoved((from, to) => {
-    moves.push([from, to])
-  })
-  return {
-    ...service,
-    moved: () => [...moves],
-  }
+  return new TestNoteMoveServiceImpl(
+    createNoteMoveService({
+      ipc: options?.ipc ?? createTestIpcBridgeService(),
+      indexStore: options?.indexStore ?? createTestIndexStoreService(),
+      openDocuments:
+        options?.openDocuments ??
+        createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
+      logger: options?.logger ?? createTestLoggerService(),
+    }),
+  )
 }
