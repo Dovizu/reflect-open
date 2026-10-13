@@ -1,5 +1,5 @@
 /*
- * The calendar strip's week math lives in `@reflect/core`
+ * The calendar strip's week math lives in `@reflect/app`
  * (`daily/week-window.ts`). This module re-exports it.
  */
 export {
@@ -11,4 +11,4 @@ export {
   weekOf,
   weekStartOf,
   type WeekWindow,
-} from '@reflect/core'
+} from '@reflect/app'

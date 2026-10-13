@@ -121,10 +121,6 @@ import {
   createSubscriptionService,
   type SubscriptionService,
 } from '../monetization/subscription-service.ts'
-import {
-  createCalendarEventsService,
-  type CalendarEventsService,
-} from '../calendar/calendar-events-service.ts'
 import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
 import {
   createContactSuggestionService,
@@ -368,7 +364,6 @@ export interface CoreServices {
   /**
    * The calendar events behind the daily note's events panel, fetched live.
    */
-  readonly calendarEvents: CalendarEventsService
   /**
    * Live reads of the OS address book, and the permission state as a store.
    */
@@ -887,7 +882,6 @@ export const coreServiceFactories = {
   chatEngine: createChatEngineService,
   chatGraphContext: createChatGraphContextService,
   appInfo: createAppInfoService,
-  calendarEvents: createCalendarEventsService,
   contactSuggestions: createContactSuggestionService,
   meetings: createMeetingService,
   agentSkill: createAgentSkillService,
@@ -1412,13 +1406,6 @@ export function composeCoreServices(
     lifecycle,
     appInfo: create.appInfo({ ipc }),
     calendar,
-    calendarEvents: create.calendarEvents({
-      calendar,
-      settings,
-      platform,
-      lifecycle,
-      logger,
-    }),
     contacts,
     contactSuggestions: create.contactSuggestions({
       contacts,

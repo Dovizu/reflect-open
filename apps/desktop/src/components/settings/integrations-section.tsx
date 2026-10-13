@@ -3,7 +3,7 @@ import { canPromptForContacts, contactsAccessNotice, isContactsAvailable } from 
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { useContactsState } from '@/hooks/use-contacts-state.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 import { CalendarIntegrationField } from './calendar-integration-field.tsx'
 import { SettingsSection } from './section.tsx'
 import { SettingsSwitchField } from './switch-field.tsx'
@@ -20,7 +20,8 @@ import { SettingsSwitchField } from './switch-field.tsx'
  */
 export function IntegrationsSection(): ReactElement | null {
   const { settings } = useSettings()
-  const { calendarEvents, contacts, contactSuggestions, opener } = useCoreServices()
+  const { contacts, contactSuggestions, opener } = useCoreServices()
+  const { calendarEvents } = useAppServices()
   const { authorization } = useContactsState()
   const [isPrompting, setIsPrompting] = useState(false)
 

@@ -1,6 +1,6 @@
 import { differenceInCalendarDays } from 'date-fns'
 import { addDaysIso } from '@reflect/utils'
-import { parseIsoDate } from '../lib/dates.ts'
+import { parseIsoDate } from '@reflect/core'
 
 /**
  * The daily surfaces' virtual window (Plan 06b / Plan 19): a **fixed**

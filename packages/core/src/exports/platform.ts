@@ -32,6 +32,7 @@ export {
   type BuildPlatform,
   type FileSrcConverter,
   type PlatformFacts,
+  type PlatformService,
 } from '../app/platform-service.ts'
 
 export { type DialogService, type PickFilesOptions } from '../app/dialog-service.ts'
@@ -43,7 +44,7 @@ export {
   createSingleWindowHost,
   type WindowHost,
 } from '../app/window-service.ts'
-export { type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
+export { type AppLifecycleService, type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export { type DecodedImage, type ImageCodecService } from '../app/image-codec-service.ts'
 export { type UpdaterAdapter, type UpdateService, type UpdateState } from '../app/update-service.ts'
@@ -125,38 +126,6 @@ export {
   type UpdatedPreset,
 } from '../search/all-notes-filters.ts'
 export { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
-export { dailyArrivalIntent } from '../daily/daily-arrivals.ts'
-export {
-  createDayWindow,
-  dateAtIndex,
-  FUTURE_DAYS,
-  indexOfDate,
-  indexWithin,
-  neighborDate,
-  PAST_DAYS,
-  type DayWindow,
-  type DayWindowRadius,
-} from '../daily/day-window.ts'
-export {
-  addMonths,
-  buildMonthGrid,
-  monthLabel,
-  monthOf,
-  monthShortLabel,
-  weekdayLabels,
-  type MonthGrid,
-  type MonthGridCell,
-} from '../daily/month-grid.ts'
-export {
-  createWeekWindow,
-  monthPickTarget,
-  WEEK_WINDOW_RADIUS,
-  weekAtIndex,
-  weekIndexOf,
-  weekOf,
-  weekStartOf,
-  type WeekWindow,
-} from '../daily/week-window.ts'
 export { type TemplateService } from '../documents/template-service.ts'
 export {
   isOstensiblyEmptyNoteSource,
@@ -197,12 +166,7 @@ export {
 export type { GraphServices } from '../app/create-graph-services.ts'
 export { type AgentSkillStatus } from '../app/agent-skill-service.ts'
 export { type AgentSkillService } from '../app/agent-skill-service.ts'
-export {
-  countSelectedCalendars,
-  groupCalendarsBySource,
-  showsDayEvents,
-  type CalendarEventsService,
-} from '../calendar/calendar-events-service.ts'
+export { type CalendarService } from '../calendar/calendar-service.ts'
 export {
   canPromptForContacts,
   contactsAccessNotice,

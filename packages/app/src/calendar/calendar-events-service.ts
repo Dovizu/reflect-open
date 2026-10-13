@@ -1,16 +1,16 @@
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformService } from '../app/platform-service.ts'
-import type { Unlisten } from '../unlisten.ts'
-import type { Settings } from '../settings/schema.ts'
-import type { SettingsService } from '../settings/settings-service.ts'
-import type {
-  CalendarAuthorizationStatus,
-  CalendarEvent,
-  CalendarInfo,
-  CalendarService,
-} from './calendar-service.ts'
-import { dayRange } from './events.ts'
+import {
+  dayRange,
+  type AppLifecycleService,
+  type CalendarAuthorizationStatus,
+  type CalendarEvent,
+  type CalendarInfo,
+  type CalendarService,
+  type LoggerService,
+  type PlatformService,
+  type Settings,
+  type SettingsService,
+  type Unlisten,
+} from '@reflect/core'
 
 /**
  * What a {@link CalendarEventsService} knows of the calendar permission.

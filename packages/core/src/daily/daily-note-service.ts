@@ -46,9 +46,7 @@ export interface DailyNoteServiceDeps {
 
 /**
  * The date questions about notes: today, which days have a daily note, and
- * the wake onto a new day. The window and grid arithmetic of the daily
- * surfaces is pure and lives next to this file (`day-window.ts`,
- * `week-window.ts`, `month-grid.ts`, `daily-arrivals.ts`).
+ * the wake onto a new day.
  */
 export interface DailyNoteService {
   /**

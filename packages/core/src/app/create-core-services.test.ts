@@ -39,7 +39,6 @@ const SERVICE_KEYS = [
   'appInfo',
   'calendar',
   'contacts',
-  'calendarEvents',
   'contactSuggestions',
   'meetings',
   'agentSkill',

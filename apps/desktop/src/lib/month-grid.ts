@@ -1,5 +1,5 @@
 /*
- * The calendar's month grid lives in `@reflect/core` (`daily/month-grid.ts`).
+ * The calendar's month grid lives in `@reflect/app` (`daily/month-grid.ts`).
  * This module re-exports it.
  */
 export {
@@ -11,4 +11,4 @@ export {
   weekdayLabels,
   type MonthGrid,
   type MonthGridCell,
-} from '@reflect/core'
+} from '@reflect/app'

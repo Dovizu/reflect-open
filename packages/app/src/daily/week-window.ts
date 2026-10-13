@@ -1,7 +1,6 @@
 import { differenceInCalendarDays, getDay } from 'date-fns'
 import { addDaysIso } from '@reflect/utils'
-import { parseIsoDate } from '../lib/dates.ts'
-import { weekStartDow, type WeekStartDay } from '../settings/schema.ts'
+import { parseIsoDate, weekStartDow, type WeekStartDay } from '@reflect/core'
 import { monthOf } from './month-grid.ts'
 
 /**

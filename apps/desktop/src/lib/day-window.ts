@@ -1,5 +1,5 @@
 /*
- * The daily surfaces' day window lives in `@reflect/core` (`daily/day-window.ts`).
+ * The daily surfaces' day window lives in `@reflect/app` (`daily/day-window.ts`).
  * This module re-exports it.
  */
 export {
@@ -12,4 +12,4 @@ export {
   PAST_DAYS,
   type DayWindow,
   type DayWindowRadius,
-} from '@reflect/core'
+} from '@reflect/app'
