@@ -80,6 +80,10 @@ interface FakeOptions {
    */
   gateStatus?: boolean
   /**
+   * Hold the first `setup` until `releaseSetup()` (the dispose-during-setup window).
+   */
+  gateSetup?: boolean
+  /**
    * Hold the first `mergeRemote` until `releaseMerge()` (the mid-pull window).
    */
   gateMerge?: boolean
@@ -149,6 +153,7 @@ function fakeServices(options: FakeOptions = {}) {
   }
   const statusGate = Promise.withResolvers<void>()
   const indexApplyGate = Promise.withResolvers<void>()
+  const setupGate = Promise.withResolvers<void>()
   const mergeGate = Promise.withResolvers<void>()
   const commitGate = Promise.withResolvers<void>()
   let statusCount = 0
@@ -178,8 +183,11 @@ function fakeServices(options: FakeOptions = {}) {
     }
     return { ...status }
   })
-  git.onSetup((remoteUrl, branch, generation) => {
+  git.onSetup(async (remoteUrl, branch, generation) => {
     record('setup', { remoteUrl, branch, generation })
+    if (options.gateSetup === true) {
+      await setupGate.promise
+    }
     status.initialized = true
     status.remoteUrl = remoteUrl
     return { ...status }
@@ -260,6 +268,7 @@ function fakeServices(options: FakeOptions = {}) {
     secrets: secretStore,
     status,
     releaseStatus: () => statusGate.resolve(),
+    releaseSetup: () => setupGate.resolve(),
     releaseIndexApply: () => indexApplyGate.resolve(),
     releaseMerge: () => mergeGate.resolve(),
     releaseCommit: () => commitGate.resolve(),
@@ -503,6 +512,31 @@ describe('createBackupService', () => {
     expect(calls).not.toContain('fetch')
     expect(calls).not.toContain('push')
     backup.dispose()
+  })
+
+  it('disposing while local history sets up creates no engine', async () => {
+    const { calls, releaseSetup } = fakeServices({
+      auth: null,
+      initialized: false,
+      remoteUrl: null,
+      gateSetup: true,
+    })
+    const create = vi.spyOn(backupDeps.syncEngines, 'create')
+    const subscribe = vi.spyOn(fileChanges, 'subscribe')
+    const backup = createBackup({ indexGeneration: 1 })
+    const started = backup.start()
+    await vi.waitFor(() => {
+      expect(calls).toContain('setup')
+    })
+
+    backup.dispose()
+    releaseSetup()
+    await started
+    await flush()
+
+    expect(create).not.toHaveBeenCalled()
+    expect(subscribe).not.toHaveBeenCalled()
+    expect(calls).not.toContain('commitAll')
   })
 
   it('local history keeps committing on edits — still with no network', async () => {
