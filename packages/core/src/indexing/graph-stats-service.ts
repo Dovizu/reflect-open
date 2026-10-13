@@ -14,78 +14,110 @@ import type { NoteTagFacet } from './note-list-service.ts'
  * data reaches a prompt.
  */
 
-/** The aggregates of one graph, private notes excluded throughout. */
+/**
+ * The aggregates of one graph, private notes excluded throughout.
+ */
 export interface GraphStats {
-  /** Non-daily notes the assistant can list or read. */
+  /**
+   * Non-daily notes the assistant can list or read.
+   */
   noteCount: number
-  /** Days with a (non-private) daily note. */
+  /**
+   * Days with a (non-private) daily note.
+   */
   dailyNoteCount: number
-  /** ISO date of the first daily note, `null` when there are none. */
+  /**
+   * ISO date of the first daily note, `null` when there are none.
+   */
   earliestDailyDate: string | null
-  /** ISO date of the latest daily note, `null` when there are none. */
+  /**
+   * ISO date of the latest daily note, `null` when there are none.
+   */
   latestDailyDate: string | null
-  /** Tag facets over non-daily notes, most-used first then alphabetical. */
+  /**
+   * Tag facets over non-daily notes, most-used first then alphabetical.
+   */
   tags: NoteTagFacet[]
-  /** The facet list was capped at `tagLimit` — more tags exist. */
+  /**
+   * The facet list was capped at `tagLimit` — more tags exist.
+   */
   tagsTruncated: boolean
 }
 
 export interface GraphStatsOptions {
-  /** Facet cap — the most-used tags win (prompt token budget, not recall). */
+  /**
+   * Facet cap — the most-used tags win (prompt token budget, not recall).
+   */
   tagLimit: number
 }
 
-/** Graph-level aggregates over the non-private notes. */
+export interface GraphStatsServiceDeps {
+  readonly database: DatabaseService
+}
+
+/**
+ * Graph-level aggregates over the non-private notes.
+ */
 export interface GraphStatsService {
-  /** Load {@link GraphStats} from the active graph's index. */
+  /**
+   * Load {@link GraphStats} from the active graph's index.
+   */
   loadGraphStats(options: GraphStatsOptions): Promise<GraphStats>
 }
 
-export function createGraphStatsService(deps: { database: DatabaseService }): GraphStatsService {
-  const { db } = deps.database
-  return {
-    async loadGraphStats({ tagLimit }) {
-      const [noteRow, dailyRow, tagRows] = await Promise.all([
-        db
-          .selectFrom('notes')
-          .where('kind', '=', 'note')
-          .where('isPrivate', '=', 0)
-          .select(sql<number>`count(*)`.as('count'))
-          .executeTakeFirst(),
-        db
-          .selectFrom('notes')
-          .where('dailyDate', 'is not', null)
-          .where('isPrivate', '=', 0)
-          .select([
-            sql<number>`count(*)`.as('count'),
-            sql<string | null>`min(daily_date)`.as('earliest'),
-            sql<string | null>`max(daily_date)`.as('latest'),
-          ])
-          .executeTakeFirst(),
-        // The same facet shape as `listNoteTags` (grouped on the stored folded
-        // `tag_key`, one deterministic display casing), narrowed to non-private
-        // notes and capped one past the limit so truncation is detectable.
-        db
-          .selectFrom('tags')
-          .innerJoin('notes', 'notes.path', 'tags.notePath')
-          .where('notes.kind', '=', 'note')
-          .where('notes.isPrivate', '=', 0)
-          .select([sql<string>`min(tags.tag)`.as('tag'), sql<number>`count(*)`.as('count')])
-          .groupBy('tags.tagKey')
-          .orderBy(sql`count(*)`, 'desc')
-          .orderBy('tags.tagKey')
-          .limit(tagLimit + 1)
-          .execute(),
-      ])
-      const tagsTruncated = tagRows.length > tagLimit
-      return {
-        noteCount: noteRow?.count ?? 0,
-        dailyNoteCount: dailyRow?.count ?? 0,
-        earliestDailyDate: dailyRow?.earliest ?? null,
-        latestDailyDate: dailyRow?.latest ?? null,
-        tags: tagsTruncated ? tagRows.slice(0, tagLimit) : tagRows,
-        tagsTruncated,
-      }
-    },
+class GraphStatsServiceImpl implements GraphStatsService {
+  readonly #deps: GraphStatsServiceDeps
+
+  constructor(deps: GraphStatsServiceDeps) {
+    this.#deps = deps
   }
+
+  async loadGraphStats({ tagLimit }: GraphStatsOptions): Promise<GraphStats> {
+    const { db } = this.#deps.database
+    const [noteRow, dailyRow, tagRows] = await Promise.all([
+      db
+        .selectFrom('notes')
+        .where('kind', '=', 'note')
+        .where('isPrivate', '=', 0)
+        .select(sql<number>`count(*)`.as('count'))
+        .executeTakeFirst(),
+      db
+        .selectFrom('notes')
+        .where('dailyDate', 'is not', null)
+        .where('isPrivate', '=', 0)
+        .select([
+          sql<number>`count(*)`.as('count'),
+          sql<string | null>`min(daily_date)`.as('earliest'),
+          sql<string | null>`max(daily_date)`.as('latest'),
+        ])
+        .executeTakeFirst(),
+      // The same facet shape as `listNoteTags` (grouped on the stored folded
+      // `tag_key`, one deterministic display casing), narrowed to non-private
+      // notes and capped one past the limit so truncation is detectable.
+      db
+        .selectFrom('tags')
+        .innerJoin('notes', 'notes.path', 'tags.notePath')
+        .where('notes.kind', '=', 'note')
+        .where('notes.isPrivate', '=', 0)
+        .select([sql<string>`min(tags.tag)`.as('tag'), sql<number>`count(*)`.as('count')])
+        .groupBy('tags.tagKey')
+        .orderBy(sql`count(*)`, 'desc')
+        .orderBy('tags.tagKey')
+        .limit(tagLimit + 1)
+        .execute(),
+    ])
+    const tagsTruncated = tagRows.length > tagLimit
+    return {
+      noteCount: noteRow?.count ?? 0,
+      dailyNoteCount: dailyRow?.count ?? 0,
+      earliestDailyDate: dailyRow?.earliest ?? null,
+      latestDailyDate: dailyRow?.latest ?? null,
+      tags: tagsTruncated ? tagRows.slice(0, tagLimit) : tagRows,
+      tagsTruncated,
+    }
+  }
+}
+
+export function createGraphStatsService(deps: GraphStatsServiceDeps): GraphStatsService {
+  return new GraphStatsServiceImpl(deps)
 }

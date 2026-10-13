@@ -5,14 +5,14 @@ import { isAppError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { parseNote } from '../markdown/index.ts'
 import type { XArchiveService } from '../x-archive.ts'
-import { createAssetDescriptionText } from './asset-description-text.ts'
-import { createAssetReferences } from './asset-refs.ts'
+import { createAssetDescriptionText, type AssetDescriptionText } from './asset-description-text.ts'
+import { createAssetReferences, type AssetReferences } from './asset-refs.ts'
 import type { DatabaseService } from './database-service.ts'
 import type { FileChange } from './file-change-service.ts'
 import type { IndexQueryService } from './index-query-service.ts'
 import type { IndexStoreService, SkippedIndexedNote } from './index-store-service.ts'
 import { buildIndexedNote, PROJECTION_VERSION, type IndexedNote } from './indexed-note.ts'
-import { createMoveHealing } from './move-healing.ts'
+import { createMoveHealing, type MoveHealing } from './move-healing.ts'
 import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
 
 /**
@@ -34,7 +34,9 @@ import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
  */
 export const PROJECTION_VERSION_KEY = 'projection_version'
 
-/** The services the indexing components read from and write through. */
+/**
+ * The services the indexing components read from and write through.
+ */
 export interface IndexingDeps {
   readonly indexStore: IndexStoreService
   readonly noteFile: NoteFileService
@@ -53,11 +55,21 @@ export interface IndexingDeps {
  */
 export type ChangesAppliedEmitter = (changes: readonly FileChange[], generation: number) => void
 
-/** Options for the long-running index passes. */
+export interface NoteIndexerDeps extends IndexingDeps {
+  readonly emitChangesApplied: ChangesAppliedEmitter
+}
+
+/**
+ * Options for the long-running index passes.
+ */
 export interface IndexPassOptions {
-  /** The index generation from `IndexStoreService.open`; stale writes are dropped by Rust. */
+  /**
+   * The index generation from `IndexStoreService.open`; stale writes are dropped by Rust.
+   */
   generation: number
-  /** Aborts the pass early when the active graph changes. */
+  /**
+   * Aborts the pass early when the active graph changes.
+   */
   signal?: AbortSignal
   /**
    * Called when a full rebuild cannot apply one note's projection even after
@@ -104,7 +116,9 @@ export {
   type SkippedIndexedNote,
 } from './index-store-service.ts'
 
-/** Turns markdown files into index rows. */
+/**
+ * Turns markdown files into index rows.
+ */
 export interface NoteIndexer {
   /**
    * Read, parse, and (re)index a single note for the given index generation.
@@ -188,21 +202,26 @@ export interface NoteIndexer {
   reconcile(options: IndexPassOptions): Promise<void>
 }
 
-export function createNoteIndexer(
-  deps: IndexingDeps & { readonly emitChangesApplied: ChangesAppliedEmitter },
-): NoteIndexer {
-  const { indexStore: store, noteFile, hash, clock, logger, emitChangesApplied } = deps
-  const assetText = createAssetDescriptionText(deps)
-  const assetReferences = createAssetReferences(deps)
-  const moveHealing = createMoveHealing(deps)
+class NoteIndexerImpl implements NoteIndexer {
+  readonly #deps: NoteIndexerDeps
+  readonly #assetText: AssetDescriptionText
+  readonly #assetReferences: AssetReferences
+  readonly #moveHealing: MoveHealing
 
-  async function buildNoteProjection(
+  constructor(deps: NoteIndexerDeps) {
+    this.#deps = deps
+    this.#assetText = createAssetDescriptionText(deps)
+    this.#assetReferences = createAssetReferences(deps)
+    this.#moveHealing = createMoveHealing(deps)
+  }
+
+  async buildNoteProjection(
     path: string,
     content: string,
     facts: { fileHash: string; mtime: number },
   ): Promise<IndexedNote> {
     const parsed = parseNote({ path, source: content })
-    const text = await assetText.gatherText(parsed.assets.map((asset) => asset.path))
+    const text = await this.#assetText.gatherText(parsed.assets.map((asset) => asset.path))
     return buildIndexedNote(parsed, {
       fileHash: facts.fileHash,
       mtime: facts.mtime,
@@ -211,26 +230,25 @@ export function createNoteIndexer(
     })
   }
 
-  async function indexNote(
+  async indexNote(
     path: string,
     options: { generation: number; content?: string | undefined; mtime?: number | undefined },
   ): Promise<void> {
+    const { indexStore: store, noteFile, hash, clock } = this.#deps
     const content = options.content ?? (await noteFile.read(path))
     const fileHash = await hash.sha256Hex(content)
-    const note = await buildNoteProjection(path, content, {
+    const note = await this.buildNoteProjection(path, content, {
       fileHash,
       mtime: options.mtime ?? clock.now(),
     })
     await store.apply(note, options.generation)
   }
 
-  async function reindexNotesReferencing(
-    assetPaths: readonly string[],
-    generation: number,
-  ): Promise<void> {
+  async reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void> {
+    const { emitChangesApplied } = this.#deps
     const notePaths = new Set<string>()
     for (const assetPath of assetPaths) {
-      for (const notePath of await assetReferences.notePaths(assetPath)) {
+      for (const notePath of await this.#assetReferences.notePaths(assetPath)) {
         notePaths.add(notePath)
       }
     }
@@ -238,7 +256,7 @@ export function createNoteIndexer(
     try {
       for (const notePath of notePaths) {
         try {
-          await indexNote(notePath, { generation })
+          await this.indexNote(notePath, { generation })
           applied.push(notePath)
         } catch (cause) {
           if (isAppError(cause) && cause.kind === 'notFound') {
@@ -260,7 +278,8 @@ export function createNoteIndexer(
     }
   }
 
-  async function rebuild(options: IndexPassOptions): Promise<void> {
+  async rebuild(options: IndexPassOptions): Promise<void> {
+    const { indexStore: store, noteFile, hash } = this.#deps
     const { generation, onSkippedNote, onFileProgress, onStalePlaceholders } = options
     if (options.signal?.aborted) {
       return // don't wipe the current index for an already-cancelled pass
@@ -297,7 +316,7 @@ export function createNoteIndexer(
       worked += 1
       const content = await noteFile.read(file.path)
       const fileHash = await hash.sha256Hex(content)
-      const projection = await buildNoteProjection(file.path, content, {
+      const projection = await this.buildNoteProjection(file.path, content, {
         fileHash,
         mtime: file.modifiedMs,
       })
@@ -324,7 +343,8 @@ export function createNoteIndexer(
     await store.setMeta(PROJECTION_VERSION_KEY, String(PROJECTION_VERSION), generation)
   }
 
-  async function reconcile(options: IndexPassOptions): Promise<void> {
+  async reconcile(options: IndexPassOptions): Promise<void> {
+    const { indexStore: store, noteFile, hash, logger } = this.#deps
     const { generation, signal, onMoved, onSkippedNote, onFileProgress, onStalePlaceholders } =
       options
     const scan = await store.reconcileScan(generation)
@@ -337,14 +357,18 @@ export function createNoteIndexer(
       // pass works through the readable candidates.
       onStalePlaceholders?.(scan.stalePlaceholders)
     }
-    /** Stored facts per candidate path; healed moves graft the orphan's in. */
+    /**
+     * Stored facts per candidate path; healed moves graft the orphan's in.
+     */
     const facts = new Map<string, { mtime: number; fileHash: string }>()
     for (const candidate of scan.candidates) {
       if (candidate.storedMtime !== null && candidate.storedHash !== null) {
         facts.set(candidate.path, { mtime: candidate.storedMtime, fileHash: candidate.storedHash })
       }
     }
-    /** Rows to drop at the end: scan orphans, minus heals, plus TOCTOU ghosts. */
+    /**
+     * Rows to drop at the end: scan orphans, minus heals, plus TOCTOU ghosts.
+     */
     const removals = new Map(scan.orphans.map((orphan) => [orphan.path, orphan]))
 
     // Id-based move healing (Plan 17): a row whose file vanished plus a new
@@ -357,12 +381,18 @@ export function createNoteIndexer(
     const arrivalPaths = scan.candidates
       .filter((candidate) => candidate.storedHash === null)
       .map((candidate) => candidate.path)
-    /** Arrival content read for pairing — the main pass below reuses it. */
+    /**
+     * Arrival content read for pairing — the main pass below reuses it.
+     */
     let arrivalContent = new Map<string, string>()
     try {
-      const healScan = await moveHealing.detectExternalMoves([...removals.keys()], arrivalPaths, {
-        signal,
-      })
+      const healScan = await this.#moveHealing.detectExternalMoves(
+        [...removals.keys()],
+        arrivalPaths,
+        {
+          signal,
+        },
+      )
       arrivalContent = healScan.content
       for (const move of healScan.moves) {
         if (signal?.aborted) {
@@ -443,7 +473,7 @@ export function createNoteIndexer(
       if (signal?.aborted) {
         return // re-check after the awaits — don't write for a superseded pass
       }
-      const projection = await buildNoteProjection(candidate.path, content, {
+      const projection = await this.buildNoteProjection(candidate.path, content, {
         fileHash,
         mtime: candidate.modifiedMs,
       })
@@ -470,10 +500,11 @@ export function createNoteIndexer(
     }
   }
 
-  async function sync(options: IndexPassOptions): Promise<void> {
+  async sync(options: IndexPassOptions): Promise<void> {
+    const { indexStore: store, logger } = this.#deps
     const stamped = await store.getMeta(PROJECTION_VERSION_KEY)
     if (stamped === String(PROJECTION_VERSION)) {
-      return await reconcile(options)
+      return await this.reconcile(options)
     }
     // Loud on purpose: a rebuild is expected once per projection bump or fresh
     // graph. Seeing this on *every* open means the stamp (or the whole index
@@ -482,8 +513,10 @@ export function createNoteIndexer(
     logger.warn(
       `index: stored projection version ${stamped === null ? 'none' : `"${stamped}"`} ≠ ${PROJECTION_VERSION} — full rebuild`,
     )
-    return await rebuild(options)
+    return await this.rebuild(options)
   }
+}
 
-  return { indexNote, buildNoteProjection, reindexNotesReferencing, rebuild, sync, reconcile }
+export function createNoteIndexer(deps: NoteIndexerDeps): NoteIndexer {
+  return new NoteIndexerImpl(deps)
 }

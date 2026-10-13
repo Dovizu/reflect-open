@@ -6,18 +6,26 @@ import type { DatabaseService } from '../indexing/database-service.ts'
 import { buildIndexedNote, type IndexedNote } from '../indexing/indexed-note.ts'
 import { parseNote } from '../markdown/extract.ts'
 
-/** One query the database ran, in its compiled form. */
+/**
+ * One query the database ran, in its compiled form.
+ */
 export interface TestDatabaseQuery {
   readonly sql: string
   readonly params: readonly unknown[]
 }
 
 export interface TestDatabaseService extends DatabaseService {
-  /** Replace every projected row of `note.path` with `note`, like `index_apply`. */
+  /**
+   * Replace every projected row of `note.path` with `note`, like `index_apply`.
+   */
   applyProjection(note: IndexedNote): void
-  /** Every query run so far, in order. */
+  /**
+   * Every query run so far, in order.
+   */
   getQueries(): readonly TestDatabaseQuery[]
-  /** Release the database; later queries and seeding throw. */
+  /**
+   * Release the database; later queries and seeding throw.
+   */
   close(): void
 }
 
@@ -177,7 +185,9 @@ function insertProjection(database: DatabaseSync, indexed: IndexedNote): void {
     .run(indexed.path, indexed.title, searchBody)
 }
 
-/** Opens the database behind a {@link createLazyTestDatabaseService}. */
+/**
+ * Opens the database behind a {@link createLazyTestDatabaseService}.
+ */
 export type TestDatabaseOpener = () => Promise<TestDatabaseService>
 
 let installedOpener: TestDatabaseOpener | null = null
@@ -192,6 +202,72 @@ export function setTestDatabaseOpener(open: TestDatabaseOpener | null): void {
   installedOpener = open
 }
 
+class LazyTestDatabaseServiceImpl implements TestDatabaseService {
+  readonly db: DatabaseService['db']
+  readonly #open: TestDatabaseOpener
+  readonly #queries: TestDatabaseQuery[] = []
+  readonly #held: IndexedNote[] = []
+  #opened: TestDatabaseService | null = null
+  #opening: Promise<TestDatabaseService> | null = null
+  #closed = false
+
+  constructor(open: TestDatabaseOpener) {
+    this.#open = open
+    this.db = createDb(this.runQuery)
+  }
+
+  readonly runQuery = async (sql: string, params: readonly unknown[]): Promise<unknown> => {
+    this.#queries.push({ sql, params: [...params] })
+    try {
+      this.#assertOpen()
+      const database = this.#opened ?? (await this.#ensureOpened())
+      return await database.runQuery(sql, params)
+    } catch (error) {
+      throw toAppError(error)
+    }
+  }
+
+  applyProjection(note: IndexedNote): void {
+    this.#assertOpen()
+    if (this.#opened === null) {
+      this.#held.push(note)
+    } else {
+      this.#opened.applyProjection(note)
+    }
+  }
+
+  getQueries(): readonly TestDatabaseQuery[] {
+    return [...this.#queries]
+  }
+
+  close(): void {
+    this.#closed = true
+    this.#opened?.close()
+    this.#opened = null
+  }
+
+  #assertOpen(): void {
+    if (this.#closed) {
+      throw new Error('the test database is closed')
+    }
+  }
+
+  #ensureOpened(): Promise<TestDatabaseService> {
+    this.#opening ??= this.#open().then((database) => {
+      if (this.#closed) {
+        database.close()
+        this.#assertOpen()
+      }
+      for (const note of this.#held.splice(0)) {
+        database.applyProjection(note)
+      }
+      this.#opened = database
+      return database
+    })
+    return this.#opening
+  }
+}
+
 /**
  * A {@link TestDatabaseService} that calls `open` on its first query and
  * never when nothing queries it. Projections applied before that are held
@@ -199,63 +275,50 @@ export function setTestDatabaseOpener(open: TestDatabaseOpener | null): void {
  * that the database refuses rejects the queries instead of the apply.
  */
 export function createLazyTestDatabaseService(open: TestDatabaseOpener): TestDatabaseService {
-  let opened: TestDatabaseService | null = null
-  let opening: Promise<TestDatabaseService> | null = null
-  let closed = false
-  const queries: TestDatabaseQuery[] = []
-  const held: IndexedNote[] = []
+  return new LazyTestDatabaseServiceImpl(open)
+}
 
-  function assertOpen(): void {
-    if (closed) {
-      throw new Error('the test database is closed')
-    }
+class NodeTestDatabaseServiceImpl implements TestDatabaseService {
+  readonly db: DatabaseService['db']
+  readonly #queries: TestDatabaseQuery[] = []
+  #database: DatabaseSync | null = null
+  #closed = false
+
+  constructor() {
+    this.db = createDb(this.runQuery)
   }
 
-  function ensureOpened(): Promise<TestDatabaseService> {
-    opening ??= open().then((database) => {
-      if (closed) {
-        database.close()
-        assertOpen()
-      }
-      for (const note of held.splice(0)) {
-        database.applyProjection(note)
-      }
-      opened = database
-      return database
-    })
-    return opening
-  }
-
-  const runQuery = async (sql: string, params: readonly unknown[]): Promise<unknown> => {
-    queries.push({ sql, params: [...params] })
+  readonly runQuery = async (sql: string, params: readonly unknown[]): Promise<unknown> => {
+    this.#queries.push({ sql, params: [...params] })
     try {
-      assertOpen()
-      const database = opened ?? (await ensureOpened())
-      return await database.runQuery(sql, params)
+      return this.#open()
+        .prepare(sql)
+        .all(...params.map(sqliteParameter))
     } catch (error) {
       throw toAppError(error)
     }
   }
 
-  return {
-    db: createDb(runQuery),
-    runQuery,
-    applyProjection(note) {
-      assertOpen()
-      if (opened === null) {
-        held.push(note)
-      } else {
-        opened.applyProjection(note)
-      }
-    },
-    getQueries() {
-      return [...queries]
-    },
-    close() {
-      closed = true
-      opened?.close()
-      opened = null
-    },
+  applyProjection(note: IndexedNote): void {
+    insertProjection(this.#open(), note)
+  }
+
+  getQueries(): readonly TestDatabaseQuery[] {
+    return [...this.#queries]
+  }
+
+  close(): void {
+    this.#closed = true
+    this.#database?.close()
+    this.#database = null
+  }
+
+  #open(): DatabaseSync {
+    if (this.#closed) {
+      throw new Error('the test database is closed')
+    }
+    this.#database ??= openMigratedIndex()
+    return this.#database
   }
 }
 
@@ -270,57 +333,30 @@ export function createTestDatabaseService(): TestDatabaseService {
   if (installedOpener !== null) {
     return createLazyTestDatabaseService(installedOpener)
   }
-  let database: DatabaseSync | null = null
-  let closed = false
-  const queries: TestDatabaseQuery[] = []
-
-  function open(): DatabaseSync {
-    if (closed) {
-      throw new Error('the test database is closed')
-    }
-    database ??= openMigratedIndex()
-    return database
-  }
-
-  const runQuery = async (sql: string, params: readonly unknown[]): Promise<unknown> => {
-    queries.push({ sql, params: [...params] })
-    try {
-      return open()
-        .prepare(sql)
-        .all(...params.map(sqliteParameter))
-    } catch (error) {
-      throw toAppError(error)
-    }
-  }
-
-  return {
-    db: createDb(runQuery),
-    runQuery,
-    applyProjection(note) {
-      insertProjection(open(), note)
-    },
-    getQueries() {
-      return [...queries]
-    },
-    close() {
-      closed = true
-      database?.close()
-      database = null
-    },
-  }
+  return new NodeTestDatabaseServiceImpl()
 }
 
-/** One note to project into a test index from its markdown. */
+/**
+ * One note to project into a test index from its markdown.
+ */
 export interface TestNote {
-  /** Graph-relative path. */
+  /**
+   * Graph-relative path.
+   */
   readonly path: string
-  /** The file contents. */
+  /**
+   * The file contents.
+   */
   readonly markdown: string
-  /** File modification time (epoch ms); defaults to 0. */
+  /**
+   * File modification time (epoch ms); defaults to 0.
+   */
   readonly mtime?: number
 }
 
-/** Project each note through the real markdown indexing pipeline into `database`. */
+/**
+ * Project each note through the real markdown indexing pipeline into `database`.
+ */
 export function seedNotes(database: TestDatabaseService, notes: readonly TestNote[]): void {
   for (const { path, markdown, mtime } of notes) {
     database.applyProjection(

@@ -32,18 +32,26 @@ import { buildReadOneNote, readNotesInput, type ReadNotesOutput } from './read-n
  * reads re-check the live frontmatter before any content is minted.
  */
 
-/** Default and ceiling for search hits per call (token budget, not recall). */
+/**
+ * Default and ceiling for search hits per call (token budget, not recall).
+ */
 const DEFAULT_SEARCH_LIMIT = 8
 const MAX_SEARCH_LIMIT = 20
 
-/** Default and ceiling for recent-note listings per call. */
+/**
+ * Default and ceiling for recent-note listings per call.
+ */
 const DEFAULT_RECENT_LIMIT = 10
 const MAX_RECENT_LIMIT = 20
 
-/** Most days one daily-range call returns; past it the model narrows the range. */
+/**
+ * Most days one daily-range call returns; past it the model narrows the range.
+ */
 export const MAX_DAILY_NOTE_DAYS = 31
 
-/** What {@link NoteToolsService.build} takes. */
+/**
+ * What {@link NoteToolsService.build} takes.
+ */
 export interface BuildNoteToolsOptions {
   /**
    * Whether note search can use embeddings for meaning-based recall. When
@@ -66,13 +74,17 @@ export type ListRecentNotesOutput =
   | { ok: true; notes: CloudSafe<CloudNoteListing>[] }
   | { ok: false; tag: string; error: string }
 
-/** The refusal text — one string, read verbatim by both model and chip. */
+/**
+ * The refusal text — one string, read verbatim by both model and chip.
+ */
 export const INVALID_TAG_ERROR =
   'Not a tag — omit the tag to list all recent notes. Tags are single words like "book" or "project/atlas".'
 
 export interface ListDailyNotesOutput {
   days: CloudSafe<CloudNoteListing>[]
-  /** The range held more days than one call returns — narrow it to see the rest. */
+  /**
+   * The range held more days than one call returns — narrow it to see the rest.
+   */
   truncated: boolean
 }
 
@@ -111,7 +123,9 @@ export const listDailyNotesInput = z.object({
   end: isoDate.describe('Last day of the range, inclusive (YYYY-MM-DD)'),
 })
 
-/** Shape one query row for the listings gate (epoch mtime → ISO timestamp). */
+/**
+ * Shape one query row for the listings gate (epoch mtime → ISO timestamp).
+ */
 function listingCandidate(
   row: RecentNoteRow | DailyNoteRow,
 ): CloudSendable & Omit<CloudNoteListing, 'path'> {
@@ -125,57 +139,61 @@ function listingCandidate(
   }
 }
 
-/** The read-only tools the chat model can call, with the privacy gate inside. */
+/**
+ * The read-only tools the chat model can call, with the privacy gate inside.
+ */
 export interface NoteToolsService {
-  /** Build the tool set of one chat turn. */
+  /**
+   * Build the tool set of one chat turn.
+   */
   build: (options: BuildNoteToolsOptions) => NoteTools
 }
 
-/** The daily-note range query of `DailyNoteService`. */
+/**
+ * The daily-note range query of `DailyNoteService`.
+ */
 export interface DailyNoteQueries {
   listDailyNotes: (range: DailyNotesRange) => Promise<DailyNoteRow[]>
 }
 
-export function createNoteToolsService(deps: {
-  retrieval: Pick<RetrievalService, 'retrieve'>
-  noteFile: Pick<NoteFileService, 'read'>
-  noteList: Pick<NoteListService, 'listRecentNotes'>
-  dailyNotes: DailyNoteQueries
-  assetReferences: Pick<AssetReferences, 'notePaths'>
-  assetPrivacy: Pick<AssetPrivacyService, 'classifyAssetFromNotes'>
-  xArchive: Pick<XArchiveService, 'owners'>
-  privacy: Pick<
+export interface NoteToolsServiceDeps {
+  readonly retrieval: Pick<RetrievalService, 'retrieve'>
+  readonly noteFile: Pick<NoteFileService, 'read'>
+  readonly noteList: Pick<NoteListService, 'listRecentNotes'>
+  readonly dailyNotes: DailyNoteQueries
+  readonly assetReferences: Pick<AssetReferences, 'notePaths'>
+  readonly assetPrivacy: Pick<AssetPrivacyService, 'classifyAssetFromNotes'>
+  readonly xArchive: Pick<XArchiveService, 'owners'>
+  readonly privacy: Pick<
     PrivacyService,
     | 'cloudSafeSearchHits'
     | 'cloudSafeNoteListings'
     | 'cloudSafeNoteContent'
     | 'cloudSafeAssetDescription'
   >
-}): NoteToolsService {
-  const {
-    retrieval,
-    noteFile,
-    noteList,
-    dailyNotes,
-    assetReferences,
-    assetPrivacy,
-    xArchive,
-    privacy,
-  } = deps
+}
 
-  const readNote = async (path: string): Promise<string> => await noteFile.read(path)
+class NoteToolsServiceImpl implements NoteToolsService {
+  readonly #deps: NoteToolsServiceDeps
+  readonly #readOneNote: ReturnType<typeof buildReadOneNote>
+  readonly #readOneAsset: ReturnType<typeof buildReadOneAsset>
 
-  const readOneNote = buildReadOneNote({ readNote, privacy })
+  constructor(deps: NoteToolsServiceDeps) {
+    this.#deps = deps
+    const { noteFile, assetReferences, assetPrivacy, xArchive, privacy } = deps
+    const readNote = async (path: string): Promise<string> => await noteFile.read(path)
+    this.#readOneNote = buildReadOneNote({ readNote, privacy })
+    this.#readOneAsset = buildReadOneAsset({
+      readNote,
+      assetReferences,
+      assetPrivacy,
+      xArchive,
+      privacy,
+    })
+  }
 
-  const readOneAsset = buildReadOneAsset({
-    readNote,
-    assetReferences,
-    assetPrivacy,
-    xArchive,
-    privacy,
-  })
-
-  function buildNoteTools(options: BuildNoteToolsOptions): NoteTools {
+  readonly build = (options: BuildNoteToolsOptions): NoteTools => {
+    const { retrieval, noteList, dailyNotes, privacy } = this.#deps
     const searchMode: RetrieveOptions['mode'] = options.semanticSearchEnabled ? 'hybrid' : 'lexical'
 
     return {
@@ -243,7 +261,7 @@ export function createNoteToolsService(deps: {
           'rather than reading them one at a time. Private notes cannot be read.',
         inputSchema: readNotesInput,
         execute: async ({ paths }): Promise<ReadNotesOutput> => {
-          return { notes: await Promise.all(paths.map(readOneNote)) }
+          return { notes: await Promise.all(paths.map(this.#readOneNote)) }
         },
       },
 
@@ -256,16 +274,20 @@ export function createNoteToolsService(deps: {
           'Attachments of private notes cannot be read.',
         inputSchema: readAssetsInput,
         execute: async ({ paths }): Promise<ReadAssetsOutput> => {
-          return { assets: await Promise.all(paths.map(readOneAsset)) }
+          return { assets: await Promise.all(paths.map(this.#readOneAsset)) }
         },
       },
     }
   }
-
-  return { build: buildNoteTools }
 }
 
-/** Tool description for the active search mode. */
+export function createNoteToolsService(deps: NoteToolsServiceDeps): NoteToolsService {
+  return new NoteToolsServiceImpl(deps)
+}
+
+/**
+ * Tool description for the active search mode.
+ */
 function searchNotesDescription(semanticSearchEnabled: boolean): string {
   const suffix =
     'Returns the best-matching notes with short snippets. Queries are plain language — there is no wildcard or operator syntax. Private notes are excluded.'
@@ -277,7 +299,7 @@ function searchNotesDescription(semanticSearchEnabled: boolean): string {
 
 /**
  * The tool set type, for typed stream parts in the chat engine. Written out
- * (rather than inferred from {@link buildNoteTools}) so the declaration the
+ * (rather than inferred from {@link NoteToolsService.build}) so the declaration the
  * composite build emits only names types this package can import.
  */
 export type NoteTools = {
@@ -288,25 +310,37 @@ export type NoteTools = {
   read_assets: Tool<z.infer<typeof readAssetsInput>, ReadAssetsOutput>
 }
 
-/** The hit slice tool-activity UI renders (full hits stay engine-side). */
+/**
+ * The hit slice tool-activity UI renders (full hits stay engine-side).
+ */
 export type NoteHitSummary = Pick<CloudSearchHit, 'path' | 'title'>
 
-/** One note's outcome in a read_notes call, for the tool-activity UI. */
+/**
+ * One note's outcome in a read_notes call, for the tool-activity UI.
+ */
 export interface ReadNoteSummary {
   path: string
   title: string | null
-  /** The per-note refusal/miss text, or `null` when the read succeeded. */
+  /**
+   * The per-note refusal/miss text, or `null` when the read succeeded.
+   */
   error: string | null
 }
 
-/** One asset's outcome in a read_assets call, for the tool-activity UI. */
+/**
+ * One asset's outcome in a read_assets call, for the tool-activity UI.
+ */
 export interface ReadAssetSummary {
   path: string
-  /** The per-asset refusal/miss text, or `null` when the read succeeded. */
+  /**
+   * The per-asset refusal/miss text, or `null` when the read succeeded.
+   */
   error: string | null
 }
 
-/** One tool invocation, as the transcript sees it. */
+/**
+ * One tool invocation, as the transcript sees it.
+ */
 export type NoteToolCall =
   | { tool: 'search'; toolCallId: string; query: string }
   | { tool: 'read'; toolCallId: string; paths: string[] }
@@ -314,7 +348,9 @@ export type NoteToolCall =
   | { tool: 'recents'; toolCallId: string; tag: string | null }
   | { tool: 'dailies'; toolCallId: string; start: string; end: string }
 
-/** One settled tool invocation. A failed read or listing keeps its refusal. */
+/**
+ * One settled tool invocation. A failed read or listing keeps its refusal.
+ */
 export type NoteToolResult =
   | { tool: 'search'; toolCallId: string; query: string; hits: NoteHitSummary[] }
   | { tool: 'read'; toolCallId: string; notes: ReadNoteSummary[] }
@@ -328,7 +364,9 @@ export type NoteToolResult =
     }
   | { tool: 'dailies'; toolCallId: string; start: string; end: string; days: NoteHitSummary[] }
 
-/** Map an SDK tool-call part onto {@link NoteToolCall} (null for dynamic). */
+/**
+ * Map an SDK tool-call part onto {@link NoteToolCall} (null for dynamic).
+ */
 export function noteToolCall(part: TypedToolCall<NoteTools>): NoteToolCall | null {
   if (part.dynamic) {
     return null
@@ -352,12 +390,16 @@ export function noteToolCall(part: TypedToolCall<NoteTools>): NoteToolCall | nul
   }
 }
 
-/** The path+title slice of one listing, for the tool-activity UI. */
+/**
+ * The path+title slice of one listing, for the tool-activity UI.
+ */
 function listingSummary(entry: CloudNoteListing): NoteHitSummary {
   return { path: entry.path, title: entry.title }
 }
 
-/** Map an SDK tool-result part onto {@link NoteToolResult} (null for dynamic). */
+/**
+ * Map an SDK tool-result part onto {@link NoteToolResult} (null for dynamic).
+ */
 export function noteToolResult(part: TypedToolResult<NoteTools>): NoteToolResult | null {
   if (part.dynamic) {
     return null

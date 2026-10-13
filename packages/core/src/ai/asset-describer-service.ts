@@ -13,20 +13,32 @@ import type { LanguageModelService } from './language-model-service.ts'
 
 const DESCRIBE_TIMEOUT_MS = 60_000
 
-/** SVG is sent as source text, not an image part; cap the prompt's excerpt. */
+/**
+ * SVG is sent as source text, not an image part; cap the prompt's excerpt.
+ */
 const MAX_SVG_CHARS = 32_000
 
-/** What the asset is, which decides how it enters the provider request. */
+/**
+ * What the asset is, which decides how it enters the provider request.
+ */
 export type AssetKind = 'image' | 'pdf' | 'svg'
 
 export interface DescribeAssetRequest {
-  /** The provider entry to call (the app default). */
+  /**
+   * The provider entry to call (the app default).
+   */
   config: AiProviderConfig
-  /** The BYOK API key, or an empty string for no-key compatible endpoints. */
+  /**
+   * The BYOK API key, or an empty string for no-key compatible endpoints.
+   */
   apiKey: string
-  /** How `data` is carried: image or PDF file input, or SVG source text. */
+  /**
+   * How `data` is carried: image or PDF file input, or SVG source text.
+   */
   kind: AssetKind
-  /** IANA media type (e.g. `image/png`, `application/pdf`, `image/svg+xml`). */
+  /**
+   * IANA media type (e.g. `image/png`, `application/pdf`, `image/svg+xml`).
+   */
   mediaType: string
   /**
    * The payload. base64 (no data-URL prefix) for `image`/`pdf`; the raw UTF-8
@@ -34,7 +46,9 @@ export interface DescribeAssetRequest {
    * itself describes the graphic).
    */
   data: string
-  /** The asset's filename, used only to ground the prompt. */
+  /**
+   * The asset's filename, used only to ground the prompt.
+   */
   filename: string
 }
 
@@ -50,7 +64,9 @@ export class AssetDescriptionRejectedError extends Error {
   }
 }
 
-/** Type guard for the provider-refusal path. */
+/**
+ * Type guard for the provider-refusal path.
+ */
 export function isAssetDescriptionRejected(value: unknown): value is AssetDescriptionRejectedError {
   return value instanceof AssetDescriptionRejectedError
 }
@@ -99,7 +115,13 @@ function describePrompt(kind: AssetKind, filename: string): string {
   ].join('\n')
 }
 
-/** One multimodal call that describes an image, PDF or SVG and transcribes its text. */
+export interface AssetDescriberServiceDeps {
+  readonly languageModel: LanguageModelService
+}
+
+/**
+ * One multimodal call that describes an image, PDF or SVG and transcribes its text.
+ */
 export interface AssetDescriberService {
   /**
    * Generate the description Markdown for one asset. Throws {@link ReflectError}
@@ -111,42 +133,49 @@ export interface AssetDescriberService {
   describe: (request: DescribeAssetRequest) => Promise<string>
 }
 
-export function createAssetDescriberService(deps: {
-  languageModel: LanguageModelService
-}): AssetDescriberService {
-  const { languageModel } = deps
-  return {
-    describe: async (request) => {
-      const sdk = await import('@reflect/modules/ai')
-      const content: UserContent = [
-        { type: 'text', text: describePrompt(request.kind, request.filename) },
-      ]
-      if (request.kind === 'image') {
-        content.push({ type: 'file', data: request.data, mediaType: request.mediaType })
-      } else if (request.kind === 'pdf') {
-        content.push({
-          type: 'file',
-          data: request.data,
-          mediaType: request.mediaType,
-          filename: request.filename,
-        })
-      } else {
-        content.push({
-          type: 'text',
-          text: `SVG source:\n${request.data.slice(0, MAX_SVG_CHARS)}`,
-        })
-      }
-      try {
-        const result = await sdk.generateText({
-          model: await languageModel.create(request.config, request.apiKey),
-          messages: [{ role: 'user', content }],
-          abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),
-          maxRetries: 0,
-        })
-        return result.text.trim()
-      } catch (cause) {
-        throw classify(cause, sdk)
-      }
-    },
+class AssetDescriberServiceImpl implements AssetDescriberService {
+  readonly #deps: AssetDescriberServiceDeps
+
+  constructor(deps: AssetDescriberServiceDeps) {
+    this.#deps = deps
   }
+
+  readonly describe = async (request: DescribeAssetRequest): Promise<string> => {
+    const sdk = await import('@reflect/modules/ai')
+    const content: UserContent = [
+      { type: 'text', text: describePrompt(request.kind, request.filename) },
+    ]
+    if (request.kind === 'image') {
+      content.push({ type: 'file', data: request.data, mediaType: request.mediaType })
+    } else if (request.kind === 'pdf') {
+      content.push({
+        type: 'file',
+        data: request.data,
+        mediaType: request.mediaType,
+        filename: request.filename,
+      })
+    } else {
+      content.push({
+        type: 'text',
+        text: `SVG source:\n${request.data.slice(0, MAX_SVG_CHARS)}`,
+      })
+    }
+    try {
+      const result = await sdk.generateText({
+        model: await this.#deps.languageModel.create(request.config, request.apiKey),
+        messages: [{ role: 'user', content }],
+        abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),
+        maxRetries: 0,
+      })
+      return result.text.trim()
+    } catch (cause) {
+      throw classify(cause, sdk)
+    }
+  }
+}
+
+export function createAssetDescriberService(
+  deps: AssetDescriberServiceDeps,
+): AssetDescriberService {
+  return new AssetDescriberServiceImpl(deps)
 }
