@@ -269,7 +269,6 @@ import {
 } from './platform-service.ts'
 import { createWebStorageService, type StorageService } from './storage-service.ts'
 import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
-import {
 import { createGraphServices, type GraphServices } from './create-graph-services.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 
@@ -560,10 +559,6 @@ export interface CoreServices {
    * The mapping from email identities to `#person` notes.
    */
   readonly personNotes: PersonNoteService
-  /**
-   * Autocomplete candidates for `#` tags and `[[` wiki targets.
-   */
-  readonly suggestions: SuggestionService
   /**
    * The services that only a mobile platform builds; `null` elsewhere.
    */

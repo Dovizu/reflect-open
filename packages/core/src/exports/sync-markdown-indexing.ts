@@ -59,8 +59,6 @@ export {
   type WikiSuggestion,
   type HighlightSegment,
   type FilteredSearchHit,
-  type ParsedSearchQuery,
-  type DateSuggestionContext,
 } from '../indexing/index.ts'
 export { groupTaskContexts, type TaskContext, type TaskGroup } from '../tasks/group-tasks.ts'
 export { type OpenTask } from '../tasks/open-task.ts'

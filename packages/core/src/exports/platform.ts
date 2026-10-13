@@ -90,7 +90,6 @@ export {
   type NoteSessionStatus,
 } from '../documents/note-session.ts'
 export {
-  EMPTY_ALL_NOTES_FILTERS,
   UPDATED_PRESETS,
   updatedPresetFilter,
   type UpdatedFilter,
@@ -267,7 +266,6 @@ export {
   type PersonNoteService,
 } from '../contacts/person-note-service.ts'
 export { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
-export { localIsoDate } from '../lib/dates.ts'
 export { serializeWikiSuggestionAddress, type WikiLinkSuggestion } from '../indexing/suggest.ts'
 export { type ClassicAccess, type ClassicSignInResult } from '../classic/classic-access-service.ts'
 export {
