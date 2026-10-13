@@ -51,11 +51,11 @@ export interface NoteMoveService {
   /**
    * Follow a move the index healed by id.
    */
-  followHealedMove: (from: string, to: string) => void
+  followHealedMove(from: string, to: string): void
   /**
    * Subscribe to landed note moves; returns the unsubscribe.
    */
-  onMoved: (listener: NoteMovedListener) => Unlisten
+  onMoved(listener: NoteMovedListener): Unlisten
   /**
    * Follow the Rust-side `note:moved` broadcast.
    */
@@ -79,7 +79,7 @@ class NoteMoveServiceImpl implements NoteMoveService {
     // ...
   }
 
-  readonly onMoved = (listener: NoteMovedListener): Unlisten => {
+  onMoved(listener: NoteMovedListener): Unlisten {
     this.#listeners.add(listener)
     return () => {
       this.#listeners.delete(listener)
@@ -110,13 +110,16 @@ Rules:
 - The interface never mentions `deps`.
 - Class members keep this order: `#` fields, the constructor, the public
   members in the interface's order, `#` methods.
-- A member that callers pass around without its object (to
-  `useSyncExternalStore`, as an event listener) is a **function property** in
-  the interface (`onMoved: (listener) => Unlisten`) and an **arrow-function
-  field** in the class (`readonly onMoved = (...) => { ... }`). A member
-  declared as a method signature (`moveNote(...)`) is a prototype method. Do
-  not write `this: void`. Lint (`@typescript-eslint/unbound-method`) reports a
-  method that is passed unbound.
+- A member is a plain method: a method signature in the interface
+  (`onMoved(listener): Unlisten`) and a prototype method in the class. Only a
+  member that callers pass around without its object, such as `getState` and
+  `subscribe` read by `useServiceState(service, service.getState)`, is a
+  **function property** in the interface (`getState: () => State`) and an
+  **arrow-function field** in the class (`readonly getState = (): State =>
+  this.#state`). Do not write `this: void`. Lint
+  (`@typescript-eslint/unbound-method`) reports a method that is passed
+  unbound; wrap a one-off pass in an arrow at the call site instead of turning
+  the member into a field.
 - No getters and no setters: write `getX()` / `setX()`. No `private`,
   `protected`, `public` or parameter properties: use `#`. Lint enforces both.
 - A field that needs a constructor argument is assigned in the constructor
@@ -505,7 +508,7 @@ Ordinary services stay app-scoped and read the open graph's session per call
 
 - [ ] `packages/core/src/<domain>/<name>-service.ts`: `XxxServiceDeps`, a
       documented `XxxService` interface, an unexported `XxxServiceImpl` class
-      (`#` fields, no accessors, arrow fields for function properties), and
+      (`#` fields, no accessors, plain methods), and
       `createXxxService(deps)` returning `new XxxServiceImpl(deps)`
 - [ ] Every collaborator comes through `deps`, narrowed with `Pick<>`; no
       `console.*`, `Date.now()`, `setTimeout`, `fetch` or `@tauri-apps/*`
