@@ -68,7 +68,6 @@ describe('BacklinkSnippet task checkboxes', () => {
     expect(writeTask).toHaveBeenCalledWith(
       { notePath: 'notes/meeting.md', astPath: [0, 1], markdown: 'prep agenda', checked: false },
       [{ kind: 'toggle' }],
-      7,
     )
     await view.unmount()
   })
@@ -81,7 +80,6 @@ describe('BacklinkSnippet task checkboxes', () => {
     expect(writeTask).toHaveBeenCalledWith(
       { notePath: 'notes/meeting.md', astPath: [0, 3], markdown: 'send invite', checked: true },
       [{ kind: 'toggle' }],
-      7,
     )
     await view.unmount()
   })

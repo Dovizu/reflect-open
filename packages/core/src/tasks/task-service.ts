@@ -1,8 +1,9 @@
 import type { ClockService } from '../app/clock-service.ts'
+import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import { NoteBusyError, type NoteDocumentService } from '../documents/note-document-service.ts'
-import { errorMessage } from '../errors.ts'
+import { errorMessage, ReflectError } from '../errors.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import { decodeTaskBreadcrumbs } from '../indexing/indexed-note.ts'
 import type { SnippetTask } from '../indexing/snippet-tasks.ts'
@@ -100,7 +101,6 @@ export interface TaskService {
   writeTaskEdits(
     notePath: string,
     edits: readonly TaskEdit[],
-    generation: number,
     options?: WriteTaskEditsOptions,
   ): Promise<TaskWriteResult>
   /**
@@ -111,11 +111,7 @@ export interface TaskService {
    * and the toggle or convert that ends it are one write; every action
    * addresses the task as the index knew it.
    */
-  writeTask(
-    task: TaskRef,
-    actions: readonly TaskAction[],
-    generation: number,
-  ): Promise<TaskWriteResult>
+  writeTask(task: TaskRef, actions: readonly TaskAction[]): Promise<TaskWriteResult>
   /**
    * Write `tasks` one at a time through {@link TaskService.writeTask}. Tasks
    * can share a note, and a removal moves the items below it, so after each
@@ -126,7 +122,6 @@ export interface TaskService {
   writeTasks(
     tasks: readonly OpenTask[],
     actionsFor: (task: OpenTask) => readonly TaskAction[],
-    generation: number,
     onWritten?: (task: OpenTask, result: TaskWriteResult) => void,
   ): Promise<void>
   /**
@@ -137,18 +132,14 @@ export interface TaskService {
    * row and every moved row in the written note, so the Tasks view can select
    * the new task and re-key cached rows before reindexing catches up.
    */
-  continueTaskInContext(
-    task: TaskRef,
-    content: string | null,
-    generation: number,
-  ): Promise<InsertedTask>
+  continueTaskInContext(task: TaskRef, content: string | null): Promise<InsertedTask>
   /**
    * Insert a new empty `+ [ ]` task into `notePath`'s `## Tasks` section
    * (Return-to-add), creating the section after the note's last content when
    * it has none, and return the new row's address plus where the note's other
    * tasks moved. A missing note (today's daily not yet created) starts empty.
    */
-  insertTask(notePath: string, generation: number): Promise<InsertedTask>
+  insertTask(notePath: string): Promise<InsertedTask>
   /**
    * The clicked snippet checkbox against the anchor for the same index. The
    * view and the anchors enumerate the same markdown independently (the
@@ -160,13 +151,12 @@ export interface TaskService {
   resolveSnippetTask(tasks: readonly SnippetTask[], click: SnippetTaskClick): SnippetTask | null
   /**
    * Write a backlink-snippet checkbox click through to the source note: one
-   * {@link TaskService.writeTask} toggle of `locator`. A failed write is
-   * reported as a failed operation, then rethrown.
+   * {@link TaskService.writeTask} toggle of `locator`, or nothing when no graph
+   * is open. A failed write is reported as a failed operation, then rethrown.
    */
   toggleSnippetTask(
     notePath: string,
     task: { locator: TaskLocator; checked: boolean },
-    generation: number,
   ): Promise<void>
   /**
    * Keep `completed` showing struck (checked) in the active list until archived.
@@ -263,8 +253,9 @@ export function createTaskService(deps: {
   operations: Pick<OperationsService, 'start'>
   clock: Pick<ClockService, 'now'>
   logger: Pick<LoggerService, 'error' | 'warn'>
+  graphSession: GraphSessionSource
 }): TaskService {
-  const { noteDocuments, operations, clock, logger } = deps
+  const { noteDocuments, operations, clock, logger, graphSession } = deps
   const { db } = deps.database
 
   function taskRowsQuery() {
@@ -331,6 +322,40 @@ export function createTaskService(deps: {
     }
   }
 
+  async function writeEdits(
+    generation: number,
+    notePath: string,
+    edits: readonly TaskEdit[],
+    options: WriteTaskEditsOptions = {},
+  ): Promise<TaskWriteResult> {
+    let result: TaskEditResult | undefined
+    await noteDocuments.commitSourceEdit(
+      notePath,
+      (source) => {
+        result = applyTaskEdits({ logger }, source, edits)
+        return result.source
+      },
+      { generation, createIfMissing: options.createIfMissing === true },
+    )
+    if (result === undefined) {
+      throw new NoteBusyError('This note can’t be updated right now — try again in a moment.')
+    }
+    return { ...result, updatedAt: clock.now() }
+  }
+
+  function writeOne(
+    generation: number,
+    task: TaskRef,
+    actions: readonly TaskAction[],
+  ): Promise<TaskWriteResult> {
+    const locator = toLocator(task)
+    return writeEdits(
+      generation,
+      task.notePath,
+      actions.map((action) => ({ ...action, task: locator })),
+    )
+  }
+
   const service: TaskService = {
     async getOpenTasks() {
       const rows = await taskRowsQuery().where('tasks.checked', '=', 0).execute()
@@ -342,39 +367,33 @@ export function createTaskService(deps: {
         (left, right) => right.updatedAt - left.updatedAt || compareTasksByNote(left, right),
       )
     },
-    async writeTaskEdits(notePath, edits, generation, options = {}) {
-      let result: TaskEditResult | undefined
-      await noteDocuments.commitSourceEdit(
+    async writeTaskEdits(notePath, edits, options = {}) {
+      return await writeEdits(
+        requireGraphSession(graphSession).generation,
         notePath,
-        (source) => {
-          result = applyTaskEdits({ logger }, source, edits)
-          return result.source
-        },
-        { generation, createIfMissing: options.createIfMissing === true },
-      )
-      if (result === undefined) {
-        throw new NoteBusyError('This note can’t be updated right now — try again in a moment.')
-      }
-      return { ...result, updatedAt: clock.now() }
-    },
-    writeTask(task, actions, generation) {
-      const locator = toLocator(task)
-      return service.writeTaskEdits(
-        task.notePath,
-        actions.map((action) => ({ ...action, task: locator })),
-        generation,
+        edits,
+        options,
       )
     },
-    async writeTasks(tasks, actionsFor, generation, onWritten) {
+    async writeTask(task, actions) {
+      return await writeOne(requireGraphSession(graphSession).generation, task, actions)
+    },
+    async writeTasks(tasks, actionsFor, onWritten) {
+      const { signal } = requireGraphSession(graphSession)
       let pending: readonly OpenTask[] = tasks
       for (let task = pending[0]; task !== undefined; task = pending[0]) {
-        const result = await service.writeTask(task, actionsFor(task), generation)
+        // After the batch's graph closes or switches, a write would land in the next graph.
+        if (signal.aborted) {
+          throw new ReflectError('noGraph', 'No graph is open.')
+        }
+        const result = await service.writeTask(task, actionsFor(task))
         onWritten?.(task, result)
         const rest: readonly OpenTask[] = pending.slice(1)
         pending = withRelocatedTasks({ logger }, rest, task.notePath, result.moved)
       }
     },
-    async continueTaskInContext(task, content, generation) {
+    async continueTaskInContext(task, content) {
+      const { generation } = requireGraphSession(graphSession)
       const locator = toLocator(task)
       const edits: TaskEdit[] = [
         { kind: 'insert', at: { kind: 'contextEnd', task: locator }, markdown: '' },
@@ -384,18 +403,19 @@ export function createTaskService(deps: {
       } else if (content !== null) {
         edits.push({ kind: 'setMarkdown', task: locator, markdown: content })
       }
-      const result = await service.writeTaskEdits(task.notePath, edits, generation)
+      const result = await writeEdits(generation, task.notePath, edits)
       return {
         created: requireInserted(result),
         moved: result.moved,
         updatedAt: result.updatedAt,
       }
     },
-    async insertTask(notePath, generation) {
-      const result = await service.writeTaskEdits(
+    async insertTask(notePath) {
+      const { generation } = requireGraphSession(graphSession)
+      const result = await writeEdits(
+        generation,
         notePath,
         [{ kind: 'insert', at: { kind: 'tasksSection' }, markdown: '' }],
-        generation,
         { createIfMissing: true },
       )
       return {
@@ -412,9 +432,12 @@ export function createTaskService(deps: {
       }
       return anchor
     },
-    async toggleSnippetTask(notePath, task, generation) {
+    async toggleSnippetTask(notePath, task) {
+      if (graphSession.getState().session === null) {
+        return
+      }
       try {
-        await service.writeTask({ notePath, ...task.locator }, [{ kind: 'toggle' }], generation)
+        await service.writeTask({ notePath, ...task.locator }, [{ kind: 'toggle' }])
       } catch (cause) {
         operations
           .start(task.checked ? 'Reopening task' : 'Completing task')

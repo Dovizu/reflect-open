@@ -394,11 +394,9 @@ describe('MobileTasks', () => {
     await user.click(view.getByRole('button', { name: 'dismiss-drawer' }))
 
     expect(writesOf('setMarkdown')).toHaveLength(1)
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.anything(),
-      [{ kind: 'setMarkdown', markdown: 'buy oat milk' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.anything(), [
+      { kind: 'setMarkdown', markdown: 'buy oat milk' },
+    ])
     await view.unmount()
   })
 
@@ -442,11 +440,9 @@ describe('MobileTasks', () => {
 
     await user.click(view.getByRole('button', { name: 'dismiss-drawer' }))
     expect(writesOf('setMarkdown')).toHaveLength(1)
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.anything(),
-      [{ kind: 'setMarkdown', markdown: 'buy milk [[2026-06-15]]' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.anything(), [
+      { kind: 'setMarkdown', markdown: 'buy milk [[2026-06-15]]' },
+    ])
     await view.unmount()
   })
 
@@ -500,11 +496,10 @@ describe('MobileTasks', () => {
     await user.click(view.getByRole('button', { name: 'Complete', exact: true }))
 
     await waitFor(() => expect(writesOf('setMarkdown', 'toggle')).toHaveLength(1))
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.anything(),
-      [{ kind: 'setMarkdown', markdown: 'buy oat milk' }, { kind: 'toggle' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.anything(), [
+      { kind: 'setMarkdown', markdown: 'buy oat milk' },
+      { kind: 'toggle' },
+    ])
     // One write: dismissal must not commit again after the action closed the
     // sheet, and the draft is not saved separately.
     expect(writesOf('setMarkdown')).toHaveLength(0)
@@ -531,11 +526,9 @@ describe('MobileTasks', () => {
     await user.click(view.getByRole('button', { name: 'dismiss-drawer' }))
 
     expect(writesOf('setMarkdown')).toHaveLength(1)
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.anything(),
-      [{ kind: 'setMarkdown', markdown: 'buy oat milk' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.anything(), [
+      { kind: 'setMarkdown', markdown: 'buy oat milk' },
+    ])
     await view.unmount()
   })
 
@@ -639,7 +632,7 @@ describe('MobileTasks', () => {
 
     await user.click(await view.findByRole('button', { name: 'Add a task to today' }))
 
-    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('daily/2026-06-14.md', 1))
+    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('daily/2026-06-14.md'))
     // The new (empty) task's quick-edit sheet opens to type into.
     const input = asTextArea(await view.findByRole('textbox', { name: 'Task text' }))
     expect(input.value).toBe('')
@@ -647,11 +640,9 @@ describe('MobileTasks', () => {
     await user.type(input, 'new thing')
     await user.click(view.getByRole('button', { name: 'dismiss-drawer' }))
     expect(writesOf('setMarkdown')).toHaveLength(1)
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.anything(),
-      [{ kind: 'setMarkdown', markdown: 'new thing' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.anything(), [
+      { kind: 'setMarkdown', markdown: 'new thing' },
+    ])
     await view.unmount()
   })
 
@@ -663,7 +654,7 @@ describe('MobileTasks', () => {
     await view.findByText('buy milk')
     await user.click(view.getByRole('button', { name: 'New task' }))
 
-    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('daily/2026-06-14.md', 1))
+    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('daily/2026-06-14.md'))
     const input = asTextArea(await view.findByRole('textbox', { name: 'Task text' }))
     expect(input.value).toBe('')
     await view.unmount()
@@ -711,11 +702,9 @@ describe('MobileTasks', () => {
     // Commit-then-navigate, like "Open note": the edit lands exactly once, and
     // the resolved target opens.
     expect(writesOf('setMarkdown')).toHaveLength(1)
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.anything(),
-      [{ kind: 'setMarkdown', markdown: 'buy oat milk' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.anything(), [
+      { kind: 'setMarkdown', markdown: 'buy oat milk' },
+    ])
     await waitFor(() =>
       expect(view.getByTestId('route').element().textContent).toContain('notes/other.md'),
     )
@@ -752,11 +741,9 @@ describe('MobileTasks', () => {
     await view.unmount()
 
     await waitFor(() => expect(writesOf('setMarkdown')).toHaveLength(1))
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.anything(),
-      [{ kind: 'setMarkdown', markdown: 'buy oat milk' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.anything(), [
+      { kind: 'setMarkdown', markdown: 'buy oat milk' },
+    ])
   })
 
   it('deletes an abandoned "+"-added task when the screen unmounts', async () => {
@@ -840,7 +827,7 @@ describe('MobileTasks', () => {
     await view.findByText('No tasks to show')
     await user.click(view.getByRole('button', { name: 'Add a task' }))
 
-    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('daily/2026-06-14.md', 1))
+    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('daily/2026-06-14.md'))
     await view.unmount()
   })
 

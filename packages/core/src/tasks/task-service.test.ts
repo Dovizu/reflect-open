@@ -3,6 +3,7 @@ import {
   createOpenDocumentsService,
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
+import { createGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import { createNoteDocumentService, NoteBusyError } from '../documents/note-document-service.ts'
 import {
   isSameTaskPath,
@@ -64,6 +65,11 @@ let operations: TestOperationsService
 let clock: TestClockService
 let logger: TestLoggerService
 let tasks: TaskService
+const graphSession: GraphSessionSource = {
+  getState: () => ({
+    session: createGraphSession({ root: '/g', name: 'g', generation: 7, indexGeneration: 1 }),
+  }),
+}
 
 function openSession(session: TestNoteSession): void {
   openDocuments.register({ session })
@@ -82,6 +88,7 @@ beforeEach(() => {
     operations,
     clock,
     logger,
+    graphSession,
   })
 })
 
@@ -97,8 +104,8 @@ describe('write serialization', () => {
       return writes === 1 ? pendingFirstWrite.promise : Promise.resolve(0)
     })
 
-    const first = tasks.writeTask(task, [{ kind: 'toggle' }], 7)
-    const second = tasks.writeTask(task, [{ kind: 'toggle' }], 7)
+    const first = tasks.writeTask(task, [{ kind: 'toggle' }])
+    const second = tasks.writeTask(task, [{ kind: 'toggle' }])
     await flushMicrotasks()
 
     // The first write is in flight; the second hasn't even read yet — it's queued.
@@ -116,8 +123,8 @@ describe('write serialization', () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n')
     vi.spyOn(noteFile, 'write').mockRejectedValueOnce(new Error('disk full'))
 
-    const first = tasks.writeTask(task, [{ kind: 'toggle' }], 7)
-    const second = tasks.writeTask(task, [{ kind: 'toggle' }], 7)
+    const first = tasks.writeTask(task, [{ kind: 'toggle' }])
+    const second = tasks.writeTask(task, [{ kind: 'toggle' }])
     await expect(first).rejects.toThrow('disk full')
     await expect(second).resolves.toMatchObject({ source: '+ [x] do it\n' })
   })
@@ -127,7 +134,7 @@ describe('writeTask', () => {
   it('writes the toggled task to disk when the note is not open', async () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n')
 
-    const result = await tasks.writeTask(task, [{ kind: 'toggle' }], 7)
+    const result = await tasks.writeTask(task, [{ kind: 'toggle' }])
     expect(noteFile.getWrites('notes/a.md')).toContain('+ [x] do it\n')
     expect(movedFrom(result, [0])).toMatchObject({ astPath: [0], markdown: 'do it', checked: true })
   })
@@ -138,7 +145,7 @@ describe('writeTask', () => {
     const session = sessionOver('+ [ ] do it\n')
     openSession(session)
 
-    const result = await tasks.writeTask(task, [{ kind: 'toggle' }], 7)
+    const result = await tasks.writeTask(task, [{ kind: 'toggle' }])
     expect(session.getCalls('commitSourceEdit')).toHaveLength(1)
     expect(result.source).toBe('+ [x] do it\n')
     expect(noteFile.writes()).toEqual([])
@@ -147,36 +154,30 @@ describe('writeTask', () => {
   it('throws NoteBusyError when the session declines, never clobbering via disk', async () => {
     openSession(sessionOver('+ [ ] do it\n', false))
 
-    await expect(tasks.writeTask(task, [{ kind: 'remove' }], 7)).rejects.toBeInstanceOf(
-      NoteBusyError,
-    )
+    await expect(tasks.writeTask(task, [{ kind: 'remove' }])).rejects.toBeInstanceOf(NoteBusyError)
     expect(noteFile.writes()).toEqual([])
   })
 
   it('propagates TaskStaleError from the disk path when the index is stale', async () => {
     noteFile.set('notes/a.md', '+ [ ] something else entirely\n')
 
-    await expect(tasks.writeTask(task, [{ kind: 'toggle' }], 7)).rejects.toBeInstanceOf(
-      TaskStaleError,
-    )
+    await expect(tasks.writeTask(task, [{ kind: 'toggle' }])).rejects.toBeInstanceOf(TaskStaleError)
     expect(noteFile.writes()).toEqual([])
   })
 
   it('propagates TaskStaleError from the session path too', async () => {
     openSession(sessionOver('+ [ ] something else entirely\n'))
 
-    await expect(tasks.writeTask(task, [{ kind: 'toggle' }], 7)).rejects.toBeInstanceOf(
-      TaskStaleError,
-    )
+    await expect(tasks.writeTask(task, [{ kind: 'toggle' }])).rejects.toBeInstanceOf(TaskStaleError)
   })
 
   it('replaces the Markdown, on disk or through the session', async () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n')
-    await tasks.writeTask(task, [{ kind: 'setMarkdown', markdown: 'do it well' }], 7)
+    await tasks.writeTask(task, [{ kind: 'setMarkdown', markdown: 'do it well' }])
     expect(noteFile.getWrites('notes/a.md')).toContain('+ [ ] do it well\n')
 
     openSession(sessionOver('+ [ ] do it\n'))
-    const result = await tasks.writeTask(task, [{ kind: 'setMarkdown', markdown: 'do it well' }], 7)
+    const result = await tasks.writeTask(task, [{ kind: 'setMarkdown', markdown: 'do it well' }])
     expect(result.source).toBe('+ [ ] do it well\n')
     expect(noteFile.writes()).toHaveLength(1)
   })
@@ -184,7 +185,7 @@ describe('writeTask', () => {
   it('removes the task and reports the rows below it moving up', async () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n+ [ ] keep\n')
 
-    const result = await tasks.writeTask(task, [{ kind: 'remove' }], 7)
+    const result = await tasks.writeTask(task, [{ kind: 'remove' }])
     expect(noteFile.getWrites('notes/a.md')).toContain('+ [ ] keep\n')
     expect(movedFrom(result, [0])).toBeNull()
     expect(movedFrom(result, [1])).toMatchObject({ astPath: [0], markdown: 'keep' })
@@ -193,7 +194,7 @@ describe('writeTask', () => {
   it('drops the checkbox, so the row leaves the projection', async () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n+ [ ] keep\n')
 
-    const result = await tasks.writeTask(task, [{ kind: 'toBullet' }], 7)
+    const result = await tasks.writeTask(task, [{ kind: 'toBullet' }])
     expect(noteFile.getWrites('notes/a.md')).toContain('+ do it\n+ [ ] keep\n')
     expect(movedFrom(result, [0])).toBeNull()
   })
@@ -201,21 +202,19 @@ describe('writeTask', () => {
   it('lands several actions in one write', async () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n')
 
-    const result = await tasks.writeTask(
-      task,
-      [{ kind: 'setMarkdown', markdown: 'done it' }, { kind: 'toggle' }],
-      7,
-    )
+    const result = await tasks.writeTask(task, [
+      { kind: 'setMarkdown', markdown: 'done it' },
+      { kind: 'toggle' },
+    ])
     expect(noteFile.writes()).toHaveLength(1)
     expect(noteFile.getWrites('notes/a.md')).toContain('+ [x] done it\n')
     expect(movedFrom(result, [0])).toMatchObject({ markdown: 'done it', checked: true })
 
     noteFile.set('notes/a.md', '+ [ ] do it\n')
-    await tasks.writeTask(
-      task,
-      [{ kind: 'setMarkdown', markdown: 'just a note' }, { kind: 'toBullet' }],
-      7,
-    )
+    await tasks.writeTask(task, [
+      { kind: 'setMarkdown', markdown: 'just a note' },
+      { kind: 'toBullet' },
+    ])
     expect(noteFile.getWrites('notes/a.md').at(-1)).toBe('+ just a note\n')
   })
 })
@@ -226,7 +225,7 @@ describe('insertTask', () => {
 
     clock.setNow(1000)
 
-    await expect(tasks.insertTask('notes/a.md', 7)).resolves.toEqual({
+    await expect(tasks.insertTask('notes/a.md')).resolves.toEqual({
       created: { astPath: [1], markdown: '', breadcrumbs: ['Tasks'], checked: false },
       moved: [],
       updatedAt: 1000,
@@ -237,7 +236,7 @@ describe('insertTask', () => {
   it('joins an existing Tasks section and reports the tasks it shifted', async () => {
     noteFile.set('notes/a.md', '## Tasks\n\n+ [ ] a\n\n## Later\n\n+ [ ] b\n')
 
-    const result = await tasks.insertTask('notes/a.md', 7)
+    const result = await tasks.insertTask('notes/a.md')
 
     expect(result.created).toMatchObject({ astPath: [2] })
     expect(movedFrom(result, [1])).toMatchObject({ astPath: [1], markdown: 'a' })
@@ -248,7 +247,7 @@ describe('insertTask', () => {
   })
 
   it('starts a note that does not exist yet', async () => {
-    await tasks.insertTask('daily/2026-06-14.md', 7)
+    await tasks.insertTask('daily/2026-06-14.md')
     expect(noteFile.getWrites('daily/2026-06-14.md')).toContain('## Tasks\n\n+ [ ] \n')
   })
 
@@ -256,7 +255,7 @@ describe('insertTask', () => {
     const session = sessionOver('## Tasks\n\n+ [ ] first\n')
     openSession(session)
 
-    await expect(tasks.insertTask('notes/a.md', 7)).resolves.toMatchObject({
+    await expect(tasks.insertTask('notes/a.md')).resolves.toMatchObject({
       created: { astPath: [2] },
     })
     expect(noteFile.writes()).toEqual([])
@@ -275,7 +274,7 @@ describe('continueTaskInContext', () => {
     ].join('\n')
     noteFile.set('notes/a.md', source)
 
-    const result = await tasks.continueTaskInContext(ref(source), 'edited first', 7)
+    const result = await tasks.continueTaskInContext(ref(source), 'edited first')
 
     const written = [
       '+ StartupToolbox',
@@ -305,7 +304,7 @@ describe('continueTaskInContext', () => {
     const source = '+ Group\n  + [ ] old\n  + [ ] peer\n'
     noteFile.set('notes/a.md', source)
 
-    const result = await tasks.continueTaskInContext(ref(source), '', 7)
+    const result = await tasks.continueTaskInContext(ref(source), '')
 
     const written = '+ Group\n  + [ ] peer\n  + [ ] \n'
     expect(noteFile.getWrites('notes/a.md')).toContain(written)
@@ -324,7 +323,7 @@ describe('continueTaskInContext', () => {
     const source = `Intro\n\n${indexedSource}`
     noteFile.set('notes/a.md', source)
 
-    await tasks.continueTaskInContext(ref(indexedSource), 'filled', 7)
+    await tasks.continueTaskInContext(ref(indexedSource), 'filled')
     expect(noteFile.getWrites('notes/a.md')).toContain(
       'Intro\n\n+ Group\n  + [ ] filled\n  + [ ] \n',
     )
@@ -334,7 +333,7 @@ describe('continueTaskInContext', () => {
     const source = '+ [ ] alone\n'
     noteFile.set('notes/a.md', source)
 
-    const result = await tasks.continueTaskInContext(ref(source), null, 7)
+    const result = await tasks.continueTaskInContext(ref(source), null)
 
     expect(noteFile.getWrites('notes/a.md')).toContain('+ [ ] alone\n+ [ ] \n')
     expect(result.created).toMatchObject({ astPath: [1] })
@@ -344,7 +343,7 @@ describe('continueTaskInContext', () => {
     const source = '+ Group\n  + [ ] first\n'
     noteFile.set('notes/a.md', source)
 
-    const result = await tasks.continueTaskInContext(ref(source), null, 7)
+    const result = await tasks.continueTaskInContext(ref(source), null)
     const first = { astPath: [0, 1], markdown: 'first', breadcrumbs: ['Group'], checked: false }
     expect(result.moved).toEqual([{ from: first, to: first }])
   })
@@ -451,7 +450,7 @@ describe('write results', () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n')
     clock.setNow(4242)
 
-    await expect(tasks.writeTask(task, [{ kind: 'toggle' }], 7)).resolves.toMatchObject({
+    await expect(tasks.writeTask(task, [{ kind: 'toggle' }])).resolves.toMatchObject({
       updatedAt: 4242,
     })
   })
@@ -469,7 +468,6 @@ describe('writeTasks', () => {
     await tasks.writeTasks(
       [rows[0]!, rows[2]!],
       () => [{ kind: 'remove' }],
-      7,
       (row, result) => {
         written.push(`${row.markdown}@${JSON.stringify(row.astPath)}:${result.source}`)
       },
@@ -485,9 +483,9 @@ describe('writeTasks', () => {
     const one = makeOpenTask({ notePath: 'notes/a.md', astPath: [0], markdown: 'one' })
     const gone = makeOpenTask({ notePath: 'notes/a.md', astPath: [5], markdown: 'gone' })
 
-    await expect(
-      tasks.writeTasks([one, gone], () => [{ kind: 'toggle' }], 7),
-    ).rejects.toBeInstanceOf(TaskStaleError)
+    await expect(tasks.writeTasks([one, gone], () => [{ kind: 'toggle' }])).rejects.toBeInstanceOf(
+      TaskStaleError,
+    )
     expect(noteFile.getWrites('notes/a.md')).toEqual(['+ [x] one\n'])
   })
 })
@@ -530,11 +528,10 @@ describe('snippet tasks', () => {
 
   it('toggles the source task', async () => {
     noteFile.set('notes/a.md', source)
-    await tasks.toggleSnippetTask(
-      'notes/a.md',
-      { locator: { astPath: [0], markdown: 'do it', checked: false }, checked: false },
-      7,
-    )
+    await tasks.toggleSnippetTask('notes/a.md', {
+      locator: { astPath: [0], markdown: 'do it', checked: false },
+      checked: false,
+    })
     expect(noteFile.getWrites('notes/a.md')).toEqual(['+ [x] do it\n'])
     expect(operations.getAll()).toEqual([])
   })
@@ -542,13 +539,62 @@ describe('snippet tasks', () => {
   it('reports a failed toggle, labelled for its direction, and rethrows', async () => {
     noteFile.set('notes/a.md', '+ [x] something else\n')
     await expect(
-      tasks.toggleSnippetTask(
-        'notes/a.md',
-        { locator: { astPath: [0], markdown: 'do it', checked: true }, checked: true },
-        7,
-      ),
+      tasks.toggleSnippetTask('notes/a.md', {
+        locator: { astPath: [0], markdown: 'do it', checked: true },
+        checked: true,
+      }),
     ).rejects.toBeInstanceOf(TaskStaleError)
     expect(operations.findByLabel('Reopening task')?.status).toBe('failed')
+  })
+})
+
+describe('no graph open', () => {
+  it('rejects writes and skips snippet toggles', async () => {
+    noteFile.set('notes/a.md', '+ [ ] do it\n')
+    const closed = createTaskService({
+      database,
+      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+      operations,
+      clock,
+      logger,
+      graphSession: { getState: () => ({ session: null }) },
+    })
+
+    await expect(closed.writeTask(task, [{ kind: 'toggle' }])).rejects.toThrow('No graph is open.')
+    await closed.toggleSnippetTask('notes/a.md', { locator: task, checked: false })
+    expect(noteFile.writes()).toEqual([])
+    expect(operations.getAll()).toEqual([])
+  })
+
+  it('stops a batch once its graph is replaced', async () => {
+    noteFile.set('notes/a.md', '+ [ ] one\n+ [ ] two\n')
+    const controller = new AbortController()
+    let session = createGraphSession(
+      { root: '/g', name: 'g', generation: 7, indexGeneration: 1 },
+      controller.signal,
+    )
+    const switching = createTaskService({
+      database,
+      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+      operations,
+      clock,
+      logger,
+      graphSession: { getState: () => ({ session }) },
+    })
+    const one = makeOpenTask({ notePath: 'notes/a.md', astPath: [0], markdown: 'one' })
+    const two = makeOpenTask({ notePath: 'notes/a.md', astPath: [1], markdown: 'two' })
+
+    await expect(
+      switching.writeTasks(
+        [one, two],
+        () => [{ kind: 'toggle' }],
+        () => {
+          controller.abort()
+          session = createGraphSession({ root: '/h', name: 'h', generation: 8, indexGeneration: 1 })
+        },
+      ),
+    ).rejects.toThrow('No graph is open.')
+    expect(noteFile.getWrites('notes/a.md')).toEqual(['+ [x] one\n+ [ ] two\n'])
   })
 })
 
@@ -608,6 +654,7 @@ describe('recently completed', () => {
       operations,
       clock,
       logger,
+      graphSession,
     })
     expect(other.getRecentlyCompleted('/g')).toEqual([])
   })

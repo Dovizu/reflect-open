@@ -10,7 +10,6 @@ interface SnippetToggleInput {
   notePath: string
   locator: TaskLocator
   checked: boolean
-  generation: number
 }
 
 /**
@@ -35,14 +34,13 @@ export function useSnippetTaskToggle(
   const { mutate, isPending } = useMutation({
     mutationKey: mutationKeys.tasks.snippetToggle(graph?.root),
     // The service reports a failed write itself.
-    mutationFn: ({ notePath: path, locator, checked, generation }: SnippetToggleInput) =>
-      taskService.toggleSnippetTask(path, { locator, checked }, generation),
+    mutationFn: ({ notePath: path, locator, checked }: SnippetToggleInput) =>
+      taskService.toggleSnippetTask(path, { locator, checked }),
   })
 
-  const generation = graph?.generation
   const handler = useCallback<TaskClickHandler>(
     (payload) => {
-      if (generation === undefined || isPending) {
+      if (isPending) {
         return
       }
       // A drifted click answers null, already reported.
@@ -50,9 +48,9 @@ export function useSnippetTaskToggle(
       if (anchor === null || anchor.locator === null) {
         return
       }
-      mutate({ notePath, locator: anchor.locator, checked: anchor.checked, generation })
+      mutate({ notePath, locator: anchor.locator, checked: anchor.checked })
     },
-    [notePath, tasks, generation, isPending, mutate, taskService],
+    [notePath, tasks, isPending, mutate, taskService],
   )
 
   return tasks.some((task) => task.locator !== null) ? handler : undefined

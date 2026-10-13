@@ -1107,7 +1107,7 @@ export function composeAppServices(
       noteDocuments,
       attachments,
     }),
-    tasks: create.tasks({ database, noteDocuments, operations, clock, logger }),
+    tasks: create.tasks({ database, noteDocuments, operations, clock, logger, graphSession }),
     noteActions: create.noteActions({
       noteDocuments,
       noteFile,
