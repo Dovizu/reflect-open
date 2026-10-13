@@ -4,24 +4,28 @@ import type { TextCaptureEnvelope } from './capture-envelope.ts'
 import { captureLocalDate } from './capture-identity.ts'
 import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import { ReflectError } from '../errors.ts'
+import { createAiCredentialService } from '../ai/ai-credential-service.ts'
+import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
+import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
 import { dailyPath } from '../graph/paths.ts'
+import { createPrivacyService } from '../privacy/privacy-service.ts'
 import {
-  createTestAiCredentialService,
-  createTestAiProviderConfigService,
+  createTestAiKeyValidationService,
   createTestAssetStoreService,
   createTestCaptureInboxService,
   createTestClockService,
   createTestFileChangeService,
   createTestHashService,
+  createTestIdService,
   createTestLifecycleService,
   createTestLoggerService,
   createTestNoteFileService,
   createTestNoteSession,
-  createTestOpenDocumentsService,
   createTestOperationsService,
   createTestPageDescriberService,
   createTestPlatformService,
-  createTestPrivacyService,
+  createTestSecretStoreService,
+  createTestSettingsService,
   createTestWebFetchService,
   createTestXArchiveService,
 } from '../testing/index.ts'
@@ -55,7 +59,7 @@ function flush(): Promise<void> {
 function setup(options: { mobile?: boolean } = {}) {
   const noteFile = createTestNoteFileService()
   const captureInbox = createTestCaptureInboxService()
-  const openDocuments = createTestOpenDocumentsService()
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   const lifecycle = createTestLifecycleService()
   const fileChanges = createTestFileChangeService()
   const operations = createTestOperationsService()
@@ -69,9 +73,14 @@ function setup(options: { mobile?: boolean } = {}) {
     xArchive: createTestXArchiveService(),
     webFetch: createTestWebFetchService(),
     pageDescriber: createTestPageDescriberService(),
-    aiProviderConfig: createTestAiProviderConfigService(),
-    aiCredentials: createTestAiCredentialService(),
-    privacy: createTestPrivacyService({ noteFile }),
+    aiProviderConfig: createAiProviderConfigService({
+      settings: createTestSettingsService(),
+      credentials: createAiCredentialService({ secretStore: createTestSecretStoreService() }),
+      keyValidation: createTestAiKeyValidationService(),
+      id: createTestIdService(),
+    }),
+    aiCredentials: createAiCredentialService({ secretStore: createTestSecretStoreService() }),
+    privacy: createPrivacyService({ noteFile }),
     hash: createTestHashService(),
     clock: createTestClockService(),
     reconcilers: createBackgroundReconcilerFactory({ lifecycle }),

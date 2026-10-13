@@ -1,8 +1,7 @@
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import type { WindowService } from '../app/window-service.ts'
-import { createCommandService, type CommandService } from '../commands/command-service.ts'
-import { createKeymapService, type KeymapService } from '../commands/keymap-service.ts'
+import { type CommandService, createCommandService } from '../commands/command-service.ts'
 import {
   createNativeMenuService,
   type NativeContextMenuItem,
@@ -15,24 +14,6 @@ import { createTestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestPlatformService } from './platform.ts'
 import { createTestWindowService } from './shell.ts'
-
-/** The real {@link KeymapService} over a test platform (Apple by default). */
-export function createTestKeymapService(options?: {
-  platform?: Pick<PlatformFacts, 'isApplePlatform'>
-}): KeymapService {
-  return createKeymapService({ platform: options?.platform ?? createTestPlatformService() })
-}
-
-/** The real {@link CommandService} over a test platform (Apple by default) and a test logger. */
-export function createTestCommandService<Context = unknown>(options?: {
-  platform?: Pick<PlatformFacts, 'isApplePlatform'>
-  logger?: LoggerService
-}): CommandService<Context> {
-  return createCommandService({
-    platform: options?.platform ?? createTestPlatformService(),
-    logger: options?.logger ?? createTestLoggerService(),
-  })
-}
 
 export type TestNativeMenuHostCall = 'buildAppMenu' | 'setAsAppMenu' | 'assignNsAppRoles' | 'popup'
 
@@ -100,7 +81,8 @@ export function createTestNativeMenuService(
   const host = createTestNativeMenuHost()
   const logger = options?.logger ?? createTestLoggerService()
   const service = createNativeMenuService({
-    commands: options?.commands ?? createTestCommandService({ logger }),
+    commands:
+      options?.commands ?? createCommandService({ platform: createTestPlatformService(), logger }),
     window: options?.window ?? createTestWindowService(),
     platform: options?.platform ?? createTestPlatformService(),
     ipc:

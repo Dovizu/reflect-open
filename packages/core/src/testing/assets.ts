@@ -4,15 +4,7 @@ import type {
   ReconcileAssetDescriptionsInput,
   ReconcileAssetDescriptionsOutcome,
 } from '../assets/asset-description-service.ts'
-import {
-  createAssetPrivacyService,
-  type AssetPrivacyService,
-} from '../assets/asset-privacy-service.ts'
-import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { AssetReferences } from '../indexing/asset-refs.ts'
-import type { XArchiveService } from '../x-archive.ts'
-import { createTestXArchiveService } from './capture.ts'
-import { createTestNoteFileService } from './graph.ts'
 
 export interface TestAssetReferences extends AssetReferences {
   /** Set the notes the index reports as referencing `assetPath`. */
@@ -33,26 +25,6 @@ export function createTestAssetReferences(
       table.set(assetPath, notePaths)
     },
   }
-}
-
-export interface TestAssetPrivacyServiceOptions {
-  /** The notes the verdict reads live; defaults to an empty test note file service. */
-  noteFile?: Pick<NoteFileService, 'read'>
-  /** Defaults to a test X archive in which no asset has an owner. */
-  xArchive?: Pick<XArchiveService, 'owners'>
-  /** The candidate notes per asset; defaults to no references at all. */
-  assetReferences?: AssetReferences
-}
-
-/** The real {@link AssetPrivacyService} over test doubles. */
-export function createTestAssetPrivacyService(
-  options?: TestAssetPrivacyServiceOptions,
-): AssetPrivacyService {
-  return createAssetPrivacyService({
-    noteFile: options?.noteFile ?? createTestNoteFileService(),
-    xArchive: options?.xArchive ?? createTestXArchiveService(),
-    assetReferences: options?.assetReferences ?? createTestAssetReferences(),
-  })
 }
 
 /** What happened to one session a {@link TestAssetDescriptionService} opened. */

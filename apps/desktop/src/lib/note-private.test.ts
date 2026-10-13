@@ -3,7 +3,6 @@ import {
   createTestClockService,
   createTestLoggerService,
   createTestNoteFileService,
-  createTestOpenDocumentsService,
   createTestOperationsService,
   type TestOperationsService,
 } from '@reflect/core/testing'
@@ -42,8 +41,8 @@ beforeEach(() => {
   write = vi.spyOn(files, 'write')
   operations = createTestOperationsService()
   client = new QueryClient()
-  openDocuments = createTestOpenDocumentsService()
-  const services = createTestAppServices({ noteFile: files, operations, openDocuments })
+  const services = createTestAppServices({ noteFile: files, operations })
+  openDocuments = services.openDocuments
   closeDatabase = () => services.database.close()
   app = services
 })

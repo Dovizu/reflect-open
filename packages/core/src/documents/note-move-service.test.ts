@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createTestNoteSession, createTestOpenDocumentsService } from '../testing/documents.ts'
+import { createTestNoteSession } from '../testing/documents.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createNoteMoveService, NOTE_MOVED_EVENT } from './note-move-service.ts'
+import { createOpenDocumentsService } from './open-documents-service.ts'
 import type { NoteSession } from './note-session-types.ts'
 
 /**
@@ -18,7 +20,10 @@ function setup(options?: { sessions?: readonly NoteSession[]; moveError?: Error 
   const indexStore = createTestIndexStoreService({
     fail: (call) => (call.method === 'moveIndexed' ? options?.moveError : undefined),
   })
-  const openDocuments = createTestOpenDocumentsService({ sessions: options?.sessions ?? [] })
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  for (const session of options?.sessions ?? []) {
+    openDocuments.register({ session })
+  }
   const logger = createTestLoggerService()
   const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const moves: Array<[string, string]> = []

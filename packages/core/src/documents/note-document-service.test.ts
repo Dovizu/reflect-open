@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import {
-  createTestNoteSession,
-  createTestOpenDocumentsService,
-  type TestNoteSessionOptions,
-} from '../testing/documents.ts'
+import { createTestNoteSession, type TestNoteSessionOptions } from '../testing/documents.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService, type TestNoteFileServiceOptions } from '../testing/graph.ts'
 import { createNoteDocumentService, NoteBusyError } from './note-document-service.ts'
+import { createOpenDocumentsService } from './open-documents-service.ts'
 
 function setup(options?: {
   files?: TestNoteFileServiceOptions['files']
@@ -20,9 +18,10 @@ function setup(options?: {
     options?.session === undefined
       ? null
       : createTestNoteSession({ path: 'notes/a.md', ...options.session })
-  const openDocuments = createTestOpenDocumentsService({
-    sessions: session === null ? [] : [session],
-  })
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  if (session !== null) {
+    openDocuments.register({ session })
+  }
   const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
   return { noteDocuments, noteFile, session }
 }

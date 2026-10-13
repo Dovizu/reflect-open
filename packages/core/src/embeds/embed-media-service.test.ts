@@ -1,13 +1,24 @@
 import { describe, expect, it } from 'vitest'
+import { createEmbedMediaService } from './embed-media-service.ts'
 import {
   createTestClockService,
-  createTestEmbedMediaService,
   createTestLoggerService,
   createTestPlatformService,
   createTestWebFetchService,
   createTestXArchiveService,
 } from '../testing/index.ts'
 import type { ResolvedArchivedPost, XArchiveService } from '../x-archive.ts'
+
+/** The real embed media service over `deps`; each one left out is a fresh test double. */
+function createTestEmbedMedia(deps: Partial<Parameters<typeof createEmbedMediaService>[0]>) {
+  return createEmbedMediaService({
+    xArchive: deps.xArchive ?? createTestXArchiveService(),
+    webFetch: deps.webFetch ?? createTestWebFetchService(),
+    platform: deps.platform ?? createTestPlatformService(),
+    clock: deps.clock ?? createTestClockService(),
+    logger: deps.logger ?? createTestLoggerService(),
+  })
+}
 
 function archivedPost(): ResolvedArchivedPost {
   return {
@@ -35,7 +46,7 @@ describe('EmbedMediaService.loadXPost', () => {
     const xArchive = createTestXArchiveService()
     const platform = createTestPlatformService()
     const clock = createTestClockService()
-    const embedMedia = createTestEmbedMediaService({ xArchive, platform, clock })
+    const embedMedia = createTestEmbedMedia({ xArchive, platform, clock })
     return { xArchive, platform, clock, embedMedia }
   }
 
@@ -127,7 +138,7 @@ describe('EmbedMediaService.loadXPost', () => {
         return await fake.fetchSyndication(postId)
       },
     }
-    const embedMedia = createTestEmbedMediaService({ xArchive })
+    const embedMedia = createTestEmbedMedia({ xArchive })
 
     await expect(embedMedia.loadXPost(1, '123')).rejects.toMatchObject({ kind: 'network' })
     await expect(embedMedia.loadXPost(1, '123')).resolves.toMatchObject({ id: '123' })
@@ -181,7 +192,7 @@ describe('EmbedMediaService.resolveYouTubeVideo', () => {
     const requests: string[] = []
     const logger = createTestLoggerService()
     const clock = createTestClockService()
-    const embedMedia = createTestEmbedMediaService({
+    const embedMedia = createTestEmbedMedia({
       webFetch: {
         async fetchOembed(url) {
           requests.push(url)
@@ -203,7 +214,7 @@ describe('EmbedMediaService.resolveYouTubeVideo', () => {
     const webFetch = createTestWebFetchService({
       oembed: { [REQUEST_URL]: JSON.stringify(ANSWER) },
     })
-    const embedMedia = createTestEmbedMediaService({ webFetch })
+    const embedMedia = createTestEmbedMedia({ webFetch })
     expect(await embedMedia.resolveYouTubeVideo(URL)).toEqual(VIDEO)
     expect(webFetch.requests()).toEqual([{ kind: 'oembed', url: REQUEST_URL }])
   })

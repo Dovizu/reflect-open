@@ -1,25 +1,26 @@
 import { vi, type Mock, type MockInstance } from 'vitest'
 import type { CaptureEnvelope } from './capture-envelope.ts'
 import { captureIdentity } from './capture-identity.ts'
-import { aiKeySecretName } from '../ai/ai-credential-service.ts'
+import { aiKeySecretName, createAiCredentialService } from '../ai/ai-credential-service.ts'
+import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type { PageDescriberService } from '../ai/page-describer-service.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import type { WebFetchService } from '../app/web-fetch-service.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
+import { createPrivacyService } from '../privacy/privacy-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import {
-  createTestAiCredentialService,
-  createTestAiProviderConfigService,
+  createTestAiKeyValidationService,
   createTestAssetStoreService,
   createTestCaptureInboxService,
   createTestClockService,
   createTestHashService,
+  createTestIdService,
   createTestLoggerService,
   createTestNoteFileService,
   createTestPageDescriberService,
-  createTestPrivacyService,
   createTestSecretStoreService,
   createTestSettingsService,
   createTestWebFetchService,
@@ -196,9 +197,14 @@ export function createCaptureTestKit(): CaptureTestKit {
         webFetch,
         pageMeta: { scrape: scrapeMock },
         pageDescriber,
-        aiProviderConfig: createTestAiProviderConfigService({ settings }),
-        aiCredentials: createTestAiCredentialService({ secretStore }),
-        privacy: createTestPrivacyService({ noteFile }),
+        aiProviderConfig: createAiProviderConfigService({
+          settings,
+          credentials: createAiCredentialService({ secretStore: createTestSecretStoreService() }),
+          keyValidation: createTestAiKeyValidationService(),
+          id: createTestIdService(),
+        }),
+        aiCredentials: createAiCredentialService({ secretStore }),
+        privacy: createPrivacyService({ noteFile }),
         hash,
       })
       return await enrichment.reconcile({ generation: 3, ...input })

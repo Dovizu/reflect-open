@@ -7,11 +7,14 @@ import type {
   LanguageModelV3Usage,
 } from '@ai-sdk/provider'
 import type { RetrievalHit } from '../../embeddings/retrieval-service.ts'
-import { cloudSafeGraphContext } from '../../privacy/privacy-service.ts'
+import { createAssetPrivacyService } from '../../assets/asset-privacy-service.ts'
+import { cloudSafeGraphContext, createPrivacyService } from '../../privacy/privacy-service.ts'
 import {
   createTestLanguageModelService,
   createTestLoggerService,
-  createTestNoteToolsService,
+  createTestNoteFileService,
+  createTestRetrievalService,
+  createTestXArchiveService,
   type TestLanguageModelService,
   type TestLoggerService,
 } from '../../testing/index.ts'
@@ -23,7 +26,11 @@ import {
   type ChatStreamEvent,
 } from './chat-engine-service.ts'
 import { fitToContextWindow, type ContextWindowOptions } from './context-window.ts'
-import type { NoteTools } from './note-tools-service.ts'
+import {
+  createNoteToolsService,
+  type NoteTools,
+  type NoteToolsService,
+} from './note-tools-service.ts'
 
 let logger: TestLoggerService
 let languageModelService: TestLanguageModelService
@@ -37,7 +44,7 @@ beforeEach(() => {
   engine = createChatEngineService({
     logger,
     languageModel: languageModelService,
-    noteTools: createTestNoteToolsService(),
+    noteTools: createNoteTools(),
     fitToContextWindow: (messages, options) => {
       fitCalls.push([messages, options])
       return fitToContextWindow(messages, options)
@@ -45,15 +52,35 @@ beforeEach(() => {
   })
 })
 
+function createNoteTools(effects?: {
+  retrieveFn?: () => Promise<RetrievalHit[]>
+  readNoteFn?: (path: string) => Promise<string>
+}): NoteToolsService {
+  const noteFile =
+    effects?.readNoteFn === undefined ? createTestNoteFileService() : { read: effects.readNoteFn }
+  const xArchive = createTestXArchiveService()
+  const assetReferences = { notePaths: async () => [] }
+  return createNoteToolsService({
+    retrieval:
+      effects?.retrieveFn === undefined
+        ? createTestRetrievalService()
+        : { retrieve: effects.retrieveFn },
+    noteFile,
+    noteList: { listRecentNotes: async () => [] },
+    dailyNotes: { listDailyNotes: async () => [] },
+    assetReferences,
+    assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),
+    xArchive,
+    privacy: createPrivacyService({ noteFile }),
+  })
+}
+
 /** The tool set over scripted retrieval and note reads; an empty graph by default. */
 function tools(effects?: {
   retrieveFn?: () => Promise<RetrievalHit[]>
   readNoteFn?: (path: string) => Promise<string>
 }): NoteTools {
-  return createTestNoteToolsService({
-    ...(effects?.retrieveFn === undefined ? {} : { retrieval: { retrieve: effects.retrieveFn } }),
-    ...(effects?.readNoteFn === undefined ? {} : { noteFile: { read: effects.readNoteFn } }),
-  }).build({ semanticSearchEnabled: true })
+  return createNoteTools(effects).build({ semanticSearchEnabled: true })
 }
 
 const USAGE: LanguageModelV3Usage = {

@@ -4,22 +4,28 @@ import {
   type ContactMatch,
   type ContactsAuthorization,
 } from '../contacts/contacts-service.ts'
-import type {
-  EnsurePersonNoteInput,
-  PersonContactResolution,
-  PersonNoteService,
+import {
+  createPersonNoteService,
+  type EnsurePersonNoteInput,
+  type PersonContactResolution,
+  type PersonNoteService,
 } from '../contacts/person-note-service.ts'
 import type { ResolveOrCreateNoteResult } from '../graph/note-creation-service.ts'
 import type { DateSuggestionContext } from '../indexing/date-suggestion-types.ts'
-import type { WikiLinkSuggestionResult } from '../indexing/suggestion-service.ts'
+import {
+  createSuggestionService,
+  type WikiLinkSuggestionResult,
+} from '../indexing/suggestion-service.ts'
+import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import type { Settings } from '../settings/schema.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestContactsService } from '../testing/contacts.ts'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
-import { createTestWikiLinkSuggestionService } from '../testing/search.ts'
+import { createTestNoteCreationService } from '../testing/graph.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
+import { createWikiLinkSuggestionService } from './wiki-link-suggestion-service.ts'
 
 const NO_SUGGESTIONS: WikiLinkSuggestionResult = {
   suggestions: [],
@@ -59,7 +65,7 @@ async function setup(options?: SetupOptions) {
   const tagQueries: string[] = []
   const created: { title: string; generation: number; body?: string }[] = []
   const ensured: EnsurePersonNoteInput[] = []
-  const service = createTestWikiLinkSuggestionService({
+  const service = createWikiLinkSuggestionService({
     suggestions: {
       suggestWikiLinkTargets: async (query, limit, dateGen) => {
         linkQueries.push({
@@ -514,7 +520,21 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
       { path: 'notes/roadmap.md', markdown: '# Roadmap\n' },
       { path: 'notes/road-trip.md', markdown: '# Road trip\n' },
     ])
-    const service = createTestWikiLinkSuggestionService({ database })
+    const noteCreation = createTestNoteCreationService()
+    const service = createWikiLinkSuggestionService({
+      suggestions: createSuggestionService({ database }),
+      noteCreation,
+      contacts: createTestContactsService(),
+      personNotes: createPersonNoteService({
+        database,
+        wikiResolver: createWikiResolverService({ database }),
+        noteCreation,
+      }),
+      settings: createTestSettingsService(),
+      clock: createTestClockService(),
+      operations: createTestOperationsService(),
+      logger: createTestLoggerService(),
+    })
 
     const items = await service.suggestLinks('road', { generation: 1 })
     expect(items.map((item) => item.label)).toEqual(['Road trip', 'Roadmap', 'Create “road”'])

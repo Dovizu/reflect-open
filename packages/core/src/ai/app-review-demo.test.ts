@@ -6,8 +6,13 @@ import { APP_REVIEW_STUB_KEY, createDemoModel, DEMO_REPLY_TEXT } from './app-rev
 import {
   createTestHttpService,
   createTestLoggerService,
-  createTestNoteToolsService,
+  createTestNoteFileService,
+  createTestRetrievalService,
+  createTestXArchiveService,
 } from '../testing/index.ts'
+import { createAssetPrivacyService } from '../assets/asset-privacy-service.ts'
+import { createPrivacyService } from '../privacy/privacy-service.ts'
+import { createNoteToolsService } from './chat/note-tools-service.ts'
 import { createChatEngineService, type ChatStreamEvent } from './chat/chat-engine-service.ts'
 import { fitToContextWindow } from './chat/context-window.ts'
 import {
@@ -49,12 +54,24 @@ describe('createDemoModel', () => {
     const events: ChatStreamEvent[] = []
     // No route answers: any request the demo sent would fail the turn.
     const http = createTestHttpService()
+    const noteFile = createTestNoteFileService()
+    const xArchive = createTestXArchiveService()
+    const assetReferences = { notePaths: async () => [] }
     const engine = createChatEngineService({
       logger: createTestLoggerService(),
       languageModel: withAppReviewDemo(
         createLanguageModelService({ http, sdk: createLazyAiSdkLoader() }),
       ),
-      noteTools: createTestNoteToolsService(),
+      noteTools: createNoteToolsService({
+        retrieval: createTestRetrievalService(),
+        noteFile,
+        noteList: { listRecentNotes: async () => [] },
+        dailyNotes: { listDailyNotes: async () => [] },
+        assetReferences,
+        assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),
+        xArchive,
+        privacy: createPrivacyService({ noteFile }),
+      }),
       fitToContextWindow,
     })
     const turn = engine.streamTurn({

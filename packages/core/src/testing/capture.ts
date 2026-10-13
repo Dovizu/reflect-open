@@ -1,16 +1,9 @@
 import type { XPost } from '@post-embed/types'
 import type { LinkPreviewHtml, WebFetchService } from '../app/web-fetch-service.ts'
-import {
-  createBacklinkTargetService,
-  type BacklinkTargetService,
-} from '../capture/backlink-target-service.ts'
 import type { CaptureService, CaptureSession } from '../capture/capture-service.ts'
 import { ReflectError } from '../errors.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
-import type { NoteCreationService } from '../graph/note-creation-service.ts'
-import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { ArchivedXPost, ResolvedArchivedPost, XArchiveService } from '../x-archive.ts'
-import { createTestNoteCreationService, createTestNoteFileService } from './graph.ts'
 
 const INBOX_DIR = '.reflect/inbox'
 
@@ -229,24 +222,6 @@ export function createTestXArchiveService(options?: {
     writes: () => [...writeLog],
     syndicationRequests: () => [...syndicationLog],
   }
-}
-
-export interface TestBacklinkTargetServiceOptions {
-  /** The notes the targets live in; defaults to an empty test note file service. */
-  noteFile?: NoteFileService
-  /** Resolves or creates the targets; defaults to a test note creation service over `noteFile`. */
-  noteCreation?: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-}
-
-/** The real {@link BacklinkTargetService} over test note files and note creation. */
-export function createTestBacklinkTargetService(
-  options?: TestBacklinkTargetServiceOptions,
-): BacklinkTargetService {
-  const noteFile = options?.noteFile ?? createTestNoteFileService()
-  return createBacklinkTargetService({
-    noteFile,
-    noteCreation: options?.noteCreation ?? createTestNoteCreationService({ noteFile }),
-  })
 }
 
 /** What happened to one session a {@link TestCaptureService} opened. */

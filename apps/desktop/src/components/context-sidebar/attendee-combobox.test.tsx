@@ -9,7 +9,6 @@ import type {
 import {
   createTestAppServices,
   createTestContactsService,
-  createTestMeetingService,
   type TestContactsService,
 } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -31,9 +30,13 @@ function contact(fullName: string, email: string): ContactMatch {
 const onAdd = vi.fn<(attendee: MeetingAttendee) => void>()
 
 async function renderCombobox(attendees: MeetingAttendee[] = []): Promise<Locator> {
+  const base = createTestAppServices()
   const app = createTestAppServices({
     contacts,
-    meetings: createTestMeetingService({ suggestions: { suggestWikiTargets }, contacts }),
+    meetings: createTestAppServices({
+      suggestions: { ...base.suggestions, suggestWikiTargets },
+      contacts,
+    }).meetings,
   })
   await renderInApp(<AttendeeCombobox attendees={attendees} onAdd={onAdd} />, {
     app,

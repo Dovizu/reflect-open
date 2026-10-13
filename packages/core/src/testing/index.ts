@@ -11,13 +11,6 @@ export {
 } from './id.ts'
 export { createTestLoggerService, type LogEntry, type TestLoggerService } from './logger.ts'
 export { createTestClockService, type TestClockService } from './clock.ts'
-export { createTestDailyNoteService, type TestDailyNoteServiceOptions } from './daily.ts'
-export {
-  createTestPaletteSearchService,
-  createTestWikiLinkSuggestionService,
-  type TestPaletteSearchServiceOptions,
-  type TestWikiLinkSuggestionServiceOptions,
-} from './search.ts'
 export {
   createTestIpcBridgeService,
   type TestIpcBridgeService,
@@ -28,7 +21,6 @@ export {
   createTestDialogService,
   createTestLifecycleService,
   createTestOpenerService,
-  createTestPathService,
   createTestWindowService,
   type DialogCall,
   type TestClipboardService,
@@ -52,31 +44,23 @@ export {
   type TestHttpService,
 } from './http.ts'
 export { createTestStorageService, type TestStorageService } from './storage.ts'
+export type { InternalServices } from '../app/create-app-services.ts'
 export {
   createTestAppServices,
-  type InternalServices,
   type TestAppServiceOverrides,
   type TestAppServices,
   type TestMobileServices,
 } from './services.ts'
 export {
-  createTestCalendarEventsService,
   createTestCalendarService,
-  type TestCalendarEventsServiceOptions,
   type TestCalendarService,
   type TestCalendarServiceOptions,
 } from './calendar.ts'
 export {
-  createTestContactSuggestionService,
   createTestContactsService,
-  createTestMeetingService,
-  createTestPersonNoteService,
   type ContactsLookup,
-  type TestContactSuggestionServiceOptions,
   type TestContactsService,
   type TestContactsServiceOptions,
-  type TestMeetingServiceOptions,
-  type TestPersonNoteServiceOptions,
 } from './contacts.ts'
 export {
   createLazyTestDatabaseService,
@@ -108,17 +92,13 @@ export {
   createTestChatEngineService,
   createTestChatGraphContextService,
   createTestChatHistoryService,
-  createTestChatSessionService,
-  createTestNoteToolsService,
   type TestChatConversation,
   type TestChatEngineService,
   type TestChatGraphContextService,
   type TestChatGraphContextSource,
   type TestChatHistoryService,
   type TestChatHistoryServiceOptions,
-  type TestChatSessionServiceOptions,
   type TestChatTurnScript,
-  type TestNoteToolsServiceOptions,
 } from './chat.ts'
 export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 export {
@@ -140,20 +120,16 @@ export {
 } from './exception-telemetry.ts'
 export {
   createTestAssetDescriptionService,
-  createTestAssetPrivacyService,
   createTestAssetReferences,
   type TestAssetDescriptionService,
   type TestAssetDescriptionSessionState,
-  type TestAssetPrivacyServiceOptions,
   type TestAssetReferences,
 } from './assets.ts'
 export {
-  createTestBacklinkTargetService,
   createTestCaptureInboxService,
   createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
-  type TestBacklinkTargetServiceOptions,
   type TestCaptureInboxService,
   type TestCaptureService,
   type TestCaptureSessionState,
@@ -161,32 +137,19 @@ export {
   type TestXArchiveService,
   type WebFetchKind,
 } from './capture.ts'
-export { createTestEmbedMediaService, type TestEmbedMediaServiceOptions } from './embeds.ts'
-export { createTestLinkPreviewService, type TestLinkPreviewServiceOptions } from './link-preview.ts'
 export {
   createTestBackupService,
   createTestScriptedBackupServiceFactory,
   type TestScriptedBackupServiceFactory,
-  createTestBackupServiceFactory,
-  createTestGistPublishService,
-  createTestConflictResolutionService,
-  createTestGistService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
-  createTestGithubRepoService,
-  createTestICloudDownloadServiceFactory,
-  createTestICloudMigrationService,
   createTestICloudNativeService,
   createTestICloudSyncService,
-  createTestICloudSyncServiceFactory,
-  createTestSyncEngineFactory,
-  createTestSyncStatusService,
   type BackupCall,
   type GitRepositoryCall,
   type GitRepositoryHandler,
   type ICloudNativeCall,
   type TestBackupService,
-  type TestGistPublishServiceOptions,
   type TestGitRepositoryService,
   type TestGithubAuthOptions,
   type TestGithubAuthService,
@@ -194,26 +157,16 @@ export {
   type TestICloudSyncService,
 } from './sync.ts'
 export {
-  createTestAiCredentialService,
   createTestAiKeyValidationService,
-  createTestAiPromptService,
-  createTestAiProviderConfigService,
   createTestAssetDescriberService,
   createTestPageDescriberService,
-  createTestSelectionTransformService,
-  createTestTranscriptEnrichmentService,
   createTestTranscriptionService,
   createTestLanguageModelService,
-  type TestAiCredentialServiceOptions,
   type TestAiKeyValidationService,
-  type TestAiPromptServiceOptions,
-  type TestAiProviderConfigServiceOptions,
   type TestAssetDescriberService,
   type TestAssetDescriberSource,
   type TestPageDescriberService,
   type TestPageDescriberSource,
-  type TestSelectionTransformServiceOptions,
-  type TestTranscriptEnrichmentServiceOptions,
   type TestTranscriptionService,
   type TestTranscriptionSource,
   type TestLanguageModelCall,
@@ -237,8 +190,6 @@ export {
   type TestGraphSessionServiceOptions,
   type TestOpenGraph,
 } from './graph-session.ts'
-export { createTestV1ImportService } from './v1-import.ts'
-export { createTestKeyboardService, createTestShareService } from './mobile.ts'
 export {
   createTestMobileOnboardingService,
   type TestMobileOnboardingService,
@@ -291,14 +242,6 @@ export {
   type TestAudioRecorderService,
 } from './audio-recorder.ts'
 export {
-  createTestAudioMemoService,
-  createTestMobileAudioMemoService,
-  createTestNativeActionService,
-  type TestAudioMemoServiceOptions,
-  type TestMobileAudioMemoServiceOptions,
-  type TestNativeActionServiceOptions,
-} from './audio-memo.ts'
-export {
   createTestAssetStoreService,
   createTestNoteCreationService,
   createTestNoteFileService,
@@ -317,19 +260,12 @@ export {
   type TestNoteLinkResolverServiceOptions,
 } from './graph.ts'
 export {
-  createTestPrivacyService,
-  type TestPrivacyService,
-  type TestPrivacyServiceOptions,
-} from './privacy.ts'
-export {
   createTestDeepLinkService,
-  createTestLinkNavigationService,
   createTestDeepLinkSource,
   createTestNavigationService,
   type TestDeepLinkService,
   type TestDeepLinkServiceOptions,
   type TestDeepLinkSource,
-  type TestLinkNavigationServiceOptions,
   type TestNavigateCall,
   type TestNavigationService,
   type TestNavigationServiceOptions,
@@ -341,30 +277,14 @@ export {
   type TestAttachmentService,
   type TestAttachmentServiceOptions,
 } from './attachments.ts'
-export { createTestTaskService, makeOpenTask, type TestTaskServiceOptions } from './tasks.ts'
+export { makeOpenTask } from './tasks.ts'
 export {
-  createTestNoteActionsService,
-  createTestNoteDocumentService,
-  createTestNotePreviewService,
   createTestNoteSession,
-  createTestNoteSessionService,
-  createTestOpenDocumentsService,
-  createTestTemplateService,
   type NoteSessionCall,
-  type TestNoteActionsService,
-  type TestNoteActionsServiceOptions,
-  type TestNoteDocumentServiceOptions,
-  type TestNotePreviewServiceOptions,
   type TestNoteSession,
   type TestNoteSessionOptions,
-  type TestNoteSessionService,
-  type TestNoteSessionServiceOptions,
-  type TestTemplateServiceOptions,
   createTestNoteMoveService,
-  createTestTitleRenameService,
   type TestNoteMoveService,
-  type TestTitleRenameService,
-  type TestTitleRenameServiceOptions,
 } from './documents.ts'
 export {
   createTestAppStoreEnvironmentService,
@@ -381,8 +301,6 @@ export {
   type TestSubscriptionService,
 } from './monetization.ts'
 export {
-  createTestCommandService,
-  createTestKeymapService,
   createTestNativeMenuHost,
   createTestNativeMenuService,
   type TestNativeMenuHost,

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { ReflectError } from '../errors.ts'
-import { createTestAssetPrivacyService, createTestAssetReferences } from '../testing/assets.ts'
+import { createTestAssetReferences } from '../testing/assets.ts'
+import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
-import type { AssetPrivacyService } from './asset-privacy-service.ts'
+import { createAssetPrivacyService, type AssetPrivacyService } from './asset-privacy-service.ts'
 
 const asset = `assets/x/url_sha256_${'a'.repeat(64)}.png`
 
@@ -12,10 +13,21 @@ let ownerCalls: Array<[string, number | undefined]>
 let ownersError: Error | null
 let privacy: AssetPrivacyService
 
+/** The real gate over `deps`, with a fresh test double for each one left out. */
+function createPrivacy(
+  deps?: Partial<Parameters<typeof createAssetPrivacyService>[0]>,
+): AssetPrivacyService {
+  return createAssetPrivacyService({
+    noteFile: deps?.noteFile ?? createTestNoteFileService(),
+    xArchive: deps?.xArchive ?? createTestXArchiveService(),
+    assetReferences: deps?.assetReferences ?? createTestAssetReferences(),
+  })
+}
+
 beforeEach(() => {
   ownerCalls = []
   ownersError = null
-  privacy = createTestAssetPrivacyService({
+  privacy = createPrivacy({
     xArchive: {
       owners: async (assetPath, generation) => {
         ownerCalls.push([assetPath, generation])
@@ -135,7 +147,7 @@ describe('classifyAsset (privacy gate)', () => {
 
   /** The gate over a graph of `files`, with the index reporting `refs` for `assets/a.png`. */
   function classify(files: Readonly<Record<string, string>>, refs: readonly string[]) {
-    return createTestAssetPrivacyService({
+    return createPrivacy({
       noteFile: createTestNoteFileService({ files }),
       assetReferences: createTestAssetReferences({ 'assets/a.png': refs }),
     }).classifyAsset('assets/a.png', GENERATION)
@@ -170,7 +182,7 @@ describe('classifyAsset (privacy gate)', () => {
   })
 
   it('fails closed when a referer cannot be read', async () => {
-    const service = createTestAssetPrivacyService({
+    const service = createPrivacy({
       noteFile: {
         read: async () => {
           throw new ReflectError('io', 'disk error')

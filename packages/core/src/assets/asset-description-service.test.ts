@@ -9,9 +9,7 @@ import type { IndexAppliedEvent } from '../indexing/index-lifecycle-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import {
-  createTestAiCredentialService,
   createTestAssetDescriberService,
-  createTestAssetPrivacyService,
   createTestAssetReferences,
   createTestAssetStoreService,
   createTestClockService,
@@ -21,7 +19,10 @@ import {
   createTestNoteFileService,
   createTestOperationsService,
   createTestSecretStoreService,
+  createTestXArchiveService,
 } from '../testing/index.ts'
+import { createAiCredentialService } from '../ai/ai-credential-service.ts'
+import { createAssetPrivacyService } from './asset-privacy-service.ts'
 import {
   assetTypeFor,
   base64ByteLength,
@@ -101,7 +102,11 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
   const clock = createTestClockService({ now: NOW })
   const operations = createTestOperationsService(clock)
   const logger = createTestLoggerService()
-  const privacy = createTestAssetPrivacyService({ noteFile: files, assetReferences: refs })
+  const privacy = createAssetPrivacyService({
+    noteFile: files,
+    xArchive: createTestXArchiveService(),
+    assetReferences: refs,
+  })
   /** Every asset the privacy gate classified, in order: one per asset a pass reached. */
   const classified: string[] = []
   /** Every asset whose bytes were read, in order. */
@@ -136,7 +141,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     },
     assetDescriber: describer,
     aiProviderConfig: { defaultProvider: () => provider },
-    aiCredentials: createTestAiCredentialService({
+    aiCredentials: createAiCredentialService({
       secretStore:
         options?.secretStore ??
         createTestSecretStoreService({ 'ai-api-key:cfg-anthropic': 'sk-live' }),

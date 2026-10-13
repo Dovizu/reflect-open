@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createTestCalendarEventsService,
   createTestCalendarService,
   createTestLifecycleService,
   createTestLoggerService,
@@ -9,6 +8,7 @@ import {
 } from '../testing/index.ts'
 import {
   countSelectedCalendars,
+  createCalendarEventsService,
   groupCalendarsBySource,
   showsDayEvents,
 } from './calendar-events-service.ts'
@@ -36,11 +36,22 @@ function eventAt(day: number, hour: number, overrides: Partial<CalendarEvent> = 
   }
 }
 
+/** The service over `deps`, with a fresh test double for each one left out. */
+function createService(deps?: Partial<Parameters<typeof createCalendarEventsService>[0]>) {
+  return createCalendarEventsService({
+    calendar: deps?.calendar ?? createTestCalendarService(),
+    settings: deps?.settings ?? createTestSettingsService(),
+    platform: deps?.platform ?? createTestPlatformService(),
+    lifecycle: deps?.lifecycle ?? createTestLifecycleService(),
+    logger: deps?.logger ?? createTestLoggerService(),
+  })
+}
+
 describe('isAvailable', () => {
   it('is the macOS desktop shell only', () => {
-    expect(createTestCalendarEventsService().isAvailable()).toBe(true)
+    expect(createService().isAvailable()).toBe(true)
     expect(
-      createTestCalendarEventsService({
+      createService({
         platform: createTestPlatformService({ isMacosDesktop: false }),
       }).isAvailable(),
     ).toBe(false)
@@ -50,7 +61,7 @@ describe('isAvailable', () => {
 describe('reads', () => {
   it('answers the calendars of the Mac', async () => {
     const calendar = createTestCalendarService({ calendars: CALENDARS })
-    const service = createTestCalendarEventsService({ calendar })
+    const service = createService({ calendar })
 
     await expect(service.listCalendars()).resolves.toEqual(CALENDARS)
   })
@@ -66,7 +77,7 @@ describe('reads', () => {
         eventAt(1, 10, { id: 'other-calendar', calendarId: 'cal-home' }),
       ],
     })
-    const service = createTestCalendarEventsService({ calendar })
+    const service = createService({ calendar })
 
     await expect(service.listDayEvents('2026-07-01', ['cal-work'])).resolves.toEqual([
       morning,
@@ -79,7 +90,7 @@ describe('reads', () => {
 describe('subscribeChanged', () => {
   it('calls the listener on every calendar change until unsubscribed', () => {
     const calendar = createTestCalendarService()
-    const service = createTestCalendarEventsService({ calendar })
+    const service = createService({ calendar })
     let changes = 0
 
     const unlisten = service.subscribeChanged(() => {
@@ -98,7 +109,7 @@ describe('watchAuthorization', () => {
   it('reads the permission state now, on every page turning visible, and on every calendar change', async () => {
     const calendar = createTestCalendarService({ status: 'denied' })
     const lifecycle = createTestLifecycleService()
-    const service = createTestCalendarEventsService({ calendar, lifecycle })
+    const service = createService({ calendar, lifecycle })
     expect(service.getState().authorization).toBeNull()
     let notified = 0
     service.subscribe(() => {
@@ -128,7 +139,7 @@ describe('watchAuthorization', () => {
   it('logs a failed read and keeps the last state', async () => {
     const logger = createTestLoggerService()
     const failure = new Error('EventKit is gone')
-    const service = createTestCalendarEventsService({
+    const service = createService({
       logger,
       calendar: {
         ...createTestCalendarService(),
@@ -152,7 +163,7 @@ describe('watchAuthorization', () => {
 describe('requestAccess', () => {
   it('prompts through the calendar', async () => {
     const calendar = createTestCalendarService({ status: 'notDetermined' })
-    const service = createTestCalendarEventsService({ calendar })
+    const service = createService({ calendar })
 
     await service.requestAccess()
 
@@ -163,7 +174,7 @@ describe('requestAccess', () => {
   it('logs a failed request and still resolves', async () => {
     const logger = createTestLoggerService()
     const failure = new Error('prompt timed out')
-    const service = createTestCalendarEventsService({
+    const service = createService({
       logger,
       calendar: {
         ...createTestCalendarService(),
@@ -185,7 +196,7 @@ describe('setEnabled', () => {
     const calendar = createTestCalendarService({ status: 'notDetermined' })
     const settings = createTestSettingsService()
     await settings.whenLoaded()
-    const service = createTestCalendarEventsService({ calendar, settings })
+    const service = createService({ calendar, settings })
 
     const pending = service.setEnabled(true)
     // The switch flips before the OS prompt settles.
@@ -199,7 +210,7 @@ describe('setEnabled', () => {
     const calendar = createTestCalendarService()
     const settings = createTestSettingsService({ calendarEnabled: true })
     await settings.whenLoaded()
-    const service = createTestCalendarEventsService({ calendar, settings })
+    const service = createService({ calendar, settings })
 
     await expect(service.setEnabled(false)).resolves.toEqual({ accessRequested: false })
 
@@ -212,7 +223,7 @@ describe('toggleCalendar', () => {
   it('adds a calendar once, at the end, and removes it again', async () => {
     const settings = createTestSettingsService({ calendarIds: ['cal-work', 'cal-home'] })
     await settings.whenLoaded()
-    const service = createTestCalendarEventsService({ settings })
+    const service = createService({ settings })
 
     service.toggleCalendar('cal-team', true)
     expect(settings.get().calendarIds).toEqual(['cal-work', 'cal-home', 'cal-team'])

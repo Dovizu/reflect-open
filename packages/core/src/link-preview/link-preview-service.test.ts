@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { createNoteDocumentService } from '../documents/note-document-service.ts'
+import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
+import { createPrivacyService } from '../privacy/privacy-service.ts'
 import {
-  createTestLinkPreviewService,
-  createTestNoteDocumentService,
+  createTestFileChangeService,
   createTestNoteFileService,
   createTestWebFetchService,
 } from '../testing/index.ts'
-import type { LinkPreviewSession } from './link-preview-service.ts'
+import { createLinkPreviewService, type LinkPreviewSession } from './link-preview-service.ts'
 
 const session: LinkPreviewSession = {
   path: 'notes/a.md',
@@ -23,8 +25,12 @@ function setup(source: string) {
     html: { [PAGE]: '<title>Example title</title>' },
     icon: { [ICON]: ICON_SRC },
   })
-  const linkPreview = createTestLinkPreviewService({
-    noteDocuments: createTestNoteDocumentService({ noteFile }),
+  const linkPreview = createLinkPreviewService({
+    noteDocuments: createNoteDocumentService({
+      openDocuments: createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
+      noteFile,
+    }),
+    privacy: createPrivacyService({ noteFile: createTestNoteFileService() }),
     webFetch,
     // The real parser needs a `DOMParser`.
     parseMetadata: () => ({ title: 'Example title', description: null, iconUrl: ICON }),
