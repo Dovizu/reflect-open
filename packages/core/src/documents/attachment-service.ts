@@ -28,10 +28,18 @@ import { formatBytes } from '../lib/format-bytes.ts'
  */
 export const LARGE_FILE_BYTES = 25 * 1024 * 1024
 
-/** The custom URI scheme the Rust shell serves graph attachments on. */
+/**
+
+ * The custom URI scheme the Rust shell serves graph attachments on.
+
+ */
 const ASSET_PROTOCOL = 'reflect-asset'
 
-/** Asset file extension for each image MIME type that gets `pasted-…` naming. */
+/**
+
+ * Asset file extension for each image MIME type that gets `pasted-…` naming.
+
+ */
 const EXTENSION_BY_MIME: Readonly<Record<string, string>> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -40,15 +48,25 @@ const EXTENSION_BY_MIME: Readonly<Record<string, string>> = {
   'image/svg+xml': 'svg',
 }
 
-/** How an Obsidian `![[target]]` embed renders. */
+/**
+
+ * How an Obsidian `![[target]]` embed renders.
+
+ */
 export type WikiEmbedDisplay =
   | { readonly kind: 'note' }
   | { readonly kind: 'image'; readonly src: string }
   | { readonly kind: 'file'; readonly href: string }
 
-/** The failed save a note pane reports on: which banner copy, and the cause. */
+/**
+
+ * The failed save a note pane reports on: which banner copy, and the cause.
+
+ */
 export interface AssetSaveError {
-  /** 'image' for files named as pasted images, 'file' for everything else. */
+  /**
+   * 'image' for files named as pasted images, 'file' for everything else.
+   */
   readonly kind: 'image' | 'file'
   readonly message: string
 }
@@ -69,20 +87,28 @@ export interface AttachmentSaveScope {
    * {@link error} stays.
    */
   saveFile(file: File): Promise<string | null>
-  /** The most recent failed save of this note session. */
+  /**
+   * The most recent failed save of this note session.
+   */
   error(): AssetSaveError | null
   subscribe(listener: () => void): Unlisten
   reset(): void
 }
 
-/** Where {@link AttachmentService.attachFilesToNote} inserts its links. */
+/**
+
+ * Where {@link AttachmentService.attachFilesToNote} inserts its links.
+
+ */
 export interface AttachmentInsertTarget {
   insertMarkdown(markdown: string): void
   focus(): void
 }
 
 export interface AttachFilesRequest {
-  /** The target note's mounted editor, or null; looked up again after every await. */
+  /**
+   * The target note's mounted editor, or null; looked up again after every await.
+   */
   readonly findEditor: () => AttachmentInsertTarget | null
 }
 
@@ -93,16 +119,22 @@ export interface AttachFilesRequest {
  * graph open when it is made.
  */
 export interface AttachmentService {
-  /** The open graph's catalog, or null while its first listing loads or no graph is open. */
+  /**
+   * The open graph's catalog, or null while its first listing loads or no graph is open.
+   */
   peekCatalog(): AttachmentCatalog | null
-  /** The open graph's catalog, waiting for its first listing. Rejects when no graph is open. */
+  /**
+   * The open graph's catalog, waiting for its first listing. Rejects when no graph is open.
+   */
   loadCatalog(): Promise<AttachmentCatalog>
   /**
    * Load the catalog of `generation` and keep it fresh: re-list when a batch
    * names an attachment path, or on a reconcile request.
    */
   watchCatalog(generation: number): Unlisten
-  /** Called whenever a listing changes a catalog. */
+  /**
+   * Called whenever a listing changes a catalog.
+   */
   onCatalogChanged(listener: () => void): Unlisten
   /**
    * The graph-relative attachment a link or image destination in `notePath`
@@ -139,7 +171,9 @@ export interface AttachmentService {
    * chip to it, and an unsafe path stays literal (undefined).
    */
   resolveWikiEmbed(target: string): WikiEmbedDisplay | undefined
-  /** Whether a link in `notePath` is a local attachment to show as a file pill. */
+  /**
+   * Whether a link in `notePath` is a local attachment to show as a file pill.
+   */
   claimsFileLink(notePath: string, href: string): boolean
   /**
    * The size of a claimed attachment link or embed: a file saved this graph
@@ -171,12 +205,20 @@ export interface AttachmentService {
   openOrReveal(path: string): Promise<void>
 }
 
-/** A visible managed file, including formats that can only be revealed. */
+/**
+
+ * A visible managed file, including formats that can only be revealed.
+
+ */
 export function isManagedAssetPath(path: string): boolean {
   return path.startsWith('assets/') && !path.includes('\0') && isSafeVisibleGraphPath(path)
 }
 
-/** The attachment a source opens, given how the note resolves attachment destinations. */
+/**
+
+ * The attachment a source opens, given how the note resolves attachment destinations.
+
+ */
 function assetOpenPath(source: string, resolved: string | null): string | null {
   return resolved ?? (isManagedAssetPath(source) ? source : null)
 }
@@ -195,12 +237,20 @@ function basenameOf(sourcePath: string): string {
   return segments[segments.length - 1] ?? sourcePath
 }
 
-/** Escape `\`, `[`, and `]` so a filename stays inside its `[text]` label. */
+/**
+
+ * Escape `\`, `[`, and `]` so a filename stays inside its `[text]` label.
+
+ */
 function escapeLinkLabel(name: string): string {
   return name.replaceAll(/[\\[\]]/g, String.raw`\$&`)
 }
 
-/** How an Obsidian `![[target]]` embed renders; see {@link AttachmentService.resolveWikiEmbed}. */
+/**
+
+ * How an Obsidian `![[target]]` embed renders; see {@link AttachmentService.resolveWikiEmbed}.
+
+ */
 export function wikiEmbedDisplay(target: string): WikiEmbedDisplay | undefined {
   const embed = resolveWikiEmbedTarget(target)
   if (embed === null) {
@@ -214,54 +264,74 @@ export function wikiEmbedDisplay(target: string): WikiEmbedDisplay | undefined {
     : { kind: 'file', href: embed.source }
 }
 
-/** An {@link AttachmentSaveScope} over `save`. */
-export function createAttachmentSaveScope(
-  save: (file: File) => Promise<AssetSaveResult | null>,
-): AttachmentSaveScope {
-  const listeners = new Set<() => void>()
-  let epoch = 0
-  let current: AssetSaveError | null = null
+export interface AttachmentSaveScopeDeps {
+  readonly save: (file: File) => Promise<AssetSaveResult | null>
+}
 
-  function setError(next: AssetSaveError | null): void {
-    if (next === current) {
+class AttachmentSaveScopeImpl implements AttachmentSaveScope {
+  readonly #deps: AttachmentSaveScopeDeps
+  readonly #listeners = new Set<() => void>()
+  #epoch = 0
+  #current: AssetSaveError | null = null
+
+  constructor(deps: AttachmentSaveScopeDeps) {
+    this.#deps = deps
+  }
+
+  async saveFile(file: File): Promise<string | null> {
+    const started = this.#epoch
+    const result = await this.#deps.save(file)
+    if (result === null) {
+      return null
+    }
+    if (this.#epoch === started) {
+      this.#setError(result.ok ? null : result.error)
+    }
+    return result.ok ? result.path : null
+  }
+
+  error(): AssetSaveError | null {
+    return this.#current
+  }
+
+  subscribe(listener: () => void): Unlisten {
+    const deliver = (): void => {
+      listener()
+    }
+    this.#listeners.add(deliver)
+    return () => {
+      this.#listeners.delete(deliver)
+    }
+  }
+
+  reset(): void {
+    this.#epoch += 1
+    this.#setError(null)
+  }
+
+  #setError(next: AssetSaveError | null): void {
+    if (next === this.#current) {
       return
     }
-    current = next
-    for (const listener of listeners) {
+    this.#current = next
+    for (const listener of this.#listeners) {
       listener()
     }
   }
-
-  return {
-    async saveFile(file) {
-      const started = epoch
-      const result = await save(file)
-      if (result === null) {
-        return null
-      }
-      if (epoch === started) {
-        setError(result.ok ? null : result.error)
-      }
-      return result.ok ? result.path : null
-    },
-    error: () => current,
-    subscribe(listener) {
-      const deliver = (): void => {
-        listener()
-      }
-      listeners.add(deliver)
-      return () => {
-        listeners.delete(deliver)
-      }
-    },
-    reset() {
-      epoch += 1
-      setError(null)
-    },
-  }
 }
 
-/** A listing reduced to what resolution reads, for change detection. */
+/**
+ * An {@link AttachmentSaveScope} over `save`.
+ */
+export function createAttachmentSaveScope(deps: AttachmentSaveScopeDeps): AttachmentSaveScope {
+  return new AttachmentSaveScopeImpl(deps)
+}
+
+/**
+
+ * A listing reduced to what resolution reads, for change detection.
+
+ */
 function listingKey(files: readonly Pick<FileMeta, 'path' | 'size'>[]): string {
   return files
     .map(({ path, size }) => `${path}\0${size}`)
@@ -274,153 +344,146 @@ interface CatalogEntry {
   catalog: AttachmentCatalog | null
   key: string | null
   listing: Promise<AttachmentCatalog> | null
-  /** Sequence number of the newest listing started, and of the one stored. */
+  /**
+   * Sequence number of the newest listing started, and of the one stored.
+   */
   started: number
   stored: number
 }
 
-export function createAttachmentService(deps: {
-  assetStore: AssetStoreService
-  noteFile: NoteFileService
-  fileChanges: FileChangeService
-  dialog: DialogService
-  operations: OperationsService
-  clock: ClockService
-  platform: PlatformService
-  graphSession: GraphSessionSource
-}): AttachmentService {
-  const { assetStore, noteFile, fileChanges, dialog, operations, clock, platform, graphSession } =
-    deps
-  const catalogListeners = new Set<() => void>()
-  let entry: CatalogEntry | null = null
+export interface AttachmentServiceDeps {
+  readonly assetStore: AssetStoreService
+  readonly noteFile: NoteFileService
+  readonly fileChanges: FileChangeService
+  readonly dialog: DialogService
+  readonly operations: OperationsService
+  readonly clock: ClockService
+  readonly platform: PlatformService
+  readonly graphSession: GraphSessionSource
+}
+
+class AttachmentServiceImpl implements AttachmentService {
+  readonly #deps: AttachmentServiceDeps
+  readonly #catalogListeners = new Set<() => void>()
+  #entry: CatalogEntry | null = null
   // Sizes of files saved this graph session, by generation and asset path:
   // the size is already in hand, while the catalog only lists the file once
   // the watcher reports it.
-  const savedSizes = new Map<number, Map<string, number>>()
+  readonly #savedSizes = new Map<number, Map<string, number>>()
 
-  function openGeneration(): number | null {
-    return graphSession.getState().session?.generation ?? null
+  constructor(deps: AttachmentServiceDeps) {
+    this.#deps = deps
   }
 
-  function entryFor(generation: number): CatalogEntry {
-    if (entry?.generation !== generation) {
-      entry = { generation, catalog: null, key: null, listing: null, started: 0, stored: 0 }
+  peekCatalog(): AttachmentCatalog | null {
+    const generation = this.#openGeneration()
+    return generation === null ? null : this.#peekCatalog(generation)
+  }
+
+  async loadCatalog(): Promise<AttachmentCatalog> {
+    return await this.#loadCatalog(requireGraphSession(this.#deps.graphSession).generation)
+  }
+
+  watchCatalog(generation: number): Unlisten {
+    const { fileChanges } = this.#deps
+    this.#loadCatalog(generation).catch(() => {})
+    const stopChanges = fileChanges.subscribe(({ changes }) => {
+      if (changes.some((change) => isAttachmentPath(change.path))) {
+        this.#relist(generation)
+      }
+    })
+    const stopReconcile = fileChanges.subscribeReconcile(() => {
+      this.#relist(generation)
+    })
+    return () => {
+      stopChanges()
+      stopReconcile()
     }
-    return entry
   }
 
-  function notifyCatalogChanged(): void {
-    for (const listener of catalogListeners) {
+  onCatalogChanged(listener: () => void): Unlisten {
+    const deliver = (): void => {
       listener()
     }
-  }
-
-  function list(target: CatalogEntry): Promise<AttachmentCatalog> {
-    target.started += 1
-    const sequence = target.started
-    const listing = noteFile.listAttachments(target.generation).then(
-      (files) => {
-        const key = listingKey(files)
-        // A listing that lands after its graph session was replaced, or
-        // after a newer listing, is answered but never stored.
-        if (entry !== target || sequence < target.stored) {
-          return target.key === key && target.catalog !== null
-            ? target.catalog
-            : createAttachmentCatalog(files)
-        }
-        if (target.listing === listing) {
-          target.listing = null
-        }
-        target.stored = sequence
-        if (target.catalog !== null && target.key === key) {
-          return target.catalog
-        }
-        const catalog = createAttachmentCatalog(files)
-        target.catalog = catalog
-        target.key = key
-        notifyCatalogChanged()
-        return catalog
-      },
-      (error: unknown) => {
-        if (target.listing === listing) {
-          target.listing = null
-        }
-        throw error
-      },
-    )
-    target.listing = listing
-    return listing
-  }
-
-  function peekCatalog(generation: number): AttachmentCatalog | null {
-    return entry?.generation === generation ? entry.catalog : null
-  }
-
-  async function loadCatalog(generation: number): Promise<AttachmentCatalog> {
-    const target = entryFor(generation)
-    if (target.catalog !== null) {
-      return target.catalog
-    }
-    return await (target.listing ?? list(target))
-  }
-
-  function relist(generation: number): void {
-    if (entry?.generation === generation) {
-      list(entry).catch(() => {})
+    this.#catalogListeners.add(deliver)
+    return () => {
+      this.#catalogListeners.delete(deliver)
     }
   }
 
-  function resolveAttachmentPath(
-    notePath: string,
-    destination: string,
-    generation: number | null,
-  ): string | null {
+  resolveAttachmentPath(notePath: string, destination: string): string | null {
+    return this.#resolveAttachmentPath(notePath, destination, this.#openGeneration())
+  }
+
+  resolveAssetOpenPath(notePath: string, source: string): string | null {
+    const generation = this.#openGeneration()
     return generation === null
       ? null
-      : resolveAttachmentLink(notePath, destination, peekCatalog(generation))
+      : assetOpenPath(source, this.#resolveAttachmentPath(notePath, source, generation))
   }
 
-  function resolveImageUrl(
+  resolveImageUrl(
     notePath: string,
     source: string,
-    generation: number | null,
   ): string | undefined | Promise<string | undefined> {
-    if (/^https?:\/\//i.test(source)) {
-      return source
+    return this.#resolveImageUrl(notePath, source, this.#openGeneration())
+  }
+
+  async resolvePreviewImageUrl(
+    notePath: string,
+    source: string,
+    generation: number,
+  ): Promise<string | undefined> {
+    const assetPath = this.#resolveAttachmentPath(notePath, source, generation)
+    // SVG can contain external subresource references. The filename check
+    // avoids an unnecessary request; the query also makes the asset protocol
+    // enforce a sniffed raster MIME allowlist, so renamed SVG bytes cannot
+    // bypass the passive preview's no-network boundary.
+    if (assetPath === null || isSvgAsset(assetPath)) {
+      return
     }
+    const url = await this.#resolveImageUrl(notePath, source, generation)
+    return url === undefined ? undefined : previewRasterUrl(url)
+  }
+
+  resolveWikiEmbed(target: string): WikiEmbedDisplay | undefined {
+    return wikiEmbedDisplay(target)
+  }
+
+  claimsFileLink(notePath: string, href: string): boolean {
+    return isManagedAssetPath(href) || resolveAttachmentLink(notePath, href, null) !== null
+  }
+
+  async resolveFileInfo(notePath: string, href: string): Promise<{ size: number } | undefined> {
+    const generation = this.#openGeneration()
     if (generation === null) {
-      return undefined
+      return
     }
-    const url = (catalog: AttachmentCatalog | null): string | undefined => {
-      const path = resolveAttachmentLink(notePath, source, catalog)
-      return path === null
-        ? undefined
-        : platform.convertFileSrc(`${generation}/${path}`, ASSET_PROTOCOL)
+    const savedSize = isManagedAssetPath(href)
+      ? this.#savedSizes.get(generation)?.get(href)
+      : undefined
+    if (savedSize !== undefined) {
+      return { size: savedSize }
     }
-    const catalog = peekCatalog(generation)
-    return catalog === null ? loadCatalog(generation).then(url, () => url(null)) : url(catalog)
+    try {
+      // Waits for the first listing, so a pill rendered before the catalog
+      // arrived still resolves the file (and size) it will display.
+      const catalog = await this.#loadCatalog(generation)
+      const assetPath = resolveAttachmentLink(notePath, href, catalog)
+      const size =
+        assetPath === null
+          ? undefined
+          : (this.#savedSizes.get(generation)?.get(assetPath) ?? catalog.size(assetPath))
+      return size === undefined ? undefined : { size }
+    } catch {
+      // A failed listing degrades to a pill without a size.
+      return
+    }
   }
 
-  function recordSavedSize(generation: number, path: string, size: number): void {
-    for (const known of savedSizes.keys()) {
-      if (known > generation) {
-        // Saved for a graph session that was already replaced.
-        return
-      }
-      if (known < generation) {
-        savedSizes.delete(known)
-      }
-    }
-    let sizes = savedSizes.get(generation)
-    if (sizes === undefined) {
-      sizes = new Map()
-      savedSizes.set(generation, sizes)
-    }
-    sizes.set(path, size)
-  }
-
-  async function saveFile(file: File): Promise<AssetSaveResult | null> {
-    const generation = openGeneration()
+  async saveFile(file: File): Promise<AssetSaveResult | null> {
+    const { assetStore, operations, clock } = this.#deps
+    const generation = this.#openGeneration()
     if (generation === null) {
       return null
     }
@@ -433,7 +496,7 @@ export function createAttachmentService(deps: {
         : `pasted-${clock.now()}.${imageExtension}`
     try {
       const path = await assetStore.uploadBlob(desiredName, file, generation)
-      recordSavedSize(generation, path, file.size)
+      this.#recordSavedSize(generation, path, file.size)
       if (file.size > LARGE_FILE_BYTES) {
         operations
           .start('Large file added')
@@ -456,175 +519,208 @@ export function createAttachmentService(deps: {
     }
   }
 
-  const service: AttachmentService = {
-    peekCatalog() {
-      const generation = openGeneration()
-      return generation === null ? null : peekCatalog(generation)
-    },
-    async loadCatalog() {
-      return await loadCatalog(requireGraphSession(graphSession).generation)
-    },
-
-    watchCatalog(generation) {
-      loadCatalog(generation).catch(() => {})
-      const stopChanges = fileChanges.subscribe(({ changes }) => {
-        if (changes.some((change) => isAttachmentPath(change.path))) {
-          relist(generation)
-        }
-      })
-      const stopReconcile = fileChanges.subscribeReconcile(() => {
-        relist(generation)
-      })
-      return () => {
-        stopChanges()
-        stopReconcile()
-      }
-    },
-
-    onCatalogChanged(listener) {
-      const deliver = (): void => {
-        listener()
-      }
-      catalogListeners.add(deliver)
-      return () => {
-        catalogListeners.delete(deliver)
-      }
-    },
-
-    resolveAttachmentPath(notePath, destination) {
-      return resolveAttachmentPath(notePath, destination, openGeneration())
-    },
-
-    resolveAssetOpenPath(notePath, source) {
-      const generation = openGeneration()
-      return generation === null
-        ? null
-        : assetOpenPath(source, resolveAttachmentPath(notePath, source, generation))
-    },
-
-    resolveImageUrl(notePath, source) {
-      return resolveImageUrl(notePath, source, openGeneration())
-    },
-
-    async resolvePreviewImageUrl(notePath, source, generation) {
-      const assetPath = resolveAttachmentPath(notePath, source, generation)
-      // SVG can contain external subresource references. The filename check
-      // avoids an unnecessary request; the query also makes the asset protocol
-      // enforce a sniffed raster MIME allowlist, so renamed SVG bytes cannot
-      // bypass the passive preview's no-network boundary.
-      if (assetPath === null || isSvgAsset(assetPath)) {
-        return
-      }
-      const url = await resolveImageUrl(notePath, source, generation)
-      return url === undefined ? undefined : previewRasterUrl(url)
-    },
-
-    resolveWikiEmbed: wikiEmbedDisplay,
-
-    claimsFileLink(notePath, href) {
-      return isManagedAssetPath(href) || resolveAttachmentLink(notePath, href, null) !== null
-    },
-
-    async resolveFileInfo(notePath, href) {
-      const generation = openGeneration()
-      if (generation === null) {
-        return
-      }
-      const savedSize = isManagedAssetPath(href) ? savedSizes.get(generation)?.get(href) : undefined
-      if (savedSize !== undefined) {
-        return { size: savedSize }
-      }
-      try {
-        // Waits for the first listing, so a pill rendered before the catalog
-        // arrived still resolves the file (and size) it will display.
-        const catalog = await loadCatalog(generation)
-        const assetPath = resolveAttachmentLink(notePath, href, catalog)
-        const size =
-          assetPath === null
-            ? undefined
-            : (savedSizes.get(generation)?.get(assetPath) ?? catalog.size(assetPath))
-        return size === undefined ? undefined : { size }
-      } catch {
-        // A failed listing degrades to a pill without a size.
-        return
-      }
-    },
-
-    saveFile,
-
-    createSaveScope: () => createAttachmentSaveScope(saveFile),
-
-    async attachFilesToNote({ findEditor }) {
-      const generation = openGeneration()
-      if (generation === null || findEditor() === null) {
-        return
-      }
-      const sources = await dialog.pickFiles({ multiple: true, title: 'Attach files' })
-      if (sources === null) {
-        return
-      }
-      const links: string[] = []
-      const attachedNames: string[] = []
-      const failures: { name: string; cause: unknown }[] = []
-      for (const source of sources) {
-        // Each copy is independent: one failure must not drop the files
-        // picked after it.
-        const name = basenameOf(source)
-        try {
-          const assetPath = await assetStore.importFile(source, assetFileName(name), generation)
-          links.push(`[${escapeLinkLabel(name)}](${assetPath})`)
-          attachedNames.push(name)
-        } catch (cause) {
-          failures.push({ name, cause })
-        }
-      }
-      const problems: string[] = []
-      if (links.length > 0) {
-        // Looked up again after the awaits: the picker (and the copies) can
-        // outlive the editor that was mounted when the command fired.
-        const editor = findEditor()
-        if (editor === null) {
-          problems.push(
-            `the note closed before its links could be inserted — ` +
-              `${attachedNames.join(', ')} were still copied into assets/`,
-          )
-        } else {
-          editor.insertMarkdown(links.join('\n'))
-          editor.focus()
-        }
-      }
-      if (failures.length > 0) {
-        const details = failures
-          .map(({ name, cause }) => `${name} (${errorMessage(cause)})`)
-          .join(', ')
-        problems.push(`could not be copied: ${details}`)
-      }
-      if (problems.length > 0) {
-        operations.start('Attaching file').fail(problems.join('; '))
-      }
-    },
-
-    async openOrReveal(path) {
-      const generation = openGeneration()
-      if (generation === null) {
-        return
-      }
-      try {
-        await assetStore.open(path, generation)
-      } catch (openCause) {
-        // A refused file type still deserves a visible outcome: fall back to
-        // the file manager. When even the reveal fails (missing or evicted
-        // file), report the original open error, which matches the intent.
-        try {
-          await assetStore.reveal(path, generation)
-          operations
-            .start('Opening attachment')
-            .warn('This file type can’t be opened directly, so it was revealed in Finder instead.')
-        } catch {
-          operations.start('Opening attachment').fail(errorMessage(openCause))
-        }
-      }
-    },
+  createSaveScope(): AttachmentSaveScope {
+    return createAttachmentSaveScope({ save: (file) => this.saveFile(file) })
   }
-  return service
+
+  async attachFilesToNote({ findEditor }: AttachFilesRequest): Promise<void> {
+    const { assetStore, dialog, operations } = this.#deps
+    const generation = this.#openGeneration()
+    if (generation === null || findEditor() === null) {
+      return
+    }
+    const sources = await dialog.pickFiles({ multiple: true, title: 'Attach files' })
+    if (sources === null) {
+      return
+    }
+    const links: string[] = []
+    const attachedNames: string[] = []
+    const failures: { name: string; cause: unknown }[] = []
+    for (const source of sources) {
+      // Each copy is independent: one failure must not drop the files
+      // picked after it.
+      const name = basenameOf(source)
+      try {
+        const assetPath = await assetStore.importFile(source, assetFileName(name), generation)
+        links.push(`[${escapeLinkLabel(name)}](${assetPath})`)
+        attachedNames.push(name)
+      } catch (cause) {
+        failures.push({ name, cause })
+      }
+    }
+    const problems: string[] = []
+    if (links.length > 0) {
+      // Looked up again after the awaits: the picker (and the copies) can
+      // outlive the editor that was mounted when the command fired.
+      const editor = findEditor()
+      if (editor === null) {
+        problems.push(
+          `the note closed before its links could be inserted — ` +
+            `${attachedNames.join(', ')} were still copied into assets/`,
+        )
+      } else {
+        editor.insertMarkdown(links.join('\n'))
+        editor.focus()
+      }
+    }
+    if (failures.length > 0) {
+      const details = failures
+        .map(({ name, cause }) => `${name} (${errorMessage(cause)})`)
+        .join(', ')
+      problems.push(`could not be copied: ${details}`)
+    }
+    if (problems.length > 0) {
+      operations.start('Attaching file').fail(problems.join('; '))
+    }
+  }
+
+  async openOrReveal(path: string): Promise<void> {
+    const { assetStore, operations } = this.#deps
+    const generation = this.#openGeneration()
+    if (generation === null) {
+      return
+    }
+    try {
+      await assetStore.open(path, generation)
+    } catch (openCause) {
+      // A refused file type still deserves a visible outcome: fall back to
+      // the file manager. When even the reveal fails (missing or evicted
+      // file), report the original open error, which matches the intent.
+      try {
+        await assetStore.reveal(path, generation)
+        operations
+          .start('Opening attachment')
+          .warn('This file type can’t be opened directly, so it was revealed in Finder instead.')
+      } catch {
+        operations.start('Opening attachment').fail(errorMessage(openCause))
+      }
+    }
+  }
+
+  #openGeneration(): number | null {
+    return this.#deps.graphSession.getState().session?.generation ?? null
+  }
+
+  #entryFor(generation: number): CatalogEntry {
+    if (this.#entry?.generation !== generation) {
+      this.#entry = { generation, catalog: null, key: null, listing: null, started: 0, stored: 0 }
+    }
+    return this.#entry
+  }
+
+  #notifyCatalogChanged(): void {
+    for (const listener of this.#catalogListeners) {
+      listener()
+    }
+  }
+
+  #list(target: CatalogEntry): Promise<AttachmentCatalog> {
+    target.started += 1
+    const sequence = target.started
+    const listing = this.#deps.noteFile.listAttachments(target.generation).then(
+      (files) => {
+        const key = listingKey(files)
+        // A listing that lands after its graph session was replaced, or
+        // after a newer listing, is answered but never stored.
+        if (this.#entry !== target || sequence < target.stored) {
+          return target.key === key && target.catalog !== null
+            ? target.catalog
+            : createAttachmentCatalog(files)
+        }
+        if (target.listing === listing) {
+          target.listing = null
+        }
+        target.stored = sequence
+        if (target.catalog !== null && target.key === key) {
+          return target.catalog
+        }
+        const catalog = createAttachmentCatalog(files)
+        target.catalog = catalog
+        target.key = key
+        this.#notifyCatalogChanged()
+        return catalog
+      },
+      (error: unknown) => {
+        if (target.listing === listing) {
+          target.listing = null
+        }
+        throw error
+      },
+    )
+    target.listing = listing
+    return listing
+  }
+
+  #peekCatalog(generation: number): AttachmentCatalog | null {
+    return this.#entry?.generation === generation ? this.#entry.catalog : null
+  }
+
+  async #loadCatalog(generation: number): Promise<AttachmentCatalog> {
+    const target = this.#entryFor(generation)
+    if (target.catalog !== null) {
+      return target.catalog
+    }
+    return await (target.listing ?? this.#list(target))
+  }
+
+  #relist(generation: number): void {
+    if (this.#entry?.generation === generation) {
+      this.#list(this.#entry).catch(() => {})
+    }
+  }
+
+  #resolveAttachmentPath(
+    notePath: string,
+    destination: string,
+    generation: number | null,
+  ): string | null {
+    return generation === null
+      ? null
+      : resolveAttachmentLink(notePath, destination, this.#peekCatalog(generation))
+  }
+
+  #resolveImageUrl(
+    notePath: string,
+    source: string,
+    generation: number | null,
+  ): string | undefined | Promise<string | undefined> {
+    if (/^https?:\/\//i.test(source)) {
+      return source
+    }
+    if (generation === null) {
+      return undefined
+    }
+    const url = (catalog: AttachmentCatalog | null): string | undefined => {
+      const path = resolveAttachmentLink(notePath, source, catalog)
+      return path === null
+        ? undefined
+        : this.#deps.platform.convertFileSrc(`${generation}/${path}`, ASSET_PROTOCOL)
+    }
+    const catalog = this.#peekCatalog(generation)
+    return catalog === null
+      ? this.#loadCatalog(generation).then(url, () => url(null))
+      : url(catalog)
+  }
+
+  #recordSavedSize(generation: number, path: string, size: number): void {
+    for (const known of this.#savedSizes.keys()) {
+      if (known > generation) {
+        // Saved for a graph session that was already replaced.
+        return
+      }
+      if (known < generation) {
+        this.#savedSizes.delete(known)
+      }
+    }
+    let sizes = this.#savedSizes.get(generation)
+    if (sizes === undefined) {
+      sizes = new Map()
+      this.#savedSizes.set(generation, sizes)
+    }
+    sizes.set(path, size)
+  }
+}
+
+export function createAttachmentService(deps: AttachmentServiceDeps): AttachmentService {
+  return new AttachmentServiceImpl(deps)
 }

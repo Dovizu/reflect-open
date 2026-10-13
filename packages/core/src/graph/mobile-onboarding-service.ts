@@ -51,7 +51,9 @@ function storageRoot(
   )
 }
 
-/** What a {@link MobileOnboardingService} publishes. Replaced, never mutated, on every change. */
+/**
+ * What a {@link MobileOnboardingService} publishes. Replaced, never mutated, on every change.
+ */
 export interface MobileOnboardingState {
   /**
    * The user hasn't yet chosen where their notes live (Plan 19, step 6), so
@@ -129,7 +131,9 @@ export interface MobileOnboardingService {
 export interface MobileOnboardingServiceDeps {
   readonly mobileStorage: MobileStorageService
   readonly settings: Pick<SettingsService, 'get' | 'update' | 'whenLoaded' | 'reload'>
-  /** The session's serialized open, and its 'choosing' state for a boot that opens nothing. */
+  /**
+   * The session's serialized open, and its 'choosing' state for a boot that opens nothing.
+   */
   readonly graphSession: Pick<GraphSessionService, 'openRecent' | 'park'>
   readonly platform: Pick<PlatformFacts, 'appPlatform'>
   readonly clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
@@ -137,31 +141,27 @@ export interface MobileOnboardingServiceDeps {
   readonly logger: LoggerService
 }
 
-export function createMobileOnboardingService(
-  deps: MobileOnboardingServiceDeps,
-): MobileOnboardingService {
-  const {
-    mobileStorage,
-    settings: settingsService,
-    graphSession,
-    platform,
-    clock,
-    lifecycle,
-    logger,
-  } = deps
-  const listeners = new Set<() => void>()
-  let state: MobileOnboardingState = {
+class MobileOnboardingServiceImpl implements MobileOnboardingService {
+  readonly #deps: MobileOnboardingServiceDeps
+  readonly #listeners = new Set<() => void>()
+  #state: MobileOnboardingState = {
     needsOnboarding: false,
     storageInfo: null,
     resolving: false,
     kind: null,
   }
-  let warmed: Promise<MobileStorageInfo> | null = null
+  #warmed: Promise<MobileStorageInfo> | null = null
 
-  function setState(patch: Partial<MobileOnboardingState>): void {
-    state = { ...state, ...patch }
-    for (const listener of listeners) {
-      listener()
+  constructor(deps: MobileOnboardingServiceDeps) {
+    this.#deps = deps
+  }
+
+  readonly getState = (): MobileOnboardingState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
     }
   }
 
@@ -169,18 +169,11 @@ export function createMobileOnboardingService(
    * Rejections are handled by whoever takes the promise; the guard here only
    * silences the unhandled-rejection report when nothing ever does.
    */
-  function warm(): void {
-    if (warmed === null) {
-      warmed = mobileStorage.resolve()
-      warmed.catch(() => {})
+  readonly warm = (): void => {
+    if (this.#warmed === null) {
+      this.#warmed = this.#deps.mobileStorage.resolve()
+      this.#warmed.catch(() => {})
     }
-  }
-
-  /** The in-flight warm resolve, or null when none was started or it was already taken. */
-  function takeWarm(): Promise<MobileStorageInfo> | null {
-    const pending = warmed
-    warmed = null
-    return pending
   }
 
   /**
@@ -190,7 +183,16 @@ export function createMobileOnboardingService(
    * on work that already happened or could overlap — resolving the container
    * can take a long time on a fresh install.
    */
-  function boot(): Unlisten {
+  readonly boot = (): Unlisten => {
+    const {
+      mobileStorage,
+      settings: settingsService,
+      graphSession,
+      platform,
+      clock,
+      lifecycle,
+      logger,
+    } = this.#deps
     if (!isMobilePlatform(platform.appPlatform)) {
       return () => {}
     }
@@ -202,18 +204,18 @@ export function createMobileOnboardingService(
     // one now, so it overlaps the settings read instead of running after it.
     // Every consumer below attaches its own handlers; this catch only
     // silences the paths that never do.
-    const storagePromise = takeWarm() ?? mobileStorage.resolve()
+    const storagePromise = this.#takeWarm() ?? mobileStorage.resolve()
     storagePromise.catch(() => {})
-    /** Fill the storage info once the container resolves — background only.
-     * The early-started promise can hit a transient failure the old
-     * call-at-this-point wouldn't have; one fresh retry covers that. */
+    // Fill the storage info once the container resolves — background only.
+    // The early-started promise can hit a transient failure the old
+    // call-at-this-point wouldn't have; one fresh retry covers that.
     const resolveStorageInBackground = (): void => {
       void storagePromise
         .catch(() => mobileStorage.resolve())
         .then(
           (storage) => {
             if (active) {
-              setState({ storageInfo: storage })
+              this.#setState({ storageInfo: storage })
             }
           },
           (err) => {
@@ -221,8 +223,8 @@ export function createMobileOnboardingService(
           },
         )
     }
-    /** Reload the settings and run again once the app comes back. */
-    function retrySettingsOnReturn(): void {
+    // Reload the settings and run again once the app comes back.
+    const retrySettingsOnReturn = (): void => {
       const retry = (): void => {
         removeSettingsRetry?.()
         removeSettingsRetry = undefined
@@ -237,7 +239,7 @@ export function createMobileOnboardingService(
         removeVisible()
       }
     }
-    function run(loadSettings: () => Promise<SettingsLoadOutcome>): void {
+    const run = (loadSettings: () => Promise<SettingsLoadOutcome>): void => {
       void (async () => {
         try {
           // The settings load started at first render, before the mobile chunk
@@ -261,14 +263,14 @@ export function createMobileOnboardingService(
             // Show onboarding immediately. The sandbox root resolves in
             // milliseconds and unlocks the on-device choice; the iCloud
             // section renders as pending until the container resolves.
-            setState({ needsOnboarding: true })
+            this.#setState({ needsOnboarding: true })
             graphSession.park(null)
-            setState({ resolving: true })
+            this.#setState({ resolving: true })
             void mobileStorage.resolveLocal().then(
               (localRoot) => {
                 if (active) {
-                  setState({
-                    storageInfo: state.storageInfo ?? {
+                  this.#setState({
+                    storageInfo: this.#state.storageInfo ?? {
                       localRoot,
                       icloudDocumentsRoot: null,
                       icloudGraphRoots: [],
@@ -287,7 +289,7 @@ export function createMobileOnboardingService(
               void pending.then(
                 (storage) => {
                   if (active) {
-                    setState({ storageInfo: storage, resolving: false })
+                    this.#setState({ storageInfo: storage, resolving: false })
                   }
                 },
                 (err) => {
@@ -297,7 +299,7 @@ export function createMobileOnboardingService(
                   }
                   const delay = ONBOARDING_RESOLVE_RETRY_DELAYS_MS[attempt]
                   if (delay === undefined) {
-                    setState({ resolving: false })
+                    this.#setState({ resolving: false })
                     return
                   }
                   retryTimer = clock.setTimeout(() => {
@@ -321,7 +323,7 @@ export function createMobileOnboardingService(
               return
             }
             resolveStorageInBackground()
-            setState({ kind: 'local' })
+            this.#setState({ kind: 'local' })
             await graphSession.openRecent(localRoot)
             return
           }
@@ -332,7 +334,7 @@ export function createMobileOnboardingService(
           if (!active) {
             return
           }
-          setState({ storageInfo: storage })
+          this.#setState({ storageInfo: storage })
           const root = storageRoot(storage, kind, settings.mobileGraphName)
           if (root === null) {
             // The graph lives in iCloud but the account is gone (signed out,
@@ -344,7 +346,7 @@ export function createMobileOnboardingService(
             )
             return
           }
-          setState({ kind })
+          this.#setState({ kind })
           await graphSession.openRecent(root)
         } catch (err) {
           if (active) {
@@ -363,8 +365,12 @@ export function createMobileOnboardingService(
     }
   }
 
-  async function completeOnboarding(kind: MobileStorageKind, chosenRoot?: string): Promise<void> {
-    const storageInfo = state.storageInfo
+  readonly completeOnboarding = async (
+    kind: MobileStorageKind,
+    chosenRoot?: string,
+  ): Promise<void> => {
+    const { mobileStorage, settings: settingsService, graphSession } = this.#deps
+    const storageInfo = this.#state.storageInfo
     // An explicit root comes from the onboarding graph list or the settings
     // switcher (open THIS container graph / create one with this name);
     // without one, fall back to the kind's default root — the local path
@@ -392,7 +398,7 @@ export function createMobileOnboardingService(
     if (!opened) {
       throw new Error('Couldn’t open your notes — please try again.')
     }
-    setState({ kind, needsOnboarding: false })
+    this.#setState({ kind, needsOnboarding: false })
     // Persist the flags only once the graph is actually open, so a failed open
     // never strands the user past onboarding. Await hydration first — the
     // settings contract for a setting paired with a keychain secret: after a
@@ -408,16 +414,25 @@ export function createMobileOnboardingService(
     })
   }
 
-  return {
-    getState: () => state,
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    warm,
-    boot,
-    completeOnboarding,
+  #setState(patch: Partial<MobileOnboardingState>): void {
+    this.#state = { ...this.#state, ...patch }
+    for (const listener of this.#listeners) {
+      listener()
+    }
   }
+
+  /**
+   * The in-flight warm resolve, or null when none was started or it was already taken.
+   */
+  #takeWarm(): Promise<MobileStorageInfo> | null {
+    const pending = this.#warmed
+    this.#warmed = null
+    return pending
+  }
+}
+
+export function createMobileOnboardingService(
+  deps: MobileOnboardingServiceDeps,
+): MobileOnboardingService {
+  return new MobileOnboardingServiceImpl(deps)
 }

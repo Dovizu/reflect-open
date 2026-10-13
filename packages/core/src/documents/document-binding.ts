@@ -40,17 +40,27 @@ import type { OpenDocumentsService } from './open-documents-service.ts'
  * Why a rename leads here: `docs/readable-filenames.md`.
  */
 
-/** What a binding needs from the coordinator that owns a document's settle-time work. */
+/**
+
+ * What a binding needs from the coordinator that owns a document's settle-time work.
+
+ */
 export interface DocumentCoordinator {
-  /** A settle point (blur, teardown, quit): fire any pending work now. */
+  /**
+   * A settle point (blur, teardown, quit): fire any pending work now.
+   */
   settle(): void
-  /** Resolves once fired settle-time work has landed. */
+  /**
+   * Resolves once fired settle-time work has landed.
+   */
   settled(): Promise<void>
   dispose(): void
 }
 
 export interface BindFactories<Coordinator extends DocumentCoordinator = DocumentCoordinator> {
-  /** Build the session; receives the coordinator its `onContent` feeds. */
+  /**
+   * Build the session; receives the coordinator its `onContent` feeds.
+   */
   session: (coordinator: Coordinator | null) => NoteSession
   coordinator: () => Coordinator | null
 }
@@ -58,36 +68,125 @@ export interface BindFactories<Coordinator extends DocumentCoordinator = Documen
 export interface BoundDocument<Coordinator extends DocumentCoordinator = DocumentCoordinator> {
   session: NoteSession
   coordinator: Coordinator | null
-  /** False when a retargeted live session was adopted instead of created. */
+  /**
+   * False when a retargeted live session was adopted instead of created.
+   */
   created: boolean
 }
 
 export interface DocumentBinding<Coordinator extends DocumentCoordinator = DocumentCoordinator> {
-  /** Bind the pane to `path`, creating or adopting. One unbind per bind. */
+  /**
+   * Bind the pane to `path`, creating or adopting. One unbind per bind.
+   */
   bind(path: string, create: BindFactories<Coordinator>): BoundDocument<Coordinator>
-  /** Release the bind for `path`: teardown, or hand-off when retargeted. */
+  /**
+   * Release the bind for `path`: teardown, or hand-off when retargeted.
+   */
   unbind(path: string): void
-  /** The live session, if any — callbacks read this, never a stale ref. */
+  /**
+   * The live session, if any — callbacks read this, never a stale ref.
+   */
   session(): NoteSession | null
   coordinator(): Coordinator | null
-  /** Counts session *creations* (not adoptions) — the editor's remount key. */
+  /**
+   * Counts session *creations* (not adoptions) — the editor's remount key.
+   */
   epoch(): number
 }
 
-export function createDocumentBinding<
-  Coordinator extends DocumentCoordinator = DocumentCoordinator,
->(deps: { openDocuments: OpenDocumentsService }): DocumentBinding<Coordinator> {
-  const { openDocuments } = deps
-  let session: NoteSession | null = null
-  let coordinator: Coordinator | null = null
-  /** The previous bind's path: adoption requires the path to have *changed*. */
-  let lastPath: string | null = null
-  let epoch = 0
-  /** Bumped per bind — the deferred hand-off check for unadopted sessions. */
-  let runId = 0
-  let unregister: (() => void) | null = null
+export interface DocumentBindingDeps {
+  readonly openDocuments: OpenDocumentsService
+}
 
-  function teardown(target: NoteSession, owner: Coordinator | null): void {
+class DocumentBindingImpl<
+  Coordinator extends DocumentCoordinator = DocumentCoordinator,
+> implements DocumentBinding<Coordinator> {
+  readonly #deps: DocumentBindingDeps
+  #session: NoteSession | null = null
+  #coordinator: Coordinator | null = null
+  /**
+   * The previous bind's path: adoption requires the path to have *changed*.
+   */
+  #lastPath: string | null = null
+  #epoch = 0
+  /**
+   * Bumped per bind — the deferred hand-off check for unadopted sessions.
+   */
+  #runId = 0
+  #unregister: (() => void) | null = null
+
+  constructor(deps: DocumentBindingDeps) {
+    this.#deps = deps
+  }
+
+  bind(path: string, create: BindFactories<Coordinator>): BoundDocument<Coordinator> {
+    this.#runId += 1
+    const adopted =
+      this.#session !== null && this.#session.path === path && this.#lastPath !== path
+        ? this.#session
+        : null
+    let bound: NoteSession
+    let owner: Coordinator | null
+    if (adopted !== null) {
+      bound = adopted
+      owner = this.#coordinator
+    } else {
+      owner = create.coordinator()
+      bound = create.session(owner)
+      this.#epoch += 1
+    }
+    this.#session = bound
+    this.#coordinator = owner
+    this.#lastPath = path
+    // One registration covers everything app-global teardown needs: the
+    // quit-time flush, settle-time rename work, and reopened-note lookups.
+    this.#unregister = this.#deps.openDocuments.register({
+      session: bound,
+      ...(owner ? { settle: () => owner.settle(), settled: () => owner.settled() } : {}),
+    })
+    return { session: bound, coordinator: owner, created: adopted === null }
+  }
+
+  unbind(path: string): void {
+    const target = this.#session
+    const owner = this.#coordinator
+    // Unregister first (by identity — a rename may have re-keyed the
+    // entry): a rename settling from this teardown must not see this
+    // session as "open" — its alias goes to disk (or to a reopened pane's
+    // live session, which registers under the same path).
+    this.#unregister?.()
+    this.#unregister = null
+    if (target === null) {
+      return
+    }
+    if (target.path !== path) {
+      // Retargeted away: an adopting bind() lands before this microtask
+      // (same React commit, synchronous) and bumps runId; otherwise the
+      // pane really unmounted and the session must still be torn down.
+      const bindId = this.#runId
+      queueMicrotask(() => {
+        if (this.#runId === bindId && this.#session === target) {
+          this.#teardown(target, owner)
+        }
+      })
+      return
+    }
+    this.#teardown(target, owner)
+  }
+
+  session(): NoteSession | null {
+    return this.#session
+  }
+
+  coordinator(): Coordinator | null {
+    return this.#coordinator
+  }
+
+  epoch(): number {
+    return this.#epoch
+  }
+
+  #teardown(target: NoteSession, owner: Coordinator | null): void {
     // Disposal flushes pending edits to the session's own (current) path —
     // the note-switch "final flush". The flush's landed save reaches the
     // rename tracker via onContent('saved'); settle after it so a just-edited
@@ -97,9 +196,9 @@ export function createDocumentBinding<
     // change callback. Keep the target discoverable for that re-entry, then
     // release ownership before any asynchronous write settles or a replacement
     // session binds.
-    if (session === target) {
-      session = null
-      coordinator = null
+    if (this.#session === target) {
+      this.#session = null
+      this.#coordinator = null
     }
     target.dispose()
     if (owner) {
@@ -109,63 +208,10 @@ export function createDocumentBinding<
       })
     }
   }
+}
 
-  return {
-    bind(path: string, create: BindFactories<Coordinator>): BoundDocument<Coordinator> {
-      runId += 1
-      const adopted =
-        session !== null && session.path === path && lastPath !== path ? session : null
-      let bound: NoteSession
-      let owner: Coordinator | null
-      if (adopted !== null) {
-        bound = adopted
-        owner = coordinator
-      } else {
-        owner = create.coordinator()
-        bound = create.session(owner)
-        epoch += 1
-      }
-      session = bound
-      coordinator = owner
-      lastPath = path
-      // One registration covers everything app-global teardown needs: the
-      // quit-time flush, settle-time rename work, and reopened-note lookups.
-      unregister = openDocuments.register({
-        session: bound,
-        ...(owner ? { settle: () => owner.settle(), settled: () => owner.settled() } : {}),
-      })
-      return { session: bound, coordinator: owner, created: adopted === null }
-    },
-
-    unbind(path: string): void {
-      const target = session
-      const owner = coordinator
-      // Unregister first (by identity — a rename may have re-keyed the
-      // entry): a rename settling from this teardown must not see this
-      // session as "open" — its alias goes to disk (or to a reopened pane's
-      // live session, which registers under the same path).
-      unregister?.()
-      unregister = null
-      if (target === null) {
-        return
-      }
-      if (target.path !== path) {
-        // Retargeted away: an adopting bind() lands before this microtask
-        // (same React commit, synchronous) and bumps runId; otherwise the
-        // pane really unmounted and the session must still be torn down.
-        const bindId = runId
-        queueMicrotask(() => {
-          if (runId === bindId && session === target) {
-            teardown(target, owner)
-          }
-        })
-        return
-      }
-      teardown(target, owner)
-    },
-
-    session: () => session,
-    coordinator: () => coordinator,
-    epoch: () => epoch,
-  }
+export function createDocumentBinding<
+  Coordinator extends DocumentCoordinator = DocumentCoordinator,
+>(deps: DocumentBindingDeps): DocumentBinding<Coordinator> {
+  return new DocumentBindingImpl<Coordinator>(deps)
 }

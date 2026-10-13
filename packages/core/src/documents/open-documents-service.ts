@@ -4,9 +4,13 @@ import type { NoteSession } from './note-session-types.ts'
 
 export interface OpenDocument {
   session: NoteSession
-  /** Fire pending settle-time work (title renames) now. */
+  /**
+   * Fire pending settle-time work (title renames) now.
+   */
   settle?: () => void
-  /** Resolves once fired settle-time work has landed. */
+  /**
+   * Resolves once fired settle-time work has landed.
+   */
   settled?: () => Promise<void>
 }
 
@@ -39,7 +43,9 @@ export interface OpenDocumentsService {
    * registration and teardown, and the unregister must still find it.
    */
   register(document: OpenDocument): Unlisten
-  /** The live session for `path`, if that note is open in some pane. */
+  /**
+   * The live session for `path`, if that note is open in some pane.
+   */
   sessionFor(path: string): NoteSession | null
   /**
    * Paths of open documents holding unsaved edits right now. The iCloud
@@ -79,18 +85,78 @@ export interface OpenDocumentsService {
 }
 
 export interface OpenDocumentsServiceDeps {
-  fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
 }
 
-export function createOpenDocumentsService(deps: OpenDocumentsServiceDeps): OpenDocumentsService {
-  const { fileChanges } = deps
-  const documents = new Map<string, OpenDocument>()
-  // Every registration, including one a same-path registration hides from `documents`.
-  const registrations = new Set<OpenDocument>()
-  let stopFileChanges: Unlisten | null = null
+class OpenDocumentsServiceImpl implements OpenDocumentsService {
+  readonly #deps: OpenDocumentsServiceDeps
+  readonly #documents = new Map<string, OpenDocument>()
+  // Every registration, including one a same-path registration hides from `#documents`.
+  readonly #registrations = new Set<OpenDocument>()
+  #stopFileChanges: Unlisten | null = null
 
-  function onFileChanges(changes: readonly FileChange[]): void {
-    for (const document of registrations) {
+  constructor(deps: OpenDocumentsServiceDeps) {
+    this.#deps = deps
+  }
+
+  register(document: OpenDocument): Unlisten {
+    this.#documents.set(document.session.path, document)
+    this.#registrations.add(document)
+    this.#stopFileChanges ??= this.#deps.fileChanges.subscribe(({ changes }) => {
+      this.#onFileChanges(changes)
+    })
+    return () => {
+      if (this.#registrations.delete(document) && this.#registrations.size === 0) {
+        this.#stopFileChanges?.()
+        this.#stopFileChanges = null
+      }
+      for (const [key, registered] of this.#documents) {
+        if (registered === document) {
+          this.#documents.delete(key)
+          return
+        }
+      }
+    }
+  }
+
+  sessionFor(path: string): NoteSession | null {
+    return this.#documents.get(path)?.session ?? null
+  }
+
+  dirtyPaths(): string[] {
+    return [...this.#documents.values()]
+      .filter((document) => document.session.isDirty())
+      .map((document) => document.session.path)
+  }
+
+  reloadAll(): void {
+    for (const document of this.#documents.values()) {
+      document.session.externalChanged()
+    }
+  }
+
+  retarget(from: string, to: string, session: NoteSession): void {
+    const document = this.#documents.get(from)
+    if (document !== undefined && document.session === session) {
+      this.#documents.delete(from)
+      this.#documents.set(to, document)
+    }
+  }
+
+  async flushAll(): Promise<void> {
+    await Promise.allSettled(
+      [...this.#documents.values()].map(async (document) => {
+        await document.session.flush()
+        // Settle after the flush so the rename tracker has seen the final title;
+        // settle() appends the rewrite synchronously, settled() awaits it.
+        document.settle?.()
+        await document.settled?.()
+      }),
+    )
+  }
+
+  #onFileChanges(changes: readonly FileChange[]): void {
+    for (const document of this.#registrations) {
       // The session's current path, not the one it registered under: a rename
       // retargets the session before its pane re-renders.
       const { session } = document
@@ -99,57 +165,8 @@ export function createOpenDocumentsService(deps: OpenDocumentsServiceDeps): Open
       }
     }
   }
+}
 
-  return {
-    register(document) {
-      documents.set(document.session.path, document)
-      registrations.add(document)
-      stopFileChanges ??= fileChanges.subscribe(({ changes }) => {
-        onFileChanges(changes)
-      })
-      return () => {
-        if (registrations.delete(document) && registrations.size === 0) {
-          stopFileChanges?.()
-          stopFileChanges = null
-        }
-        for (const [key, registered] of documents) {
-          if (registered === document) {
-            documents.delete(key)
-            return
-          }
-        }
-      }
-    },
-    sessionFor(path) {
-      return documents.get(path)?.session ?? null
-    },
-    dirtyPaths() {
-      return [...documents.values()]
-        .filter((document) => document.session.isDirty())
-        .map((document) => document.session.path)
-    },
-    reloadAll() {
-      for (const document of documents.values()) {
-        document.session.externalChanged()
-      }
-    },
-    retarget(from, to, session) {
-      const document = documents.get(from)
-      if (document !== undefined && document.session === session) {
-        documents.delete(from)
-        documents.set(to, document)
-      }
-    },
-    async flushAll() {
-      await Promise.allSettled(
-        [...documents.values()].map(async (document) => {
-          await document.session.flush()
-          // Settle after the flush so the rename tracker has seen the final title;
-          // settle() appends the rewrite synchronously, settled() awaits it.
-          document.settle?.()
-          await document.settled?.()
-        }),
-      )
-    },
-  }
+export function createOpenDocumentsService(deps: OpenDocumentsServiceDeps): OpenDocumentsService {
+  return new OpenDocumentsServiceImpl(deps)
 }

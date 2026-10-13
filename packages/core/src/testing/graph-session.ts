@@ -2,10 +2,14 @@ import { createGraphSession } from '../app/graph-session.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
 import {
   createGraphSessionService,
+  type GraphBootHooks,
+  type GraphReleaseReason,
   type GraphSessionService,
   type GraphSessionServiceDeps,
   type GraphSessionState,
 } from '../graph/graph-session-service.ts'
+import type { WindowService } from '../app/window-service.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { RecentGraph } from '../graph/schemas.ts'
 import { createTestFileChangeService } from './file-change.ts'
 import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
@@ -38,20 +42,32 @@ export interface TestOpenGraph {
   indexGeneration?: number | null
 }
 
-/** The services a test graph session runs on; each defaults to a fresh test double. */
+/**
+
+ * The services a test graph session runs on; each defaults to a fresh test double.
+
+ */
 export interface TestGraphSessionServiceOptions<Services = unknown> extends Partial<
   GraphSessionServiceDeps<Services>
 > {
-  /** Start with this graph open (or with none), as {@link TestGraphSessionService.setGraph} does. */
+  /**
+   * Start with this graph open (or with none), as {@link TestGraphSessionService.setGraph} does.
+   */
   graph?: TestOpenGraph | null
-  /** Reported over the real state from the start, as {@link TestGraphSessionService.setState} does. */
+  /**
+   * Reported over the real state from the start, as {@link TestGraphSessionService.setState} does.
+   */
   state?: Partial<GraphSessionState<Services>>
-  /** What the default `ipc` answers for `recent_graphs`. Unused when `ipc` is given. */
+  /**
+   * What the default `ipc` answers for `recent_graphs`. Unused when `ipc` is given.
+   */
   recents?: readonly RecentGraph[]
 }
 
 export interface TestGraphSessionService<Services = unknown> extends GraphSessionService<Services> {
-  /** Report `patch` over the real state and notify subscribers. */
+  /**
+   * Report `patch` over the real state and notify subscribers.
+   */
   setState: (patch: Partial<GraphSessionState<Services>>) => void
   /**
    * Report `graph` as open and ready without an open flow, or `null` as the
@@ -98,6 +114,113 @@ function baseName(path: string): string {
   return path.split('/').findLast((segment) => segment !== '') ?? path
 }
 
+class TestGraphSessionServiceImpl<Services> implements TestGraphSessionService<Services> {
+  readonly #inner: GraphSessionService<Services>
+  readonly #windowService: Pick<WindowService, 'isMainWindow'>
+  readonly #createServices: GraphSessionServiceDeps<Services>['createServices']
+  readonly #listeners = new Set<() => void>()
+  // Ends the session of the last `setGraph`.
+  #seeded = new AbortController()
+  #overlay: Partial<GraphSessionState<Services>>
+  #merged: {
+    base: GraphSessionState<Services>
+    overlay: Partial<GraphSessionState<Services>>
+  } | null = null
+  #snapshot: GraphSessionState<Services>
+
+  constructor(
+    inner: GraphSessionService<Services>,
+    options: {
+      readonly windowService: Pick<WindowService, 'isMainWindow'>
+      readonly createServices: GraphSessionServiceDeps<Services>['createServices']
+      readonly graph: TestOpenGraph | null | undefined
+      readonly state: Partial<GraphSessionState<Services>> | undefined
+    },
+  ) {
+    this.#inner = inner
+    this.#windowService = options.windowService
+    this.#createServices = options.createServices
+    this.#overlay = {
+      ...(options.graph === undefined ? {} : this.#seedGraph(options.graph)),
+      ...options.state,
+    }
+    this.#snapshot = inner.getState()
+  }
+
+  readonly getState = (): GraphSessionState<Services> => {
+    const base = this.#inner.getState()
+    if (this.#merged?.base !== base || this.#merged.overlay !== this.#overlay) {
+      this.#merged = { base, overlay: this.#overlay }
+      this.#snapshot = { ...base, ...this.#overlay }
+    }
+    return this.#snapshot
+  }
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    const unlisten = this.#inner.subscribe(listener)
+    this.#listeners.add(listener)
+    return () => {
+      unlisten()
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly boot = (hooks?: GraphBootHooks): Unlisten => this.#inner.boot(hooks)
+
+  readonly loadRecents = (options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> =>
+    this.#inner.loadRecents(options)
+
+  readonly openRecent = (root: string): Promise<boolean> => this.#inner.openRecent(root)
+
+  readonly createGraphAt = (root: string): Promise<boolean> => this.#inner.createGraphAt(root)
+
+  readonly pickAndOpen = (): Promise<void> => this.#inner.pickAndOpen()
+
+  readonly chooseGraph = (): Promise<void> => this.#inner.chooseGraph()
+
+  readonly forgetRecent = (root: string): Promise<void> => this.#inner.forgetRecent(root)
+
+  readonly deleteGraph = (): Promise<void> => this.#inner.deleteGraph()
+
+  readonly refreshIndex = (): void => {
+    this.#inner.refreshIndex()
+  }
+
+  readonly park = (error: string | null): void => {
+    this.#inner.park(error)
+  }
+
+  readonly onGraphReleased = (listener: (reason: GraphReleaseReason) => void): Unlisten =>
+    this.#inner.onGraphReleased(listener)
+
+  readonly onGraphDeleted = (listener: (root: string) => void): Unlisten =>
+    this.#inner.onGraphDeleted(listener)
+
+  readonly setState = (patch: Partial<GraphSessionState<Services>>): void => {
+    this.#overlay = { ...this.#overlay, ...patch }
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  readonly setGraph = (graph: TestOpenGraph | null): void => {
+    this.setState(this.#seedGraph(graph))
+  }
+
+  #seedGraph(graph: TestOpenGraph | null): Partial<GraphSessionState<Services>> {
+    this.#seeded.abort()
+    this.#seeded = new AbortController()
+    const patch: Partial<GraphSessionState<Services>> = graphPatch(graph, this.#seeded.signal)
+    const session = patch.session ?? null
+    const createServices = this.#createServices
+    if (session === null || createServices === undefined) {
+      return patch
+    }
+    const role = this.#windowService.isMainWindow() ? 'main' : 'note-window'
+    return { ...patch, services: createServices(session, role) }
+  }
+}
+
 /**
  * The real {@link GraphSessionService} over test doubles, plus state seeding.
  * The default `ipc` opens any root as a graph named after its last path
@@ -130,7 +253,7 @@ export function createTestGraphSessionService<Services = never>(
   const logger = options?.logger ?? createTestLoggerService()
   const windowService = options?.window ?? createTestWindowService()
   const createServices = options?.createServices
-  const service = createGraphSessionService<Services>({
+  const inner: GraphSessionService<Services> = createGraphSessionService<Services>({
     ipc: options?.ipc ?? createDefaultIpc(),
     indexLifecycle:
       options?.indexLifecycle ??
@@ -159,62 +282,14 @@ export function createTestGraphSessionService<Services = never>(
     logger,
     ...(createServices === undefined ? {} : { createServices }),
   })
-
-  // Ends the session of the last `setGraph`.
-  let seeded = new AbortController()
-
-  function seedGraph(graph: TestOpenGraph | null): Partial<GraphSessionState<Services>> {
-    seeded.abort()
-    seeded = new AbortController()
-    const patch: Partial<GraphSessionState<Services>> = graphPatch(graph, seeded.signal)
-    const session = patch.session ?? null
-    if (session === null || createServices === undefined) {
-      return patch
-    }
-    const role = windowService.isMainWindow() ? 'main' : 'note-window'
-    return { ...patch, services: createServices(session, role) }
-  }
-
-  const listeners = new Set<() => void>()
-  let overlay: Partial<GraphSessionState<Services>> = {
-    ...(options?.graph === undefined ? {} : seedGraph(options.graph)),
-    ...options?.state,
-  }
-  let merged: {
-    base: GraphSessionState<Services>
-    overlay: Partial<GraphSessionState<Services>>
-  } | null = null
-  let snapshot: GraphSessionState<Services> = service.getState()
-
-  const setState = (patch: Partial<GraphSessionState<Services>>): void => {
-    overlay = { ...overlay, ...patch }
-    for (const listener of listeners) {
-      listener()
-    }
-  }
-
-  const testService: TestGraphSessionService<Services> = {
-    ...service,
-    getState: () => {
-      const base = service.getState()
-      if (merged?.base !== base || merged.overlay !== overlay) {
-        merged = { base, overlay }
-        snapshot = { ...base, ...overlay }
-      }
-      return snapshot
+  const testService: TestGraphSessionService<Services> = new TestGraphSessionServiceImpl<Services>(
+    inner,
+    {
+      windowService,
+      createServices,
+      graph: options?.graph,
+      state: options?.state,
     },
-    subscribe: (listener) => {
-      const unlisten = service.subscribe(listener)
-      listeners.add(listener)
-      return () => {
-        unlisten()
-        listeners.delete(listener)
-      }
-    },
-    setState,
-    setGraph: (graph) => {
-      setState(seedGraph(graph))
-    },
-  }
+  )
   return testService
 }

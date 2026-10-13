@@ -12,10 +12,14 @@ import {
   type GraphImportSummary,
 } from './schemas.ts'
 
-/** Commands that return `()` from Rust serialize as `null` over IPC. */
+/**
+ * Commands that return `()` from Rust serialize as `null` over IPC.
+ */
 const voidSchema = z.null()
 
-/** Event name the running import emits {@link GraphImportProgress} ticks on. */
+/**
+ * Event name the running import emits {@link GraphImportProgress} ticks on.
+ */
 export const IMPORT_PROGRESS_EVENT = 'import:progress'
 
 /**
@@ -42,14 +46,18 @@ export type V1ImportState =
 export interface V1ImportService {
   getState: () => V1ImportState
   subscribe: (listener: () => void) => Unlisten
-  /** Kick off an import of the chosen `.zip`; ignored while one runs and while no graph is open. */
+  /**
+   * Kick off an import of the chosen `.zip`; ignored while one runs and while no graph is open.
+   */
   start: (zipPath: string) => void
   /**
    * Ask the running import to stop. The import aborts before anything lands
    * in the graph, so cancelling is always safe.
    */
   cancel: () => void
-  /** Clear a finished (done/failed) import back to idle. */
+  /**
+   * Clear a finished (done/failed) import back to idle.
+   */
   dismiss: () => void
   /**
    * The workspace that shows this import is up. The returned function tells
@@ -67,12 +75,12 @@ export interface V1ImportServiceDeps {
   readonly logger: LoggerService
 }
 
-export function createV1ImportService(deps: V1ImportServiceDeps): V1ImportService {
-  const { ipc, fileChanges, graphSession, clock, logger } = deps
-  const listeners = new Set<() => void>()
-  let state: V1ImportState = { phase: 'idle' }
-  let running = false
-  let cancelRequested = false
+class V1ImportServiceImpl implements V1ImportService {
+  readonly #deps: V1ImportServiceDeps
+  readonly #listeners = new Set<() => void>()
+  #state: V1ImportState = { phase: 'idle' }
+  #running = false
+  #cancelRequested = false
   // The native import keeps running without its workspace; if the workspace
   // goes away mid-import (graph switch, app teardown) nobody is left to show
   // or apply the result, so stop the work too. `attached` also gates the
@@ -80,20 +88,112 @@ export function createV1ImportService(deps: V1ImportServiceDeps): V1ImportServic
   // so a near-finished import can still resolve after the workspace left —
   // its own-write echoes and index refresh would then land on whatever graph
   // is open now, not the one it imported into.
-  let attached = true
+  #attached = true
 
-  function setState(next: V1ImportState): void {
-    if (next === state) {
+  constructor(deps: V1ImportServiceDeps) {
+    this.#deps = deps
+  }
+
+  readonly getState = (): V1ImportState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly start = (zipPath: string): void => {
+    const { ipc, graphSession } = this.#deps
+    const startedFor = graphSession.getState().graph
+    if (this.#running || startedFor === null) {
       return
     }
-    state = next
-    for (const listener of listeners) {
+    this.#running = true
+    this.#cancelRequested = false
+    this.#setState({ phase: 'running', progress: null, cancelling: false })
+    const unlisten = this.#subscribeProgress((progress) => {
+      if (this.#state.phase === 'running') {
+        this.#setState({ ...this.#state, progress })
+      }
+    })
+    void (async () => {
+      try {
+        const summary = await ipc.call(
+          'graph_import_reflect_v1_zip',
+          { path: zipPath, generation: startedFor.generation },
+          graphImportSummarySchema,
+        )
+        const current = graphSession.getState().graph
+        if (
+          this.#attached &&
+          current !== null &&
+          current.root === startedFor.root &&
+          current.generation === startedFor.generation
+        ) {
+          this.#markOwnWrites(summary)
+          graphSession.refreshIndex()
+          this.#setState({ phase: 'done', summary })
+        } else {
+          this.#setState({ phase: 'idle' })
+        }
+      } catch (caught: unknown) {
+        // A rejection after the user hit Cancel is the cancellation itself,
+        // not a failure worth surfacing.
+        this.#setState(
+          this.#cancelRequested
+            ? { phase: 'idle' }
+            : { phase: 'failed', message: errorMessage(caught) },
+        )
+      } finally {
+        this.#running = false
+        unlisten()
+      }
+    })()
+  }
+
+  readonly cancel = (): void => {
+    if (!this.#running || this.#cancelRequested) {
+      return
+    }
+    this.#cancelRequested = true
+    if (this.#state.phase === 'running') {
+      this.#setState({ ...this.#state, cancelling: true })
+    }
+    void this.#cancelNative().catch(() => {})
+  }
+
+  readonly dismiss = (): void => {
+    if (this.#state.phase !== 'running') {
+      this.#setState({ phase: 'idle' })
+    }
+  }
+
+  readonly attach = (): Unlisten => {
+    this.#attached = true
+    return () => {
+      this.#attached = false
+      if (this.#running) {
+        void this.#cancelNative().catch(() => {})
+      }
+    }
+  }
+
+  #setState(next: V1ImportState): void {
+    if (next === this.#state) {
+      return
+    }
+    this.#state = next
+    for (const listener of this.#listeners) {
       listener()
     }
   }
 
-  /** Live progress ticks of the running import. */
-  function subscribeProgress(handler: (progress: GraphImportProgress) => void): Unlisten {
+  /**
+   * Live progress ticks of the running import.
+   */
+  #subscribeProgress(handler: (progress: GraphImportProgress) => void): Unlisten {
+    const { ipc, logger } = this.#deps
     return listenNow(
       () =>
         ipc.listen(IMPORT_PROGRESS_EVENT, (payload) => {
@@ -110,9 +210,11 @@ export function createV1ImportService(deps: V1ImportServiceDeps): V1ImportServic
     )
   }
 
-  /** Cancel the running import (a no-op when none runs); the pending import call rejects. */
-  async function cancelNative(): Promise<void> {
-    await ipc.call('graph_import_cancel', {}, voidSchema)
+  /**
+   * Cancel the running import (a no-op when none runs); the pending import call rejects.
+   */
+  async #cancelNative(): Promise<void> {
+    await this.#deps.ipc.call('graph_import_cancel', {}, voidSchema)
   }
 
   /**
@@ -121,97 +223,15 @@ export function createV1ImportService(deps: V1ImportServiceDeps): V1ImportServic
    * graph-relative and the own-write channel is scoped to the currently
    * running iCloud controller.
    */
-  function markOwnWrites(summary: GraphImportSummary): void {
+  #markOwnWrites(summary: GraphImportSummary): void {
+    const { clock, fileChanges } = this.#deps
     const modifiedMs = clock.now()
     for (const changedPath of summary.changedPaths) {
       fileChanges.reportOwnWrite([{ path: changedPath, kind: 'upsert', modifiedMs }])
     }
   }
+}
 
-  function start(zipPath: string): void {
-    const startedFor = graphSession.getState().graph
-    if (running || startedFor === null) {
-      return
-    }
-    running = true
-    cancelRequested = false
-    setState({ phase: 'running', progress: null, cancelling: false })
-    const unlisten = subscribeProgress((progress) => {
-      if (state.phase === 'running') {
-        setState({ ...state, progress })
-      }
-    })
-    void (async () => {
-      try {
-        const summary = await ipc.call(
-          'graph_import_reflect_v1_zip',
-          { path: zipPath, generation: startedFor.generation },
-          graphImportSummarySchema,
-        )
-        const current = graphSession.getState().graph
-        if (
-          attached &&
-          current !== null &&
-          current.root === startedFor.root &&
-          current.generation === startedFor.generation
-        ) {
-          markOwnWrites(summary)
-          graphSession.refreshIndex()
-          setState({ phase: 'done', summary })
-        } else {
-          setState({ phase: 'idle' })
-        }
-      } catch (caught: unknown) {
-        // A rejection after the user hit Cancel is the cancellation itself,
-        // not a failure worth surfacing.
-        setState(
-          cancelRequested ? { phase: 'idle' } : { phase: 'failed', message: errorMessage(caught) },
-        )
-      } finally {
-        running = false
-        unlisten()
-      }
-    })()
-  }
-
-  function cancel(): void {
-    if (!running || cancelRequested) {
-      return
-    }
-    cancelRequested = true
-    if (state.phase === 'running') {
-      setState({ ...state, cancelling: true })
-    }
-    void cancelNative().catch(() => {})
-  }
-
-  function dismiss(): void {
-    if (state.phase !== 'running') {
-      setState({ phase: 'idle' })
-    }
-  }
-
-  function attach(): Unlisten {
-    attached = true
-    return () => {
-      attached = false
-      if (running) {
-        void cancelNative().catch(() => {})
-      }
-    }
-  }
-
-  return {
-    getState: () => state,
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    start,
-    cancel,
-    dismiss,
-    attach,
-  }
+export function createV1ImportService(deps: V1ImportServiceDeps): V1ImportService {
+  return new V1ImportServiceImpl(deps)
 }

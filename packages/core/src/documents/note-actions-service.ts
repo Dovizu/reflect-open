@@ -35,14 +35,24 @@ export type NoteActionOutcome<Result> =
   | ({ readonly status: 'done' } & Result)
   | { readonly status: 'failed' }
 
-/** What a pin action left in the note's frontmatter. */
+/**
+
+ * What a pin action left in the note's frontmatter.
+
+ */
 export interface NotePinResult {
   readonly pinned: boolean
-  /** The written shelf order; `null` for an unpinned note and for a bare `pinned: true`. */
+  /**
+   * The written shelf order; `null` for an unpinned note and for a bare `pinned: true`.
+   */
   readonly pinOrder: number | null
 }
 
-/** One pin order that {@link NoteActionsService.reorderPinned} wrote. */
+/**
+
+ * One pin order that {@link NoteActionsService.reorderPinned} wrote.
+
+ */
 export interface NotePinOrderWrite {
   readonly path: string
   readonly pinOrder: number
@@ -53,7 +63,11 @@ export interface NoteTrashFailure {
   readonly cause: unknown
 }
 
-/** Which notes went to the trash and which could not, each in request order. */
+/**
+
+ * Which notes went to the trash and which could not, each in request order.
+
+ */
 export interface NoteTrashResult {
   readonly succeeded: readonly string[]
   readonly failed: readonly NoteTrashFailure[]
@@ -85,7 +99,9 @@ export interface NoteActionsService {
    * fails without a report.
    */
   togglePinned(path: string): Promise<NoteActionOutcome<NotePinResult>>
-  /** Remove a pin directionally, without reading the current pin state. */
+  /**
+   * Remove a pin directionally, without reading the current pin state.
+   */
   unpin(path: string): Promise<NoteActionOutcome<NotePinResult>>
   /**
    * Write the shelf order of each note that carries a valid one, and return
@@ -101,7 +117,9 @@ export interface NoteActionsService {
    * failure is reported as an "Updating privacy" operation.
    */
   togglePrivate(path: string): Promise<NoteActionOutcome<{ readonly isPrivate: boolean }>>
-  /** Whether `path` may be moved to the trash; see {@link canTrashNote}. */
+  /**
+   * Whether `path` may be moved to the trash; see {@link canTrashNote}.
+   */
   canTrash(path: string): boolean
   /**
    * Delete a regular note and detach its editor session without flushing.
@@ -123,7 +141,9 @@ export interface NoteActionsService {
    * Never rejects and reports nothing: a failure comes back in `failed`.
    */
   trash(path: string): Promise<NoteTrashResult>
-  /** {@link NoteActionsService.trash}, rejecting with the cause when the note could not be trashed. */
+  /**
+   * {@link NoteActionsService.trash}, rejecting with the cause when the note could not be trashed.
+   */
   trashOne(path: string): Promise<void>
   /**
    * {@link NoteActionsService.trash} for each path in order, under one
@@ -155,38 +175,192 @@ export interface NoteActionsService {
   copyPath(path: string): Promise<void>
 }
 
-export function createNoteActionsService(deps: {
-  noteDocuments: NoteDocumentService
-  noteFile: Pick<NoteFileService, 'delete'>
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  indexLifecycle: Pick<IndexLifecycleService, 'indexNote'>
-  indexQuery: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
-  noteRows: Pick<NoteRowService, 'setOverlay' | 'dropOverlay' | 'getOverlaysOn'>
-  operations: OperationsService
-  clipboard: ClipboardService
-  path: Pick<PathService, 'join'>
-  id: Pick<IdService, 'noteId'>
-  graphSession: GraphSessionSource
-}): NoteActionsService {
-  const {
-    noteDocuments,
-    noteFile,
-    openDocuments,
-    indexLifecycle,
-    indexQuery,
-    noteRows,
-    operations,
-    clipboard,
-    path: pathService,
-    id,
-    graphSession,
-  } = deps
-  const pendingPins = new Map<string, Promise<NoteActionOutcome<NotePinResult>>>()
-  const pendingPrivacy = new Map<string, Promise<NoteActionOutcome<{ isPrivate: boolean }>>>()
-  let reorderChain: Promise<unknown> = Promise.resolve()
+export interface NoteActionsServiceDeps {
+  readonly noteDocuments: NoteDocumentService
+  readonly noteFile: Pick<NoteFileService, 'delete'>
+  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly indexLifecycle: Pick<IndexLifecycleService, 'indexNote'>
+  readonly indexQuery: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
+  readonly noteRows: Pick<NoteRowService, 'setOverlay' | 'dropOverlay' | 'getOverlaysOn'>
+  readonly operations: OperationsService
+  readonly clipboard: ClipboardService
+  readonly path: Pick<PathService, 'join'>
+  readonly id: Pick<IdService, 'noteId'>
+  readonly graphSession: GraphSessionSource
+}
 
-  /** Run `action` once per key at a time; a call while it runs gets the same promise. */
-  function dedupe<Result>(
+/**
+ * The pin and privacy toggles' outcome with no graph open: failed, with nothing to report.
+ */
+const NO_GRAPH: { readonly status: 'failed' } = { status: 'failed' }
+
+class NoteActionsServiceImpl implements NoteActionsService {
+  readonly #deps: NoteActionsServiceDeps
+  readonly #pendingPins = new Map<string, Promise<NoteActionOutcome<NotePinResult>>>()
+  readonly #pendingPrivacy = new Map<
+    string,
+    Promise<NoteActionOutcome<{ readonly isPrivate: boolean }>>
+  >()
+  #reorderChain: Promise<unknown> = Promise.resolve()
+
+  constructor(deps: NoteActionsServiceDeps) {
+    this.#deps = deps
+  }
+
+  async togglePinned(path: string): Promise<NoteActionOutcome<NotePinResult>> {
+    const session = this.#deps.graphSession.getState().session
+    if (session === null) {
+      return NO_GRAPH
+    }
+    const { generation } = session
+    return await this.#dedupe(this.#pendingPins, path, generation, () =>
+      this.#updatePin(path, generation, 'toggle'),
+    )
+  }
+
+  async unpin(path: string): Promise<NoteActionOutcome<NotePinResult>> {
+    const session = this.#deps.graphSession.getState().session
+    if (session === null) {
+      return NO_GRAPH
+    }
+    const { generation } = session
+    return await this.#dedupe(this.#pendingPins, path, generation, () =>
+      this.#updatePin(path, generation, 'unpin'),
+    )
+  }
+
+  async reorderPinned(
+    notes: ReadonlyArray<Pick<PinnedNote, 'path' | 'pinnedOrder'>>,
+  ): Promise<NotePinOrderWrite[]> {
+    const { noteRows, graphSession } = this.#deps
+    const session = graphSession.getState().session
+    if (session === null) {
+      return []
+    }
+    const { generation } = session
+    const writes: NotePinOrderWrite[] = []
+    for (const note of notes) {
+      const order = note.pinnedOrder
+      if (isValidPinOrder(order)) {
+        writes.push({ path: note.path, pinOrder: order })
+        noteRows.setOverlay(note.path, generation, { pinnedOrder: order })
+      }
+    }
+    // The overlay shows every reorder at once; the writes land in call order.
+    const run = this.#reorderChain.then(() => this.#writePinOrders(writes, generation))
+    this.#reorderChain = run.catch(() => undefined)
+    return await run
+  }
+
+  async togglePrivate(path: string): Promise<NoteActionOutcome<{ readonly isPrivate: boolean }>> {
+    const session = this.#deps.graphSession.getState().session
+    if (session === null) {
+      return NO_GRAPH
+    }
+    const { generation } = session
+    return await this.#dedupe(this.#pendingPrivacy, path, generation, () =>
+      this.#togglePrivate(path, generation),
+    )
+  }
+
+  canTrash(path: string): boolean {
+    return canTrashNote(path)
+  }
+
+  async trash(path: string): Promise<NoteTrashResult> {
+    try {
+      await this.#trashOne(path, requireGraphSession(this.#deps.graphSession).generation)
+      return { succeeded: [path], failed: [] }
+    } catch (cause) {
+      return { succeeded: [], failed: [{ path, cause }] }
+    }
+  }
+
+  async trashOne(path: string): Promise<void> {
+    await this.#trashOne(path, requireGraphSession(this.#deps.graphSession).generation)
+  }
+
+  async trashMany(paths: readonly string[]): Promise<NoteTrashResult> {
+    const { operations, graphSession } = this.#deps
+    const succeeded: string[] = []
+    const failed: NoteTrashFailure[] = []
+    if (paths.length === 0) {
+      return { succeeded, failed }
+    }
+    let session: GraphSession
+    try {
+      session = requireGraphSession(graphSession)
+    } catch (cause) {
+      operations.start('Trashing notes').fail(errorMessage(cause))
+      return { succeeded, failed: paths.map((path) => ({ path, cause })) }
+    }
+    const operation = operations.start('Trashing notes')
+    operation.progress(0, paths.length)
+    let attempted = 0
+    for (const path of paths) {
+      try {
+        await this.#trashOne(path, session.generation)
+        succeeded.push(path)
+      } catch (cause) {
+        failed.push({ path, cause })
+      }
+      attempted += 1
+      operation.progress(attempted, paths.length)
+    }
+    const last = failed.at(-1)
+    if (last === undefined) {
+      operation.done()
+    } else {
+      operation.fail(errorMessage(last.cause))
+    }
+    return { succeeded, failed }
+  }
+
+  async deepLinkFor(path: string): Promise<string> {
+    return await this.#deepLinkFor(path, requireGraphSession(this.#deps.graphSession))
+  }
+
+  async copyDeepLink(path: string): Promise<void> {
+    const { operations, clipboard, graphSession } = this.#deps
+    const session = graphSession.getState().session
+    if (session === null) {
+      return
+    }
+    let url: string
+    try {
+      url = await this.#deepLinkFor(path, session)
+    } catch (cause) {
+      operations.start('Copying deep link').fail(errorMessage(cause))
+      return
+    }
+    try {
+      await clipboard.writeText(url)
+      operations.start('Deep link copied').done()
+    } catch (cause) {
+      operations.start('Copying deep link').fail(errorMessage(cause))
+    }
+  }
+
+  async copyPath(path: string): Promise<void> {
+    const { operations, clipboard, path: pathService, graphSession } = this.#deps
+    const session = graphSession.getState().session
+    if (session === null) {
+      operations.start('Copying note path').fail('No graph is open')
+      return
+    }
+    try {
+      const absolutePath = await pathService.join(session.root, path)
+      await clipboard.writeText(absolutePath)
+      operations.start('Note path copied').done()
+    } catch (cause) {
+      operations.start('Copying note path').fail(errorMessage(cause))
+    }
+  }
+
+  /**
+   * Run `action` once per key at a time; a call while it runs gets the same promise.
+   */
+  #dedupe<Result>(
     pending: Map<string, Promise<Result>>,
     path: string,
     generation: number,
@@ -204,8 +378,11 @@ export function createNoteActionsService(deps: {
     return run
   }
 
-  /** The pinned notes the index lists, or `null` when the index cannot say. */
-  async function readIndexedShelf(): Promise<PinnedNote[] | null> {
+  /**
+   * The pinned notes the index lists, or `null` when the index cannot say.
+   */
+  async #readIndexedShelf(): Promise<PinnedNote[] | null> {
+    const { indexQuery } = this.#deps
     try {
       return await indexQuery.getPinnedNotes()
     } catch {
@@ -213,8 +390,11 @@ export function createNoteActionsService(deps: {
     }
   }
 
-  /** The privacy readers show for `path` now; `false` when the index cannot say. */
-  async function readPrivacy(path: string, generation: number): Promise<boolean> {
+  /**
+   * The privacy readers show for `path` now; `false` when the index cannot say.
+   */
+  async #readPrivacy(path: string, generation: number): Promise<boolean> {
+    const { noteRows, indexQuery } = this.#deps
     const overlaid = noteRows.getOverlaysOn(generation).get(path)?.isPrivate
     if (overlaid !== undefined) {
       return overlaid
@@ -226,22 +406,23 @@ export function createNoteActionsService(deps: {
     }
   }
 
-  function pinOverlay(pinned: boolean, order: number | null): NoteRowOverlayPatch {
+  #pinOverlay(pinned: boolean, order: number | null): NoteRowOverlayPatch {
     return pinned ? { isPinned: true, pinnedOrder: order } : { isPinned: false }
   }
 
-  async function updatePin(
+  async #updatePin(
     path: string,
     generation: number,
     kind: 'toggle' | 'unpin',
   ): Promise<NoteActionOutcome<NotePinResult>> {
+    const { noteRows, noteDocuments, operations } = this.#deps
     let written: NoteRowOverlayPatch | null = null
     try {
       // Predict from what readers show now, so the overlay lands before the note is read.
       let order: number | null = null
       let predicted = false
       if (kind === 'toggle') {
-        const indexed = await readIndexedShelf()
+        const indexed = await this.#readIndexedShelf()
         // Merged with the overlay after the await, so a concurrent pin's order counts.
         const shelf =
           indexed === null
@@ -257,7 +438,7 @@ export function createNoteActionsService(deps: {
         order = shelf === null ? null : getNextPinOrder(shelf)
         predicted = shelf?.some((note) => note.path === path) !== true
       }
-      written = pinOverlay(predicted, order)
+      written = this.#pinOverlay(predicted, order)
       noteRows.setOverlay(path, generation, written)
       const pinned =
         kind === 'unpin'
@@ -265,7 +446,7 @@ export function createNoteActionsService(deps: {
           : !isPinned(parseNote({ path, source: await noteDocuments.readSource(path) }).frontmatter)
       const pinOrder = pinned ? order : null
       if (pinned !== predicted) {
-        written = pinOverlay(pinned, order)
+        written = this.#pinOverlay(pinned, order)
         noteRows.setOverlay(path, generation, written)
       }
       await noteDocuments.commitFrontmatter(
@@ -283,13 +464,14 @@ export function createNoteActionsService(deps: {
     }
   }
 
-  async function togglePrivate(
+  async #togglePrivate(
     path: string,
     generation: number,
   ): Promise<NoteActionOutcome<{ isPrivate: boolean }>> {
+    const { noteRows, noteDocuments, operations } = this.#deps
     let written: NoteRowOverlayPatch | null = null
     try {
-      const predicted = !(await readPrivacy(path, generation))
+      const predicted = !(await this.#readPrivacy(path, generation))
       written = { isPrivate: predicted }
       noteRows.setOverlay(path, generation, written)
       const source = await noteDocuments.readSource(path)
@@ -309,10 +491,11 @@ export function createNoteActionsService(deps: {
     }
   }
 
-  async function writePinOrders(
+  async #writePinOrders(
     writes: readonly NotePinOrderWrite[],
     generation: number,
   ): Promise<NotePinOrderWrite[]> {
+    const { noteRows, noteDocuments } = this.#deps
     try {
       await Promise.all(
         writes.map(async (write) => {
@@ -328,7 +511,8 @@ export function createNoteActionsService(deps: {
     }
   }
 
-  async function trashOne(path: string, generation: number): Promise<void> {
+  async #trashOne(path: string, generation: number): Promise<void> {
+    const { noteFile, openDocuments, noteRows } = this.#deps
     if (!canTrashNote(path)) {
       throw new Error('Daily notes cannot be deleted')
     }
@@ -353,7 +537,8 @@ export function createNoteActionsService(deps: {
     }
   }
 
-  async function deepLinkFor(path: string, session: GraphSession): Promise<string> {
+  async #deepLinkFor(path: string, session: GraphSession): Promise<string> {
+    const { noteDocuments, id, indexLifecycle } = this.#deps
     if (isDaily(path)) {
       const date = dateFromDailyPath(path)
       // Calendar-validated like the router: a daily/ file with an impossible
@@ -384,137 +569,8 @@ export function createNoteActionsService(deps: {
     }
     return noteDeepLink(minted)
   }
+}
 
-  /** The pin and privacy toggles' outcome with no graph open: failed, with nothing to report. */
-  const NO_GRAPH: { readonly status: 'failed' } = { status: 'failed' }
-
-  return {
-    async togglePinned(path) {
-      const session = graphSession.getState().session
-      if (session === null) {
-        return NO_GRAPH
-      }
-      const { generation } = session
-      return await dedupe(pendingPins, path, generation, () =>
-        updatePin(path, generation, 'toggle'),
-      )
-    },
-    async unpin(path) {
-      const session = graphSession.getState().session
-      if (session === null) {
-        return NO_GRAPH
-      }
-      const { generation } = session
-      return await dedupe(pendingPins, path, generation, () => updatePin(path, generation, 'unpin'))
-    },
-    async reorderPinned(notes) {
-      const session = graphSession.getState().session
-      if (session === null) {
-        return []
-      }
-      const { generation } = session
-      const writes: NotePinOrderWrite[] = []
-      for (const note of notes) {
-        const order = note.pinnedOrder
-        if (isValidPinOrder(order)) {
-          writes.push({ path: note.path, pinOrder: order })
-          noteRows.setOverlay(note.path, generation, { pinnedOrder: order })
-        }
-      }
-      // The overlay shows every reorder at once; the writes land in call order.
-      const run = reorderChain.then(() => writePinOrders(writes, generation))
-      reorderChain = run.catch(() => undefined)
-      return await run
-    },
-    async togglePrivate(path) {
-      const session = graphSession.getState().session
-      if (session === null) {
-        return NO_GRAPH
-      }
-      const { generation } = session
-      return await dedupe(pendingPrivacy, path, generation, () => togglePrivate(path, generation))
-    },
-    canTrash: canTrashNote,
-    async trash(path) {
-      try {
-        await trashOne(path, requireGraphSession(graphSession).generation)
-        return { succeeded: [path], failed: [] }
-      } catch (cause) {
-        return { succeeded: [], failed: [{ path, cause }] }
-      }
-    },
-    async trashOne(path) {
-      await trashOne(path, requireGraphSession(graphSession).generation)
-    },
-    async trashMany(paths) {
-      const succeeded: string[] = []
-      const failed: NoteTrashFailure[] = []
-      if (paths.length === 0) {
-        return { succeeded, failed }
-      }
-      let session: GraphSession
-      try {
-        session = requireGraphSession(graphSession)
-      } catch (cause) {
-        operations.start('Trashing notes').fail(errorMessage(cause))
-        return { succeeded, failed: paths.map((path) => ({ path, cause })) }
-      }
-      const operation = operations.start('Trashing notes')
-      operation.progress(0, paths.length)
-      let attempted = 0
-      for (const path of paths) {
-        try {
-          await trashOne(path, session.generation)
-          succeeded.push(path)
-        } catch (cause) {
-          failed.push({ path, cause })
-        }
-        attempted += 1
-        operation.progress(attempted, paths.length)
-      }
-      const last = failed.at(-1)
-      if (last === undefined) {
-        operation.done()
-      } else {
-        operation.fail(errorMessage(last.cause))
-      }
-      return { succeeded, failed }
-    },
-    async deepLinkFor(path) {
-      return await deepLinkFor(path, requireGraphSession(graphSession))
-    },
-    async copyDeepLink(path) {
-      const session = graphSession.getState().session
-      if (session === null) {
-        return
-      }
-      let url: string
-      try {
-        url = await deepLinkFor(path, session)
-      } catch (cause) {
-        operations.start('Copying deep link').fail(errorMessage(cause))
-        return
-      }
-      try {
-        await clipboard.writeText(url)
-        operations.start('Deep link copied').done()
-      } catch (cause) {
-        operations.start('Copying deep link').fail(errorMessage(cause))
-      }
-    },
-    async copyPath(path) {
-      const session = graphSession.getState().session
-      if (session === null) {
-        operations.start('Copying note path').fail('No graph is open')
-        return
-      }
-      try {
-        const absolutePath = await pathService.join(session.root, path)
-        await clipboard.writeText(absolutePath)
-        operations.start('Note path copied').done()
-      } catch (cause) {
-        operations.start('Copying note path').fail(errorMessage(cause))
-      }
-    },
-  }
+export function createNoteActionsService(deps: NoteActionsServiceDeps): NoteActionsService {
+  return new NoteActionsServiceImpl(deps)
 }

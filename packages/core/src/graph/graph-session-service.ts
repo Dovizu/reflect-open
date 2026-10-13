@@ -28,10 +28,18 @@ import {
   type WindowBootstrap,
 } from './schemas.ts'
 
-/** Lifecycle of the active graph (Plan 02 loading gate). */
+/**
+
+ * Lifecycle of the active graph (Plan 02 loading gate).
+
+ */
 export type GraphStatus = 'loading' | 'choosing' | 'opening' | 'ready'
 
-/** Why the active graph's in-memory leftovers can go. */
+/**
+
+ * Why the active graph's in-memory leftovers can go.
+
+ */
 export type GraphReleaseReason = 'switch' | 'close'
 
 /**
@@ -47,7 +55,9 @@ export interface GraphSessionState<Services = unknown> {
    * independent in Rust. Null when the index failed to open.
    */
   readonly indexGeneration: number | null
-  /** True while the background index reconcile is running (Plan 06b). */
+  /**
+   * True while the background index reconcile is running (Plan 06b).
+   */
   readonly indexing: boolean
   readonly error: string | null
   readonly recents: RecentGraph[]
@@ -56,11 +66,17 @@ export interface GraphSessionState<Services = unknown> {
    * aborts when the graph closes or another open is requested.
    */
   readonly session: GraphSession | null
-  /** The graph-scoped services of `session`; null whenever `session` is null or ended. */
+  /**
+   * The graph-scoped services of `session`; null whenever `session` is null or ended.
+   */
   readonly services: Services | null
 }
 
-/** What the host does at fixed points of {@link GraphSessionService.boot}. */
+/**
+
+ * What the host does at fixed points of {@link GraphSessionService.boot}.
+
+ */
 export interface GraphBootHooks {
   /**
    * A note window read the main window's sessions. Runs before the adoption
@@ -87,20 +103,30 @@ export interface GraphSessionService<Services = unknown> {
    * {@link park}. The returned function stops the boot and the following.
    */
   boot: (hooks?: GraphBootHooks) => Unlisten
-  /** Refresh the recents list. `surfaceErrors` publishes a failed read as the error. */
+  /**
+   * Refresh the recents list. `surfaceErrors` publishes a failed read as the error.
+   */
   loadRecents: (options?: { surfaceErrors?: boolean }) => Promise<RecentGraph[]>
-  /** Open a graph by its root path. Resolves true only when it reached 'ready'. */
+  /**
+   * Open a graph by its root path. Resolves true only when it reached 'ready'.
+   */
   openRecent: (root: string) => Promise<boolean>
   /**
    * Create (and open) a graph at an app-chosen absolute path. Resolves true
    * only on a confirmed open.
    */
   createGraphAt: (root: string) => Promise<boolean>
-  /** Show the OS folder picker, then open (and bootstrap) the chosen graph. */
+  /**
+   * Show the OS folder picker, then open (and bootstrap) the chosen graph.
+   */
   pickAndOpen: () => Promise<void>
-  /** Close the active graph and show the graph chooser. */
+  /**
+   * Close the active graph and show the graph chooser.
+   */
   chooseGraph: () => Promise<void>
-  /** Drop a graph from the recents list. */
+  /**
+   * Drop a graph from the recents list.
+   */
   forgetRecent: (root: string) => Promise<void>
   /**
    * Move the open graph's directory to the OS trash (recoverable), drop it
@@ -113,7 +139,9 @@ export interface GraphSessionService<Services = unknown> {
    * is open and outside the main window.
    */
   refreshIndex: () => void
-  /** Stop at 'choosing' with `error`: the host's boot path could not open a graph. */
+  /**
+   * Stop at 'choosing' with `error`: the host's boot path could not open a graph.
+   */
   park: (error: string | null) => void
   /**
    * Listen for the point where the previous graph's in-memory leftovers can
@@ -121,7 +149,9 @@ export interface GraphSessionService<Services = unknown> {
    * `close` once the active graph's index closed.
    */
   onGraphReleased: (listener: (reason: GraphReleaseReason) => void) => Unlisten
-  /** Listen for a graph directory that went to the trash. */
+  /**
+   * Listen for a graph directory that went to the trash.
+   */
   onGraphDeleted: (listener: (root: string) => void) => Unlisten
 }
 
@@ -151,34 +181,19 @@ export interface GraphSessionServiceDeps<Services = unknown> {
   readonly createServices?: (session: GraphSession, role: GraphRole) => Services
 }
 
-/** Commands that return `()` from Rust serialize as `null` over IPC. */
+/**
+
+ * Commands that return `()` from Rust serialize as `null` over IPC.
+
+ */
 const voidSchema = z.null()
 
-export function createGraphSessionService<Services = unknown>(
-  deps: GraphSessionServiceDeps<Services>,
-): GraphSessionService<Services> {
-  const {
-    ipc,
-    indexLifecycle: index,
-    indexStore,
-    noteFile,
-    id,
-    fileChanges,
-    window: windowService,
-    dialog,
-    path,
-    platform,
-    lifecycle,
-    mobileStorage,
-    noteRows,
-    openDocuments,
-    noteMove,
-    icloudNative,
-    logger,
-    createServices,
-  } = deps
-
-  let state: GraphSessionState<Services> = {
+class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService<Services> {
+  readonly #deps: GraphSessionServiceDeps<Services>
+  readonly #listeners = new Set<() => void>()
+  readonly #releasedListeners = new Set<(reason: GraphReleaseReason) => void>()
+  readonly #deletedListeners = new Set<(root: string) => void>()
+  #state: GraphSessionState<Services> = {
     status: 'loading',
     graph: null,
     indexGeneration: null,
@@ -188,85 +203,112 @@ export function createGraphSessionService<Services = unknown>(
     session: null,
     services: null,
   }
-  const listeners = new Set<() => void>()
-  const releasedListeners = new Set<(reason: GraphReleaseReason) => void>()
-  const deletedListeners = new Set<(root: string) => void>()
-
   // Monotonic open token: only the most recent open may commit `graph`/`status`,
   // so overlapping opens (double-click, StrictMode remount) can't finish out of
   // order and leave us on a graph the user didn't pick last.
-  let openSeq = 0
+  #openSeq = 0
   // Serializes backend opens (see `openRecent`).
-  let openChain: Promise<unknown> = Promise.resolve()
+  #openChain: Promise<unknown> = Promise.resolve()
   // Aborts the published session's signal.
-  let sessionAbort: AbortController | null = null
+  #sessionAbort: AbortController | null = null
   // How many running boots follow the app lifecycle for mobile suspension.
-  let suspensionFollowers = 0
+  #suspensionFollowers = 0
 
-  function attach<Listener>(set: Set<Listener>, listener: Listener): Unlisten {
+  constructor(deps: GraphSessionServiceDeps<Services>) {
+    this.#deps = deps
+  }
+
+  readonly getState = (): GraphSessionState<Services> => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => this.#attach(this.#listeners, listener)
+
+  readonly onGraphReleased = (listener: (reason: GraphReleaseReason) => void): Unlisten =>
+    this.#attach(this.#releasedListeners, listener)
+
+  readonly onGraphDeleted = (listener: (root: string) => void): Unlisten =>
+    this.#attach(this.#deletedListeners, listener)
+
+  #attach<Listener>(set: Set<Listener>, listener: Listener): Unlisten {
     set.add(listener)
     return () => {
       set.delete(listener)
     }
   }
 
-  function isMobile(): boolean {
-    return isMobilePlatform(platform.appPlatform)
+  #isMobile(): boolean {
+    return isMobilePlatform(this.#deps.platform.appPlatform)
   }
 
-  function setState(patch: Partial<GraphSessionState<Services>>): void {
-    const next = { ...state, ...patch }
+  #setState(patch: Partial<GraphSessionState<Services>>): void {
+    const next = { ...this.#state, ...patch }
     const keys = Object.keys(next) as (keyof GraphSessionState<Services>)[]
-    if (keys.every((key) => next[key] === state[key])) {
+    if (keys.every((key) => next[key] === this.#state[key])) {
       return
     }
-    const indexGenerationChanged = next.indexGeneration !== state.indexGeneration
-    state = next
-    if (indexGenerationChanged && suspensionFollowers > 0 && lifecycle.isHidden()) {
-      index.suspend()
+    const indexGenerationChanged = next.indexGeneration !== this.#state.indexGeneration
+    this.#state = next
+    if (
+      indexGenerationChanged &&
+      this.#suspensionFollowers > 0 &&
+      this.#deps.lifecycle.isHidden()
+    ) {
+      this.#deps.indexLifecycle.suspend()
     }
-    for (const listener of listeners) {
+    for (const listener of this.#listeners) {
       listener()
     }
   }
 
-  /** Invalidate every open in flight and the published session. */
-  function supersede(): number {
-    openSeq += 1
-    sessionAbort?.abort()
-    sessionAbort = null
-    return openSeq
+  /**
+
+   * Invalidate every open in flight and the published session.
+
+   */
+  #supersede(): number {
+    this.#openSeq += 1
+    this.#sessionAbort?.abort()
+    this.#sessionAbort = null
+    return this.#openSeq
   }
 
-  /** The session object of an open graph. */
-  function sessionFor(graph: GraphInfo, indexGeneration: number | null): GraphSession {
+  /**
+
+   * The session object of an open graph.
+
+   */
+  #sessionFor(graph: GraphInfo, indexGeneration: number | null): GraphSession {
     const controller = new AbortController()
-    sessionAbort?.abort()
-    sessionAbort = controller
+    this.#sessionAbort?.abort()
+    this.#sessionAbort = controller
     return createGraphSession(
       { root: graph.root, name: graph.name, generation: graph.generation, indexGeneration },
       controller.signal,
     )
   }
 
-  /** Publish `graph` as ready, then the graph-scoped services of its session. */
-  function commitReady(
-    graph: GraphInfo,
-    indexGeneration: number | null,
-    role: GraphRole,
-  ): GraphSession {
-    const session = sessionFor(graph, indexGeneration)
-    setState({ graph, indexGeneration, status: 'ready', session, services: null })
+  /**
+
+   * Publish `graph` as ready, then the graph-scoped services of its session.
+
+   */
+  #commitReady(graph: GraphInfo, indexGeneration: number | null, role: GraphRole): GraphSession {
+    const session = this.#sessionFor(graph, indexGeneration)
+    this.#setState({ graph, indexGeneration, status: 'ready', session, services: null })
+    const { createServices } = this.#deps
     if (createServices !== undefined && !session.signal.aborted) {
-      setState({ services: createServices(session, role) })
+      this.#setState({ services: createServices(session, role) })
     }
     return session
   }
 
-  /** The prior graph's in-memory leftovers can go. */
-  function release(reason: GraphReleaseReason): void {
-    noteRows.reset()
-    for (const listener of releasedListeners) {
+  /**
+
+   * The prior graph's in-memory leftovers can go.
+
+   */
+  #release(reason: GraphReleaseReason): void {
+    this.#deps.noteRows.reset()
+    for (const listener of this.#releasedListeners) {
       listener(reason)
     }
   }
@@ -276,11 +318,11 @@ export function createGraphSessionService<Services = unknown>(
    * switching, or deleting a graph re-roots the shared Rust `GraphState` under
    * every window at once.
    */
-  function requireMainWindow(action: string): boolean {
-    if (windowService.isMainWindow()) {
+  #requireMainWindow(action: string): boolean {
+    if (this.#deps.window.isMainWindow()) {
       return true
     }
-    logger.warn(`${action} is only available from the main window`)
+    this.#deps.logger.warn(`${action} is only available from the main window`)
     return false
   }
 
@@ -290,17 +332,17 @@ export function createGraphSessionService<Services = unknown>(
    * generations: each child's close-requested flush lands against the
    * still-valid session. A no-op on mobile, where secondary windows don't exist.
    */
-  async function closeSecondaryWindows(): Promise<void> {
-    if (isMobile()) {
+  async #closeSecondaryWindows(): Promise<void> {
+    if (this.#isMobile()) {
       return
     }
-    await windowService.closeSecondaryWindows()
+    await this.#deps.window.closeSecondaryWindows()
   }
 
-  async function loadRecents(options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> {
+  readonly loadRecents = async (options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> => {
     try {
-      const list = await ipc.call('recent_graphs', {}, z.array(recentGraphSchema))
-      setState({ recents: list })
+      const list = await this.#deps.ipc.call('recent_graphs', {}, z.array(recentGraphSchema))
+      this.#setState({ recents: list })
       return list
     } catch (err) {
       // Surface a real failure (e.g. a corrupt recent-graphs.json, which Rust
@@ -308,45 +350,45 @@ export function createGraphSessionService<Services = unknown>(
       // primary load. As a post-open refresh it must not clobber an open error
       // or set one on a screen (the workspace) that never shows it.
       if (options?.surfaceErrors) {
-        setState({ error: errorMessage(err) })
+        this.#setState({ error: errorMessage(err) })
       }
       return []
     }
   }
 
-  function openRecent(root: string): Promise<boolean> {
-    if (!requireMainWindow('opening a graph')) {
+  readonly openRecent = (root: string): Promise<boolean> => {
+    if (!this.#requireMainWindow('opening a graph')) {
       return Promise.resolve(false)
     }
-    const seq = supersede()
-    setState({ status: 'opening', error: null, services: null })
+    const seq = this.#supersede()
+    this.#setState({ status: 'opening', error: null, services: null })
     // Resolves true only when this open actually reached 'ready': callers
     // (mobile onboarding) gate side effects like persisting the onboarded
     // flag on a confirmed open, never on a clone that failed to open.
     const run = async (): Promise<boolean> => {
       let opened = false
       try {
-        await closeSecondaryWindows() // before graph_open bumps the session
-        const info = await ipc.call('graph_open', { path: root }, graphInfoSchema)
-        if (seq !== openSeq) {
+        await this.#closeSecondaryWindows() // before graph_open bumps the session
+        const info = await this.#deps.ipc.call('graph_open', { path: root }, graphInfoSchema)
+        if (seq !== this.#openSeq) {
           return false // superseded by a newer open
         }
         // Stop any prior reconcile and wait for it to fully settle before the
         // Rust index connection is swapped, so a stale pass can't write into
         // this graph's index.
-        await index.stop()
+        await this.#deps.indexLifecycle.stop()
         // Listeners reclaim what they hold for the prior graph. It is already
         // invisible here (scoped by generation / graph root), so this is
         // memory hygiene, not correctness.
-        release('switch')
+        this.#release('switch')
         // Open the index *before* 'ready' so reads can't hit the previous
         // graph's index. Best-effort: an index failure doesn't block editing.
-        const generation = await index.open()
-        if (seq !== openSeq) {
+        const generation = await this.#deps.indexLifecycle.open()
+        if (seq !== this.#openSeq) {
           return false
         }
         // Transition to 'ready' immediately: the user can start editing.
-        const session = commitReady(info, generation, 'main')
+        const session = this.#commitReady(info, generation, 'main')
         opened = true
         // Onboarding, considered exactly once per graph (the `welcomeSeeded`
         // meta marker): an empty graph gets the pinned "How to use Reflect"
@@ -359,31 +401,35 @@ export function createGraphSessionService<Services = unknown>(
         // Best-effort: a failed seed must never block opening.
         if (generation !== null) {
           ensureWelcomeNote(
-            { indexStore, noteFile, id },
+            {
+              indexStore: this.#deps.indexStore,
+              noteFile: this.#deps.noteFile,
+              id: this.#deps.id,
+            },
             { fileGeneration: info.generation, indexGeneration: generation },
           )
             .catch((err: unknown) => {
-              logger.error('welcome seed failed:', errorMessage(err))
+              this.#deps.logger.error('welcome seed failed:', errorMessage(err))
             })
             .finally(() => {
               if (!session.signal.aborted) {
                 // Background-sync the index (reconcile → subscribe → watch),
                 // bailing if a newer open supersedes this one.
-                index.sync(session)
+                this.#deps.indexLifecycle.sync(session)
               }
             })
         } else {
           // No index: tear down any live lifecycle left from the prior graph.
-          void index.close()
+          void this.#deps.indexLifecycle.close()
         }
       } catch (err) {
-        if (seq !== openSeq) {
+        if (seq !== this.#openSeq) {
           return false
         }
-        setState({ error: errorMessage(err), status: 'choosing' })
+        this.#setState({ error: errorMessage(err), status: 'choosing' })
       }
-      if (seq === openSeq) {
-        await loadRecents()
+      if (seq === this.#openSeq) {
+        await this.loadRecents()
       }
       return opened
     }
@@ -392,25 +438,25 @@ export function createGraphSessionService<Services = unknown>(
     // the backend on a different graph than the UI. Serialize them: running
     // one-at-a-time in request order makes the last-requested open the last to
     // touch GraphState, matching the `openSeq`-pinned UI.
-    const next = openChain.then(run, run)
-    openChain = next
+    const next = this.#openChain.then(run, run)
+    this.#openChain = next
     return next
   }
 
-  async function createGraphAt(root: string): Promise<boolean> {
+  readonly createGraphAt = async (root: string): Promise<boolean> => {
     // Guarded BEFORE the create: graph_create activates the shared Rust
     // session, so off-main it would re-root every window even though the
     // openRecent below refuses.
-    if (!requireMainWindow('creating a graph')) {
+    if (!this.#requireMainWindow('creating a graph')) {
       return false
     }
     try {
-      await mobileStorage.createGraph(root)
+      await this.#deps.mobileStorage.createGraph(root)
     } catch (err) {
-      setState({ error: errorMessage(err) })
+      this.#setState({ error: errorMessage(err) })
       return false
     }
-    return await openRecent(root)
+    return await this.openRecent(root)
   }
 
   /**
@@ -422,39 +468,39 @@ export function createGraphSessionService<Services = unknown>(
    * a resolution failure (or a signed-out account's missing folder, which the
    * open panel falls back from on its own) must never block picking.
    */
-  async function pickerDefaultPath(hasRecents: boolean): Promise<{ defaultPath: string } | null> {
-    if (hasRecents || !platform.isMacosDesktop) {
+  async #pickerDefaultPath(hasRecents: boolean): Promise<{ defaultPath: string } | null> {
+    if (hasRecents || !this.#deps.platform.isMacosDesktop) {
       return null
     }
     try {
-      return { defaultPath: await path.icloudDriveRoot() }
+      return { defaultPath: await this.#deps.path.icloudDriveRoot() }
     } catch (err) {
-      logger.warn('iCloud Drive picker suggestion failed:', errorMessage(err))
+      this.#deps.logger.warn('iCloud Drive picker suggestion failed:', errorMessage(err))
       return null
     }
   }
 
-  async function pickAndOpen(): Promise<void> {
+  readonly pickAndOpen = async (): Promise<void> => {
     let selected: string | null = null
     try {
-      selected = await dialog.pickFolder({
+      selected = await this.#deps.dialog.pickFolder({
         title: 'Choose a graph folder',
-        ...(await pickerDefaultPath(state.recents.length > 0)),
+        ...(await this.#pickerDefaultPath(this.#state.recents.length > 0)),
       })
     } catch (err) {
-      setState({ error: errorMessage(err) })
+      this.#setState({ error: errorMessage(err) })
       return
     }
     if (selected) {
-      await openRecent(selected)
+      await this.openRecent(selected)
     }
   }
 
-  async function closeActiveGraph(): Promise<void> {
-    supersede()
-    await index.close()
-    release('close')
-    setState({
+  async #closeActiveGraph(): Promise<void> {
+    this.#supersede()
+    await this.#deps.indexLifecycle.close()
+    this.#release('close')
+    this.#setState({
       graph: null,
       indexGeneration: null,
       indexing: false,
@@ -465,36 +511,36 @@ export function createGraphSessionService<Services = unknown>(
     })
   }
 
-  async function chooseGraph(): Promise<void> {
-    if (!requireMainWindow('switching graphs')) {
+  readonly chooseGraph = async (): Promise<void> => {
+    if (!this.#requireMainWindow('switching graphs')) {
       return
     }
-    await closeSecondaryWindows() // the session they adopted is ending
-    await closeActiveGraph()
-    await loadRecents({ surfaceErrors: true })
+    await this.#closeSecondaryWindows() // the session they adopted is ending
+    await this.#closeActiveGraph()
+    await this.loadRecents({ surfaceErrors: true })
   }
 
-  async function forgetRecent(root: string): Promise<void> {
-    const { graph } = state
+  readonly forgetRecent = async (root: string): Promise<void> => {
+    const { graph } = this.#state
     try {
-      await ipc.call('forget_recent', { root }, voidSchema)
-      await loadRecents()
+      await this.#deps.ipc.call('forget_recent', { root }, voidSchema)
+      await this.loadRecents()
       if (graph?.root === root) {
         // Forgetting the ACTIVE graph ends the session its note windows
         // adopted: same close-first rule as switch/delete.
-        await closeSecondaryWindows()
-        await closeActiveGraph()
+        await this.#closeSecondaryWindows()
+        await this.#closeActiveGraph()
       }
     } catch {
       // best-effort
     }
   }
 
-  async function deleteGraph(): Promise<void> {
-    if (!windowService.isMainWindow()) {
+  readonly deleteGraph = async (): Promise<void> => {
+    if (!this.#deps.window.isMainWindow()) {
       throw new Error('Deleting a graph is only available from the main window.')
     }
-    const { graph } = state
+    const { graph } = this.#state
     if (graph === null) {
       return
     }
@@ -502,150 +548,152 @@ export function createGraphSessionService<Services = unknown>(
     // A newer open while the delete is in flight supersedes it (the Rust
     // side already refuses the stale generation): never tear down or
     // re-open the graph the user switched to.
-    const seq = openSeq
+    const seq = this.#openSeq
     try {
-      await closeSecondaryWindows() // before the delete invalidates the session
+      await this.#closeSecondaryWindows() // before the delete invalidates the session
       // Pinned to `generation` so a delete can never race a graph switch and
       // trash the newly opened graph.
-      await ipc.call('graph_delete', { generation }, voidSchema)
+      await this.#deps.ipc.call('graph_delete', { generation }, voidSchema)
     } catch (err) {
       // The command invalidates the Rust session before touching the
       // filesystem, so a failed trash leaves the directory intact but the
       // session pin dead: re-open the graph to restore a writable session,
       // then let the caller surface the error.
-      if (seq === openSeq) {
-        await openRecent(root)
+      if (seq === this.#openSeq) {
+        await this.openRecent(root)
       }
       throw err
     }
-    for (const listener of deletedListeners) {
+    for (const listener of this.#deletedListeners) {
       listener(root)
     }
-    if (seq === openSeq) {
-      await closeActiveGraph()
+    if (seq === this.#openSeq) {
+      await this.#closeActiveGraph()
     }
-    await loadRecents()
+    await this.loadRecents()
   }
 
-  function refreshIndex(): void {
-    const { session } = state
+  readonly refreshIndex = (): void => {
+    const { session } = this.#state
     // Off-main, a refresh would start a second concurrent index writer.
-    if (session === null || session.indexGeneration === null || !windowService.isMainWindow()) {
+    if (session === null || session.indexGeneration === null || !this.#deps.window.isMainWindow()) {
       return
     }
     // The index lifecycle coalesces stacked triggers (resume + poll-end +
     // watch-failed can fire together) into a single queued rerun.
-    index.refresh(session)
+    this.#deps.indexLifecycle.refresh(session)
   }
 
-  function park(error: string | null): void {
-    setState({ error, status: 'choosing' })
+  readonly park = (error: string | null): void => {
+    this.#setState({ error, status: 'choosing' })
   }
 
   /**
    * Mobile main window: keep index writes off while the app is hidden, and
    * recover what was missed on the way back.
    */
-  function followSuspension(): Unlisten {
-    if (!isMobile() || !windowService.isMainWindow()) {
+  #followSuspension(): Unlisten {
+    if (!this.#isMobile() || !this.#deps.window.isMainWindow()) {
       return () => {}
     }
-    suspensionFollowers += 1
-    if (lifecycle.isHidden()) {
-      index.suspend()
+    this.#suspensionFollowers += 1
+    if (this.#deps.lifecycle.isHidden()) {
+      this.#deps.indexLifecycle.suspend()
     }
     // Synchronous teardown prevents a locally emitted or metadata-watcher
     // batch from entering the index queue after iOS begins suspension.
-    const stopHidden = lifecycle.subscribeHidden(() => {
-      index.suspend()
+    const stopHidden = this.#deps.lifecycle.subscribeHidden(() => {
+      this.#deps.indexLifecycle.suspend()
     })
-    const stopVisible = lifecycle.subscribeVisible(() => {
+    const stopVisible = this.#deps.lifecycle.subscribeVisible(() => {
       // A null session still clears suspension: mobile can foreground
       // before onboarding/open has produced an index session. With a session,
       // the full pass recovers every event missed while hidden; stacked
       // resume/iCloud triggers fold into the lifecycle's queued rerun.
-      index.resume(state.session)
+      this.#deps.indexLifecycle.resume(this.#state.session)
     })
     return () => {
-      suspensionFollowers -= 1
+      this.#suspensionFollowers -= 1
       stopHidden()
       stopVisible()
     }
   }
 
-  function boot(hooks?: GraphBootHooks): Unlisten {
+  readonly boot = (hooks?: GraphBootHooks): Unlisten => {
     let active = true
     // The lifecycle events perform the active teardown; this dynamic guard
     // also closes the launch race where the first sync is scheduled after iOS
     // has already hidden the webview.
-    index.setSuspendGuard(() => isMobile() && lifecycle.isHidden())
+    this.#deps.indexLifecycle.setSuspendGuard(
+      () => this.#isMobile() && this.#deps.lifecycle.isHidden(),
+    )
     const unlisteners = [
-      index.onProgress((progress) => {
-        setState({ indexing: progress === 'reconciling' })
+      this.#deps.indexLifecycle.onProgress((progress) => {
+        this.#setState({ indexing: progress === 'reconciling' })
       }),
-      followSuspension(),
+      this.#followSuspension(),
       // A structural vault change (folder created, renamed, or removed) cannot
       // be expressed as per-file events; the watcher asks for one full
       // reconcile instead, and `refresh` coalesces bursts into a single queued
       // rerun.
-      fileChanges.subscribeReconcile(() => {
-        refreshIndex()
+      this.#deps.fileChanges.subscribeReconcile(() => {
+        this.refreshIndex()
       }),
       // A completed reconcile read changed files into the index without
       // per-file events; open sessions re-read so the visible note converges
       // with the index (unchanged files are no-op reads).
-      index.onReconciled((event) => {
+      this.#deps.indexLifecycle.onReconciled((event) => {
         if (event.source === 'sync') {
-          openDocuments.reloadAll()
+          this.#deps.openDocuments.reloadAll()
         }
       }),
       // External renames healed by id follow through to sessions and routes,
       // exactly as for an in-app rename (Plan 17).
-      index.onMoved((from, to) => {
-        noteMove.followHealedMove(from, to)
+      this.#deps.indexLifecycle.onMoved((from, to) => {
+        this.#deps.noteMove.followHealedMove(from, to)
       }),
       // iCloud-evicted notes whose content the index lacks: request exactly
       // those downloads; the materialized files index via ordinary watcher
       // upserts. Rust resolves against the active root itself.
-      index.onStalePlaceholders((paths) => {
-        icloudNative.requestDownloads(paths).catch((err: unknown) => {
-          logger.error('iCloud download request failed:', errorMessage(err))
+      this.#deps.indexLifecycle.onStalePlaceholders((paths) => {
+        this.#deps.icloudNative.requestDownloads(paths).catch((err: unknown) => {
+          this.#deps.logger.error('iCloud download request failed:', errorMessage(err))
         })
       }),
     ]
 
-    if (!isMobile() && windowService.isMainWindow()) {
+    if (!this.#isMobile() && this.#deps.window.isMainWindow()) {
       // Desktop main window: reopen the most recent graph so the app resumes
       // where the user left off, or park on the chooser.
       void (async () => {
-        const list = await loadRecents({ surfaceErrors: true })
+        const list = await this.loadRecents({ surfaceErrors: true })
         if (!active) {
           return
         }
         if (list.length > 0) {
-          await openRecent(list[0]!.root)
+          await this.openRecent(list[0]!.root)
         } else {
-          setState({ status: 'choosing' })
+          this.#setState({ status: 'choosing' })
         }
       })()
-    } else if (!isMobile()) {
+    } else if (!this.#isMobile()) {
       // A secondary note window ADOPTS the main window's open session, never
       // `graph_open`/`index_open`, whose generation bumps would strand every
       // command the main window has pinned, and runs no index lifecycle of
       // its own.
       void (async () => {
         try {
-          const adopted = await windowService.bootstrap()
+          const adopted = await this.#deps.window.bootstrap()
           hooks?.onWindowBootstrap?.(adopted)
           if (!active) {
             return
           }
-          commitReady(adopted.graph, adopted.indexGeneration, 'note-window')
+          this.#commitReady(adopted.graph, adopted.indexGeneration, 'note-window')
         } catch (err) {
           if (active) {
             // Off-main, 'choosing' renders as an error screen, never the
             // chooser: choosing here would re-root every other window.
-            setState({ error: errorMessage(err), status: 'choosing' })
+            this.#setState({ error: errorMessage(err), status: 'choosing' })
           }
         }
       })()
@@ -656,24 +704,13 @@ export function createGraphSessionService<Services = unknown>(
       for (const unlisten of unlisteners) {
         unlisten()
       }
-      index.setSuspendGuard(null)
+      this.#deps.indexLifecycle.setSuspendGuard(null)
     }
   }
+}
 
-  return {
-    getState: () => state,
-    subscribe: (listener) => attach(listeners, listener),
-    boot,
-    loadRecents,
-    openRecent,
-    createGraphAt,
-    pickAndOpen,
-    chooseGraph,
-    forgetRecent,
-    deleteGraph,
-    refreshIndex,
-    park,
-    onGraphReleased: (listener) => attach(releasedListeners, listener),
-    onGraphDeleted: (listener) => attach(deletedListeners, listener),
-  }
+export function createGraphSessionService<Services = unknown>(
+  deps: GraphSessionServiceDeps<Services>,
+): GraphSessionService<Services> {
+  return new GraphSessionServiceImpl(deps)
 }

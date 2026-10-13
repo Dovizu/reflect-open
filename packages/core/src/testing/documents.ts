@@ -5,7 +5,11 @@ import {
   type NoteMoveService,
   type NoteMoveServiceDeps,
 } from '../documents/note-move-service.ts'
-import { frontmatterPatchToYaml, type NoteSession } from '../documents/note-session.ts'
+import {
+  frontmatterPatchToYaml,
+  type FrontmatterPatch,
+  type NoteSession,
+} from '../documents/note-session.ts'
 import { appendBlock } from '../markdown/append-section.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { createTestLoggerService } from './logger.ts'
@@ -58,97 +62,131 @@ export interface TestNoteSession extends NoteSession {
   getCalls(method: keyof NoteSession): ReadonlyArray<readonly unknown[]>
 }
 
+class TestNoteSessionImpl implements TestNoteSession {
+  readonly #loaded: boolean
+  readonly #accepts: boolean
+  readonly #options: TestNoteSessionOptions
+  readonly #callLog: NoteSessionCall[] = []
+  #content: string
+  path: string
+
+  constructor(options: TestNoteSessionOptions) {
+    this.#options = options
+    this.#content = options.content ?? ''
+    this.#loaded = options.loaded ?? true
+    this.#accepts = options.accepts ?? true
+    this.path = options.path
+  }
+
+  readonly retarget = (to: string): void => {
+    this.#record('retarget', to)
+    this.path = to
+  }
+
+  readonly load = (): void => {
+    this.#record('load')
+  }
+
+  readonly editorChanged = (markdown: string): void => {
+    this.#record('editorChanged', markdown)
+  }
+
+  readonly externalChanged = (): void => {
+    this.#record('externalChanged')
+  }
+
+  readonly flush = async (): Promise<void> => {
+    this.#record('flush')
+  }
+
+  readonly keepMine = (): void => {
+    this.#record('keepMine')
+  }
+
+  readonly loadTheirs = (): void => {
+    this.#record('loadTheirs')
+  }
+
+  readonly content = (): string => this.#content
+
+  readonly liveContent = (): string | null => (this.#loaded ? this.#content : null)
+
+  readonly isDirty = (): boolean => this.#options.dirty ?? false
+
+  readonly isUnpersisted = (): boolean => this.#options.unpersisted ?? false
+
+  readonly prepareDelete = async (): Promise<boolean> => {
+    this.#record('prepareDelete')
+    return this.#options.unpersisted ?? false
+  }
+
+  readonly cancelDelete = (): void => {
+    this.#record('cancelDelete')
+  }
+
+  readonly updateFrontmatter = (patch: FrontmatterPatch): boolean => {
+    this.#record('updateFrontmatter', patch)
+    if (!this.#accepts) {
+      return false
+    }
+    this.#content = upsertFrontmatter(this.#content, frontmatterPatchToYaml(patch))
+    return true
+  }
+
+  readonly commitFrontmatter = async (patch: FrontmatterPatch): Promise<boolean> => {
+    this.#record('commitFrontmatter', patch)
+    if (!this.#accepts) {
+      return false
+    }
+    this.#content = upsertFrontmatter(this.#content, frontmatterPatchToYaml(patch))
+    return true
+  }
+
+  readonly commitBodyAppend = async (block: string): Promise<boolean> => {
+    this.#record('commitBodyAppend', block)
+    if (!this.#accepts || block.trim() === '') {
+      return false
+    }
+    this.#content = appendBlock(this.#content, block)
+    return true
+  }
+
+  readonly commitSourceEdit = async (transform: (source: string) => string): Promise<boolean> => {
+    this.#record('commitSourceEdit', transform)
+    if (!this.#accepts) {
+      return false
+    }
+    this.#content = transform(this.#content)
+    return true
+  }
+
+  readonly dispose = (): void => {
+    this.#record('dispose')
+  }
+
+  readonly discard = (): void => {
+    this.#record('discard')
+  }
+
+  calls(): readonly NoteSessionCall[] {
+    return [...this.#callLog]
+  }
+
+  getCalls(method: keyof NoteSession): ReadonlyArray<readonly unknown[]> {
+    return this.#callLog.filter((call) => call.method === method).map((call) => call.args)
+  }
+
+  #record(method: keyof NoteSession, ...args: unknown[]): void {
+    this.#callLog.push({ method, args })
+  }
+}
+
 /**
  * An in-memory {@link NoteSession} with no file behind it: the commit channels
  * edit `content` at once, and nothing loads, saves or reconciles.
  */
 export function createTestNoteSession(options: TestNoteSessionOptions): TestNoteSession {
-  let content = options.content ?? ''
-  const loaded = options.loaded ?? true
-  const accepts = options.accepts ?? true
-  const callLog: NoteSessionCall[] = []
-
-  const record = (method: keyof NoteSession, ...args: unknown[]): void => {
-    callLog.push({ method, args })
-  }
-
-  const session: { path: string } & Omit<TestNoteSession, 'path'> = {
-    path: options.path,
-    retarget: (to) => {
-      record('retarget', to)
-      session.path = to
-    },
-    load: () => {
-      record('load')
-    },
-    editorChanged: (markdown) => {
-      record('editorChanged', markdown)
-    },
-    externalChanged: () => {
-      record('externalChanged')
-    },
-    flush: async () => {
-      record('flush')
-    },
-    keepMine: () => {
-      record('keepMine')
-    },
-    loadTheirs: () => {
-      record('loadTheirs')
-    },
-    content: () => content,
-    liveContent: () => (loaded ? content : null),
-    isDirty: () => options.dirty ?? false,
-    isUnpersisted: () => options.unpersisted ?? false,
-    prepareDelete: async () => {
-      record('prepareDelete')
-      return options.unpersisted ?? false
-    },
-    cancelDelete: () => {
-      record('cancelDelete')
-    },
-    updateFrontmatter: (patch) => {
-      record('updateFrontmatter', patch)
-      if (!accepts) {
-        return false
-      }
-      content = upsertFrontmatter(content, frontmatterPatchToYaml(patch))
-      return true
-    },
-    commitFrontmatter: async (patch) => {
-      record('commitFrontmatter', patch)
-      if (!accepts) {
-        return false
-      }
-      content = upsertFrontmatter(content, frontmatterPatchToYaml(patch))
-      return true
-    },
-    commitBodyAppend: async (block) => {
-      record('commitBodyAppend', block)
-      if (!accepts || block.trim() === '') {
-        return false
-      }
-      content = appendBlock(content, block)
-      return true
-    },
-    commitSourceEdit: async (transform) => {
-      record('commitSourceEdit', transform)
-      if (!accepts) {
-        return false
-      }
-      content = transform(content)
-      return true
-    },
-    dispose: () => {
-      record('dispose')
-    },
-    discard: () => {
-      record('discard')
-    },
-    calls: () => [...callLog],
-    getCalls: (method) => callLog.filter((call) => call.method === method).map((call) => call.args),
-  }
-  return session
+  return new TestNoteSessionImpl(options)
 }
 
 export interface TestNoteMoveService extends NoteMoveService {

@@ -11,16 +11,28 @@ import { slugForTitle } from '../markdown/slug.ts'
 import type { NoteMoveService } from './note-move-service.ts'
 import type { OpenDocumentsService } from './open-documents-service.ts'
 
-/** The editor a template is inserted into: the part of the editor handle that the insert needs. */
+/**
+
+ * The editor a template is inserted into: the part of the editor handle that the insert needs.
+
+ */
 export interface TemplateInsertTarget {
-  /** Insert markdown at the cursor. */
+  /**
+   * Insert markdown at the cursor.
+   */
   insertMarkdown(markdown: string): void
   focus(): void
 }
 
-/** One template row of the editor's `/` menu. */
+/**
+
+ * One template row of the editor's `/` menu.
+
+ */
 export interface TemplateSlashItem {
-  /** The template's graph-relative path. */
+  /**
+   * The template's graph-relative path.
+   */
   id: string
   label: string
   keywords: string[]
@@ -80,44 +92,82 @@ export interface TemplateService {
 }
 
 export interface TemplateServiceDeps {
-  noteFile: Pick<NoteFileService, 'read' | 'write'>
-  indexQuery: Pick<IndexQueryService, 'listTemplates'>
-  notePath: Pick<NotePathService, 'availableTemplatePath' | 'templateSlugPathForTitle'>
-  noteMove: Pick<NoteMoveService, 'moveNote'>
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  operations: Pick<OperationsService, 'start'>
-  graphSession: GraphSessionSource
+  readonly noteFile: Pick<NoteFileService, 'read' | 'write'>
+  readonly indexQuery: Pick<IndexQueryService, 'listTemplates'>
+  readonly notePath: Pick<NotePathService, 'availableTemplatePath' | 'templateSlugPathForTitle'>
+  readonly noteMove: Pick<NoteMoveService, 'moveNote'>
+  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly graphSession: GraphSessionSource
 }
 
-export function createTemplateService(deps: TemplateServiceDeps): TemplateService {
-  const { noteFile, indexQuery, notePath, noteMove, openDocuments, operations, graphSession } = deps
+class TemplateServiceImpl implements TemplateService {
+  readonly #deps: TemplateServiceDeps
 
-  const templateBody = async (path: string): Promise<string> => {
-    return splitFrontmatter(await noteFile.read(path)).body
+  constructor(deps: TemplateServiceDeps) {
+    this.#deps = deps
   }
 
-  const insertTemplate = async (
-    path: string,
-    editor: TemplateInsertTarget | null,
-  ): Promise<void> => {
+  async templateBody(path: string): Promise<string> {
+    return splitFrontmatter(await this.#deps.noteFile.read(path)).body
+  }
+
+  async insertTemplate(path: string, editor: TemplateInsertTarget | null): Promise<void> {
+    const { operations } = this.#deps
     if (editor === null) {
       operations.start('Inserting template').fail('No open note to insert into')
       return
     }
     try {
-      editor.insertMarkdown(await templateBody(path))
+      editor.insertMarkdown(await this.templateBody(path))
       editor.focus()
     } catch (cause) {
       operations.start('Inserting template').fail(errorMessage(cause))
     }
   }
 
-  /** Rewrite the file's authored title to `title`, if it authors one. */
-  const retitleTemplate = async (
-    path: string,
-    title: string,
-    generation: number,
-  ): Promise<void> => {
+  async slashItems(getEditor: () => TemplateInsertTarget | null): Promise<TemplateSlashItem[]> {
+    const templates = await this.#deps.indexQuery.listTemplates()
+    return templates.map((template) => ({
+      id: template.path,
+      label: displayNoteTitle(template.title),
+      // v1 parity: typing `/template` lists every template, whatever its name.
+      keywords: ['template'],
+      onSelect: () => {
+        void this.insertTemplate(template.path, getEditor())
+      },
+    }))
+  }
+
+  async createTemplate(name: string): Promise<string> {
+    const { noteFile, notePath, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    const title = name.trim()
+    const path = await notePath.availableTemplatePath(slugForTitle(title))
+    await noteFile.write(path, upsertFrontmatter('', { title }), generation)
+    return path
+  }
+
+  async renameTemplate(path: string, name: string): Promise<string> {
+    const { notePath, noteMove, openDocuments, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    const title = name.trim()
+    // Flush first so the retitle below edits settled bytes; the move flushes on
+    // its own, but a same-slug rename skips the move entirely.
+    await openDocuments.sessionFor(path)?.flush()
+    const target = await notePath.templateSlugPathForTitle(path, title)
+    if (target !== path) {
+      await noteMove.moveNote(path, target, generation)
+    }
+    await this.#retitleTemplate(target, title, generation)
+    return target
+  }
+
+  /**
+   * Rewrite the file's authored title to `title`, if it authors one.
+   */
+  async #retitleTemplate(path: string, title: string, generation: number): Promise<void> {
+    const { noteFile } = this.#deps
     const source = await noteFile.read(path)
     const parsed = parseNote({ path, source })
     const h1 = parsed.headings.find((heading) => heading.level === 1 && heading.text)
@@ -137,44 +187,8 @@ export function createTemplateService(deps: TemplateServiceDeps): TemplateServic
       await noteFile.write(path, upsertFrontmatter(source, { title }), generation)
     }
   }
+}
 
-  return {
-    templateBody,
-    insertTemplate,
-
-    async slashItems(getEditor) {
-      const templates = await indexQuery.listTemplates()
-      return templates.map((template) => ({
-        id: template.path,
-        label: displayNoteTitle(template.title),
-        // v1 parity: typing `/template` lists every template, whatever its name.
-        keywords: ['template'],
-        onSelect: () => {
-          void insertTemplate(template.path, getEditor())
-        },
-      }))
-    },
-
-    async createTemplate(name) {
-      const { generation } = requireGraphSession(graphSession)
-      const title = name.trim()
-      const path = await notePath.availableTemplatePath(slugForTitle(title))
-      await noteFile.write(path, upsertFrontmatter('', { title }), generation)
-      return path
-    },
-
-    async renameTemplate(path, name) {
-      const { generation } = requireGraphSession(graphSession)
-      const title = name.trim()
-      // Flush first so the retitle below edits settled bytes; the move flushes on
-      // its own, but a same-slug rename skips the move entirely.
-      await openDocuments.sessionFor(path)?.flush()
-      const target = await notePath.templateSlugPathForTitle(path, title)
-      if (target !== path) {
-        await noteMove.moveNote(path, target, generation)
-      }
-      await retitleTemplate(target, title, generation)
-      return target
-    },
-  }
+export function createTemplateService(deps: TemplateServiceDeps): TemplateService {
+  return new TemplateServiceImpl(deps)
 }
