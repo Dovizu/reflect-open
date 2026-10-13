@@ -106,6 +106,20 @@ export interface IpcBridgeService {
   readonly hasBinaryTransport: boolean
 }
 
+
+// FIXME: for all new functions / interfaces etc.added in this pull request.use the following pattern for jsdoc.
+//
+// BAD:
+// /** True when the transport can carry raw binary bodies. */
+// readonly hasBinaryTransport: boolean
+//
+// GOOD:
+// /**
+//  * True when the transport can carry raw binary bodies.
+//  */
+// readonly hasBinaryTransport: boolean
+//
+
 interface SharedListener<Payload> {
   ready: Promise<void>
   fanOut: FanOut<Payload>
