@@ -17,8 +17,14 @@ import {
 } from '../testing/index.ts'
 import { createAttachmentService } from './attachment-service.ts'
 import { createNoteDocumentService } from './note-document-service.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createNotePreviewService, type NotePreviewServiceDeps } from './note-preview-service.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
+
+/** A test graph session with a graph of generation 7 open. */
+function openGraph() {
+  return createTestGraphSessionService({ graph: { generation: 7 } })
+}
 
 function previewAssetUrl(generation: number, path: string): string {
   return `reflect-asset://localhost/${encodeURIComponent(`${generation}/${path}`)}?reflect-preview=raster`
@@ -38,6 +44,7 @@ function notePreviewOver(
         noteFile,
       }),
     attachments: options?.attachments ?? createTestAttachmentService(),
+    graphSession: options?.graphSession ?? openGraph(),
   })
 }
 
@@ -58,6 +65,7 @@ function attachmentsOver(listing: () => Promise<readonly { path: string; size: n
     operations: createTestOperationsService(clock),
     clock,
     platform: createTestPlatformService(),
+    graphSession: openGraph(),
   })
 }
 
@@ -69,7 +77,7 @@ describe('previewWikiTarget', () => {
     const noteLinkResolver = createTestNoteLinkResolverService({ noteFile })
     const notePreview = notePreviewOver({ noteFile, noteLinkResolver })
 
-    const preview = await notePreview.previewWikiTarget('Alpha', 7)
+    const preview = await notePreview.previewWikiTarget('Alpha')
 
     expect(preview).toMatchObject({ path: 'notes/alpha.md', markdown: '# Alpha\n\nBody' })
     expect(noteLinkResolver.calls()).toMatchObject([
@@ -90,7 +98,7 @@ describe('previewWikiTarget', () => {
       noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     })
 
-    await expect(notePreview.previewWikiTarget('Alpha', 7)).resolves.toMatchObject({
+    await expect(notePreview.previewWikiTarget('Alpha')).resolves.toMatchObject({
       markdown: '# Alpha\n\nLive',
     })
   })
@@ -112,7 +120,7 @@ describe('previewWikiTarget', () => {
           },
         },
       })
-      await expect(notePreview.previewWikiTarget('Target', 7)).resolves.toBeNull()
+      await expect(notePreview.previewWikiTarget('Target')).resolves.toBeNull()
     }
     expect(reads).toBe(0)
   })
@@ -125,7 +133,7 @@ describe('previewWikiTarget', () => {
         },
       },
     })
-    await expect(failingResolution.previewWikiTarget('Alpha', 7)).resolves.toBeNull()
+    await expect(failingResolution.previewWikiTarget('Alpha')).resolves.toBeNull()
 
     const failingRead = notePreviewOver({
       noteLinkResolver: {
@@ -137,7 +145,7 @@ describe('previewWikiTarget', () => {
         },
       },
     })
-    await expect(failingRead.previewWikiTarget('Alpha', 7)).resolves.toBeNull()
+    await expect(failingRead.previewWikiTarget('Alpha')).resolves.toBeNull()
   })
 
   it('serves only local sniffable raster images to the preview', async () => {
@@ -147,7 +155,7 @@ describe('previewWikiTarget', () => {
       attachments: attachmentsOver(async () => []),
     })
 
-    const preview = await notePreview.previewWikiTarget('Alpha', 7)
+    const preview = await notePreview.previewWikiTarget('Alpha')
 
     expect(await preview?.resolveImageUrl('https://example.com/cat.png')).toBeUndefined()
     expect(await preview?.resolveImageUrl('../../outside.png')).toBeUndefined()
@@ -164,9 +172,10 @@ describe('previewWikiTarget', () => {
       },
       noteDocuments: { readExisting: async () => '![[garden-budget.png]]' },
       attachments: attachmentsOver(async () => []),
+      graphSession: openGraph(),
     })
 
-    const preview = await notePreview.previewWikiTarget('Garden redesign', 7)
+    const preview = await notePreview.previewWikiTarget('Garden redesign')
 
     expect(await preview?.resolveImageUrl('../attachments/garden-budget.png')).toBe(
       previewAssetUrl(7, 'attachments/garden-budget.png'),
@@ -185,7 +194,7 @@ describe('previewWikiTarget', () => {
       noteFile,
       attachments: attachmentsOver(() => listing.promise),
     })
-    const preview = await notePreview.previewWikiTarget('Alpha', 7)
+    const preview = await notePreview.previewWikiTarget('Alpha')
 
     const image = preview?.resolveWikiEmbed('photo.png')
     if (image?.kind !== 'image') {
@@ -209,6 +218,21 @@ describe('readExistingNoteSource', () => {
     const noteFile = createTestNoteFileService({ files: { 'notes/alpha.md': '# Alpha' } })
     const notePreview = notePreviewOver({ noteFile })
 
-    await expect(notePreview.readExistingNoteSource('notes/alpha.md', 7)).resolves.toBe('# Alpha')
+    await expect(notePreview.readExistingNoteSource('notes/alpha.md')).resolves.toBe('# Alpha')
+  })
+})
+
+describe('with no graph open', () => {
+  it('previews nothing and rejects a read', async () => {
+    const noteFile = createTestNoteFileService({ files: { 'notes/alpha.md': '# Alpha' } })
+    const notePreview = notePreviewOver({
+      noteFile,
+      graphSession: createTestGraphSessionService(),
+    })
+
+    await expect(notePreview.previewWikiTarget('Alpha')).resolves.toBeNull()
+    await expect(notePreview.readExistingNoteSource('notes/alpha.md')).rejects.toThrow(
+      'No graph is open.',
+    )
   })
 })

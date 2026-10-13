@@ -17,8 +17,11 @@ import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useAssetPersistence, type AssetPersistence } from './use-asset-persistence.ts'
 
 let persistence: AssetPersistence | null = null
+// The app of the latest `renderPersistence`; the attachment services read its graph.
+let app: ReturnType<typeof createTestAppServices<{ attachments: AttachmentService }>>
+const graphSession = { getState: () => app.graphSession.getState() }
 // The attachment service of the next `renderPersistence`.
-let attachmentService: AttachmentService = createTestAttachmentService()
+let attachmentService: AttachmentService = createTestAttachmentService({ graphSession })
 
 function renderPersistence({
   generation,
@@ -27,24 +30,21 @@ function renderPersistence({
   generation: number | null
   path?: string
 }) {
+  app = createTestAppServices({ attachments: attachmentService })
   return renderHookInApp(
-    (
-      { generation, path }: { generation: number | null; path: string } = {
-        generation: null,
-        path: 'notes/a.md',
-      },
-    ) => {
-      persistence = useAssetPersistence(generation, path)
+    ({ path }: { path: string } = { path: 'notes/a.md' }) => {
+      persistence = useAssetPersistence(path)
     },
     {
-      initialProps: { generation, path },
-      app: createTestAppServices({ attachments: attachmentService }),
+      initialProps: { path },
+      app,
+      graph: generation === null ? null : { generation },
     },
   )
 }
 
 function installAttachments(options?: TestAttachmentServiceOptions): TestAttachmentService {
-  const attachments = createTestAttachmentService(options)
+  const attachments = createTestAttachmentService({ ...options, graphSession })
   attachmentService = attachments
   return attachments
 }
@@ -54,7 +54,7 @@ function fileOf(name: string, type: string): File {
 }
 
 afterEach(() => {
-  attachmentService = createTestAttachmentService()
+  attachmentService = createTestAttachmentService({ graphSession })
   persistence = null
 })
 
@@ -145,6 +145,7 @@ describe('useAssetPersistence', () => {
       operations: createTestOperationsService(clock),
       clock,
       platform: createTestPlatformService(),
+      graphSession,
     })
     const view = await renderPersistence({ generation: 3, path: 'notes/a.md' })
 
@@ -154,7 +155,7 @@ describe('useAssetPersistence', () => {
     })
 
     // The user moves on; the save then fails for the note they left.
-    await view.rerender({ generation: 3, path: 'notes/b.md' })
+    await view.rerender({ path: 'notes/b.md' })
     await view.act(async () => {
       upload.reject(new ReflectError('io', 'late failure'))
       await savePromise

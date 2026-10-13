@@ -3,6 +3,7 @@ import { createTestClockService } from '../testing/clock.ts'
 import { createTestNoteSession } from '../testing/documents.ts'
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import {
   createNoteSessionService,
@@ -207,11 +208,12 @@ describe('reloadAll with live sessions', () => {
       noteFile,
       clock: createTestClockService(),
       logger: createTestLoggerService(),
+      graphSession: createTestGraphSessionService(),
     }).create({
       path: PATH,
-      // No generation: the session tracks dirtiness but never writes, so a
+      // Read-only: the session tracks dirtiness but never writes, so a
       // dirty buffer can't race a debounced save into the assertions.
-      generation: null,
+      readOnly: true,
       classify: () => 'exact',
       onSnapshot: (snapshot) => {
         snapshots.push(snapshot)

@@ -6,7 +6,6 @@ import {
   SwipeableNoteRow,
   type NoteRowModel,
 } from '@/mobile/swipeable-note-row.tsx'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 interface NoteRowListProps {
@@ -20,15 +19,12 @@ interface NoteRowListProps {
  * the plain list, the filtered feed, and search results — V1's one row shape.
  */
 export function NoteRowList({ rows, onOpen }: NoteRowListProps): ReactElement {
-  const { graph } = useGraph()
   const { noteActions } = useAppServices()
   const [revealedPath, setRevealedPath] = useState<string | null>(null)
   const [deletePath, setDeletePath] = useState<string | null>(null)
 
   const togglePin = (row: NoteRowModel): void => {
-    if (graph !== null) {
-      void noteActions.togglePinned(row.path, graph.generation)
-    }
+    void noteActions.togglePinned(row.path)
   }
 
   return (

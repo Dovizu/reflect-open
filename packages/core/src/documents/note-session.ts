@@ -1,4 +1,5 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import { writeGenerationFor, type GraphSessionSource } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import { errorMessage, isAppError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
@@ -36,35 +37,32 @@ interface NoteSessionIo {
 
 const DEFAULT_SAVE_DEBOUNCE_MS = 800
 
-export function createNoteSessionService(deps: {
+interface NoteSessionDeps {
   noteFile: NoteFileService
   clock: ClockService
   logger: LoggerService
-}): NoteSessionService {
+  graphSession: GraphSessionSource
+}
+
+export function createNoteSessionService(deps: NoteSessionDeps): NoteSessionService {
   return {
     create: (options) => createNoteSession(deps, options),
   }
 }
 
 /** Create the document session for one note. See note-session-types.ts for semantics. */
-function createNoteSession(
-  deps: { noteFile: NoteFileService; clock: ClockService; logger: LoggerService },
-  options: NoteSessionOptions,
-): NoteSession {
-  const { noteFile, clock, logger } = deps
+function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): NoteSession {
+  const { noteFile, clock, logger, graphSession } = deps
   const { classify, onSnapshot, applyContent, onContent, reconcilePendingEditorInput } = options
-  const generation = options.generation
+  const graph = graphSession.getState().session
   const io: NoteSessionIo = {
     read: (forPath) => noteFile.read(forPath),
     write:
-      generation === null
+      options.readOnly === true || graph === null
         ? null
         : async (forPath, contents, expectedContents) => {
-            const current = generation()
-            if (current === null) {
-              throw new Error('no graph generation available for save')
-            }
-            await noteFile.write(forPath, contents, current, expectedContents)
+            const generation = writeGenerationFor(graphSession, graph)
+            await noteFile.write(forPath, contents, generation, expectedContents)
           },
   }
   /** Mutable: a rename retargets the session in place (Plan 17). */

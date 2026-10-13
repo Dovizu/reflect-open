@@ -7,7 +7,6 @@ import { useNoteRowState } from '@/hooks/use-note-row.ts'
 import { usePinnedNotes } from '@/hooks/use-pinned-notes.ts'
 import { NoteDeleteDrawer } from '@/mobile/note-delete-drawer.tsx'
 import { shareNote } from '@/mobile/share.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 interface NoteActionsMenuProps {
@@ -27,7 +26,6 @@ interface NoteActionsMenuProps {
  * `NoteActionsService.trashOne` so the open session is discarded rather than flushed.
  */
 export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): ReactElement {
-  const { graph } = useGraph()
   const { noteActions, share: shareService, logger } = useAppServices()
   const isPinned = usePinnedNotes().some((note) => note.path === path)
   const { row: noteRow, settled: privacyReady } = useNoteRowState(path)
@@ -41,15 +39,11 @@ export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): Reac
       : 'Lock note'
 
   const pin = (): void => {
-    if (graph !== null) {
-      void noteActions.togglePinned(path, graph.generation)
-    }
+    void noteActions.togglePinned(path)
   }
 
   const togglePrivate = async (): Promise<void> => {
-    if (graph !== null) {
-      await noteActions.togglePrivate(path, graph.generation)
-    }
+    await noteActions.togglePrivate(path)
   }
 
   const share = (): void => {

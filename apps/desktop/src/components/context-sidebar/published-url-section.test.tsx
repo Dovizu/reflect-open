@@ -103,7 +103,7 @@ describe('PublishedUrlSection', () => {
     const view = await renderSection()
     await userEvent.click(view.getByRole('button', { name: 'Update published gist' }))
 
-    expect(publish).toHaveBeenCalledWith('notes/a.md', 7)
+    expect(publish).toHaveBeenCalledWith('notes/a.md')
   })
 
   it('shows the stale update affordance beside the copy button', async () => {

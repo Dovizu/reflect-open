@@ -246,7 +246,7 @@ describe('NoteActionsSection trash action', () => {
     await userEvent.click(view.getByRole('button', { name: 'Trash note' }))
     const confirmButton = page.getByRole('dialog').getByRole('button', { name: 'Trash note' })
     await userEvent.click(confirmButton)
-    await vi.waitFor(() => expect(trash).toHaveBeenCalledWith('notes/a.md', 7))
+    await vi.waitFor(() => expect(trash).toHaveBeenCalledWith('notes/a.md'))
     expect(operations.findByLabel('Trashing note')).toBeDefined()
   })
 

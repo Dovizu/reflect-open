@@ -8,7 +8,6 @@ import {
   DrawerDescription,
   DrawerTitle,
 } from '@/components/ui/drawer.tsx'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 interface NoteDeleteDrawerProps {
@@ -31,7 +30,6 @@ export function NoteDeleteDrawer({
   onOpenChange,
   onDeleted,
 }: NoteDeleteDrawerProps): ReactElement {
-  const { graph } = useGraph()
   const { noteActions } = useAppServices()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,15 +46,11 @@ export function NoteDeleteDrawer({
     if (submittingRef.current) {
       return
     }
-    if (graph === null) {
-      setError('No graph is open.')
-      return
-    }
     submittingRef.current = true
     setBusy(true)
     setError(null)
     try {
-      await noteActions.trashOne(path, graph.generation)
+      await noteActions.trashOne(path)
       onOpenChange(false)
       onDeleted?.()
     } catch (cause) {

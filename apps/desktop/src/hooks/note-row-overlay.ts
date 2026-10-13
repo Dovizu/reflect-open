@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { applyNoteRowOverlays, type NoteListRowFacts, type NoteRowOverlay } from '@reflect/core'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 /*
@@ -10,27 +9,19 @@ import { useAppServices } from '@/services/services-provider.tsx'
 
 export { applyNoteRowOverlay, type NoteRowOverlay, type NoteRowOverlayPatch } from '@reflect/core'
 
-/** Subscribe a component to `path`'s overlay on `generation`; `null` when none. */
-export function useNoteRowOverlay(
-  path: string,
-  generation: number | undefined,
-): NoteRowOverlay | null {
+/** Subscribe a component to `path`'s overlay on the open graph; `null` when none. */
+export function useNoteRowOverlay(path: string): NoteRowOverlay | null {
   const { noteRows } = useAppServices()
   const subscribe = useCallback((listener: () => void) => noteRows.subscribe(listener), [noteRows])
-  const getSnapshot = useCallback(
-    () => noteRows.getOverlay(path, generation),
-    [noteRows, path, generation],
-  )
+  const getSnapshot = useCallback(() => noteRows.getOverlay(path), [noteRows, path])
   return useSyncExternalStore(subscribe, getSnapshot)
 }
 
-/** Subscribe a component to every overlay on `generation`, by path. */
-export function useNoteRowOverlays(
-  generation: number | undefined,
-): ReadonlyMap<string, NoteRowOverlay> {
+/** Subscribe a component to every overlay on the open graph, by path. */
+export function useNoteRowOverlays(): ReadonlyMap<string, NoteRowOverlay> {
   const { noteRows } = useAppServices()
   const subscribe = useCallback((listener: () => void) => noteRows.subscribe(listener), [noteRows])
-  const getSnapshot = useCallback(() => noteRows.getOverlays(generation), [noteRows, generation])
+  const getSnapshot = useCallback(() => noteRows.getOverlays(), [noteRows])
   return useSyncExternalStore(subscribe, getSnapshot)
 }
 
@@ -52,19 +43,17 @@ export function useNoteRows<Row extends NoteListRowFacts>(
   rows: readonly Row[] | undefined,
   options?: UseNoteRowsOptions,
 ): readonly Row[] | undefined {
-  const { graph } = useGraph()
-  const generation = graph?.generation
   const { noteRows } = useAppServices()
-  const overlays = useNoteRowOverlays(generation)
+  const overlays = useNoteRowOverlays()
   const complete = options?.complete ?? false
 
   // An effect, not a render-time mutation: the store is shared, and writing it
   // during render would tear other subscribers.
   useEffect(() => {
-    if (generation !== undefined && rows !== undefined && overlays.size > 0) {
-      noteRows.reconcileRows(generation, rows, { complete })
+    if (rows !== undefined && overlays.size > 0) {
+      noteRows.reconcileRows(rows, { complete })
     }
-  }, [noteRows, generation, rows, overlays, complete])
+  }, [noteRows, rows, overlays, complete])
 
   return useMemo(
     () => (rows === undefined ? undefined : applyNoteRowOverlays(rows, overlays)),

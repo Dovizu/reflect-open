@@ -7,6 +7,7 @@ import type {
 } from '@meowdown/core'
 import type { AssetSaveError } from '@reflect/core'
 import { useNoteAttachments } from '@/editor/use-note-attachments.ts'
+import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 export type { AssetSaveError }
@@ -46,14 +47,14 @@ export interface AssetPersistence {
 }
 
 /**
- * Asset handling for the note at `path` in one open graph, through the
- * `AttachmentService`. `generation` pins every save and image URL to the
- * issuing graph session; `path` also scopes the error banner to the note
- * being edited (a pane is reused across note switches).
+ * Asset handling for the note at `path` in the open graph, through the
+ * `AttachmentService`. The error banner is scoped to the note being edited
+ * and the graph it is in (a pane is reused across note switches).
  */
-export function useAssetPersistence(generation: number | null, path: string): AssetPersistence {
+export function useAssetPersistence(path: string): AssetPersistence {
+  const graph = useGraph({ optional: true })?.graph ?? null
   const { attachments } = useAppServices()
-  const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(generation, path)
+  const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(path)
   // The pane outlives the note (and graph session) it shows, so a save that
   // finishes after a switch must not put its outcome on the next note's banner.
   const saveScope = useMemo(() => attachments.createSaveScope(), [attachments])
@@ -68,11 +69,11 @@ export function useAssetPersistence(generation: number | null, path: string): As
     return () => {
       saveScope.reset()
     }
-  }, [saveScope, path, generation])
+  }, [saveScope, path, graph])
 
   const resolveAssetOpenPath = useCallback(
-    (source: string): string | null => attachments.resolveAssetOpenPath(path, source, generation),
-    [attachments, generation, path],
+    (source: string): string | null => attachments.resolveAssetOpenPath(path, source),
+    [attachments, path],
   )
   const resolveFileLink = useCallback<FileLinkResolver>(
     ({ href }) => attachments.claimsFileLink(path, href),
@@ -81,23 +82,20 @@ export function useAssetPersistence(generation: number | null, path: string): As
 
   const openAsset = useCallback(
     async (assetPath: string): Promise<void> => {
-      if (generation !== null) {
-        await attachments.openOrReveal(assetPath, generation)
-      }
+      await attachments.openOrReveal(assetPath)
     },
-    [attachments, generation],
+    [attachments],
   )
 
   const saveFile = useCallback(
-    async (file: File): Promise<string | null> =>
-      generation === null ? null : await saveScope.saveFile(file, generation),
-    [saveScope, generation],
+    async (file: File): Promise<string | null> => await saveScope.saveFile(file),
+    [saveScope],
   )
 
   const resolveFileInfo = useCallback(
     async (href: string): Promise<FileInfo | undefined> =>
-      await attachments.resolveFileInfo(path, href, generation),
-    [attachments, generation, path],
+      await attachments.resolveFileInfo(path, href),
+    [attachments, path],
   )
 
   return useMemo<AssetPersistence>(

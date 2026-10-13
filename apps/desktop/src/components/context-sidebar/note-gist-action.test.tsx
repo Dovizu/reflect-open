@@ -89,14 +89,14 @@ describe('NoteGistAction', () => {
   it('publishes the open note on click', async () => {
     const view = await renderAction()
     await userEvent.click(view.getByRole('button', { name: /Share with private link/ }))
-    expect(publish).toHaveBeenCalledWith('notes/a.md', 7)
+    expect(publish).toHaveBeenCalledWith('notes/a.md')
   })
 
   it('unpublishes the open note on click once it carries a gist', async () => {
     row = noteRow({ gistUrl: 'https://gist.github.com/alex/g1' })
     const view = await renderAction()
     await userEvent.click(view.getByRole('button', { name: /Unpublish link/ }))
-    expect(unpublish).toHaveBeenCalledWith('notes/a.md', 7)
+    expect(unpublish).toHaveBeenCalledWith('notes/a.md')
   })
 
   it('reflects an optimistic publish as Republish before the index catches up', async () => {

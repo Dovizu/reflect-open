@@ -145,7 +145,14 @@ export function createTestGraphSessionService<Services = never>(
     platform: options?.platform ?? createTestPlatformService(),
     lifecycle: options?.lifecycle ?? createTestLifecycleService(),
     mobileStorage: options?.mobileStorage ?? createTestMobileStorageService(),
-    noteRows: options?.noteRows ?? createNoteRowService(),
+    noteRows:
+      options?.noteRows ??
+      createNoteRowService({
+        graphSession: {
+          getState: () => testService.getState(),
+          subscribe: (listener) => testService.subscribe(listener),
+        },
+      }),
     openDocuments: options?.openDocuments ?? createOpenDocumentsService({ fileChanges }),
     noteMove: options?.noteMove ?? createTestNoteMoveService(),
     icloudNative: options?.icloudNative ?? createTestICloudNativeService(),
@@ -186,7 +193,7 @@ export function createTestGraphSessionService<Services = never>(
     }
   }
 
-  return {
+  const testService: TestGraphSessionService<Services> = {
     ...service,
     getState: () => {
       const base = service.getState()
@@ -209,4 +216,5 @@ export function createTestGraphSessionService<Services = never>(
       setState(seedGraph(graph))
     },
   }
+  return testService
 }

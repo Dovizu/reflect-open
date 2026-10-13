@@ -1,5 +1,10 @@
 import { isIsoDate } from '@reflect/utils'
 import type { ClipboardService } from '../app/clipboard-service.ts'
+import {
+  requireGraphSession,
+  type GraphSession,
+  type GraphSessionSource,
+} from '../app/graph-session.ts'
 import type { IdService } from '../app/id-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { PathService } from '../app/path-service.ts'
@@ -76,29 +81,26 @@ export interface NoteActionsService {
    * with the overlay), or a bare `pinned: true` when the shelf cannot be read.
    * Deduped with {@link NoteActionsService.unpin} per generation and path: a
    * second call while one is in flight returns the first call's result. A
-   * failure is reported as an "Updating pin" operation.
+   * failure is reported as an "Updating pin" operation; with no graph open it
+   * fails without a report.
    */
-  togglePinned(path: string, generation: number): Promise<NoteActionOutcome<NotePinResult>>
+  togglePinned(path: string): Promise<NoteActionOutcome<NotePinResult>>
   /** Remove a pin directionally, without reading the current pin state. */
-  unpin(path: string, generation: number): Promise<NoteActionOutcome<NotePinResult>>
+  unpin(path: string): Promise<NoteActionOutcome<NotePinResult>>
   /**
    * Write the shelf order of each note that carries a valid one, and return
    * the orders written. Calls write one after another, in call order. Rejects
-   * when a write fails.
+   * when a write fails. Writes nothing when no graph is open.
    */
   reorderPinned(
     notes: ReadonlyArray<Pick<PinnedNote, 'path' | 'pinnedOrder'>>,
-    generation: number,
   ): Promise<NotePinOrderWrite[]>
   /**
    * Toggle `private` from the state the note's frontmatter holds now. Deduped
    * per generation and path like {@link NoteActionsService.togglePinned}; a
    * failure is reported as an "Updating privacy" operation.
    */
-  togglePrivate(
-    path: string,
-    generation: number,
-  ): Promise<NoteActionOutcome<{ readonly isPrivate: boolean }>>
+  togglePrivate(path: string): Promise<NoteActionOutcome<{ readonly isPrivate: boolean }>>
   /** Whether `path` may be moved to the trash; see {@link canTrashNote}. */
   canTrash(path: string): boolean
   /**
@@ -120,16 +122,16 @@ export interface NoteActionsService {
    *
    * Never rejects and reports nothing: a failure comes back in `failed`.
    */
-  trash(path: string, generation: number): Promise<NoteTrashResult>
+  trash(path: string): Promise<NoteTrashResult>
   /** {@link NoteActionsService.trash}, rejecting with the cause when the note could not be trashed. */
-  trashOne(path: string, generation: number): Promise<void>
+  trashOne(path: string): Promise<void>
   /**
    * {@link NoteActionsService.trash} for each path in order, under one
    * "Trashing notes" operation. A failure is recorded, not rethrown
    * mid-batch, so the remaining notes still trash; the operation then fails
-   * with the last error.
+   * with the last error, or with `No graph is open.` when none is.
    */
-  trashMany(paths: readonly string[], generation: number): Promise<NoteTrashResult>
+  trashMany(paths: readonly string[]): Promise<NoteTrashResult>
   /**
    * The most durable deep link the note can have. A daily note is addressed
    * by its date. A regular note is addressed by its frontmatter `id`, minted
@@ -137,19 +139,20 @@ export interface NoteActionsService {
    * outside Reflect, so the link survives every rename; the id lands through
    * the session-or-disk frontmatter channel like pin and private do.
    */
-  deepLinkFor(path: string, generation: number): Promise<string>
+  deepLinkFor(path: string): Promise<string>
   /**
    * Build the deep link, put it on the clipboard, and confirm through the
-   * operations status line. Never rejects.
+   * operations status line. Never rejects; does nothing when no graph is open.
    */
-  copyDeepLink(path: string, generation: number): Promise<void>
+  copyDeepLink(path: string): Promise<void>
   /**
-   * Resolve the graph-relative `path` to an absolute filesystem path for use
-   * in tools outside Reflect (agent chats, editors, terminals), put it on the
-   * clipboard, and report through the operations status line. Joining through
-   * the host preserves the host platform's path syntax. Never rejects.
+   * Resolve the graph-relative `path` against the open graph's root to an
+   * absolute filesystem path for use in tools outside Reflect (agent chats,
+   * editors, terminals), put it on the clipboard, and report through the
+   * operations status line. Joining through the host preserves the host
+   * platform's path syntax. Never rejects.
    */
-  copyPath(root: string | null, path: string): Promise<void>
+  copyPath(path: string): Promise<void>
 }
 
 export function createNoteActionsService(deps: {
@@ -158,11 +161,12 @@ export function createNoteActionsService(deps: {
   openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
   indexLifecycle: Pick<IndexLifecycleService, 'indexNote'>
   indexQuery: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
-  noteRows: Pick<NoteRowService, 'setOverlay' | 'dropOverlay' | 'getOverlay' | 'getOverlays'>
+  noteRows: Pick<NoteRowService, 'setOverlay' | 'dropOverlay' | 'getOverlaysOn'>
   operations: OperationsService
   clipboard: ClipboardService
   path: Pick<PathService, 'join'>
   id: Pick<IdService, 'noteId'>
+  graphSession: GraphSessionSource
 }): NoteActionsService {
   const {
     noteDocuments,
@@ -175,6 +179,7 @@ export function createNoteActionsService(deps: {
     clipboard,
     path: pathService,
     id,
+    graphSession,
   } = deps
   const pendingPins = new Map<string, Promise<NoteActionOutcome<NotePinResult>>>()
   const pendingPrivacy = new Map<string, Promise<NoteActionOutcome<{ isPrivate: boolean }>>>()
@@ -210,7 +215,7 @@ export function createNoteActionsService(deps: {
 
   /** The privacy readers show for `path` now; `false` when the index cannot say. */
   async function readPrivacy(path: string, generation: number): Promise<boolean> {
-    const overlaid = noteRows.getOverlay(path, generation)?.isPrivate
+    const overlaid = noteRows.getOverlaysOn(generation).get(path)?.isPrivate
     if (overlaid !== undefined) {
       return overlaid
     }
@@ -241,7 +246,7 @@ export function createNoteActionsService(deps: {
         const shelf =
           indexed === null
             ? null
-            : applyPinnedNoteOverlays(indexed, noteRows.getOverlays(generation), (notePath) => ({
+            : applyPinnedNoteOverlays(indexed, noteRows.getOverlaysOn(generation), (notePath) => ({
                 path: notePath,
                 title: '',
                 dailyDate: null,
@@ -378,16 +383,34 @@ export function createNoteActionsService(deps: {
     return noteDeepLink(minted)
   }
 
+  /** The pin and privacy toggles' outcome with no graph open: failed, with nothing to report. */
+  const NO_GRAPH: { readonly status: 'failed' } = { status: 'failed' }
+
   return {
-    async togglePinned(path, generation) {
+    async togglePinned(path) {
+      const session = graphSession.getState().session
+      if (session === null) {
+        return NO_GRAPH
+      }
+      const { generation } = session
       return await dedupe(pendingPins, path, generation, () =>
         updatePin(path, generation, 'toggle'),
       )
     },
-    async unpin(path, generation) {
+    async unpin(path) {
+      const session = graphSession.getState().session
+      if (session === null) {
+        return NO_GRAPH
+      }
+      const { generation } = session
       return await dedupe(pendingPins, path, generation, () => updatePin(path, generation, 'unpin'))
     },
-    async reorderPinned(notes, generation) {
+    async reorderPinned(notes) {
+      const session = graphSession.getState().session
+      if (session === null) {
+        return []
+      }
+      const { generation } = session
       const writes: NotePinOrderWrite[] = []
       for (const note of notes) {
         const order = note.pinnedOrder
@@ -401,31 +424,45 @@ export function createNoteActionsService(deps: {
       reorderChain = run.catch(() => undefined)
       return await run
     },
-    async togglePrivate(path, generation) {
+    async togglePrivate(path) {
+      const session = graphSession.getState().session
+      if (session === null) {
+        return NO_GRAPH
+      }
+      const { generation } = session
       return await dedupe(pendingPrivacy, path, generation, () => togglePrivate(path, generation))
     },
     canTrash: canTrashNote,
-    async trash(path, generation) {
+    async trash(path) {
       try {
-        await trashOne(path, generation)
+        await trashOne(path, requireGraphSession(graphSession).generation)
         return { succeeded: [path], failed: [] }
       } catch (cause) {
         return { succeeded: [], failed: [{ path, cause }] }
       }
     },
-    trashOne,
-    async trashMany(paths, generation) {
+    async trashOne(path) {
+      await trashOne(path, requireGraphSession(graphSession).generation)
+    },
+    async trashMany(paths) {
       const succeeded: string[] = []
       const failed: NoteTrashFailure[] = []
       if (paths.length === 0) {
         return { succeeded, failed }
+      }
+      let session: GraphSession
+      try {
+        session = requireGraphSession(graphSession)
+      } catch (cause) {
+        operations.start('Trashing notes').fail(errorMessage(cause))
+        return { succeeded, failed: paths.map((path) => ({ path, cause })) }
       }
       const operation = operations.start('Trashing notes')
       operation.progress(0, paths.length)
       let attempted = 0
       for (const path of paths) {
         try {
-          await trashOne(path, generation)
+          await trashOne(path, session.generation)
           succeeded.push(path)
         } catch (cause) {
           failed.push({ path, cause })
@@ -441,11 +478,17 @@ export function createNoteActionsService(deps: {
       }
       return { succeeded, failed }
     },
-    deepLinkFor,
-    async copyDeepLink(path, generation) {
+    async deepLinkFor(path) {
+      return await deepLinkFor(path, requireGraphSession(graphSession).generation)
+    },
+    async copyDeepLink(path) {
+      const session = graphSession.getState().session
+      if (session === null) {
+        return
+      }
       let url: string
       try {
-        url = await deepLinkFor(path, generation)
+        url = await deepLinkFor(path, session.generation)
       } catch (cause) {
         operations.start('Copying deep link').fail(errorMessage(cause))
         return
@@ -457,13 +500,14 @@ export function createNoteActionsService(deps: {
         operations.start('Copying deep link').fail(errorMessage(cause))
       }
     },
-    async copyPath(root, path) {
-      if (root === null) {
+    async copyPath(path) {
+      const session = graphSession.getState().session
+      if (session === null) {
         operations.start('Copying note path').fail('No graph is open')
         return
       }
       try {
-        const absolutePath = await pathService.join(root, path)
+        const absolutePath = await pathService.join(session.root, path)
         await clipboard.writeText(absolutePath)
         operations.start('Note path copied').done()
       } catch (cause) {

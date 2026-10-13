@@ -4,7 +4,6 @@ import { CSS } from '@dnd-kit/utilities'
 import { errorMessage } from '@reflect/core'
 import type { PinnedNote } from '@reflect/core'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { routeForPath, routesEqual } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
@@ -22,7 +21,6 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
   const { route } = useRouter()
   const navigateNoteLink = useNoteLinkNavigation()
   const noteLabel = useNoteLabel()
-  const { graph } = useGraph()
   const { nativeMenu, noteActions, operations } = useAppServices()
   const target = routeForPath(note.path)
   const active = routesEqual(route, target)
@@ -38,16 +36,13 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
     (event: MouseEvent<HTMLButtonElement>): void => {
       event.preventDefault()
       event.stopPropagation()
-      if (graph === null) {
-        return
-      }
       void nativeMenu
         .openContextMenu({
           items: [
             {
               text: 'Unpin Note',
               action: () => {
-                void noteActions.unpin(note.path, graph.generation)
+                void noteActions.unpin(note.path)
               },
             },
           ],
@@ -56,7 +51,7 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
           operations.start('Opening note menu').fail(errorMessage(cause))
         })
     },
-    [graph, nativeMenu, note, noteActions, operations],
+    [nativeMenu, note, noteActions, operations],
   )
 
   return (

@@ -25,12 +25,8 @@ export function TemplateCreateForm({ context, onClose }: TemplateCreateFormProps
 
   const submit = handleSubmit(async (values) => {
     setSubmitError(null)
-    const generation = context.generation()
-    if (generation === null) {
-      return
-    }
     try {
-      const path = await templates.createTemplate(values.name, generation)
+      const path = await templates.createTemplate(values.name)
       onClose()
       context.navigate({ kind: 'note', path })
     } catch (cause: unknown) {

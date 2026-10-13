@@ -5,6 +5,10 @@ import { applyTaskEdits, projectTasks, TaskStaleError } from '../markdown/task-a
 import type { TaskLocator } from '../markdown/task-model.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
+import {
+  createTestGraphSessionService,
+  type TestGraphSessionService,
+} from '../testing/graph-session.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import {
   createNoteSessionService,
@@ -51,6 +55,10 @@ interface Harness {
   /** While set, writes reject with this message (the save-failure seam). */
   failWrites: (message: string | null) => void
   session: NoteSession
+  /** The graph open when the session was created. */
+  graph: TestGraphSessionService<never>
+  /** The generation of every write, in order. */
+  generations: () => number[]
 }
 
 function harness(options?: {
@@ -92,24 +100,27 @@ function harness(options?: {
       return modifiedMs
     },
   }
-  const session = createNoteSessionService({ noteFile, clock, logger }).create({
-    path: PATH,
-    generation: options?.write === false ? null : () => 1,
-    classify: options?.classify ?? (() => 'exact'),
-    onSnapshot: (snapshot) => {
-      snapshots.push(snapshot)
+  const graph = createTestGraphSessionService({ graph: { generation: 1 } })
+  const session = createNoteSessionService({ noteFile, clock, logger, graphSession: graph }).create(
+    {
+      path: PATH,
+      readOnly: options?.write === false,
+      classify: options?.classify ?? (() => 'exact'),
+      onSnapshot: (snapshot) => {
+        snapshots.push(snapshot)
+      },
+      applyContent: (markdown) => {
+        applied.push(markdown)
+      },
+      reconcilePendingEditorInput: options?.reconcilePendingEditorInput,
+      onContent: (content, origin) => {
+        contents.push({ content, origin })
+      },
+      createIfMissing: options?.createIfMissing,
+      missingSeed: options?.missingSeed,
+      saveDebounceMs: 10,
     },
-    applyContent: (markdown) => {
-      applied.push(markdown)
-    },
-    reconcilePendingEditorInput: options?.reconcilePendingEditorInput,
-    onContent: (content, origin) => {
-      contents.push({ content, origin })
-    },
-    createIfMissing: options?.createIfMissing,
-    missingSeed: options?.missingSeed,
-    saveDebounceMs: 10,
-  })
+  )
   return {
     snapshots,
     expectedContents,
@@ -127,6 +138,8 @@ function harness(options?: {
       writeFailure = message
     },
     session,
+    graph,
+    generations: () => files.writes().map((write) => write.generation),
   }
 }
 
@@ -292,6 +305,21 @@ describe('frontmatter ownership (Plan 07b)', () => {
     // The read-only view's job is honest display of a file we refuse to
     // touch — hiding the frontmatter would misrepresent it.
     expect(ready?.initialContent).toBe(`${FM}+ [ ] lossy body\n`)
+  })
+
+  it('writes with the generation of its graph reopened, never of another graph', async () => {
+    const h = harness()
+    h.session.load()
+    await settled()
+    h.graph.setGraph({ generation: 2 })
+    h.session.editorChanged('# Reopened\n')
+    await settled()
+    h.graph.setGraph({ root: '/graphs/other', generation: 3 })
+    h.session.editorChanged('# Switched\n')
+    await settled()
+
+    // The second write keeps the opening generation, so Rust rejects it.
+    expect(h.generations()).toEqual([2, 1])
   })
 
   it('saves rejoin the exact header bytes around the edited body', async () => {

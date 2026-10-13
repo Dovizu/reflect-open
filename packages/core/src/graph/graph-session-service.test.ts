@@ -107,7 +107,12 @@ function setup(options?: SetupOptions) {
   const dialog = createTestDialogService()
   const lifecycle = createTestLifecycleService({ hidden: options?.hidden ?? false })
   const mobileStorage = createTestMobileStorageService()
-  const noteRows = createNoteRowService()
+  const noteRows = createNoteRowService({
+    graphSession: {
+      getState: () => session.getState(),
+      subscribe: (listener) => session.subscribe(listener),
+    },
+  })
   const icloudNative = createTestICloudNativeService()
   const reloads: number[] = []
   const healedMoves: [string, string][] = []
@@ -842,11 +847,11 @@ describe('GraphSessionService index reactions', () => {
     await context.session.openRecent('/a')
     context.noteRows.setOverlay('notes/a.md', 1, { gistStale: true })
     await context.session.openRecent('/b')
-    expect(context.noteRows.getOverlay('notes/a.md', 1)).toBeNull()
+    expect(context.noteRows.getOverlaysOn(1).get('notes/a.md')).toBeUndefined()
 
     context.noteRows.setOverlay('notes/b.md', 2, { gistStale: true })
     await context.session.chooseGraph()
-    expect(context.noteRows.getOverlay('notes/b.md', 2)).toBeNull()
+    expect(context.noteRows.getOverlaysOn(2).get('notes/b.md')).toBeUndefined()
   })
 
   it('reloads the open documents after a sync pass, not after a rebuild', async () => {

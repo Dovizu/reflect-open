@@ -8,6 +8,7 @@ import {
   createTestClockService,
   createTestDialogService,
   createTestFileChangeService,
+  createTestGraphSessionService,
   createTestNoteFileService,
   createTestOperationsService,
   createTestPlatformService,
@@ -50,6 +51,7 @@ function setup(options?: {
   const fileChanges = createTestFileChangeService()
   const dialog = createTestDialogService({ files: options?.files ?? null })
   const operations = createTestOperationsService(clock)
+  const graph = createTestGraphSessionService({ graph: { generation: 3 } })
   const attachments = createAttachmentService({
     assetStore,
     noteFile,
@@ -58,8 +60,9 @@ function setup(options?: {
     operations,
     clock,
     platform: createTestPlatformService(),
+    graphSession: graph,
   })
-  return { attachments, assetStore, noteFile, fileChanges, dialog, operations, clock }
+  return { attachments, assetStore, noteFile, fileChanges, dialog, operations, clock, graph }
 }
 
 function fileOf(name: string, type: string, size = 16): File {
@@ -82,11 +85,11 @@ describe('saveFile', () => {
   it('names a pasted image pasted-<now>.<ext>, leaving collisions to the store', async () => {
     const { attachments } = setup()
 
-    await expect(attachments.saveFile(fileOf('whatever.png', 'image/png'), 3)).resolves.toEqual({
+    await expect(attachments.saveFile(fileOf('whatever.png', 'image/png'))).resolves.toEqual({
       ok: true,
       path: 'assets/pasted-1700000000000.png',
     })
-    await expect(attachments.saveFile(fileOf('again.png', 'image/png'), 3)).resolves.toEqual({
+    await expect(attachments.saveFile(fileOf('again.png', 'image/png'))).resolves.toEqual({
       ok: true,
       path: 'assets/pasted-1700000000000-2.png',
     })
@@ -96,9 +99,9 @@ describe('saveFile', () => {
     const assetStore = createTestAssetStoreService()
     const { attachments } = setup({ assetStore })
 
-    await expect(
-      attachments.saveFile(fileOf('Q3 Report.PDF', 'application/pdf'), 3),
-    ).resolves.toEqual({ ok: true, path: 'assets/q3-report.pdf' })
+    await expect(attachments.saveFile(fileOf('Q3 Report.PDF', 'application/pdf'))).resolves.toEqual(
+      { ok: true, path: 'assets/q3-report.pdf' },
+    )
     expect(assetStore.uploads()).toEqual([
       { kind: 'blob', path: 'assets/q3-report.pdf', generation: 3 },
     ])
@@ -107,7 +110,7 @@ describe('saveFile', () => {
   it('treats an image MIME without a known extension as a named attachment', async () => {
     const { attachments } = setup()
 
-    await expect(attachments.saveFile(fileOf('Scan 1.tiff', 'image/tiff'), 3)).resolves.toEqual({
+    await expect(attachments.saveFile(fileOf('Scan 1.tiff', 'image/tiff'))).resolves.toEqual({
       ok: true,
       path: 'assets/scan-1.tiff',
     })
@@ -116,14 +119,14 @@ describe('saveFile', () => {
   it('saves a large file without asking, with a status-line warning after', async () => {
     const { attachments, operations } = setup()
 
-    await attachments.saveFile(fileOf('huge.mov', 'video/quicktime', LARGE_FILE_BYTES + 1), 3)
+    await attachments.saveFile(fileOf('huge.mov', 'video/quicktime', LARGE_FILE_BYTES + 1))
 
     const warning = operations.findByLabel('Large file added')
     expect(warning?.status).toBe('warning')
     expect(warning?.message).toMatch(/“huge\.mov” is 25 MB/)
     expect(warning?.message).toMatch(/100 MB/)
 
-    await attachments.saveFile(fileOf('small.pdf', 'application/pdf'), 3)
+    await attachments.saveFile(fileOf('small.pdf', 'application/pdf'))
     expect(operations.getAll().filter((operation) => operation.status === 'warning')).toHaveLength(
       1,
     )
@@ -134,11 +137,11 @@ describe('saveFile', () => {
       assetStore: { ...createTestAssetStoreService(), uploadBlob: failing('disk full') },
     })
 
-    await expect(attachments.saveFile(fileOf('a.png', 'image/png'), 3)).resolves.toEqual({
+    await expect(attachments.saveFile(fileOf('a.png', 'image/png'))).resolves.toEqual({
       ok: false,
       error: { kind: 'image', message: 'disk full' },
     })
-    await expect(attachments.saveFile(fileOf('scan.tiff', 'image/tiff'), 3)).resolves.toEqual({
+    await expect(attachments.saveFile(fileOf('scan.tiff', 'image/tiff'))).resolves.toEqual({
       ok: false,
       error: { kind: 'file', message: 'disk full' },
     })
@@ -166,13 +169,11 @@ describe('createSaveScope', () => {
       notified += 1
     })
 
-    await expect(scope.saveFile(fileOf('a.png', 'image/png'), 3)).resolves.toBeNull()
+    await expect(scope.saveFile(fileOf('a.png', 'image/png'))).resolves.toBeNull()
     expect(scope.error()).toEqual({ kind: 'image', message: 'disk full' })
 
     failure = null
-    await expect(scope.saveFile(fileOf('b.pdf', 'application/pdf'), 3)).resolves.toBe(
-      'assets/b.pdf',
-    )
+    await expect(scope.saveFile(fileOf('b.pdf', 'application/pdf'))).resolves.toBe('assets/b.pdf')
     expect(scope.error()).toBeNull()
     expect(notified).toBe(2)
   })
@@ -184,7 +185,7 @@ describe('createSaveScope', () => {
     })
     const scope = attachments.createSaveScope()
 
-    const saving = scope.saveFile(fileOf('slow.pdf', 'application/pdf'), 3)
+    const saving = scope.saveFile(fileOf('slow.pdf', 'application/pdf'))
     scope.reset()
     upload.reject(new ReflectError('io', 'late failure'))
 
@@ -199,7 +200,7 @@ describe('createSaveScope', () => {
     const first = attachments.createSaveScope()
     const second = attachments.createSaveScope()
 
-    await first.saveFile(fileOf('a.pdf', 'application/pdf'), 3)
+    await first.saveFile(fileOf('a.pdf', 'application/pdf'))
     second.reset()
 
     expect(first.error()).toEqual({ kind: 'file', message: 'disk full' })
@@ -209,12 +210,13 @@ describe('createSaveScope', () => {
 
 describe('resolveImageUrl', () => {
   it('passes remote URLs through untouched', () => {
-    const { attachments } = setup()
+    const { attachments, graph } = setup()
 
-    expect(attachments.resolveImageUrl('notes/a.md', 'https://example.com/cat.png', 3)).toBe(
+    expect(attachments.resolveImageUrl('notes/a.md', 'https://example.com/cat.png')).toBe(
       'https://example.com/cat.png',
     )
-    expect(attachments.resolveImageUrl('notes/a.md', 'HTTP://example.com/cat.png', null)).toBe(
+    graph.setGraph(null)
+    expect(attachments.resolveImageUrl('notes/a.md', 'HTTP://example.com/cat.png')).toBe(
       'HTTP://example.com/cat.png',
     )
   })
@@ -222,11 +224,11 @@ describe('resolveImageUrl', () => {
   it('maps an assets/ path onto the generation-pinned reflect-asset URL', async () => {
     const { attachments } = setup()
 
-    await expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png', 3)).resolves.toBe(
+    await expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png')).resolves.toBe(
       assetUrl(3, 'assets/cat.png'),
     )
     // Once the catalog is loaded, the answer is synchronous.
-    expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png', 3)).toBe(
+    expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png')).toBe(
       assetUrl(3, 'assets/cat.png'),
     )
   })
@@ -238,23 +240,21 @@ describe('resolveImageUrl', () => {
       { path: 'attachments/garden-budget.png', size: 1 },
     ])
     const { attachments } = setup({ noteFile })
-    await attachments.loadCatalog(3)
+    await attachments.loadCatalog()
 
     expect(
       attachments.resolveImageUrl(
         'Projects/Garden redesign.md',
         '../attachments/garden-budget.png',
-        3,
       ),
     ).toBe(assetUrl(3, 'attachments/garden-budget.png'))
-    expect(attachments.resolveImageUrl('Projects/Plan.md', 'attachments/plan.png', 3)).toBe(
+    expect(attachments.resolveImageUrl('Projects/Plan.md', 'attachments/plan.png')).toBe(
       assetUrl(3, 'Projects/attachments/plan.png'),
     )
     expect(
       attachments.resolveAssetOpenPath(
         'Projects/Garden redesign.md',
         '../attachments/garden-budget.png',
-        3,
       ),
     ).toBe('attachments/garden-budget.png')
   })
@@ -263,7 +263,7 @@ describe('resolveImageUrl', () => {
     const listing = Promise.withResolvers<readonly Listing[]>()
     const { attachments } = setup({ noteFile: listingNoteFile(() => listing.promise) })
 
-    const url = attachments.resolveImageUrl('Home.md', 'garden-budget.png', 3)
+    const url = attachments.resolveImageUrl('Home.md', 'garden-budget.png')
     expect(url).toBeInstanceOf(Promise)
     listing.resolve([{ path: 'attachments/garden-budget.png', size: 1 }])
     await expect(url).resolves.toBe(assetUrl(3, 'attachments/garden-budget.png'))
@@ -274,20 +274,19 @@ describe('resolveImageUrl', () => {
       noteFile: { ...createTestNoteFileService(), listAttachments: failing('bridge down') },
     })
 
-    await expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png', 3)).resolves.toBe(
+    await expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png')).resolves.toBe(
       assetUrl(3, 'assets/cat.png'),
     )
   })
 
   it('declines unsafe paths, notes, and missing sessions', async () => {
-    const { attachments } = setup()
+    const { attachments, graph } = setup()
 
-    expect(await attachments.resolveImageUrl('notes/a.md', 'assets/../secrets.env', 3)).toBe(
-      undefined,
-    )
-    expect(await attachments.resolveImageUrl('notes/a.md', '../../outside.png', 3)).toBe(undefined)
-    expect(await attachments.resolveImageUrl('notes/a.md', 'notes/other.md', 3)).toBe(undefined)
-    expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png', null)).toBeUndefined()
+    expect(await attachments.resolveImageUrl('notes/a.md', 'assets/../secrets.env')).toBe(undefined)
+    expect(await attachments.resolveImageUrl('notes/a.md', '../../outside.png')).toBe(undefined)
+    expect(await attachments.resolveImageUrl('notes/a.md', 'notes/other.md')).toBe(undefined)
+    graph.setGraph(null)
+    expect(attachments.resolveImageUrl('notes/a.md', 'assets/cat.png')).toBeUndefined()
   })
 })
 
@@ -317,17 +316,17 @@ describe('resolveWikiEmbed', () => {
       { path: 'Media/100%.pdf', size: 1 },
     ])
     const { attachments } = setup({ noteFile })
-    await attachments.loadCatalog(3)
+    await attachments.loadCatalog()
 
     const image = attachments.resolveWikiEmbed('Media/my photo #1.png')
     const file = attachments.resolveWikiEmbed('100%.pdf')
     expect(image).toEqual({ kind: 'image', src: '/Media/my%20photo%20%231.png' })
-    expect(attachments.resolveAttachmentPath('Home.md', '/Media/my%20photo%20%231.png', 3)).toBe(
+    expect(attachments.resolveAttachmentPath('Home.md', '/Media/my%20photo%20%231.png')).toBe(
       'Media/my photo #1.png',
     )
-    expect(
-      file?.kind === 'file' && attachments.resolveAttachmentPath('Home.md', file.href, 3),
-    ).toBe('Media/100%.pdf')
+    expect(file?.kind === 'file' && attachments.resolveAttachmentPath('Home.md', file.href)).toBe(
+      'Media/100%.pdf',
+    )
     expect(attachments.resolveWikiEmbed('Deep Work')).toEqual({ kind: 'note' })
     expect(attachments.resolveWikiEmbed('../outside.png')).toBeUndefined()
   })
@@ -366,8 +365,8 @@ describe('resolveFileInfo', () => {
     const { attachments } = setup({ noteFile })
 
     const [report, archive] = await Promise.all([
-      attachments.resolveFileInfo('notes/a.md', 'assets/q3-report.pdf', 3),
-      attachments.resolveFileInfo('notes/a.md', 'assets/archive.zip', 3),
+      attachments.resolveFileInfo('notes/a.md', 'assets/q3-report.pdf'),
+      attachments.resolveFileInfo('notes/a.md', 'assets/archive.zip'),
     ])
 
     expect(report).toEqual({ size: 1234 })
@@ -380,26 +379,27 @@ describe('resolveFileInfo', () => {
     const { attachments } = setup({ noteFile })
 
     await expect(
-      attachments.resolveFileInfo('Projects/Plan.md', '../attachments/report.pdf', 3),
+      attachments.resolveFileInfo('Projects/Plan.md', '../attachments/report.pdf'),
     ).resolves.toEqual({ size: 42 })
     await expect(
-      attachments.resolveFileInfo('Projects/Plan.md', '/attachments/report.pdf', 3),
+      attachments.resolveFileInfo('Projects/Plan.md', '/attachments/report.pdf'),
     ).resolves.toEqual({ size: 42 })
   })
 
   it('serves a just-saved file from the save itself', async () => {
     const noteFile = listingNoteFile(() => [])
-    const { attachments } = setup({ noteFile })
+    const { attachments, graph } = setup({ noteFile })
 
-    await attachments.saveFile(fileOf('Q3 Report.PDF', 'application/pdf', 1234), 3)
+    await attachments.saveFile(fileOf('Q3 Report.PDF', 'application/pdf', 1234))
 
     await expect(
-      attachments.resolveFileInfo('notes/a.md', 'assets/q3-report.pdf', 3),
+      attachments.resolveFileInfo('notes/a.md', 'assets/q3-report.pdf'),
     ).resolves.toEqual({ size: 1234 })
     expect(noteFile.listings()).toBe(0)
     // Another graph session never sees it.
+    graph.setGraph({ generation: 4 })
     await expect(
-      attachments.resolveFileInfo('notes/a.md', 'assets/q3-report.pdf', 4),
+      attachments.resolveFileInfo('notes/a.md', 'assets/q3-report.pdf'),
     ).resolves.toBeUndefined()
   })
 
@@ -408,20 +408,21 @@ describe('resolveFileInfo', () => {
       { path: 'secrets.env', size: 9 },
       { path: 'assets/other.pdf', size: 9 },
     ])
-    const { attachments } = setup({ noteFile })
+    const { attachments, graph } = setup({ noteFile })
 
     await expect(
-      attachments.resolveFileInfo('notes/a.md', 'https://example.com/q3.pdf', 3),
+      attachments.resolveFileInfo('notes/a.md', 'https://example.com/q3.pdf'),
     ).resolves.toBeUndefined()
     await expect(
-      attachments.resolveFileInfo('notes/a.md', 'assets/../secrets.env', 3),
+      attachments.resolveFileInfo('notes/a.md', 'assets/../secrets.env'),
     ).resolves.toBeUndefined()
     await expect(
-      attachments.resolveFileInfo('notes/a.md', 'assets/gone.pdf', 3),
+      attachments.resolveFileInfo('notes/a.md', 'assets/gone.pdf'),
     ).resolves.toBeUndefined()
     const listings = noteFile.listings()
+    graph.setGraph(null)
     await expect(
-      attachments.resolveFileInfo('notes/a.md', 'assets/other.pdf', null),
+      attachments.resolveFileInfo('notes/a.md', 'assets/other.pdf'),
     ).resolves.toBeUndefined()
     expect(noteFile.listings()).toBe(listings)
   })
@@ -432,13 +433,13 @@ describe('resolveFileInfo', () => {
     })
 
     await expect(
-      attachments.resolveFileInfo('notes/a.md', 'assets/q3.pdf', 3),
+      attachments.resolveFileInfo('notes/a.md', 'assets/q3.pdf'),
     ).resolves.toBeUndefined()
   })
 
   it('never serves a listing that lands after the graph session switched', async () => {
     const listings: PromiseWithResolvers<readonly Listing[]>[] = []
-    const { attachments } = setup({
+    const { attachments, graph } = setup({
       noteFile: listingNoteFile(() => {
         const listing = Promise.withResolvers<readonly Listing[]>()
         listings.push(listing)
@@ -446,12 +447,13 @@ describe('resolveFileInfo', () => {
       }),
     })
 
-    const staleLookup = attachments.resolveFileInfo('notes/a.md', 'assets/q3.pdf', 3)
+    const staleLookup = attachments.resolveFileInfo('notes/a.md', 'assets/q3.pdf')
     await Promise.resolve()
-    const freshLookup = attachments.resolveFileInfo('notes/a.md', 'assets/q3.pdf', 4)
+    graph.setGraph({ generation: 4 })
+    const freshLookup = attachments.resolveFileInfo('notes/a.md', 'assets/q3.pdf')
     listings[0]?.resolve([{ path: 'assets/q3.pdf', size: 999 }])
     await staleLookup
-    expect(attachments.peekCatalog(3)).toBeNull()
+    expect(attachments.peekCatalog()).toBeNull()
 
     listings[1]?.resolve([{ path: 'assets/q3.pdf', size: 111 }])
     await expect(freshLookup).resolves.toEqual({ size: 111 })
@@ -469,7 +471,7 @@ describe('watchCatalog', () => {
     })
 
     const stop = attachments.watchCatalog(3)
-    await attachments.loadCatalog(3)
+    await attachments.loadCatalog()
     expect(noteFile.listings()).toBe(1)
     expect(changes).toBe(1)
 
@@ -487,7 +489,7 @@ describe('watchCatalog', () => {
     })
     await expect.poll(() => changes).toBe(2)
     expect(noteFile.listings()).toBe(2)
-    expect(attachments.resolveImageUrl('Home.md', 'garden-budget.png', 3)).toBe(
+    expect(attachments.resolveImageUrl('Home.md', 'garden-budget.png')).toBe(
       assetUrl(3, 'attachments/garden-budget.png'),
     )
 
@@ -500,7 +502,7 @@ describe('watchCatalog', () => {
     const { attachments, fileChanges } = setup({ noteFile })
 
     attachments.watchCatalog(3)
-    await attachments.loadCatalog(3)
+    await attachments.loadCatalog()
     fileChanges.emitReconcile()
 
     await expect.poll(() => noteFile.listings()).toBe(2)
@@ -515,12 +517,12 @@ describe('watchCatalog', () => {
     })
 
     attachments.watchCatalog(3)
-    const first = await attachments.loadCatalog(3)
+    const first = await attachments.loadCatalog()
     fileChanges.emitReconcile()
     await expect.poll(() => noteFile.listings()).toBe(2)
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(attachments.peekCatalog(3)).toBe(first)
+    expect(attachments.peekCatalog()).toBe(first)
     expect(changes).toBe(1)
   })
 })
@@ -550,14 +552,14 @@ describe('attachFilesToNote', () => {
     })
     const target = editor()
 
-    await attachments.attachFilesToNote({ generation: 4, findEditor: () => target })
+    await attachments.attachFilesToNote({ findEditor: () => target })
 
     expect(dialog.calls()).toEqual([
       { kind: 'files', options: { multiple: true, title: 'Attach files' } },
     ])
     expect(assetStore.uploads()).toEqual([
-      { kind: 'import', path: 'assets/q3-report.pdf', generation: 4 },
-      { kind: 'import', path: 'assets/archive-tar.gz', generation: 4 },
+      { kind: 'import', path: 'assets/q3-report.pdf', generation: 3 },
+      { kind: 'import', path: 'assets/archive-tar.gz', generation: 3 },
     ])
     expect(target.inserted).toEqual([
       '[Q3 Report.pdf](assets/q3-report.pdf)\n[archive.tar.gz](assets/archive-tar.gz)',
@@ -572,7 +574,7 @@ describe('attachFilesToNote', () => {
     })
     const target = editor()
 
-    await attachments.attachFilesToNote({ generation: 4, findEditor: () => target })
+    await attachments.attachFilesToNote({ findEditor: () => target })
 
     expect(target.inserted).toEqual([String.raw`[report \[v2\].pdf](assets/report-v2.pdf)`])
   })
@@ -581,11 +583,11 @@ describe('attachFilesToNote', () => {
     const assetStore = createTestAssetStoreService()
     const { attachments, dialog } = setup({ assetStore })
 
-    await attachments.attachFilesToNote({ generation: 4, findEditor: () => null })
+    await attachments.attachFilesToNote({ findEditor: () => null })
     expect(dialog.calls()).toEqual([])
 
     const target = editor()
-    await attachments.attachFilesToNote({ generation: 4, findEditor: () => target })
+    await attachments.attachFilesToNote({ findEditor: () => target })
     expect(dialog.calls()).toHaveLength(1)
     expect(assetStore.uploads()).toEqual([])
     expect(target.inserted).toEqual([])
@@ -598,7 +600,6 @@ describe('attachFilesToNote', () => {
     let mounted = true
 
     const attaching = attachments.attachFilesToNote({
-      generation: 4,
       findEditor: () => (mounted ? target : null),
     })
     mounted = false
@@ -621,7 +622,7 @@ describe('attachFilesToNote', () => {
     })
     const target = editor()
 
-    await attachments.attachFilesToNote({ generation: 4, findEditor: () => target })
+    await attachments.attachFilesToNote({ findEditor: () => target })
 
     expect(target.inserted).toEqual([
       '[good.pdf](assets/good.pdf)\n[also good.pdf](assets/also-good.pdf)',
@@ -637,7 +638,7 @@ describe('openOrReveal', () => {
     const assetStore = createTestAssetStoreService()
     const { attachments, operations } = setup({ assetStore })
 
-    await attachments.openOrReveal('assets/q3-report.pdf', 3)
+    await attachments.openOrReveal('assets/q3-report.pdf')
 
     expect(assetStore.opened()).toEqual(['assets/q3-report.pdf'])
     expect(assetStore.revealed()).toEqual([])
@@ -650,7 +651,7 @@ describe('openOrReveal', () => {
       assetStore: { ...assetStore, open: failing('not a supported attachment path') },
     })
 
-    await attachments.openOrReveal('assets/tool.xyz', 3)
+    await attachments.openOrReveal('assets/tool.xyz')
 
     expect(assetStore.revealed()).toEqual(['assets/tool.xyz'])
     const warning = operations.findByLabel('Opening attachment')
@@ -667,10 +668,30 @@ describe('openOrReveal', () => {
       },
     })
 
-    await attachments.openOrReveal('assets/tool.xyz', 3)
+    await attachments.openOrReveal('assets/tool.xyz')
 
     const failure = operations.findByLabel('Opening attachment')
     expect(failure?.status).toBe('failed')
     expect(failure?.message).toBe('not a supported attachment path: assets/tool.xyz')
+  })
+})
+
+describe('with no graph open', () => {
+  it('saves, attaches, and opens nothing, and rejects a catalog load', async () => {
+    const assetStore = createTestAssetStoreService({ sources: { '/tmp/report.pdf': 'a' } })
+    const { attachments, dialog, graph } = setup({ assetStore, files: ['/tmp/report.pdf'] })
+    const scope = attachments.createSaveScope()
+    graph.setGraph(null)
+
+    await expect(attachments.saveFile(fileOf('a.pdf', 'application/pdf'))).resolves.toBeNull()
+    await expect(scope.saveFile(fileOf('a.pdf', 'application/pdf'))).resolves.toBeNull()
+    await attachments.attachFilesToNote({ findEditor: () => editor() })
+    await attachments.openOrReveal('assets/a.pdf')
+
+    expect(scope.error()).toBeNull()
+    expect(assetStore.uploads()).toEqual([])
+    expect(dialog.calls()).toEqual([])
+    expect(attachments.peekCatalog()).toBeNull()
+    await expect(attachments.loadCatalog()).rejects.toThrow('No graph is open.')
   })
 })

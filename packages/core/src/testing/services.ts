@@ -198,7 +198,7 @@ function createTestServiceFactories(
     opener: ({ logger }) => createTestOpenerService({ logger }),
     navigation: () => createTestNavigationService(),
     deepLink: (deps) => createTestDeepLinkService(deps),
-    attachments: () => createTestAttachmentService(),
+    attachments: ({ graphSession }) => createTestAttachmentService({ graphSession }),
     persistenceFlush: ({ openDocuments }) => createTestPersistenceFlushService({ openDocuments }),
     gitRepository: () => createTestGitRepositoryService(),
     githubAuth: (deps) => createTestGithubAuthService(deps),

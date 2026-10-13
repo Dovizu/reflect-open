@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver, WikilinkHoverHit } from '@meowdown/core'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import {
+  createTestAppServices,
+  type TestAppServices,
+  type TestOpenGraph,
+} from '@reflect/core/testing'
 import { renderHookInApp, renderInApp } from '@/test-utils/render-in-app.tsx'
 import { useWikiLinkHoverPreview } from './use-wiki-link-hover-preview.tsx'
 
@@ -28,18 +32,12 @@ function hoverHit(target: string): WikilinkHoverHit {
 let app: TestAppServices
 
 async function setupRenderer(
-  overrides: Partial<Parameters<typeof useWikiLinkHoverPreview>[0]> = {},
+  graph: TestOpenGraph | null = { generation: 7 },
 ): Promise<(hit: WikilinkHoverHit) => Promise<ReactNode>> {
-  const { result } = await renderHookInApp(
-    () =>
-      useWikiLinkHoverPreview({
-        generation: 7,
-        graphKey: '/graph',
-        dateFormat: 'mdy',
-        ...overrides,
-      }),
-    { app },
-  )
+  const { result } = await renderHookInApp(() => useWikiLinkHoverPreview({ dateFormat: 'mdy' }), {
+    app,
+    graph,
+  })
   return result.current
 }
 
@@ -55,7 +53,7 @@ describe('useWikiLinkHoverPreview', () => {
 
   it('resolves null without touching the graph when no graph session is open', async () => {
     app.noteFile.set('notes/alpha.md', '# Alpha')
-    const renderBody = await setupRenderer({ generation: null, graphKey: null })
+    const renderBody = await setupRenderer(null)
 
     await expect(renderBody(hoverHit('Alpha'))).resolves.toBeNull()
     expect(app.noteLinkResolver.calls()).toEqual([])

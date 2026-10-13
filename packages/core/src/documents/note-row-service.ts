@@ -1,3 +1,4 @@
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import type { NoteRow, PinnedNote } from '../indexing/index-query-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { isValidPinOrder } from './pin-order.ts'
@@ -96,7 +97,8 @@ const EMPTY_OVERLAYS: ReadonlyMap<string, NoteRowOverlay> = new Map()
  * surface on the new graph (its generation no longer matches): a path shared
  * across graphs never shows the wrong note's state. {@link NoteRowService.reset}
  * on graph teardown is then just memory hygiene, not load-bearing for
- * correctness.
+ * correctness. Readers and reconciles act on the open graph's generation;
+ * writers pass the generation their action captured.
  */
 export interface NoteRowService {
   /**
@@ -116,36 +118,28 @@ export interface NoteRowService {
    * action's value stays.
    */
   dropOverlay(path: string, generation: number, patch: NoteRowOverlayPatch): void
+  /** The overlay for `path` on the open graph, or `null` when none applies or no graph is open. */
+  getOverlay(path: string): NoteRowOverlay | null
   /**
-   * The overlay for `path` on `generation`, or `null` when none applies.
-   * Readers accept `undefined` (the graph may not have loaded yet) and report
-   * no overlay; writers always hold a concrete generation, so
-   * {@link NoteRowService.setOverlay} and {@link NoteRowService.reconcile}
-   * require one. Keep that asymmetry: it is the load-state boundary, not an
-   * inconsistency to unify.
+   * Every overlay on the open graph, by path. The same map is returned until
+   * an overlay or the graph changes, so it is a stable snapshot for a store
+   * subscription.
    */
-  getOverlay(path: string, generation: number | undefined): NoteRowOverlay | null
-  /**
-   * Every overlay on `generation`, by path. The same map is returned until an
-   * overlay changes, so it is a stable snapshot for a store subscription.
-   */
-  getOverlays(generation: number | undefined): ReadonlyMap<string, NoteRowOverlay>
+  getOverlays(): ReadonlyMap<string, NoteRowOverlay>
+  /** Every overlay on `generation`, by path. */
+  getOverlaysOn(generation: number): ReadonlyMap<string, NoteRowOverlay>
   /**
    * Drop overlay fields the freshly-read index `row` has caught up to (and the
    * whole entry once nothing is left). A `null` row means the index has no
    * row: a trashed note's entry retires, any other overlay is held (the note
-   * may not be indexed yet). A mismatched generation has nothing to reconcile.
+   * may not be indexed yet). Only overlays on the open graph reconcile.
    */
-  reconcile(path: string, generation: number, row: NoteRowFacts | null): void
+  reconcile(path: string, row: NoteRowFacts | null): void
   /** {@link NoteRowService.reconcile} for each listed row. */
-  reconcileRows(
-    generation: number,
-    rows: readonly NoteListRowFacts[],
-    options?: NoteRowReconcileOptions,
-  ): void
+  reconcileRows(rows: readonly NoteListRowFacts[], options?: NoteRowReconcileOptions): void
   /** Drop every overlay: graph teardown reclaims memory (correctness is by generation). */
   reset(): void
-  /** Call `listener` whenever an overlay changes. */
+  /** Call `listener` whenever an overlay or the open graph changes. */
   subscribe(listener: () => void): Unlisten
 }
 
@@ -289,7 +283,10 @@ function retireAgreeing(overlay: NoteRowOverlay, row: NoteRowFacts): MutableNote
   return retired ? remaining : null
 }
 
-export function createNoteRowService(): NoteRowService {
+export function createNoteRowService(deps: {
+  graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
+}): NoteRowService {
+  const { graphSession } = deps
   const overlays = new Map<string, OverlayEntry>()
   const listeners = new Set<() => void>()
   let snapshot: { generation: number; overlays: ReadonlyMap<string, NoteRowOverlay> } | null = null
@@ -307,6 +304,20 @@ export function createNoteRowService(): NoteRowService {
     } else {
       overlays.set(path, { generation, overlay })
     }
+  }
+
+  function openGeneration(): number | null {
+    return graphSession.getState().session?.generation ?? null
+  }
+
+  function collect(generation: number): ReadonlyMap<string, NoteRowOverlay> {
+    const current = new Map<string, NoteRowOverlay>()
+    for (const [path, entry] of overlays) {
+      if (entry.generation === generation) {
+        current.set(path, entry.overlay)
+      }
+    }
+    return current.size === 0 ? EMPTY_OVERLAYS : current
   }
 
   /** Reconcile one entry without emitting; `true` when it changed. */
@@ -374,34 +385,38 @@ export function createNoteRowService(): NoteRowService {
         emit()
       }
     },
-    getOverlay(path, generation) {
-      if (generation === undefined) {
+    getOverlay(path) {
+      const generation = openGeneration()
+      if (generation === null) {
         return null
       }
       const entry = overlays.get(path)
       return entry !== undefined && entry.generation === generation ? entry.overlay : null
     },
-    getOverlays(generation) {
-      if (generation === undefined) {
+    getOverlays() {
+      const generation = openGeneration()
+      if (generation === null) {
         return EMPTY_OVERLAYS
       }
       if (snapshot?.generation !== generation) {
-        const current = new Map<string, NoteRowOverlay>()
-        for (const [path, entry] of overlays) {
-          if (entry.generation === generation) {
-            current.set(path, entry.overlay)
-          }
-        }
-        snapshot = { generation, overlays: current.size === 0 ? EMPTY_OVERLAYS : current }
+        snapshot = { generation, overlays: collect(generation) }
       }
       return snapshot.overlays
     },
-    reconcile(path, generation, row) {
-      if (reconcileEntry(path, generation, row)) {
+    getOverlaysOn(generation) {
+      return snapshot?.generation === generation ? snapshot.overlays : collect(generation)
+    },
+    reconcile(path, row) {
+      const generation = openGeneration()
+      if (generation !== null && reconcileEntry(path, generation, row)) {
         emit()
       }
     },
-    reconcileRows(generation, rows, options) {
+    reconcileRows(rows, options) {
+      const generation = openGeneration()
+      if (generation === null) {
+        return
+      }
       let changed = false
       for (const row of rows) {
         changed = reconcileEntry(row.path, generation, row) || changed
@@ -427,8 +442,10 @@ export function createNoteRowService(): NoteRowService {
     },
     subscribe(listener) {
       listeners.add(listener)
+      const stopGraph = graphSession.subscribe(listener)
       return () => {
         listeners.delete(listener)
+        stopGraph()
       }
     },
   }

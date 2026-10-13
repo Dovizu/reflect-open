@@ -8,6 +8,7 @@ import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTemplateService, type TemplateInsertTarget } from './template-service.ts'
 
 function setup(options?: { files?: Record<string, string>; indexed?: readonly TestNote[] }) {
@@ -35,6 +36,7 @@ function setup(options?: { files?: Record<string, string>; indexed?: readonly Te
     },
     openDocuments,
   })
+  const graph = createTestGraphSessionService({ graph: { generation: 7 } })
   const templates = createTemplateService({
     noteFile,
     indexQuery: createIndexQueryService({ database }),
@@ -42,8 +44,9 @@ function setup(options?: { files?: Record<string, string>; indexed?: readonly Te
     noteMove,
     openDocuments,
     operations,
+    graphSession: graph,
   })
-  return { templates, noteFile, database, operations, openDocuments, noteMove }
+  return { templates, noteFile, database, operations, openDocuments, noteMove, graph }
 }
 
 function fakeEditor(): { inserted: string[]; focused: number } & TemplateInsertTarget {
@@ -150,7 +153,7 @@ describe('slashItems', () => {
 describe('createTemplate', () => {
   it('names the template via frontmatter so insertion never injects the name', async () => {
     const { templates, noteFile } = setup()
-    await expect(templates.createTemplate('  Daily Review ', 7)).resolves.toBe(
+    await expect(templates.createTemplate('  Daily Review ')).resolves.toBe(
       'templates/daily-review.md',
     )
     expect(noteFile.writes()).toEqual([
@@ -164,9 +167,17 @@ describe('createTemplate', () => {
 
   it('picks a collision-free path', async () => {
     const { templates } = setup({ files: { 'templates/daily-review.md': 'Mood:\n' } })
-    await expect(templates.createTemplate('Daily Review', 7)).resolves.toBe(
+    await expect(templates.createTemplate('Daily Review')).resolves.toBe(
       'templates/daily-review-2.md',
     )
+  })
+
+  it('rejects and writes nothing when no graph is open', async () => {
+    const { templates, noteFile, graph } = setup()
+    graph.setGraph(null)
+
+    await expect(templates.createTemplate('Daily Review')).rejects.toThrow('No graph is open.')
+    expect(noteFile.writes()).toEqual([])
   })
 })
 
@@ -176,9 +187,9 @@ describe('renameTemplate', () => {
       files: { 'templates/journal.md': '# Journal\n\nMood:\n' },
     })
 
-    await expect(
-      templates.renameTemplate('templates/journal.md', 'Weekly Journal', 7),
-    ).resolves.toBe('templates/weekly-journal.md')
+    await expect(templates.renameTemplate('templates/journal.md', 'Weekly Journal')).resolves.toBe(
+      'templates/weekly-journal.md',
+    )
     expect(noteMove.moved()).toEqual([['templates/journal.md', 'templates/weekly-journal.md']])
     // The retitle reads and writes the moved file.
     expect(noteFile.writes()).toEqual([
@@ -196,7 +207,7 @@ describe('renameTemplate', () => {
       files: { 'templates/journal.md': '# Journal\n\nMood:\n' },
     })
 
-    await expect(templates.renameTemplate('templates/journal.md', 'Journal', 7)).resolves.toBe(
+    await expect(templates.renameTemplate('templates/journal.md', 'Journal')).resolves.toBe(
       'templates/journal.md',
     )
     expect(noteMove.moved()).toEqual([])
@@ -213,7 +224,7 @@ describe('renameTemplate', () => {
     })
     openDocuments.register({ session })
 
-    await templates.renameTemplate('templates/journal.md', 'Journal', 7)
+    await templates.renameTemplate('templates/journal.md', 'Journal')
     expect(session.getCalls('flush')).toHaveLength(1)
   })
 
@@ -222,7 +233,7 @@ describe('renameTemplate', () => {
       files: { 'templates/journal.md': '---\nprivate: true\n---\n# Journal\n\n- Mood:\n' },
     })
 
-    await templates.renameTemplate('templates/journal.md', 'Log', 7)
+    await templates.renameTemplate('templates/journal.md', 'Log')
     expect(noteFile.files().get('templates/log.md')).toBe(
       '---\nprivate: true\n---\n# Log\n\n- Mood:\n',
     )
@@ -233,7 +244,7 @@ describe('renameTemplate', () => {
       files: { 'templates/journal.md': '---\ntitle: Journal\n---\nMood:\n' },
     })
 
-    await templates.renameTemplate('templates/journal.md', 'Log', 7)
+    await templates.renameTemplate('templates/journal.md', 'Log')
     const written = noteFile.files().get('templates/log.md')
     expect(written).toContain('title: Log')
     expect(written).toContain('Mood:\n')
@@ -244,7 +255,7 @@ describe('renameTemplate', () => {
       files: { 'templates/journal.md': 'Mood:\n' },
     })
 
-    await templates.renameTemplate('templates/journal.md', 'Log', 7)
+    await templates.renameTemplate('templates/journal.md', 'Log')
     expect(noteMove.moved()).toEqual([['templates/journal.md', 'templates/log.md']])
     expect(noteFile.writes()).toEqual([])
   })

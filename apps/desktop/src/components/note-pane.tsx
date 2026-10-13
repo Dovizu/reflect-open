@@ -130,7 +130,6 @@ export function NotePaneComponent({
   const { graph } = useGraph()
   const { settings } = useSettings()
   const { noteCreation, platform } = useAppServices()
-  const generation = graph?.generation ?? null
   const graphKey = graph?.root ?? null
   const dailyNote = isDaily(path)
   const policy = deferredCreationPolicy(path)
@@ -145,7 +144,7 @@ export function NotePaneComponent({
   if (needsSeed && seed.path !== path) {
     setSeed({ path, seed: noteCreation.untitledNoteSeed() })
   }
-  const document = useNoteDocument(path, generation, {
+  const document = useNoteDocument(path, {
     createIfMissing: lazyCreate,
     // Every editable regular note maintains title-addressed links and
     // title-mirroring backlink displays. The coordinator separately limits
@@ -167,10 +166,8 @@ export function NotePaneComponent({
     saveFile,
     resolveFileInfo,
     saveError,
-  } = useAssetPersistence(generation, path)
+  } = useAssetPersistence(path)
   const renderWikilinkHoverCard = useWikiLinkHoverPreview({
-    generation,
-    graphKey: graph?.root ?? null,
     dateFormat: settings.dateFormat,
   })
   const onWikiLinkClick = useWikiLinkNavigation()
@@ -338,9 +335,7 @@ export function NotePaneComponent({
         onWikiLinkClick={onWikiLinkClick}
         onLinkClick={onLinkClick}
         resolveLinkPreview={resolveLinkPreview}
-        {...(generation !== null && !platform.surface.touchEditor
-          ? { renderWikilinkHoverCard }
-          : {})}
+        {...(graph !== null && !platform.surface.touchEditor ? { renderWikilinkHoverCard } : {})}
         onTagClick={onTagClick}
         onWikilinkSearch={onWikilinkSearch}
         onTagSearch={onTagSearch}

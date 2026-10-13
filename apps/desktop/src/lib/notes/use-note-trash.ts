@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 export interface NoteTrash {
@@ -33,8 +32,7 @@ export interface NoteTrash {
  *   trash; the toast reports the count couldn't-trash via the last error.
  */
 export function useNoteTrash(): NoteTrash {
-  const { graph } = useGraph()
-  const { noteActions, operations } = useAppServices()
+  const { noteActions } = useAppServices()
   const [isTrashing, setIsTrashing] = useState(false)
 
   const trash = useCallback(
@@ -42,21 +40,15 @@ export function useNoteTrash(): NoteTrash {
       if (paths.length === 0) {
         return true
       }
-      const generation = graph?.generation
-      if (generation === undefined) {
-        // No graph to trash into — report it; never a silent success.
-        operations.start('Trashing notes').fail('No graph is open.')
-        return false
-      }
       setIsTrashing(true)
       try {
-        const { failed } = await noteActions.trashMany(paths, generation)
+        const { failed } = await noteActions.trashMany(paths)
         return failed.length === 0
       } finally {
         setIsTrashing(false)
       }
     },
-    [graph, noteActions, operations],
+    [noteActions],
   )
 
   return { trash, isTrashing }

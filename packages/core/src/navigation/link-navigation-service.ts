@@ -411,9 +411,9 @@ export function createLinkNavigationService(
   ) => {
     const generation = currentGeneration()
     if (generation !== null && sourcePath !== null) {
-      const assetPath = attachments.resolveAssetOpenPath(sourcePath, href, generation)
+      const assetPath = attachments.resolveAssetOpenPath(sourcePath, href)
       if (assetPath !== null) {
-        void attachments.openOrReveal(assetPath, generation)
+        void attachments.openOrReveal(assetPath)
         return
       }
     }

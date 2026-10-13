@@ -271,7 +271,7 @@ describe('NoteActionsMenu', () => {
     await openActions()
     await view.getByRole('button', { name: 'Pin', exact: true }).click()
     await vi.waitFor(() =>
-      expect(view.app.noteRows.getOverlay('notes/meeting.md', 7)).toMatchObject({ isPinned: true }),
+      expect(view.app.noteRows.getOverlay('notes/meeting.md')).toMatchObject({ isPinned: true }),
     )
     await openActions()
     await expect
@@ -314,7 +314,7 @@ describe('NoteActionsMenu', () => {
     await expect.element(dialog).toHaveAttribute('data-slot', 'drawer-content')
     await dialog.getByRole('button', { name: 'Delete' }).click()
 
-    await vi.waitFor(() => expect(trash).toHaveBeenCalledWith('notes/meeting.md', 7))
+    await vi.waitFor(() => expect(trash).toHaveBeenCalledWith('notes/meeting.md'))
     expect(onDeleted).toHaveBeenCalledOnce()
   })
 
@@ -325,11 +325,12 @@ describe('NoteActionsMenu', () => {
     await view.getByRole('button', { name: 'Delete' }).click()
 
     const dialog = page.getByRole('dialog')
+    // The real trash reports the missing graph.
+    trash.mockRestore()
     act(() => app.graphSession.setGraph(null))
     await dialog.getByRole('button', { name: 'Delete' }).click()
 
     await expect.element(dialog.getByText('No graph is open.')).toBeInTheDocument()
-    expect(trash).not.toHaveBeenCalled()
     expect(onDeleted).not.toHaveBeenCalled()
   })
 })

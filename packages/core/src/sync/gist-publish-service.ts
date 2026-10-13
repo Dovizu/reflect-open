@@ -1,4 +1,5 @@
 import type { ClipboardService } from '../app/clipboard-service.ts'
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import type { NoteRowService } from '../documents/note-row-service.ts'
@@ -32,20 +33,21 @@ export interface GistPublishService {
    * Resolves the row fields whenever the publish itself landed (a failed
    * clipboard copy gets its own failure line, never a phantom "publish
    * failed" for a gist that exists), or `null` when the publish failed
-   * (already surfaced) or another gist action on the note is in flight.
+   * (already surfaced), another gist action on the note is in flight, or no
+   * graph is open.
    *
    * On success it records the url in the optimistic note-row overlay, so every
    * sidebar surface (the gist action's label, the Published URL section)
    * reflects the publish immediately, before the watcher re-indexes the file.
    */
-  publish(path: string, generation: number): Promise<GistPublishResult | null>
+  publish(path: string): Promise<GistPublishResult | null>
   /**
    * The unpublish action as the sidebar runs it: delete the remote gist, clear
    * the local gist metadata, and hide the published URL optimistically while
-   * the index catches up. Resolves `null` when it failed (already surfaced) or
-   * another gist action on the note is in flight.
+   * the index catches up. Resolves `null` when it failed (already surfaced),
+   * another gist action on the note is in flight, or no graph is open.
    */
-  unpublish(path: string, generation: number): Promise<GistPublishResult | null>
+  unpublish(path: string): Promise<GistPublishResult | null>
 }
 
 export function createGistPublishService(deps: {
@@ -56,8 +58,18 @@ export function createGistPublishService(deps: {
   privacy: Pick<PrivacyService, 'assertCloudAllowed'>
   operations: Pick<OperationsService, 'start'>
   clipboard: ClipboardService
+  graphSession: GraphSessionSource
 }): GistPublishService {
-  const { gists, githubAuth, noteDocuments, noteRows, privacy, operations, clipboard } = deps
+  const {
+    gists,
+    githubAuth,
+    noteDocuments,
+    noteRows,
+    privacy,
+    operations,
+    clipboard,
+    graphSession,
+  } = deps
   const active = new Set<string>()
 
   function claim(path: string): boolean {
@@ -183,10 +195,12 @@ export function createGistPublishService(deps: {
   }
 
   return {
-    async publish(path, generation) {
-      if (!claim(path)) {
+    async publish(path) {
+      const session = graphSession.getState().session
+      if (session === null || !claim(path)) {
         return null
       }
+      const { generation } = session
       try {
         const operation = operations.start('Publishing gist')
         let url: string
@@ -212,10 +226,12 @@ export function createGistPublishService(deps: {
         active.delete(path)
       }
     },
-    async unpublish(path, generation) {
-      if (!claim(path)) {
+    async unpublish(path) {
+      const session = graphSession.getState().session
+      if (session === null || !claim(path)) {
         return null
       }
+      const { generation } = session
       try {
         const operation = operations.start('Unpublishing gist')
         try {

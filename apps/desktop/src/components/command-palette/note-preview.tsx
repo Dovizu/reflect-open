@@ -39,10 +39,7 @@ export function NotePreview({ entry }: NotePreviewProps): ReactElement {
   const { graph } = useGraph()
   const { settings } = useSettings()
   const { noteFile } = useAppServices()
-  const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(
-    graph?.generation ?? null,
-    entry.path,
-  )
+  const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(entry.path)
   const { data, isError } = useQuery({
     queryKey: queryKeys.index.notePreview(graph?.root, entry.path),
     queryFn: () => readNoteForPreview(noteFile, entry.path),
