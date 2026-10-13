@@ -38,7 +38,6 @@ import { NoteFindProvider, useNoteFind } from '@/providers/note-find-provider.ts
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { ShortcutsProvider, useShortcuts } from '@/providers/shortcuts-provider.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
-import { ThemeProvider } from '@/providers/theme-provider.tsx'
 import { MOD_KEY, NON_MOD_KEY } from '@/test-utils/mod-key.ts'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useAppShortcuts } from './app-shortcuts.ts'
@@ -140,23 +139,21 @@ async function shortcutsHook(client?: QueryClient) {
       settings: { editorMarkdownSyntax: 'hide', semanticSearchEnabled: false, theme: 'system' },
       ...(client === undefined ? {} : { queryClient: client }),
       wrapper: (children) => (
-        <ThemeProvider>
-          <PaletteProvider>
-            <ShortcutsProvider>
-              <NoteTemplatesProvider>
-                <SidebarProvider>
-                  <FocusedDailyProvider>
-                    <NoteFindProvider>
-                      <AudioMemoProvider graph={GRAPH}>
-                        <ChatProvider graph={GRAPH}>{children}</ChatProvider>
-                      </AudioMemoProvider>
-                    </NoteFindProvider>
-                  </FocusedDailyProvider>
-                </SidebarProvider>
-              </NoteTemplatesProvider>
-            </ShortcutsProvider>
-          </PaletteProvider>
-        </ThemeProvider>
+        <PaletteProvider>
+          <ShortcutsProvider>
+            <NoteTemplatesProvider>
+              <SidebarProvider>
+                <FocusedDailyProvider>
+                  <NoteFindProvider>
+                    <AudioMemoProvider graph={GRAPH}>
+                      <ChatProvider graph={GRAPH}>{children}</ChatProvider>
+                    </AudioMemoProvider>
+                  </NoteFindProvider>
+                </FocusedDailyProvider>
+              </SidebarProvider>
+            </NoteTemplatesProvider>
+          </ShortcutsProvider>
+        </PaletteProvider>
       ),
     },
   )

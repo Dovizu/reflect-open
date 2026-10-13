@@ -23,7 +23,11 @@ export { type CloudGraphContext, type CloudSafe } from '../privacy/checkers.ts'
 export { type NoteHitSummary } from '../ai/chat/note-tools-service.ts'
 export { chatSystemPrompt } from '../ai/chat/system-prompt.ts'
 export type { ChatStreamEvent } from '../ai/chat/chat-engine-service.ts'
-export { type ChatSession, type ChatStatus } from '../ai/chat/chat-session-service.ts'
+export {
+  type ChatSession,
+  type ChatSessionState,
+  type ChatStatus,
+} from '../ai/chat/chat-session-service.ts'
 export { readChatAttachment } from '../ai/chat/chat-attachments.ts'
 export { filterAiPrompts } from '../ai/selection-prompts.ts'
 export {

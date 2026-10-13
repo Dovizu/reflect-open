@@ -1,7 +1,7 @@
 import { render } from 'vitest-browser-react'
 import { describe, expect, it } from 'vitest'
 import { useAppServices, useGraphServices } from '@/services/services-provider.tsx'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 
 function AppVersion() {
   const { platform } = useAppServices()
@@ -19,13 +19,13 @@ function GraphRoot() {
 
 describe('services providers', () => {
   it('gives components the app services', async () => {
-    const screen = await renderWithServices(<AppVersion />)
+    const screen = await renderInApp(<AppVersion />, { servicesOnly: true })
     await expect.element(screen.getByText('version 0.0.0-test')).toBeVisible()
     expect(screen.app.platform.appVersion).toBe('0.0.0-test')
   })
 
   it('gives components the graph services', async () => {
-    const screen = await renderWithServices(<GraphRoot />)
+    const screen = await renderInApp(<GraphRoot />, { route: null })
     await expect.element(screen.getByText('main /graphs/test')).toBeVisible()
   })
 

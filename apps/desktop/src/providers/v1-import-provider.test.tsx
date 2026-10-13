@@ -8,7 +8,7 @@ import {
   createTestIpcBridgeService,
 } from '@reflect/core/testing'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { useV1Import, V1ImportProvider } from './v1-import-provider.tsx'
 
 const GRAPH: GraphInfo = { root: '/graphs/notes', name: 'Notes', generation: 42 }
@@ -55,11 +55,11 @@ async function renderProvider(result?: GraphImportSummary | Error) {
   const refreshIndex = vi.fn()
   const session = createTestGraphSessionService({ state: { status: 'ready', graph: GRAPH } })
   const app = createTestAppServices({ ipc, graphSession: { ...session, refreshIndex } })
-  const view = await renderWithServices(
+  const view = await renderInApp(
     <V1ImportProvider>
       <Probe />
     </V1ImportProvider>,
-    { app },
+    { app, servicesOnly: true },
   )
   return {
     view,

@@ -1,10 +1,10 @@
-import { createContext, use, useSyncExternalStore, type ReactElement, type ReactNode } from 'react'
 import type { Settings, SettingsLoadOutcome } from '@reflect/core'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { SettingsLoadOutcome } from '@reflect/core'
 
-interface SettingsContextValue {
+interface SettingsValue {
   settings: Settings
   /** Merge `patch` into the settings: applied immediately, persisted async. */
   updateSettings: (patch: Partial<Settings>) => void
@@ -14,27 +14,30 @@ interface SettingsContextValue {
   whenSettingsLoaded: () => Promise<SettingsLoadOutcome>
 }
 
-const SettingsContext = createContext<SettingsContextValue | null>(null)
+interface SettingsStore {
+  readonly subscribe: (listener: () => void) => () => void
+  readonly get: () => Settings | null
+}
 
-export function SettingsProvider({ children }: { children: ReactNode }): ReactElement {
-  const { settings: service } = useAppServices()
-  const settings = useSyncExternalStore(service.subscribe, service.get)
-  const value: SettingsContextValue = {
+const NO_STORE: SettingsStore = {
+  subscribe: () => () => {},
+  get: () => null,
+}
+
+/** Access the current settings and the updater. Use within an `AppServicesProvider`. */
+export function useSettings(options: { optional: true }): SettingsValue | null
+export function useSettings(): SettingsValue
+export function useSettings(options?: { optional: true }): SettingsValue | null {
+  const service = useAppServices(options)?.settings ?? null
+  const store: SettingsStore = service ?? NO_STORE
+  const settings = useServiceState(store, store.get)
+  if (service === null || settings === null) {
+    return null
+  }
+  return {
     settings,
     updateSettings: service.update,
     updateSettingsWith: service.updateWith,
     whenSettingsLoaded: service.whenLoaded,
   }
-  return <SettingsContext value={value}>{children}</SettingsContext>
-}
-
-/** Access the current settings and the updater. Use within a SettingsProvider. */
-export function useSettings(options: { optional: true }): SettingsContextValue | null
-export function useSettings(): SettingsContextValue
-export function useSettings(options?: { optional: true }): SettingsContextValue | null {
-  const context = use(SettingsContext)
-  if (!context && !options?.optional) {
-    throw new Error('useSettings must be used within a SettingsProvider')
-  }
-  return context
 }

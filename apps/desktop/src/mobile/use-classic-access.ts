@@ -1,43 +1,25 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import { focusManager, useMutation } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
 import type { ClassicAccess, ClassicSignInResult } from '@reflect/core'
 import { mutationKeys, mutationScopeIds } from '@/lib/query-client.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
  * This device's Reflect Classic access as stored in the keychain. Loading
- * covers only the keychain read; the daily recheck with Reflect Classic runs
- * in the background, on mount and on window focus, and writes its answer back.
+ * covers only the keychain read; the service rechecks with Reflect Classic in
+ * the background while this is mounted.
  */
 export function useClassicAccess(): {
   value: ClassicAccess | null
   active: boolean
   isLoading: boolean
 } {
-  const { classicAccess: classic, logger, platform } = useAppServices()
+  const { classicAccess: classic, platform } = useAppServices()
   const enabled = platform.appPlatform === 'ios'
-  const state = useSyncExternalStore(classic.subscribe, classic.getState)
-  const hasToken = state.access?.token != null
+  const state = useServiceState(classic)
 
-  useEffect(() => {
-    if (!enabled) return
-    classic.read().catch((error: unknown) => {
-      logger.error('Reading the Reflect Classic access failed', error)
-    })
-  }, [enabled, classic, logger])
-
-  useEffect(() => {
-    if (!enabled || !hasToken) return
-    const recheck = (): void => {
-      classic.load().catch((error: unknown) => {
-        logger.error('Reading the Reflect Classic access failed', error)
-      })
-    }
-    recheck()
-    return focusManager.subscribe((focused) => {
-      if (focused) recheck()
-    })
-  }, [enabled, hasToken, classic, logger])
+  useEffect(() => classic.start(), [classic])
 
   return {
     value: enabled ? state.access : null,

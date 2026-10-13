@@ -15,7 +15,7 @@ import {
   type TestSettingsService,
 } from '@reflect/core/testing'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { AiProvidersSection } from './ai-providers-section.tsx'
 
 // The dialog verifies keys through the key validation service; the default
@@ -46,7 +46,7 @@ async function renderSection(): Promise<void> {
     },
   })
   keyValidation = app.aiKeyValidation
-  await renderWithServices(<AiProvidersSection />, { app })
+  await renderInApp(<AiProvidersSection />, { app, servicesOnly: true })
 }
 
 /** The documents the settings service persisted, oldest first. */

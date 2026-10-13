@@ -15,12 +15,12 @@ import {
   type TestSettingsService,
   type TestStorageService,
 } from '@reflect/core/testing'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
-import { ThemeProvider, useTheme } from './theme-provider.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
+import { ThemeEffect, useTheme } from './theme-provider.tsx'
 
 /**
  * Covers the startup-flash contract: `public/theme-init.js` paints the cached
- * preference before React boots, so this provider must leave the document alone
+ * preference before React boots, so the effect must leave the document alone
  * until the settings load settles.
  */
 
@@ -55,16 +55,14 @@ function Probe(): null {
   return null
 }
 
-/**
- * Mount the provider over the services of the last `install`. Not through
- * `renderInApp`: that waits for the settings load, which one case gates.
- */
+/** Mount the effect over the services of the last `install`, without awaiting the settings load. */
 async function renderTheme() {
-  await renderWithServices(
-    <ThemeProvider>
+  await renderInApp(
+    <>
+      <ThemeEffect />
       <Probe />
-    </ThemeProvider>,
-    { app },
+    </>,
+    { app, servicesOnly: true },
   )
   return {
     result: {
@@ -105,7 +103,7 @@ afterEach(() => {
   document.documentElement.style.colorScheme = originalColorScheme
 })
 
-describe('ThemeProvider', () => {
+describe('ThemeEffect', () => {
   it('leaves the first-paint theme alone until the settings load settles', async () => {
     // A `light`-pinned user on a dark first paint: before the load lands the
     // preference is the `system` default, which resolves to light here.

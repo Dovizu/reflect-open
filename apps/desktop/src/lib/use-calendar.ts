@@ -10,6 +10,7 @@ import {
 import { queryKeys } from '@/lib/query-client.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
  * TanStack Query hooks over `CalendarEventsService`
@@ -24,25 +25,23 @@ function useCalendarAvailable(): boolean {
 }
 
 /**
- * The macOS calendar permission state (never prompts). The state changes
- * behind Reflect's back in System Settings, so this query opts out of the
- * app-wide focus policy and re-checks every time the
- * window regains focus: exactly the "flip it in System Settings and come
- * back" path.
+ * The macOS calendar permission state (never prompts). While `enabled`, the
+ * service re-checks it every time the window turns visible: exactly the
+ * "flip it in System Settings and come back" path.
  */
 export function useCalendarAuthorization(
   enabled: boolean,
 ): CalendarAuthorizationStatus | undefined {
   const { calendarEvents } = useAppServices()
   const available = useCalendarAvailable()
-  const query = useQuery({
-    queryKey: queryKeys.calendar.authorization,
-    queryFn: () => calendarEvents.authorizationStatus(),
-    enabled: enabled && available,
-    staleTime: 0,
-    refetchOnWindowFocus: 'always',
-  })
-  return query.data
+  const { authorization } = useServiceState(calendarEvents)
+  useEffect(() => {
+    if (!enabled || !available) {
+      return
+    }
+    return calendarEvents.watchAuthorization()
+  }, [available, calendarEvents, enabled])
+  return authorization ?? undefined
 }
 
 export interface CalendarsResult {

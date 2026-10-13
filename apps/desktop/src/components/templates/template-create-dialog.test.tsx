@@ -4,7 +4,7 @@ import { expect, it, vi } from 'vitest'
 import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { NoteTemplatesProvider, useNoteTemplates } from '@/providers/note-templates-provider.tsx'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { TemplateCreateDialog } from './template-create-dialog.tsx'
 
 function Opener(): ReactElement {
@@ -44,12 +44,12 @@ async function renderDialog(): Promise<{ context: CommandContext; app: TestAppSe
     openTemplateCreate: vi.fn(),
     enableSemanticSearch: vi.fn(),
   }
-  await renderWithServices(
+  await renderInApp(
     <NoteTemplatesProvider>
       <Opener />
       <TemplateCreateDialog context={context} />
     </NoteTemplatesProvider>,
-    { app },
+    { app, servicesOnly: true },
   )
   return { context, app }
 }

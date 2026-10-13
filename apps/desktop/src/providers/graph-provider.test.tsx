@@ -10,9 +10,8 @@ import {
   createTestPlatformService,
 } from '@reflect/core/testing'
 import { useGraphServices } from '@/services/services-provider.tsx'
-import { renderWithServices } from '@/test-utils/render-with-services.tsx'
+import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { GraphProvider, useGraph } from './graph-provider.tsx'
-import { SettingsProvider } from './settings-provider.tsx'
 
 /**
  * The graph session and the mobile onboarding are covered in `@reflect/core`.
@@ -24,13 +23,8 @@ import { SettingsProvider } from './settings-provider.tsx'
 const MOBILE_ROOT = '/Documents'
 const ICLOUD_ROOT = '/iCloud/Documents'
 
-// Mirrors the main.tsx provider order: settings above the graph lifecycle.
 function tree(children: ReactNode, platform?: AppPlatform): ReactElement {
-  return (
-    <SettingsProvider>
-      <GraphProvider {...(platform === undefined ? {} : { platform })}>{children}</GraphProvider>
-    </SettingsProvider>
-  )
+  return <GraphProvider {...(platform === undefined ? {} : { platform })}>{children}</GraphProvider>
 }
 
 /** Mount the provider over `app` and read its context. */
@@ -40,7 +34,7 @@ async function renderGraph<App extends AppServices>(app: App, platform?: AppPlat
     current = useGraph()
     return null
   }
-  await renderWithServices(tree(<Probe />, platform), { app })
+  await renderInApp(tree(<Probe />, platform), { app, servicesOnly: true })
   return {
     app,
     result: {
@@ -139,7 +133,7 @@ describe('GraphProvider', () => {
       )
     }
     const app = createTestAppServices()
-    const screen = await renderWithServices(tree(<Probe />), { app })
+    const screen = await renderInApp(tree(<Probe />), { app, servicesOnly: true })
 
     await screen.getByRole('button', { name: 'Open' }).click()
 

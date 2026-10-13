@@ -3,9 +3,9 @@ import { renderHook } from 'vitest-browser-react'
 import { StrictMode, type ReactNode } from 'react'
 import { createTestAppServices, createTestSettingsService } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
-import { SettingsProvider, useSettings } from './settings-provider.tsx'
+import { useSettings } from './settings-provider.tsx'
 
-describe('SettingsProvider', () => {
+describe('useSettings', () => {
   it('renders the settings of the app services and forwards updates', async () => {
     const settings = createTestSettingsService({ editorMarkdownSyntax: 'show' })
     const app = createTestAppServices({ settings })
@@ -35,14 +35,9 @@ describe('SettingsProvider', () => {
   it('loads once in StrictMode', async () => {
     const settings = createTestSettingsService()
     const app = createTestAppServices({ settings })
-    // The provider under test is the inner one, inside StrictMode.
     const { result, act } = await renderHookInApp(() => useSettings(), {
       app,
-      wrapper: (children: ReactNode) => (
-        <StrictMode>
-          <SettingsProvider>{children}</SettingsProvider>
-        </StrictMode>
-      ),
+      wrapper: (children: ReactNode) => <StrictMode>{children}</StrictMode>,
     })
     await act(async () => {
       await result.current.whenSettingsLoaded()
@@ -51,7 +46,7 @@ describe('SettingsProvider', () => {
     expect(loads).toHaveLength(1)
   })
 
-  it('returns null outside a SettingsProvider when optional', async () => {
+  it('returns null outside an AppServicesProvider when optional', async () => {
     const { result } = await renderHook(() => useSettings({ optional: true }))
     expect(result.current).toBeNull()
   })

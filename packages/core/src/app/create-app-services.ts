@@ -501,6 +501,8 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     webAuth,
     clock,
     id,
+    lifecycle,
+    platform,
     logger,
   })
   const audioRecorder = createPlatformAudioRecorder({
@@ -726,7 +728,13 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     lifecycle,
     appInfo: createAppInfoService({ ipc }),
     calendar,
-    calendarEvents: createCalendarEventsService({ calendar, settings, platform, logger }),
+    calendarEvents: createCalendarEventsService({
+      calendar,
+      settings,
+      platform,
+      lifecycle,
+      logger,
+    }),
     contacts,
     contactSuggestions: createContactSuggestionService({
       contacts,

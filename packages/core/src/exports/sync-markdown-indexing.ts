@@ -2,7 +2,6 @@ export {
   isDeviceFlowConfigured,
   suggestRepoName,
   type GithubAuth,
-  type GithubRepoRef,
   type GithubUser,
 } from '../sync/index.ts'
 export {

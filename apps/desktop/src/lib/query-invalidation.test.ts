@@ -3,7 +3,6 @@ import {
   createTestAssetDescriptionService,
   createTestCaptureService,
   createTestEmbedMediaService,
-  createTestGithubAuthService,
 } from '@reflect/core/testing'
 import type { XPost } from '@post-embed/types'
 import { createXPostResolver, xPostQueryOptions } from '@/editor/use-x-post-resolver.ts'
@@ -23,7 +22,6 @@ function install(capture: ReturnType<typeof createTestCaptureService>): () => vo
   return installQueryInvalidation({
     capture,
     assetDescription: createTestAssetDescriptionService(),
-    githubAuth: createTestGithubAuthService(),
   })
 }
 

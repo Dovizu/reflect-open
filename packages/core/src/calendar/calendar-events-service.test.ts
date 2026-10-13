@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   createTestCalendarEventsService,
   createTestCalendarService,
+  createTestLifecycleService,
   createTestLoggerService,
   createTestPlatformService,
   createTestSettingsService,
@@ -47,11 +48,10 @@ describe('isAvailable', () => {
 })
 
 describe('reads', () => {
-  it('answers the permission state and the calendars of the Mac', async () => {
-    const calendar = createTestCalendarService({ status: 'denied', calendars: CALENDARS })
+  it('answers the calendars of the Mac', async () => {
+    const calendar = createTestCalendarService({ calendars: CALENDARS })
     const service = createTestCalendarEventsService({ calendar })
 
-    await expect(service.authorizationStatus()).resolves.toBe('denied')
     await expect(service.listCalendars()).resolves.toEqual(CALENDARS)
   })
 
@@ -94,6 +94,61 @@ describe('subscribeChanged', () => {
   })
 })
 
+describe('watchAuthorization', () => {
+  it('reads the permission state now, on every page turning visible, and on every calendar change', async () => {
+    const calendar = createTestCalendarService({ status: 'denied' })
+    const lifecycle = createTestLifecycleService()
+    const service = createTestCalendarEventsService({ calendar, lifecycle })
+    expect(service.getState().authorization).toBeNull()
+    let notified = 0
+    service.subscribe(() => {
+      notified += 1
+    })
+
+    const stop = service.watchAuthorization()
+    await vi.waitFor(() => expect(service.getState().authorization).toBe('denied'))
+
+    calendar.setStatus('fullAccess')
+    lifecycle.emitVisible()
+    await vi.waitFor(() => expect(service.getState().authorization).toBe('fullAccess'))
+
+    calendar.setStatus('restricted')
+    calendar.emitChanged()
+    await vi.waitFor(() => expect(service.getState().authorization).toBe('restricted'))
+    expect(notified).toBe(3)
+
+    stop()
+    calendar.setStatus('denied')
+    lifecycle.emitVisible()
+    calendar.emitChanged()
+    await service.listCalendars()
+    expect(service.getState().authorization).toBe('restricted')
+  })
+
+  it('logs a failed read and keeps the last state', async () => {
+    const logger = createTestLoggerService()
+    const failure = new Error('EventKit is gone')
+    const service = createTestCalendarEventsService({
+      logger,
+      calendar: {
+        ...createTestCalendarService(),
+        authorizationStatus: async () => {
+          throw failure
+        },
+      },
+    })
+
+    service.watchAuthorization()
+
+    await vi.waitFor(() =>
+      expect(logger.getErrors()).toEqual([
+        { message: 'calendar authorization read failed:', cause: failure },
+      ]),
+    )
+    expect(service.getState().authorization).toBeNull()
+  })
+})
+
 describe('requestAccess', () => {
   it('prompts through the calendar', async () => {
     const calendar = createTestCalendarService({ status: 'notDetermined' })
@@ -102,7 +157,7 @@ describe('requestAccess', () => {
     await service.requestAccess()
 
     expect(calendar.accessRequests()).toBe(1)
-    await expect(service.authorizationStatus()).resolves.toBe('fullAccess')
+    expect(service.getState().authorization).toBe('fullAccess')
   })
 
   it('logs a failed request and still resolves', async () => {

@@ -25,10 +25,13 @@ export function GraphServicesProvider({
   return <GraphServicesContext value={services}>{children}</GraphServicesContext>
 }
 
-/** The {@link AppServices} of the nearest `AppServicesProvider`. */
-export function useAppServices(): AppServices {
+/** The {@link AppServices} of the nearest `AppServicesProvider`; `optional` allows none. */
+export function useAppServices(options: { optional: true }): AppServices | null
+export function useAppServices(): AppServices
+export function useAppServices(options?: { optional: true }): AppServices | null
+export function useAppServices(options?: { optional: true }): AppServices | null {
   const services = use(AppServicesContext)
-  if (services === null) {
+  if (services === null && options?.optional !== true) {
     throw new Error('useAppServices() must be called inside an <AppServicesProvider>')
   }
   return services
