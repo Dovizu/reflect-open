@@ -3,15 +3,17 @@ import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { GithubAuthService } from '@reflect/core'
 import {
-  createTestCoreServices,
   createTestClipboardService,
-  createTestHttpService,
   createTestOpenerService,
+  type TestClipboardService,
+  type TestOpenerService,
+} from '@reflect/app/testing'
+import {
+  createTestCoreServices,
+  createTestHttpService,
   createTestPlatformService,
   createTestSecretStoreService,
-  type TestClipboardService,
   type TestHttpService,
-  type TestOpenerService,
   type TestSecretStoreService,
 } from '@reflect/core/testing'
 import { fireEvent } from '@/test-utils/fire-event.ts'
@@ -49,13 +51,11 @@ beforeEach(() => {
 async function renderStep(step: ReactNode): Promise<void> {
   const app = createTestCoreServices({
     http,
-    clipboard,
-    opener,
     secretStore: keychain,
     platform: createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
   })
   app.githubAuth.onRunDeviceFlow(mockFlow)
-  await renderInApp(step, { app })
+  await renderInApp(step, { app, appServices: { clipboard, opener } })
 }
 
 /** Switch the step from the device-flow lead to PAT entry. */

@@ -1,4 +1,10 @@
 import type { CoreServices } from '@reflect/core'
+import type { ClipboardService } from './app/clipboard-service.ts'
+import {
+  createOpenerService,
+  type OpenerService,
+  type OpenerTransport,
+} from './app/opener-service.ts'
 import { createCommandService, type CommandService } from './commands/command-service.ts'
 import { createKeymapService, type KeymapService } from './commands/keymap-service.ts'
 import {
@@ -45,6 +51,14 @@ import { createNavigationService, type NavigationService } from './navigation/na
  */
 export interface AppHost {
   /**
+   * The system clipboard.
+   */
+  readonly clipboard: ClipboardService
+  /**
+   * The native operations behind the opener service.
+   */
+  readonly opener: OpenerTransport
+  /**
    * Defaults to telemetry that reports nothing.
    */
   readonly exceptionTelemetry?: ExceptionTelemetryService
@@ -62,6 +76,14 @@ export interface AppHost {
  * The app-layer services of one webview, built over the core services.
  */
 export interface AppServices {
+  /**
+   * The system clipboard.
+   */
+  readonly clipboard: ClipboardService
+  /**
+   * Hands URLs and paths to the operating system.
+   */
+  readonly opener: OpenerService
   /**
    * The central keymap registry that rejects duplicate shortcut bindings.
    */
@@ -145,6 +167,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     commands,
     clock: core.clock,
   })
+  const opener = createOpenerService({ transport: host.opener, logger: core.logger })
   const navigation = createNavigationService()
   const deepLinkRouter = createDeepLinkRouter({
     intake: core.deepLinkIntake,
@@ -157,7 +180,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     wikiResolver: core.wikiResolver,
     window: core.window,
     platform: core.platform,
-    opener: core.opener,
+    opener,
     deepLinkRouter,
     navigation,
     attachments: core.attachments,
@@ -166,6 +189,8 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     graphSession: core.graphSession,
   })
   return {
+    clipboard: host.clipboard,
+    opener,
     commands,
     keymap,
     nativeMenu,

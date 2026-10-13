@@ -5,12 +5,11 @@ import {
   createTestClockService,
   createTestGithubAuthService,
   createTestLifecycleService,
-  createTestOpenerService,
   type TestBackupService,
   type TestClockService,
   type TestLifecycleService,
-  type TestOpenerService,
 } from '@reflect/core/testing'
+import { createTestOpenerService, type TestOpenerService } from '../testing/opener.ts'
 import {
   createConnectGithubWizardService,
   type ConnectGithubWizardService,

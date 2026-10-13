@@ -231,7 +231,6 @@ import { createSettingsService, type SettingsService } from '../settings/setting
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
-import type { ClipboardService } from './clipboard-service.ts'
 import { createSystemClock, type ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
 import { createWebCryptoHashService, type HashService } from './hash-service.ts'
@@ -247,7 +246,6 @@ import {
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
 import { createOperationsService, type OperationsService } from './operations-service.ts'
 import { createTaskService, type TaskService } from '../tasks/task-service.ts'
-import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
   createPersistenceFlushService,
@@ -300,14 +298,6 @@ export interface CoreServices {
    * Native open panels.
    */
   readonly dialog: DialogService
-  /**
-   * The system clipboard.
-   */
-  readonly clipboard: ClipboardService
-  /**
-   * Hands URLs and paths to the operating system.
-   */
-  readonly opener: OpenerService
   /**
    * Host filesystem path building, in the host platform's path syntax.
    */
@@ -669,14 +659,6 @@ export interface CoreAdapters {
    */
   readonly dialog: DialogService
   /**
-   * The system clipboard.
-   */
-  readonly clipboard: ClipboardService
-  /**
-   * The native operations behind the opener service.
-   */
-  readonly opener: OpenerTransport
-  /**
    * The native operations behind the path service.
    */
   readonly path: PathTransport
@@ -784,7 +766,6 @@ export const coreServiceFactories = {
   indexLifecycle: createIndexLifecycleService,
   graphSession: createGraphSessionService<GraphServices>,
   graphServices: createGraphServices,
-  opener: createOpenerService,
   attachments: createAttachmentService,
   persistenceFlush: createPersistenceFlushService,
   gitRepository: createGitRepositoryService,
@@ -1163,12 +1144,10 @@ export function composeCoreServices(
         platform,
       }),
   })
-  const opener = create.opener({ transport: adapters.opener, logger })
   const attachments = create.attachments({
     assetStore,
     noteFile,
     fileChanges,
-    dialog: adapters.dialog,
     operations,
     clock,
     platform,
@@ -1284,8 +1263,6 @@ export function composeCoreServices(
     platform,
     storage,
     dialog: adapters.dialog,
-    clipboard: adapters.clipboard,
-    opener,
     path,
     window: windowService,
     lifecycle,
@@ -1339,7 +1316,6 @@ export function composeCoreServices(
       noteRows,
       privacy: noteServices.privacy,
       operations,
-      clipboard: adapters.clipboard,
       graphSession,
     }),
     icloudNative,
@@ -1401,7 +1377,6 @@ export function composeCoreServices(
       indexQuery: indexReads.indexQuery,
       noteRows,
       operations,
-      clipboard: adapters.clipboard,
       path,
       id,
       graphSession,

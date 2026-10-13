@@ -94,6 +94,27 @@ describe('NoteGistAction', () => {
     expect(publish).toHaveBeenCalledWith('notes/a.md')
   })
 
+  it('copies the gist link and confirms after the publish', async () => {
+    const view = await renderAction()
+    await userEvent.click(view.getByRole('button', { name: /Share with private link/ }))
+
+    await vi.waitFor(() => expect(view.appServices.clipboard.writes()).toEqual([GIST_URL]))
+    expect(app.operations.findByLabel('Gist link copied')).toBeDefined()
+  })
+
+  it('reports a failed copy and keeps the publish', async () => {
+    const view = await renderAction()
+    view.appServices.clipboard.failWith(new Error('denied'))
+    await userEvent.click(view.getByRole('button', { name: /Share with private link/ }))
+
+    await vi.waitFor(() =>
+      expect(app.operations.findByLabel('Copying the gist link')).toMatchObject({
+        status: 'failed',
+        message: 'denied',
+      }),
+    )
+  })
+
   it('unpublishes the open note on click once it carries a gist', async () => {
     row = noteRow({ gistUrl: 'https://gist.github.com/alex/g1' })
     const view = await renderAction()

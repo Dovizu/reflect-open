@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface ReflectAppsDialogProps {
   readonly open: boolean
@@ -52,7 +52,7 @@ export function ReflectAppsDialog({
   onOpenChange,
   finalFocus,
 }: ReflectAppsDialogProps): ReactElement {
-  const { opener } = useCoreServices()
+  const { opener } = useAppServices()
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent

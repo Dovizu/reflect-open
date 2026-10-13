@@ -1,11 +1,11 @@
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import type { BackupService, BackupState, OpenerService } from '@reflect/core'
+import { createTestOpenerService, type TestOpenerService } from '@reflect/app/testing'
+import type { OpenerService } from '@reflect/app'
+import type { BackupService, BackupState } from '@reflect/core'
 import {
   createTestCoreServices,
-  createTestOpenerService,
   createTestBackupService,
-  type TestOpenerService,
   type TestBackupService,
 } from '@reflect/core/testing'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
@@ -36,11 +36,11 @@ beforeEach(() => {
 
 async function renderSection(state: BackupState): Promise<void> {
   backup.setState(state)
-  const app = createTestCoreServices({ opener, backup })
+  const app = createTestCoreServices({ backup })
   if (githubConnected) {
     await app.githubAuth.save({ kind: 'pat', token: 'ghp_test' })
   }
-  await renderInApp(<BackupSettingsField />, { app })
+  await renderInApp(<BackupSettingsField />, { app, appServices: { opener } })
 }
 
 const AUTH_ERROR = {

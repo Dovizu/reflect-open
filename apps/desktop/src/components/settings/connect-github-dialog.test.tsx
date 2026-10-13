@@ -1,14 +1,13 @@
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { createSystemClock, type BackupService, type ConnectExistingResult } from '@reflect/core'
+import { createTestOpenerService, type TestOpenerService } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestHttpService,
-  createTestOpenerService,
   createTestPlatformService,
   createTestBackupService,
   createTestSecretStoreService,
-  type TestOpenerService,
 } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { ConnectGithubDialog } from './connect-github-dialog.tsx'
@@ -66,7 +65,6 @@ async function renderWizard(onClose = vi.fn()): Promise<ReturnType<typeof vi.fn>
   backup.onConnectExistingRepo(sync.connectExistingRepo)
   const app = createTestCoreServices({
     backup,
-    opener,
     // The wizard polls on the clock: real time, so `pollIntervalMs` elapses.
     clock: createSystemClock(),
     platform: createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
@@ -81,7 +79,7 @@ async function renderWizard(onClose = vi.fn()): Promise<ReturnType<typeof vi.fn>
   })
   await renderInApp(
     <ConnectGithubDialog suggestedRepoName="g-backup" onClose={onClose} pollIntervalMs={15} />,
-    { app },
+    { app, appServices: { opener } },
   )
   return onClose
 }
