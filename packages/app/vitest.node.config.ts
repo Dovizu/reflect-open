@@ -4,6 +4,7 @@ export default defineProject({
   test: {
     name: 'app-node',
     environment: 'node',
+    fsModuleCache: true,
     isolate: false,
     include: ['src/**/*.test.ts'],
     setupFiles: ['./vitest.setup.ts'],
