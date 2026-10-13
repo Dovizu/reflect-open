@@ -8,6 +8,7 @@ import {
   type NoteServices,
   type ServiceFactories,
 } from '../app/create-app-services.ts'
+import { createGraphServices } from '../app/create-graph-services.ts'
 import { createDetachedLifecycleDom } from '../app/lifecycle-service.ts'
 import { createPosixPathTransport } from '../app/path-service.ts'
 import { createSingleWindowHost } from '../app/window-service.ts'
@@ -15,6 +16,7 @@ import { createPrivacyService } from '../privacy/privacy-service.ts'
 import type { IdService } from '../app/id-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import type { BackupService } from '../sync/backup-service.ts'
 import {
   createTestAiKeyValidationService,
   createTestAssetDescriberService,
@@ -104,7 +106,12 @@ import { createTestUpdateService } from './update.ts'
 /**
  * Replacements for the services of {@link createTestAppServices}.
  */
-export type TestAppServiceOverrides = Partial<AppServices & InternalServices>
+export type TestAppServiceOverrides = Partial<AppServices & InternalServices> & {
+  /**
+   * The backup service of every main-window graph session.
+   */
+  readonly backup?: BackupService
+}
 
 /**
  * The services that {@link createTestAppServices} passes as adapters.
@@ -162,6 +169,7 @@ function createTestServiceFactories(
     return result as Group
   }
 
+  const backup = overrides?.backup
   return {
     ipc: () => shared.ipc,
     database: () => createTestDatabaseService(),
@@ -230,6 +238,13 @@ function createTestServiceFactories(
       createTestNativeMenuService({ commands, window, platform, logger }),
     capture: () => createTestCaptureService(),
     assetDescription: () => createTestAssetDescriptionService(),
+    graphServices: (session, role, deps) =>
+      createGraphServices(
+        session,
+        role,
+        deps,
+        backup === undefined ? {} : { backup: () => backup },
+      ),
   } satisfies Partial<ServiceFactories>
 }
 
@@ -278,7 +293,7 @@ export function createTestAppServices<
   Overrides extends TestAppServiceOverrides = Record<never, never>,
 >(
   overrides?: Overrides & TestAppServiceOverrides,
-): Omit<TestAppServices, keyof Overrides> & Overrides {
+): Omit<TestAppServices, keyof Overrides> & Omit<Overrides, 'backup'> {
   const defaults = createTestEdgeServices()
   const edge = { ...defaults, ...overrides }
   const ipc = createTestIpcBridgeService({ logger: edge.logger })
@@ -303,11 +318,14 @@ export function createTestAppServices<
   }
   const fixed: Record<string, () => unknown> = {}
   for (const [key, service] of Object.entries(overrides ?? {})) {
-    fixed[key] = () => service
+    if (key !== 'backup') {
+      fixed[key] = () => service
+    }
   }
   const { services, internal } = composeAppServices(adapters, {
     ...createTestServiceFactories({ ipc, platform, clock: defaults.clock }, overrides),
     ...(fixed as Partial<ServiceFactories>),
   })
-  return { ...services, ...internal } as Omit<TestAppServices, keyof Overrides> & Overrides
+  return { ...services, ...internal } as Omit<TestAppServices, keyof Overrides> &
+    Omit<Overrides, 'backup'>
 }

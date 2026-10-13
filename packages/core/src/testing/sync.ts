@@ -9,13 +9,7 @@ import type {
 } from '../ipc/icloud-native-service.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HttpService } from '../app/http-service.ts'
-import type {
-  BackupService,
-  BackupServiceFactory,
-  BackupServiceOptions,
-  BackupState,
-  ConnectExistingResult,
-} from '../sync/backup-service.ts'
+import type { BackupService, BackupState, ConnectExistingResult } from '../sync/backup-service.ts'
 import type { ICloudSyncService } from '../sync/icloud-sync-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type {
@@ -432,48 +426,6 @@ export function createTestGithubAuthService(
   options?: TestGithubAuthOptions,
 ): TestGithubAuthService {
   return new TestGithubAuthServiceImpl(options)
-}
-
-/**
- * A {@link BackupServiceFactory} whose every `create` hands out one scripted service.
- */
-export interface TestScriptedBackupServiceFactory extends BackupServiceFactory {
-  /**
-   * The service every `create` call returns.
-   */
-  readonly backup: TestBackupService
-  /**
-   * The options of every `create` call, in order.
-   */
-  creations(): readonly BackupServiceOptions[]
-}
-
-/**
- * A {@link BackupServiceFactory} for surfaces that only read a backup: no
- * engine runs, and the state is what `backup.setState` says (`state` at first).
- */
-class TestScriptedBackupServiceFactoryImpl implements TestScriptedBackupServiceFactory {
-  readonly backup: TestBackupService
-  readonly #created: BackupServiceOptions[] = []
-
-  constructor(options?: { state?: BackupState }) {
-    this.backup = createTestBackupService(options)
-  }
-
-  create(createOptions: BackupServiceOptions): BackupService {
-    this.#created.push(createOptions)
-    return this.backup
-  }
-
-  creations(): readonly BackupServiceOptions[] {
-    return [...this.#created]
-  }
-}
-
-export function createTestScriptedBackupServiceFactory(options?: {
-  state?: BackupState
-}): TestScriptedBackupServiceFactory {
-  return new TestScriptedBackupServiceFactoryImpl(options)
 }
 
 /**

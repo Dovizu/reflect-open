@@ -139,8 +139,6 @@ export {
 } from './capture.ts'
 export {
   createTestBackupService,
-  createTestScriptedBackupServiceFactory,
-  type TestScriptedBackupServiceFactory,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestICloudNativeService,

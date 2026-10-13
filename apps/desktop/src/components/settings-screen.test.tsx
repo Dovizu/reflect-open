@@ -7,7 +7,7 @@ import {
   createTestAppServices,
   createTestEmbeddingRuntimeService,
   createTestPlatformService,
-  createTestScriptedBackupServiceFactory,
+  createTestBackupService,
   type TestEmbeddingRuntimeService,
   type TestOpenGraph,
 } from '@reflect/core/testing'
@@ -44,7 +44,7 @@ function createApp() {
   return createTestAppServices({
     embeddingRuntime: embedRuntime,
     platform: createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
-    backups: createTestScriptedBackupServiceFactory({ state: { phase: 'disconnected' } }),
+    backup: createTestBackupService({ state: { phase: 'disconnected' } }),
   })
 }
 
@@ -84,7 +84,9 @@ function radio(name: RegExp): Locator {
   return page.getByRole('radio', { name })
 }
 
-/** Clicks a radio's option card — the `<input>` itself is `sr-only`. */
+/**
+ * Clicks a radio's option card — the `<input>` itself is `sr-only`.
+ */
 async function pickRadio(name: RegExp): Promise<void> {
   const label = radio(name).element().closest('label')
   if (!(label instanceof HTMLLabelElement)) {

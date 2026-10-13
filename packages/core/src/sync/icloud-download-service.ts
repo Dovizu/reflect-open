@@ -90,19 +90,6 @@ export interface ICloudDownloadService {
   dispose: () => void
 }
 
-/**
- * Builds the {@link ICloudDownloadService} of one open iCloud graph.
- */
-export interface ICloudDownloadServiceFactory {
-  create(options: ICloudDownloadServiceOptions): ICloudDownloadService
-}
-
-export function createICloudDownloadServiceFactory(
-  deps: ICloudDownloadServiceDeps,
-): ICloudDownloadServiceFactory {
-  return { create: (options) => createICloudDownloadService(deps, options) }
-}
-
 class ICloudDownloadServiceImpl implements ICloudDownloadService {
   readonly #deps: ICloudDownloadServiceDeps
   readonly #options: ICloudDownloadServiceOptions

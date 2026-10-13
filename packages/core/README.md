@@ -24,7 +24,8 @@ package has no process-wide instances and no module-level mutable state.
   `apps/desktop/src/services/`, and it reads services in React with
   `useAppServices()`.
 - **Per-session factories.** Work that belongs to one graph session is created
-  per session, not per app: `backups.create()`, `icloudSyncs.create()`,
+  per session, not per app: `createBackupService(deps, options)` and
+  `createICloudSyncService(deps, options)` (through `graphServiceFactories`),
   `chatSessions.create()`, `noteSessions.create()`, `capture.openSession()`,
   `assetDescription.openSession()`, `audioMemo.openSession()`. The caller
   disposes what it created when the graph closes.
