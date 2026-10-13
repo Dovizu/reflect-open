@@ -1,4 +1,4 @@
-import type { KeyValueStore, StorageService } from '../app/storage-service.ts'
+import type { KeyValueStore, StorageService } from '../ports/storage-service.ts'
 
 export interface TestStorageService extends StorageService {
   /**

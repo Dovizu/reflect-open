@@ -12,7 +12,7 @@ import {
   type CloudSafe,
   type PrivacyService,
 } from '../../privacy/privacy-service.ts'
-import type { XArchiveService } from '../../x-archive.ts'
+import type { XArchiveService } from '../../embeds/x-archive-service.ts'
 
 /**
  * The read_assets tool's executor (Plan 20 meets Plan 10): resolve an

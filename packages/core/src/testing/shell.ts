@@ -1,4 +1,4 @@
-import type { ActivityPort, BackgroundTaskToken } from '../app/ports.ts'
+import type { ActivityPort, BackgroundTaskToken } from '../ports/activity-port.ts'
 import type { Unlisten } from '../unlisten.ts'
 
 type Listener<Args extends unknown[] = []> = (...args: Args) => void

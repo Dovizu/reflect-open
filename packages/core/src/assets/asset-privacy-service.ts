@@ -2,7 +2,7 @@ import { isAppError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { assetReferenceMatches, type AssetReferences } from '../indexing/asset-refs.ts'
 import { parseNote } from '../markdown/extract.ts'
-import type { XArchiveService } from '../x-archive.ts'
+import type { XArchiveService } from '../embeds/x-archive-service.ts'
 
 /**
  * Outcome of the privacy gate for one asset.

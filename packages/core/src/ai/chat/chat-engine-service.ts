@@ -1,6 +1,6 @@
 import type { LanguageModel, ModelMessage } from '@reflect/modules/ai'
 import { errorMessage } from '../../errors.ts'
-import type { LoggerService } from '../../app/logger-service.ts'
+import type { LoggerService } from '../../ports/logger-service.ts'
 import type { CloudGraphContext, CloudSafe } from '../../privacy/privacy-service.ts'
 import type { AiProviderConfig } from '../../settings/schema.ts'
 import type { LanguageModelService } from '../language-model-service.ts'

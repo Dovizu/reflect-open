@@ -1,13 +1,13 @@
 import type { XPost } from '@post-embed/types'
 import { expect, it } from 'vitest'
-import { createTestIpcBridgeService, createTestXArchiveService } from './testing/index.ts'
-import { syndicationPost20 as tweet } from './testing/syndication-20.ts'
+import { createTestIpcBridgeService, createTestXArchiveService } from '../testing/index.ts'
+import { syndicationPost20 as tweet } from '../testing/syndication-20.ts'
 import {
   createArchivedPost,
   createXArchiveService,
   xPostSchema,
   type ResolvedArchivedPost,
-} from './x-archive.ts'
+} from './x-archive-service.ts'
 
 function serviceAnswering(command: string, answer: unknown) {
   const ipc = createTestIpcBridgeService({ commands: { [command]: () => answer } })

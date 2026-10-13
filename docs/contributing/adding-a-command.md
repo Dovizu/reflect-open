@@ -4,7 +4,7 @@ How a value travels from Rust to a React component, and every file you touch
 to add a new command. **Adding a command is two things: the Rust command, and
 a method on the core service that owns the domain.** The canonical in-tree
 example is `app_version`: a real `#[tauri::command]` (`lib.rs`), bound as
-`AppInfoService.version()` (`packages/core/src/app/app-info-service.ts`) with a
+`AppInfoService.version()` (`packages/core/src/ports/app-info-service.ts`) with a
 zod-validated response, and read in React by `useAppVersion()`
 (`apps/desktop/src/hooks/use-app-version.ts`) through `useCoreServices()`. This
 guide walks the same path with a hypothetical `note_stat` command.

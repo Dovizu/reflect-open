@@ -22,8 +22,8 @@ import {
   type PageDescriberService,
   type PageEnrichment,
 } from '../ai/page-describer-service.ts'
-import type { ReconcileStop } from '../app/reconcile.ts'
-import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { ReconcileStop } from '../reconcile/reconcile.ts'
+import type { WebFetchService } from '../link-preview/web-fetch-service.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'

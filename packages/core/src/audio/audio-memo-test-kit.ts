@@ -7,7 +7,7 @@ import {
   createTranscriptEnrichmentService,
   type TranscriptEnrichmentService,
 } from '../ai/transcript-enrichment-service.ts'
-import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
+import { createBackgroundReconcilerFactory } from '../reconcile/background-reconciler.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'

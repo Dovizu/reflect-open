@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
+import { createGraphSession, type GraphRole, type GraphSession } from './graph-session.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
 import { createTestNoteMoveService } from '../testing/documents.ts'

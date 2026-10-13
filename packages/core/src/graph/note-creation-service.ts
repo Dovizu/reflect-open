@@ -1,4 +1,4 @@
-import type { IdService } from '../app/id-service.ts'
+import type { IdService } from '../ports/id-service.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { slugForTitle } from '../markdown/slug.ts'
 import type { NoteFileService } from './note-file-service.ts'

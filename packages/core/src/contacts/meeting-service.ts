@@ -1,5 +1,5 @@
-import { requireGraphSession } from '../app/graph-session.ts'
-import type { LoggerService } from '../app/logger-service.ts'
+import { requireGraphSession } from '../graph/graph-session.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import { isAppError } from '../errors.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'

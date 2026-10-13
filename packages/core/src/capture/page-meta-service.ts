@@ -1,4 +1,4 @@
-import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { WebFetchService } from '../link-preview/web-fetch-service.ts'
 import { oembedRequestURL, parseOEmbedAnswer } from '../embeds/oembed.ts'
 import { toAppError } from '../errors.ts'
 import { normalizePageMetaValue, parsePageMeta, type PageMeta } from '../link-preview/metadata.ts'

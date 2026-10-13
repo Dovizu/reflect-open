@@ -1,6 +1,6 @@
 import type { Database } from '@reflect/db'
 import { sql, type Selectable } from 'kysely'
-import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
+import { requireGraphSession, type GraphSessionSource } from '../graph/graph-session.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import {
   blockContextLinesAt,

@@ -1,12 +1,12 @@
-import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { ClockService, TimerHandle } from '../ports/clock-service.ts'
 import {
   requireGraphSession,
   type GraphRole,
   type GraphSession,
   type GraphSessionSource,
-} from '../app/graph-session.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { ProgressPort } from '../app/ports.ts'
+} from '../graph/graph-session.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
+import type { ProgressPort } from '../ports/progress-port.ts'
 import { NoteBusyError, type NoteDocumentService } from '../documents/note-document-service.ts'
 import { errorMessage, ReflectError } from '../errors.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'

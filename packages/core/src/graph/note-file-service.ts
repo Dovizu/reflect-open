@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { ClockService } from '../app/clock-service.ts'
+import type { ClockService } from '../ports/clock-service.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import {

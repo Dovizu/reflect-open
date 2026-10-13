@@ -1,7 +1,7 @@
 import { sha256Hex } from '@reflect/utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssetDescriptionRejectedError } from '../ai/asset-describer-service.ts'
-import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
+import { createBackgroundReconcilerFactory } from '../reconcile/background-reconciler.ts'
 import { ReflectError } from '../errors.ts'
 import { descriptionPathFor } from '../graph/paths.ts'
 import type { FileChange } from '../indexing/file-change-service.ts'

@@ -7,7 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./capture-envelope": "./src/capture/capture-envelope.ts",
-    "./x-archive": "./src/x-archive.ts",
+    "./x-archive": "./src/embeds/x-archive-service.ts",
     "./testing": "./src/testing/index.ts"
   },
   "scripts": {

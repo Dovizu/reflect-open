@@ -22,7 +22,7 @@ NotePane / DailyStream / MobileNote     components — composition only
 ```
 
 The load-bearing split is **session vs. adapter**. The session
-(`packages/core/src/documents/note-session.ts`, built by `NoteSessionService`)
+(`packages/core/src/documents/note-session-service.ts`, built by `NoteSessionService`)
 owns every save/conflict/protection rule as a state machine with no React and
 no editor: file access, the clock and the logger come through the service's
 `deps`. `use-note-document.ts` only wires it to React state, the watcher
@@ -145,7 +145,7 @@ Core, `packages/core/src/documents/`:
 
 | File | Owns |
 |---|---|
-| `note-session.ts` (+ `note-session-types.ts`) | `NoteSessionService`: save pipeline, conflicts, protection, frontmatter — the rules |
+| `note-session-service.ts` (+ `note-session-types.ts`) | `NoteSessionService`: save pipeline, conflicts, protection, frontmatter — the rules |
 | `document-binding.ts` | create/adopt/teardown/hand-off lifecycle for one pane |
 | `open-documents-service.ts` | the live-session registry; `flushAll` for quit |
 | `note-document-service.ts` | live open-session content, else generation-pinned disk read; session-aware writes |
@@ -176,7 +176,7 @@ Desktop, `apps/desktop/src/editor/`:
 
 ## Where new code goes
 
-- **A new save/reload/conflict behavior** → core's `documents/note-session.ts`,
+- **A new save/reload/conflict behavior** → core's `documents/note-session-service.ts`,
   with a direct test. If you need React state for it, expose it on the
   snapshot and let the adapter stay dumb.
 - **Logic that reads or writes notes for an editor feature** (a preview, a

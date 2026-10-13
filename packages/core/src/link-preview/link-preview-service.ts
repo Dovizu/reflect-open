@@ -1,4 +1,4 @@
-import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { WebFetchService } from './web-fetch-service.ts'
 import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import { isAppError } from '../errors.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'

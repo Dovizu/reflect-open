@@ -9,7 +9,7 @@ import {
   frontmatterPatchToYaml,
   type FrontmatterPatch,
   type NoteSession,
-} from '../documents/note-session.ts'
+} from '../documents/note-session-service.ts'
 import { appendBlock } from '../markdown/append-section.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { createTestLoggerService } from './logger.ts'

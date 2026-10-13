@@ -7,7 +7,7 @@ import {
   type DocumentBinding,
   type DocumentCoordinator,
 } from './document-binding.ts'
-import type { NoteSession } from './note-session.ts'
+import type { NoteSession } from './note-session-service.ts'
 import { createOpenDocumentsService, type OpenDocumentsService } from './open-documents-service.ts'
 
 /**

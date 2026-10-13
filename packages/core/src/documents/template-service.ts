@@ -1,5 +1,5 @@
-import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
-import type { ProgressPort } from '../app/ports.ts'
+import { requireGraphSession, type GraphSessionSource } from '../graph/graph-session.ts'
+import type { ProgressPort } from '../ports/progress-port.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { IndexQueryService } from '../indexing/index-query-service.ts'

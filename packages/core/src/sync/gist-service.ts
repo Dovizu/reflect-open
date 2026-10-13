@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../ports/http-service.ts'
 import { ReflectError } from '../errors.ts'
 import { apiHeaders, readJson } from './github-api.ts'
 

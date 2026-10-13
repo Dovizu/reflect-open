@@ -1,8 +1,8 @@
-import type { PlatformFacts } from '../app/platform-service.ts'
-import type { StorageService } from '../app/storage-service.ts'
+import type { PlatformFacts } from '../ports/platform-facts.ts'
+import type { StorageService } from '../ports/storage-service.ts'
 import type { ClassicAccessService } from '../classic/classic-access-service.ts'
-import type { AppStoreService } from '../ipc/app-store-plugin.ts'
-import { IAP_PRODUCT_IDS, type IapProduct, type IapService } from '../ipc/iap-plugin.ts'
+import type { AppStoreService } from '../ipc/app-store-service.ts'
+import { IAP_PRODUCT_IDS, type IapProduct, type IapService } from '../ipc/iap-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import type {
   AppStoreEnvironment,

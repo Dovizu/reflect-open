@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { ClockService } from '../app/clock-service.ts'
-import type { LoggerService } from '../app/logger-service.ts'
+import type { ClockService } from '../ports/clock-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
 import { listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'

@@ -14,7 +14,7 @@ Everything stateful is a **service**: an interface `XxxService` and a factory
 services it calls through `deps`. The package has no process-wide instances and
 no module-level mutable state.
 
-- **`createCoreServices(adapters)`** (`app/create-core-services.ts`) builds
+- **`createCoreServices(adapters)`** (`create-core-services.ts`) builds
   every service once and returns **`CoreServices`**. The host calls it once per
   webview, before `createAppServices`. `CoreInternalServices` holds the services
   that only other services use.
@@ -25,11 +25,11 @@ no module-level mutable state.
   (`createDesktopAdapters`).
 - **Ports** are the `CoreAdapters` fields that the app layer implements:
   `progress` (`ProgressPort`), `activity` (`ActivityPort`), both in
-  `app/ports.ts`, plus `role` (`'main'` or `'note-window'`),
+  `ports/activity-port.ts` and `ports/progress-port.ts`, plus `role` (`'main'` or `'note-window'`),
   `peerIndexWrites` and `createGraphServices`. Core never asks which window it
   is in any other way.
 - **Per-session services.** `createGraphServices(session, deps, flags)`
-  (`app/create-graph-services.ts`) builds the services of one open graph and
+  (`create-graph-services.ts`) builds the services of one open graph and
   disposes them when `session.signal` aborts. The `GraphLifecycleFlags` pick
   which lifecycles run; the app layer decides them.
 - **Events.** A service reports changes through `onXxx(listener)` /
@@ -54,7 +54,7 @@ shares it with the app layer. Code never calls the transport directly.
 
 | Module | What it owns |
 |---|---|
-| `app/` | The composition roots (`create-core-services.ts`, `create-graph-services.ts`), the `GraphSession` type, the ports (`ports.ts`), and the primitives: `LoggerService`, `ClockService`, `IdService`, `PlatformFacts`, `StorageService`, `HttpService`, `PathService`, `PersistenceFlushService`. |
+| `ports/` | The host ports (`ActivityPort`, `ProgressPort`) and the primitives with their default implementations: `LoggerService`, `ClockService`, `IdService`, `PlatformFacts`, `StorageService`, `HttpService`, `PathService`, `AppInfoService`. |
 | `graph/` | Graph file storage: path helpers, the typed file services (`NoteFileService`, `AssetStoreService`), note creation and link resolution, the capture inbox, and the open graph (`GraphSessionService`). |
 | `documents/` | Open notes: `NoteSessionService`, `OpenDocumentsService`, `NoteDocumentService`, moves and title renames, `NoteActionsService`, attachments and templates. |
 | `markdown/` | The document model: frontmatter, the Lezer grammar with `[[wiki link]]`, extraction (`parseNote`), source-level edits. |

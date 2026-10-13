@@ -1,245 +1,247 @@
-import type { GraphRole, GraphSession } from './graph-session.ts'
-import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
+import type { GraphRole, GraphSession } from './graph/graph-session.ts'
+import { createAiCredentialService, type AiCredentialService } from './ai/ai-credential-service.ts'
 import {
   createAiKeyValidationService,
   type AiKeyValidationService,
-} from '../ai/ai-key-validation-service.ts'
-import { createAiPromptService, type AiPromptService } from '../ai/ai-prompt-service.ts'
+} from './ai/ai-key-validation-service.ts'
+import { createAiPromptService, type AiPromptService } from './ai/ai-prompt-service.ts'
 import {
   createAiProviderConfigService,
   type AiProviderConfigService,
-} from '../ai/ai-provider-config-service.ts'
+} from './ai/ai-provider-config-service.ts'
 import {
   createAssetDescriberService,
   type AssetDescriberService,
-} from '../ai/asset-describer-service.ts'
+} from './ai/asset-describer-service.ts'
 import {
   createPageDescriberService,
   type PageDescriberService,
-} from '../ai/page-describer-service.ts'
+} from './ai/page-describer-service.ts'
 import {
   createSelectionTransformService,
   type SelectionTransformService,
-} from '../ai/selection-transform-service.ts'
+} from './ai/selection-transform-service.ts'
 import {
   createTranscriptEnrichmentService,
   type TranscriptEnrichmentService,
-} from '../ai/transcript-enrichment-service.ts'
+} from './ai/transcript-enrichment-service.ts'
 import {
   createTranscriptionService,
   type TranscriptionService,
-} from '../ai/transcription-service.ts'
+} from './ai/transcription-service.ts'
 import {
   createLanguageModelService,
   createLazyAiSdkLoader,
   type LanguageModelService,
-} from '../ai/language-model-service.ts'
-import { createChatEngineService, type ChatEngineService } from '../ai/chat/chat-engine-service.ts'
+} from './ai/language-model-service.ts'
+import { createChatEngineService, type ChatEngineService } from './ai/chat/chat-engine-service.ts'
 import {
   createChatGraphContextService,
   type ChatGraphContextService,
-} from '../ai/chat/chat-graph-context-service.ts'
+} from './ai/chat/chat-graph-context-service.ts'
 import {
   createChatHistoryService,
   type ChatHistoryService,
-} from '../ai/chat/chat-history-service.ts'
+} from './ai/chat/chat-history-service.ts'
 import {
   createChatSessionService,
   type ChatSessionService,
-} from '../ai/chat/chat-session-service.ts'
-import { fitToContextWindow } from '../ai/chat/context-window.ts'
-import { createNoteToolsService, type NoteToolsService } from '../ai/chat/note-tools-service.ts'
-import { createAssetReferences } from '../indexing/asset-refs.ts'
+} from './ai/chat/chat-session-service.ts'
+import { fitToContextWindow } from './ai/chat/context-window.ts'
+import { createNoteToolsService, type NoteToolsService } from './ai/chat/note-tools-service.ts'
+import { createAssetReferences } from './indexing/asset-refs.ts'
 
 import {
   createBacklinkTargetService,
   type BacklinkTargetService,
-} from '../capture/backlink-target-service.ts'
-import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
-import { createAudioMemoService, type AudioMemoService } from '../audio/audio-memo-service.ts'
+} from './capture/backlink-target-service.ts'
+import { createCaptureService, type CaptureService } from './capture/capture-service.ts'
+import { createAudioMemoService, type AudioMemoService } from './audio/audio-memo-service.ts'
 import {
   createMobileAudioMemoService,
   type MobileAudioMemoService,
-} from '../audio/mobile-audio-memo-service.ts'
-import { createNativeActionService } from '../audio/native-action-service.ts'
+} from './audio/mobile-audio-memo-service.ts'
+import { createNativeActionService } from './audio/native-action-service.ts'
 import {
   createAssetDescriptionService,
   type AssetDescriptionService,
-} from '../assets/asset-description-service.ts'
+} from './assets/asset-description-service.ts'
 import {
   createAssetPrivacyService,
   type AssetPrivacyService,
-} from '../assets/asset-privacy-service.ts'
+} from './assets/asset-privacy-service.ts'
 import {
   createCaptureInboxService,
   type CaptureInboxService,
-} from '../graph/capture-inbox-service.ts'
+} from './graph/capture-inbox-service.ts'
 import {
   createDeepLinkIntakeService,
   createNoDeepLinkSource,
   type DeepLinkIntakeService,
   type DeepLinkSource,
-} from '../navigation/deep-link-intake-service.ts'
-import {
-  createICloudNativeService,
-  type ICloudNativeService,
-} from '../ipc/icloud-native-service.ts'
+} from './navigation/deep-link-intake-service.ts'
+import { createICloudNativeService, type ICloudNativeService } from './ipc/icloud-native-service.ts'
 import {
   createGitRepositoryService,
   type GitRepositoryService,
-} from '../sync/git-repository-service.ts'
-import { createGistService, type GistService } from '../sync/gist-service.ts'
-import { createGistPublishService, type GistPublishService } from '../sync/gist-publish-service.ts'
-import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
-import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
-import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
-import type { BackupServiceDeps } from '../sync/backup-service.ts'
+} from './sync/git-repository-service.ts'
+import { createGistService, type GistService } from './sync/gist-service.ts'
+import { createGistPublishService, type GistPublishService } from './sync/gist-publish-service.ts'
+import { createGithubAuthService, type GithubAuthService } from './sync/github-auth-service.ts'
+import { createGithubRepoService, type GithubRepoService } from './sync/github-repo-service.ts'
+import { createSyncEngineFactory, type SyncEngineFactory } from './sync/engine.ts'
+import type { BackupServiceDeps } from './sync/backup-service.ts'
 import {
   createConflictResolutionService,
   type ConflictResolutionService,
-} from '../sync/conflict-resolution-service.ts'
-import type { ICloudDownloadServiceDeps } from '../sync/icloud-download-service.ts'
+} from './sync/conflict-resolution-service.ts'
+import type { ICloudDownloadServiceDeps } from './sync/icloud-download-service.ts'
 import {
   createICloudMigrationService,
   type ICloudMigrationService,
-} from '../sync/icloud-migration-service.ts'
-import type { ICloudSyncServiceDeps } from '../sync/icloud-sync-service.ts'
-import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
-import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
+} from './sync/icloud-migration-service.ts'
+import type { ICloudSyncServiceDeps } from './sync/icloud-sync-service.ts'
+import { createXArchiveService, type XArchiveService } from './embeds/x-archive-service.ts'
+import { createEmbedMediaService, type EmbedMediaService } from './embeds/embed-media-service.ts'
 import {
   createLinkPreviewService,
   type LinkPreviewService,
-} from '../link-preview/link-preview-service.ts'
-import { parseLinkPreviewMeta } from '../link-preview/metadata.ts'
-import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
-import { createPlatformAudioRecorder } from '../audio/platform-audio-recorder.ts'
+} from './link-preview/link-preview-service.ts'
+import { parseLinkPreviewMeta } from './link-preview/metadata.ts'
+import { createWebFetchService, type WebFetchService } from './link-preview/web-fetch-service.ts'
+import { createPlatformAudioRecorder } from './audio/platform-audio-recorder.ts'
 import {
   createClassicAccessService,
   type ClassicAccessService,
-} from '../classic/classic-access-service.ts'
+} from './classic/classic-access-service.ts'
 import {
   createAppStoreEnvironmentService,
   type AppStoreEnvironmentService,
-} from '../monetization/app-store-environment-service.ts'
-import { createPaywallService, type PaywallService } from '../monetization/paywall-service.ts'
+} from './monetization/app-store-environment-service.ts'
+import { createPaywallService, type PaywallService } from './monetization/paywall-service.ts'
 import {
   createSubscriptionService,
   type SubscriptionService,
-} from '../monetization/subscription-service.ts'
-import { createCalendarService, type CalendarService } from '../calendar/calendar-service.ts'
+} from './monetization/subscription-service.ts'
+import { createCalendarService, type CalendarService } from './calendar/calendar-service.ts'
 import {
   createContactSuggestionService,
   type ContactSuggestionService,
-} from '../contacts/contact-suggestion-service.ts'
-import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
-import { createMeetingService, type MeetingService } from '../contacts/meeting-service.ts'
-import { createPersonNoteService, type PersonNoteService } from '../contacts/person-note-service.ts'
-import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
+} from './contacts/contact-suggestion-service.ts'
+import { createContactsService, type ContactsService } from './contacts/contacts-service.ts'
+import { createMeetingService, type MeetingService } from './contacts/meeting-service.ts'
+import { createPersonNoteService, type PersonNoteService } from './contacts/person-note-service.ts'
+import { createAssetStoreService, type AssetStoreService } from './graph/asset-store-service.ts'
 import {
   createNoteCreationService,
   type NoteCreationService,
-} from '../graph/note-creation-service.ts'
-import { createNoteFileService, type NoteFileService } from '../graph/note-file-service.ts'
+} from './graph/note-creation-service.ts'
+import { createNoteFileService, type NoteFileService } from './graph/note-file-service.ts'
 import {
   createGraphSessionService,
   type GraphSessionService,
-} from '../graph/graph-session-service.ts'
-import { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
-import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
-import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
+} from './graph/graph-session-service.ts'
+import { createDailyNoteService, type DailyNoteService } from './daily/daily-note-service.ts'
+import { createAttachmentService, type AttachmentService } from './documents/attachment-service.ts'
+import { createNoteMoveService, type NoteMoveService } from './documents/note-move-service.ts'
 import {
   createTitleRenameService,
   type TitleRenameService,
-} from '../documents/title-rename-service.ts'
+} from './documents/title-rename-service.ts'
 import {
   createNoteActionsService,
   type NoteActionsService,
-} from '../documents/note-actions-service.ts'
-import { createNoteRowService, type NoteRowService } from '../documents/note-row-service.ts'
-import { createTemplateService, type TemplateService } from '../documents/template-service.ts'
+} from './documents/note-actions-service.ts'
+import { createNoteRowService, type NoteRowService } from './documents/note-row-service.ts'
+import { createTemplateService, type TemplateService } from './documents/template-service.ts'
 import {
   createNoteDocumentService,
   type NoteDocumentService,
-} from '../documents/note-document-service.ts'
+} from './documents/note-document-service.ts'
 import {
   createNotePreviewService,
   type NotePreviewService,
-} from '../documents/note-preview-service.ts'
-import { createNoteSessionService, type NoteSessionService } from '../documents/note-session.ts'
+} from './documents/note-preview-service.ts'
+import {
+  createNoteSessionService,
+  type NoteSessionService,
+} from './documents/note-session-service.ts'
 import {
   createOpenDocumentsService,
   type OpenDocumentsService,
-} from '../documents/open-documents-service.ts'
+} from './documents/open-documents-service.ts'
 import {
   createNoteLinkResolverService,
   type NoteLinkResolverService,
-} from '../graph/note-link-resolver-service.ts'
+} from './graph/note-link-resolver-service.ts'
 import {
   createEmbeddingRuntimeService,
   type EmbeddingRuntimeService,
-} from '../embeddings/embedding-runtime-service.ts'
+} from './embeddings/embedding-runtime-service.ts'
 import {
   createEmbeddingIndexService,
   type EmbeddingIndexService,
-} from '../embeddings/embedding-index-service.ts'
-import { createRetrievalService, type RetrievalService } from '../embeddings/retrieval-service.ts'
+} from './embeddings/embedding-index-service.ts'
+import { createRetrievalService, type RetrievalService } from './embeddings/retrieval-service.ts'
 import {
   createSemanticSearchService,
   type SemanticSearchService,
-} from '../embeddings/semantic-search-service.ts'
-import { createDatabaseService, type DatabaseService } from '../indexing/database-service.ts'
-import { createBacklinkService, type BacklinkService } from '../indexing/backlink-service.ts'
-import { createFileChangeService, type FileChangeService } from '../indexing/file-change-service.ts'
-import { createGraphStatsService, type GraphStatsService } from '../indexing/graph-stats-service.ts'
+} from './embeddings/semantic-search-service.ts'
+import { createDatabaseService, type DatabaseService } from './indexing/database-service.ts'
+import { createBacklinkService, type BacklinkService } from './indexing/backlink-service.ts'
+import { createFileChangeService, type FileChangeService } from './indexing/file-change-service.ts'
+import { createGraphStatsService, type GraphStatsService } from './indexing/graph-stats-service.ts'
 import {
   createIndexLifecycleService,
   type IndexLifecycleService,
-} from '../indexing/index-lifecycle-service.ts'
-import { createIndexQueryService, type IndexQueryService } from '../indexing/index-query-service.ts'
-import { createNoteListService, type NoteListService } from '../indexing/note-list-service.ts'
-import { createNotePathService, type NotePathService } from '../indexing/note-path-service.ts'
-import { createSearchService, type SearchService } from '../indexing/search-service.ts'
-import { createSuggestionService, type SuggestionService } from '../indexing/suggestion-service.ts'
+} from './indexing/index-lifecycle-service.ts'
+import { createIndexQueryService, type IndexQueryService } from './indexing/index-query-service.ts'
+import { createNoteListService, type NoteListService } from './indexing/note-list-service.ts'
+import { createNotePathService, type NotePathService } from './indexing/note-path-service.ts'
+import { createSearchService, type SearchService } from './indexing/search-service.ts'
+import { createSuggestionService, type SuggestionService } from './indexing/suggestion-service.ts'
 import {
   createWikiResolverService,
   type WikiResolverService,
-} from '../indexing/wiki-resolver-service.ts'
-import { createIndexStoreService, type IndexStoreService } from '../indexing/index-store-service.ts'
-import { createAppStoreService } from '../ipc/app-store-plugin.ts'
-import { createIapService } from '../ipc/iap-plugin.ts'
-import type { IpcBridgeService } from '../ipc/ipc-service.ts'
+} from './indexing/wiki-resolver-service.ts'
+import { createIndexStoreService, type IndexStoreService } from './indexing/index-store-service.ts'
+import { createAppStoreService } from './ipc/app-store-service.ts'
+import { createIapService } from './ipc/iap-service.ts'
+import type { IpcBridgeService } from './ipc/ipc-service.ts'
 import {
   createMobileStorageService,
   type MobileStorageService,
-} from '../ipc/mobile-storage-service.ts'
-import { createHapticsService, type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
-import { createWebAuthService, type WebAuthService } from '../ipc/web-auth-plugin.ts'
+} from './ipc/mobile-storage-service.ts'
+import { createHapticsService, type HapticsService } from './ipc/haptics-service.ts'
+import { createWebAuthService, type WebAuthService } from './ipc/web-auth-service.ts'
 import {
   createSecretStoreService,
   type SecretStoreService,
-} from '../secrets/secret-store-service.ts'
-import { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
-import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
-import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
-import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
-import { createBackgroundReconcilerFactory } from './background-reconciler.ts' // FIXME: 我感觉这里的代码组织很有问题。1: it's accetable that packages/app/ contains src/app/. But it's weird that packages/core/ also cntains src/app/. Why does the "core" package include an "app" folder?  2: Some service are placed directly in src/app/, like createSystemIdService (very basic and common-used feature) and createAgentSkillService (very high-level and less used feature), while some services are placed in subfolders like createWebAuthService in '../ipc/web-auth-plugin.ts'. I feel like the code organization is not very clear. try to improve it. notice that this is not a task for this create-core-services.ts file only, it's a task that requires you to look at the all changed files in this PR and stand in a higher position and think if there is any better way to organizate files.
-import type { ClockService } from './clock-service.ts'
-import type { HttpService } from './http-service.ts'
-import { createSystemIdService, type IdService } from './id-service.ts'
-import { isMobilePlatform } from './platform.ts'
-import type { ActivityPort, ProgressPort } from './ports.ts'
-import { createUnavailableImageCodec, type ImageCodecService } from './image-codec-service.ts'
-import type { LoggerService } from './logger-service.ts'
-import { createTaskService, type TaskService } from '../tasks/task-service.ts'
-import { createPathService, type PathService, type PathTransport } from './path-service.ts'
+} from './secrets/secret-store-service.ts'
+import { createPrivacyService, type PrivacyService } from './privacy/privacy-service.ts'
+import { createSettingsService, type SettingsService } from './settings/settings-service.ts'
+import { createAgentSkillService, type AgentSkillService } from './ai/agent-skill-service.ts'
+import { createAppInfoService, type AppInfoService } from './ports/app-info-service.ts'
+import { createBackgroundReconcilerFactory } from './reconcile/background-reconciler.ts'
+import type { ClockService } from './ports/clock-service.ts'
+import type { HttpService } from './ports/http-service.ts'
+import { createSystemIdService, type IdService } from './ports/id-service.ts'
+import { isMobilePlatform } from './ports/platform-facts.ts'
+import type { ActivityPort } from './ports/activity-port.ts'
+import type { ProgressPort } from './ports/progress-port.ts'
+import { createUnavailableImageCodec, type ImageCodecService } from './ports/image-codec-service.ts'
+import type { LoggerService } from './ports/logger-service.ts'
+import { createTaskService, type TaskService } from './tasks/task-service.ts'
+import { createPathService, type PathService, type PathTransport } from './ports/path-service.ts'
 import {
   createPersistenceFlushService,
   type PersistenceFlushService,
-} from './persistence-flush-service.ts'
-import { appleFileSrc, type FileSrcConverter, type PlatformFacts } from './platform-service.ts'
-import { createWebStorageService, type StorageService } from './storage-service.ts'
+} from './graph/persistence-flush-service.ts'
+import { appleFileSrc, type FileSrcConverter } from './ports/file-src.ts'
+import type { PlatformFacts } from './ports/platform-facts.ts'
+import { createWebStorageService, type StorageService } from './ports/storage-service.ts'
 import type { GraphServices, GraphServicesDeps } from './create-graph-services.ts'
-import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
+import type { AudioRecorderService } from './audio/audio-recorder-service.ts'
 
 /**
  * The app-scoped services: one instance each for the lifetime of the webview.

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { createTestClockService } from '../testing/clock.ts'
-import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
+import { createPathService, createPosixPathTransport } from '../ports/path-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import {
   createIndexQueryService,
@@ -25,7 +25,7 @@ import { createTestProgressPort } from '../testing/ports.ts'
 import { canTrashNote, createNoteActionsService } from './note-actions-service.ts'
 import { createNoteDocumentService } from './note-document-service.ts'
 import { createNoteRowService, type NoteRowService } from './note-row-service.ts'
-import { createNoteSessionService } from './note-session.ts'
+import { createNoteSessionService } from './note-session-service.ts'
 import type { NoteSession, NoteSessionSnapshot } from './note-session-types.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
 

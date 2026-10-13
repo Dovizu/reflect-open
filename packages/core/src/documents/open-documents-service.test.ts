@@ -9,7 +9,7 @@ import {
   createNoteSessionService,
   type NoteSession,
   type NoteSessionSnapshot,
-} from './note-session.ts'
+} from './note-session-service.ts'
 import { createOpenDocumentsService, type OpenDocumentsService } from './open-documents-service.ts'
 
 /**

@@ -1,5 +1,5 @@
 import type { LanguageModel } from '@reflect/modules/ai'
-import type { LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import {

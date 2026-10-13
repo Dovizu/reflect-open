@@ -14,7 +14,7 @@ import type {
   CloudSendable,
   PrivacyService,
 } from '../../privacy/privacy-service.ts'
-import type { XArchiveService } from '../../x-archive.ts'
+import type { XArchiveService } from '../../embeds/x-archive-service.ts'
 import { buildReadOneAsset, readAssetsInput, type ReadAssetsOutput } from './read-assets.ts'
 import { buildReadOneNote, readNotesInput, type ReadNotesOutput } from './read-notes.ts'
 

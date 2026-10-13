@@ -3,7 +3,7 @@ import { anthropicDirectBrowserAccessHeaders } from './anthropic-headers.ts'
 import { APP_REVIEW_STUB_KEY } from './app-review-demo.ts'
 import { isHttpBaseUrl, normalizeOpenAICompatibleBaseUrl } from '../lib/http-url.ts'
 import { OPENROUTER_BASE_URL } from './openrouter.ts'
-import type { HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../ports/http-service.ts'
 
 /**
  * BYOK key validation (Plan 10): one cheap authenticated probe against the

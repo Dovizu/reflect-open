@@ -2,7 +2,7 @@ import type {
   DecodedImage,
   ImageCodecService,
   ImageEncodeOptions,
-} from '../app/image-codec-service.ts'
+} from '../ports/image-codec-service.ts'
 
 export interface TestImageSize {
   readonly width: number

@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import type { PlatformFacts } from '../app/platform-service.ts'
-import { getJson, setJson, type StorageService } from '../app/storage-service.ts'
-import type { AppStoreService } from '../ipc/app-store-plugin.ts'
+import type { PlatformFacts } from '../ports/platform-facts.ts'
+import { getJson, setJson, type StorageService } from '../ports/storage-service.ts'
+import type { AppStoreService } from '../ipc/app-store-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 
 const appStoreEnvironmentSchema = z.enum(['Production', 'Sandbox', 'Xcode']).nullable()

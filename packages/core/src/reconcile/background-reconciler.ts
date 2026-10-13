@@ -1,4 +1,4 @@
-import type { ActivityPort } from './ports.ts'
+import type { ActivityPort } from '../ports/activity-port.ts'
 
 /**
  * A generation-pinned, single-flight background reconcile loop driven by

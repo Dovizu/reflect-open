@@ -1,4 +1,4 @@
-import type { LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 
 export interface LogEntry {
   readonly message: string

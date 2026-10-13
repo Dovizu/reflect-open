@@ -1,4 +1,4 @@
-import type { ProgressPort } from '../app/ports.ts'
+import type { ProgressPort } from '../ports/progress-port.ts'
 import { ReflectError } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
 import type { Settings } from '../settings/schema.ts'

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../ports/http-service.ts'
 import { bytesToBase64 } from '../lib/base64.ts'
 import { ReflectError } from '../errors.ts'
 import { APP_REVIEW_STUB_KEY, stubTranscriptBody } from './app-review-demo.ts'

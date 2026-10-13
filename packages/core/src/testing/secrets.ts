@@ -1,4 +1,4 @@
-import type { AppInfoService } from '../app/app-info-service.ts'
+import type { AppInfoService } from '../ports/app-info-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 
 export interface TestSecretStoreService extends SecretStoreService {

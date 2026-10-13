@@ -3,7 +3,7 @@ import {
   createOpenDocumentsService,
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
-import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
+import { createGraphSession, type GraphSession } from '../graph/graph-session.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createNoteDocumentService, NoteBusyError } from '../documents/note-document-service.ts'
 import {

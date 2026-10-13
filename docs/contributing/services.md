@@ -11,7 +11,7 @@ walks through adding one, with `NoteMoveService`
 packages/core/src/documents/note-move-service.ts       deps + interface + class + factory
 packages/core/src/documents/note-move-service.test.ts  the real service over test doubles of its deps
 packages/core/src/testing/documents.ts                 createTestNoteMoveService
-packages/core/src/app/create-core-services.ts          CoreServices.noteMove
+packages/core/src/create-core-services.ts              CoreServices.noteMove
 packages/core/src/testing/services.ts                  the test factory table
 apps/desktop/src/routing/router.tsx                    useCoreServices().noteMove
 ```
@@ -151,7 +151,7 @@ writes carry `indexGeneration` the same way.
 - **User-facing services** take `graphSession: GraphSessionSource` in `deps`
   and read the session once, at the entry of each public method
   (`graphSession.getState().session`, or `requireGraphSession(graphSession)` in
-  `packages/core/src/app/graph-session.ts`). Pass its generations to every
+  `packages/core/src/graph/graph-session.ts`). Pass its generations to every
   lower call. Do not read the session again after an `await`.
 - **Background loops** get the `GraphSession` from `createGraphServices` (§10).
 
@@ -190,11 +190,16 @@ There are two roots. `apps/desktop/src/boot.ts` builds them in this order:
    `host.window.isMainWindow()`.
 4. App: `createAppServices(core, host)`.
 
-A port is an interface in `packages/core/src/app/ports.ts` that core calls and
-an app service implements. `role` (`'main'` or `'note-window'`) replaces every
+A port is an interface in `packages/core/src/ports/` (`activity-port.ts`,
+`progress-port.ts`) that core calls and an app service implements. `role` (`'main'` or `'note-window'`) replaces every
 window check in core.
 
-**A core service**, in `packages/core/src/app/create-core-services.ts`:
+**Core layout.** The composition roots sit in `packages/core/src/`. Host ports and
+their default implementations sit in `packages/core/src/ports/`. Everything else
+sits in a domain directory. A file that exports a service is named after it:
+`createXxxService` lives in `xxx-service.ts`.
+
+**A core service**, in `packages/core/src/create-core-services.ts`:
 
 1. Add the field to `CoreServices`, and its key to `SERVICE_KEYS` in
    `create-core-services.test.ts`.
@@ -303,7 +308,7 @@ have) needs an **adapter**, because the packages must not import
   `tauri-updater.ts`). Make the field optional when a host can lack it, and
   decide what the service does then.
 - **A port.** When core must reach something the app layer owns, add an
-  interface to `packages/core/src/app/ports.ts` and a field to `CoreAdapters`,
+  interface to `packages/core/src/ports/` and a field to `CoreAdapters`,
   and let an app service implement it (`ProgressPort` and `OperationsService`).
 
 Implement the native side in `apps/desktop/src/services/` (plus a browser one
@@ -320,7 +325,7 @@ switch (`chatSessions.create({ session })`), or one instance per note pane
 (`noteSessions.create(options)`).
 
 - A per-graph factory goes in `graphServiceFactories`, and `GraphServicesDeps`
-  carries its deps (`packages/core/src/app/create-graph-services.ts`).
+  carries its deps (`packages/core/src/create-graph-services.ts`).
 - `createGraphServices(session, deps, flags)` builds the services of one
   session. The `GraphLifecycleFlags` pick the lifecycles that run.
   `GraphSessionService` calls `CoreAdapters.createGraphServices` when a graph

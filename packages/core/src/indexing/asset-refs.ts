@@ -1,4 +1,4 @@
-import type { XArchiveService } from '../x-archive.ts'
+import type { XArchiveService } from '../embeds/x-archive-service.ts'
 import type { DatabaseService } from './database-service.ts'
 
 /**

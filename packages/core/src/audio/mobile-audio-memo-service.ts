@@ -1,11 +1,11 @@
 import { AUDIO_MEMO_REMINDER_MS, AUDIO_MEMO_SEGMENT_MS } from './audio-memo-session.ts'
 import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
-import type { ActivityPort } from '../app/ports.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformFacts } from '../app/platform-service.ts'
+import type { ActivityPort } from '../ports/activity-port.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
+import type { PlatformFacts } from '../ports/platform-facts.ts'
 import { errorMessage } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
-import type { HapticsService } from '../ipc/mobile-haptics-plugin.ts'
+import type { HapticsService } from '../ipc/haptics-service.ts'
 import type { AudioMemoPhase, AudioMemoService } from './audio-memo-service.ts'
 import type {
   AudioRecorderSegment,

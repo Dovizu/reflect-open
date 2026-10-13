@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import type { LocalNoteRead, NoteFileService } from '../graph/note-file-service.ts'
 import { isNotePath, isTemplatePath } from '../graph/paths.ts'
 import { createAssetDescriptionText } from '../indexing/asset-description-text.ts'

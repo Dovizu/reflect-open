@@ -1,4 +1,4 @@
-import type { HttpService } from '../app/http-service.ts'
+import type { HttpService } from '../ports/http-service.ts'
 
 /**
  * A request the fake received.

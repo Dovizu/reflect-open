@@ -21,9 +21,9 @@ import {
   retitleDailyEntry,
   type CaptureStatus,
 } from './capture-note.ts'
-import type { ClockService } from '../app/clock-service.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { ReconcileStop } from '../app/reconcile.ts'
+import type { ClockService } from '../ports/clock-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
+import type { ReconcileStop } from '../reconcile/reconcile.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
@@ -37,7 +37,7 @@ import {
   linkSectionHeading,
   type SectionTarget,
 } from '../markdown/task-ast.ts'
-import { createArchivedPost, type XArchiveService } from '../x-archive.ts'
+import { createArchivedPost, type XArchiveService } from '../embeds/x-archive-service.ts'
 import type { BacklinkTargetService } from './backlink-target-service.ts'
 
 /**

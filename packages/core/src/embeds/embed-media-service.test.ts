@@ -8,7 +8,7 @@ import {
   createTestWebFetchService,
   createTestXArchiveService,
 } from '../testing/index.ts'
-import type { ResolvedArchivedPost, XArchiveService } from '../x-archive.ts'
+import type { ResolvedArchivedPost, XArchiveService } from './x-archive-service.ts'
 
 /**
  * The real embed media service over `deps`; each one left out is a fresh test double.

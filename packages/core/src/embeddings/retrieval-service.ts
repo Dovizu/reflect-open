@@ -1,5 +1,5 @@
 import { sql } from 'kysely'
-import type { LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import { literalSearchQuery } from '../indexing/filter-query.ts'
 import type { SearchService } from '../indexing/search-service.ts'

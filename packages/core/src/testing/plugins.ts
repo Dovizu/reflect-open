@@ -1,9 +1,9 @@
 import { ReflectError } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
-import type { AppStoreService } from '../ipc/app-store-plugin.ts'
-import type { IapProduct, IapService } from '../ipc/iap-plugin.ts'
-import type { HapticsService } from '../ipc/mobile-haptics-plugin.ts'
-import type { WebAuthOptions, WebAuthService } from '../ipc/web-auth-plugin.ts'
+import type { AppStoreService } from '../ipc/app-store-service.ts'
+import type { IapProduct, IapService } from '../ipc/iap-service.ts'
+import type { HapticsService } from '../ipc/haptics-service.ts'
+import type { WebAuthOptions, WebAuthService } from '../ipc/web-auth-service.ts'
 
 export interface TestHapticsService extends HapticsService {
   /**
