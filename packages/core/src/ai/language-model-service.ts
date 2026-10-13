@@ -98,7 +98,7 @@ export function createLanguageModelService(deps: {
  * any of them. Every other key goes to `service`.
  */
 export function withAppReviewDemo(service: LanguageModelService): LanguageModelService {
-  // FIXME: I don't understand why do we need a seprate withAppReviewDemo function. createLanguageModelService never get called directly. It always get called through withAppReviewDemo. So why not just put the APP_REVIEW_STUB_KEY check inside createLanguageModelService?
+  // FIXME: I don't understand why do we need a seprate withAppReviewDemo function. createLanguageModelService never get called directly. It always get called through withAppReviewDemo. So why not just put the APP_REVIEW_STUB_KEY check inside createLanguageModelService? Same comment applied to other similar functions like withAppReviewDemoTranscription
   return {
     async create(config, apiKey) {
       if (apiKey === APP_REVIEW_STUB_KEY) {
