@@ -83,11 +83,11 @@ export interface ICloudDownloadService {
   /**
    * Nudge the pending note downloads once and start following resumes.
    */
-  start: () => void
+  start(): void
   /**
    * Stop polling and listening; the service is unusable afterwards.
    */
-  dispose: () => void
+  dispose(): void
 }
 
 class ICloudDownloadServiceImpl implements ICloudDownloadService {
@@ -112,7 +112,7 @@ class ICloudDownloadServiceImpl implements ICloudDownloadService {
     this.#options = options
   }
 
-  readonly start = (): void => {
+  start(): void {
     const { lifecycle, clock } = this.#deps
     if (this.#disposed) {
       return
@@ -128,7 +128,7 @@ class ICloudDownloadServiceImpl implements ICloudDownloadService {
     )
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     this.#disposed = true
     if (this.#retryTimer !== null) {
       this.#deps.clock.clearTimeout(this.#retryTimer)

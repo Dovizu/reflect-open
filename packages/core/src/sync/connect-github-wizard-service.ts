@@ -102,34 +102,34 @@ export interface ConnectGithubWizardService {
    * and the returned function. Detaching cancels future ticks but not one
    * already in flight.
    */
-  attach: () => Unlisten
-  setMode: (mode: 'create' | 'existing') => void
-  setRepoName: (name: string) => void
-  setExistingRepo: (value: string) => void
+  attach(): Unlisten
+  setMode(mode: 'create' | 'existing'): void
+  setRepoName(name: string): void
+  setExistingRepo(value: string): void
   /**
    * Validate the repo step and advance to sign-in.
    */
-  continueFromRepo: () => void
+  continueFromRepo(): void
   /**
    * Call once the sign-in step verified the user — advances and connects.
    */
-  onAuthed: (user: GithubUser) => void
+  onAuthed(user: GithubUser): void
   /**
    * The public-repo consent button: retry the connect with consent given.
    */
-  confirmPublic: () => void
+  confirmPublic(): void
   /**
    * Back to the repo step — every finish-step dead end must offer this.
    */
-  backToRepo: () => void
+  backToRepo(): void
   /**
    * Open the prefilled github.com/new page for the chosen name.
    */
-  openCreatePage: () => void
+  openCreatePage(): void
   /**
    * Open the GitHub App installation page (grant repository access).
    */
-  openInstallPage: () => void
+  openInstallPage(): void
 }
 
 /**
@@ -203,7 +203,7 @@ class ConnectGithubWizardServiceImpl implements ConnectGithubWizardService {
     }
   }
 
-  readonly attach = (): Unlisten => {
+  attach(): Unlisten {
     this.#attached += 1
     this.#syncPoll()
     let detached = false
@@ -217,19 +217,19 @@ class ConnectGithubWizardServiceImpl implements ConnectGithubWizardService {
     }
   }
 
-  readonly setMode = (mode: 'create' | 'existing'): void => {
+  setMode(mode: 'create' | 'existing'): void {
     this.#patch({ mode })
   }
 
-  readonly setRepoName = (repoName: string): void => {
+  setRepoName(repoName: string): void {
     this.#patch({ repoName })
   }
 
-  readonly setExistingRepo = (existingRepo: string): void => {
+  setExistingRepo(existingRepo: string): void {
     this.#patch({ existingRepo })
   }
 
-  readonly continueFromRepo = (): void => {
+  continueFromRepo(): void {
     const fields = this.#fields
     if (fields.mode === 'create' && fields.repoName.trim().length === 0) {
       this.#patch({ error: 'Name the repository.' })
@@ -242,7 +242,7 @@ class ConnectGithubWizardServiceImpl implements ConnectGithubWizardService {
     this.#patch({ error: null, step: 'auth' })
   }
 
-  readonly onAuthed = (authedUser: GithubUser): void => {
+  onAuthed(authedUser: GithubUser): void {
     this.#patch({ user: authedUser, step: 'finish' })
     void this.#deps.githubAuth.load().then((auth) => {
       const kind = auth?.kind ?? null
@@ -251,13 +251,13 @@ class ConnectGithubWizardServiceImpl implements ConnectGithubWizardService {
     })
   }
 
-  readonly confirmPublic = (): void => {
+  confirmPublic(): void {
     if (this.#fields.user !== null) {
       void this.#finish(this.#fields.user, { allowPublic: true })
     }
   }
 
-  readonly backToRepo = (): void => {
+  backToRepo(): void {
     this.#patch({
       error: null,
       publicConfirm: null,
@@ -267,11 +267,11 @@ class ConnectGithubWizardServiceImpl implements ConnectGithubWizardService {
     })
   }
 
-  readonly openCreatePage = (): void => {
+  openCreatePage(): void {
     this.#openExternal(newRepoUrl(this.#fields.repoName.trim()))
   }
 
-  readonly openInstallPage = (): void => {
+  openInstallPage(): void {
     this.#openExternal(githubAppInstallUrl())
   }
 

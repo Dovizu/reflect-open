@@ -122,11 +122,11 @@ export interface ICloudSyncServiceDeps {
  * conflict, the same as any external edit.
  */
 export interface ICloudSyncService {
-  start: () => Promise<void>
+  start(): Promise<void>
   /**
    * Tear everything down; the service is unusable afterwards.
    */
-  dispose: () => void
+  dispose(): void
 }
 
 class ICloudSyncServiceImpl implements ICloudSyncService {
@@ -181,7 +181,7 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
     this.#arrivalScope = options.metadataWatch ? 'candidates' : 'ingested'
   }
 
-  readonly start = async (): Promise<void> => {
+  async start(): Promise<void> {
     const { icloudNative, fileChanges, lifecycle, clock, logger } = this.#deps
     const { root, metadataWatch } = this.#options
     if (this.#disposed) {
@@ -271,7 +271,7 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
     this.#scheduleScan()
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     const { icloudNative, clock } = this.#deps
     const { metadataWatch } = this.#options
     this.#disposed = true

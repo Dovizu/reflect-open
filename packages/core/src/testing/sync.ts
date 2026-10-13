@@ -393,29 +393,43 @@ class TestGithubAuthServiceImpl implements TestGithubAuthService {
 
   readonly getState = (): GithubAuthState => this.#inner.getState()
 
-  readonly load = (): Promise<GithubAuth | null> => this.#inner.load()
+  load(): Promise<GithubAuth | null> {
+    return this.#inner.load()
+  }
 
-  readonly save = (auth: GithubAuth): Promise<void> => this.#inner.save(auth)
+  save(auth: GithubAuth): Promise<void> {
+    return this.#inner.save(auth)
+  }
 
-  readonly clear = (): Promise<void> => this.#inner.clear()
+  clear(): Promise<void> {
+    return this.#inner.clear()
+  }
 
   readonly subscribe = (listener: () => void): Unlisten => this.#inner.subscribe(listener)
 
-  readonly getToken = (): Promise<string | null> => this.#inner.getToken()
+  getToken(): Promise<string | null> {
+    return this.#inner.getToken()
+  }
 
-  readonly deviceFlowStart = (clientId?: string): Promise<DeviceFlowStart> =>
-    this.#inner.deviceFlowStart(clientId)
+  deviceFlowStart(clientId?: string): Promise<DeviceFlowStart> {
+    return this.#inner.deviceFlowStart(clientId)
+  }
 
-  readonly deviceFlowPoll = (deviceCode: string, clientId?: string): Promise<DevicePollResult> =>
-    this.#inner.deviceFlowPoll(deviceCode, clientId)
+  deviceFlowPoll(deviceCode: string, clientId?: string): Promise<DevicePollResult> {
+    return this.#inner.deviceFlowPoll(deviceCode, clientId)
+  }
 
-  readonly runDeviceFlow = (flowOptions: RunDeviceFlowOptions): Promise<GithubAuth | null> =>
-    (this.#deviceFlow ?? this.#inner.runDeviceFlow)(flowOptions)
+  runDeviceFlow(flowOptions: RunDeviceFlowOptions): Promise<GithubAuth | null> {
+    return (this.#deviceFlow ?? this.#inner.runDeviceFlow)(flowOptions)
+  }
 
-  readonly getAuthenticatedUser = (token: string): Promise<GithubUser> =>
-    this.#inner.getAuthenticatedUser(token)
+  getAuthenticatedUser(token: string): Promise<GithubUser> {
+    return this.#inner.getAuthenticatedUser(token)
+  }
 
-  readonly getSignedInUser = (): Promise<GithubUser | null> => this.#inner.getSignedInUser()
+  getSignedInUser(): Promise<GithubUser | null> {
+    return this.#inner.getSignedInUser()
+  }
 
   onRunDeviceFlow(handler: GithubAuthService['runDeviceFlow'] | null): void {
     this.#deviceFlow = handler
@@ -476,7 +490,7 @@ class TestBackupServiceImpl implements TestBackupService {
     this.#state = options?.state ?? { phase: 'loading' }
   }
 
-  readonly start = async (): Promise<void> => {
+  async start(): Promise<void> {
     this.#log.push({ method: 'start' })
   }
 
@@ -493,15 +507,15 @@ class TestBackupServiceImpl implements TestBackupService {
     }
   }
 
-  readonly connectNewRepo = async (name: string): Promise<'connected' | 'manualCreateNeeded'> => {
+  async connectNewRepo(name: string): Promise<'connected' | 'manualCreateNeeded'> {
     this.#log.push({ method: 'connectNewRepo', name })
     return await this.#connectNew(name)
   }
 
-  readonly connectExistingRepo = async (
+  async connectExistingRepo(
     ref: GithubRepoRef,
     connectOptions?: { allowPublic?: boolean },
-  ): Promise<ConnectExistingResult> => {
+  ): Promise<ConnectExistingResult> {
     this.#log.push({
       method: 'connectExistingRepo',
       ref,
@@ -510,23 +524,19 @@ class TestBackupServiceImpl implements TestBackupService {
     return await this.#connectExisting(ref, connectOptions)
   }
 
-  readonly disconnectGraph = async (): Promise<void> => {
+  async disconnectGraph(): Promise<void> {
     this.#log.push({ method: 'disconnectGraph' })
   }
 
-  readonly signOut = async (): Promise<void> => {
+  async signOut(): Promise<void> {
     this.#log.push({ method: 'signOut' })
   }
 
-  // FIXME: it seems that `backUpNow` DO NOT need to be a lambda function. It can just be a normal method. We only want to write `readonly method = () => { ... } ` and ` interface XXXService { method : () => void } ` if we really need to bind `this` to the method. A good example is `getState`. Because we need to write `return useServiceState(contacts, contacts.getState)`, so `getState` in `ContactsService` should be a lambda function. But as far as I can tell, `backUpNow` does not need to be a lambda function. Before finish all work, do a full scan in the codebase to see if we can remove all unnecessary lambda functions in XXXService. This will make the code cleaner and easier to read.
-  // FIXME GOOD: async backUpNow(): Promise<void> { ... }
-  // FIXME BAD: readonly backUpNow = async (): Promise<void> => { ... }
-  // FIXME it's clear that the GOOD one is shorter and easier to read..
-  readonly backUpNow = async (): Promise<void> => {
+  async backUpNow(): Promise<void> {
     this.#log.push({ method: 'backUpNow' })
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     this.#log.push({ method: 'dispose' })
   }
 
@@ -567,11 +577,11 @@ export interface TestICloudSyncService extends ICloudSyncService {
 class TestICloudSyncServiceImpl implements TestICloudSyncService {
   readonly #log: ('start' | 'dispose')[] = []
 
-  readonly start = async (): Promise<void> => {
+  async start(): Promise<void> {
     this.#log.push('start')
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     this.#log.push('dispose')
   }
 

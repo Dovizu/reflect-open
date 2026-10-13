@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   createConnectGithubWizardService,
   type ConnectAuthKind,
@@ -108,24 +108,39 @@ export function useConnectGithubWizard({
 
   const state = useServiceState(wizard, wizard.getState)
 
+  const actions = useMemo(
+    () => ({
+      setMode: (mode: 'create' | 'existing') => wizard.setMode(mode),
+      setRepoName: (name: string) => wizard.setRepoName(name),
+      setExistingRepo: (value: string) => wizard.setExistingRepo(value),
+      continueFromRepo: () => wizard.continueFromRepo(),
+      onAuthed: (user: GithubUser) => wizard.onAuthed(user),
+      confirmPublic: () => wizard.confirmPublic(),
+      backToRepo: () => wizard.backToRepo(),
+      openCreatePage: () => wizard.openCreatePage(),
+      openInstallPage: () => wizard.openInstallPage(),
+    }),
+    [wizard],
+  )
+
   return {
     step: state.step,
     mode: state.mode,
-    setMode: wizard.setMode,
+    setMode: actions.setMode,
     repoName: state.repoName,
-    setRepoName: wizard.setRepoName,
+    setRepoName: actions.setRepoName,
     existingRepo: state.existingRepo,
-    setExistingRepo: wizard.setExistingRepo,
+    setExistingRepo: actions.setExistingRepo,
     user: state.user,
     authKind: state.authKind,
     finishView: state.finishView,
     pending: state.pending,
     error: state.error,
-    continueFromRepo: wizard.continueFromRepo,
-    onAuthed: wizard.onAuthed,
-    confirmPublic: wizard.confirmPublic,
-    backToRepo: wizard.backToRepo,
-    openCreatePage: wizard.openCreatePage,
-    openInstallPage: wizard.openInstallPage,
+    continueFromRepo: actions.continueFromRepo,
+    onAuthed: actions.onAuthed,
+    confirmPublic: actions.confirmPublic,
+    backToRepo: actions.backToRepo,
+    openCreatePage: actions.openCreatePage,
+    openInstallPage: actions.openInstallPage,
   }
 }

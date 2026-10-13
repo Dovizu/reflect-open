@@ -45,7 +45,7 @@ export interface ICloudMigrationService {
    * resolves with the text of what went wrong for the user, or `null` when
    * every step worked.
    */
-  moveGraph: (options: MoveGraphToICloudOptions) => Promise<string | null>
+  moveGraph(options: MoveGraphToICloudOptions): Promise<string | null>
 }
 
 class ICloudMigrationServiceImpl implements ICloudMigrationService {
@@ -55,11 +55,11 @@ class ICloudMigrationServiceImpl implements ICloudMigrationService {
     this.#deps = deps
   }
 
-  readonly moveGraph = async ({
+  async moveGraph({
     disconnectBackup,
     openGraph,
     onCopied,
-  }: MoveGraphToICloudOptions): Promise<string | null> => {
+  }: MoveGraphToICloudOptions): Promise<string | null> {
     const { icloudNative, graphSession } = this.#deps
     const { session } = graphSession.getState()
     if (session === null) {

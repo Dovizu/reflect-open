@@ -186,15 +186,15 @@ export interface GithubAuthService {
   /**
    * The stored credential, or `null` when absent or unreadable (re-connect). Updates the state.
    */
-  load: () => Promise<GithubAuth | null>
+  load(): Promise<GithubAuth | null>
   /**
    * Stores `auth` and notifies subscribers.
    */
-  save: (auth: GithubAuth) => Promise<void>
+  save(auth: GithubAuth): Promise<void>
   /**
    * Removes the stored credential and notifies subscribers.
    */
-  clear: () => Promise<void>
+  clear(): Promise<void>
   /**
    * Called after the state changes.
    */
@@ -204,27 +204,27 @@ export interface GithubAuthService {
    * `null` means not connected — or the refresh token lapsed and the user must
    * reconnect.
    */
-  getToken: () => Promise<string | null>
+  getToken(): Promise<string | null>
   /**
    * Begin the device flow: returns the code to show + where the user enters it.
    */
-  deviceFlowStart: (clientId?: string) => Promise<DeviceFlowStart>
+  deviceFlowStart(clientId?: string): Promise<DeviceFlowStart>
   /**
    * One poll of the device flow; the caller loops on `pending`/`slowDown`.
    */
-  deviceFlowPoll: (deviceCode: string, clientId?: string) => Promise<DevicePollResult>
+  deviceFlowPoll(deviceCode: string, clientId?: string): Promise<DevicePollResult>
   /**
    * Drive the whole device flow: start it, surface the user code, poll at
    * GitHub's pace (honoring `slow_down`) until it authorizes — the credential
    * is persisted to the keychain and returned — or fails. Denial and expiry
    * throw a ReflectError('auth'); an abort resolves `null`.
    */
-  runDeviceFlow: (options: RunDeviceFlowOptions) => Promise<GithubAuth | null>
+  runDeviceFlow(options: RunDeviceFlowOptions): Promise<GithubAuth | null>
   /**
    * Who the token belongs to (`GET /user` — works with every token type,
    * including fine-grained PATs). Doubles as instant token validation.
    */
-  getAuthenticatedUser: (token: string) => Promise<GithubUser>
+  getAuthenticatedUser(token: string): Promise<GithubUser>
   /**
    * Resolves the stored credential to who it belongs to via `GET /user`.
    * Doubles as token validation — the connect flow calls this right after a
@@ -238,7 +238,7 @@ export interface GithubAuthService {
    * actually rejected: a slow rejection of an old credential (the auth step
    * probes on mount) must not wipe a newer one saved while it was in flight.
    */
-  getSignedInUser: () => Promise<GithubUser | null>
+  getSignedInUser(): Promise<GithubUser | null>
 }
 
 export interface GithubAuthServiceDeps {
@@ -261,7 +261,7 @@ class GithubAuthServiceImpl implements GithubAuthService {
 
   readonly getState = (): GithubAuthState => this.#state
 
-  readonly load = async (): Promise<GithubAuth | null> => {
+  async load(): Promise<GithubAuth | null> {
     const before = this.#writes
     const auth = await this.#readStored()
     if (this.#writes === before) {
@@ -270,13 +270,13 @@ class GithubAuthServiceImpl implements GithubAuthService {
     return auth
   }
 
-  readonly save = async (auth: GithubAuth): Promise<void> => {
+  async save(auth: GithubAuth): Promise<void> {
     this.#writes += 1
     await this.#store(auth)
     this.#setConnected(true)
   }
 
-  readonly clear = async (): Promise<void> => {
+  async clear(): Promise<void> {
     this.#writes += 1
     await this.#deps.secretStore.delete(GITHUB_AUTH_SECRET)
     this.#setConnected(false)
@@ -293,7 +293,7 @@ class GithubAuthServiceImpl implements GithubAuthService {
     }
   }
 
-  readonly getToken = async (): Promise<string | null> => {
+  async getToken(): Promise<string | null> {
     const { clock } = this.#deps
     const auth = await this.#readStored()
     if (auth === null) {
@@ -314,9 +314,7 @@ class GithubAuthServiceImpl implements GithubAuthService {
     return refreshed.kind === 'pat' ? refreshed.token : refreshed.accessToken
   }
 
-  readonly deviceFlowStart = async (
-    clientId: string = GITHUB_APP_CLIENT_ID,
-  ): Promise<DeviceFlowStart> => {
+  async deviceFlowStart(clientId: string = GITHUB_APP_CLIENT_ID): Promise<DeviceFlowStart> {
     const { http } = this.#deps
     if (clientId.length === 0) {
       throw new ReflectError('auth', 'GitHub device flow is not configured (no app client id)')
@@ -339,10 +337,10 @@ class GithubAuthServiceImpl implements GithubAuthService {
     }
   }
 
-  readonly deviceFlowPoll = async (
+  async deviceFlowPoll(
     deviceCode: string,
     clientId: string = GITHUB_APP_CLIENT_ID,
-  ): Promise<DevicePollResult> => {
+  ): Promise<DevicePollResult> {
     const { http, clock } = this.#deps
     const response = await http.fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
@@ -380,7 +378,7 @@ class GithubAuthServiceImpl implements GithubAuthService {
     }
   }
 
-  readonly runDeviceFlow = async (options: RunDeviceFlowOptions): Promise<GithubAuth | null> => {
+  async runDeviceFlow(options: RunDeviceFlowOptions): Promise<GithubAuth | null> {
     const { clock } = this.#deps
     const clientId = options.clientId ?? GITHUB_APP_CLIENT_ID
 
@@ -413,7 +411,7 @@ class GithubAuthServiceImpl implements GithubAuthService {
     throw new ReflectError('auth', 'The sign-in code expired — try again.')
   }
 
-  readonly getAuthenticatedUser = async (token: string): Promise<GithubUser> => {
+  async getAuthenticatedUser(token: string): Promise<GithubUser> {
     const { http } = this.#deps
     const response = await http.fetch('https://api.github.com/user', {
       headers: apiHeaders(token),
@@ -438,7 +436,7 @@ class GithubAuthServiceImpl implements GithubAuthService {
     return { login: parsed.login, avatarUrl: parsed.avatar_url ?? null }
   }
 
-  readonly getSignedInUser = async (): Promise<GithubUser | null> => {
+  async getSignedInUser(): Promise<GithubUser | null> {
     const token = await this.getToken()
     if (token === null) {
       return null
