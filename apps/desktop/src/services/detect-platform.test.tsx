@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createPlatformService } from '@reflect/core'
+import { createPlatformService } from '@reflect/app'
 import { detectPlatformFacts } from './detect-platform.ts'
 
 const DESKTOP_SURFACE = { touchEditor: false, mobileApp: false }

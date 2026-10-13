@@ -1,16 +1,11 @@
-import type {
-  IpcBridgeService,
-  LoggerService,
-  PlatformFacts,
-  Unlisten,
-  WindowService,
-} from '@reflect/core'
+import type { IpcBridgeService, LoggerService, PlatformFacts, Unlisten } from '@reflect/core'
 import {
   createTestIpcBridgeService,
   createTestLoggerService,
   createTestPlatformService,
-  createTestWindowService,
 } from '@reflect/core/testing'
+import type { WindowService } from '../app/window-service.ts'
+import { createTestWindowService } from './window.ts'
 import { type CommandService, createCommandService } from '../commands/command-service.ts'
 import {
   createNativeMenuService,

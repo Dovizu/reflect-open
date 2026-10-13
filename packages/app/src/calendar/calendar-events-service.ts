@@ -5,7 +5,7 @@ import {
   type CalendarInfo,
   type CalendarService,
   type LoggerService,
-  type PlatformService,
+  type PlatformFacts,
   type Settings,
   type SettingsService,
   type Unlisten,
@@ -122,7 +122,7 @@ export interface CalendarEventsServiceDeps {
     'authorizationStatus' | 'requestAccess' | 'listCalendars' | 'listEvents' | 'subscribeChanged'
   >
   readonly settings: Pick<SettingsService, 'update' | 'updateWith'>
-  readonly platform: Pick<PlatformService, 'isMacosDesktop'>
+  readonly platform: Pick<PlatformFacts, 'isMacosDesktop'>
   readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
   readonly logger: Pick<LoggerService, 'error'>
 }

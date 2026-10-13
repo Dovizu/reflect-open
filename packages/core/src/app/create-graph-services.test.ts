@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ICloudDownloadServiceOptions } from '../sync/icloud-download-service.ts'
 import type { ICloudSyncServiceOptions } from '../sync/icloud-sync-service.ts'
-import type { TestPlatformOptions } from '../testing/platform.ts'
-import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestCoreServices, type TestCoreServices } from '../testing/services.ts'
 import {
   createTestBackupService,
@@ -10,7 +8,13 @@ import {
   type TestICloudSyncService,
 } from '../testing/sync.ts'
 import type { BackupServiceOptions } from '../sync/backup-service.ts'
-import { createGraphServices, type GraphServicesDeps } from './create-graph-services.ts'
+import {
+  createGraphServices,
+  openGraphLifecycle,
+  type GraphLifecycleFlags,
+  type GraphServiceFactories,
+  type GraphServicesDeps,
+} from './create-graph-services.ts'
 import { createGraphSession, type GraphRole } from './graph-session.ts'
 
 const ICLOUD_ROOT = '/Users/me/Library/Mobile Documents/iCloud~reflect/Documents/notes'
@@ -19,7 +23,31 @@ interface SetupOptions {
   role?: GraphRole
   root?: string
   indexGeneration?: number | null
-  platform?: TestPlatformOptions
+  lifecycles?: Partial<GraphLifecycleFlags>
+}
+
+/**
+ * Every lifecycle of a desktop main window, without the iCloud ones.
+ */
+const MAIN_LIFECYCLES: GraphLifecycleFlags = {
+  backup: true,
+  icloudSync: false,
+  capture: true,
+  assetDescription: true,
+  icloudDownload: false,
+  metadataWatch: false,
+}
+
+/**
+ * Only the lifecycles every session runs.
+ */
+const NO_LIFECYCLES: GraphLifecycleFlags = {
+  backup: false,
+  icloudSync: false,
+  capture: false,
+  assetDescription: false,
+  icloudDownload: false,
+  metadataWatch: false,
 }
 
 /**
@@ -60,7 +88,7 @@ function sessionDeps(
  * One graph session's services over recording doubles.
  */
 function setup(options?: SetupOptions) {
-  const app = createTestCoreServices({ platform: createTestPlatformService(options?.platform) })
+  const app = createTestCoreServices()
   const controller = new AbortController()
   const session = createGraphSession(
     {
@@ -68,6 +96,7 @@ function setup(options?: SetupOptions) {
       name: 'g',
       generation: 3,
       indexGeneration: options?.indexGeneration === undefined ? 5 : options.indexGeneration,
+      role: options?.role ?? 'main',
     },
     controller.signal,
   )
@@ -95,12 +124,9 @@ function setup(options?: SetupOptions) {
       },
     },
     attachments: app.attachments,
-    settings: app.settings,
-    mobileOnboarding: app.mobileOnboarding,
     graphSession: app.graphSession,
-    platform: app.platform,
   }
-  const graph = createGraphServices(session, options?.role ?? 'main', deps, {
+  const factories: Partial<GraphServiceFactories> = {
     backup: (_deps, backupOptions) => {
       backups.push(backupOptions)
       return backup
@@ -122,17 +148,35 @@ function setup(options?: SetupOptions) {
         },
       }
     },
-  })
-  return { app, controller, session, graph, backup, backups, chats, icloudSyncs, downloads }
+  }
+  const graph = createGraphServices(
+    session,
+    deps,
+    { ...MAIN_LIFECYCLES, ...options?.lifecycles },
+    factories,
+  )
+  return {
+    app,
+    controller,
+    session,
+    deps,
+    factories,
+    graph,
+    backup,
+    backups,
+    chats,
+    icloudSyncs,
+    downloads,
+  }
 }
 
 describe('createGraphServices', () => {
-  it('holds the session and the role', () => {
-    const { session, graph } = setup({ role: 'note-window' })
+  it('holds the session and its role', () => {
+    const { session, graph } = setup({ role: 'note-window', lifecycles: NO_LIFECYCLES })
     expect(graph).toMatchObject({ session, role: 'note-window' })
   })
 
-  it('starts every lifecycle of the main window over the session generations', async () => {
+  it('starts every lifecycle it is given over the session generations', async () => {
     const context = setup()
     await context.app.settings.whenLoaded()
 
@@ -152,7 +196,11 @@ describe('createGraphServices', () => {
   })
 
   it('runs every lifecycle of a graph whose index failed to open, until the session ends', () => {
-    const context = setup({ root: ICLOUD_ROOT, indexGeneration: null })
+    const context = setup({
+      root: ICLOUD_ROOT,
+      indexGeneration: null,
+      lifecycles: { icloudSync: true },
+    })
 
     expect(context.backups).toEqual([{ generation: 3, indexGeneration: null }])
     expect(context.icloudSyncs.map((sync) => sync.options.indexGeneration)).toEqual([null])
@@ -168,8 +216,8 @@ describe('createGraphServices', () => {
     expect(context.chats).toEqual([{ attached: 1, detached: 1 }])
   })
 
-  it('runs only the chat session and the catalog watch in a note window', () => {
-    const context = setup({ role: 'note-window', root: ICLOUD_ROOT })
+  it('runs only the chat session and the catalog watch without lifecycles', () => {
+    const context = setup({ root: ICLOUD_ROOT, lifecycles: NO_LIFECYCLES })
 
     expect(context.graph.backup).toBeNull()
     expect(context.backups).toEqual([])
@@ -178,10 +226,14 @@ describe('createGraphServices', () => {
     expect(context.app.capture.sessions()).toEqual([])
     expect(context.app.assetDescription.sessions()).toEqual([])
     expect(context.icloudSyncs).toEqual([])
+    expect(context.downloads).toEqual([])
   })
 
   it('disposes every lifecycle when the session ends', () => {
-    const context = setup({ root: ICLOUD_ROOT })
+    const context = setup({
+      root: ICLOUD_ROOT,
+      lifecycles: { icloudSync: true, icloudDownload: true },
+    })
     context.controller.abort()
 
     expect(context.backup.calls().at(-1)).toEqual({ method: 'dispose' })
@@ -190,57 +242,29 @@ describe('createGraphServices', () => {
     expect(context.app.capture.sessions()[0]?.disposed).toBe(true)
     expect(context.app.assetDescription.sessions()[0]?.disposed).toBe(true)
     expect(context.icloudSyncs[0]?.service.calls()).toEqual(['start', 'dispose'])
+    expect(context.downloads[0]?.calls).toEqual(['start', 'dispose'])
   })
 
-  it('runs the iCloud conflict lifecycle for an iCloud root, with the watch on mobile', () => {
-    const desktop = setup({ root: ICLOUD_ROOT })
+  it('passes the metadata watch to the iCloud conflict lifecycle', () => {
+    const desktop = setup({ root: ICLOUD_ROOT, lifecycles: { icloudSync: true } })
     expect(desktop.icloudSyncs.map((sync) => sync.options)).toEqual([
       { root: ICLOUD_ROOT, generation: 3, indexGeneration: 5, metadataWatch: false },
     ])
 
     const mobile = setup({
       root: ICLOUD_ROOT,
-      platform: { appPlatform: 'ios', surface: { mobileApp: true, touchEditor: true } },
+      lifecycles: { icloudSync: true, metadataWatch: true },
     })
     expect(mobile.icloudSyncs.map((sync) => sync.options.metadataWatch)).toEqual([true])
   })
 
-  it('opens and disposes the asset description session as `describeAssets` flips', () => {
-    const context = setup()
-    const sessions = () => context.app.assetDescription.sessions()
-    expect(sessions().map((session) => session.disposed)).toEqual([false])
-
-    context.app.settings.update({ describeAssets: false })
-    expect(sessions().map((session) => session.disposed)).toEqual([true])
-
-    context.app.settings.update({ describeAssets: true })
-    expect(sessions().map((session) => session.disposed)).toEqual([true, false])
-
-    context.controller.abort()
-    expect(sessions().map((session) => session.disposed)).toEqual([true, true])
-    context.app.settings.update({ describeAssets: false })
-    context.app.settings.update({ describeAssets: true })
-    expect(sessions()).toHaveLength(2)
-  })
-
-  it('describes no assets on mobile', () => {
-    const context = setup({ platform: { appPlatform: 'ios' } })
-    expect(context.app.assetDescription.sessions()).toEqual([])
-  })
-
-  it('refreshes downloads while the mobile graph is stored in iCloud', () => {
-    const context = setup({ root: ICLOUD_ROOT, platform: { appPlatform: 'ios' } })
-    expect(context.downloads).toEqual([])
-
-    context.app.mobileOnboarding.setState({ kind: 'icloud' })
+  it('refreshes downloads of the session root and refreshes the index after them', () => {
+    const context = setup({ root: ICLOUD_ROOT, lifecycles: { icloudDownload: true } })
     expect(context.downloads.map((download) => download.options.root)).toEqual([ICLOUD_ROOT])
     const refreshIndex = vi.spyOn(context.app.graphSession, 'refreshIndex')
     context.downloads[0]?.options.refreshIndex()
     expect(refreshIndex).toHaveBeenCalledTimes(1)
     expect(context.downloads[0]?.calls).toEqual(['start'])
-
-    context.controller.abort()
-    expect(context.downloads[0]?.calls).toEqual(['start', 'dispose'])
   })
 
   it('leaves nothing running for a session that already ended', () => {
@@ -254,23 +278,48 @@ describe('createGraphServices', () => {
     const backup = createTestBackupService()
     createGraphServices(
       session,
-      'main',
       {
         ...sessionDeps(app),
         capture: app.capture,
         assetDescription: app.assetDescription,
         chatSessions: app.chatSessions,
         attachments: app.attachments,
-        settings: app.settings,
-        mobileOnboarding: app.mobileOnboarding,
         graphSession: app.graphSession,
-        platform: app.platform,
       },
+      MAIN_LIFECYCLES,
       { backup: () => backup },
     )
 
     expect(backup.calls()).toEqual([{ method: 'start' }, { method: 'dispose' }])
     expect(app.attachments.watchers()).toBe(0)
     expect(app.capture.sessions()[0]?.disposed).toBe(true)
+  })
+})
+
+describe('openGraphLifecycle', () => {
+  it('opens one lifecycle of the session until its teardown', () => {
+    const context = setup({ lifecycles: NO_LIFECYCLES })
+    const close = openGraphLifecycle(
+      context.session,
+      context.deps,
+      'assetDescription',
+      context.factories,
+    )
+    expect(context.app.assetDescription.sessions().map((session) => session.disposed)).toEqual([
+      false,
+    ])
+    close()
+    expect(context.app.assetDescription.sessions().map((session) => session.disposed)).toEqual([
+      true,
+    ])
+
+    const stop = openGraphLifecycle(
+      context.session,
+      context.deps,
+      'icloudDownload',
+      context.factories,
+    )
+    stop()
+    expect(context.downloads[0]?.calls).toEqual(['start', 'dispose'])
   })
 })

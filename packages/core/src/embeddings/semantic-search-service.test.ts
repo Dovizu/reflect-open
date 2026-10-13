@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createGraphSession } from '../app/graph-session.ts'
+import { createGraphSession, type GraphRole } from '../app/graph-session.ts'
 import {
   createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
@@ -12,7 +12,6 @@ import {
   createTestSemanticSearchService,
   createTestSettingsService,
   createTestStorageService,
-  createTestWindowService,
 } from '../testing/index.ts'
 import type { EmbeddingBackfillResult } from './embedding-index-service.ts'
 import type { EmbedStatus } from './embedding-runtime-service.ts'
@@ -29,7 +28,7 @@ async function setup(options?: {
   enabled?: boolean
   status?: EmbedStatus
   legacyOptIn?: string
-  window?: string
+  role?: GraphRole
   failClear?: boolean
   backfill?: () => Promise<EmbeddingBackfillResult>
   relatedNotes?: (path: string, limit?: number) => RetrievalHit[]
@@ -78,9 +77,7 @@ async function setup(options?: {
     retrieval,
     settings,
     storage,
-    window: createTestWindowService(
-      options?.window === undefined ? undefined : { label: options.window },
-    ),
+    role: options?.role ?? 'main',
     indexLifecycle,
     graphSession,
     logger,
@@ -219,7 +216,7 @@ describe('start', () => {
   })
 
   it('does nothing in a secondary note window', async () => {
-    const { semanticSearch, runtime, embeddingIndex } = await setup({ window: 'note-1' })
+    const { semanticSearch, runtime, embeddingIndex } = await setup({ role: 'note-window' })
 
     const stop = semanticSearch.start()
     await vi.waitFor(() => expect(runtime.lastStatus()).toEqual(READY))

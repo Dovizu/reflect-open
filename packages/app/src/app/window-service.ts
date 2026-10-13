@@ -1,9 +1,13 @@
+import {
+  errorMessage,
+  listenNow,
+  windowBootstrapSchema,
+  type IpcBridgeService,
+  type LoggerService,
+  type Unlisten,
+  type WindowBootstrap,
+} from '@reflect/core'
 import { z } from 'zod'
-import { errorMessage } from '../errors.ts'
-import { windowBootstrapSchema, type WindowBootstrap } from '../graph/schemas.ts'
-import { listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
-import type { Unlisten } from '../unlisten.ts'
-import type { LoggerService } from './logger-service.ts'
 
 /**
  * The label of the window the app opens at launch.

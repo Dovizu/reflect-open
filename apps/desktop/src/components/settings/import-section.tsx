@@ -4,7 +4,7 @@ import { SettingsField } from '@/components/settings/field.tsx'
 import { SettingsSection } from '@/components/settings/section.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { useV1Import } from '@/providers/v1-import-provider.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Settings -> Import: pick a Reflect V1 export zip and hand it to the
@@ -14,7 +14,7 @@ import { useCoreServices } from '@/services/services-provider.tsx'
  */
 export function ImportSection(): ReactElement {
   const { state, startImport } = useV1Import()
-  const { dialog } = useCoreServices()
+  const { dialog } = useAppServices()
   const running = state.phase === 'running'
 
   async function chooseAndImport(): Promise<void> {

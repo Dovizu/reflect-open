@@ -1,7 +1,7 @@
 import type { ClockService } from '../app/clock-service.ts'
 import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { ProgressPort } from '../app/ports.ts'
-import type { PlatformService } from '../app/platform-service.ts'
+import type { FileSrcSource } from '../app/platform-service.ts'
 import { errorMessage } from '../errors.ts'
 import { assetFileName } from '../graph/asset-names.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
@@ -360,7 +360,7 @@ export interface AttachmentServiceDeps {
   readonly fileChanges: FileChangeService
   readonly progress: ProgressPort
   readonly clock: ClockService
-  readonly platform: PlatformService
+  readonly platform: FileSrcSource
   readonly graphSession: GraphSessionSource
 }
 

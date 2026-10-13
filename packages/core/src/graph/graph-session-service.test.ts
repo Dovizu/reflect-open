@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
-import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
@@ -10,22 +9,12 @@ import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestMobileStorageService } from '../testing/mobile-storage.ts'
-import { createTestPlatformService, type TestPlatformOptions } from '../testing/platform.ts'
 import { createTestICloudNativeService } from '../testing/sync.ts'
-import {
-  createTestDialogService,
-  createTestActivityPort,
-  createTestWindowService,
-} from '../testing/shell.ts'
 import type { GraphReleaseReason, GraphSessionState } from './graph-session-service.ts'
 import { WELCOME_NOTE_PATH, WELCOME_SEEDED_META_KEY } from './onboarding.ts'
-import type { RecentGraph, WindowBootstrap } from './schemas.ts'
+import type { GraphInfo, RecentGraph } from './schemas.ts'
 
-const BOOT: WindowBootstrap = {
-  graph: { root: '/g', name: 'g', generation: 3 },
-  indexGeneration: 5,
-  initialDeepLink: 'reflect://note/notes%2Ffoo.md',
-}
+const ADOPTED: GraphInfo = { root: '/g', name: 'g', generation: 3 }
 
 interface SetupOptions {
   recents?: RecentGraph[]
@@ -34,10 +23,7 @@ interface SetupOptions {
    */
   files?: Record<string, string>
   meta?: Record<string, string>
-  platform?: TestPlatformOptions
-  windowLabel?: string
-  bootstrap?: WindowBootstrap
-  hidden?: boolean
+  role?: GraphRole
   /**
    * Hold every `graph_open` until `resolveOpen(root)`.
    */
@@ -106,12 +92,6 @@ function setup(options?: SetupOptions) {
     logger,
     graphSession: { getState: () => session.getState() },
   })
-  const windowService = createTestWindowService({
-    ...(options?.windowLabel === undefined ? {} : { label: options.windowLabel }),
-    ...(options?.bootstrap === undefined ? {} : { bootstrap: options.bootstrap }),
-  })
-  const dialog = createTestDialogService()
-  const activity = createTestActivityPort({ hidden: options?.hidden ?? false })
   const mobileStorage = createTestMobileStorageService()
   const noteRows = createNoteRowService({
     graphSession: {
@@ -129,11 +109,7 @@ function setup(options?: SetupOptions) {
     indexStore,
     noteFile,
     fileChanges,
-    window: windowService,
-    dialog,
-    path: createPathService({ transport: createPosixPathTransport('/Users/me') }),
-    platform: createTestPlatformService(options?.platform),
-    activity,
+    role: options?.role ?? 'main',
     mobileStorage,
     noteRows,
     openDocuments: {
@@ -148,9 +124,9 @@ function setup(options?: SetupOptions) {
     },
     icloudNative,
     logger,
-    createServices: (opened, role) => {
+    createServices: (opened) => {
       const services = { id: built.length + 1 }
-      built.push({ session: opened, role, services })
+      built.push({ session: opened, role: opened.role, services })
       return services
     },
   })
@@ -175,9 +151,6 @@ function setup(options?: SetupOptions) {
     indexStore,
     indexLifecycle,
     fileChanges,
-    windowService,
-    dialog,
-    activity,
     mobileStorage,
     noteRows,
     icloudNative,
@@ -202,13 +175,17 @@ function setup(options?: SetupOptions) {
 }
 
 /**
- * Boot a desktop main window and wait until its boot path settled.
+ * Follow the index and open the most recent graph, or park on the chooser.
  */
-async function bootDesktop(options?: SetupOptions) {
+async function start(options?: SetupOptions) {
   const context = setup(options)
-  const stop = context.session.boot()
-  await expect.poll(() => context.session.getState().status).not.toBe('loading')
-  await expect.poll(() => context.session.getState().status).not.toBe('opening')
+  const stop = context.session.attach()
+  const list = await context.session.loadRecents({ surfaceErrors: true })
+  if (list.length > 0) {
+    await context.session.openRecent(list[0]!.root)
+  } else {
+    context.session.park(null)
+  }
   return { ...context, stop }
 }
 
@@ -220,134 +197,44 @@ async function settleIndex(context: { indexLifecycle: { settled: () => Promise<v
   await context.indexLifecycle.settled()
 }
 
-describe('GraphSessionService desktop boot', () => {
-  it('starts at the chooser when there are no recents', async () => {
-    const { session } = await bootDesktop()
-    expect(session.getState()).toMatchObject({
-      status: 'choosing',
-      graph: null,
-      session: null,
-      error: null,
-    })
-  })
-
-  it('reopens the most recent graph', async () => {
-    const recents = [
-      { root: '/known', name: 'known', openedMs: 2 },
-      { root: '/older', name: 'older', openedMs: 1 },
-    ]
-    const { session } = await bootDesktop({ recents })
-    expect(session.getState()).toMatchObject({
-      status: 'ready',
-      graph: { root: '/known', name: 'known', generation: 1 },
-      indexGeneration: 1,
-      recents,
-    })
-  })
-
-  it('surfaces a failed recents read', async () => {
-    const context = setup()
-    context.failures.recents = true
-    context.session.boot()
-    await expect.poll(() => context.session.getState().status).toBe('choosing')
-    expect(context.session.getState().error).toMatch(/recents are corrupt/)
-  })
-
-  it('opens nothing when the boot was stopped before the recents arrived', async () => {
-    const context = setup({ recents: [{ root: '/known', name: 'known', openedMs: 1 }] })
-    const stop = context.session.boot()
-    stop()
-    await expect.poll(() => context.session.getState().recents).toHaveLength(1)
-    await Promise.resolve()
-    expect(context.session.getState().status).toBe('loading')
-    expect(context.commands()).not.toContain('graph_open')
-  })
-
-  it('waits for the host on mobile', async () => {
-    const context = setup({
-      platform: { appPlatform: 'ios' },
-      recents: [{ root: '/known', name: 'known', openedMs: 1 }],
-    })
-    context.session.boot()
-    await Promise.resolve()
-    expect(context.session.getState().status).toBe('loading')
-    expect(context.commands()).toEqual([])
-
-    context.session.park('iCloud isn’t available')
-    expect(context.session.getState()).toMatchObject({
-      status: 'choosing',
-      error: 'iCloud isn’t available',
-    })
-  })
-})
-
-describe('GraphSessionService note-window boot', () => {
-  it('adopts the main window’s sessions without opening anything', async () => {
-    const context = setup({ windowLabel: 'note-1', bootstrap: BOOT })
-    const boots: WindowBootstrap[] = []
-    context.session.boot({
-      onWindowBootstrap: (boot) => {
-        boots.push(boot)
-      },
-    })
-    await expect.poll(() => context.session.getState().status).toBe('ready')
+describe('GraphSessionService note window', () => {
+  it('adopts the main window’s sessions without opening anything', () => {
+    const context = setup({ role: 'note-window' })
+    context.session.adopt(ADOPTED, 5)
 
     const state = context.session.getState()
-    expect(state.graph).toEqual(BOOT.graph)
+    expect(state.status).toBe('ready')
+    expect(state.graph).toEqual(ADOPTED)
     expect(state.indexGeneration).toBe(5)
     expect(state.session).toMatchObject({
       root: '/g',
       name: 'g',
       generation: 3,
       indexGeneration: 5,
+      role: 'note-window',
     })
-    expect(boots).toEqual([BOOT])
     expect(context.commands()).toEqual([])
     expect(context.indexCalls()).toEqual([])
   })
 
-  it('reports the bootstrap but adopts nothing once stopped', async () => {
-    const context = setup({ windowLabel: 'note-1', bootstrap: BOOT })
-    const boots: WindowBootstrap[] = []
-    const stop = context.session.boot({
-      onWindowBootstrap: (boot) => {
-        boots.push(boot)
-      },
-    })
-    stop()
-    await expect.poll(() => boots).toEqual([BOOT])
-    expect(context.session.getState().status).toBe('loading')
-  })
-
-  it('parks the window on a failed bootstrap', async () => {
-    const context = setup({ windowLabel: 'note-1' })
-    context.session.boot()
-    await expect.poll(() => context.session.getState().status).toBe('choosing')
-    expect(context.session.getState().error).toContain('no bootstrap configured')
-    expect(context.session.getState().graph).toBeNull()
-  })
-
   it('refuses graph mutations', async () => {
-    const context = setup({ windowLabel: 'note-1', bootstrap: BOOT })
-    context.session.boot()
-    await expect.poll(() => context.session.getState().status).toBe('ready')
+    const context = setup({ role: 'note-window' })
+    context.session.adopt(ADOPTED, 5)
 
     await expect(context.session.openRecent('/other')).resolves.toBe(false)
     await expect(context.session.createGraphAt('/new')).resolves.toBe(false)
-    await context.session.chooseGraph()
     await expect(context.session.deleteGraph()).rejects.toThrow(
       /only available from the main window/,
     )
     context.session.refreshIndex()
 
-    expect(context.session.getState().graph).toEqual(BOOT.graph)
+    expect(context.session.getState().graph).toEqual(ADOPTED)
     expect(context.commands()).toEqual([])
     expect(context.mobileStorage.createdGraphs()).toEqual([])
     expect(context.indexCalls()).toEqual([])
     expect(context.logger.getWarnings().map((entry) => entry.message)).toEqual([
       'opening a graph is only available from the main window',
       'creating a graph is only available from the main window',
-      'switching graphs is only available from the main window',
     ])
   })
 })
@@ -358,7 +245,7 @@ describe('GraphSessionService note-window boot', () => {
  */
 describe('GraphSessionService open sequencing', () => {
   it('serializes overlapping opens and commits only the last requested graph', async () => {
-    const context = await bootDesktop({ holdOpens: true })
+    const context = await start({ holdOpens: true })
     const { session } = context
 
     const firstOpen = session.openRecent('/a')
@@ -382,27 +269,8 @@ describe('GraphSessionService open sequencing', () => {
     expect(context.states.map((state) => state.graph?.root)).not.toContain('/a')
   })
 
-  it('closes note windows BEFORE the backend open bumps the session', async () => {
-    // Note windows adopted the outgoing session; their close-requested
-    // flushes must land against its still-valid generation, so the close
-    // precedes graph_open (bump-first would reject the saves).
-    const context = await bootDesktop({ holdOpens: true })
-    const opened = context.session.openRecent('/a')
-    await expect.poll(() => context.hasPendingOpen('/a')).toBe(true)
-    expect(context.windowService.closeSecondaryWindowsCalls()).toBe(1)
-    context.resolveOpen('/a')
-    await opened
-  })
-
-  it('leaves note windows alone on mobile', async () => {
-    const context = setup({ platform: { appPlatform: 'ios' } })
-    await expect(context.session.openRecent('/a')).resolves.toBe(true)
-    await context.session.chooseGraph()
-    expect(context.windowService.closeSecondaryWindowsCalls()).toBe(0)
-  })
-
   it('surfaces an open failure and returns to the chooser', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     context.failures.open = true
 
     await expect(context.session.openRecent('/broken')).resolves.toBe(false)
@@ -412,7 +280,7 @@ describe('GraphSessionService open sequencing', () => {
   })
 
   it('clears the previous error when an open starts', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     context.failures.open = true
     await context.session.openRecent('/broken')
     context.failures.open = false
@@ -422,7 +290,7 @@ describe('GraphSessionService open sequencing', () => {
   })
 
   it('opens the graph without an index session when the index fails to open', async () => {
-    const context = await bootDesktop({ indexOpenFails: true })
+    const context = await start({ indexOpenFails: true })
 
     await expect(context.session.openRecent('/a')).resolves.toBe(true)
 
@@ -438,23 +306,23 @@ describe('GraphSessionService open sequencing', () => {
   })
 
   it('reloads the recents after an open', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     expect(context.commands().filter((command) => command === 'recent_graphs')).toHaveLength(2)
   })
 
   it('tells listeners when the previous graph is released', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     expect(context.released).toEqual(['switch'])
-    await context.session.chooseGraph()
+    await context.session.close()
     expect(context.released).toEqual(['switch', 'close'])
   })
 })
 
 describe('GraphSessionService session object', () => {
   it('publishes one session per open and aborts it when another open is requested', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     const first = context.session.getState().session
     expect(first).toMatchObject({ root: '/a', name: 'a', generation: 1, indexGeneration: 1 })
@@ -470,11 +338,11 @@ describe('GraphSessionService session object', () => {
   })
 
   it('aborts the session when the graph closes', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     const { session: opened } = context.session.getState()
 
-    await context.session.chooseGraph()
+    await context.session.close()
 
     expect(opened?.signal.aborted).toBe(true)
     expect(context.session.getState().session).toBeNull()
@@ -485,7 +353,7 @@ describe('GraphSessionService close flows', () => {
   const recents = [{ root: '/known', name: 'known', openedMs: 1 }]
 
   it('forgets the open graph and returns to the chooser', async () => {
-    const context = await bootDesktop({ recents })
+    const context = await start({ recents })
     expect(context.session.getState().status).toBe('ready')
 
     await context.session.forgetRecent('/known')
@@ -496,12 +364,10 @@ describe('GraphSessionService close flows', () => {
       indexGeneration: null,
       recents: [],
     })
-    // Boot open, then the forget: the active graph's note windows close first.
-    expect(context.windowService.closeSecondaryWindowsCalls()).toBe(2)
   })
 
   it('forgets another graph without closing the open one', async () => {
-    const context = await bootDesktop({
+    const context = await start({
       recents: [...recents, { root: '/older', name: 'older', openedMs: 0 }],
     })
 
@@ -515,7 +381,7 @@ describe('GraphSessionService close flows', () => {
   })
 
   it('ignores a failed forget', async () => {
-    const context = await bootDesktop({ recents })
+    const context = await start({ recents })
     context.failures.forget = true
 
     await context.session.forgetRecent('/known')
@@ -523,10 +389,10 @@ describe('GraphSessionService close flows', () => {
     expect(context.session.getState()).toMatchObject({ status: 'ready', error: null, recents })
   })
 
-  it('returns to the graph chooser without opening the folder picker', async () => {
-    const context = await bootDesktop({ recents })
+  it('closes the open graph and stops at the chooser', async () => {
+    const context = await start({ recents })
 
-    await context.session.chooseGraph()
+    await context.session.close()
 
     expect(context.session.getState()).toMatchObject({
       status: 'choosing',
@@ -535,23 +401,21 @@ describe('GraphSessionService close flows', () => {
       indexing: false,
       recents,
     })
-    expect(context.dialog.calls()).toEqual([])
     expect(context.fileChanges.watcherRunning()).toBe(false)
   })
 
   it('deletes the open graph and tells listeners', async () => {
-    const context = await bootDesktop({ recents })
+    const context = await start({ recents })
 
     await context.session.deleteGraph()
 
     expect(context.ipc.calls()).toContainEqual({ command: 'graph_delete', args: { generation: 1 } })
     expect(context.deleted).toEqual(['/known'])
     expect(context.session.getState()).toMatchObject({ status: 'choosing', graph: null })
-    expect(context.windowService.closeSecondaryWindowsCalls()).toBe(2)
   })
 
   it('reopens the graph and rethrows when the delete fails', async () => {
-    const context = await bootDesktop({ recents })
+    const context = await start({ recents })
     context.failures.delete = true
 
     await expect(context.session.deleteGraph()).rejects.toMatchObject({ message: 'cannot trash' })
@@ -565,15 +429,15 @@ describe('GraphSessionService close flows', () => {
   })
 
   it('does nothing when no graph is open', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.deleteGraph()
     expect(context.commands()).not.toContain('graph_delete')
   })
 })
 
-describe('GraphSessionService create and pick', () => {
+describe('GraphSessionService create', () => {
   it('creates the graph, then opens it', async () => {
-    const context = await bootDesktop()
+    const context = await start()
 
     await expect(context.session.createGraphAt('/icloud/Documents/Work')).resolves.toBe(true)
 
@@ -582,7 +446,7 @@ describe('GraphSessionService create and pick', () => {
   })
 
   it('surfaces a failed create without opening', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     context.mobileStorage.createGraph = async () => {
       throw new Error('cannot create')
     }
@@ -592,56 +456,11 @@ describe('GraphSessionService create and pick', () => {
     expect(context.session.getState()).toMatchObject({ status: 'choosing', error: 'cannot create' })
     expect(context.commands()).not.toContain('graph_open')
   })
-
-  it('opens the picked folder, suggesting iCloud Drive on a macOS first run', async () => {
-    const context = await bootDesktop()
-    context.dialog.setFolder('/fresh')
-
-    await context.session.pickAndOpen()
-
-    expect(context.dialog.calls()).toEqual([
-      {
-        kind: 'folder',
-        options: {
-          title: 'Choose a graph folder',
-          defaultPath: '/Users/me/Library/Mobile Documents/com~apple~CloudDocs',
-        },
-      },
-    ])
-    expect(context.session.getState()).toMatchObject({ status: 'ready', graph: { root: '/fresh' } })
-  })
-
-  it('suggests no folder once a graph is known', async () => {
-    const context = await bootDesktop({ recents: [{ root: '/known', name: 'known', openedMs: 1 }] })
-    await context.session.pickAndOpen()
-    expect(context.dialog.calls()).toEqual([
-      { kind: 'folder', options: { title: 'Choose a graph folder' } },
-    ])
-    // A cancelled picker changes nothing.
-    expect(context.session.getState().graph?.root).toBe('/known')
-  })
-
-  it('suggests no folder off macOS', async () => {
-    const context = await bootDesktop({ platform: { isMacosDesktop: false } })
-    await context.session.pickAndOpen()
-    expect(context.dialog.calls()).toEqual([
-      { kind: 'folder', options: { title: 'Choose a graph folder' } },
-    ])
-  })
-
-  it('surfaces a picker failure', async () => {
-    const context = await bootDesktop()
-    context.dialog.pickFolder = async () => {
-      throw new Error('picker crashed')
-    }
-    await context.session.pickAndOpen()
-    expect(context.session.getState().error).toBe('picker crashed')
-  })
 })
 
 describe('GraphSessionService welcome seeding', () => {
   it('seeds an empty unmarked graph and stamps the welcomeSeeded marker', async () => {
-    const context = await bootDesktop()
+    const context = await start()
 
     await context.session.openRecent('/fresh')
     await expect.poll(() => context.indexStore.getMeta(WELCOME_SEEDED_META_KEY)).toBe('true')
@@ -655,14 +474,14 @@ describe('GraphSessionService welcome seeding', () => {
   })
 
   it('never seeds a marked graph, even when it is empty (deleted notes stay deleted)', async () => {
-    const context = await bootDesktop({ meta: { [WELCOME_SEEDED_META_KEY]: 'true' } })
+    const context = await start({ meta: { [WELCOME_SEEDED_META_KEY]: 'true' } })
     await context.session.openRecent('/known')
     await settleIndex(context)
     expect(context.noteFile.writes()).toEqual([])
   })
 
   it('marks an unmarked graph with existing notes without writing into it', async () => {
-    const context = await bootDesktop({ files: { 'daily/2026-06-12.md': 'hello' } })
+    const context = await start({ files: { 'daily/2026-06-12.md': 'hello' } })
     await context.session.openRecent('/existing')
     await expect
       .poll(() => context.indexStore.getMeta(WELCOME_SEEDED_META_KEY))
@@ -672,7 +491,7 @@ describe('GraphSessionService welcome seeding', () => {
   })
 
   it('logs a failed seed and still syncs the index', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     context.noteFile.vaultScanStats = async () => {
       throw new Error('scan failed')
     }
@@ -690,7 +509,7 @@ describe('GraphSessionService welcome seeding', () => {
 
 describe('GraphSessionService index following', () => {
   it('reports indexing while the open graph reconciles', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     await expect.poll(() => context.states.some((state) => state.indexing)).toBe(true)
     await settleIndex(context)
@@ -698,7 +517,7 @@ describe('GraphSessionService index following', () => {
   })
 
   it('re-runs the reconcile on request and on a watcher demand', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     await settleIndex(context)
     const passes = (): number =>
@@ -716,15 +535,15 @@ describe('GraphSessionService index following', () => {
   })
 
   it('refreshes nothing while no index is open', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     context.session.refreshIndex()
     context.fileChanges.emitReconcile()
     await settleIndex(context)
     expect(context.indexCalls()).toEqual([])
   })
 
-  it('stops following once the boot is stopped', async () => {
-    const context = await bootDesktop()
+  it('stops following once detached', async () => {
+    const context = await start()
     await context.session.openRecent('/a')
     await settleIndex(context)
     context.stop()
@@ -739,84 +558,9 @@ describe('GraphSessionService index following', () => {
   })
 })
 
-describe('GraphSessionService mobile suspension', () => {
-  const ios = { appPlatform: 'ios' } as const
-
-  function passes(context: { indexCalls: () => string[] }): number {
-    return context.indexCalls().filter((method) => method === 'clear').length
-  }
-
-  it('defers the first index pass while hidden and replays it on foreground', async () => {
-    const context = setup({ platform: ios, hidden: true })
-    context.session.boot()
-
-    await expect(context.session.openRecent('/Documents')).resolves.toBe(true)
-    await expect.poll(() => context.indexStore.getMeta(WELCOME_SEEDED_META_KEY)).toBe('true')
-    await settleIndex(context)
-    expect(passes(context)).toBe(0)
-
-    // Resume performs a full sync, which catches files and local events the
-    // intentionally absent live subscription could not observe while hidden.
-    context.activity.emitVisible()
-    await expect.poll(() => passes(context)).toBe(1)
-  })
-
-  it('clears suspension when the app foregrounds before its index session opens', async () => {
-    const context = setup({ platform: ios, hidden: true })
-    context.session.boot()
-    expect(context.session.getState().indexGeneration).toBeNull()
-
-    // The app foregrounds while onboarding still has no graph/index. This
-    // must clear the sticky suspension even though there is nothing to sync.
-    context.activity.emitVisible()
-    await settleIndex(context)
-    expect(passes(context)).toBe(0)
-
-    await context.session.openRecent('/Documents')
-    await expect.poll(() => passes(context)).toBe(1)
-    expect(context.session.getState().status).toBe('ready')
-  })
-
-  it('suspends the live index when the app hides', async () => {
-    const context = setup({ platform: ios })
-    context.session.boot()
-    await context.session.openRecent('/Documents')
-    await expect.poll(() => context.fileChanges.listenerCount().changes).toBe(1)
-
-    context.activity.emitHidden()
-
-    expect(context.fileChanges.listenerCount().changes).toBe(0)
-    context.session.refreshIndex()
-    await settleIndex(context)
-    expect(passes(context)).toBe(1)
-  })
-
-  it('never suspends on desktop', async () => {
-    const context = await bootDesktop({ hidden: true })
-    await context.session.openRecent('/a')
-    await expect.poll(() => passes(context)).toBe(1)
-    context.activity.emitHidden()
-    await settleIndex(context)
-    expect(context.fileChanges.listenerCount().changes).toBe(1)
-  })
-
-  it('removes the suspend guard once the boot is stopped', async () => {
-    const context = setup({ platform: ios })
-    const stop = context.session.boot()
-    stop()
-    context.activity.setHidden(true)
-
-    context.indexLifecycle.sync(
-      createGraphSession({ root: '/a', name: 'a', generation: 1, indexGeneration: 1 }),
-    )
-    await settleIndex(context)
-    expect(passes(context)).toBe(1)
-  })
-})
-
 describe('GraphSessionService graph services', () => {
   it('builds the services of each opened session and ends them with it', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     const first = context.session.getState()
     expect(context.built.map(({ role }) => role)).toEqual(['main'])
@@ -829,22 +573,22 @@ describe('GraphSessionService graph services', () => {
     await opening
     expect(context.session.getState().services).toEqual({ id: 2 })
 
-    await context.session.chooseGraph()
+    await context.session.close()
     expect(context.built[1]?.session.signal.aborted).toBe(true)
     expect(context.session.getState().services).toBeNull()
   })
 
-  it('builds note-window services for an adopted session', async () => {
-    const context = setup({ windowLabel: 'note-1', bootstrap: BOOT })
-    context.session.boot()
-    await expect.poll(() => context.session.getState().services).toEqual({ id: 1 })
+  it('builds note-window services for an adopted session', () => {
+    const context = setup({ role: 'note-window' })
+    context.session.adopt(ADOPTED, 5)
+    expect(context.session.getState().services).toEqual({ id: 1 })
     expect(context.built.map(({ role, session }) => [role, session.indexGeneration])).toEqual([
       ['note-window', 5],
     ])
   })
 
   it('builds services for a graph whose index failed to open', async () => {
-    const context = await bootDesktop({ indexOpenFails: true })
+    const context = await start({ indexOpenFails: true })
     await context.session.openRecent('/a')
     expect(context.session.getState()).toMatchObject({ status: 'ready', services: { id: 1 } })
     expect(context.built.map(({ role, session }) => [role, session.indexGeneration])).toEqual([
@@ -855,19 +599,19 @@ describe('GraphSessionService graph services', () => {
 
 describe('GraphSessionService index reactions', () => {
   it('drops the note-row overlays when a graph is released', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     context.noteRows.setOverlay('notes/a.md', 1, { gistStale: true })
     await context.session.openRecent('/b')
     expect(context.noteRows.getOverlaysOn(1).get('notes/a.md')).toBeUndefined()
 
     context.noteRows.setOverlay('notes/b.md', 2, { gistStale: true })
-    await context.session.chooseGraph()
+    await context.session.close()
     expect(context.noteRows.getOverlaysOn(2).get('notes/b.md')).toBeUndefined()
   })
 
   it('reloads the open documents after a sync pass, not after a rebuild', async () => {
-    const context = await bootDesktop()
+    const context = await start()
     await context.session.openRecent('/a')
     await expect.poll(() => context.reloads).toHaveLength(1)
 
@@ -879,7 +623,7 @@ describe('GraphSessionService index reactions', () => {
     const context = setup()
     const onMoved = vi.spyOn(context.indexLifecycle, 'onMoved')
     const onStale = vi.spyOn(context.indexLifecycle, 'onStalePlaceholders')
-    const stop = context.session.boot()
+    const stop = context.session.attach()
 
     onMoved.mock.calls[0]?.[0]('notes/a.md', 'notes/b.md')
     onStale.mock.calls[0]?.[0](['notes/evicted.md'])
@@ -892,8 +636,8 @@ describe('GraphSessionService index reactions', () => {
     stop()
   })
 
-  it('stops reacting to the index once the boot is stopped', async () => {
-    const context = await bootDesktop()
+  it('stops reacting to the index once detached', async () => {
+    const context = await start()
     context.stop()
     await context.session.openRecent('/a')
     await settleIndex(context)

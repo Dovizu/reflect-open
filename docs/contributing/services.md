@@ -420,10 +420,10 @@ services as a first parameter `ctx`, typed as the `Pick` they use. The React
 caller passes `useCoreServices()`:
 
 ```ts
-// apps/desktop/src/providers/graph-session.ts
-export function bootGraphSession(
-  core: Pick<CoreServices, 'graphSession' | 'window'>,
-  app: Pick<AppServices, 'deepLinkRouter'>,
+// apps/desktop/src/lib/query-invalidation.ts
+export function installQueryInvalidation(
+  core: Pick<CoreServices, 'capture' | 'assetDescription' | 'chatSessions' | 'indexLifecycle' | 'graphSession'>,
+  app: Pick<AppServices, 'window'>,
 ): Unlisten
 ```
 

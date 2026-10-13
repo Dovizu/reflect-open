@@ -336,7 +336,7 @@ const APP_COMMANDS: AppCommand[] = [
         return
       }
       try {
-        await context.services.window.toggleDevtools()
+        await context.app.window.toggleDevtools()
       } catch {
         // Best effort — opening the inspector is never worth a surfaced failure.
       }

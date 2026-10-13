@@ -1,13 +1,7 @@
 import { z } from 'zod'
-import type { DialogService } from '../app/dialog-service.ts'
 import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
 import type { IdService } from '../app/id-service.ts'
-import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { PathService } from '../app/path-service.ts'
-import { isMobilePlatform } from '../app/platform.ts'
-import type { PlatformFacts } from '../app/platform-service.ts'
-import type { WindowService } from '../app/window-service.ts'
 import type { NoteMoveService } from '../documents/note-move-service.ts'
 import type { NoteRowService } from '../documents/note-row-service.ts'
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
@@ -21,13 +15,7 @@ import type { Unlisten } from '../unlisten.ts'
 import type { MobileStorageService } from '../ipc/mobile-storage-service.ts'
 import type { NoteFileService } from './note-file-service.ts'
 import { ensureWelcomeNote } from './onboarding.ts'
-import {
-  graphInfoSchema,
-  recentGraphSchema,
-  type GraphInfo,
-  type RecentGraph,
-  type WindowBootstrap,
-} from './schemas.ts'
+import { graphInfoSchema, recentGraphSchema, type GraphInfo, type RecentGraph } from './schemas.ts'
 
 /**
 
@@ -74,42 +62,26 @@ export interface GraphSessionState<Services = unknown> {
 }
 
 /**
-
- * What the host does at fixed points of {@link GraphSessionService.boot}.
-
- */
-export interface GraphBootHooks {
-  /**
-   * A note window read the main window's sessions. Runs before the adoption
-   * commits, and also when the boot was stopped meanwhile: the shell drains
-   * the pending deep link on the read, so only this call can act on it.
-   */
-  onWindowBootstrap?: (boot: WindowBootstrap) => void
-}
-
-/**
  * The active graph of this webview: its identity, both session generations,
- * the open, create, switch, forget and delete flows, the recents list, and
- * the boot paths. Members are function properties so surfaces can pass them
- * around unbound.
+ * the open, create, close, forget and delete flows, and the recents list.
+ * Members are function properties so surfaces can pass them around unbound.
  */
 export interface GraphSessionService<Services = unknown> {
   getState: () => GraphSessionState<Services>
   subscribe: (listener: () => void) => Unlisten
   /**
-   * Start this webview's graph: follow the index lifecycle, then run the boot
-   * path of the window. The desktop main window reopens the most recent graph
-   * or parks on the chooser. A note window adopts the main window's sessions.
-   * A mobile window waits for its host to call {@link openRecent} or
-   * {@link park}. The returned function stops the boot and the following.
+   * Follow the index lifecycle: the indexing flag, reconcile demands, and the
+   * reloads, moves and downloads that its passes call for. The returned
+   * function stops the following.
    */
-  boot(hooks?: GraphBootHooks): Unlisten
+  attach(): Unlisten
   /**
    * Refresh the recents list. `surfaceErrors` publishes a failed read as the error.
    */
   loadRecents(options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]>
   /**
-   * Open a graph by its root path. Resolves true only when it reached 'ready'.
+   * Open a graph by its root path. Resolves true only when it reached 'ready';
+   * false outside the main window.
    */
   openRecent(root: string): Promise<boolean>
   /**
@@ -118,13 +90,14 @@ export interface GraphSessionService<Services = unknown> {
    */
   createGraphAt(root: string): Promise<boolean>
   /**
-   * Show the OS folder picker, then open (and bootstrap) the chosen graph.
+   * Close the active graph and stop at 'choosing'.
    */
-  pickAndOpen(): Promise<void>
+  close(): Promise<void>
   /**
-   * Close the active graph and show the graph chooser.
+   * Commit the session that a note window adopted from the main window,
+   * without opening anything.
    */
-  chooseGraph(): Promise<void>
+  adopt(info: GraphInfo, indexGeneration: number | null): void
   /**
    * Drop a graph from the recents list.
    */
@@ -145,6 +118,10 @@ export interface GraphSessionService<Services = unknown> {
    */
   park(error: string | null): void
   /**
+   * Publish `error` without changing the status.
+   */
+  reportError(error: string): void
+  /**
    * Listen for the point where the previous graph's in-memory leftovers can
    * go: `switch` once another graph's backend open settled the old index pass,
    * `close` once the active graph's index closed.
@@ -163,11 +140,10 @@ export interface GraphSessionServiceDeps<Services = unknown> {
   readonly noteFile: NoteFileService
   readonly id: IdService
   readonly fileChanges: Pick<FileChangeService, 'subscribeReconcile'>
-  readonly window: Pick<WindowService, 'isMainWindow' | 'closeSecondaryWindows' | 'bootstrap'>
-  readonly dialog: Pick<DialogService, 'pickFolder'>
-  readonly path: Pick<PathService, 'icloudDriveRoot'>
-  readonly platform: Pick<PlatformFacts, 'appPlatform' | 'isMacosDesktop'>
-  readonly activity: Pick<ActivityPort, 'isHidden' | 'subscribeHidden' | 'subscribeVisible'>
+  /**
+   * Only the main window opens, creates, deletes, and indexes graphs.
+   */
+  readonly role: GraphRole
   readonly mobileStorage: Pick<MobileStorageService, 'createGraph'>
   readonly noteRows: Pick<NoteRowService, 'reset'>
   readonly openDocuments: Pick<OpenDocumentsService, 'reloadAll'>
@@ -179,7 +155,7 @@ export interface GraphSessionServiceDeps<Services = unknown> {
    * dispose themselves when `session.signal` aborts. Without it, `services`
    * stays null.
    */
-  readonly createServices?: (session: GraphSession, role: GraphRole) => Services
+  readonly createServices?: (session: GraphSession) => Services
 }
 
 /**
@@ -212,8 +188,6 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
   #openChain: Promise<unknown> = Promise.resolve()
   // Aborts the published session's signal.
   #sessionAbort: AbortController | null = null
-  // How many running boots follow the app lifecycle for mobile suspension.
-  #suspensionFollowers = 0
 
   constructor(deps: GraphSessionServiceDeps<Services>) {
     this.#deps = deps
@@ -238,21 +212,13 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     }
   }
 
-  #isMobile(): boolean {
-    return isMobilePlatform(this.#deps.platform.appPlatform)
-  }
-
   #setState(patch: Partial<GraphSessionState<Services>>): void {
     const next = { ...this.#state, ...patch }
     const keys = Object.keys(next) as (keyof GraphSessionState<Services>)[]
     if (keys.every((key) => next[key] === this.#state[key])) {
       return
     }
-    const indexGenerationChanged = next.indexGeneration !== this.#state.indexGeneration
     this.#state = next
-    if (indexGenerationChanged && this.#suspensionFollowers > 0 && this.#deps.activity.isHidden()) {
-      this.#deps.indexLifecycle.suspend()
-    }
     for (const listener of this.#listeners) {
       listener()
     }
@@ -280,7 +246,13 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     this.#sessionAbort?.abort()
     this.#sessionAbort = controller
     return createGraphSession(
-      { root: graph.root, name: graph.name, generation: graph.generation, indexGeneration },
+      {
+        root: graph.root,
+        name: graph.name,
+        generation: graph.generation,
+        indexGeneration,
+        role: this.#deps.role,
+      },
       controller.signal,
     )
   }
@@ -290,12 +262,12 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
    * Publish `graph` as ready, then the graph-scoped services of its session.
 
    */
-  #commitReady(graph: GraphInfo, indexGeneration: number | null, role: GraphRole): GraphSession {
+  #commitReady(graph: GraphInfo, indexGeneration: number | null): GraphSession {
     const session = this.#sessionFor(graph, indexGeneration)
     this.#setState({ graph, indexGeneration, status: 'ready', session, services: null })
     const { createServices } = this.#deps
     if (createServices !== undefined && !session.signal.aborted) {
-      this.#setState({ services: createServices(session, role) })
+      this.#setState({ services: createServices(session) })
     }
     return session
   }
@@ -317,25 +289,12 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
    * switching, or deleting a graph re-roots the shared Rust `GraphState` under
    * every window at once.
    */
-  #requireMainWindow(action: string): boolean {
-    if (this.#deps.window.isMainWindow()) {
+  #requireMainRole(action: string): boolean {
+    if (this.#deps.role === 'main') {
       return true
     }
     this.#deps.logger.warn(`${action} is only available from the main window`)
     return false
-  }
-
-  /**
-   * Close every note window before a graph switch or delete replaces the
-   * session they adopted. Must run BEFORE anything bumps the graph/index
-   * generations: each child's close-requested flush lands against the
-   * still-valid session. A no-op on mobile, where secondary windows don't exist.
-   */
-  async #closeSecondaryWindows(): Promise<void> {
-    if (this.#isMobile()) {
-      return
-    }
-    await this.#deps.window.closeSecondaryWindows()
   }
 
   async loadRecents(options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> {
@@ -356,7 +315,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
   }
 
   openRecent(root: string): Promise<boolean> {
-    if (!this.#requireMainWindow('opening a graph')) {
+    if (!this.#requireMainRole('opening a graph')) {
       return Promise.resolve(false)
     }
     const seq = this.#supersede()
@@ -367,7 +326,6 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     const run = async (): Promise<boolean> => {
       let opened = false
       try {
-        await this.#closeSecondaryWindows() // before graph_open bumps the session
         const info = await this.#deps.ipc.call('graph_open', { path: root }, graphInfoSchema)
         if (seq !== this.#openSeq) {
           return false // superseded by a newer open
@@ -387,7 +345,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
           return false
         }
         // Transition to 'ready' immediately: the user can start editing.
-        const session = this.#commitReady(info, generation, 'main')
+        const session = this.#commitReady(info, generation)
         opened = true
         // Onboarding, considered exactly once per graph (the `welcomeSeeded`
         // meta marker): an empty graph gets the pinned "How to use Reflect"
@@ -446,7 +404,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     // Guarded BEFORE the create: graph_create activates the shared Rust
     // session, so off-main it would re-root every window even though the
     // openRecent below refuses.
-    if (!this.#requireMainWindow('creating a graph')) {
+    if (!this.#requireMainRole('creating a graph')) {
       return false
     }
     try {
@@ -458,44 +416,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     return await this.openRecent(root)
   }
 
-  /**
-   * On a macOS first run (no recents yet), start the folder picker in iCloud
-   * Drive, the recommended home for a graph (Plan 21): notes back up
-   * automatically and the iOS app's container lives there too. Suggestion
-   * only: the user can navigate anywhere, and once they have a graph the
-   * picker reverts to the OS default (their last-used location). Best-effort:
-   * a resolution failure (or a signed-out account's missing folder, which the
-   * open panel falls back from on its own) must never block picking.
-   */
-  async #pickerDefaultPath(hasRecents: boolean): Promise<{ defaultPath: string } | null> {
-    if (hasRecents || !this.#deps.platform.isMacosDesktop) {
-      return null
-    }
-    try {
-      return { defaultPath: await this.#deps.path.icloudDriveRoot() }
-    } catch (err) {
-      this.#deps.logger.warn('iCloud Drive picker suggestion failed:', errorMessage(err))
-      return null
-    }
-  }
-
-  async pickAndOpen(): Promise<void> {
-    let selected: string | null = null
-    try {
-      selected = await this.#deps.dialog.pickFolder({
-        title: 'Choose a graph folder',
-        ...(await this.#pickerDefaultPath(this.#state.recents.length > 0)),
-      })
-    } catch (err) {
-      this.#setState({ error: errorMessage(err) })
-      return
-    }
-    if (selected) {
-      await this.openRecent(selected)
-    }
-  }
-
-  async #closeActiveGraph(): Promise<void> {
+  async close(): Promise<void> {
     this.#supersede()
     await this.#deps.indexLifecycle.close()
     this.#release('close')
@@ -510,25 +431,13 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     })
   }
 
-  async chooseGraph(): Promise<void> {
-    if (!this.#requireMainWindow('switching graphs')) {
-      return
-    }
-    await this.#closeSecondaryWindows() // the session they adopted is ending
-    await this.#closeActiveGraph()
-    await this.loadRecents({ surfaceErrors: true })
-  }
-
   async forgetRecent(root: string): Promise<void> {
     const { graph } = this.#state
     try {
       await this.#deps.ipc.call('forget_recent', { root }, voidSchema)
       await this.loadRecents()
       if (graph?.root === root) {
-        // Forgetting the ACTIVE graph ends the session its note windows
-        // adopted: same close-first rule as switch/delete.
-        await this.#closeSecondaryWindows()
-        await this.#closeActiveGraph()
+        await this.close()
       }
     } catch {
       // best-effort
@@ -536,7 +445,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
   }
 
   async deleteGraph(): Promise<void> {
-    if (!this.#deps.window.isMainWindow()) {
+    if (this.#deps.role !== 'main') {
       throw new Error('Deleting a graph is only available from the main window.')
     }
     const { graph } = this.#state
@@ -549,7 +458,6 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     // re-open the graph the user switched to.
     const seq = this.#openSeq
     try {
-      await this.#closeSecondaryWindows() // before the delete invalidates the session
       // Pinned to `generation` so a delete can never race a graph switch and
       // trash the newly opened graph.
       await this.#deps.ipc.call('graph_delete', { generation }, voidSchema)
@@ -567,7 +475,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
       listener(root)
     }
     if (seq === this.#openSeq) {
-      await this.#closeActiveGraph()
+      await this.close()
     }
     await this.loadRecents()
   }
@@ -575,7 +483,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
   refreshIndex(): void {
     const { session } = this.#state
     // Off-main, a refresh would start a second concurrent index writer.
-    if (session === null || session.indexGeneration === null || !this.#deps.window.isMainWindow()) {
+    if (session === null || session.indexGeneration === null || this.#deps.role !== 'main') {
       return
     }
     // The index lifecycle coalesces stacked triggers (resume + poll-end +
@@ -587,50 +495,19 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     this.#setState({ error, status: 'choosing' })
   }
 
-  /**
-   * Mobile main window: keep index writes off while the app is hidden, and
-   * recover what was missed on the way back.
-   */
-  #followSuspension(): Unlisten {
-    if (!this.#isMobile() || !this.#deps.window.isMainWindow()) {
-      return () => {}
-    }
-    this.#suspensionFollowers += 1
-    if (this.#deps.activity.isHidden()) {
-      this.#deps.indexLifecycle.suspend()
-    }
-    // Synchronous teardown prevents a locally emitted or metadata-watcher
-    // batch from entering the index queue after iOS begins suspension.
-    const stopHidden = this.#deps.activity.subscribeHidden(() => {
-      this.#deps.indexLifecycle.suspend()
-    })
-    const stopVisible = this.#deps.activity.subscribeVisible(() => {
-      // A null session still clears suspension: mobile can foreground
-      // before onboarding/open has produced an index session. With a session,
-      // the full pass recovers every event missed while hidden; stacked
-      // resume/iCloud triggers fold into the lifecycle's queued rerun.
-      this.#deps.indexLifecycle.resume(this.#state.session)
-    })
-    return () => {
-      this.#suspensionFollowers -= 1
-      stopHidden()
-      stopVisible()
-    }
+  reportError(error: string): void {
+    this.#setState({ error })
   }
 
-  boot(hooks?: GraphBootHooks): Unlisten {
-    let active = true
-    // The lifecycle events perform the active teardown; this dynamic guard
-    // also closes the launch race where the first sync is scheduled after iOS
-    // has already hidden the webview.
-    this.#deps.indexLifecycle.setSuspendGuard(
-      () => this.#isMobile() && this.#deps.activity.isHidden(),
-    )
+  adopt(info: GraphInfo, indexGeneration: number | null): void {
+    this.#commitReady(info, indexGeneration)
+  }
+
+  attach(): Unlisten {
     const unlisteners = [
       this.#deps.indexLifecycle.onProgress((progress) => {
         this.#setState({ indexing: progress === 'reconciling' })
       }),
-      this.#followSuspension(),
       // A structural vault change (folder created, renamed, or removed) cannot
       // be expressed as per-file events; the watcher asks for one full
       // reconcile instead, and `refresh` coalesces bursts into a single queued
@@ -660,50 +537,10 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
         })
       }),
     ]
-
-    if (!this.#isMobile() && this.#deps.window.isMainWindow()) {
-      // Desktop main window: reopen the most recent graph so the app resumes
-      // where the user left off, or park on the chooser.
-      void (async () => {
-        const list = await this.loadRecents({ surfaceErrors: true })
-        if (!active) {
-          return
-        }
-        if (list.length > 0) {
-          await this.openRecent(list[0]!.root)
-        } else {
-          this.#setState({ status: 'choosing' })
-        }
-      })()
-    } else if (!this.#isMobile()) {
-      // A secondary note window ADOPTS the main window's open session, never
-      // `graph_open`/`index_open`, whose generation bumps would strand every
-      // command the main window has pinned, and runs no index lifecycle of
-      // its own.
-      void (async () => {
-        try {
-          const adopted = await this.#deps.window.bootstrap()
-          hooks?.onWindowBootstrap?.(adopted)
-          if (!active) {
-            return
-          }
-          this.#commitReady(adopted.graph, adopted.indexGeneration, 'note-window')
-        } catch (err) {
-          if (active) {
-            // Off-main, 'choosing' renders as an error screen, never the
-            // chooser: choosing here would re-root every other window.
-            this.#setState({ error: errorMessage(err), status: 'choosing' })
-          }
-        }
-      })()
-    }
-
     return () => {
-      active = false
       for (const unlisten of unlisteners) {
         unlisten()
       }
-      this.#deps.indexLifecycle.setSuspendGuard(null)
     }
   }
 }

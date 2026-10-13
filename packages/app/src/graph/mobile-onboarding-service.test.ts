@@ -1,14 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { MobileStorageInfo } from '../ipc/mobile-storage-service.ts'
-import type { Settings } from '../settings/schema.ts'
-import { createTestClockService } from '../testing/clock.ts'
-import { createTestGraphSessionService } from '../testing/graph-session.ts'
-import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestMobileStorageService } from '../testing/mobile-storage.ts'
-import { createTestPlatformService, type TestPlatformOptions } from '../testing/platform.ts'
-import { createTestSettingsService } from '../testing/settings.ts'
-import { createTestActivityPort } from '../testing/shell.ts'
+import type { MobileStorageInfo, Settings } from '@reflect/core'
+import {
+  createTestActivityPort,
+  createTestClockService,
+  createTestGraphSessionService,
+  createTestIpcBridgeService,
+  createTestLoggerService,
+  createTestMobileStorageService,
+  createTestPlatformService,
+  createTestSettingsService,
+  type TestPlatformOptions,
+} from '@reflect/core/testing'
 import { createMobileOnboardingService } from './mobile-onboarding-service.ts'
 
 /**
@@ -71,7 +73,7 @@ function setup(options?: SetupOptions) {
   })
   const mobileStorage = storage
   const settings = createTestSettingsService(options?.settings)
-  const graphSession = createTestGraphSessionService({ ipc, platform, mobileStorage, logger })
+  const graphSession = createTestGraphSessionService({ ipc, mobileStorage, logger })
   const activity = createTestActivityPort()
   let focusSubscriptions = 0
   const subscribeFocus = activity.subscribeFocus.bind(activity)
@@ -108,7 +110,7 @@ function setup(options?: SetupOptions) {
  */
 async function bootFreshInstall(options?: SetupOptions) {
   const context = setup(options)
-  context.graphSession.boot()
+  context.graphSession.attach()
   const stop = context.service.boot()
   await expect.poll(() => context.service.getState().needsOnboarding).toBe(true)
   await expect.poll(() => context.service.getState().resolving).toBe(false)

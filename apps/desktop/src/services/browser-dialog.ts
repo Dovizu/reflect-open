@@ -1,4 +1,4 @@
-import type { DialogService } from '@reflect/core'
+import type { DialogService } from '@reflect/app'
 
 class BrowserDialogServiceImpl implements DialogService {
   async pickFiles(): Promise<readonly string[] | null> {

@@ -3,7 +3,7 @@ import { createDesktopAdapters, createDesktopHost } from '@/services/create-desk
 import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
-import { createAppServices } from '@reflect/app'
+import { createAppGraphServices, createAppServices } from '@reflect/app'
 import {
   createConsoleLogger,
   createCoreServices,
@@ -30,15 +30,25 @@ const ipc = createIpcBridgeService({
 })
 
 const host = createDesktopHost(facts, { ipc, clock, logger })
+const role = host.window.isMainWindow() ? 'main' : 'note-window'
 
 /**
  * The app-scoped services of this webview.
  */
 export const coreServices = createCoreServices({
-  ...createDesktopAdapters(facts, { logger, clock }),
+  ...createDesktopAdapters(facts, { logger, clock }, role),
   ipc,
+  role,
+  peerIndexWrites: (listener) => host.window.subscribeIndexWritten(listener),
   activity: host.lifecycle,
   progress: host.operations,
+  // Called when a graph opens, after both layers below exist.
+  createGraphServices: (session, deps) =>
+    createAppGraphServices(session, deps, {
+      platform: coreServices.platform,
+      settings: coreServices.settings,
+      mobileOnboarding: appServices.mobileOnboarding,
+    }),
 })
 
 export const appServices = createAppServices(coreServices, host)
@@ -46,5 +56,5 @@ export const appServices = createAppServices(coreServices, host)
 // Runs before every module imported after this one, so exception telemetry
 // exists while the rest of the app's modules evaluate.
 appServices.exceptionTelemetry.install()
-installQueryInvalidation(coreServices)
+installQueryInvalidation(coreServices, appServices)
 void coreServices.contacts.refresh()

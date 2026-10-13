@@ -1,3 +1,4 @@
+import { createTestWindowService } from '@reflect/app/testing'
 import { page, type Locator } from 'vitest/browser'
 import type { ReactElement } from 'react'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
@@ -15,7 +16,6 @@ import {
   createTestICloudNativeService,
   createTestPlatformService,
   createTestBackupService,
-  createTestWindowService,
   type TestOpenGraph,
   type TestPlatformOptions,
   type TestBackupService,
@@ -68,7 +68,6 @@ async function renderSection(): Promise<void> {
     icloudNative,
     backup,
     platform: createTestPlatformService(platform),
-    window: createTestWindowService({ openNoteWindow }),
   })
   vi.spyOn(app.indexQuery, 'getConflictedNotes').mockImplementation(async () => conflictedNotes)
   vi.spyOn(app.indexQuery, 'getDuplicateNoteIds').mockImplementation(async () => duplicateIds)
@@ -78,7 +77,12 @@ async function renderSection(): Promise<void> {
       <SyncSection />
       <RouteProbe />
     </>,
-    { app, graph, route: { kind: 'settings' } },
+    {
+      app,
+      appServices: { window: createTestWindowService({ openNoteWindow }) },
+      graph,
+      route: { kind: 'settings' },
+    },
   )
 }
 

@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestAppServices } from '@reflect/app/testing'
+import {
+  createTestAppServices,
+  createTestWindowService,
+  type TestWindowService,
+} from '@reflect/app/testing'
 import { buildIndexedNote, parseNote } from '@reflect/core'
 import {
   createTestCoreServices,
@@ -28,9 +32,11 @@ function createApp() {
 }
 
 let app: ReturnType<typeof createApp>
+let windows: TestWindowService
 
 beforeEach(() => {
   app = createApp()
+  windows = createTestWindowService()
 })
 
 afterEach(() => {
@@ -49,7 +55,7 @@ function fakeContext(overrides?: Partial<CommandContext>) {
   const navigated: Route[] = []
   const navigateOptions: (NavigateOptions | undefined)[] = []
   const route: () => Route = overrides?.route ?? (() => ({ kind: 'today' }))
-  const appLayer = createTestAppServices(app)
+  const appLayer = createTestAppServices(app, { window: windows })
   const context: CommandContext = {
     services: app,
     app: appLayer,
@@ -231,7 +237,7 @@ describe('app commands', () => {
   it('note.openInNewWindow opens the selected note, including the focused daily note', async () => {
     const { context } = fakeContext({ route: () => ({ kind: 'note', path: 'notes/a.md' }) })
     await command('note.openInNewWindow').run(context)
-    expect(app.window.openedNoteWindows()).toEqual([
+    expect(windows.openedNoteWindows()).toEqual([
       deepLinkForRoute({ kind: 'note', path: 'notes/a.md' }),
     ])
 
@@ -239,7 +245,7 @@ describe('app commands', () => {
       notePath: () => 'daily/2026-06-18.md',
     })
     await command('note.openInNewWindow').run(focusedDaily)
-    expect(app.window.openedNoteWindows().at(-1)).toBe(
+    expect(windows.openedNoteWindows().at(-1)).toBe(
       deepLinkForRoute({ kind: 'daily', date: '2026-06-18' }),
     )
   })
@@ -247,7 +253,7 @@ describe('app commands', () => {
   it('note.openInNewWindow is inert on a screen with no selected note', async () => {
     const { context } = fakeContext({ route: () => ({ kind: 'settings' }) })
     await command('note.openInNewWindow').run(context)
-    expect(app.window.openedNoteWindows()).toEqual([])
+    expect(windows.openedNoteWindows()).toEqual([])
   })
 
   it('note.random navigates to the picked note and no-ops on an empty graph', async () => {
@@ -426,7 +432,7 @@ describe('app commands', () => {
   it('dev.toggleDevtools toggles the inspector through the native shell', async () => {
     const { context } = fakeContext()
     await command('dev.toggleDevtools').run(context)
-    expect(app.window.devtoolsToggles()).toBe(1)
+    expect(windows.devtoolsToggles()).toBe(1)
   })
 
   it('dev.toggleDevtools no-ops without a native shell (plain-browser dev)', async () => {
@@ -435,7 +441,7 @@ describe('app commands', () => {
     })
     const { context } = fakeContext({ services: browser })
     await expect(command('dev.toggleDevtools').run(context)).resolves.toBeUndefined()
-    expect(browser.window.devtoolsToggles()).toBe(0)
+    expect(windows.devtoolsToggles()).toBe(0)
     browser.database.close()
   })
 

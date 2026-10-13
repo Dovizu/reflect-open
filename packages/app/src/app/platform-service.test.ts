@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createPlatformService, type PlatformFacts } from './platform-service.ts'
+import type { PlatformFacts } from '@reflect/core'
+import { createPlatformService } from './platform-service.ts'
 
 const FACTS: PlatformFacts = {
   appPlatform: 'ios',

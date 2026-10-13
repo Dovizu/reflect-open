@@ -1,7 +1,6 @@
 import {
   type LoggerService,
-  type PlatformService,
-  type WindowService,
+  type PlatformFacts,
   type AttachmentService,
   errorMessage,
   type GraphSessionService,
@@ -14,6 +13,7 @@ import {
   parseDeepLink,
 } from '@reflect/core'
 import type { OpenerService } from '../app/opener-service.ts'
+import type { WindowService } from '../app/window-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import { deepLinkForRoute } from './deep-link-format.ts'
 import type { DeepLinkRouter } from './deep-link-router.ts'
@@ -185,7 +185,7 @@ export interface LinkNavigationServiceDeps {
    */
   readonly wikiResolver: Pick<WikiResolverService, 'resolveWikiTarget'>
   readonly window: Pick<WindowService, 'openNoteWindow'>
-  readonly platform: Pick<PlatformService, 'isNativeShell' | 'surface'>
+  readonly platform: Pick<PlatformFacts, 'isNativeShell' | 'surface'>
   readonly opener: Pick<OpenerService, 'openUrlSync'>
   readonly deepLinkRouter: Pick<DeepLinkRouter, 'dispatch'>
   readonly navigation: Pick<NavigationService, 'navigationRevision'>

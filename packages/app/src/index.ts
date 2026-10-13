@@ -154,3 +154,29 @@ export {
   type NoteRoute,
   type Route,
 } from './navigation/route.ts'
+export {
+  createWindowService,
+  createSingleWindowHost,
+  MAIN_WINDOW_LABEL,
+  type CloseRequestedHandler,
+  type WindowHost,
+  type WindowService,
+} from './app/window-service.ts'
+export {
+  type DialogFilter,
+  type DialogService,
+  type PickFilesOptions,
+  type PickFolderOptions,
+} from './app/dialog-service.ts'
+export {
+  createPlatformService,
+  type ColorScheme,
+  type PlatformMedia,
+  type PlatformService,
+} from './app/platform-service.ts'
+export { type GraphBootService } from './graph/graph-boot-service.ts'
+export {
+  type MobileOnboardingService,
+  type MobileOnboardingState,
+} from './graph/mobile-onboarding-service.ts'
+export { createAppGraphServices, type AppGraphServicesDeps } from './graph/graph-lifecycles.ts'

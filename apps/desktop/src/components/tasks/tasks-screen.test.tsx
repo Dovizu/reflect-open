@@ -1,3 +1,4 @@
+import { createTestWindowService, type TestWindowService } from '@reflect/app/testing'
 import { userEvent, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
@@ -191,7 +192,12 @@ function renderScreen() {
       <TasksScreen />
       <RouteProbe />
     </>,
-    { app, graph: { root: '/g', name: 'g', generation: 1 }, settings: { dateFormat: 'mdy' } },
+    {
+      app,
+      appServices: { window: noteWindows },
+      graph: { root: '/g', name: 'g', generation: 1 },
+      settings: { dateFormat: 'mdy' },
+    },
   ).then((view) => {
     const find = async (locator: Locator): Promise<Element> => {
       await expect.element(locator).toBeInTheDocument()
@@ -234,10 +240,12 @@ let storage: TestCoreServices['storage']
 let operations: TestCoreServices['progress']
 
 let app: TestCoreServices
+let noteWindows: TestWindowService
 
 beforeEach(() => {
   // A fresh app per test, so its task service's recently-completed set starts empty.
   app = createTestCoreServices()
+  noteWindows = createTestWindowService()
   operations = app.progress
   storage = app.storage
   app.clock.setToday('2026-06-14')
@@ -489,7 +497,7 @@ describe('TasksScreen', () => {
     })
 
     await waitFor(() =>
-      expect(app.window.openedNoteWindows()).toEqual([
+      expect(noteWindows.openedNoteWindows()).toEqual([
         deepLinkForRoute({
           kind: 'note',
           path: 'notes/p.md',
@@ -513,7 +521,7 @@ describe('TasksScreen', () => {
     })
 
     await waitFor(() =>
-      expect(app.window.openedNoteWindows()).toEqual([
+      expect(noteWindows.openedNoteWindows()).toEqual([
         deepLinkForRoute({
           kind: 'note',
           path: 'notes/p.md',
@@ -763,7 +771,7 @@ describe('TasksScreen', () => {
       fireEvent.click(view.getByRole('button', { name: 'third' }), MOD_KEY)
     })
     expect([pressed('first'), pressed('second'), pressed('third')]).toEqual([true, false, true])
-    expect(app.window.openedNoteWindows()).toEqual([])
+    expect(noteWindows.openedNoteWindows()).toEqual([])
 
     // Shift-click from the anchor (third) back to first selects the whole range.
     act(() => {

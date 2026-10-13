@@ -1,7 +1,8 @@
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
-import { createTestCoreServices, createTestWindowService } from '@reflect/core/testing'
+import { createTestWindowService } from '@reflect/app/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 import { NoteTemplatesProvider } from '@/providers/note-templates-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
@@ -20,7 +21,7 @@ function RouteProbe(): ReactElement {
 }
 
 async function renderSection(): Promise<void> {
-  const app = createTestCoreServices({ window: createTestWindowService({ openNoteWindow }) })
+  const app = createTestCoreServices()
   vi.spyOn(app.indexQuery, 'listTemplates').mockResolvedValue([
     { path: 'templates/weekly-review.md', title: 'Weekly review', mtime: 1 },
   ])
@@ -31,6 +32,7 @@ async function renderSection(): Promise<void> {
     </>,
     {
       app,
+      appServices: { window: createTestWindowService({ openNoteWindow }) },
       graph: { root: '/g', name: 'g' },
       route: { kind: 'settings' },
       wrapper: (children) => <NoteTemplatesProvider>{children}</NoteTemplatesProvider>,

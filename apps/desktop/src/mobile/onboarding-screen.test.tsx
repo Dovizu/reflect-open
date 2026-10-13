@@ -1,6 +1,8 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi, type MockInstance } from 'vitest'
-import type { MobileOnboardingService, MobileStorageInfo } from '@reflect/core'
+import type { MobileOnboardingService } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
+import type { MobileStorageInfo } from '@reflect/core'
 import {
   createTestCoreServices,
   createTestMobileStorageService,
@@ -30,11 +32,13 @@ async function mount(options?: {
     platform: createTestPlatformService(MOBILE_PLATFORM),
     mobileStorage: createTestMobileStorageService({ storage }),
   })
+  const appServices = createTestAppServices(app)
   completeOnboarding = vi
-    .spyOn(app.mobileOnboarding, 'completeOnboarding')
+    .spyOn(appServices.mobileOnboarding, 'completeOnboarding')
     .mockImplementation(async () => {})
   await renderInApp(<MobileOnboardingScreen />, {
     app,
+    appServices,
     graph: null,
     mobile: { needsOnboarding: true, storageInfo: storage, resolving: options?.resolving ?? false },
   })

@@ -1,4 +1,4 @@
-import type { PlatformService } from '../app/platform-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import type { StorageService } from '../app/storage-service.ts'
 import type { ClassicAccessService } from '../classic/classic-access-service.ts'
 import type { AppStoreService } from '../ipc/app-store-plugin.ts'
@@ -76,7 +76,7 @@ export interface PaywallServiceDeps {
   readonly appStoreEnvironment: Pick<AppStoreEnvironmentService, 'getState' | 'subscribe'>
   readonly iap: Pick<IapService, 'getProducts' | 'purchase'>
   readonly appStore: Pick<AppStoreService, 'sync' | 'presentOfferCodeRedeemSheet'>
-  readonly platform: Pick<PlatformService, 'appPlatform'>
+  readonly platform: Pick<PlatformFacts, 'appPlatform'>
   readonly storage: Pick<StorageService, 'session'>
 }
 

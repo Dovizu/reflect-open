@@ -1,4 +1,5 @@
 import { createContext, use, useEffect, useMemo, type ReactNode } from 'react'
+import type { GraphBootService } from '@reflect/app'
 import type {
   AppPlatform,
   GraphServices,
@@ -11,7 +12,6 @@ import {
   useCoreServices,
 } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
-import { bootGraphSession } from './graph-session.ts'
 import { useMobileGraphBoot, type MobileGraphBoot } from './use-mobile-graph-boot.ts'
 
 export type { GraphStatus } from '@reflect/core'
@@ -21,19 +21,17 @@ export type { GraphStatus } from '@reflect/core'
  * mobile-only slice documented on {@link MobileGraphBoot}, and the platform.
  */
 type GraphContextValue = GraphSessionState<GraphServices> &
-  Pick<
-    GraphSessionService,
-    'pickAndOpen' | 'chooseGraph' | 'openRecent' | 'deleteGraph' | 'refreshIndex'
-  > &
+  Pick<GraphBootService, 'pickAndOpen' | 'chooseGraph' | 'openRecent' | 'deleteGraph'> &
+  Pick<GraphSessionService, 'refreshIndex'> &
   MobileGraphBoot & {
     /**
-     * `GraphSessionService.createGraphAt`.
+     * `GraphBootService.createGraphAt`.
      */
-    createAt: GraphSessionService['createGraphAt']
+    createAt: GraphBootService['createGraphAt']
     /**
-     * `GraphSessionService.forgetRecent`.
+     * `GraphBootService.forgetRecent`.
      */
-    forget: GraphSessionService['forgetRecent']
+    forget: GraphBootService['forgetRecent']
     /**
      * Which UI family the shell was built for (Plan 19's root gate), fixed at
      * boot; gates platform-only surfaces like the iOS subscription paywall.
@@ -64,15 +62,14 @@ export function GraphProvider({
   children: ReactNode
   platform?: AppPlatform
 }) {
-  const app = useCoreServices()
-  const appServices = useAppServices()
-  const session = app.graphSession
+  const { graphSession: session } = useCoreServices()
+  const { graphBoot } = useAppServices()
   const state = useServiceState(session, session.getState)
 
   // Desktop main-window boot reopens the most recent graph or shows the
   // chooser; a secondary note window adopts the main window's graph. Mobile
-  // boots through its hook below.
-  useEffect(() => bootGraphSession(app, appServices), [app, appServices])
+  // opens through its hook below.
+  useEffect(() => graphBoot.boot(), [graphBoot])
 
   // The mobile bootstrap + onboarding slice (Plans 19/21) lives in its own
   // service; it opens and parks through the session.
@@ -82,16 +79,16 @@ export function GraphProvider({
     () => ({
       ...state,
       ...mobile,
-      pickAndOpen: () => session.pickAndOpen(),
-      chooseGraph: () => session.chooseGraph(),
-      openRecent: (root) => session.openRecent(root),
-      deleteGraph: () => session.deleteGraph(),
+      pickAndOpen: () => graphBoot.pickAndOpen(),
+      chooseGraph: () => graphBoot.chooseGraph(),
+      openRecent: (root) => graphBoot.openRecent(root),
+      deleteGraph: () => graphBoot.deleteGraph(),
       refreshIndex: () => session.refreshIndex(),
-      createAt: (root) => session.createGraphAt(root),
-      forget: (root) => session.forgetRecent(root),
+      createAt: (root) => graphBoot.createGraphAt(root),
+      forget: (root) => graphBoot.forgetRecent(root),
       platform,
     }),
-    [session, state, mobile, platform],
+    [session, graphBoot, state, mobile, platform],
   )
 
   return (

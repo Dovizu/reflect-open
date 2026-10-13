@@ -1,6 +1,6 @@
+import type { GraphRole } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { StorageService } from '../app/storage-service.ts'
-import type { WindowService } from '../app/window-service.ts'
 import type { GraphSessionState } from '../graph/graph-session-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import type { Unlisten } from '../unlisten.ts'
@@ -100,7 +100,7 @@ export interface SemanticSearchServiceDeps {
   readonly retrieval: RetrievalService
   readonly settings: SettingsService
   readonly storage: StorageService
-  readonly window: WindowService
+  readonly role: GraphRole
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: SemanticSearchGraphSource
   readonly logger: LoggerService
@@ -113,7 +113,7 @@ class SemanticSearchServiceImpl implements SemanticSearchService {
 
   constructor(deps: SemanticSearchServiceDeps) {
     this.#deps = deps
-    this.#mainWindow = deps.window.isMainWindow()
+    this.#mainWindow = deps.role === 'main'
     const { embeddingRuntime, embeddingIndex, indexLifecycle } = deps
     this.#stopFollowingRebuilds = indexLifecycle.onReconciled(async ({ generation, source }) => {
       if (source !== 'rebuild') {
