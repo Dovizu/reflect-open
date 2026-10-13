@@ -1,3 +1,4 @@
+import { isDeepEqual } from '@ocavue/utils'
 import { z } from 'zod'
 import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
 import type { IdService } from '../app/id-service.ts'
@@ -214,9 +215,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
 
   #setState(patch: Partial<GraphSessionState<Services>>): void {
     const next = { ...this.#state, ...patch }
-    // FIXME: just use the deepCompare (or isEqual ? I forget the name) function from @ocavue/utils
-    const keys = Object.keys(next) as (keyof GraphSessionState<Services>)[]
-    if (keys.every((key) => next[key] === this.#state[key])) {
+    if (isDeepEqual(next, this.#state)) {
       return
     }
     this.#state = next
