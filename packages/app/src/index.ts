@@ -95,3 +95,24 @@ export {
   weekStartOf,
   type WeekWindow,
 } from './daily/week-window.ts'
+export { type Command, type CommandService } from './commands/command-service.ts'
+export { formatBinding } from './commands/keybindings.ts'
+export { type KeymapService } from './commands/keymap-service.ts'
+export {
+  type AppMenuEntry,
+  type AppSubmenuLayout,
+  type FocusedNoteMenuCommand,
+  type NativeContextMenuOptions,
+  type NativeMenuHost,
+  type NativeMenuItem,
+  type NativeMenuPredefinedItem,
+  type NativeMenuService,
+  type NativeSubmenu,
+} from './commands/native-menu-service.ts'
+export {
+  buildPaletteSections,
+  type NoteEntry,
+  type PaletteHit,
+  type PaletteSections,
+} from './search/palette-entries.ts'
+export { type PaletteSearchService } from './search/palette-search-service.ts'

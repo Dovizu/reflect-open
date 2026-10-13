@@ -1,6 +1,6 @@
 import { useMemo, type ReactElement } from 'react'
 import { KBD_FRAME_CLASS } from '@/components/kbd.tsx'
-import { formatBinding } from '@reflect/core'
+import { formatBinding } from '@reflect/app'
 import { cn } from '@/lib/utils.ts'
 import { useCoreServices } from '@/services/services-provider.tsx'
 

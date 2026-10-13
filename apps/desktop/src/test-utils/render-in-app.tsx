@@ -177,10 +177,10 @@ async function prepare(options: AnyOptions | undefined): Promise<
 
   const queryClient =
     options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  registerAppCommands(app.commands)
+  const appLayer = createTestAppServices(app, options?.appServices)
+  registerAppCommands(appLayer.commands)
 
   const route = options?.route
-  const appLayer = createTestAppServices(app, options?.appServices)
   const wrap = (children: ReactNode): ReactElement => {
     const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
     if (servicesOnly) {

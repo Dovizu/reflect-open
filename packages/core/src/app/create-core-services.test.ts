@@ -83,9 +83,6 @@ const SERVICE_KEYS = [
   'notePreview',
   'noteCreation',
   'aiPrompts',
-  'keymap',
-  'commands',
-  'nativeMenu',
   'aiProviderConfig',
   'selectionTransform',
   'semanticSearch',
@@ -94,7 +91,7 @@ const SERVICE_KEYS = [
   'assetDescription',
   'personNotes',
   'suggestions',
-  'paletteSearch',
+  'retrieval',
   'mobile',
 ] as const satisfies readonly (keyof CoreServices)[]
 

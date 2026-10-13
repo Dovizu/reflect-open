@@ -1,4 +1,4 @@
-import type { NativeMenuHost, NativeMenuItem, NativeSubmenu } from '@reflect/core'
+import type { NativeMenuHost, NativeMenuItem, NativeSubmenu } from '@reflect/app'
 import { Menu, MenuItem, Submenu, type PredefinedMenuItemOptions } from '@tauri-apps/api/menu'
 
 // Inline item options lose their click handler once the submenu is built.

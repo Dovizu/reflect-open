@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button.tsx'
 import { Drawer, DrawerBody, DrawerContent, DrawerTitle } from '@/components/ui/drawer.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { useDateFormat } from '@/hooks/use-date-format.ts'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { UPDATED_PRESETS, updatedRangeFilter, type UpdatedFilter } from './filter-state.ts'
 
 interface UpdatedFilterDrawerProps {
@@ -26,7 +26,7 @@ export function UpdatedFilterDrawer({
   onApply,
 }: UpdatedFilterDrawerProps): ReactElement {
   const dateFormat = useDateFormat()
-  const { paletteSearch } = useCoreServices()
+  const { paletteSearch } = useAppServices()
   const [fromIso, setFromIso] = useState('')
   const [toIso, setToIso] = useState('')
 

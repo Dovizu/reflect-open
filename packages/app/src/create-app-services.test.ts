@@ -10,8 +10,12 @@ describe('createAppServices', () => {
     expect(Object.keys(app).toSorted()).toEqual([
       'autocompleteSuggestions',
       'calendarEvents',
+      'commands',
       'exceptionTelemetry',
       'keyboard',
+      'keymap',
+      'nativeMenu',
+      'paletteSearch',
       'share',
       'syncStatus',
       'theme',

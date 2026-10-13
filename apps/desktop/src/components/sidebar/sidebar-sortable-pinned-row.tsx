@@ -6,7 +6,7 @@ import type { PinnedNote } from '@reflect/core'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
 import { routeForPath, routesEqual } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 import { SidebarPinnedRowPreview } from './sidebar-pinned-row-preview.tsx'
 import { isModEvent } from '@meowdown/core'
 import { useNoteLabel } from '@/hooks/use-note-label.ts'
@@ -21,7 +21,8 @@ export const SidebarSortablePinnedRow = memo(function SidebarSortablePinnedRow({
   const { route } = useRouter()
   const navigateNoteLink = useNoteLinkNavigation()
   const noteLabel = useNoteLabel()
-  const { nativeMenu, noteActions, operations } = useCoreServices()
+  const { noteActions, operations } = useCoreServices()
+  const { nativeMenu } = useAppServices()
   const target = routeForPath(note.path)
   const active = routesEqual(route, target)
   const label = noteLabel(note)

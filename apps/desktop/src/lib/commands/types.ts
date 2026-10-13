@@ -1,5 +1,5 @@
-import type { AppServices } from '@reflect/app'
-import type { CoreServices, Command } from '@reflect/core'
+import type { AppServices, Command } from '@reflect/app'
+import type { CoreServices } from '@reflect/core'
 import type { Route } from '@/routing/route.ts'
 import type { NavigateOptions } from '@/routing/router.tsx'
 

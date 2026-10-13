@@ -1,8 +1,11 @@
 import type { Command } from '../commands/command-service.ts'
-import { dailyPath } from '../graph/paths.ts'
-import { parseSearchQuery } from '../indexing/filter-query.ts'
-import type { FilteredSearchHit } from '../indexing/search-service.ts'
-import { aliasHint, type WikiSuggestion } from '../indexing/suggest.ts'
+import {
+  aliasHint,
+  dailyPath,
+  parseSearchQuery,
+  type FilteredSearchHit,
+  type WikiSuggestion,
+} from '@reflect/core'
 
 /**
  * What the palette actually reads off a search hit — a subset of

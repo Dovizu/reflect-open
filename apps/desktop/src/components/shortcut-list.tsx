@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { ShortcutKeys } from '@/components/shortcut-keys.tsx'
 import type { Shortcut } from '@/lib/shortcuts.ts'
 import { cn } from '@/lib/utils.ts'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 interface ShortcutListProps {
   /** Group heading (a keymap scope: "App", "Editor"). */
@@ -25,7 +25,7 @@ export function ShortcutList({
   className,
   listClassName,
 }: ShortcutListProps): ReactElement {
-  const { keymap } = useCoreServices()
+  const { keymap } = useAppServices()
   return (
     <div className={className}>
       <h3 className="text-[11px] font-semibold tracking-[0.08em] text-text-muted uppercase">

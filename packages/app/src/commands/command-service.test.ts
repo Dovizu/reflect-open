@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestPlatformService } from '../testing/platform.ts'
+import { createTestLoggerService, createTestPlatformService } from '@reflect/core/testing'
 import { createCommandService, type CommandKeyEvent } from './command-service.ts'
 
 function setup(options?: { isApplePlatform?: boolean }) {

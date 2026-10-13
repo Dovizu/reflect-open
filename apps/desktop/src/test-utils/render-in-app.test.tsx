@@ -116,12 +116,12 @@ describe('renderInApp', () => {
   })
 
   it('mounts only the services with `servicesOnly`, and registers the app commands', async () => {
-    const { result, app } = await renderHookInApp(() => useMaybeGraph(), {
+    const { result, appServices: appLayer } = await renderHookInApp(() => useMaybeGraph(), {
       servicesOnly: true,
     })
 
     expect(result.current).toBeNull()
-    expect(app.commands.list().map((command) => command.id)).toContain('nav.today')
+    expect(appLayer.commands.list().map((command) => command.id)).toContain('nav.today')
   })
 })
 

@@ -269,18 +269,7 @@ import {
 } from './platform-service.ts'
 import { createWebStorageService, type StorageService } from './storage-service.ts'
 import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
-import { createCommandService, type CommandService } from '../commands/command-service.ts'
-import { createKeymapService, type KeymapService } from '../commands/keymap-service.ts'
 import {
-  createPaletteSearchService,
-  type PaletteSearchService,
-} from '../search/palette-search-service.ts'
-import {
-  createNativeMenuService,
-  createUnsupportedNativeMenuHost,
-  type NativeMenuHost,
-  type NativeMenuService,
-} from '../commands/native-menu-service.ts'
 import { createGraphServices, type GraphServices } from './create-graph-services.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 
@@ -536,18 +525,6 @@ export interface CoreServices {
    */
   readonly aiPrompts: AiPromptService
   /**
-   * The central keymap registry that rejects duplicate shortcut bindings.
-   */
-  readonly keymap: KeymapService
-  /**
-   * The command registry. The app decides the context type that its commands run with.
-   */
-  readonly commands: CommandService
-  /**
-   * The native macOS application menu and native context menus.
-   */
-  readonly nativeMenu: NativeMenuService
-  /**
    * The configured AI provider entries, and which entry each AI feature uses.
    */
   readonly aiProviderConfig: AiProviderConfigService
@@ -572,9 +549,13 @@ export interface CoreServices {
    */
   readonly assetDescription: AssetDescriptionService
   /**
-   * The command palette's data layer.
+   * Autocomplete candidates for `#` tags and `[[` wiki targets.
    */
-  readonly paletteSearch: PaletteSearchService
+  readonly suggestions: SuggestionService
+  /**
+   * The one retrieval contract that search and AI share.
+   */
+  readonly retrieval: RetrievalService
   /**
    * The mapping from email identities to `#person` notes.
    */
@@ -737,10 +718,6 @@ export interface CoreAdapters {
    */
   readonly imageCodec?: ImageCodecService
   /**
-   * The native menus; without a host, every menu operation rejects.
-   */
-  readonly nativeMenu?: NativeMenuHost
-  /**
    * Defaults to the URL shape of Apple webviews.
    */
   readonly convertFileSrc?: FileSrcConverter
@@ -793,7 +770,6 @@ export const coreServiceFactories = {
   indexReads: createIndexReadServices,
   indexStore: createIndexStoreService,
   xArchive: createXArchiveService,
-  commands: createCommandService,
   aiCredentials: createAiCredentialService,
   aiKeyValidation: createAiKeyValidationService,
   languageModel: createLanguageModelService,
@@ -859,13 +835,10 @@ export const coreServiceFactories = {
   semanticSearch: createSemanticSearchService,
   mobileOnboarding: createMobileOnboardingService,
   aiPrompts: createAiPromptService,
-  keymap: createKeymapService,
-  nativeMenu: createNativeMenuService,
   selectionTransform: createSelectionTransformService,
   chatSessions: createChatSessionService,
   capture: createCaptureService,
   assetDescription: createAssetDescriptionService,
-  paletteSearch: createPaletteSearchService,
 }
 
 /**
@@ -953,10 +926,6 @@ export interface CoreInternalServices {
    * The `private: true` gate that every outbound payload passes through.
    */
   readonly privacy: PrivacyService
-  /**
-   * The one retrieval contract that search and AI share.
-   */
-  readonly retrieval: RetrievalService
   /**
    * Keeps each note's chunk vectors current.
    */
@@ -1108,7 +1077,6 @@ export function composeCoreServices(
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = create.indexStore({ ipc, database })
   const xArchive = create.xArchive({ ipc })
-  const commands = create.commands({ platform, logger })
   const aiCredentials = create.aiCredentials({ secretStore })
   const aiKeyValidation = create.aiKeyValidation({ http: adapters.http })
   const languageModel = create.languageModel({ http: adapters.http, sdk: createLazyAiSdkLoader() })
@@ -1510,16 +1478,6 @@ export function composeCoreServices(
       logger,
     }),
     aiPrompts: create.aiPrompts({ settings, id }),
-    keymap: create.keymap({ platform }),
-    commands,
-    nativeMenu: create.nativeMenu({
-      commands,
-      window: windowService,
-      platform,
-      ipc,
-      logger,
-      host: adapters.nativeMenu ?? createUnsupportedNativeMenuHost(),
-    }),
     aiProviderConfig,
     selectionTransform: create.selectionTransform({
       logger,
@@ -1580,13 +1538,7 @@ export function composeCoreServices(
     }),
     personNotes,
     suggestions: indexReads.suggestions,
-    paletteSearch: create.paletteSearch({
-      suggestions: indexReads.suggestions,
-      search: indexReads.search,
-      retrieval,
-      commands,
-      clock,
-    }),
+    retrieval,
     mobile: mobileServices,
   }
   const internal: CoreInternalServices = {
@@ -1609,7 +1561,6 @@ export function composeCoreServices(
     graphStats: indexReads.graphStats,
     noteLinkResolver: noteServices.noteLinkResolver,
     privacy: noteServices.privacy,
-    retrieval,
     embeddingIndex,
     aiCredentials,
     aiKeyValidation,

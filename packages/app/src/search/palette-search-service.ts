@@ -1,14 +1,18 @@
-import type { ClockService } from '../app/clock-service.ts'
+import {
+  dateFromDailyPath,
+  localIsoDate,
+  parseSearchQuery,
+  updatedPresetFilter,
+  type ClockService,
+  type DateSuggestionContext,
+  type RetrievalService,
+  type SearchService,
+  type SuggestionService,
+  type UpdatedFilter,
+  type UpdatedPreset,
+  type WikiSuggestion,
+} from '@reflect/core'
 import type { Command, CommandService } from '../commands/command-service.ts'
-import type { RetrievalService } from '../embeddings/retrieval-service.ts'
-import { dateFromDailyPath } from '../graph/paths.ts'
-import type { DateSuggestionContext } from '../indexing/date-suggestion-types.ts'
-import { parseSearchQuery } from '../indexing/filter-query.ts'
-import type { SearchService } from '../indexing/search-service.ts'
-import type { WikiSuggestion } from '../indexing/suggest.ts'
-import type { SuggestionService } from '../indexing/suggestion-service.ts'
-import { localIsoDate } from '../lib/dates.ts'
-import { updatedPresetFilter, type UpdatedFilter, type UpdatedPreset } from './all-notes-filters.ts'
 import { buildPaletteSections, type PaletteHit, type PaletteSections } from './palette-entries.ts'
 
 /**

@@ -282,11 +282,3 @@ export {
   type TestPaywallService,
   type TestSubscriptionService,
 } from './monetization.ts'
-export {
-  createTestNativeMenuHost,
-  createTestNativeMenuService,
-  type TestNativeMenuHost,
-  type TestNativeMenuHostCall,
-  type TestNativeMenuService,
-  type TestNativeMenuServiceOptions,
-} from './commands.ts'

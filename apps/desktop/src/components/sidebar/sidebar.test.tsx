@@ -1,4 +1,3 @@
-import { createAppServices } from '@reflect/app'
 import type { ReactNode } from 'react'
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
@@ -6,11 +5,12 @@ import {
   DEFAULT_SETTINGS,
   isOstensiblyEmptyNoteSource,
   type GraphSessionService,
-  type NativeContextMenuOptions,
   type NoteDocumentService,
   type PinnedNote,
   type SettingsService,
 } from '@reflect/core'
+import type { NativeContextMenuOptions } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestBackupService,
@@ -96,9 +96,10 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
     window: createTestWindowService({ openNoteWindow }),
     backup: createTestBackupService({ state: { phase: 'disconnected' } }),
   })
+  const appLayer = createTestAppServices(app)
   const context: CommandContext = {
     services: app,
-    app: createAppServices(app, {}),
+    app: appLayer,
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,
@@ -123,7 +124,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
     ...overrides,
   }
   vi.spyOn(app.indexQuery, 'getPinnedNotes').mockImplementation(getPinnedNotes)
-  vi.spyOn(app.nativeMenu, 'openContextMenu').mockImplementation(openNativeContextMenu)
+  vi.spyOn(appLayer.nativeMenu, 'openContextMenu').mockImplementation(openNativeContextMenu)
   openRecent = vi.spyOn(app.graphSession, 'openRecent').mockResolvedValue(true)
   pickAndOpen = vi.spyOn(app.graphSession, 'pickAndOpen').mockResolvedValue()
   chooseGraph = vi.spyOn(app.graphSession, 'chooseGraph').mockResolvedValue()
@@ -134,6 +135,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
   // menu's anchor spans the viewport and popper pushes the submenu off-screen.
   const view = await renderInApp(<Sidebar graph={GRAPH} context={context} />, {
     app,
+    appServices: appLayer,
     graph: GRAPH,
     graphState: {
       recents: [

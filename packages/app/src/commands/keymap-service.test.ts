@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTestPlatformService } from '../testing/platform.ts'
+import { createTestPlatformService } from '@reflect/core/testing'
 import { createKeymapService } from './keymap-service.ts'
 
 function setup(options?: { isApplePlatform?: boolean }) {

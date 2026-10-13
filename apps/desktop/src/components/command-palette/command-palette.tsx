@@ -256,7 +256,7 @@ export function CommandPalette({ context }: CommandPaletteProps): ReactElement |
                         onSelect={() => {
                           pendingNoteOpenRef.current = null
                           closePalette()
-                          void context.services.commands.run(command.id, context)
+                          void context.app.commands.run(command.id, context)
                         }}
                         className="reflect-palette-item"
                       >

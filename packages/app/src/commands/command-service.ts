@@ -1,5 +1,4 @@
-import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformFacts } from '../app/platform-service.ts'
+import type { LoggerService, PlatformFacts } from '@reflect/core'
 import { normalizeBinding } from './keybindings.ts'
 
 /**

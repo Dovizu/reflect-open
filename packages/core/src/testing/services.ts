@@ -42,7 +42,6 @@ import {
   createTestChatHistoryService,
 } from './chat.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
-import { createTestNativeMenuService } from './commands.ts'
 import { createTestContactsService } from './contacts.ts'
 import { createTestDatabaseService } from './database.ts'
 import { createTestNoteMoveService } from './documents.ts'
@@ -230,8 +229,6 @@ function createTestServiceFactories(
     agentSkill: () => createTestAgentSkillService(),
     semanticSearch: (deps) => createTestSemanticSearchService(deps),
     mobileOnboarding: (deps) => createTestMobileOnboardingService(deps),
-    nativeMenu: ({ commands, window, platform, logger }) =>
-      createTestNativeMenuService({ commands, window, platform, logger }),
     capture: () => createTestCaptureService(),
     assetDescription: () => createTestAssetDescriptionService(),
     graphServices: (session, role, deps) =>

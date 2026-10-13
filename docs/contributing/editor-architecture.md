@@ -159,7 +159,7 @@ Core, elsewhere:
 |---|---|
 | `packages/app/src/search/autocomplete-suggestion-service.ts`, `packages/app/src/search/wiki-autocomplete-entries.ts` | the `[[` and `#` menus' data; pure row assembly |
 | `navigation/link-navigation-service.ts` | what a clicked wiki link, Markdown link or deep link does |
-| `commands/keymap-service.ts` | the shortcut registry (rejects duplicate bindings) |
+| `packages/app/src/commands/keymap-service.ts` | the shortcut registry (rejects duplicate bindings) |
 
 Desktop, `apps/desktop/src/editor/`:
 

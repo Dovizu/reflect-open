@@ -1,6 +1,7 @@
 import type { CoreServices } from '@reflect/core'
 import { createTestCoreServices } from '@reflect/core/testing'
 import { createAppServices, type AppServices } from '../create-app-services.ts'
+import { createTestNativeMenuHost } from './commands.ts'
 import { createTestExceptionTelemetry } from './exception-telemetry.ts'
 import { createTestUpdaterAdapter } from './update.ts'
 
@@ -17,6 +18,7 @@ export function createTestAppServices(
     ...createAppServices(core, {
       exceptionTelemetry: createTestExceptionTelemetry(),
       updater: createTestUpdaterAdapter(),
+      nativeMenu: createTestNativeMenuHost(),
     }),
     ...overrides,
   }

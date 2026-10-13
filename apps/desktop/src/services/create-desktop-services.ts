@@ -56,7 +56,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
       opener: createTauriOpenerTransport(),
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
-      nativeMenu: createTauriNativeMenuHost(),
       deepLink: createTauriDeepLinkSource(),
       convertFileSrc,
     }
@@ -84,7 +83,11 @@ export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost
     logger: createConsoleLogger(),
   })
   if (facts.isNativeShell) {
-    return { exceptionTelemetry, updater: createTauriUpdaterAdapter() }
+    return {
+      exceptionTelemetry,
+      updater: createTauriUpdaterAdapter(),
+      nativeMenu: createTauriNativeMenuHost(),
+    }
   }
   return { exceptionTelemetry }
 }
