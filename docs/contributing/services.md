@@ -10,7 +10,7 @@ is small, and it has dependencies, state, an event and a test double.
 
 ```text
 packages/core/src/documents/note-move-service.ts       interface + factory
-packages/core/src/documents/note-move-service.test.ts  the test, over test doubles
+packages/core/src/documents/note-move-service.test.ts  the test, over test doubles // FIXME: what does "over test doubles" even mean?
 packages/core/src/testing/documents.ts                 createTestNoteMoveService
 packages/core/src/app/create-app-services.ts           AppServices.noteMove
 packages/core/src/testing/services.ts                  createTestAppServices, the test factory table
@@ -74,7 +74,7 @@ export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveServic
 
 Rules:
 
-- The factory returns an **object literal**. Do not write a class.
+- The factory returns an **object literal**. Do not write a class. // FIXME: as I said in another FIXME comment, let's use class instead. 
 - Document the interface, not the implementation: the doc comments on the
   interface are the service's contract.
 - The interface never mentions `deps`.
