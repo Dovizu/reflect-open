@@ -7,7 +7,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext"
   },
-  "include": ["src", "src/**/*.json", "./*.ts", "./scripts/**/*.mjs"],
+  "include": ["src", "src/**/*.json", "./*.ts"],
   "references": [
     {
       "path": "../db/tsconfig.json"

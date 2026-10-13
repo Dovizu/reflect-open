@@ -12,9 +12,9 @@ is small, and it has dependencies, state, an event and a test double.
 packages/core/src/documents/note-move-service.ts       deps + interface + class + factory
 packages/core/src/documents/note-move-service.test.ts  the test: the real service over test doubles of its deps
 packages/core/src/testing/documents.ts                 createTestNoteMoveService
-packages/core/src/app/create-app-services.ts           AppServices.noteMove
-packages/core/src/testing/services.ts                  createTestAppServices, the test factory table
-apps/desktop/src/routing/router.tsx                    useAppServices().noteMove
+packages/core/src/app/create-core-services.ts           CoreServices.noteMove
+packages/core/src/testing/services.ts                  createTestCoreServices, the test factory table
+apps/desktop/src/routing/router.tsx                    useCoreServices().noteMove
 ```
 
 ## Do you need a service?
@@ -129,7 +129,7 @@ Rules:
 - No function overloads: write one function per signature. Lint enforces it.
 - A JSDoc comment is always multi-line (`/**`, ` * text`, ` */`), also for one
   sentence.
-- Containers (`AppServices`, `MobileServices`, `InternalServices`,
+- Containers (`CoreServices`, `MobileServices`, `CoreInternalServices`,
   `GraphServices`) and pure value builders (`createGraphSession`) are not
   services. They stay object literals and plain functions.
 - A method that writes to the graph pins the write to one graph session. §2
@@ -221,47 +221,46 @@ invalidates queries on `indexLifecycle.onApplied`.
 
 ## 5. Add it to the composition root
 
-In `packages/core/src/app/create-app-services.ts`:
+In `packages/core/src/app/create-core-services.ts`:
 
-1. Add the field to `AppServices`: `readonly noteMove: NoteMoveService`.
-2. Add the factory to `appServiceFactories`, the table of every service key
+1. Add the field to `CoreServices`: `readonly noteMove: NoteMoveService`.
+2. Add the factory to `coreServiceFactories`, the table of every service key
    and the factory that builds it: `noteMove: createNoteMoveService`.
-3. Build it in `composeAppServices`, after the services it depends on, through
+3. Build it in `composeCoreServices`, after the services it depends on, through
    the table, and return it:
 
    ```ts
    const noteMove = create.noteMove({ ipc, indexStore, openDocuments, logger })
    ```
 
-4. Add the key to `SERVICE_KEYS` in `create-app-services.test.ts`.
+4. Add the key to `SERVICE_KEYS` in `create-core-services.test.ts`.
 5. Export the names the app imports from a barrel in `packages/core/src/exports/`
    (`NoteMoveService` is in `platform.ts`). The apps import only from the package
    root. The factory and its `XxxServiceDeps` stay out of the barrel: only
-   `createAppServices` builds services. `pnpm lint` runs
-   `packages/core/scripts/check-exports.mjs`, which fails on a barrel name that
-   no app file references and on an `AppServices` field that no desktop
-   non-test file reads.
+   `createCoreServices` builds services. Export a name only when an app file
+   references it, and keep an `CoreServices` field only when a desktop non-test
+   file reads it.
 
-`composeAppServices(adapters, factories)` is the one composition root. It
+`composeCoreServices(adapters, factories)` is the one composition root. It
 builds every service in a fixed order and passes each factory the same
-dependencies. `createAppServices(adapters)` calls it with the production table
-and returns `AppServices`; `createTestAppServices()` calls it with test
+dependencies. `createCoreServices(adapters)` calls it with the production table
+and returns `CoreServices`; `createTestCoreServices()` calls it with test
 adapters and a table that replaces some factories. A replacement factory gets
 the same dependencies as the production one and may ignore them.
 
-`AppServices` holds only the services that the app reads. A service that only
-other services use stays a local in `composeAppServices`; list it in
-`InternalServices` (same file) instead, so tests still reach it through
-`TestAppServices`.
+`CoreServices` holds only the services that the app reads. A service that only
+other services use stays a local in `composeCoreServices`; list it in
+`CoreInternalServices` (same file) instead, so tests still reach it through
+`TestCoreServices`.
 
 A service that only a mobile platform needs goes in `MobileServices`, which
-`AppServices.mobile` holds (`null` off mobile). `composeAppServices` builds it
+`CoreServices.mobile` holds (`null` off mobile). `composeCoreServices` builds it
 in `buildMobileServices()`, which the `mobile` factory (`createMobileServices`)
 runs only on a mobile platform. The mobile tree reads it with `useMobileAppServices()`.
 
 ## 6. The test double
 
-`createTestAppServices()` builds the app through the same composition root.
+`createTestCoreServices()` builds the app through the same composition root.
 By default a service in a test is the **real service** over the test doubles
 of its dependencies, so the real logic runs in every consumer's test. Add a
 test double only when the real service cannot run in a test, or a test must
@@ -334,7 +333,7 @@ Rules:
 
 - Do not write a `createTestXxxService` that only calls `createXxxService`
   over default doubles. A test builds the real service over the doubles it
-  needs, or takes it from `createTestAppServices()`.
+  needs, or takes it from `createTestCoreServices()`.
 - A recording wrapper is a class `TestXxxServiceImpl implements
   TestXxxService` that holds the real service in `#inner` and forwards every
   interface member explicitly. Do not spread the real service.
@@ -342,7 +341,7 @@ Rules:
   (`moved()`, `calls()`, `getWrites()`) or **seed and drive** (`set()`,
   `emit()`, `setState()`). They never change what the real methods mean.
 - Add the double to the test factory table in `testing/services.ts`
-  (`noteMove: (deps) => createTestNoteMoveService(deps)`). `TestAppServices`
+  (`noteMove: (deps) => createTestNoteMoveService(deps)`). `TestCoreServices`
   takes the member type from the table, so tests get `app.noteMove.moved()`.
 
 ## 7. The test
@@ -392,12 +391,12 @@ pitfalls.
 
 ## 8. Use it from the app
 
-**React.** Read the service with `useAppServices()` and destructure it. Do not
+**React.** Read the service with `useCoreServices()` and destructure it. Do not
 add a `useNoteMoveService()` hook.
 
 ```tsx
 // apps/desktop/src/routing/router.tsx
-const { navigation: appNavigation, noteMove } = useAppServices()
+const { navigation: appNavigation, noteMove } = useCoreServices()
 
 useEffect(
   () => noteMove.onMoved((from, to) => navigation.noteMoved(from, to)),
@@ -418,12 +417,12 @@ useEffect(
 
 **Non-React modules** in `apps/desktop/src/lib/` and `providers/*.ts` take the
 services as a first parameter `ctx`, typed as the `Pick` they use. The React
-caller passes `useAppServices()`:
+caller passes `useCoreServices()`:
 
 ```ts
 // apps/desktop/src/providers/graph-session.ts
 export function bootGraphSession(
-  ctx: Pick<AppServices, 'graphSession' | 'deepLink' | 'window'>,
+  ctx: Pick<CoreServices, 'graphSession' | 'deepLink' | 'window'>,
 ): Unlisten
 ```
 
@@ -444,8 +443,8 @@ not exist in tests) needs an **adapter**, because `@reflect/core` must not impor
 
 1. Define the adapter interface in core, next to the service. `UpdaterAdapter`
    in `app/update-service.ts` is `{ check, relaunch }`.
-2. Take it in the service's `deps`, and add a field to `AppAdapters` in
-   `create-app-services.ts` (`readonly updater?: UpdaterAdapter`). Make it
+2. Take it in the service's `deps`, and add a field to `CoreAdapters` in
+   `create-core-services.ts` (`readonly updater?: UpdaterAdapter`). Make it
    optional when a host can lack it, and decide what the service does then.
 3. Implement it in `apps/desktop/src/services/`
    (`tauri-updater.ts` imports `@tauri-apps/plugin-updater`), and pass it in
@@ -477,7 +476,7 @@ The shape:
   `options` identify the session, they are not dependencies. Its factory goes
   in the `graphServiceFactories` table in `app/create-graph-services.ts`, and
   `GraphServicesDeps` carries its deps (`backup: BackupServiceDeps`), which
-  `composeAppServices` builds once. A test swaps a factory through the
+  `composeCoreServices` builds once. A test swaps a factory through the
   `factories` argument of `createGraphServices`.
 - A per-session method on an app-scoped service (`capture.openSession(options)`,
   `chatSessions.create(options)`) takes what identifies the session.
@@ -514,16 +513,16 @@ Ordinary services stay app-scoped and read the open graph's session per call
       `console.*`, `Date.now()`, `setTimeout`, `fetch` or `@tauri-apps/*`
 - [ ] State in `#` fields; changes reported through `onXxx(listener)` /
       `subscribe(listener)`
-- [ ] In `appServiceFactories` and built in `composeAppServices`; on
-      `AppServices` (key in `SERVICE_KEYS`) only when the app reads it, else in
-      `InternalServices`; the names the app imports exported from
+- [ ] In `coreServiceFactories` and built in `composeCoreServices`; on
+      `CoreServices` (key in `SERVICE_KEYS`) only when the app reads it, else in
+      `CoreInternalServices`; the names the app imports exported from
       `packages/core/src/exports/`
 - [ ] A `createTestXxxService` in `packages/core/src/testing/` and an entry in
       the test factory table of `testing/services.ts`, only for a fake or a
       recording wrapper (see §6)
 - [ ] `<name>-service.test.ts`: the real service over test doubles of its deps
-- [ ] App code reads it with `useAppServices()`, `ctx`, or
+- [ ] App code reads it with `useCoreServices()`, `ctx`, or
       `CommandContext.services`
-- [ ] Adapter in `apps/desktop/src/services/` and a field on `AppAdapters`, only
+- [ ] Adapter in `apps/desktop/src/services/` and a field on `CoreAdapters`, only
       if it needs a JavaScript-side platform API
 - [ ] `pnpm typecheck && pnpm lint && pnpm test --run <touched paths>`
