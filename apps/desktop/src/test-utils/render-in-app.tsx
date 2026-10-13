@@ -26,7 +26,9 @@ import type { Route } from '@/routing/route.ts'
 import { RouterProvider } from '@/routing/router.tsx'
 import { AppServicesProvider } from '@/services/services-provider.tsx'
 
-/** The platform facts of the mobile app: pass as `platform` to render a mobile surface. */
+/**
+ * The platform facts of the mobile app: pass as `platform` to render a mobile surface.
+ */
 export const MOBILE_PLATFORM: TestPlatformOptions = {
   appPlatform: 'ios',
   isMacosDesktop: false,
@@ -41,24 +43,38 @@ export interface RenderInAppOptions {
    * is the graph chooser: no graph, and no graph services.
    */
   graph?: TestOpenGraph | null
-  /** Reported over the graph state, e.g. `{ indexing: true }`, `{ error }`, `{ recents }`. */
-  graphState?: Partial<GraphSessionState<GraphServices<AppServices>>>
-  /** The stored settings document, loaded before the first render. */
+  /**
+   * Reported over the graph state, e.g. `{ indexing: true }`, `{ error }`, `{ recents }`.
+   */
+  graphState?: Partial<GraphSessionState<GraphServices>>
+  /**
+   * The stored settings document, loaded before the first render.
+   */
   settings?: Partial<Settings>
-  /** Reported over the mobile onboarding state, e.g. `{ kind: 'icloud' }`. */
+  /**
+   * Reported over the mobile onboarding state, e.g. `{ kind: 'icloud' }`.
+   */
   mobile?: Partial<MobileOnboardingState>
-  /** The route the router starts on; defaults to today. `null` mounts no router. */
+  /**
+   * The route the router starts on; defaults to today. `null` mounts no router.
+   */
   route?: Route | null
   /**
    * Swap the backup factory for a scripted one that starts in this state; the
    * result's `backup` drives it. Needs an open graph.
    */
   sync?: BackupState
-  /** The facts of the test platform. Only without `app`; see {@link MOBILE_PLATFORM}. */
+  /**
+   * The facts of the test platform. Only without `app`; see {@link MOBILE_PLATFORM}.
+   */
   platform?: TestPlatformOptions
-  /** Defaults to a fresh client without retries, cleared when the test ends. */
+  /**
+   * Defaults to a fresh client without retries, cleared when the test ends.
+   */
   queryClient?: QueryClient
-  /** Wraps `ui` inside every provider, for providers this helper does not mount. */
+  /**
+   * Wraps `ui` inside every provider, for providers this helper does not mount.
+   */
   wrapper?: (children: ReactNode) => ReactNode
   /**
    * Mount only `AppServicesProvider` and the query client, for a test of a
@@ -72,7 +88,9 @@ export interface RenderInAppOptions {
 interface InAppHandles<App extends AppServices> {
   readonly app: App
   readonly queryClient: QueryClient
-  /** The scripted backup when `sync` was a `BackupState`, else `null`. */
+  /**
+   * The scripted backup when `sync` was a `BackupState`, else `null`.
+   */
   readonly backup: TestBackupService | null
 }
 
@@ -86,7 +104,9 @@ type WithApp<App> = RenderInAppOptions & { app: App }
 type WithoutApp = RenderInAppOptions & { app?: undefined }
 type AnyOptions = RenderInAppOptions & { app?: AppServices | undefined }
 
-/** Prepare `app` and the provider tree; the caller renders `wrap(ui)` and calls `dispose` after. */
+/**
+ * Prepare `app` and the provider tree; the caller renders `wrap(ui)` and calls `dispose` after.
+ */
 async function prepare(options: AnyOptions | undefined): Promise<
   InAppHandles<AppServices> & {
     wrap: (children: ReactNode) => ReactElement
@@ -221,7 +241,9 @@ export async function renderInApp(
   return Object.assign(screen, handles)
 }
 
-/** {@link renderInApp} for a hook: `hook` runs inside the same providers. */
+/**
+ * {@link renderInApp} for a hook: `hook` runs inside the same providers.
+ */
 export async function renderHookInApp<Result, Props = undefined>(
   hook: (props?: Props) => Result,
   options?: WithoutApp & { initialProps?: Props },

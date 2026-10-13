@@ -12,24 +12,36 @@ import type {
   PageDescriberService,
   PageEnrichment,
 } from '../ai/page-describer-service.ts'
-import type { TranscriptionRequest, TranscriptionService } from '../ai/transcription-service.ts'
+import {
+  createTranscriptionService,
+  type TranscriptionRequest,
+  type TranscriptionService,
+} from '../ai/transcription-service.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
 
-/** A model, or a function that answers each `create` call. */
+/**
+ * A model, or a function that answers each `create` call.
+ */
 export type TestLanguageModelSource =
   | LanguageModel
   | ((config: AiProviderConfig, apiKey: string) => LanguageModel | Promise<LanguageModel>)
 
-/** A `create` call the fake received. */
+/**
+ * A `create` call the fake received.
+ */
 export interface TestLanguageModelCall {
   config: AiProviderConfig
   apiKey: string
 }
 
 export interface TestLanguageModelService extends LanguageModelService {
-  /** Every `create` call, in order. */
+  /**
+   * Every `create` call, in order.
+   */
   calls(): readonly TestLanguageModelCall[]
-  /** Replaces the model that later `create` calls answer with. */
+  /**
+   * Replaces the model that later `create` calls answer with.
+   */
   setModel(model: TestLanguageModelSource): void
 }
 
@@ -56,13 +68,19 @@ export function createTestLanguageModelService(
 }
 
 export interface TestAiKeyValidationService extends AiKeyValidationService {
-  /** Every input passed to `validate()`, in order. */
+  /**
+   * Every input passed to `validate()`, in order.
+   */
   calls(): readonly ApiKeyValidationInput[]
-  /** Replaces the result that later `validate()` calls answer with. */
+  /**
+   * Replaces the result that later `validate()` calls answer with.
+   */
   setResult(result: ApiKeyValidation): void
 }
 
-/** An {@link AiKeyValidationService} that answers `result` without any request. */
+/**
+ * An {@link AiKeyValidationService} that answers `result` without any request.
+ */
 export function createTestAiKeyValidationService(
   result: ApiKeyValidation = 'valid',
 ): TestAiKeyValidationService {
@@ -80,15 +98,21 @@ export function createTestAiKeyValidationService(
   }
 }
 
-/** A page enrichment, or a function that answers each `describe` call. */
+/**
+ * A page enrichment, or a function that answers each `describe` call.
+ */
 export type TestPageDescriberSource =
   | PageEnrichment
   | ((request: DescribePageRequest) => PageEnrichment | Promise<PageEnrichment>)
 
 export interface TestPageDescriberService extends PageDescriberService {
-  /** Every request passed to `describe()`, in order. */
+  /**
+   * Every request passed to `describe()`, in order.
+   */
   calls(): readonly DescribePageRequest[]
-  /** Replaces the result that later `describe()` calls answer with. */
+  /**
+   * Replaces the result that later `describe()` calls answer with.
+   */
   setResult(result: TestPageDescriberSource): void
 }
 
@@ -113,15 +137,21 @@ export function createTestPageDescriberService(
   }
 }
 
-/** A description, or a function that answers each `describe` call. */
+/**
+ * A description, or a function that answers each `describe` call.
+ */
 export type TestAssetDescriberSource =
   | string
   | ((request: DescribeAssetRequest) => string | Promise<string>)
 
 export interface TestAssetDescriberService extends AssetDescriberService {
-  /** Every request passed to `describe()`, in order. */
+  /**
+   * Every request passed to `describe()`, in order.
+   */
   calls(): readonly DescribeAssetRequest[]
-  /** Replaces the result that later `describe()` calls answer with. */
+  /**
+   * Replaces the result that later `describe()` calls answer with.
+   */
   setResult(result: TestAssetDescriberSource): void
 }
 
@@ -146,33 +176,45 @@ export function createTestAssetDescriberService(
   }
 }
 
-/** A transcript, or a function that answers each `transcribe` call. */
+/**
+ * A transcript, or a function that answers each `transcribe` call.
+ */
 export type TestTranscriptionSource =
   | string
   | ((request: TranscriptionRequest) => string | Promise<string>)
 
 export interface TestTranscriptionService extends TranscriptionService {
-  /** Every request passed to `transcribe()`, in order. */
+  /**
+   * Every request passed to `transcribe()`, in order.
+   */
   calls(): readonly TranscriptionRequest[]
-  /** Replaces the result that later `transcribe()` calls answer with. */
+  /**
+   * Replaces the result that later `transcribe()` calls answer with.
+   */
   setResult(result: TestTranscriptionSource): void
 }
 
 /**
  * A {@link TranscriptionService} that answers `result` without any request:
- * an empty transcript by default.
+ * an empty transcript by default. `sessionTranscript` is the real one, so the
+ * App Review demo key gets its canned transcript.
  */
 export function createTestTranscriptionService(
   result: TestTranscriptionSource = '',
 ): TestTranscriptionService {
   let source = result
   const log: TranscriptionRequest[] = []
+  const real = createTranscriptionService({
+    http: {
+      fetch: () => Promise.reject(new Error('The test transcription service has no network')),
+    },
+  })
   return {
     transcribe: async (request) => {
       log.push(request)
       return typeof source === 'function' ? await source(request) : source
     },
-    sessionTranscript: () => null,
+    sessionTranscript: (apiKey) => real.sessionTranscript(apiKey),
     calls: () => [...log],
     setResult(next) {
       source = next

@@ -15,11 +15,7 @@ import { createPrivacyService } from '../privacy/privacy-service.ts'
 import { createNoteToolsService } from './chat/note-tools-service.ts'
 import { createChatEngineService, type ChatStreamEvent } from './chat/chat-engine-service.ts'
 import { fitToContextWindow } from './chat/context-window.ts'
-import {
-  createLanguageModelService,
-  createLazyAiSdkLoader,
-  withAppReviewDemo,
-} from './language-model-service.ts'
+import { createLanguageModelService, createLazyAiSdkLoader } from './language-model-service.ts'
 
 describe('createDemoModel', () => {
   it('generates the demo reply without any transport', async () => {
@@ -59,9 +55,7 @@ describe('createDemoModel', () => {
     const assetReferences = { notePaths: async () => [] }
     const engine = createChatEngineService({
       logger: createTestLoggerService(),
-      languageModel: withAppReviewDemo(
-        createLanguageModelService({ http, sdk: createLazyAiSdkLoader() }),
-      ),
+      languageModel: createLanguageModelService({ http, sdk: createLazyAiSdkLoader() }),
       noteTools: createNoteToolsService({
         retrieval: createTestRetrievalService(),
         noteFile,

@@ -2,7 +2,7 @@ import { createContext, use, type ReactElement, type ReactNode } from 'react'
 import type { AppServices, GraphServices } from '@reflect/core'
 
 const AppServicesContext = createContext<AppServices | null>(null)
-const GraphServicesContext = createContext<GraphServices<AppServices> | null>(null)
+const GraphServicesContext = createContext<GraphServices | null>(null)
 
 export function AppServicesProvider({
   services,
@@ -14,18 +14,22 @@ export function AppServicesProvider({
   return <AppServicesContext value={services}>{children}</AppServicesContext>
 }
 
-/** Provides the open graph's services; `null` while no graph session is open. */
+/**
+ * Provides the open graph's services; `null` while no graph session is open.
+ */
 export function GraphServicesProvider({
   services,
   children,
 }: {
-  services: GraphServices<AppServices> | null
+  services: GraphServices | null
   children: ReactNode
 }): ReactElement {
   return <GraphServicesContext value={services}>{children}</GraphServicesContext>
 }
 
-/** The {@link AppServices} of the nearest `AppServicesProvider`; `optional` allows none. */
+/**
+ * The {@link AppServices} of the nearest `AppServicesProvider`; `optional` allows none.
+ */
 export function useAppServices(options: { optional: true }): AppServices | null
 export function useAppServices(): AppServices
 export function useAppServices(options?: { optional: true }): AppServices | null
@@ -37,17 +41,18 @@ export function useAppServices(options?: { optional: true }): AppServices | null
   return services
 }
 
-/** The {@link GraphServices} of the nearest `GraphServicesProvider`; `optional` allows none. */
-export function useGraphServices(options: { optional: true }): GraphServices<AppServices> | null
-export function useGraphServices(): GraphServices<AppServices>
-export function useGraphServices(options?: { optional: true }): GraphServices<AppServices> | null {
+/**
+ * The {@link GraphServices} of the nearest `GraphServicesProvider`; `optional` allows none.
+ */
+export function useGraphServices(options: { optional: true }): GraphServices | null
+export function useGraphServices(): GraphServices
+export function useGraphServices(options?: { optional: true }): GraphServices | null {
   const services = use(GraphServicesContext)
   if (services === null && options?.optional !== true) {
     throw new Error('useGraphServices() must be called inside a <GraphServicesProvider>')
   }
   return services
 }
-
 
 /*
 FIXME 1: use function overrides is anti-pattern. Fix all functions in reflect-open and avoid function overrides. See example below

@@ -138,7 +138,7 @@ background with a BYOK model, in `audio/`:
   and, through **`NativeActionService`**, the OS entry points.
 
 The App Review demo key writes one canned note per session. That rule lives in
-`withAppReviewDemoTranscription`, not in the pipeline.
+`TranscriptionService.sessionTranscript`, not in the pipeline.
 
 ## The open graph
 

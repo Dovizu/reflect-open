@@ -22,27 +22,39 @@ export type UpdateState =
       failed install still has its found update and retries by installing. */
   | { phase: 'error'; message: string; during: 'check' | 'install' }
 
-/** A download progress event, shaped like the Tauri updater plugin's `DownloadEvent`. */
+/**
+ * A download progress event, shaped like the Tauri updater plugin's `DownloadEvent`.
+ */
 export type UpdateDownloadEvent =
   | { event: 'Started'; data: { contentLength?: number } }
   | { event: 'Progress'; data: { chunkLength: number } }
   | { event: 'Finished' }
 
-/** An update the release endpoint offers. */
+/**
+ * An update the release endpoint offers.
+ */
 export interface AvailableUpdate {
   readonly version: string
-  /** Download, verify, and install the update, reporting progress through `onEvent`. */
+  /**
+   * Download, verify, and install the update, reporting progress through `onEvent`.
+   */
   downloadAndInstall(onEvent: (event: UpdateDownloadEvent) => void): Promise<void>
 }
 
-/** The native updater and process relaunch behind an {@link UpdateService}. */
+/**
+ * The native updater and process relaunch behind an {@link UpdateService}.
+ */
 export interface UpdaterAdapter {
-  /** The newer release, or `null` when the app is current. */
+  /**
+   * The newer release, or `null` when the app is current.
+   */
   check(): Promise<AvailableUpdate | null>
   relaunch(): Promise<void>
 }
 
-/** Members are function properties so surfaces can pass them around unbound. */
+/**
+ * Members are function properties so surfaces can pass them around unbound.
+ */
 export interface UpdateService {
   /**
    * False outside a desktop native shell (browser dev, iOS, Android): hide
@@ -51,36 +63,56 @@ export interface UpdateService {
   readonly supported: boolean
   getState: () => UpdateState
   subscribe: (listener: () => void) => Unlisten
-  /** Begin auto-checking in the main window: once now, then every six hours. */
+  /**
+   * Begin auto-checking in the main window: once now, then every six hours.
+   */
   start: () => void
-  /** User-initiated check: surfaces "up to date" and failures, unlike auto. */
+  /**
+   * User-initiated check: surfaces "up to date" and failures, unlike auto.
+   */
   checkNow: () => Promise<void>
-  /** Download and install the found update; progress lands in the state. */
+  /**
+   * Download and install the found update; progress lands in the state.
+   */
   install: () => Promise<void>
-  /** Relaunch into the installed update. */
+  /**
+   * Relaunch into the installed update.
+   */
   restart: () => Promise<void>
-  /** Retry what failed: an install after a failed install, otherwise a check. */
+  /**
+   * Retry what failed: an install after a failed install, otherwise a check.
+   */
   retryAction: () => Promise<void>
-  /** Stop auto-checking. */
+  /**
+   * Stop auto-checking.
+   */
   dispose: () => void
 }
 
 export interface UpdateServiceDeps {
-  readonly updater: UpdaterAdapter
+  /**
+   * The native updater, or `undefined` on a host without one: updates are
+   * then unsupported.
+   */
+  readonly updater: UpdaterAdapter | undefined
   readonly clock: ClockService
   readonly logger: LoggerService
   readonly platform: PlatformFacts
   readonly window: Pick<WindowService, 'isMainWindow'>
 }
 
-/** Six hours: frequent enough to catch releases, quiet enough to be free. */
+/**
+ * Six hours: frequent enough to catch releases, quiet enough to be free.
+ */
 const AUTO_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
-/** Runs the retry that matches the failure in `service`'s state. */
+/**
+ * Runs the retry that matches the failure in `service`'s state.
+ */
 export function retryUpdate(
   service: Pick<UpdateService, 'getState' | 'install' | 'checkNow'>,
 ): Promise<void> {
@@ -99,74 +131,50 @@ export function retryUpdate(
  * Auto-checks fail silently by design: offline is a normal condition, and the
  * release endpoint being unreachable must never cost the user attention.
  */
-export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
-  const { updater, clock, logger } = deps
-  const supported = deps.platform.isNativeShell && !isMobilePlatform(deps.platform.appPlatform)
-  const listeners = new Set<() => void>()
-  let state: UpdateState = { phase: 'idle' }
-  let pendingUpdate: AvailableUpdate | null = null
-  let timer: TimerHandle | null = null
+class UpdateServiceImpl implements UpdateService {
+  readonly #deps: UpdateServiceDeps & { readonly updater: UpdaterAdapter }
+  readonly #listeners = new Set<() => void>()
+  #state: UpdateState = { phase: 'idle' }
+  #pendingUpdate: AvailableUpdate | null = null
+  #timer: TimerHandle | null = null
 
-  function setState(next: UpdateState): void {
-    state = next
-    for (const listener of listeners) {
-      listener()
+  readonly supported: boolean
+
+  constructor(deps: UpdateServiceDeps & { readonly updater: UpdaterAdapter }) {
+    this.#deps = deps
+    this.supported = deps.platform.isNativeShell && !isMobilePlatform(deps.platform.appPlatform)
+  }
+
+  readonly getState = (): UpdateState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
     }
   }
 
-  // Read through a call so post-await guards see the live object: TypeScript
-  // would otherwise keep the pre-await narrowing of the closed-over `state`.
-  function currentState(): UpdateState {
-    return state
-  }
-
-  async function runCheck(silent: boolean): Promise<void> {
-    if (state.phase === 'checking' || state.phase === 'downloading' || state.phase === 'ready') {
+  readonly start = (): void => {
+    if (!this.supported || !this.#deps.window.isMainWindow() || this.#timer !== null) {
       return
     }
-    // A silent check never touches visible state except to add a found
-    // update: no "Checking…" blink over the sidebar row, and no retracting
-    // anything on an empty answer (transient: release mid-edit, manifest
-    // propagation) or a failure (offline is normal). Only the user's own
-    // check shows its lifecycle, and only its answer is authoritative.
-    if (!silent) {
-      setState({ phase: 'checking' })
-    }
-    // Every setState replaces the object, so identity means "nothing else
-    // (e.g. an install of a previously found update) transitioned while we awaited".
-    const baseline = state
-    try {
-      const update = await updater.check()
-      if (currentState() !== baseline) {
-        return
-      }
-      if (update) {
-        pendingUpdate = update
-        setState({ phase: 'available', version: update.version })
-      } else if (!silent) {
-        pendingUpdate = null
-        setState({ phase: 'upToDate' })
-      }
-    } catch (error) {
-      if (currentState() !== baseline) {
-        return
-      }
-      if (silent) {
-        logger.warn('update check failed (ignored)', error)
-      } else {
-        setState({ phase: 'error', message: errorMessage(error), during: 'check' })
-      }
-    }
+    void this.#runCheck(true)
+    this.#timer = this.#deps.clock.setInterval(
+      () => void this.#runCheck(true),
+      AUTO_CHECK_INTERVAL_MS,
+    )
   }
 
-  async function install(): Promise<void> {
-    const update = pendingUpdate
-    if (!update || state.phase === 'downloading' || state.phase === 'ready') {
+  readonly checkNow = (): Promise<void> => this.#runCheck(false)
+
+  readonly install = async (): Promise<void> => {
+    const update = this.#pendingUpdate
+    if (!update || this.#state.phase === 'downloading' || this.#state.phase === 'ready') {
       return
     }
     let contentLength: number | null = null
     let received = 0
-    setState({ phase: 'downloading', version: update.version, percent: null })
+    this.#setState({ phase: 'downloading', version: update.version, percent: null })
     try {
       await update.downloadAndInstall((event) => {
         switch (event.event) {
@@ -178,63 +186,108 @@ export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
             received += event.data.chunkLength
             if (contentLength !== null && contentLength > 0) {
               const percent = Math.min(100, Math.round((received / contentLength) * 100))
-              setState({ phase: 'downloading', version: update.version, percent })
+              this.#setState({ phase: 'downloading', version: update.version, percent })
             }
             break
           case 'Finished':
-            setState({ phase: 'downloading', version: update.version, percent: 100 })
+            this.#setState({ phase: 'downloading', version: update.version, percent: 100 })
             break
         }
       })
-      setState({ phase: 'ready', version: update.version })
+      this.#setState({ phase: 'ready', version: update.version })
     } catch (error) {
-      setState({ phase: 'error', message: errorMessage(error), during: 'install' })
+      this.#setState({ phase: 'error', message: errorMessage(error), during: 'install' })
     }
   }
 
-  const service: UpdateService = {
-    supported,
-    getState: () => state,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    start() {
-      if (!supported || !deps.window.isMainWindow() || timer !== null) {
+  readonly restart = (): Promise<void> => this.#deps.updater.relaunch()
+
+  readonly retryAction = (): Promise<void> => retryUpdate(this)
+
+  readonly dispose = (): void => {
+    if (this.#timer !== null) {
+      this.#deps.clock.clearInterval(this.#timer)
+      this.#timer = null
+    }
+  }
+
+  #setState(next: UpdateState): void {
+    this.#state = next
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  async #runCheck(silent: boolean): Promise<void> {
+    const phase = this.#state.phase
+    if (phase === 'checking' || phase === 'downloading' || phase === 'ready') {
+      return
+    }
+    // A silent check never touches visible state except to add a found
+    // update: no "Checking…" blink over the sidebar row, and no retracting
+    // anything on an empty answer (transient: release mid-edit, manifest
+    // propagation) or a failure (offline is normal). Only the user's own
+    // check shows its lifecycle, and only its answer is authoritative.
+    if (!silent) {
+      this.#setState({ phase: 'checking' })
+    }
+    // Every setState replaces the object, so identity means "nothing else
+    // (e.g. an install of a previously found update) transitioned while we awaited".
+    const baseline = this.#state
+    try {
+      const update = await this.#deps.updater.check()
+      if (this.#state !== baseline) {
         return
       }
-      void runCheck(true)
-      timer = clock.setInterval(() => void runCheck(true), AUTO_CHECK_INTERVAL_MS)
-    },
-    checkNow: () => runCheck(false),
-    install,
-    restart: () => updater.relaunch(),
-    retryAction: () => retryUpdate(service),
-    dispose() {
-      if (timer !== null) {
-        clock.clearInterval(timer)
-        timer = null
+      if (update) {
+        this.#pendingUpdate = update
+        this.#setState({ phase: 'available', version: update.version })
+      } else if (!silent) {
+        this.#pendingUpdate = null
+        this.#setState({ phase: 'upToDate' })
       }
-    },
+    } catch (error) {
+      if (this.#state !== baseline) {
+        return
+      }
+      if (silent) {
+        this.#deps.logger.warn('update check failed (ignored)', error)
+      } else {
+        this.#setState({ phase: 'error', message: errorMessage(error), during: 'check' })
+      }
+    }
   }
-  return service
 }
 
 const IDLE: UpdateState = { phase: 'idle' }
 
-/** An {@link UpdateService} for hosts without an updater: always idle, every action a no-op. */
-export function createUnsupportedUpdateService(): UpdateService {
-  return {
-    supported: false,
-    getState: () => IDLE,
-    subscribe: () => () => {},
-    start: () => {},
-    checkNow: async () => {},
-    install: async () => {},
-    restart: async () => {},
-    retryAction: async () => {},
-    dispose: () => {},
-  }
+/**
+ * An {@link UpdateService} for hosts without an updater: always idle, every
+ * action a no-op.
+ */
+class UnsupportedUpdateService implements UpdateService {
+  readonly supported = false
+
+  readonly getState = (): UpdateState => IDLE
+
+  readonly subscribe = (): Unlisten => () => {}
+
+  readonly start = (): void => {}
+
+  readonly checkNow = async (): Promise<void> => {}
+
+  readonly install = async (): Promise<void> => {}
+
+  readonly restart = async (): Promise<void> => {}
+
+  readonly retryAction = async (): Promise<void> => {}
+
+  readonly dispose = (): void => {}
+}
+
+export function createUpdateService(deps: UpdateServiceDeps): UpdateService {
+  const { updater } = deps
+  return updater === undefined
+    ? new UnsupportedUpdateService()
+    : new UpdateServiceImpl({ ...deps, updater })
 }

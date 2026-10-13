@@ -220,7 +220,7 @@ rejects a file write, and drops an index write, that carries a stale one, so a p
 that outlives a graph switch cannot land in the next graph.
 
 `GraphSessionService` builds the graph-scoped container (`GraphServices`,
-`createGraphServices(app, session, role, deps)` in `app/create-graph-services.ts`)
+`createGraphServices(session, role, deps)` in `app/create-graph-services.ts`)
 for each session and publishes it as `getState().services`; the app reads it with
 `useGraphServices()`. It holds the per-graph lifecycles above. A background pass that
 must stop with the graph checks `session.signal.aborted` (`indexLifecycle.sync(session)`).

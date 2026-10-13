@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
 import { APP_REVIEW_STUB_KEY } from '../ai/app-review-demo.ts'
 import { TranscriptionRejectedError } from '../ai/transcribe-http.ts'
-import { withAppReviewDemoTranscription } from '../ai/transcription-service.ts'
 import {
   ANTHROPIC_CONFIG,
   ANTHROPIC_KEY,
@@ -523,7 +522,9 @@ describe('AudioMemoTranscriptionService.reconcile', () => {
 })
 
 describe('AudioMemoTranscriptionService.reconcile with the App Review demo key', () => {
-  /** 2026-06-12 09:00:00 local: the moment the canned transcript stamps. */
+  /**
+   * 2026-06-12 09:00:00 local: the moment the canned transcript stamps.
+   */
   const DEMO_NOW = new Date(2026, 5, 12, 9, 0, 0, 0)
   const DEMO_BODY =
     "This is a demo transcription produced by Reflect's App Review demo key. " +
@@ -531,10 +532,7 @@ describe('AudioMemoTranscriptionService.reconcile with the App Review demo key',
     `Demo transcript generated at ${DEMO_NOW.toLocaleString()}.`
 
   async function createDemoKit() {
-    const kit = await createAudioMemoTestKit({
-      providers: WITH_ANTHROPIC_DEFAULT,
-      wrapTranscription: withAppReviewDemoTranscription,
-    })
+    const kit = await createAudioMemoTestKit({ providers: WITH_ANTHROPIC_DEFAULT })
     await kit.secrets.set(OPENAI_KEY, APP_REVIEW_STUB_KEY)
     await kit.secrets.set(ANTHROPIC_KEY, APP_REVIEW_STUB_KEY)
     // The canned transcript reads the system date, not the clock service.
@@ -612,16 +610,5 @@ describe('AudioMemoTranscriptionService.reconcile with the App Review demo key',
 
     expect(outcome).toMatchObject({ pending: 1, transcribed: 0, stopped: { reason: 'stale' } })
     expect(kit.noteFile.writes()).toEqual([])
-  })
-
-  it('a real key next to the demo decorator goes through the normal pipeline', async () => {
-    const kit = await createAudioMemoTestKit({ wrapTranscription: withAppReviewDemoTranscription })
-    kit.addRecording(MEMO.audioPath)
-
-    const outcome = await kit.reconcile()
-
-    expect(outcome).toEqual(DONE)
-    expect(kit.transcription.calls()).toHaveLength(1)
-    expect(kit.noteFile.getWrites(MEMO.notePath)[0]).toContain('memo transcript')
   })
 })

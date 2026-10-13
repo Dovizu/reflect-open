@@ -10,7 +10,7 @@ is small, and it has dependencies, state, an event and a test double.
 
 ```text
 packages/core/src/documents/note-move-service.ts       interface + factory
-packages/core/src/documents/note-move-service.test.ts  the test, over test doubles // FIXME: what does "over test doubles" even mean?
+packages/core/src/documents/note-move-service.test.ts  the test: the real service over test doubles of its deps
 packages/core/src/testing/documents.ts                 createTestNoteMoveService
 packages/core/src/app/create-app-services.ts           AppServices.noteMove
 packages/core/src/testing/services.ts                  createTestAppServices, the test factory table
@@ -203,8 +203,8 @@ other services use stays a local in `composeAppServices`; list it in
 
 A service that only a mobile platform needs goes in `MobileServices`, which
 `AppServices.mobile` holds (`null` off mobile). `composeAppServices` builds it
-in `createMobileServices()`, which the `mobile` factory runs only on a mobile
-platform. The mobile tree reads it with `useMobileAppServices()`.
+in `buildMobileServices()`, which the `mobile` factory (`createMobileServices`)
+runs only on a mobile platform. The mobile tree reads it with `useMobileAppServices()`.
 
 ## 6. The test double
 
@@ -262,8 +262,8 @@ Rules:
 
 ## 7. The test
 
-The test is next to the service and constructs it directly over test doubles.
-No `vi.mock`, no fake timers, no console spies:
+The test is next to the service. It tests the real service over test doubles of
+its deps. No `vi.mock`, no fake timers, no console spies:
 
 ```ts
 // packages/core/src/documents/note-move-service.test.ts

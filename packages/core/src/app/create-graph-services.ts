@@ -13,7 +13,9 @@ import type { GraphRole, GraphSession } from './graph-session.ts'
 import { isMobilePlatform } from './platform.ts'
 import type { PlatformFacts } from './platform-service.ts'
 
-/** What {@link createGraphServices} builds the lifecycles of one graph session from. */
+/**
+ * What {@link createGraphServices} builds the lifecycles of one graph session from.
+ */
 export interface GraphServicesDeps {
   readonly backups: BackupServiceFactory
   readonly icloudSyncs: ICloudSyncServiceFactory
@@ -40,17 +42,22 @@ export interface GraphServicesDeps {
  * download refresh runs while the mobile graph is stored in iCloud. The
  * lifecycles that no surface reads run inside and have no field.
  */
-export interface GraphServices<App = unknown> {
-  readonly app: App // FIXME: question: WHY GraphServices.app is needed? Where is it used? Can we remove it?
+export interface GraphServices {
   readonly session: GraphSession
   readonly role: GraphRole
-  /** The chat session of this graph. */
+  /**
+   * The chat session of this graph.
+   */
   readonly chat: ChatSession
-  /** The backup lifecycle; `null` in a note window. */
+  /**
+   * The backup lifecycle; `null` in a note window.
+   */
   readonly backup: BackupService | null
 }
 
-/** Run `open` while `active()` holds, re-checked on every `subscribe` notification. */
+/**
+ * Run `open` while `active()` holds, re-checked on every `subscribe` notification.
+ */
 function whileActive(
   active: () => boolean,
   subscribe: (listener: () => void) => Unlisten,
@@ -77,12 +84,11 @@ function whileActive(
   }
 }
 
-export function createGraphServices<App>(
-  app: App,
+export function createGraphServices(
   session: GraphSession,
   role: GraphRole,
   deps: GraphServicesDeps,
-): GraphServices<App> {
+): GraphServices {
   const { root, generation, indexGeneration, signal } = session
   const {
     backups,
@@ -170,5 +176,5 @@ export function createGraphServices<App>(
     signal.addEventListener('abort', dispose, { once: true })
   }
 
-  return { app, session, role, chat, backup }
+  return { session, role, chat, backup }
 }

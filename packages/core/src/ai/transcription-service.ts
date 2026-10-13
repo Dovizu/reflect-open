@@ -44,11 +44,17 @@ export const GOOGLE_TRANSCRIPTION_FALLBACK_MODEL = 'gemini-2.5-flash'
 export interface TranscriptionRequest {
   provider: TranscriptionProvider
   apiKey: string
-  /** The recording, as MediaRecorder produced it. */
+  /**
+   * The recording, as MediaRecorder produced it.
+   */
   audio: Blob
-  /** The recording's MIME type, possibly with codec parameters. */
+  /**
+   * The recording's MIME type, possibly with codec parameters.
+   */
   mimeType: string
-  /** User transcription hint, if any. */
+  /**
+   * User transcription hint, if any.
+   */
   prompt?: string | undefined
   /**
    * Abort gate consulted before every provider call — a graph switch
@@ -58,7 +64,9 @@ export interface TranscriptionRequest {
   isStale?: (() => boolean) | undefined
 }
 
-/** Speech to text for one recording. */
+/**
+ * Speech to text for one recording.
+ */
 export interface TranscriptionService {
   /**
    * Transcribe one recording, returning the trimmed transcript (empty when the
@@ -70,7 +78,8 @@ export interface TranscriptionService {
   /**
    * The transcript this service gives a whole recording session for `apiKey`
    * without reading any audio, or `null` when the session's segments must be
-   * transcribed. Only {@link withAppReviewDemoTranscription} answers one.
+   * transcribed. Only the App Review demo key gets one: a canned transcript
+   * without any provider call.
    */
   sessionTranscript: (apiKey: string) => string | null
 }
@@ -78,34 +87,21 @@ export interface TranscriptionService {
 export function createTranscriptionService(deps: { http: HttpService }): TranscriptionService {
   const { http } = deps
   const fetchFn: typeof fetch = (input, init) => http.fetch(input, init)
-  return {
-    transcribe: async (request) =>
-      request.provider === 'openai'
-        ? await transcribeWithOpenAi(fetchFn, request)
-        : await transcribeWithGemini(fetchFn, request),
-    sessionTranscript: () => null,
-  }
-}
-
-/**
- * App Review demo mode for `service`: the demo key gets a canned transcript
- * without any provider call, for one recording and for a whole session.
- * Every other key goes to `service`. This is the only place that compares a
- * transcription key with the demo key.
- */
-export function withAppReviewDemoTranscription(
-  service: TranscriptionService,
-): TranscriptionService {
   const demoTranscript = (apiKey: string): string | null =>
     apiKey === APP_REVIEW_STUB_KEY ? stubTranscriptBody() : null
   return {
     transcribe: async (request) =>
-      demoTranscript(request.apiKey) ?? (await service.transcribe(request)),
-    sessionTranscript: (apiKey) => demoTranscript(apiKey) ?? service.sessionTranscript(apiKey),
+      demoTranscript(request.apiKey) ??
+      (request.provider === 'openai'
+        ? await transcribeWithOpenAi(fetchFn, request)
+        : await transcribeWithGemini(fetchFn, request)),
+    sessionTranscript: (apiKey) => demoTranscript(apiKey),
   }
 }
 
-/** `audio/webm;codecs=opus` → `audio/webm` — parameters confuse provider sniffing. */
+/**
+ * `audio/webm;codecs=opus` → `audio/webm` — parameters confuse provider sniffing.
+ */
 export function baseMimeType(mimeType: string): string {
   return (mimeType.split(';')[0] ?? mimeType).trim().toLowerCase()
 }

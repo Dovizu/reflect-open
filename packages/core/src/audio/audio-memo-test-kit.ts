@@ -4,7 +4,6 @@ import { aiKeySecretName, createAiCredentialService } from '../ai/ai-credential-
 import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
-import type { TranscriptionService } from '../ai/transcription-service.ts'
 import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
@@ -67,21 +66,25 @@ export const NO_PROVIDERS: AiProvidersState = { providers: [], defaultProviderId
 export const OPENAI_KEY = aiKeySecretName('cfg-openai')
 export const ANTHROPIC_KEY = aiKeySecretName('cfg-anthropic')
 
-/** 2026-06-11 15:30:22.845 local — every derived name is asserted from it. */
+/**
+ * 2026-06-11 15:30:22.845 local — every derived name is asserted from it.
+ */
 export const RECORDED_AT = new Date(2026, 5, 11, 15, 30, 22, 845)
 export const MEMO = audioMemoIdentity(RECORDED_AT, 'audio/webm;codecs=opus')
 export const DAILY = 'daily/2026-06-11.md'
 
 export interface AudioMemoTestKitOptions {
   providers?: AiProvidersState
-  /** Wraps the test transcription service, for example in the App Review demo. */
-  wrapTranscription?: (service: TranscriptionService) => TranscriptionService
 }
 
 export interface AudioMemoTestKit {
-  /** The in-memory graph: notes, and the listing of `audio-memos/`. */
+  /**
+   * The in-memory graph: notes, and the listing of `audio-memos/`.
+   */
   noteFile: TestNoteFileService
-  /** The recordings' bytes and the transcript cache. */
+  /**
+   * The recordings' bytes and the transcript cache.
+   */
   assetStore: TestAssetStoreService
   secrets: TestSecretStoreService
   settings: TestSettingsService
@@ -96,13 +99,19 @@ export interface AudioMemoTestKit {
   enrichMock: Mock<TranscriptEnrichmentService['enrich']>
   ensureBacklinkTargetMock: Mock<BacklinkTargetService['ensure']>
   service: AudioMemoTranscriptionService
-  /** Put a recording into `audio-memos/`, with the bytes `audio-bytes`. */
+  /**
+   * Put a recording into `audio-memos/`, with the bytes `audio-bytes`.
+   */
   addRecording(path: string, options?: { modifiedMs?: number }): void
-  /** Run one pass at generation 3, without formatting or a hint unless overridden. */
+  /**
+   * Run one pass at generation 3, without formatting or a hint unless overridden.
+   */
   reconcile(overrides?: Partial<ReconcileAudioMemosInput>): Promise<ReconcileAudioMemosOutcome>
 }
 
-/** Fresh in-memory services with the transcription service built on them. */
+/**
+ * Fresh in-memory services with the transcription service built on them.
+ */
 export async function createAudioMemoTestKit(
   options?: AudioMemoTestKitOptions,
 ): Promise<AudioMemoTestKit> {
@@ -140,7 +149,7 @@ export async function createAudioMemoTestKit(
     noteFile,
     assetStore,
     backlinkTarget: { ensure: ensureBacklinkTargetMock },
-    transcription: options?.wrapTranscription?.(transcription) ?? transcription,
+    transcription,
     transcriptEnrichment: { enrich: enrichMock },
     aiProviderConfig: createAiProviderConfigService({
       settings,
