@@ -926,9 +926,11 @@ class AudioMemoSessionImpl implements AudioMemoSession {
 class AudioMemoServiceImpl implements AudioMemoService {
   readonly #deps: AudioMemoServiceDeps
   readonly #transcriptions: AudioMemoTranscriptionService
+  readonly #mainWindow: boolean
 
   constructor(deps: AudioMemoServiceDeps) {
     this.#deps = deps
+    this.#mainWindow = deps.window.isMainWindow()
     this.#transcriptions = createAudioMemoTranscriptionService({
       noteFile: deps.noteFile,
       assetStore: deps.assetStore,
@@ -955,8 +957,7 @@ class AudioMemoServiceImpl implements AudioMemoService {
   }
 
   openPipeline(options: AudioMemoPipelineOptions): AudioMemoPipeline {
-    const { aiProviderConfig, operations, logger, noteFile, assetStore, graphSession, window } =
-      this.#deps
+    const { aiProviderConfig, operations, logger, noteFile, assetStore, graphSession } = this.#deps
     const { generation } = requireGraphSession(graphSession)
     return new AudioMemoPipelineImpl(
       {
@@ -966,7 +967,7 @@ class AudioMemoServiceImpl implements AudioMemoService {
         noteFile,
         assetStore,
         // One lifecycle per graph session, main window only.
-        reconciler: window.isMainWindow() ? this.#transcriptions.openSession({ generation }) : null,
+        reconciler: this.#mainWindow ? this.#transcriptions.openSession({ generation }) : null,
         capturePartAt: (input, at) => this.#capturePartAt(input, at),
       },
       generation,
