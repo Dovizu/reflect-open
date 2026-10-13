@@ -108,7 +108,7 @@ describe('createGraphServices', () => {
       { generation: 3, starts: 1, schedules: 0, disposed: false },
     ])
     expect(context.app.assetDescription.sessions()).toEqual([
-      { generation: 3, starts: 1, schedules: 0, disposed: false },
+      { generation: 3, indexGeneration: 5, starts: 1, schedules: 0, disposed: false },
     ])
     expect(context.icloudSyncs).toEqual([])
     expect(context.downloads).toEqual([])
