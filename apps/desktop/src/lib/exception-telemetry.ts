@@ -70,7 +70,9 @@ const SENTRY_DSN_SCHEMA = z
   )
   .transform((url) => url.href)
 
-/** Accept only the production Reflect Sentry project DSN, while allowing public-key rotation. */
+/**
+ * Accept only the production Reflect Sentry project DSN, while allowing public-key rotation.
+ */
 export function parseExceptionTelemetryDsn(value: string | undefined): string | null {
   const parsed = SENTRY_DSN_SCHEMA.safeParse(value?.trim())
   return parsed.success ? parsed.data : null
@@ -199,7 +201,9 @@ export function scrubExceptionEvent(event: ErrorEvent): ErrorEvent | null {
   }
 }
 
-/** Build the exception-only Sentry configuration shared by desktop and iOS WebViews. */
+/**
+ * Build the exception-only Sentry configuration shared by desktop and iOS WebViews.
+ */
 export function createExceptionTelemetryOptions(dsn: string, release: string): BrowserOptions {
   return {
     dsn,
@@ -239,7 +243,9 @@ export function createExceptionTelemetryOptions(dsn: string, release: string): B
   }
 }
 
-/** The Sentry entry points {@link createExceptionTelemetry} drives. */
+/**
+ * The Sentry entry points {@link createExceptionTelemetry} drives.
+ */
 export interface ExceptionTelemetrySdk {
   init(options: BrowserOptions): void
   reactErrorHandler: typeof reactErrorHandler
@@ -247,50 +253,65 @@ export interface ExceptionTelemetrySdk {
 
 export const sentryExceptionTelemetrySdk: ExceptionTelemetrySdk = { init, reactErrorHandler }
 
-/** The production DSN baked into this build, or `null` for development builds. */
+/**
+ * The production DSN baked into this build, or `null` for development builds.
+ */
 export function buildExceptionTelemetryDsn(): string | null {
   return import.meta.env.PROD ? parseExceptionTelemetryDsn(import.meta.env.VITE_SENTRY_DSN) : null
 }
 
-/** Exception telemetry over Sentry; disabled when `dsn` is `null`. */
-export function createExceptionTelemetry(deps: {
-  dsn: string | null
-  release: string
-  sdk: ExceptionTelemetrySdk
-  logger: LoggerService
-}): ExceptionTelemetryService {
-  const { dsn, release, sdk, logger } = deps
-  let installed = false
+export interface ExceptionTelemetryDeps {
+  readonly dsn: string | null
+  readonly release: string
+  readonly sdk: ExceptionTelemetrySdk
+  readonly logger: LoggerService
+}
 
-  const adaptReactErrorHandler = (
-    handler: ReturnType<typeof reactErrorHandler>,
-  ): ExceptionErrorHandler => {
-    return (error, errorInfo): void => {
-      handler(error, { componentStack: errorInfo.componentStack ?? null })
+class ExceptionTelemetryImpl implements ExceptionTelemetryService {
+  readonly #deps: ExceptionTelemetryDeps
+  #installed = false
+
+  constructor(deps: ExceptionTelemetryDeps) {
+    this.#deps = deps
+  }
+
+  install(): void {
+    const { dsn, release, sdk, logger } = this.#deps
+    if (dsn === null || this.#installed) {
+      return
+    }
+    this.#installed = true
+    try {
+      sdk.init(createExceptionTelemetryOptions(dsn, release))
+    } catch (error) {
+      logger.error('[reflect-open] Failed to initialize exception telemetry', error)
     }
   }
 
-  return {
-    install() {
-      if (dsn === null || installed) {
-        return
-      }
-      installed = true
-      try {
-        sdk.init(createExceptionTelemetryOptions(dsn, release))
-      } catch (error) {
-        logger.error('[reflect-open] Failed to initialize exception telemetry', error)
-      }
-    },
-    reactRootOptions() {
-      if (dsn === null) {
-        return {}
-      }
-      return {
-        onCaughtError: adaptReactErrorHandler(sdk.reactErrorHandler(() => {})),
-        onRecoverableError: adaptReactErrorHandler(sdk.reactErrorHandler(() => {})),
-        onUncaughtError: adaptReactErrorHandler(sdk.reactErrorHandler()),
-      }
-    },
+  reactRootOptions(): ReturnType<ExceptionTelemetryService['reactRootOptions']> {
+    const { dsn, sdk } = this.#deps
+    if (dsn === null) {
+      return {}
+    }
+    return {
+      onCaughtError: adaptReactErrorHandler(sdk.reactErrorHandler(() => {})),
+      onRecoverableError: adaptReactErrorHandler(sdk.reactErrorHandler(() => {})),
+      onUncaughtError: adaptReactErrorHandler(sdk.reactErrorHandler()),
+    }
   }
+}
+
+function adaptReactErrorHandler(
+  handler: ReturnType<typeof reactErrorHandler>,
+): ExceptionErrorHandler {
+  return (error, errorInfo): void => {
+    handler(error, { componentStack: errorInfo.componentStack ?? null })
+  }
+}
+
+/**
+ * Exception telemetry over Sentry; disabled when `dsn` is `null`.
+ */
+export function createExceptionTelemetry(deps: ExceptionTelemetryDeps): ExceptionTelemetryService {
+  return new ExceptionTelemetryImpl(deps)
 }

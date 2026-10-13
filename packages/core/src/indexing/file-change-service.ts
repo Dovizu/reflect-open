@@ -3,6 +3,7 @@ import type { LoggerService } from '../app/logger-service.ts'
 import {
   createFanOut,
   listenNow,
+  type FanOut,
   type IpcBridgeService,
   type Unlisten,
 } from '../ipc/ipc-service.ts'
@@ -117,11 +118,78 @@ export interface FileChangeServiceDeps {
   readonly echoOwnWrites: boolean
 }
 
-export function createFileChangeService(deps: FileChangeServiceDeps): FileChangeService {
-  const { ipc, logger, echoOwnWrites } = deps
-  const ownWriteListeners = new Set<(paths: readonly string[]) => void>()
+class FileChangeServiceImpl implements FileChangeService {
+  readonly #deps: FileChangeServiceDeps
+  readonly #ownWriteListeners = new Set<(paths: readonly string[]) => void>()
+  readonly #batches: FanOut<FileChangeBatch>
 
-  function listenNative(event: string, handler: (payload: unknown) => void): Unlisten {
+  constructor(deps: FileChangeServiceDeps) {
+    this.#deps = deps
+    // Every subscriber shares one native registration; the payload is parsed once.
+    this.#batches = createFanOut<FileChangeBatch>((emit) =>
+      this.#listenNative(FILE_CHANGES_EVENT, (payload) => {
+        const parsed = fileChangesSchema.safeParse(payload)
+        if (parsed.success) {
+          emit({ changes: parsed.data, source: 'external' })
+        } else {
+          // The Rust and TS event contract drifted: loud beats silently stale
+          // indexes and editors.
+          deps.logger.error(`invalid ${FILE_CHANGES_EVENT} payload:`, parsed.error)
+        }
+      }),
+    )
+  }
+
+  subscribe(listener: (batch: FileChangeBatch) => void): Unlisten {
+    return this.#batches.subscribe(listener)
+  }
+
+  subscribeReconcile(listener: () => void): Unlisten {
+    return this.#listenNative(RECONCILE_EVENT, () => {
+      listener()
+    })
+  }
+
+  subscribeOwnWrites(listener: (paths: readonly string[]) => void): Unlisten {
+    const deliver = (paths: readonly string[]): void => {
+      listener(paths)
+    }
+    this.#ownWriteListeners.add(deliver)
+    return () => {
+      this.#ownWriteListeners.delete(deliver)
+    }
+  }
+
+  emit(batch: FileChangeBatch): void {
+    this.#batches.emit(batch)
+  }
+
+  reportOwnWrite(changes: readonly FileChange[]): void {
+    const { logger, echoOwnWrites } = this.#deps
+    const paths = changes.map((change) => change.path)
+    for (const listener of this.#ownWriteListeners) {
+      try {
+        listener(paths)
+      } catch (error) {
+        // One failing observer must not break the echo for everyone.
+        logger.error('own-write observer failed:', error)
+      }
+    }
+    if (echoOwnWrites) {
+      this.#batches.emit({ changes: [...changes], source: 'own-write' })
+    }
+  }
+
+  async startWatcher(): Promise<void> {
+    await this.#deps.ipc.call('watch_start', {}, voidSchema)
+  }
+
+  async stopWatcher(): Promise<void> {
+    await this.#deps.ipc.call('watch_stop', {}, voidSchema)
+  }
+
+  #listenNative(event: string, handler: (payload: unknown) => void): Unlisten {
+    const { ipc, logger } = this.#deps
     return listenNow(
       () => ipc.listen(event, handler),
       (cause) => {
@@ -129,65 +197,8 @@ export function createFileChangeService(deps: FileChangeServiceDeps): FileChange
       },
     )
   }
+}
 
-  // Every subscriber shares one native registration; the payload is parsed once.
-  const batches = createFanOut<FileChangeBatch>((emit) =>
-    listenNative(FILE_CHANGES_EVENT, (payload) => {
-      const parsed = fileChangesSchema.safeParse(payload)
-      if (parsed.success) {
-        emit({ changes: parsed.data, source: 'external' })
-      } else {
-        // The Rust and TS event contract drifted: loud beats silently stale
-        // indexes and editors.
-        logger.error(`invalid ${FILE_CHANGES_EVENT} payload:`, parsed.error)
-      }
-    }),
-  )
-
-  return {
-    subscribe(listener) {
-      return batches.subscribe(listener)
-    },
-
-    subscribeReconcile(listener) {
-      return listenNative(RECONCILE_EVENT, () => {
-        listener()
-      })
-    },
-
-    subscribeOwnWrites(listener) {
-      const deliver = (paths: readonly string[]): void => {
-        listener(paths)
-      }
-      ownWriteListeners.add(deliver)
-      return () => {
-        ownWriteListeners.delete(deliver)
-      }
-    },
-
-    emit: batches.emit,
-
-    reportOwnWrite(changes) {
-      const paths = changes.map((change) => change.path)
-      for (const listener of ownWriteListeners) {
-        try {
-          listener(paths)
-        } catch (error) {
-          // One failing observer must not break the echo for everyone.
-          logger.error('own-write observer failed:', error)
-        }
-      }
-      if (echoOwnWrites) {
-        batches.emit({ changes: [...changes], source: 'own-write' })
-      }
-    },
-
-    async startWatcher() {
-      await ipc.call('watch_start', {}, voidSchema)
-    },
-
-    async stopWatcher() {
-      await ipc.call('watch_stop', {}, voidSchema)
-    },
-  }
+export function createFileChangeService(deps: FileChangeServiceDeps): FileChangeService {
+  return new FileChangeServiceImpl(deps)
 }

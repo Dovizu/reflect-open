@@ -3,8 +3,8 @@ import { isAssetPath, isNotePath } from '../graph/paths.ts'
 import type { FileChange, FileChangeService } from './file-change-service.ts'
 import { matchesTrustedMtime } from './hash.ts'
 import type { IndexedFileFacts } from './index-query-service.ts'
-import { createNoteIndexer, type ChangesAppliedEmitter, type IndexingDeps } from './indexer.ts'
-import { createMoveHealing } from './move-healing.ts'
+import { createNoteIndexer, type NoteIndexer, type NoteIndexerDeps } from './indexer.ts'
+import { createMoveHealing, type MoveHealing } from './move-healing.ts'
 import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
 
 /**
@@ -22,7 +22,9 @@ import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
  * takes an event-loop break every {@link INDEX_PASS_YIELD_EVERY} files.
  */
 
-/** Reports a change that failed to apply; the batch continues past it. */
+/**
+ * Reports a change that failed to apply; the batch continues past it.
+ */
 export type ApplyErrorHandler = (error: unknown, change: FileChange) => void
 
 /**
@@ -32,7 +34,13 @@ export type ApplyErrorHandler = (error: unknown, change: FileChange) => void
  */
 export type MovedHandler = (from: string, to: string) => void
 
-/** Applies watcher batches to the index, in order, one subscription per generation. */
+export interface LiveIndexDeps extends NoteIndexerDeps {
+  readonly fileChanges: FileChangeService
+}
+
+/**
+ * Applies watcher batches to the index, in order, one subscription per generation.
+ */
 export interface LiveIndex {
   /**
    * Apply a batch of watcher changes to the index at `generation`. Same-batch
@@ -77,116 +85,25 @@ export interface LiveIndex {
   subscribe(generation: number, onMoved?: MovedHandler, canApply?: () => boolean): Unlisten
 }
 
-export function createLiveIndex(
-  deps: IndexingDeps & {
-    readonly fileChanges: FileChangeService
-    readonly emitChangesApplied: ChangesAppliedEmitter
-  },
-): LiveIndex {
-  const { indexStore, noteFile, indexQuery, fileChanges, hash, clock, logger, emitChangesApplied } =
-    deps
-  const indexer = createNoteIndexer(deps)
-  const moveHealing = createMoveHealing(deps)
+class LiveIndexImpl implements LiveIndex {
+  readonly #deps: LiveIndexDeps
+  readonly #indexer: NoteIndexer
+  readonly #moveHealing: MoveHealing
 
-  const logApplyError: ApplyErrorHandler = (error, change) => {
-    logger.error(`failed to index change for ${change.path}:`, error)
+  constructor(deps: LiveIndexDeps) {
+    this.#deps = deps
+    this.#indexer = createNoteIndexer(deps)
+    this.#moveHealing = createMoveHealing(deps)
   }
 
-  /**
-   * Same-batch external-rename healing (Plan 17): an external rename reaches
-   * the watcher as remove(old) + upsert(new) in one debounced batch. When the
-   * new file carries the removed row's frontmatter id, move the rows and
-   * re-index in place — embedding vectors survive instead of being dropped and
-   * re-bought. Returns the handled paths; everything else takes the plain path.
-   *
-   * Pairs only within a batch: the debouncer groups rename halves in practice,
-   * and a split pair degrades to today's delete+create (the orphan row is gone
-   * before the arrival shows — nothing left to pair against). Reflect's own
-   * `note_move_indexed` echo never pairs: its remove side has no row left.
-   */
-  async function healBatchMoves(
+  async apply(
     changes: FileChange[],
     generation: number,
-    onError: ApplyErrorHandler,
-    onMoved: MovedHandler | undefined,
-    canApply: () => boolean,
-  ): Promise<{ handled: Set<string>; healed: number }> {
-    const handled = new Set<string>()
-    let healed = 0
-    const removes = changes.filter((change) => change.kind === 'remove')
-    const upserts = changes.filter((change) => change.kind === 'upsert')
-    if (removes.length === 0 || upserts.length === 0) {
-      return { handled, healed }
-    }
-    // Orphans: removed paths that still have rows. Arrivals: upserted paths
-    // that don't — an upsert of an indexed note is an ordinary edit, never a
-    // move target.
-    const indexed = await indexQuery.getNoteIdsByPath(upserts.map((change) => change.path))
-    const arrivals = upserts.filter((upsert) => !indexed.has(upsert.path))
-    const { moves, content } = await moveHealing.detectExternalMoves(
-      removes.map((change) => change.path),
-      arrivals.map((change) => change.path),
-    )
-    const mtimeByPath = new Map(arrivals.map((change) => [change.path, change.modifiedMs]))
-    for (const move of moves) {
-      if (!canApply()) {
-        break
-      }
-      try {
-        await indexStore.move(move.from, move.to, generation)
-        if (!canApply()) {
-          // The move transaction began while foregrounded and has committed.
-          // Preserve its UI/session notification even though the projection
-          // refresh is deferred; foreground reconcile repairs that row.
-          handled.add(move.from)
-          handled.add(move.to)
-          healed += 1
-          onMoved?.(move.from, move.to)
-          break
-        }
-        await indexer.indexNote(move.to, {
-          generation,
-          content: content.get(move.to),
-          mtime: mtimeByPath.get(move.to),
-        })
-        handled.add(move.from)
-        handled.add(move.to)
-        healed += 1
-        onMoved?.(move.from, move.to)
-      } catch (error) {
-        // Unhandled paths fall through to the plain remove/upsert below, which
-        // converges (a half-moved row is re-indexed; a missed remove no-ops).
-        const change = changes.find((candidate) => candidate.path === move.to)
-        onError(error, change ?? { path: move.to, kind: 'upsert' })
-      }
-    }
-    return { handled, healed }
-  }
-
-  /**
-   * Stored facts for the batch's upsert paths, so unchanged files can skip
-   * without a read. Best-effort: on failure every file simply takes the full
-   * read-and-hash path, which converges regardless.
-   */
-  async function prefetchFacts(paths: string[]): Promise<Map<string, IndexedFileFacts>> {
-    if (paths.length === 0) {
-      return new Map()
-    }
-    try {
-      return await indexQuery.getIndexedFileFactsByPath(paths)
-    } catch (error) {
-      logger.error('stored-facts prefetch failed; applying the batch without skips:', error)
-      return new Map()
-    }
-  }
-
-  async function apply(
-    changes: FileChange[],
-    generation: number,
-    onError: ApplyErrorHandler = logApplyError,
+    onError: ApplyErrorHandler = (error, change) => this.#logApplyError(error, change),
     onMoved?: MovedHandler,
     canApply: () => boolean = () => true,
   ): Promise<number> {
+    const { indexStore, noteFile, hash, clock, logger } = this.#deps
     if (!canApply()) {
       return 0
     }
@@ -199,7 +116,7 @@ export function createLiveIndex(
     let handled: Set<string>
     let mutations = 0
     try {
-      const outcome = await healBatchMoves(notes, generation, onError, onMoved, canApply)
+      const outcome = await this.#healBatchMoves(notes, generation, onError, onMoved, canApply)
       handled = outcome.handled
       mutations += outcome.healed
     } catch (error) {
@@ -209,7 +126,7 @@ export function createLiveIndex(
       handled = new Set()
     }
 
-    const stored = await prefetchFacts(
+    const stored = await this.#prefetchFacts(
       notes
         .filter((change) => change.kind === 'upsert' && !handled.has(change.path))
         .map((change) => change.path),
@@ -277,7 +194,7 @@ export function createLiveIndex(
           }
           continue
         }
-        const projection = await indexer.buildNoteProjection(change.path, content, {
+        const projection = await this.#indexer.buildNoteProjection(change.path, content, {
           fileHash,
           mtime: change.modifiedMs ?? clock.now(),
         })
@@ -302,11 +219,12 @@ export function createLiveIndex(
     return mutations + batch.applied() + touches.applied()
   }
 
-  function subscribe(
+  subscribe(
     generation: number,
     onMoved?: MovedHandler,
     canApply: () => boolean = () => true,
   ): Unlisten {
+    const { fileChanges, logger, emitChangesApplied } = this.#deps
     // Serialize batches so overlapping events for the same path can't reorder
     // (e.g. an upsert landing after a later remove, leaving a ghost row).
     let applyQueue: Promise<void> = Promise.resolve()
@@ -324,7 +242,7 @@ export function createLiveIndex(
           if (!canApply()) {
             return 0
           }
-          return notes.length > 0 ? apply(notes, generation, undefined, onMoved, canApply) : 0
+          return notes.length > 0 ? this.apply(notes, generation, undefined, onMoved, canApply) : 0
         })
         .then(() => {
           if (!canApply()) {
@@ -343,5 +261,101 @@ export function createLiveIndex(
     })
   }
 
-  return { apply, subscribe }
+  #logApplyError(error: unknown, change: FileChange): void {
+    this.#deps.logger.error(`failed to index change for ${change.path}:`, error)
+  }
+
+  /**
+   * Same-batch external-rename healing (Plan 17): an external rename reaches
+   * the watcher as remove(old) + upsert(new) in one debounced batch. When the
+   * new file carries the removed row's frontmatter id, move the rows and
+   * re-index in place — embedding vectors survive instead of being dropped and
+   * re-bought. Returns the handled paths; everything else takes the plain path.
+   *
+   * Pairs only within a batch: the debouncer groups rename halves in practice,
+   * and a split pair degrades to today's delete+create (the orphan row is gone
+   * before the arrival shows — nothing left to pair against). Reflect's own
+   * `note_move_indexed` echo never pairs: its remove side has no row left.
+   */
+  async #healBatchMoves(
+    changes: FileChange[],
+    generation: number,
+    onError: ApplyErrorHandler,
+    onMoved: MovedHandler | undefined,
+    canApply: () => boolean,
+  ): Promise<{ handled: Set<string>; healed: number }> {
+    const { indexStore, indexQuery } = this.#deps
+    const handled = new Set<string>()
+    let healed = 0
+    const removes = changes.filter((change) => change.kind === 'remove')
+    const upserts = changes.filter((change) => change.kind === 'upsert')
+    if (removes.length === 0 || upserts.length === 0) {
+      return { handled, healed }
+    }
+    // Orphans: removed paths that still have rows. Arrivals: upserted paths
+    // that don't — an upsert of an indexed note is an ordinary edit, never a
+    // move target.
+    const indexed = await indexQuery.getNoteIdsByPath(upserts.map((change) => change.path))
+    const arrivals = upserts.filter((upsert) => !indexed.has(upsert.path))
+    const { moves, content } = await this.#moveHealing.detectExternalMoves(
+      removes.map((change) => change.path),
+      arrivals.map((change) => change.path),
+    )
+    const mtimeByPath = new Map(arrivals.map((change) => [change.path, change.modifiedMs]))
+    for (const move of moves) {
+      if (!canApply()) {
+        break
+      }
+      try {
+        await indexStore.move(move.from, move.to, generation)
+        if (!canApply()) {
+          // The move transaction began while foregrounded and has committed.
+          // Preserve its UI/session notification even though the projection
+          // refresh is deferred; foreground reconcile repairs that row.
+          handled.add(move.from)
+          handled.add(move.to)
+          healed += 1
+          onMoved?.(move.from, move.to)
+          break
+        }
+        await this.#indexer.indexNote(move.to, {
+          generation,
+          content: content.get(move.to),
+          mtime: mtimeByPath.get(move.to),
+        })
+        handled.add(move.from)
+        handled.add(move.to)
+        healed += 1
+        onMoved?.(move.from, move.to)
+      } catch (error) {
+        // Unhandled paths fall through to the plain remove/upsert below, which
+        // converges (a half-moved row is re-indexed; a missed remove no-ops).
+        const change = changes.find((candidate) => candidate.path === move.to)
+        onError(error, change ?? { path: move.to, kind: 'upsert' })
+      }
+    }
+    return { handled, healed }
+  }
+
+  /**
+   * Stored facts for the batch's upsert paths, so unchanged files can skip
+   * without a read. Best-effort: on failure every file simply takes the full
+   * read-and-hash path, which converges regardless.
+   */
+  async #prefetchFacts(paths: string[]): Promise<Map<string, IndexedFileFacts>> {
+    const { indexQuery, logger } = this.#deps
+    if (paths.length === 0) {
+      return new Map()
+    }
+    try {
+      return await indexQuery.getIndexedFileFactsByPath(paths)
+    } catch (error) {
+      logger.error('stored-facts prefetch failed; applying the batch without skips:', error)
+      return new Map()
+    }
+  }
+}
+
+export function createLiveIndex(deps: LiveIndexDeps): LiveIndex {
+  return new LiveIndexImpl(deps)
 }

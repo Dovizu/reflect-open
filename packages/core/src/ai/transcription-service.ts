@@ -64,6 +64,10 @@ export interface TranscriptionRequest {
   isStale?: (() => boolean) | undefined
 }
 
+export interface TranscriptionServiceDeps {
+  readonly http: HttpService
+}
+
 /**
  * Speech to text for one recording.
  */
@@ -84,19 +88,28 @@ export interface TranscriptionService {
   sessionTranscript: (apiKey: string) => string | null
 }
 
-export function createTranscriptionService(deps: { http: HttpService }): TranscriptionService {
-  const { http } = deps
-  const fetchFn: typeof fetch = (input, init) => http.fetch(input, init)
-  const demoTranscript = (apiKey: string): string | null =>
-    apiKey === APP_REVIEW_STUB_KEY ? stubTranscriptBody() : null
-  return {
-    transcribe: async (request) =>
-      demoTranscript(request.apiKey) ??
-      (request.provider === 'openai'
-        ? await transcribeWithOpenAi(fetchFn, request)
-        : await transcribeWithGemini(fetchFn, request)),
-    sessionTranscript: (apiKey) => demoTranscript(apiKey),
+class TranscriptionServiceImpl implements TranscriptionService {
+  readonly #fetch: typeof fetch
+
+  constructor(deps: TranscriptionServiceDeps) {
+    this.#fetch = (input, init) => deps.http.fetch(input, init)
   }
+
+  readonly transcribe = async (request: TranscriptionRequest): Promise<string> =>
+    this.#demoTranscript(request.apiKey) ??
+    (request.provider === 'openai'
+      ? await transcribeWithOpenAi(this.#fetch, request)
+      : await transcribeWithGemini(this.#fetch, request))
+
+  readonly sessionTranscript = (apiKey: string): string | null => this.#demoTranscript(apiKey)
+
+  #demoTranscript(apiKey: string): string | null {
+    return apiKey === APP_REVIEW_STUB_KEY ? stubTranscriptBody() : null
+  }
+}
+
+export function createTranscriptionService(deps: TranscriptionServiceDeps): TranscriptionService {
+  return new TranscriptionServiceImpl(deps)
 }
 
 /**

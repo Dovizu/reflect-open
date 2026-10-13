@@ -75,20 +75,38 @@ function setup(options?: {
   const clock = createTestClockService()
   const operations = createTestOperationsService(clock)
   const graph: { session: GraphSession | null } = { session: sessionAt(7) }
+  const reconcileScan = store.reconcileScan.bind(store)
+  vi.spyOn(store, 'reconcileScan').mockImplementation(async (generation) => {
+    steps.push('scan')
+    await options?.onScan?.()
+    return await reconcileScan(generation)
+  })
+  const clear = store.clear.bind(store)
+  vi.spyOn(store, 'clear').mockImplementation(async (generation) => {
+    steps.push('clear')
+    await options?.onClear?.()
+    await clear(generation)
+  })
+  const subscribe = fileChanges.subscribe.bind(fileChanges)
+  vi.spyOn(fileChanges, 'subscribe').mockImplementation((listener) => {
+    steps.push('subscribe')
+    const unlisten = subscribe(listener)
+    options?.onSubscribe?.()
+    return unlisten
+  })
+  const startWatcher = fileChanges.startWatcher.bind(fileChanges)
+  vi.spyOn(fileChanges, 'startWatcher').mockImplementation(async () => {
+    steps.push('watchStart')
+    options?.onWatchStart?.()
+    await startWatcher()
+  })
+  const stopWatcher = fileChanges.stopWatcher.bind(fileChanges)
+  vi.spyOn(fileChanges, 'stopWatcher').mockImplementation(async () => {
+    steps.push('watchStop')
+    await stopWatcher()
+  })
   const index = createIndexLifecycleService({
-    indexStore: {
-      ...store,
-      reconcileScan: async (generation) => {
-        steps.push('scan')
-        await options?.onScan?.()
-        return await store.reconcileScan(generation)
-      },
-      clear: async (generation) => {
-        steps.push('clear')
-        await options?.onClear?.()
-        await store.clear(generation)
-      },
-    },
+    indexStore: store,
     noteFile: {
       ...files,
       read: async (path, generation) => {
@@ -96,24 +114,7 @@ function setup(options?: {
         return await files.read(path, generation)
       },
     },
-    fileChanges: {
-      ...fileChanges,
-      subscribe: (listener) => {
-        steps.push('subscribe')
-        const unlisten = fileChanges.subscribe(listener)
-        options?.onSubscribe?.()
-        return unlisten
-      },
-      startWatcher: async () => {
-        steps.push('watchStart')
-        options?.onWatchStart?.()
-        await fileChanges.startWatcher()
-      },
-      stopWatcher: async () => {
-        steps.push('watchStop')
-        await fileChanges.stopWatcher()
-      },
-    },
+    fileChanges,
     indexQuery: createIndexQueryService({ database }),
     database,
     xArchive: createTestXArchiveService(),

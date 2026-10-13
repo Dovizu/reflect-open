@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../errors.ts'
-import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
+import type { FileChange } from '../indexing/file-change-service.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
 import { createTestHttpService, type TestHttpService } from '../testing/http.ts'
@@ -192,22 +192,18 @@ function fakeServices(options: FakeOptions = {}) {
     return { ...status }
   })
 
-  const watchedChanges: FileChangeService =
-    options.failListen === true
-      ? {
-          ...fileChanges,
-          subscribe: () => {
-            throw new ReflectError('io', 'watcher unavailable')
-          },
-        }
-      : fileChanges
+  if (options.failListen === true) {
+    vi.spyOn(fileChanges, 'subscribe').mockImplementation(() => {
+      throw new ReflectError('io', 'watcher unavailable')
+    })
+  }
 
   backups = createBackupServiceFactory({
     git,
     syncEngines: createSyncEngineFactory({ git, clock }),
     githubAuth: createTestGithubAuthService({ secretStore, http, clock }),
     githubRepos: createGithubRepoService({ http }),
-    fileChanges: watchedChanges,
+    fileChanges,
     indexLifecycle: {
       applyChanges: async (changes, generation, canApply) => {
         if (canApply?.() === false) {

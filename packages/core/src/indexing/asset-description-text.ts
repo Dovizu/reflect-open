@@ -15,20 +15,32 @@ import { splitFrontmatter } from '../markdown/frontmatter.ts'
  * (`ai/chat/read-assets.ts`), behind its own live privacy gate.
  */
 
-/** Cap on folded description text per note (chars) — bounds the FTS document. */
+/**
+ * Cap on folded description text per note (chars) — bounds the FTS document.
+ */
 export const MAX_ASSET_TEXT_CHARS = 8_000
 
-/** One asset's description body, attributed to the asset it describes. */
+/**
+ * One asset's description body, attributed to the asset it describes.
+ */
 export interface AssetDescriptionBody {
-  /** Graph-relative asset path (`assets/x.png`), not the description path. */
+  /**
+   * Graph-relative asset path (`assets/x.png`), not the description path.
+   */
   assetPath: string
-  /** The description file's body, frontmatter stripped and trimmed. */
+  /**
+   * The description file's body, frontmatter stripped and trimmed.
+   */
   body: string
 }
 
-/** What {@link gatherAssetDescriptionBodies} could (and could not) read. */
+/**
+ * What {@link gatherAssetDescriptionBodies} could (and could not) read.
+ */
 export interface AssetDescriptionGather {
-  /** The readable description bodies, in reference order. */
+  /**
+   * The readable description bodies, in reference order.
+   */
   bodies: readonly AssetDescriptionBody[]
   /**
    * Asset paths whose description file exists but is iCloud-evicted —
@@ -40,7 +52,13 @@ export interface AssetDescriptionGather {
   evicted: readonly string[]
 }
 
-/** Reads asset description files and folds them into a note's searchable text. */
+export interface AssetDescriptionTextDeps {
+  readonly noteFile: NoteFileService
+}
+
+/**
+ * Reads asset description files and folds them into a note's searchable text.
+ */
 export interface AssetDescriptionText {
   /**
    * The per-asset description bodies for a note's referenced assets. Reads
@@ -67,12 +85,15 @@ export interface AssetDescriptionText {
   gatherText(assetPaths: readonly string[]): Promise<string>
 }
 
-export function createAssetDescriptionText(deps: {
-  noteFile: NoteFileService
-}): AssetDescriptionText {
-  const { noteFile } = deps
+class AssetDescriptionTextImpl implements AssetDescriptionText {
+  readonly #deps: AssetDescriptionTextDeps
 
-  async function gatherBodies(assetPaths: readonly string[]): Promise<AssetDescriptionGather> {
+  constructor(deps: AssetDescriptionTextDeps) {
+    this.#deps = deps
+  }
+
+  async gatherBodies(assetPaths: readonly string[]): Promise<AssetDescriptionGather> {
+    const { noteFile } = this.#deps
     const bodies: AssetDescriptionBody[] = []
     const evicted: string[] = []
     if (assetPaths.length === 0) {
@@ -111,14 +132,15 @@ export function createAssetDescriptionText(deps: {
     return { bodies, evicted }
   }
 
-  return {
-    gatherBodies,
-    async gatherText(assetPaths) {
-      const { bodies } = await gatherBodies(assetPaths)
-      return bodies
-        .map((entry) => entry.body)
-        .join('\n\n')
-        .slice(0, MAX_ASSET_TEXT_CHARS)
-    },
+  async gatherText(assetPaths: readonly string[]): Promise<string> {
+    const { bodies } = await this.gatherBodies(assetPaths)
+    return bodies
+      .map((entry) => entry.body)
+      .join('\n\n')
+      .slice(0, MAX_ASSET_TEXT_CHARS)
   }
+}
+
+export function createAssetDescriptionText(deps: AssetDescriptionTextDeps): AssetDescriptionText {
+  return new AssetDescriptionTextImpl(deps)
 }
