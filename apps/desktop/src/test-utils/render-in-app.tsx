@@ -76,7 +76,8 @@ export interface RenderInAppOptions {
    */
   queryClient?: QueryClient
   /**
-   * Replaces fields of the test app-layer services, e.g. `{ update }`.
+   * Replaces fields of the app layer built over `app`, e.g. `{ update }` or a whole
+   * `createTestAppServices(app)` a test must share with the render.
    */
   appServices?: Partial<AppServices>
   /**
@@ -94,6 +95,10 @@ export interface RenderInAppOptions {
 
 interface InAppHandles<App extends CoreServices> {
   readonly app: App
+  /**
+   * The app layer built over `app`.
+   */
+  readonly appServices: AppServices
   readonly queryClient: QueryClient
   /**
    * The scripted backup when `sync` was a `BackupState`, else `null`.
@@ -209,6 +214,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   }
   return {
     app,
+    appServices: appLayer,
     queryClient,
     backup,
     wrap,

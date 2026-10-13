@@ -23,3 +23,15 @@ export {
   type ResolvedTheme,
   type ThemeService,
 } from './settings/theme-service.ts'
+export { type KeyboardService } from './mobile/keyboard-service.ts'
+export { type ShareService } from './mobile/share-service.ts'
+export { type MobileSyncStatus, type SyncStatusService } from './sync/sync-status-service.ts'
+export {
+  createConnectGithubWizardService,
+  type ConnectAuthKind,
+  type ConnectFinishView,
+  type ConnectGithubWizardDeps,
+  type ConnectGithubWizardOptions,
+  type ConnectGithubWizardService,
+  type ConnectWizardStep,
+} from './sync/connect-github-wizard-service.ts'

@@ -1,5 +1,4 @@
-import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
-import { splitFrontmatter } from '../markdown/frontmatter.ts'
+import { splitFrontmatter, type OpenDocumentsService } from '@reflect/core'
 
 /**
  * What a note hands to the OS share sheet.

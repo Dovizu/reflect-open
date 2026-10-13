@@ -5,7 +5,8 @@ export { type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
 export { type AudioRecorderFinalSegment } from '../audio/audio-recorder-service.ts'
 export { type IcloudStatus } from '../ipc/icloud-native-service.ts'
 export { type MobileStorageInfo, type MobileStorageKind } from '../ipc/mobile-storage-service.ts'
-export { type GithubAuthService } from '../sync/github-auth-service.ts'
+export { githubAppInstallUrl, type GithubAuthService } from '../sync/github-auth-service.ts'
+export { newRepoUrl, parseRepoInput, type GithubRepoRef } from '../sync/github-repo-service.ts'
 export {
   type BackupService,
   type BackupState,
@@ -13,15 +14,6 @@ export {
 } from '../sync/backup-service.ts'
 export { isICloudRoot } from '../sync/icloud-sync-service.ts'
 export { type ConflictResolutionService } from '../sync/conflict-resolution-service.ts'
-export { type MobileSyncStatus, type SyncStatusService } from '../sync/sync-status-service.ts'
-export {
-  createConnectGithubWizardService,
-  type ConnectAuthKind,
-  type ConnectFinishView,
-  type ConnectGithubWizardOptions,
-  type ConnectGithubWizardService,
-  type ConnectWizardStep,
-} from '../sync/connect-github-wizard-service.ts'
 export { type GistPublishService } from '../sync/gist-publish-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
 export { createSystemClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
@@ -46,7 +38,7 @@ export {
   type WindowHost,
   type WindowService,
 } from '../app/window-service.ts'
-export { type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
+export { type AppLifecycleService, type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export { type DecodedImage, type ImageCodecService } from '../app/image-codec-service.ts'
 export { createBrowserHttpService, type HttpService } from '../app/http-service.ts'
@@ -263,8 +255,6 @@ export {
   type GraphSessionState,
   type GraphStatus,
 } from '../graph/graph-session-service.ts'
-export { type KeyboardService } from '../mobile/keyboard-service.ts'
-export { type ShareService } from '../mobile/share-service.ts'
 export {
   createV1ImportService,
   type V1ImportService,

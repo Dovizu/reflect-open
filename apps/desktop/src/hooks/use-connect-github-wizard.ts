@@ -5,8 +5,8 @@ import {
   type ConnectFinishView,
   type ConnectGithubWizardOptions,
   type ConnectWizardStep,
-  type GithubUser,
-} from '@reflect/core'
+} from '@reflect/app'
+import type { GithubUser } from '@reflect/core'
 import { useSync } from '@/providers/sync-provider.tsx'
 import { useCoreServices } from '@/services/services-provider.tsx'
 
@@ -15,7 +15,7 @@ export type {
   ConnectFinishView,
   ConnectGithubWizardOptions,
   ConnectWizardStep,
-} from '@reflect/core'
+} from '@reflect/app'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 export interface ConnectGithubWizard {
@@ -65,7 +65,7 @@ export interface ConnectGithubWizard {
 
 /**
  * The "Connect GitHub" wizard for one mounted surface: a thin React shell
- * over core's `ConnectGithubWizardService`, which owns the whole state
+ * over app's `ConnectGithubWizardService`, which owns the whole state
  * machine (repo → sign-in → connect, with the create-handoff/grant-access
  * polls and the public-repo consent gate). Desktop's dialog and mobile's
  * drawer drive the identical flow through it.

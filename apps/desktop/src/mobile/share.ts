@@ -1,4 +1,4 @@
-import type { CoreServices } from '@reflect/core'
+import type { AppServices } from '@reflect/app'
 
 /**
  * Share a note through the OS share sheet (Plan 19, V1 parity) via the Web
@@ -14,7 +14,7 @@ import type { CoreServices } from '@reflect/core'
  * typing.
  */
 export async function shareNote(
-  { share }: Pick<CoreServices, 'share'>,
+  { share }: Pick<AppServices, 'share'>,
   path: string,
 ): Promise<void> {
   await navigator.share(share.noteContent(path))

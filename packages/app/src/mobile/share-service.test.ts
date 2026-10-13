@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { NoteSession } from '../documents/note-session.ts'
-import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
-import { createTestFileChangeService } from '../testing/file-change.ts'
+import type { NoteSession } from '@reflect/core'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { createShareService, noteShareContent } from './share-service.ts'
 
 /**
  * A share service with one open note whose live buffer is `liveContent`.
  */
 function setup(liveContent: string | null, path = 'notes/meeting-notes.md') {
-  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  const { openDocuments } = createTestCoreServices()
   // A stand-in implements only what the service calls.
   openDocuments.register({ session: { path, liveContent: () => liveContent } as NoteSession })
   return createShareService({ openDocuments })

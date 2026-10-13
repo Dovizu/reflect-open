@@ -9,6 +9,9 @@ import {
   type UpdateService,
 } from './app/update-service.ts'
 import { createThemeService, type ThemeService } from './settings/theme-service.ts'
+import { createKeyboardService, type KeyboardService } from './mobile/keyboard-service.ts'
+import { createShareService, type ShareService } from './mobile/share-service.ts'
+import { createSyncStatusService, type SyncStatusService } from './sync/sync-status-service.ts'
 
 /**
  * What the host supplies to the app layer: the window, lifecycle, storage,
@@ -41,6 +44,17 @@ export interface AppServices {
    * Checks for, downloads, and installs app updates.
    */
   readonly update: UpdateService
+   * Derives the mobile sync status that the settings sheet and the status pill show.
+   */
+  readonly syncStatus: SyncStatusService
+  /**
+   * The software keyboard's overlap height, as the UI last measured it.
+   */
+  readonly keyboard: KeyboardService
+  /**
+   * Shares a note through the OS share sheet.
+   */
+  readonly share: ShareService
 }
 
 /**
@@ -61,5 +75,8 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       platform: core.platform,
       window: core.window,
     }),
+    syncStatus: createSyncStatusService(),
+    keyboard: createKeyboardService(),
+    share: createShareService({ openDocuments: core.openDocuments }),
   }
 }

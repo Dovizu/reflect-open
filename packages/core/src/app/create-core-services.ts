@@ -98,7 +98,6 @@ import {
   type ICloudMigrationService,
 } from '../sync/icloud-migration-service.ts'
 import type { ICloudSyncServiceDeps } from '../sync/icloud-sync-service.ts'
-import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
 import {
@@ -148,8 +147,6 @@ import {
   type MobileOnboardingService,
 } from '../graph/mobile-onboarding-service.ts'
 import { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
-import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
-import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
 import {
@@ -444,10 +441,6 @@ export interface CoreServices {
    */
   readonly conflictResolution: ConflictResolutionService
   /**
-   * Derives the mobile sync status that the settings sheet and the status pill show.
-   */
-  readonly syncStatus: SyncStatusService
-  /**
    * The embedded media of the editor's cards: X posts and YouTube videos.
    */
   readonly embedMedia: EmbedMediaService
@@ -547,14 +540,6 @@ export interface CoreServices {
    * The mobile graph bootstrap into one of two fixed roots, the iCloud Drive container or the app sandbox.
    */
   readonly mobileOnboarding: MobileOnboardingService
-  /**
-   * The software keyboard's overlap height, as the UI last measured it.
-   */
-  readonly keyboard: KeyboardService
-  /**
-   * Shares a note through the OS share sheet.
-   */
-  readonly share: ShareService
   /**
    * The saved AI prompts of the editor AI menu's user library.
    */
@@ -869,13 +854,10 @@ export const coreServiceFactories = {
   gistPublish: createGistPublishService,
   icloudMigration: createICloudMigrationService,
   conflictResolution: createConflictResolutionService,
-  syncStatus: createSyncStatusService,
   embedMedia: createEmbedMediaService,
   linkPreview: createLinkPreviewService,
   noteSessions: createNoteSessionService,
   titleRename: createTitleRenameService,
-  keyboard: createKeyboardService,
-  share: createShareService,
   notePreview: createNotePreviewService,
   tasks: createTaskService,
   noteActions: createNoteActionsService,
@@ -1454,7 +1436,6 @@ export function composeCoreServices(
       fileChanges,
       graphSession,
     }),
-    syncStatus: create.syncStatus(),
     embedMedia: create.embedMedia({ xArchive, webFetch, platform, clock, logger, graphSession }),
     linkPreview: create.linkPreview({
       noteDocuments,
@@ -1481,8 +1462,6 @@ export function composeCoreServices(
       logger,
       graphSession,
     }),
-    keyboard: create.keyboard(),
-    share: create.share({ openDocuments }),
     noteDocuments,
     notePreview: create.notePreview({
       noteLinkResolver: noteServices.noteLinkResolver,

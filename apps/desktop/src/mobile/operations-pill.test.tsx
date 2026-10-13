@@ -77,12 +77,12 @@ describe('MobileOperationsPills', () => {
 
 describe('MobileStatusLayer', () => {
   it('yields to the software keyboard', async () => {
-    const { app } = await renderInApp(<MobileStatusLayer />)
+    const { app, appServices } = await renderInApp(<MobileStatusLayer />)
     const handle = operate(() => app.operations.start('Completing task'))
     act(() => handle.fail('The note is busy.'))
     await expect.element(page.getByRole('alert')).toBeVisible()
 
-    act(() => app.keyboard.publish(300))
+    act(() => appServices.keyboard.publish(300))
 
     expect(page.getByRole('alert').query()).toBeNull()
   })

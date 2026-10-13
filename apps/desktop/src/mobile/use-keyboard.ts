@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect } from 'react'
 import { focusedEditorCommands } from '@/editor/formatting-toolbar-store.ts'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
@@ -10,7 +10,7 @@ import { useServiceState } from '@/services/use-service-state.ts'
  * keyboard cover it instead.
  */
 export function useKeyboardVisible(): boolean {
-  const { keyboard } = useCoreServices()
+  const { keyboard } = useAppServices()
   return useServiceState(keyboard, keyboard.isVisible)
 }
 
@@ -51,7 +51,7 @@ function readKeyboardOverlap(): number {
  * {@link useKeyboardVisible} for the tab bar hiding).
  */
 export function useKeyboardHeightVar(): void {
-  const { keyboard } = useCoreServices()
+  const { keyboard } = useAppServices()
 
   // Viewport reader: feeds the service, which drops no-op publishes.
   useEffect(() => {
@@ -136,7 +136,7 @@ function focusedKeyboardField(): HTMLElement | null {
  * own reveal, so one plain `scrollIntoView` is enough.
  */
 export function useKeyboardFieldReveal(): void {
-  const { keyboard } = useCoreServices()
+  const { keyboard } = useAppServices()
   const height = useServiceState(keyboard, keyboard.getHeight)
 
   useEffect(() => {
@@ -168,7 +168,7 @@ export function useKeyboardFieldReveal(): void {
  * the caret is already visible.
  */
 export function useKeyboardCaretReveal(): void {
-  const { keyboard } = useCoreServices()
+  const { keyboard } = useAppServices()
   const height = useServiceState(keyboard, keyboard.getHeight)
 
   useEffect(() => {

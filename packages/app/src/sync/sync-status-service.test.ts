@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { BackupState } from './backup-service.ts'
+import type { BackupState } from '@reflect/core'
 import { createSyncStatusService, mobileSyncStatus } from './sync-status-service.ts'
 
 /**

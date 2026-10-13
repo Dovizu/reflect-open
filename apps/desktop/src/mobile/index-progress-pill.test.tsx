@@ -1,3 +1,4 @@
+import { createTestAppServices } from '@reflect/app/testing'
 import type { IndexFileProgress } from '@reflect/core'
 import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import { describe, expect, it } from 'vitest'
@@ -20,8 +21,9 @@ async function mount(
 ): Promise<InAppRenderResult<TestCoreServices>> {
   const app = createTestCoreServices()
   app.indexLifecycle.setFileProgress(progress)
-  app.keyboard.publish(keyboardInset)
-  return await renderInApp(<IndexProgressPill />, { app })
+  const appServices = createTestAppServices(app)
+  appServices.keyboard.publish(keyboardInset)
+  return await renderInApp(<IndexProgressPill />, { app, appServices })
 }
 
 describe('IndexProgressPill', () => {

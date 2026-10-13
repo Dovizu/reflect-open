@@ -1,3 +1,4 @@
+import type { ShareService } from '@reflect/app'
 import {
   isOstensiblyEmptyNoteSource,
   upsertFrontmatter,
@@ -26,7 +27,7 @@ const noteSource = { value: '# A\n' }
 // The services of the rendered app; set by `mount`.
 let app: TestCoreServices
 let trash: MockInstance<NoteActionsService['trashOne']>
-let noteContent: MockInstance<TestCoreServices['share']['noteContent']>
+let noteContent: MockInstance<ShareService['noteContent']>
 
 /**
  * The mobile note actions drawer: pin/share/delete already live here; this
@@ -146,12 +147,12 @@ async function mount(path = 'notes/meeting.md', onDeleted = vi.fn()) {
   vi.spyOn(created.indexQuery, 'getNote').mockImplementation(getNote)
   vi.spyOn(created.indexQuery, 'getPinnedNotes').mockResolvedValue([])
   trash = vi.spyOn(created.noteActions, 'trashOne').mockResolvedValue()
-  noteContent = vi.spyOn(created.share, 'noteContent').mockReturnValue(SHARED)
   const view = await renderInApp(<NoteActionsMenu path={path} onDeleted={onDeleted} />, {
     app: created,
     graph: { root: '/g', name: 'g', generation: 7 },
   })
   app = view.app
+  noteContent = vi.spyOn(view.appServices.share, 'noteContent').mockReturnValue(SHARED)
   return { view, onDeleted, client: view.queryClient }
 }
 
