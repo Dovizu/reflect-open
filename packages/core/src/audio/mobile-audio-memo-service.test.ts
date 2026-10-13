@@ -24,7 +24,7 @@ import {
   createTestLoggerService,
   createTestNoteCreationService,
   createTestNoteFileService,
-  createTestOperationsService,
+  createTestProgressPort,
   createTestPlatformService,
   createTestSecretStoreService,
   createTestSettingsService,
@@ -105,7 +105,7 @@ async function setup(options?: SetupOptions) {
   recorder.setStopResult(RECORDING)
   const activity = createTestActivityPort()
   const haptics = createTestHapticsService()
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const logger = createTestLoggerService()
   const clock = createTestClockService()
   const platform = createTestPlatformService({
@@ -137,7 +137,7 @@ async function setup(options?: SetupOptions) {
     activity,
     fileChanges: createTestFileChangeService(),
     settings,
-    operations,
+    progress,
     clock,
     platform,
     window: createTestWindowService(),
@@ -172,7 +172,7 @@ async function setup(options?: SetupOptions) {
     recorder,
     activity,
     haptics,
-    operations,
+    progress,
     logger,
     clock,
     service,
@@ -323,7 +323,7 @@ describe('MobileAudioMemoService.openSession', () => {
     expect(session.getState()).toMatchObject({ phase: 'error', canRetry: true })
     expect(kit.deleted()).toEqual([])
     // The drawer closed on stop — the failure also surfaces as an operation.
-    expect(kit.operations.findByLabel('Saving audio memo')).toMatchObject({
+    expect(kit.progress.findByLabel('Saving audio memo')).toMatchObject({
       status: 'failed',
       message: 'disk full',
     })

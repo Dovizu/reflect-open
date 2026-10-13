@@ -11,7 +11,7 @@ import { createTestCaptureInboxService } from './capture.ts'
 import { createTestClockService } from './clock.ts'
 import { createTestGraphSessionService } from './graph-session.ts'
 import { createTestIdService } from './id.ts'
-import { createTestOperationsService } from './operations.ts'
+import { createTestProgressPort } from './ports.ts'
 
 export interface TestDeepLinkSource extends DeepLinkSource {
   /**
@@ -135,7 +135,7 @@ export function createTestDeepLinkIntakeService(
         resolveNoteTarget: (target) => Promise.resolve(notes[target] ?? null),
       },
       captureInbox: options?.captureInbox ?? createTestCaptureInboxService(),
-      operations: options?.operations ?? createTestOperationsService(),
+      progress: options?.progress ?? createTestProgressPort(),
       id: options?.id ?? createTestIdService(),
       clock: options?.clock ?? createTestClockService(),
       graphSession: options?.graphSession ?? createTestGraphSessionService({ graph: {} }),

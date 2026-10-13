@@ -13,7 +13,7 @@ import type { ClockService } from '../app/clock-service.ts'
 import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import type { WindowService } from '../app/window-service.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
@@ -314,7 +314,7 @@ export interface AudioMemoServiceDeps {
   readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
   readonly settings: Pick<SettingsService, 'get'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly clock: Pick<ClockService, 'now'>
   readonly platform: Pick<PlatformFacts, 'isMacosDesktop'>
   readonly window: Pick<WindowService, 'isMainWindow'>
@@ -377,7 +377,7 @@ function micDeniedMessage(platform: Pick<PlatformFacts, 'isMacosDesktop'>): stri
 
 interface AudioMemoPipelineDeps {
   readonly aiProviderConfig: Pick<AiProviderConfigService, 'subscribe' | 'transcriptionConfig'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly logger: Pick<LoggerService, 'error'>
   readonly noteFile: Pick<NoteFileService, 'listDir'>
   readonly assetStore: Pick<AssetStoreService, 'deleteAudioMemo'>
@@ -550,7 +550,7 @@ class AudioMemoPipelineImpl implements AudioMemoPipeline {
   }
 
   async #pump(): Promise<void> {
-    const { logger, operations, capturePartAt } = this.#deps
+    const { logger, progress, capturePartAt } = this.#deps
     if (this.#pumping) {
       return
     }
@@ -598,7 +598,7 @@ class AudioMemoPipelineImpl implements AudioMemoPipeline {
           if (!this.#isErrorSurfaceVisible()) {
             // The error UI is off screen, the failure must still surface
             // somewhere.
-            operations.start('Saving audio memo').fail(outcome.message)
+            progress.start('Saving audio memo').fail(outcome.message)
           }
         }
       }
@@ -943,7 +943,7 @@ class AudioMemoServiceImpl implements AudioMemoService {
       reconcilers: deps.reconcilers,
       activity: deps.activity,
       fileChanges: deps.fileChanges,
-      operations: deps.operations,
+      progress: deps.progress,
       clock: deps.clock,
     })
   }
@@ -957,12 +957,12 @@ class AudioMemoServiceImpl implements AudioMemoService {
   }
 
   openPipeline(options: AudioMemoPipelineOptions): AudioMemoPipeline {
-    const { aiProviderConfig, operations, logger, noteFile, assetStore, graphSession } = this.#deps
+    const { aiProviderConfig, progress, logger, noteFile, assetStore, graphSession } = this.#deps
     const { generation } = requireGraphSession(graphSession)
     return new AudioMemoPipelineImpl(
       {
         aiProviderConfig,
-        operations,
+        progress,
         logger,
         noteFile,
         assetStore,

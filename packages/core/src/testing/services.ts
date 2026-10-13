@@ -14,6 +14,7 @@ import { createPosixPathTransport } from '../app/path-service.ts'
 import { createSingleWindowHost } from '../app/window-service.ts'
 import { createPrivacyService } from '../privacy/privacy-service.ts'
 import type { IdService } from '../app/id-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import type { BackupService } from '../sync/backup-service.ts'
@@ -75,9 +76,9 @@ import {
   createTestPaywallService,
   createTestSubscriptionService,
 } from './monetization.ts'
-import { createTestOperationsService } from './operations.ts'
 import { createTestPersistenceFlushService } from './persistence-flush.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
+import { createTestProgressPort } from './ports.ts'
 import {
   createTestAppStoreService,
   createTestHapticsService,
@@ -110,6 +111,10 @@ export type TestCoreServiceOverrides = Partial<CoreServices & CoreInternalServic
    * The activity signals the services follow.
    */
   readonly activity?: ActivityPort
+  /**
+   * The progress port the services report to.
+   */
+  readonly progress?: ProgressPort
 }
 
 /**
@@ -125,6 +130,7 @@ function createTestEdgeServices() {
     dialog: createTestDialogService(),
     imageCodec: createTestImageCodec(),
     activity: createTestActivityPort(),
+    progress: createTestProgressPort(),
   }
 }
 
@@ -173,8 +179,7 @@ function createTestServiceFactories(
     database: () => createTestDatabaseService(),
     platform: () => shared.platform,
     window: () => createTestWindowService(),
-    operations: () => createTestOperationsService(shared.clock),
-    settings: ({ operations }) => createTestSettingsService({}, { operations }),
+    settings: ({ progress }) => createTestSettingsService({}, { progress }),
     storage: () => createTestStorageService(),
     fileChanges: () => createTestFileChangeService(),
     secretStore: () => createTestSecretStoreService(),
@@ -291,6 +296,7 @@ export function createTestCoreServices<
   const adapters: CoreAdapters = {
     ipc: edge.ipc ?? createTestIpcBridgeService({ logger: edge.logger }),
     platform: edge.platform ?? platform,
+    progress: edge.progress,
     http: edge.http,
     storage: { local: null, session: null },
     dialog: edge.dialog,
@@ -305,7 +311,7 @@ export function createTestCoreServices<
   }
   const fixed: Record<string, () => unknown> = {}
   for (const [key, service] of Object.entries(overrides ?? {})) {
-    if (key !== 'backup') {
+    if (key !== 'backup' && key !== 'progress') {
       fixed[key] = () => service
     }
   }
@@ -313,7 +319,7 @@ export function createTestCoreServices<
     ...createTestServiceFactories({ platform, clock: defaults.clock }, overrides),
     ...(fixed as Partial<ServiceFactories>),
   })
-  return { ...services, ...internal, activity: adapters.activity } as Omit<
+  return { ...services, ...internal, activity: adapters.activity, progress: edge.progress } as Omit<
     TestCoreServices,
     keyof Overrides
   > &

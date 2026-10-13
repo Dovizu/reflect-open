@@ -1,5 +1,6 @@
 import type { CoreServices } from '@reflect/core'
 import { createTestCoreServices, type TestActivityPort } from '@reflect/core/testing'
+import type { OperationsService } from '../app/operations-service.ts'
 import { createAppServices, type AppHost, type AppServices } from '../create-app-services.ts'
 import { createTestClipboardService, type TestClipboardService } from './clipboard.ts'
 import { createTestNativeMenuHost } from './commands.ts'
@@ -9,6 +10,7 @@ import { createTestExceptionTelemetry } from './exception-telemetry.ts'
 import { createDeepLinkRouter } from '../navigation/deep-link-router.ts'
 import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
 import { createTestLifecycleService, type TestLifecycleService } from './lifecycle.ts'
+import { createTestOperationsService } from './operations.ts'
 import { createTestUpdaterAdapter } from './update.ts'
 
 /**
@@ -25,12 +27,14 @@ export type TestAppServices = Omit<
 }
 
 /**
- * A host of silent doubles: a recording clipboard, an opener that opens
- * nothing, and a test lifecycle. `overrides` replace fields of the result.
+ * A host of silent doubles: a test lifecycle, an operations list over a test
+ * clock, a recording clipboard and an opener that opens nothing. `overrides`
+ * replace fields of the result.
  */
 export function createTestAppHost(overrides: Partial<AppHost> = {}): AppHost {
   return {
     lifecycle: createTestLifecycleService(),
+    operations: createTestOperationsService(),
     clipboard: createTestClipboardService(),
     opener: { openUrl: async () => {}, revealItemInDir: async () => {} },
     ...overrides,
@@ -39,13 +43,15 @@ export function createTestAppHost(overrides: Partial<AppHost> = {}): AppHost {
 
 /**
  * The app layer over test core services. Pass the core services a test built
- * (and observes) to share them with the app layer. `overrides` replace
- * fields of the result.
+ * (and observes) to share them with the app layer; their `progress` port, when
+ * there is one, is the app's operations list. `overrides` replace fields of
+ * the result.
  */
 export function createTestAppServices(
-  core: CoreServices = createTestCoreServices(),
+  core: CoreServices & { readonly progress?: OperationsService } = createTestCoreServices(),
   overrides: Partial<AppServices> = {},
 ): TestAppServices {
+  const operations = overrides.operations ?? core.progress ?? createTestOperationsService()
   const clipboard = overrides.clipboard ?? createTestClipboardService()
   const opener = overrides.opener ?? createTestOpenerService({ logger: core.logger })
   const navigation = overrides.navigation ?? createTestNavigationService()
@@ -73,13 +79,13 @@ export function createTestAppServices(
       deepLinkRouter,
       navigation,
       attachments: core.attachments,
-      operations: core.operations,
+      operations,
       logger: core.logger,
       graphSession: core.graphSession,
     })
   return {
     ...createAppServices(core, {
-      ...createTestAppHost({ clipboard, lifecycle }),
+      ...createTestAppHost({ operations, clipboard, lifecycle }),
       exceptionTelemetry: createTestExceptionTelemetry(),
       updater: createTestUpdaterAdapter(),
       nativeMenu: createTestNativeMenuHost(),

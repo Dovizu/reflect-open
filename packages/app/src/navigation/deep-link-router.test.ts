@@ -5,7 +5,7 @@ import {
   createTestDeepLinkIntakeService,
   createTestGraphSessionService,
   createTestLoggerService,
-  createTestOperationsService,
+  createTestProgressPort,
 } from '@reflect/core/testing'
 import { createDeepLinkRouter, type DeepLinkSession } from './deep-link-router.ts'
 import type { Route } from './route.ts'
@@ -15,14 +15,14 @@ interface SetupOverrides {
 }
 
 function setup(overrides?: SetupOverrides) {
-  const operations = createTestOperationsService()
+  const operations = createTestProgressPort()
   const captureInbox = createTestCaptureInboxService()
   const logger = createTestLoggerService()
   const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
   const navigate = vi.fn<(route: Route) => void>()
   const graphSession = createTestGraphSessionService({ graph: { generation: 3 } })
   const intake = createTestDeepLinkIntakeService({
-    operations,
+    progress: operations,
     captureInbox: overrides?.captureInbox ?? captureInbox,
     indexQuery: { resolveNoteTarget },
     graphSession,

@@ -1,3 +1,4 @@
+import type { AppServices } from '@reflect/app'
 import type { CoreServices, LoggerService, Operation } from '@reflect/core'
 import { toast } from '@/components/ui/toast.tsx'
 
@@ -75,7 +76,7 @@ function showOperationToast(operation: Operation, logger: LoggerService): void {
  * Start mirroring `operations` into toasts; returns a detach.
  */
 export function attachOperationToasts(
-  ctx: Pick<CoreServices, 'operations' | 'logger'>,
+  ctx: Pick<AppServices, 'operations'> & Pick<CoreServices, 'logger'>,
 ): () => void {
   const { operations, logger } = ctx
   let shownIds = new Set<number>()

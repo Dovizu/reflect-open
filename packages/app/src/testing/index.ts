@@ -11,6 +11,11 @@ export {
   type TestNativeMenuServiceOptions,
 } from './commands.ts'
 export { createTestClipboardService, type TestClipboardService } from './clipboard.ts'
+export {
+  createTestOperationsService,
+  type OperationSnapshot,
+  type TestOperationsService,
+} from './operations.ts'
 export { createTestOpenerService, type TestOpenerService } from './opener.ts'
 export { createTestAppHost, createTestAppServices, type TestAppServices } from './services.ts'
 export {

@@ -10,12 +10,16 @@ import {
   type SettingsService,
 } from '@reflect/core'
 import type { NativeContextMenuOptions } from '@reflect/app'
-import { createTestAppServices, type TestOpenerService } from '@reflect/app/testing'
+import {
+  createTestAppServices,
+  createTestOperationsService,
+  type TestOpenerService,
+  type TestOperationsService,
+} from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestBackupService,
   createTestWindowService,
-  type TestOperationsService,
 } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import type { Route } from '@/routing/route.ts'
@@ -84,7 +88,9 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
   const navigate = vi.fn()
   const openPalette = vi.fn()
   const readSource = async (): Promise<string> => '# Rust\n'
+  operations = createTestOperationsService()
   const app = createTestCoreServices({
+    progress: operations,
     noteDocuments: {
       readSource,
       readExisting: readSource,
@@ -129,7 +135,6 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
   chooseGraph = vi.spyOn(app.graphSession, 'chooseGraph').mockResolvedValue()
   updateSettingsWith = vi.spyOn(app.settings, 'updateWith')
   opener = appLayer.opener
-  operations = app.operations
   // The app constrains the sidebar to its rail width; without it the graph
   // menu's anchor spans the viewport and popper pushes the submenu off-screen.
   const view = await renderInApp(<Sidebar graph={GRAPH} context={context} />, {

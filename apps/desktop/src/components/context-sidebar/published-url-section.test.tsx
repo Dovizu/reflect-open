@@ -1,12 +1,15 @@
 import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { MIN_VISIBLE_MS, type GistPublishService, type NoteRow } from '@reflect/core'
+import { MIN_VISIBLE_MS } from '@reflect/app'
+import type { GistPublishService, NoteRow } from '@reflect/core'
 import {
   createTestAppServices,
+  createTestOperationsService,
   type TestClipboardService,
   type TestOpenerService,
+  type TestOperationsService,
 } from '@reflect/app/testing'
-import { createTestCoreServices, type TestOperationsService } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { PublishedUrlSection } from './published-url-section.tsx'
@@ -36,12 +39,12 @@ function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
 }
 
 async function renderSection(path = 'notes/a.md') {
-  const app = createTestCoreServices()
+  operations = createTestOperationsService()
+  const app = createTestCoreServices({ progress: operations })
   vi.spyOn(app.indexQuery, 'getNote').mockImplementation(async () => row ?? undefined)
   publish = vi
     .spyOn(app.gistPublish, 'publish')
     .mockResolvedValue({ url: 'https://gist.github.com/alex/g1', stale: false })
-  ;({ operations } = app)
   const appLayer = createTestAppServices(app)
   ;({ clipboard, opener } = appLayer)
   if (clipboardFailure !== null) {

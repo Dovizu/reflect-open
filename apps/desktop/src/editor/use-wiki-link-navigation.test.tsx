@@ -1,12 +1,14 @@
-import { createTestAppServices } from '@reflect/app/testing'
+import {
+  createTestAppServices,
+  createTestOperationsService,
+  type TestOperationsService,
+} from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestGraphSessionService,
   createTestLoggerService,
-  createTestOperationsService,
   createTestWindowService,
   type TestOpenGraph,
-  type TestOperationsService,
 } from '@reflect/core/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
@@ -45,7 +47,7 @@ function RouteProbe(): ReactNode {
 function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
   const base = createTestCoreServices()
   const graphSession = createTestGraphSessionService()
-  const app = createTestCoreServices({ operations, graphSession })
+  const app = createTestCoreServices({ progress: operations, graphSession })
   const linkNavigation = createTestAppServices(
     createTestCoreServices({
       graphSession,
@@ -56,7 +58,7 @@ function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
       },
       noteCreation: Object.assign(base.noteCreation, { resolveOrCreateNoteWithTitle }),
       window: createTestWindowService({ openNoteWindow }),
-      operations,
+      progress: operations,
       logger,
     }),
   ).linkNavigation

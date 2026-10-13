@@ -5,7 +5,7 @@ import {
   type GraphSessionSource,
 } from '../app/graph-session.ts'
 import type { IdService } from '../app/id-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { PathService } from '../app/path-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
@@ -175,7 +175,7 @@ export interface NoteActionsServiceDeps {
   readonly indexLifecycle: Pick<IndexLifecycleService, 'indexNote'>
   readonly indexQuery: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
   readonly noteRows: Pick<NoteRowService, 'setOverlay' | 'dropOverlay' | 'getOverlaysOn'>
-  readonly operations: OperationsService
+  readonly progress: ProgressPort
   readonly path: Pick<PathService, 'join'>
   readonly id: Pick<IdService, 'noteId'>
   readonly graphSession: GraphSessionSource
@@ -273,7 +273,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
   }
 
   async trashMany(paths: readonly string[]): Promise<NoteTrashResult> {
-    const { operations, graphSession } = this.#deps
+    const { progress, graphSession } = this.#deps
     const succeeded: string[] = []
     const failed: NoteTrashFailure[] = []
     if (paths.length === 0) {
@@ -283,10 +283,10 @@ class NoteActionsServiceImpl implements NoteActionsService {
     try {
       session = requireGraphSession(graphSession)
     } catch (cause) {
-      operations.start('Trashing notes').fail(errorMessage(cause))
+      progress.start('Trashing notes').fail(errorMessage(cause))
       return { succeeded, failed: paths.map((path) => ({ path, cause })) }
     }
-    const operation = operations.start('Trashing notes')
+    const operation = progress.start('Trashing notes')
     operation.progress(0, paths.length)
     let attempted = 0
     for (const path of paths) {
@@ -375,7 +375,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
     generation: number,
     kind: 'toggle' | 'unpin',
   ): Promise<NoteActionOutcome<NotePinResult>> {
-    const { noteRows, noteDocuments, operations } = this.#deps
+    const { noteRows, noteDocuments, progress } = this.#deps
     let written: NoteRowOverlayPatch | null = null
     try {
       // Predict from what readers show now, so the overlay lands before the note is read.
@@ -419,7 +419,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
       if (written !== null) {
         noteRows.dropOverlay(path, generation, written)
       }
-      operations.start('Updating pin').fail(errorMessage(cause))
+      progress.start('Updating pin').fail(errorMessage(cause))
       return { status: 'failed' }
     }
   }
@@ -428,7 +428,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
     path: string,
     generation: number,
   ): Promise<NoteActionOutcome<{ isPrivate: boolean }>> {
-    const { noteRows, noteDocuments, operations } = this.#deps
+    const { noteRows, noteDocuments, progress } = this.#deps
     let written: NoteRowOverlayPatch | null = null
     try {
       const predicted = !(await this.#readPrivacy(path, generation))
@@ -446,7 +446,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
       if (written !== null) {
         noteRows.dropOverlay(path, generation, written)
       }
-      operations.start('Updating privacy').fail(errorMessage(cause))
+      progress.start('Updating privacy').fail(errorMessage(cause))
       return { status: 'failed' }
     }
   }

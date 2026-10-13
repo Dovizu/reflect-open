@@ -1,6 +1,6 @@
 import type { ClockService } from '../app/clock-service.ts'
 import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { PlatformService } from '../app/platform-service.ts'
 import { errorMessage } from '../errors.ts'
 import { assetFileName } from '../graph/asset-names.ts'
@@ -358,7 +358,7 @@ export interface AttachmentServiceDeps {
   readonly assetStore: AssetStoreService
   readonly noteFile: NoteFileService
   readonly fileChanges: FileChangeService
-  readonly operations: OperationsService
+  readonly progress: ProgressPort
   readonly clock: ClockService
   readonly platform: PlatformService
   readonly graphSession: GraphSessionSource
@@ -484,7 +484,7 @@ class AttachmentServiceImpl implements AttachmentService {
   }
 
   async saveFile(file: File): Promise<AssetSaveResult | null> {
-    const { assetStore, operations, clock } = this.#deps
+    const { assetStore, progress, clock } = this.#deps
     const generation = this.#openGeneration()
     if (generation === null) {
       return null
@@ -500,7 +500,7 @@ class AttachmentServiceImpl implements AttachmentService {
       const path = await assetStore.uploadBlob(desiredName, file, generation)
       this.#recordSavedSize(generation, path, file.size)
       if (file.size > LARGE_FILE_BYTES) {
-        operations
+        progress
           .start('Large file added')
           .warn(
             `“${file.name}” is ${formatBytes(file.size)}. Git keeps every version forever; GitHub rejects files over 100 MB.`,
@@ -526,7 +526,7 @@ class AttachmentServiceImpl implements AttachmentService {
   }
 
   async attachFilesToNote({ sources, findEditor }: AttachFilesRequest): Promise<void> {
-    const { assetStore, operations } = this.#deps
+    const { assetStore, progress } = this.#deps
     const generation = this.#openGeneration()
     if (generation === null || findEditor() === null) {
       return
@@ -568,12 +568,12 @@ class AttachmentServiceImpl implements AttachmentService {
       problems.push(`could not be copied: ${details}`)
     }
     if (problems.length > 0) {
-      operations.start('Attaching file').fail(problems.join('; '))
+      progress.start('Attaching file').fail(problems.join('; '))
     }
   }
 
   async openOrReveal(path: string): Promise<void> {
-    const { assetStore, operations } = this.#deps
+    const { assetStore, progress } = this.#deps
     const generation = this.#openGeneration()
     if (generation === null) {
       return
@@ -586,11 +586,11 @@ class AttachmentServiceImpl implements AttachmentService {
       // file), report the original open error, which matches the intent.
       try {
         await assetStore.reveal(path, generation)
-        operations
+        progress
           .start('Opening attachment')
           .warn('This file type can’t be opened directly, so it was revealed in Finder instead.')
       } catch {
-        operations.start('Opening attachment').fail(errorMessage(openCause))
+        progress.start('Opening attachment').fail(errorMessage(openCause))
       }
     }
   }

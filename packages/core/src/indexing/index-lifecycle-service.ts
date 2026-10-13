@@ -1,5 +1,5 @@
 import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import { errorMessage } from '../errors.ts'
 import { isNotePath } from '../graph/paths.ts'
 import type { Unlisten } from '../unlisten.ts'
@@ -256,7 +256,7 @@ export interface IndexLifecycleService {
  */
 export interface IndexLifecycleDeps extends IndexingDeps {
   readonly fileChanges: FileChangeService
-  readonly operations: OperationsService
+  readonly progress: ProgressPort
   readonly graphSession: GraphSessionSource
 }
 
@@ -598,8 +598,8 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
   }
 
   async #runRebuild(generation: number): Promise<void> {
-    const { operations, logger } = this.#deps
-    const operation = operations.start('Rebuilding search index')
+    const { progress, logger } = this.#deps
+    const operation = progress.start('Rebuilding search index')
     const skippedNotes: string[] = []
     try {
       await this.#indexer.rebuild({

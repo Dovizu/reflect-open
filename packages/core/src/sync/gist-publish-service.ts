@@ -1,5 +1,5 @@
 import type { GraphSessionSource } from '../app/graph-session.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import type { NoteRowService } from '../documents/note-row-service.ts'
 import { errorMessage, ReflectError } from '../errors.ts'
@@ -57,7 +57,7 @@ export interface GistPublishServiceDeps {
   readonly noteDocuments: Pick<NoteDocumentService, 'readSource' | 'commitFrontmatter'>
   readonly noteRows: Pick<NoteRowService, 'setOverlay'>
   readonly privacy: Pick<PrivacyService, 'assertCloudAllowed'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly graphSession: GraphSessionSource
 }
 
@@ -70,14 +70,14 @@ class GistPublishServiceImpl implements GistPublishService {
   }
 
   async publish(path: string): Promise<GistPublishResult | null> {
-    const { noteRows, operations, graphSession } = this.#deps
+    const { noteRows, progress, graphSession } = this.#deps
     const session = graphSession.getState().session
     if (session === null || !this.#claim(path)) {
       return null
     }
     const { generation } = session
     try {
-      const operation = operations.start('Publishing gist')
+      const operation = progress.start('Publishing gist')
       let url: string
       try {
         url = await this.#publishNote(path, generation)
@@ -97,14 +97,14 @@ class GistPublishServiceImpl implements GistPublishService {
   }
 
   async unpublish(path: string): Promise<GistPublishResult | null> {
-    const { noteRows, operations, graphSession } = this.#deps
+    const { noteRows, progress, graphSession } = this.#deps
     const session = graphSession.getState().session
     if (session === null || !this.#claim(path)) {
       return null
     }
     const { generation } = session
     try {
-      const operation = operations.start('Unpublishing gist')
+      const operation = progress.start('Unpublishing gist')
       try {
         await this.#unpublishNote(path, generation)
       } catch (cause) {
@@ -122,7 +122,7 @@ class GistPublishServiceImpl implements GistPublishService {
 
   #claim(path: string): boolean {
     if (this.#active.has(path)) {
-      this.#deps.operations
+      this.#deps.progress
         .start('Gist operation already running')
         .fail('Wait for the current gist operation to finish')
       return false

@@ -1,7 +1,6 @@
-import { createLifecycleService, type AppHost } from '@reflect/app'
+import { createLifecycleService, createOperationsService, type AppHost } from '@reflect/app'
 import {
   MAIN_WINDOW_LABEL,
-  createConsoleLogger,
   createBrowserHttpService,
   createNoDeepLinkSource,
   createPosixPathTransport,
@@ -50,11 +49,11 @@ export interface DesktopPrimitives {
 export function createDesktopAdapters(
   facts: PlatformFacts,
   { logger, clock }: Omit<DesktopPrimitives, 'ipc'>,
-): Omit<CoreAdapters, 'ipc' | 'activity'> {
+): Omit<CoreAdapters, 'ipc' | 'activity' | 'progress'> {
   const common = {
     platform: facts,
-    logger,
     clock,
+    logger,
     storage: {
       local: reachWebStorage(logger, 'localStorage'),
       session: reachWebStorage(logger, 'sessionStorage'),
@@ -88,21 +87,25 @@ export function createDesktopAdapters(
 }
 
 /**
- * The desktop app's host for the app layer: the lifecycle service over the
- * page, the Tauri updater and native menus inside the native shell, and
- * Sentry exception telemetry everywhere.
+ * The desktop app's host for the app layer: the lifecycle service and the
+ * operations list over the page, the Tauri updater and native menus inside
+ * the native shell, and Sentry exception telemetry everywhere.
  */
 export function createDesktopHost(
   facts: PlatformFacts,
   { ipc, clock, logger }: DesktopPrimitives,
 ): AppHost {
   const lifecycle = createLifecycleService({ ipc, dom: createDomLifecycleAdapter(), clock, logger })
-  const common = { lifecycle, clipboard: createNavigatorClipboardService() }
+  const common = {
+    lifecycle,
+    operations: createOperationsService({ clock }),
+    clipboard: createNavigatorClipboardService(),
+  }
   const exceptionTelemetry = createExceptionTelemetry({
     dsn: buildExceptionTelemetryDsn(),
     release: `reflect@${facts.appVersion}`,
     sdk: sentryExceptionTelemetrySdk,
-    logger: createConsoleLogger(),
+    logger,
   })
   if (facts.isNativeShell) {
     return {

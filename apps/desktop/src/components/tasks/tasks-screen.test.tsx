@@ -231,14 +231,14 @@ const waitFor = vi.waitFor
 
 let storage: TestCoreServices['storage']
 
-let operations: TestCoreServices['operations']
+let operations: TestCoreServices['progress']
 
 let app: TestCoreServices
 
 beforeEach(() => {
   // A fresh app per test, so its task service's recently-completed set starts empty.
   app = createTestCoreServices()
-  operations = app.operations
+  operations = app.progress
   storage = app.storage
   app.clock.setToday('2026-06-14')
   const tasks = app.tasks

@@ -9,7 +9,7 @@ import {
   createTestFileChangeService,
   createTestGraphSessionService,
   createTestNoteFileService,
-  createTestOperationsService,
+  createTestProgressPort,
   createTestPlatformService,
 } from '../testing/index.ts'
 import {
@@ -45,18 +45,18 @@ function setup(options?: { assetStore?: AssetStoreService; noteFile?: NoteFileSe
   const assetStore = options?.assetStore ?? createTestAssetStoreService()
   const noteFile = options?.noteFile ?? createTestNoteFileService()
   const fileChanges = createTestFileChangeService()
-  const operations = createTestOperationsService(clock)
+  const progress = createTestProgressPort()
   const graph = createTestGraphSessionService({ graph: { generation: 3 } })
   const attachments = createAttachmentService({
     assetStore,
     noteFile,
     fileChanges,
-    operations,
+    progress,
     clock,
     platform: createTestPlatformService(),
     graphSession: graph,
   })
-  return { attachments, assetStore, noteFile, fileChanges, operations, clock, graph }
+  return { attachments, assetStore, noteFile, fileChanges, progress, clock, graph }
 }
 
 function fileOf(name: string, type: string, size = 16): File {
@@ -111,19 +111,17 @@ describe('saveFile', () => {
   })
 
   it('saves a large file without asking, with a status-line warning after', async () => {
-    const { attachments, operations } = setup()
+    const { attachments, progress } = setup()
 
     await attachments.saveFile(fileOf('huge.mov', 'video/quicktime', LARGE_FILE_BYTES + 1))
 
-    const warning = operations.findByLabel('Large file added')
+    const warning = progress.findByLabel('Large file added')
     expect(warning?.status).toBe('warning')
     expect(warning?.message).toMatch(/“huge\.mov” is 25 MB/)
     expect(warning?.message).toMatch(/100 MB/)
 
     await attachments.saveFile(fileOf('small.pdf', 'application/pdf'))
-    expect(operations.getAll().filter((operation) => operation.status === 'warning')).toHaveLength(
-      1,
-    )
+    expect(progress.getAll().filter((operation) => operation.status === 'warning')).toHaveLength(1)
   })
 
   it('reports failures keyed by how the file was named, never rejecting', async () => {
@@ -595,7 +593,7 @@ describe('attachFilesToNote', () => {
 
   it('looks the editor up again after the copies and reports a closed note', async () => {
     const assetStore = createTestAssetStoreService({ sources: { '/tmp/report.pdf': 'a' } })
-    const { attachments, operations } = setup({ assetStore })
+    const { attachments, progress } = setup({ assetStore })
     const target = editor()
     let mounted = true
 
@@ -608,7 +606,7 @@ describe('attachFilesToNote', () => {
 
     expect(assetStore.uploads()).toHaveLength(1)
     expect(target.inserted).toEqual([])
-    const failure = operations.findByLabel('Attaching file')
+    const failure = progress.findByLabel('Attaching file')
     expect(failure?.status).toBe('failed')
     expect(failure?.message).toMatch(/report\.pdf were still copied into assets\//)
   })
@@ -617,7 +615,7 @@ describe('attachFilesToNote', () => {
     const assetStore = createTestAssetStoreService({
       sources: { '/tmp/good.pdf': 'a', '/tmp/also good.pdf': 'b' },
     })
-    const { attachments, operations } = setup({ assetStore })
+    const { attachments, progress } = setup({ assetStore })
     const target = editor()
 
     await attachments.attachFilesToNote({
@@ -628,7 +626,7 @@ describe('attachFilesToNote', () => {
     expect(target.inserted).toEqual([
       '[good.pdf](assets/good.pdf)\n[also good.pdf](assets/also-good.pdf)',
     ])
-    const failure = operations.findByLabel('Attaching file')
+    const failure = progress.findByLabel('Attaching file')
     expect(failure?.status).toBe('failed')
     expect(failure?.message).toBe('could not be copied: bad.bin (/tmp/bad.bin not found)')
   })
@@ -637,31 +635,31 @@ describe('attachFilesToNote', () => {
 describe('openOrReveal', () => {
   it('opens without touching the reveal fallback', async () => {
     const assetStore = createTestAssetStoreService()
-    const { attachments, operations } = setup({ assetStore })
+    const { attachments, progress } = setup({ assetStore })
 
     await attachments.openOrReveal('assets/q3-report.pdf')
 
     expect(assetStore.opened()).toEqual(['assets/q3-report.pdf'])
     expect(assetStore.revealed()).toEqual([])
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('degrades a refused file type to a reveal, with a status-line note', async () => {
     const assetStore = createTestAssetStoreService()
-    const { attachments, operations } = setup({
+    const { attachments, progress } = setup({
       assetStore: Object.assign(assetStore, { open: failing('not a supported attachment path') }),
     })
 
     await attachments.openOrReveal('assets/tool.xyz')
 
     expect(assetStore.revealed()).toEqual(['assets/tool.xyz'])
-    const warning = operations.findByLabel('Opening attachment')
+    const warning = progress.findByLabel('Opening attachment')
     expect(warning?.status).toBe('warning')
     expect(warning?.message).toMatch(/revealed in Finder/)
   })
 
   it('surfaces the open error when the reveal fails too', async () => {
-    const { attachments, operations } = setup({
+    const { attachments, progress } = setup({
       assetStore: Object.assign(createTestAssetStoreService(), {
         open: failing('not a supported attachment path: assets/tool.xyz'),
         reveal: failing('asset not found: assets/tool.xyz'),
@@ -670,7 +668,7 @@ describe('openOrReveal', () => {
 
     await attachments.openOrReveal('assets/tool.xyz')
 
-    const failure = operations.findByLabel('Opening attachment')
+    const failure = progress.findByLabel('Opening attachment')
     expect(failure?.status).toBe('failed')
     expect(failure?.message).toBe('not a supported attachment path: assets/tool.xyz')
   })

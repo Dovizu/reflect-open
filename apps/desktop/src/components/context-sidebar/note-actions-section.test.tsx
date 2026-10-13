@@ -8,11 +8,8 @@ import {
   type NoteDocumentService,
   type NoteRow,
 } from '@reflect/core'
-import {
-  createTestCoreServices,
-  createTestPlatformService,
-  type TestOperationsService,
-} from '@reflect/core/testing'
+import { createTestCoreServices, createTestPlatformService } from '@reflect/core/testing'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/app/testing'
 import { frontmatterPatchToYaml } from '@/editor/note-session.ts'
 import { usePinnedNotes } from '@/hooks/use-pinned-notes.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -42,7 +39,9 @@ function pinnedTitles(): string | null {
 }
 
 async function renderSection(path: string, showTrash = false, copies = 1) {
+  operations = createTestOperationsService()
   const app = createTestCoreServices({
+    progress: operations,
     noteDocuments: {
       readSource: readNoteSource,
       readExisting: async (notePath) => await readNoteSource(notePath),
@@ -60,7 +59,6 @@ async function renderSection(path: string, showTrash = false, copies = 1) {
   vi.spyOn(app.indexQuery, 'getPinnedNotes').mockImplementation(getPinnedNotes)
   vi.spyOn(app.indexQuery, 'getNote').mockImplementation(getNote)
   trash = vi.spyOn(app.noteActions, 'trashOne').mockResolvedValue()
-  operations = app.operations
   const view = await renderInApp(
     <>
       {Array.from({ length: copies }, (_, copy) => (

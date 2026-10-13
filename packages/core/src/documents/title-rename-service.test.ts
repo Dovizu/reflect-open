@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
 import { createBacklinkService } from '../indexing/backlink-service.ts'
 import { createNotePathService } from '../indexing/note-path-service.ts'
 import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
@@ -16,7 +15,7 @@ import { createTestGraphSessionService, type TestOpenGraph } from '../testing/gr
 import { createTestNoteFileService, overrideNoteFileService } from '../testing/graph.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
+import { createTestProgressPort } from '../testing/ports.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
 import { createTitleRenameService, type RenameCoordinator } from './title-rename-service.ts'
 
@@ -95,7 +94,7 @@ function setup(options?: SetupOptions) {
   const path = options?.path ?? PATH
   const files = options?.files ?? {}
   const clock = createTestClockService()
-  const operations = createTestOperationsService(clock)
+  const progress = createTestProgressPort()
   const logger = createTestLoggerService()
   const noteFile = createTestNoteFileService({ files })
   const database = createTestDatabaseService()
@@ -169,7 +168,7 @@ function setup(options?: SetupOptions) {
     notePath: createNotePathService({ database, noteFile }),
     noteMove,
     openDocuments,
-    operations,
+    progress,
     clock,
     logger,
     graphSession: graph,
@@ -180,15 +179,12 @@ function setup(options?: SetupOptions) {
   })
 
   /**
-   * The operations shown so far, each with its outcome once the minimum visible time has passed.
+   * The operations started so far, each with its outcome.
    */
   async function operationOutcomes(): Promise<RecordedOperation[]> {
-    const shown = operations.getAll()
-    await clock.advance(MIN_VISIBLE_MS)
-    const remaining = new Set(operations.getAll().map((operation) => operation.id))
-    return shown.map(({ id, label, status, message }) => ({
+    return progress.started().map(({ label, status, message, ended }) => ({
       label,
-      outcome: status === 'failed' ? 'failed' : remaining.has(id) ? 'running' : 'done',
+      outcome: status === 'failed' ? 'failed' : ended ? 'done' : 'running',
       message,
     }))
   }
@@ -197,7 +193,7 @@ function setup(options?: SetupOptions) {
     coordinator,
     graph,
     clock,
-    operations,
+    progress,
     logger,
     noteFile,
     indexStore,
@@ -208,7 +204,7 @@ function setup(options?: SetupOptions) {
     /**
      * The labels of the operations started so far.
      */
-    started: () => operations.getAll().map((operation) => operation.label),
+    started: () => progress.started().map((operation) => operation.label),
   }
 }
 

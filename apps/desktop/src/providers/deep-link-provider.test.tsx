@@ -6,7 +6,7 @@ import {
   createTestCaptureInboxService,
   createTestDeepLinkIntakeService,
   createTestGraphSessionService,
-  createTestOperationsService,
+  createTestProgressPort,
 } from '@reflect/core/testing'
 import { act } from '@/test-utils/act.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -20,17 +20,17 @@ const GRAPH = { root: '/g', name: 'g', generation: 7 }
 function setup() {
   const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
   const captureInbox = createTestCaptureInboxService()
-  const operations = createTestOperationsService()
+  const operations = createTestProgressPort()
   const graphSession = createTestGraphSessionService()
   const deepLinkIntake = createTestDeepLinkIntakeService({
     indexQuery: { resolveNoteTarget },
     captureInbox,
-    operations,
+    progress: operations,
     graphSession,
   })
   const app = createTestCoreServices({
     captureInbox,
-    operations,
+    progress: operations,
     graphSession,
     deepLinkIntake,
   })

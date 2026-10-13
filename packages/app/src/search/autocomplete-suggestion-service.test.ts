@@ -22,10 +22,10 @@ import {
   createTestGraphSessionService,
   createTestLoggerService,
   createTestNoteCreationService,
-  createTestOperationsService,
   createTestSettingsService,
   seedNotes,
 } from '@reflect/core/testing'
+import { createTestOperationsService } from '../testing/operations.ts'
 import { createAutocompleteSuggestionService } from './autocomplete-suggestion-service.ts'
 
 const NO_SUGGESTIONS: WikiLinkSuggestionResult = {
@@ -63,7 +63,7 @@ interface SetupOptions {
 async function setup(options?: SetupOptions) {
   const operations = createTestOperationsService()
   const logger = createTestLoggerService()
-  const settings = createTestSettingsService(options?.settings ?? {}, { operations })
+  const settings = createTestSettingsService(options?.settings ?? {}, { progress: operations })
   await settings.whenLoaded()
   const clock = createTestClockService({ now: new Date(2026, 5, 9, 12).getTime() })
   const contacts = createTestContactsService({ contacts: options?.contacts ?? [] })

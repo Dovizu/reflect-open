@@ -21,6 +21,7 @@ describe('createAppServices', () => {
       'nativeMenu',
       'navigation',
       'opener',
+      'operations',
       'paletteSearch',
       'quitPolicy',
       'share',

@@ -288,7 +288,7 @@ describe('app commands', () => {
     await command('note.copyDeepLink').run(context)
     expect(deepLinkFor).toHaveBeenCalledWith('notes/a.md')
     expect(appLayer.clipboard.writes()).toEqual(['reflect://x'])
-    expect(app.operations.snapshot()).toMatchObject([{ label: 'Deep link copied' }])
+    expect(app.progress.started()).toMatchObject([{ label: 'Deep link copied', ended: true }])
   })
 
   it('note.copyDeepLink reports a failure to build the link', async () => {
@@ -299,7 +299,7 @@ describe('app commands', () => {
     })
     await command('note.copyDeepLink').run(context)
     expect(appLayer.clipboard.writes()).toEqual([])
-    expect(app.operations.snapshot()).toMatchObject([
+    expect(app.progress.snapshot()).toMatchObject([
       { label: 'Copying deep link', status: 'failed', message: 'disk full' },
     ])
   })
@@ -312,7 +312,7 @@ describe('app commands', () => {
     })
     appLayer.clipboard.failWith(new Error('denied'))
     await command('note.copyDeepLink').run(context)
-    expect(app.operations.snapshot()).toMatchObject([
+    expect(app.progress.snapshot()).toMatchObject([
       { label: 'Copying deep link', status: 'failed', message: 'denied' },
     ])
   })
@@ -326,7 +326,7 @@ describe('app commands', () => {
     await command('note.copyDeepLink').run(context)
     expect(deepLinkFor).not.toHaveBeenCalled()
     expect(appLayer.clipboard.writes()).toEqual([])
-    expect(app.operations.getAll()).toEqual([])
+    expect(app.progress.getAll()).toEqual([])
   })
 
   it('note.copyDeepLink no-ops on note-less routes', async () => {
@@ -348,7 +348,7 @@ describe('app commands', () => {
     await command('note.copyPath').run(context)
     expect(absolutePathFor).toHaveBeenCalledWith('notes/a.md')
     expect(appLayer.clipboard.writes()).toEqual(['/g/notes/a.md'])
-    expect(app.operations.snapshot()).toMatchObject([{ label: 'Note path copied' }])
+    expect(app.progress.started()).toMatchObject([{ label: 'Note path copied', ended: true }])
   })
 
   it('note.copyPath fails loudly when no graph is open', async () => {
@@ -358,7 +358,7 @@ describe('app commands', () => {
     })
     await command('note.copyPath').run(context)
     expect(appLayer.clipboard.writes()).toEqual([])
-    expect(app.operations.snapshot()).toMatchObject([
+    expect(app.progress.snapshot()).toMatchObject([
       { label: 'Copying note path', status: 'failed', message: 'No graph is open' },
     ])
   })
@@ -371,7 +371,7 @@ describe('app commands', () => {
     })
     appLayer.clipboard.failWith(new Error('denied'))
     await command('note.copyPath').run(context)
-    expect(app.operations.snapshot()).toMatchObject([
+    expect(app.progress.snapshot()).toMatchObject([
       { label: 'Copying note path', status: 'failed', message: 'denied' },
     ])
   })
@@ -396,7 +396,7 @@ describe('app commands', () => {
     await command('note.publishGist').run(context)
     expect(publish).toHaveBeenCalledWith('notes/a.md')
     expect(appLayer.clipboard.writes()).toEqual(['https://gist.github.com/g1'])
-    expect(app.operations.snapshot()).toMatchObject([{ label: 'Gist link copied' }])
+    expect(app.progress.started()).toMatchObject([{ label: 'Gist link copied', ended: true }])
   })
 
   it('note.publishGist reports a failed copy without reading as a failed publish', async () => {
@@ -409,7 +409,7 @@ describe('app commands', () => {
     })
     appLayer.clipboard.failWith(new Error('Document is not focused'))
     await command('note.publishGist').run(context)
-    expect(app.operations.snapshot()).toMatchObject([
+    expect(app.progress.snapshot()).toMatchObject([
       { label: 'Copying the gist link', status: 'failed', message: 'Document is not focused' },
     ])
   })
@@ -451,7 +451,9 @@ describe('app commands', () => {
     const { context } = fakeContext()
     await command('index.rebuild').run(context)
     expect(app.indexLifecycle.rebuilds()).toEqual([7])
-    expect(app.operations.findByLabel('Rebuilding search index')?.status).toBe('running')
+    expect(app.progress.started()).toMatchObject([
+      { label: 'Rebuilding search index', ended: true },
+    ])
 
     // No graph open → no rebuild.
     app.graphSession.setGraph(null)

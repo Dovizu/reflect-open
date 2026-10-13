@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { overrideNoteFileService } from '../testing/graph.ts'
-import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
 import type { NoteSession } from '../documents/note-session.ts'
@@ -14,7 +13,7 @@ import {
   createTestHttpService,
   createTestNoteFileService,
   createTestNoteSession,
-  createTestOperationsService,
+  createTestProgressPort,
   type TestHttpReply,
 } from '../testing/index.ts'
 import { createGistPublishService } from './gist-publish-service.ts'
@@ -81,7 +80,7 @@ function setup(options?: SetupOptions) {
   const tokenReads = { count: 0 }
   const graph = createTestGraphSessionService({ graph: { generation: 3 } })
   const noteRows = createNoteRowService({ graphSession: graph })
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const service = createGistPublishService({
     gists: createGistService({ http }),
     githubAuth: {
@@ -100,7 +99,7 @@ function setup(options?: SetupOptions) {
       noteFile,
       graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
     }),
-    operations,
+    progress,
     graphSession: graph,
   })
 
@@ -110,7 +109,7 @@ function setup(options?: SetupOptions) {
     http,
     files,
     noteRows,
-    operations,
+    progress,
     tokenReads,
     /**
      * Make the next disk write reject with `error`.
@@ -231,11 +230,11 @@ describe('GistPublishService.publish', () => {
   })
 
   it('refuses to publish a private note before anything leaves the device', async () => {
-    const { service, http, operations, tokenReads } = setup({
+    const { service, http, progress, tokenReads } = setup({
       source: '---\nprivate: true\n---\nsecret',
     })
     await expect(service.publish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+    expect(progress.findByLabel('Publishing gist')).toMatchObject({
       status: 'failed',
       message: `"${PATH}" is marked private and cannot be sent to an external service`,
     })
@@ -244,9 +243,9 @@ describe('GistPublishService.publish', () => {
   })
 
   it('refuses an empty note', async () => {
-    const { service, http, operations } = setup({ source: '---\npinned: true\n---\n' })
+    const { service, http, progress } = setup({ source: '---\npinned: true\n---\n' })
     await expect(service.publish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+    expect(progress.findByLabel('Publishing gist')).toMatchObject({
       status: 'failed',
       message: expect.stringMatching(/empty/i),
     })
@@ -254,18 +253,18 @@ describe('GistPublishService.publish', () => {
   })
 
   it('asks for a GitHub connection when no credential is stored', async () => {
-    const { service, operations } = setup({ token: null })
+    const { service, progress } = setup({ token: null })
     await expect(service.publish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+    expect(progress.findByLabel('Publishing gist')).toMatchObject({
       status: 'failed',
       message: 'Connect GitHub in Settings to publish gists',
     })
   })
 
   it('refuses invalid frontmatter before anything reaches GitHub (the record write would refuse)', async () => {
-    const { service, http, operations } = setup({ source: '---\nfoo: [unclosed\n---\nbody' })
+    const { service, http, progress } = setup({ source: '---\nfoo: [unclosed\n---\nbody' })
     await expect(service.publish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+    expect(progress.findByLabel('Publishing gist')).toMatchObject({
       status: 'failed',
       message: expect.stringMatching(/invalid frontmatter/i),
     })
@@ -273,10 +272,10 @@ describe('GistPublishService.publish', () => {
   })
 
   it('deletes a freshly created gist when recording it locally fails (no orphans)', async () => {
-    const { service, failNextWrite, operations, sent } = setup()
+    const { service, failNextWrite, progress, sent } = setup()
     failNextWrite(new Error('disk on fire'))
     await expect(service.publish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+    expect(progress.findByLabel('Publishing gist')).toMatchObject({
       status: 'failed',
       message: 'disk on fire',
     })
@@ -284,7 +283,7 @@ describe('GistPublishService.publish', () => {
   })
 
   it('never deletes the existing gist when recording a republish fails (shared links survive)', async () => {
-    const { service, failNextWrite, operations, reply, sent } = setup({
+    const { service, failNextWrite, progress, reply, sent } = setup({
       source: REPUBLISH_SOURCE,
     })
     reply('PATCH', {
@@ -293,7 +292,7 @@ describe('GistPublishService.publish', () => {
     })
     failNextWrite(new Error('disk on fire'))
     await expect(service.publish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+    expect(progress.findByLabel('Publishing gist')).toMatchObject({
       status: 'failed',
       message: 'disk on fire',
     })
@@ -301,11 +300,11 @@ describe('GistPublishService.publish', () => {
   })
 
   it('still surfaces the record failure when the compensating delete also fails', async () => {
-    const { service, failNextWrite, operations, reply, sent } = setup()
+    const { service, failNextWrite, progress, reply, sent } = setup()
     failNextWrite(new Error('disk on fire'))
     reply('DELETE', { status: 500 })
     await expect(service.publish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Publishing gist')).toMatchObject({
+    expect(progress.findByLabel('Publishing gist')).toMatchObject({
       status: 'failed',
       message: 'disk on fire',
     })
@@ -313,15 +312,14 @@ describe('GistPublishService.publish', () => {
   })
 
   it('publishes and resolves the gist url', async () => {
-    const { service, operations } = setup()
+    const { service, progress } = setup()
     await expect(service.publish(PATH)).resolves.toEqual({
       url: PUBLISHED.htmlUrl,
       stale: false,
     })
 
-    expect(operations.snapshot()).toMatchObject([{ label: 'Publishing gist', status: 'running' }])
-    await operations.clock.advance(MIN_VISIBLE_MS)
-    expect(operations.getAll()).toEqual([])
+    expect(progress.started()).toMatchObject([{ label: 'Publishing gist', ended: true }])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('records the published url in the optimistic overlay, stamped with the generation', async () => {
@@ -344,10 +342,10 @@ describe('GistPublishService.publish', () => {
   })
 
   it('surfaces failures and resolves null', async () => {
-    const { service, operations } = setup({ token: null })
+    const { service, progress } = setup({ token: null })
     await expect(service.publish(PATH)).resolves.toBeNull()
 
-    expect(operations.snapshot()).toContainEqual(
+    expect(progress.snapshot()).toContainEqual(
       expect.objectContaining({
         status: 'failed',
         message: expect.stringMatching(/connect github/i),
@@ -366,11 +364,11 @@ describe('GistPublishService.unpublish', () => {
   })
 
   it('does not delete the remote gist when clearing local frontmatter fails', async () => {
-    const { service, failNextWrite, http, operations } = setup({ source: REPUBLISH_SOURCE })
+    const { service, failNextWrite, http, progress } = setup({ source: REPUBLISH_SOURCE })
     failNextWrite(new Error('disk on fire'))
 
     await expect(service.unpublish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Unpublishing gist')).toMatchObject({
+    expect(progress.findByLabel('Unpublishing gist')).toMatchObject({
       status: 'failed',
       message: 'disk on fire',
     })
@@ -379,11 +377,11 @@ describe('GistPublishService.unpublish', () => {
   })
 
   it('restores local gist frontmatter when the remote delete fails', async () => {
-    const { service, files, operations, reply } = setup({ source: REPUBLISH_SOURCE })
+    const { service, files, progress, reply } = setup({ source: REPUBLISH_SOURCE })
     reply('DELETE', { status: 500 })
 
     await expect(service.unpublish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Unpublishing gist')).toMatchObject({
+    expect(progress.findByLabel('Unpublishing gist')).toMatchObject({
       status: 'failed',
       message: expect.stringContaining('deleting the gist failed'),
     })
@@ -414,10 +412,10 @@ describe('GistPublishService.unpublish', () => {
   })
 
   it('asks for a GitHub connection before deleting the gist', async () => {
-    const { service, http, operations } = setup({ source: REPUBLISH_SOURCE, token: null })
+    const { service, http, progress } = setup({ source: REPUBLISH_SOURCE, token: null })
 
     await expect(service.unpublish(PATH)).resolves.toBeNull()
-    expect(operations.findByLabel('Unpublishing gist')).toMatchObject({
+    expect(progress.findByLabel('Unpublishing gist')).toMatchObject({
       status: 'failed',
       message: 'Connect GitHub in Settings to unpublish gists',
     })
@@ -425,22 +423,21 @@ describe('GistPublishService.unpublish', () => {
   })
 
   it('unpublishes and clears the published url in the optimistic overlay', async () => {
-    const { service, noteRows, operations } = setup({ source: REPUBLISH_SOURCE })
+    const { service, noteRows, progress } = setup({ source: REPUBLISH_SOURCE })
 
     await expect(service.unpublish(PATH)).resolves.toEqual({ url: null, stale: false })
 
-    expect(operations.snapshot()).toMatchObject([{ label: 'Unpublishing gist', status: 'running' }])
-    await operations.clock.advance(MIN_VISIBLE_MS)
-    expect(operations.getAll()).toEqual([])
+    expect(progress.started()).toMatchObject([{ label: 'Unpublishing gist', ended: true }])
+    expect(progress.getAll()).toEqual([])
     expect(noteRows.getOverlay(PATH)).toMatchObject({ gistUrl: null, gistStale: false })
   })
 
   it('surfaces failures and leaves no overlay', async () => {
-    const { service, noteRows, operations } = setup({ source: REPUBLISH_SOURCE, token: null })
+    const { service, noteRows, progress } = setup({ source: REPUBLISH_SOURCE, token: null })
 
     await expect(service.unpublish(PATH)).resolves.toBeNull()
 
-    expect(operations.snapshot()).toContainEqual(
+    expect(progress.snapshot()).toContainEqual(
       expect.objectContaining({
         status: 'failed',
         message: expect.stringMatching(/connect github/i),
@@ -450,7 +447,7 @@ describe('GistPublishService.unpublish', () => {
   })
 
   it('blocks publish or update while an unpublish is in flight for the same note', async () => {
-    const { service, operations, reply, sent } = setup({ source: REPUBLISH_SOURCE })
+    const { service, progress, reply, sent } = setup({ source: REPUBLISH_SOURCE })
     const deleteStarted = Promise.withResolvers<void>()
     const pendingDelete = Promise.withResolvers<Response>()
     reply('DELETE', () => {
@@ -464,7 +461,7 @@ describe('GistPublishService.unpublish', () => {
     await expect(service.publish(PATH)).resolves.toBeNull()
     expect(sent('POST')).toEqual([])
     expect(sent('PATCH')).toEqual([])
-    expect(operations.snapshot()).toContainEqual(
+    expect(progress.snapshot()).toContainEqual(
       expect.objectContaining({
         status: 'failed',
         message: expect.stringMatching(/current gist operation/i),
@@ -478,13 +475,13 @@ describe('GistPublishService.unpublish', () => {
 
 describe('with no graph open', () => {
   it('publishes and unpublishes nothing and resolves null', async () => {
-    const { service, graph, http, operations } = setup({ source: REPUBLISH_SOURCE })
+    const { service, graph, http, progress } = setup({ source: REPUBLISH_SOURCE })
     graph.setGraph(null)
 
     await expect(service.publish(PATH)).resolves.toBeNull()
     await expect(service.unpublish(PATH)).resolves.toBeNull()
 
     expect(http.requests()).toEqual([])
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 })

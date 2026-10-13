@@ -30,7 +30,7 @@ import { createTestNoteSession, type TestNoteSession } from '../testing/document
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
-import { createTestOperationsService, type TestOperationsService } from '../testing/operations.ts'
+import { createTestProgressPort, type TestProgressPort } from '../testing/ports.ts'
 import { makeOpenTask } from '../testing/tasks.ts'
 import type { OpenTask } from './open-task.ts'
 import { getTaskKey } from './task-identity.ts'
@@ -78,7 +78,7 @@ const task = ref('+ [ ] do it\n')
 let database: TestDatabaseService
 let noteFile: TestNoteFileService
 let openDocuments: OpenDocumentsService
-let operations: TestOperationsService
+let progress: TestProgressPort
 let clock: TestClockService
 let logger: TestLoggerService
 let tasks: TaskService
@@ -118,7 +118,7 @@ function createTasks(graphSession: TaskServiceDeps['graphSession']): TaskService
       noteFile,
       graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
     }),
-    operations,
+    progress,
     clock,
     logger,
     graphSession,
@@ -154,7 +154,7 @@ beforeEach(() => {
   database = createTestDatabaseService()
   noteFile = createTestNoteFileService()
   openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
-  operations = createTestOperationsService()
+  progress = createTestProgressPort()
   clock = createTestClockService()
   logger = createTestLoggerService()
   appliedListeners = new Set()
@@ -574,7 +574,7 @@ describe('snippet tasks', () => {
     expect(
       tasks.resolveSnippetTask(anchors, { index: 1, checked: false, text: 'square box' }),
     ).toBe(anchors[1])
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('refuses a drifted click and reports it', () => {
@@ -586,9 +586,7 @@ describe('snippet tasks', () => {
       tasks.resolveSnippetTask(anchors, { index: 9, checked: false, text: 'do it' }),
     ).toBeNull()
     expect(
-      operations
-        .getAll()
-        .map((operation) => [operation.label, operation.status, operation.message]),
+      progress.getAll().map((operation) => [operation.label, operation.status, operation.message]),
     ).toEqual([
       ['Updating task', 'failed', 'The note has changed — try again in a moment.'],
       ['Updating task', 'failed', 'The note has changed — try again in a moment.'],
@@ -603,7 +601,7 @@ describe('snippet tasks', () => {
       checked: false,
     })
     expect(noteFile.getWrites('notes/a.md')).toEqual(['+ [x] do it\n'])
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('reports a failed toggle, labelled for its direction, and rethrows', async () => {
@@ -614,7 +612,7 @@ describe('snippet tasks', () => {
         checked: true,
       }),
     ).rejects.toBeInstanceOf(TaskStaleError)
-    expect(operations.findByLabel('Reopening task')?.status).toBe('failed')
+    expect(progress.findByLabel('Reopening task')?.status).toBe('failed')
   })
 })
 
@@ -626,7 +624,7 @@ describe('no graph open', () => {
     await expect(closed.writeTask(task, [{ kind: 'toggle' }])).rejects.toThrow('No graph is open.')
     await closed.toggleSnippetTask('notes/a.md', { locator: task, checked: false })
     expect(noteFile.writes()).toEqual([])
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('stops a batch once its graph is replaced', async () => {

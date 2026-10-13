@@ -1,7 +1,7 @@
 import { isCaptureSpoolPath } from '../capture/capture-identity.ts'
 import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { PersistenceFlushService } from '../app/persistence-flush-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
@@ -79,7 +79,7 @@ export interface BackupServiceDeps {
    * Applies the notes a pull changed.
    */
   readonly indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
-  readonly operations: OperationsService
+  readonly progress: ProgressPort
   readonly activity: ActivityPort
   readonly platform: PlatformFacts
   readonly persistenceFlush: PersistenceFlushService
@@ -174,7 +174,7 @@ class BackupServiceImpl implements BackupService {
   }
 
   async start(): Promise<void> {
-    const { git, syncEngines, githubAuth, operations, activity, logger } = this.#deps
+    const { git, syncEngines, githubAuth, progress, activity, logger } = this.#deps
     this.#teardown()
     if (this.#disposed) {
       return
@@ -258,7 +258,7 @@ class BackupServiceImpl implements BackupService {
         onLargeFilesSkipped: (files) => {
           // Surface the guardrail loudly: these files are NOT in the backup.
           const names = files.map((file) => file.path).join(', ')
-          operations.start('Backing up').fail(`Too large to back up (kept local): ${names}`)
+          progress.start('Backing up').fail(`Too large to back up (kept local): ${names}`)
         },
         onRemoteChanges: (changes) => this.#onRemoteChanges(changes),
       })

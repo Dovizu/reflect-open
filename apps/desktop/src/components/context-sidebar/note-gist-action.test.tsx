@@ -99,7 +99,7 @@ describe('NoteGistAction', () => {
     await userEvent.click(view.getByRole('button', { name: /Share with private link/ }))
 
     await vi.waitFor(() => expect(view.appServices.clipboard.writes()).toEqual([GIST_URL]))
-    expect(app.operations.findByLabel('Gist link copied')).toBeDefined()
+    expect(app.progress.started().map((operation) => operation.label)).toContain('Gist link copied')
   })
 
   it('reports a failed copy and keeps the publish', async () => {
@@ -108,7 +108,7 @@ describe('NoteGistAction', () => {
     await userEvent.click(view.getByRole('button', { name: /Share with private link/ }))
 
     await vi.waitFor(() =>
-      expect(app.operations.findByLabel('Copying the gist link')).toMatchObject({
+      expect(app.progress.findByLabel('Copying the gist link')).toMatchObject({
         status: 'failed',
         message: 'denied',
       }),

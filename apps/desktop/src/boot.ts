@@ -38,6 +38,7 @@ export const coreServices = createCoreServices({
   ...createDesktopAdapters(facts, { logger, clock }),
   ipc,
   activity: host.lifecycle,
+  progress: host.operations,
 })
 
 export const appServices = createAppServices(coreServices, host)

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { errorMessage } from '../errors.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import { DEFAULT_SETTINGS, settingsSchema, type Settings } from './schema.ts'
@@ -50,7 +50,7 @@ const voidSchema = z.null()
 
 export interface SettingsServiceDeps {
   readonly ipc: Pick<IpcBridgeService, 'call'>
-  readonly operations: OperationsService
+  readonly progress: ProgressPort
 }
 
 class SettingsServiceImpl implements SettingsService {
@@ -115,7 +115,7 @@ class SettingsServiceImpl implements SettingsService {
   }
 
   reload(): Promise<SettingsLoadOutcome> {
-    const { ipc, operations } = this.#deps
+    const { ipc, progress } = this.#deps
     if (this.#state !== 'failed') {
       this.#start()
       return this.#loaded
@@ -131,7 +131,7 @@ class SettingsServiceImpl implements SettingsService {
           return 'loaded'
         },
         (error: unknown): SettingsLoadOutcome => {
-          operations.start('Loading settings').fail(errorMessage(error))
+          progress.start('Loading settings').fail(errorMessage(error))
           return 'failed'
         },
       )
@@ -160,7 +160,7 @@ class SettingsServiceImpl implements SettingsService {
   }
 
   #submit(target: Settings): void {
-    const { ipc, operations } = this.#deps
+    const { ipc, progress } = this.#deps
     this.#dirty = true
     this.#lastSubmission = this.#lastSubmission.then(async () => {
       try {
@@ -169,7 +169,7 @@ class SettingsServiceImpl implements SettingsService {
           this.#dirty = false
         }
       } catch (error) {
-        operations.start('Saving settings').fail(errorMessage(error))
+        progress.start('Saving settings').fail(errorMessage(error))
       }
     })
   }
@@ -197,7 +197,7 @@ class SettingsServiceImpl implements SettingsService {
   }
 
   #start(): void {
-    const { ipc, operations } = this.#deps
+    const { ipc, progress } = this.#deps
     if (this.#started) {
       return
     }
@@ -205,7 +205,7 @@ class SettingsServiceImpl implements SettingsService {
     ipc.call('settings_load', {}, settingsSchema).then(
       (document) => this.#hydrate('loaded', document),
       (error: unknown) => {
-        operations.start('Loading settings').fail(errorMessage(error))
+        progress.start('Loading settings').fail(errorMessage(error))
         this.#hydrate('failed', DEFAULT_SETTINGS)
       },
     )

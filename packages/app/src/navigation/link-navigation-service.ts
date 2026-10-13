@@ -1,6 +1,5 @@
 import {
   type LoggerService,
-  type OperationsService,
   type PlatformService,
   type WindowService,
   type AttachmentService,
@@ -15,6 +14,7 @@ import {
   parseDeepLink,
 } from '@reflect/core'
 import type { OpenerService } from '../app/opener-service.ts'
+import type { OperationsService } from '../app/operations-service.ts'
 import { deepLinkForRoute } from './deep-link-format.ts'
 import type { DeepLinkRouter } from './deep-link-router.ts'
 import type { NavigationService } from './navigation-service.ts'

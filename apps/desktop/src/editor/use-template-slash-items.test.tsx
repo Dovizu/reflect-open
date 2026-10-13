@@ -3,14 +3,14 @@ import {
   createTestCoreServices,
   createTestGraphSessionService,
   createTestNoteFileService,
-  createTestOperationsService,
+  createTestProgressPort,
 } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { useTemplateSlashItems } from './use-template-slash-items.ts'
 
 function setup() {
-  const operations = createTestOperationsService()
+  const operations = createTestProgressPort()
   const base = createTestCoreServices()
   const { templates } = createTestCoreServices({
     graphSession: createTestGraphSessionService({ graph: {} }),
@@ -27,9 +27,9 @@ function setup() {
         { path: 'templates/person.md', title: 'Person', mtime: 2 },
       ],
     },
-    operations,
+    progress: operations,
   })
-  const app = createTestCoreServices({ templates, operations })
+  const app = createTestCoreServices({ templates, progress: operations })
   return { app, operations }
 }
 

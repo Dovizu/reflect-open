@@ -177,7 +177,7 @@ describe('AudioMemoProvider', () => {
     })
 
     await vi.waitFor(() =>
-      expect(app.operations.findByLabel('Saving audio memo')).toMatchObject({
+      expect(app.progress.findByLabel('Saving audio memo')).toMatchObject({
         status: 'failed',
         message: 'disk full',
       }),

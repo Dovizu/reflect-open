@@ -197,10 +197,11 @@ export {
   type TestIndexLifecycleServiceOptions,
 } from './index-lifecycle.ts'
 export {
-  createTestOperationsService,
-  type OperationSnapshot,
-  type TestOperationsService,
-} from './operations.ts'
+  createTestProgressPort,
+  type ProgressSnapshot,
+  type StartedOperation,
+  type TestProgressPort,
+} from './ports.ts'
 export { createTestSettingsService, type TestSettingsService } from './settings.ts'
 export {
   createTestPersistenceFlushService,

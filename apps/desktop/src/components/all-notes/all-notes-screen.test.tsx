@@ -563,7 +563,7 @@ describe('AllNotesScreen — selection and bulk trash', () => {
     await expectLocatorToHaveCount(page.getByText('Trash 1 note?'), 0)
     await vi.waitFor(() =>
       expect(
-        view.app.operations
+        view.app.progress
           .getAll()
           .map((operation) => `${operation.status}:${operation.message ?? ''}`),
       ).toContain('failed:disk on fire'),

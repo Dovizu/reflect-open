@@ -119,7 +119,7 @@ The ones used most:
 | `createTestIpcBridgeService({ commands })` | `onCommand(command, handler)`, `emit(event, payload)` | `calls()` |
 | `createTestClockService({ now, today })` | `advance(ms)` (runs due timers), `setNow(ms)`, `setToday(iso)` | `pendingTimers()` |
 | `createTestLoggerService()` | | `getErrors()`, `getWarnings()`, `getInfos()` |
-| `createTestOperationsService()` | | `getAll()`, `findByLabel(label)`, `snapshot()` |
+| `createTestProgressPort()` | | `getAll()`, `findByLabel(label)`, `snapshot()`, `started()` |
 | `createTestNoteFileService({ files })` | `set(path, contents)`, `evict(path)` | `files()`, `writes()`, `getWrites(path)`, `getReads()`, `trashed()` |
 | `createTestDatabaseService()` | `applyProjection(note)`, `seedNotes(database, notes)` | `getQueries()` |
 | `createTestIndexStoreService({ fail })` | | `calls()`, `applied()`, `removed()`, `moved()` |
@@ -199,7 +199,7 @@ Drive and observe the app through `app`, not through mocks:
 - Assert a settings change with `app.settings.get()` or `app.settings.saves()`.
 - Assert navigation with `app.navigation.navigations()` or
   `app.navigation.getState().route`.
-- Assert reported failures with `app.operations.getAll()`.
+- Assert reported failures with `app.progress.getAll()`.
 
 To script a call (a pending promise, a failure), **spy on your own `app`
 before the render**. The providers read `service.method` during render and

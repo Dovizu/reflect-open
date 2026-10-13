@@ -1,39 +1,38 @@
 import { describe, expect, it, vi } from 'vitest'
 import { textCaptureEnvelopeSchema } from '../capture/capture-envelope.ts'
-import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import { createTestCaptureInboxService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDeepLinkIntakeService, createTestDeepLinkSource } from '../testing/deep-link.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
+import { createTestProgressPort } from '../testing/ports.ts'
 import type { DeepLinkIntakeServiceDeps } from './deep-link-intake-service.ts'
 
 function setup(overrides?: Partial<DeepLinkIntakeServiceDeps>) {
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const captureInbox = createTestCaptureInboxService()
   const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
   const graphSession = createTestGraphSessionService({ graph: { generation: 3 } })
   const service = createTestDeepLinkIntakeService({
-    operations,
+    progress,
     captureInbox,
     indexQuery: { resolveNoteTarget },
     graphSession,
     ...overrides,
   })
   const resolve = (url: string) => service.resolve(url)
-  return { service, operations, captureInbox, resolveNoteTarget, graphSession, resolve }
+  return { service, progress, captureInbox, resolveNoteTarget, graphSession, resolve }
 }
 
 describe('DeepLinkIntakeService.resolve', () => {
   it('answers self-contained places directly, with no status noise', async () => {
-    const { resolve, resolveNoteTarget, operations } = setup()
+    const { resolve, resolveNoteTarget, progress } = setup()
     await expect(resolve('reflect://daily/2026-07-01')).resolves.toEqual({
       kind: 'daily',
       date: '2026-07-01',
     })
     expect(resolveNoteTarget).not.toHaveBeenCalled()
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('resolves a note target to its path', async () => {
@@ -48,25 +47,25 @@ describe('DeepLinkIntakeService.resolve', () => {
   })
 
   it('surfaces a failure when the target resolves to nothing', async () => {
-    const { resolve, resolveNoteTarget, operations } = setup()
+    const { resolve, resolveNoteTarget, progress } = setup()
     resolveNoteTarget.mockResolvedValue(null)
 
     await expect(resolve('reflect://note/ghost')).resolves.toEqual({ kind: 'none' })
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Opening link', status: 'failed', message: 'Note not found: ghost' },
     ])
   })
 
   it('surfaces a resolution failure instead of rejecting', async () => {
-    const { resolve, resolveNoteTarget, operations } = setup()
+    const { resolve, resolveNoteTarget, progress } = setup()
     resolveNoteTarget.mockRejectedValue(new Error('index unavailable'))
 
     await expect(resolve('reflect://note/Project%20X')).resolves.toEqual({ kind: 'none' })
-    expect(operations.snapshot()).toMatchObject([{ label: 'Opening link', status: 'failed' }])
+    expect(progress.snapshot()).toMatchObject([{ label: 'Opening link', status: 'failed' }])
   })
 
   it('drops a resolution failure that arrives after the link became stale', async () => {
-    const { service, resolveNoteTarget, operations } = setup()
+    const { service, resolveNoteTarget, progress } = setup()
     let rejectResolve: (cause: Error) => void = () => {}
     resolveNoteTarget.mockReturnValue(
       new Promise((_resolve, reject) => {
@@ -80,11 +79,11 @@ describe('DeepLinkIntakeService.resolve', () => {
     rejectResolve(new Error('old index disappeared'))
 
     await expect(pending).resolves.toEqual({ kind: 'none' })
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('drops a resolution that finished after the link became stale', async () => {
-    const { service, resolveNoteTarget, operations } = setup()
+    const { service, resolveNoteTarget, progress } = setup()
     const pendingResolve = Promise.withResolvers<string>()
     resolveNoteTarget.mockReturnValue(pendingResolve.promise)
     let stale = false
@@ -94,15 +93,15 @@ describe('DeepLinkIntakeService.resolve', () => {
     pendingResolve.resolve('notes/project-x.md')
 
     await expect(pending).resolves.toEqual({ kind: 'none' })
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('surfaces a failure on a URL the grammar rejects', async () => {
-    const { resolve, captureInbox, operations } = setup()
+    const { resolve, captureInbox, progress } = setup()
     await expect(resolve('reflect://edit-notes?content=evil')).resolves.toEqual({ kind: 'none' })
 
     expect(captureInbox.spooled()).toEqual([])
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       {
         label: 'Opening link',
         status: 'failed',
@@ -113,7 +112,7 @@ describe('DeepLinkIntakeService.resolve', () => {
 
   it('spools a valid text-capture envelope for an append link', async () => {
     const clock = createTestClockService({ now: Date.UTC(2026, 6, 1, 12) })
-    const { resolve, captureInbox, operations } = setup({ clock })
+    const { resolve, captureInbox, progress } = setup({ clock })
     await expect(resolve('reflect://append?text=call%20the%20bank')).resolves.toEqual({
       kind: 'capture',
     })
@@ -126,9 +125,8 @@ describe('DeepLinkIntakeService.resolve', () => {
     expect(envelope.text).toBe('call the bank')
     expect(envelope.capturedAt).toBe('2026-07-01T12:00:00.000Z')
     expect(generation).toBe(3)
-    expect(operations.snapshot()).toMatchObject([{ label: 'Added to today', status: 'running' }])
-    await operations.clock.advance(MIN_VISIBLE_MS)
-    expect(operations.getAll()).toEqual([])
+    expect(progress.started()).toMatchObject([{ label: 'Added to today', ended: true }])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('spools into the given graph session', async () => {
@@ -142,55 +140,49 @@ describe('DeepLinkIntakeService.resolve', () => {
   })
 
   it('spools a task envelope for a task link', async () => {
-    const { resolve, captureInbox, operations } = setup()
+    const { resolve, captureInbox, progress } = setup()
     await resolve('reflect://task?text=buy+milk')
 
     const { json } = captureInbox.spooled()[0]!
     const envelope = textCaptureEnvelopeSchema.parse(JSON.parse(json))
     expect(envelope.kind).toBe('task')
     expect(envelope.text).toBe('buy milk')
-    expect(operations.snapshot()).toMatchObject([
-      { label: 'Task added to today', status: 'running' },
-    ])
-    await operations.clock.advance(MIN_VISIBLE_MS)
-    expect(operations.getAll()).toEqual([])
+    expect(progress.started()).toMatchObject([{ label: 'Task added to today', ended: true }])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('spools a checkbox envelope for a checkbox link', async () => {
-    const { resolve, captureInbox, operations } = setup()
+    const { resolve, captureInbox, progress } = setup()
     await resolve('reflect://checkbox?text=pack+a+bag')
 
     const { json } = captureInbox.spooled()[0]!
     const envelope = textCaptureEnvelopeSchema.parse(JSON.parse(json))
     expect(envelope.kind).toBe('checkbox')
     expect(envelope.text).toBe('pack a bag')
-    expect(operations.snapshot()).toMatchObject([
-      { label: 'Checkbox added to today', status: 'running' },
-    ])
-    await operations.clock.advance(MIN_VISIBLE_MS)
-    expect(operations.getAll()).toEqual([])
+    expect(progress.started()).toMatchObject([{ label: 'Checkbox added to today', ended: true }])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('surfaces a capture with no graph open instead of spooling it', async () => {
-    const { resolve, graphSession, captureInbox, operations } = setup()
+    const { resolve, graphSession, captureInbox, progress } = setup()
     graphSession.setGraph(null)
 
     await expect(resolve('reflect://append?text=milk')).resolves.toEqual({ kind: 'none' })
 
     expect(captureInbox.spooled()).toEqual([])
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Saving capture', status: 'failed', message: 'No graph is open.' },
     ])
   })
 
   it('surfaces a spool failure instead of claiming success', async () => {
-    const { resolve, operations } = setup({
+    const { resolve, progress } = setup({
       captureInbox: { spool: () => Promise.reject(new Error('stale generation')) },
     })
 
     await expect(resolve('reflect://append?text=milk')).resolves.toEqual({ kind: 'none' })
 
-    expect(operations.snapshot()).toMatchObject([{ label: 'Saving capture', status: 'failed' }])
+    expect(progress.snapshot()).toMatchObject([{ label: 'Saving capture', status: 'failed' }])
   })
 })
 

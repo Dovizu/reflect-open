@@ -9,7 +9,7 @@ import type { ClockService } from '../app/clock-service.ts'
 import type { HashService } from '../app/hash-service.ts'
 import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
 import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
@@ -83,7 +83,7 @@ export interface CaptureServiceDeps {
   readonly reconcilers: BackgroundReconcilerFactory
   readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
   readonly logger: Pick<LoggerService, 'error' | 'warn'>
 }
@@ -118,7 +118,7 @@ interface CaptureSessionDeps {
   readonly reconcilers: BackgroundReconcilerFactory
   readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
   readonly logger: Pick<LoggerService, 'error'>
   readonly commitXPost: (envelope: XPostEnvelope, path: string, generation: number) => Promise<void>
@@ -217,7 +217,7 @@ class CaptureSessionImpl implements CaptureSession {
       return
     }
     this.#surfacedStops.set(label, stopped.message)
-    this.#deps.operations.start(label).fail(stopped.message)
+    this.#deps.progress.start(label).fail(stopped.message)
   }
 
   /**
@@ -295,7 +295,7 @@ class CaptureServiceImpl implements CaptureService {
   }
 
   openSession(options: CaptureSessionOptions): CaptureSession {
-    const { captureInbox, reconcilers, activity, fileChanges, operations, platform, logger } =
+    const { captureInbox, reconcilers, activity, fileChanges, progress, platform, logger } =
       this.#deps
     return new CaptureSessionImpl(
       {
@@ -305,7 +305,7 @@ class CaptureServiceImpl implements CaptureService {
         reconcilers,
         activity,
         fileChanges,
-        operations,
+        progress,
         platform,
         logger,
         commitXPost: (envelope, path, generation) => this.#commitXPost(envelope, path, generation),

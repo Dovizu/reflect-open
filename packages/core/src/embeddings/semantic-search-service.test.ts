@@ -7,7 +7,7 @@ import {
   createTestIndexLifecycleService,
   createTestIndexStoreService,
   createTestLoggerService,
-  createTestOperationsService,
+  createTestProgressPort,
   createTestRetrievalService,
   createTestSemanticSearchService,
   createTestSettingsService,
@@ -35,7 +35,7 @@ async function setup(options?: {
   relatedNotes?: (path: string, limit?: number) => RetrievalHit[]
 }) {
   const logger = createTestLoggerService()
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const settings = createTestSettingsService({
     semanticSearchEnabled: options?.enabled ?? true,
   })
@@ -49,7 +49,7 @@ async function setup(options?: {
   const session = createGraphSession({ ...GRAPH, indexGeneration: 7 })
   const indexLifecycle = createTestIndexLifecycleService({
     logger,
-    operations,
+    progress,
     graphSession: { getState: () => ({ session }) },
     indexStore: createTestIndexStoreService({
       fail: (call) =>
@@ -94,7 +94,7 @@ async function setup(options?: {
     embeddingIndex,
     retrieval,
     graphSession,
-    operations,
+    progress,
     logger,
   }
 }
@@ -383,11 +383,11 @@ describe('after an index rebuild', () => {
   })
 
   it('re-embeds nothing after a failed rebuild', async () => {
-    const { indexLifecycle, embeddingIndex, operations } = await setup({ failClear: true })
+    const { indexLifecycle, embeddingIndex, progress } = await setup({ failClear: true })
 
     await expect(indexLifecycle.rebuildVisibly()).resolves.toBeUndefined()
 
-    expect(operations.findByLabel('Rebuilding search index')?.status).toBe('failed')
+    expect(progress.findByLabel('Rebuilding search index')?.status).toBe('failed')
     expect(embeddingIndex.backfills()).toEqual([])
   })
 

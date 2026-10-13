@@ -39,6 +39,7 @@ import {
   type CalendarEventsService,
 } from './calendar/calendar-events-service.ts'
 import { createDeepLinkRouter, type DeepLinkRouter } from './navigation/deep-link-router.ts'
+import type { OperationsService } from './app/operations-service.ts'
 import {
   createLinkNavigationService,
   type LinkNavigationService,
@@ -56,6 +57,10 @@ export interface AppHost {
    * The lifecycle service the host built before the core services, which follow it as their activity port.
    */
   readonly lifecycle: AppLifecycleService
+  /**
+   * The app-wide list of visible background operations.
+   */
+  readonly operations: OperationsService
   /**
    * The system clipboard.
    */
@@ -118,6 +123,10 @@ export interface AppServices {
    * Checks for, downloads, and installs app updates.
    */
   readonly update: UpdateService
+  /**
+   * The app-wide list of visible background operations.
+   */
+  readonly operations: OperationsService
   /**
    * Derives the mobile sync status that the settings sheet and the status pill show.
    */
@@ -198,7 +207,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     deepLinkRouter,
     navigation,
     attachments: core.attachments,
-    operations: core.operations,
+    operations: host.operations,
     logger: core.logger,
     graphSession: core.graphSession,
   })
@@ -222,6 +231,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       platform: core.platform,
       window: core.window,
     }),
+    operations: host.operations,
     syncStatus: createSyncStatusService(),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments: core.openDocuments }),
@@ -232,7 +242,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       personNotes: core.personNotes,
       settings: core.settings,
       clock: core.clock,
-      operations: core.operations,
+      operations: host.operations,
       logger: core.logger,
       graphSession: core.graphSession,
     }),

@@ -27,8 +27,8 @@ export function NoteGistAction({
   path,
   keybinding = null,
 }: NoteGistActionProps): ReactElement | null {
-  const { gistPublish, operations } = useCoreServices()
-  const { clipboard } = useAppServices()
+  const { gistPublish } = useCoreServices()
+  const { clipboard, operations } = useAppServices()
   const connected = useGithubConnected()
   const row = useNoteRow(path)
   // `row` already reflects a just-published or just-unpublished URL (the
@@ -47,7 +47,7 @@ export function NoteGistAction({
   const onPublish = async (): Promise<void> => {
     setIsPublishing(true)
     try {
-      await publishGistAndCopyLink({ gistPublish, operations }, clipboard, path)
+      await publishGistAndCopyLink({ gistPublish }, { clipboard, operations }, path)
     } finally {
       setIsPublishing(false)
     }

@@ -190,7 +190,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await publishGistAndCopyLink(context.services, context.app.clipboard, path)
+      await publishGistAndCopyLink(context.services, context.app, path)
     },
   },
   {
@@ -217,7 +217,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await copyNoteDeepLink(context.services, context.app.clipboard, path)
+      await copyNoteDeepLink(context.services, context.app, path)
     },
   },
   {
@@ -234,7 +234,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await copyNotePath(context.services, context.app.clipboard, path)
+      await copyNotePath(context.services, context.app, path)
     },
   },
   {

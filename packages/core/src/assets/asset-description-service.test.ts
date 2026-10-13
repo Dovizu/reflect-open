@@ -18,7 +18,7 @@ import {
   createTestActivityPort,
   createTestLoggerService,
   createTestNoteFileService,
-  createTestOperationsService,
+  createTestProgressPort,
   createTestSecretStoreService,
   createTestXArchiveService,
 } from '../testing/index.ts'
@@ -108,7 +108,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
   const describer = createTestAssetDescriberService('A flow diagram.')
   const activity = createTestActivityPort()
   const clock = createTestClockService({ now: NOW })
-  const operations = createTestOperationsService(clock)
+  const operations = createTestProgressPort()
   const logger = createTestLoggerService()
   const privacy = createAssetPrivacyService({
     noteFile: files,
@@ -184,7 +184,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
         }
       },
     },
-    operations,
+    progress: operations,
     graphSession,
     logger,
   })

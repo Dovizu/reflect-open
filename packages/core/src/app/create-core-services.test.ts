@@ -8,6 +8,7 @@ import { createTestHttpService } from '../testing/http.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
+import { createTestProgressPort } from '../testing/ports.ts'
 import { createTestCoreServices } from '../testing/services.ts'
 import { createTestActivityPort, createTestDialogService } from '../testing/shell.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
@@ -42,7 +43,6 @@ const SERVICE_KEYS = [
   'imageCodec',
   'indexLifecycle',
   'graphSession',
-  'operations',
   'settings',
   'persistenceFlush',
   'fileChanges',
@@ -97,6 +97,7 @@ function requiredAdapters(): CoreAdapters {
   return {
     ipc,
     platform: createTestPlatformService(),
+    progress: createTestProgressPort(),
     http: createTestHttpService(),
     storage: { local: null, session: null },
     dialog: createTestDialogService(),

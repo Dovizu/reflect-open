@@ -18,6 +18,12 @@ export {
 } from './app/lifecycle-service.ts'
 export { type QuitPolicyService } from './app/quit-policy-service.ts'
 export {
+  createOperationsService,
+  LINGER_MS,
+  MIN_VISIBLE_MS,
+  type OperationsService,
+} from './app/operations-service.ts'
+export {
   createUpdateService,
   type UpdaterAdapter,
   type UpdateService,
