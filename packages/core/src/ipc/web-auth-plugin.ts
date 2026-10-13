@@ -8,15 +8,23 @@ import { definePluginCommand } from './plugin.ts'
  */
 
 export interface WebAuthOptions {
-  /** The page to open, usually an OAuth authorize URL. */
+  /**
+   * The page to open, usually an OAuth authorize URL.
+   */
   url: string
-  /** The URL scheme (without `://`) whose navigation ends the session, e.g. `reflect`. */
+  /**
+   * The URL scheme (without `://`) whose navigation ends the session, e.g. `reflect`.
+   */
   callbackScheme: string
-  /** When true, the session shares no cookies or website data with the system browser. */
+  /**
+   * When true, the session shares no cookies or website data with the system browser.
+   */
   ephemeral: boolean
 }
 
-/** Opens the system web sign-in and resolves its callback URL, or `null` when cancelled. */
+/**
+ * Opens the system web sign-in and resolves its callback URL, or `null` when cancelled.
+ */
 export type StartWebAuth = (options: WebAuthOptions) => Promise<string | null>
 
 // iOS omits `url` on cancel and the desktop stub sends `null`; accept both.
@@ -25,7 +33,9 @@ const startCommand = definePluginCommand<
   { url?: string | null | undefined }
 >('web-auth', 'start', z.object({ url: z.string().nullish() }))
 
-/** The system web sign-in session. */
+/**
+ * The system web sign-in session.
+ */
 export interface WebAuthService {
   /**
    * Open `url` in the system web sign-in session and resolve the callback URL
@@ -34,16 +44,27 @@ export interface WebAuthService {
   start: StartWebAuth
 }
 
-export function createWebAuthService(deps: { ipc: IpcBridgeService }): WebAuthService {
-  const { ipc } = deps
-  return {
-    async start(options) {
-      const payload: WebAuthOptions = {
-        url: options.url,
-        callbackScheme: options.callbackScheme,
-        ephemeral: options.ephemeral,
-      }
-      return (await startCommand(ipc, { payload })).url ?? null
-    },
+export interface WebAuthServiceDeps {
+  readonly ipc: IpcBridgeService
+}
+
+class WebAuthServiceImpl implements WebAuthService {
+  readonly #deps: WebAuthServiceDeps
+
+  constructor(deps: WebAuthServiceDeps) {
+    this.#deps = deps
   }
+
+  readonly start = async (options: WebAuthOptions): Promise<string | null> => {
+    const payload: WebAuthOptions = {
+      url: options.url,
+      callbackScheme: options.callbackScheme,
+      ephemeral: options.ephemeral,
+    }
+    return (await startCommand(this.#deps.ipc, { payload })).url ?? null
+  }
+}
+
+export function createWebAuthService(deps: WebAuthServiceDeps): WebAuthService {
+  return new WebAuthServiceImpl(deps)
 }

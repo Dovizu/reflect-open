@@ -12,9 +12,13 @@ import type {
 } from './calendar-service.ts'
 import { dayRange } from './events.ts'
 
-/** What a {@link CalendarEventsService} knows of the calendar permission. */
+/**
+ * What a {@link CalendarEventsService} knows of the calendar permission.
+ */
 export interface CalendarEventsState {
-  /** The macOS calendar permission state; `null` until the first read. */
+  /**
+   * The macOS calendar permission state; `null` until the first read.
+   */
   readonly authorization: CalendarAuthorizationStatus | null
 }
 
@@ -25,7 +29,9 @@ export interface CalendarEventsState {
  */
 export interface CalendarEventsService {
   getState: () => CalendarEventsState
-  /** Called after the state changes. */
+  /**
+   * Called after the state changes.
+   */
   subscribe: (listener: () => void) => Unlisten
   /**
    * Read the permission state now, again whenever the page turns visible or
@@ -33,9 +39,13 @@ export interface CalendarEventsService {
    * state changes behind Reflect's back in System Settings. Never prompts.
    */
   watchAuthorization: () => Unlisten
-  /** Whether calendar reads can run at all: the macOS desktop shell only. */
+  /**
+   * Whether calendar reads can run at all: the macOS desktop shell only.
+   */
   isAvailable(): boolean
-  /** Every calendar on the Mac, for the settings chooser. */
+  /**
+   * Every calendar on the Mac, for the settings chooser.
+   */
   listCalendars(): Promise<CalendarInfo[]>
   /**
    * The raw events of the local day `date` (ISO `YYYY-MM-DD`) from
@@ -60,7 +70,9 @@ export interface CalendarEventsService {
    * `accessRequested` then tells the caller to re-read the calendars.
    */
   setEnabled(enabled: boolean): Promise<{ accessRequested: boolean }>
-  /** Add `id` to, or remove it from, the calendars the daily note shows. */
+  /**
+   * Add `id` to, or remove it from, the calendars the daily note shows.
+   */
   toggleCalendar(id: string, checked: boolean): void
 }
 
@@ -74,7 +86,9 @@ export function showsDayEvents(
   return settings.calendarEnabled && settings.calendarIds.length > 0
 }
 
-/** `calendars` grouped by their account, groups and members in first-seen order. */
+/**
+ * `calendars` grouped by their account, groups and members in first-seen order.
+ */
 export function groupCalendarsBySource(
   calendars: readonly CalendarInfo[],
 ): Array<[source: string, calendars: CalendarInfo[]]> {
@@ -102,92 +116,119 @@ export function countSelectedCalendars(
   return calendars.filter((calendar) => calendarIds.includes(calendar.id)).length
 }
 
-export function createCalendarEventsService(deps: {
-  calendar: CalendarService
-  settings: SettingsService
-  platform: PlatformService
-  lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
-  logger: LoggerService
-}): CalendarEventsService {
-  const { calendar, settings, platform, lifecycle, logger } = deps
-  const listeners = new Set<() => void>()
-  let state: CalendarEventsState = { authorization: null }
-  // Bumped by every read, so only the latest one publishes.
-  let reads = 0
+export interface CalendarEventsServiceDeps {
+  readonly calendar: Pick<
+    CalendarService,
+    'authorizationStatus' | 'requestAccess' | 'listCalendars' | 'listEvents' | 'subscribeChanged'
+  >
+  readonly settings: Pick<SettingsService, 'update' | 'updateWith'>
+  readonly platform: Pick<PlatformService, 'isMacosDesktop'>
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly logger: Pick<LoggerService, 'error'>
+}
 
-  async function refreshAuthorization(): Promise<void> {
-    reads += 1
-    const read = reads
+class CalendarEventsServiceImpl implements CalendarEventsService {
+  readonly #deps: CalendarEventsServiceDeps
+  readonly #listeners = new Set<() => void>()
+  #state: CalendarEventsState = { authorization: null }
+  // Bumped by every read, so only the latest one publishes.
+  #reads = 0
+
+  constructor(deps: CalendarEventsServiceDeps) {
+    this.#deps = deps
+  }
+
+  readonly getState = (): CalendarEventsState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    const deliver = (): void => {
+      listener()
+    }
+    this.#listeners.add(deliver)
+    return () => {
+      this.#listeners.delete(deliver)
+    }
+  }
+
+  readonly watchAuthorization = (): Unlisten => {
+    const { calendar, lifecycle } = this.#deps
+    void this.#refreshAuthorization()
+    const stopVisible = lifecycle.subscribeVisible(() => {
+      void this.#refreshAuthorization()
+    })
+    const stopChanged = calendar.subscribeChanged(() => {
+      void this.#refreshAuthorization()
+    })
+    return () => {
+      stopVisible()
+      stopChanged()
+    }
+  }
+
+  isAvailable(): boolean {
+    return this.#deps.platform.isMacosDesktop
+  }
+
+  listCalendars(): Promise<CalendarInfo[]> {
+    return this.#deps.calendar.listCalendars()
+  }
+
+  listDayEvents(date: string, calendarIds: readonly string[]): Promise<CalendarEvent[]> {
+    return this.#deps.calendar.listEvents(dayRange(date), calendarIds)
+  }
+
+  subscribeChanged(listener: () => void): Unlisten {
+    return this.#deps.calendar.subscribeChanged(listener)
+  }
+
+  async requestAccess(): Promise<void> {
+    try {
+      await this.#deps.calendar.requestAccess()
+    } catch (cause) {
+      this.#deps.logger.error('calendar access request failed:', cause)
+    }
+    await this.#refreshAuthorization()
+  }
+
+  async setEnabled(enabled: boolean): Promise<{ accessRequested: boolean }> {
+    this.#deps.settings.update({ calendarEnabled: enabled })
+    if (!enabled) {
+      return { accessRequested: false }
+    }
+    await this.requestAccess()
+    return { accessRequested: true }
+  }
+
+  toggleCalendar(id: string, checked: boolean): void {
+    this.#deps.settings.updateWith((current) => ({
+      calendarIds: checked
+        ? [...current.calendarIds.filter((existing) => existing !== id), id]
+        : current.calendarIds.filter((existing) => existing !== id),
+    }))
+  }
+
+  async #refreshAuthorization(): Promise<void> {
+    this.#reads += 1
+    const read = this.#reads
     let authorization: CalendarAuthorizationStatus
     try {
-      authorization = await calendar.authorizationStatus()
+      authorization = await this.#deps.calendar.authorizationStatus()
     } catch (cause) {
-      logger.error('calendar authorization read failed:', cause)
+      this.#deps.logger.error('calendar authorization read failed:', cause)
       return
     }
-    if (read !== reads || authorization === state.authorization) {
+    if (read !== this.#reads || authorization === this.#state.authorization) {
       return
     }
-    state = { authorization }
-    for (const listener of listeners) {
+    this.#state = { authorization }
+    for (const listener of this.#listeners) {
       listener()
     }
   }
+}
 
-  async function requestAccess(): Promise<void> {
-    try {
-      await calendar.requestAccess()
-    } catch (cause) {
-      logger.error('calendar access request failed:', cause)
-    }
-    await refreshAuthorization()
-  }
-
-  return {
-    getState: () => state,
-    subscribe(listener) {
-      const deliver = (): void => {
-        listener()
-      }
-      listeners.add(deliver)
-      return () => {
-        listeners.delete(deliver)
-      }
-    },
-    watchAuthorization() {
-      void refreshAuthorization()
-      const stopVisible = lifecycle.subscribeVisible(() => {
-        void refreshAuthorization()
-      })
-      const stopChanged = calendar.subscribeChanged(() => {
-        void refreshAuthorization()
-      })
-      return () => {
-        stopVisible()
-        stopChanged()
-      }
-    },
-    isAvailable: () => platform.isMacosDesktop,
-    listCalendars: () => calendar.listCalendars(),
-    listDayEvents: (date, calendarIds) => calendar.listEvents(dayRange(date), calendarIds),
-    subscribeChanged: (listener) => calendar.subscribeChanged(listener),
-    requestAccess,
-
-    async setEnabled(enabled) {
-      settings.update({ calendarEnabled: enabled })
-      if (!enabled) {
-        return { accessRequested: false }
-      }
-      await requestAccess()
-      return { accessRequested: true }
-    },
-
-    toggleCalendar(id, checked) {
-      settings.updateWith((current) => ({
-        calendarIds: checked
-          ? [...current.calendarIds.filter((existing) => existing !== id), id]
-          : current.calendarIds.filter((existing) => existing !== id),
-      }))
-    },
-  }
+export function createCalendarEventsService(
+  deps: CalendarEventsServiceDeps,
+): CalendarEventsService {
+  return new CalendarEventsServiceImpl(deps)
 }

@@ -6,7 +6,9 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
 
 const appStoreEnvironmentSchema = z.enum(['Production', 'Sandbox', 'Xcode']).nullable()
 
-/** The channel that installed this build, or `null` when unknown or unrecognized. */
+/**
+ * The channel that installed this build, or `null` when unknown or unrecognized.
+ */
 export type AppStoreEnvironment = z.infer<typeof appStoreEnvironmentSchema>
 
 /**
@@ -19,15 +21,23 @@ const rememberedEnvironmentSchema = z.enum(['Sandbox', 'Xcode'])
 export const APP_STORE_ENVIRONMENT_STORAGE_KEY = 'reflect.app-store.environment'
 
 export interface AppStoreEnvironmentState {
-  /** This launch's answer, else the remembered `Sandbox` or `Xcode`, else `null`. */
+  /**
+   * This launch's answer, else the remembered `Sandbox` or `Xcode`, else `null`.
+   */
   readonly value: AppStoreEnvironment
-  /** True while nothing is known and this launch has no settled answer yet. */
+  /**
+   * True while nothing is known and this launch has no settled answer yet.
+   */
   readonly isLoading: boolean
-  /** True when this launch's last probe failed. */
+  /**
+   * True when this launch's last probe failed.
+   */
   readonly isError: boolean
 }
 
-/** The App Store install channel, probed once per launch. */
+/**
+ * The App Store install channel, probed once per launch.
+ */
 export interface AppStoreEnvironmentService {
   getState: () => AppStoreEnvironmentState
   subscribe: (listener: () => void) => Unlisten
@@ -36,41 +46,90 @@ export interface AppStoreEnvironmentService {
    * failed probe keeps the remembered channel and shows in `getState().isError`.
    */
   environment: () => Promise<AppStoreEnvironment>
-  /** Forgets this launch's answer, and probes again while anyone is subscribed. */
+  /**
+   * Forgets this launch's answer, and probes again while anyone is subscribed.
+   */
   invalidate: () => void
 }
 
 const IDLE_STATE: AppStoreEnvironmentState = { value: null, isLoading: false, isError: false }
 
-export function createAppStoreEnvironmentService(deps: {
-  appStore: AppStoreService
-  storage: StorageService
-  platform: PlatformService
-}): AppStoreEnvironmentService {
-  const { appStore, storage, platform } = deps
-  const enabled = platform.appPlatform === 'ios'
-  const listeners = new Set<() => void>()
+export interface AppStoreEnvironmentServiceDeps {
+  readonly appStore: Pick<AppStoreService, 'environment'>
+  readonly storage: Pick<StorageService, 'local'>
+  readonly platform: Pick<PlatformService, 'appPlatform'>
+}
 
-  let value: AppStoreEnvironment = null
-  let answered = false
-  let settled = false
-  let probing = false
-  let failed = false
-  let pendingProbe: Promise<AppStoreEnvironment> | null = null
-  let state: AppStoreEnvironmentState = IDLE_STATE
+class AppStoreEnvironmentServiceImpl implements AppStoreEnvironmentService {
+  readonly #deps: AppStoreEnvironmentServiceDeps
+  readonly #enabled: boolean
+  readonly #listeners = new Set<() => void>()
+  #value: AppStoreEnvironment = null
+  #answered = false
+  #settled = false
+  #probing = false
+  #failed = false
+  #pendingProbe: Promise<AppStoreEnvironment> | null = null
+  #state: AppStoreEnvironmentState = IDLE_STATE
 
-  function computeState(): AppStoreEnvironmentState {
-    return { value, isLoading: value === null && (probing || !settled), isError: failed }
+  constructor(deps: AppStoreEnvironmentServiceDeps) {
+    this.#deps = deps
+    this.#enabled = deps.platform.appPlatform === 'ios'
+    if (this.#enabled) {
+      this.#value =
+        getJson(
+          deps.storage.local,
+          APP_STORE_ENVIRONMENT_STORAGE_KEY,
+          rememberedEnvironmentSchema,
+        ) ?? null
+      this.#state = this.#computeState()
+    }
   }
 
-  if (enabled) {
-    value =
-      getJson(storage.local, APP_STORE_ENVIRONMENT_STORAGE_KEY, rememberedEnvironmentSchema) ?? null
-    state = computeState()
+  readonly getState = (): AppStoreEnvironmentState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
   }
 
-  function publish(): void {
-    const next = computeState()
+  readonly environment = (): Promise<AppStoreEnvironment> => {
+    if (!this.#enabled) {
+      return Promise.resolve(null)
+    }
+    if (this.#answered) {
+      return Promise.resolve(this.#value)
+    }
+    if (this.#pendingProbe === null) {
+      const current = this.#probe()
+      this.#pendingProbe = current
+      void current.finally(() => {
+        if (this.#pendingProbe === current) this.#pendingProbe = null
+      })
+    }
+    return this.#pendingProbe
+  }
+
+  readonly invalidate = (): void => {
+    this.#answered = false
+    if (this.#listeners.size > 0) {
+      void this.environment()
+    }
+  }
+
+  #computeState(): AppStoreEnvironmentState {
+    return {
+      value: this.#value,
+      isLoading: this.#value === null && (this.#probing || !this.#settled),
+      isError: this.#failed,
+    }
+  }
+
+  #publish(): void {
+    const next = this.#computeState()
+    const state = this.#state
     if (
       next.value === state.value &&
       next.isLoading === state.isLoading &&
@@ -78,13 +137,14 @@ export function createAppStoreEnvironmentService(deps: {
     ) {
       return
     }
-    state = next
-    for (const listener of listeners) {
+    this.#state = next
+    for (const listener of this.#listeners) {
       listener()
     }
   }
 
-  function remember(environment: AppStoreEnvironment): void {
+  #remember(environment: AppStoreEnvironment): void {
+    const { storage } = this.#deps
     const remembered = rememberedEnvironmentSchema.safeParse(environment)
     if (remembered.success) {
       setJson(
@@ -98,56 +158,28 @@ export function createAppStoreEnvironmentService(deps: {
     }
   }
 
-  async function probe(): Promise<AppStoreEnvironment> {
-    probing = true
-    publish()
+  async #probe(): Promise<AppStoreEnvironment> {
+    this.#probing = true
+    this.#publish()
     try {
-      const parsed = appStoreEnvironmentSchema.safeParse(await appStore.environment())
-      value = parsed.success ? parsed.data : null
-      answered = true
-      failed = false
-      remember(value)
+      const parsed = appStoreEnvironmentSchema.safeParse(await this.#deps.appStore.environment())
+      this.#value = parsed.success ? parsed.data : null
+      this.#answered = true
+      this.#failed = false
+      this.#remember(this.#value)
     } catch {
-      failed = true
+      this.#failed = true
     } finally {
-      probing = false
-      settled = true
-      publish()
+      this.#probing = false
+      this.#settled = true
+      this.#publish()
     }
-    return value
+    return this.#value
   }
+}
 
-  function environment(): Promise<AppStoreEnvironment> {
-    if (!enabled) {
-      return Promise.resolve(null)
-    }
-    if (answered) {
-      return Promise.resolve(value)
-    }
-    if (pendingProbe === null) {
-      const current = probe()
-      pendingProbe = current
-      void current.finally(() => {
-        if (pendingProbe === current) pendingProbe = null
-      })
-    }
-    return pendingProbe
-  }
-
-  return {
-    getState: () => state,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    environment,
-    invalidate() {
-      answered = false
-      if (listeners.size > 0) {
-        void environment()
-      }
-    },
-  }
+export function createAppStoreEnvironmentService(
+  deps: AppStoreEnvironmentServiceDeps,
+): AppStoreEnvironmentService {
+  return new AppStoreEnvironmentServiceImpl(deps)
 }

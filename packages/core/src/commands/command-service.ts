@@ -9,18 +9,28 @@ import { normalizeBinding } from './keybindings.ts'
  * registry stays testable and host-agnostic.
  */
 export interface Command<Context = unknown> {
-  /** Stable id — the deep-link/CLI name (e.g. `nav.today`). */
+  /**
+   * Stable id — the deep-link/CLI name (e.g. `nav.today`).
+   */
   id: string
-  /** Palette display title. */
+  /**
+   * Palette display title.
+   */
   title: string
-  /** Extra match terms for palette filtering. */
+  /**
+   * Extra match terms for palette filtering.
+   */
   keywords?: string[]
-  /** Keymap-registry binding (app scope), e.g. `Mod-d`. */
+  /**
+   * Keymap-registry binding (app scope), e.g. `Mod-d`.
+   */
   keybinding?: string
   run: (context: Context) => void | Promise<void>
 }
 
-/** The fields of a `keydown` event that {@link CommandService.commandForKeyDown} reads. */
+/**
+ * The fields of a `keydown` event that {@link CommandService.commandForKeyDown} reads.
+ */
 export interface CommandKeyEvent {
   readonly key: string
   readonly code: string
@@ -31,13 +41,21 @@ export interface CommandKeyEvent {
   readonly repeat: boolean
 }
 
-/** A flat, collision-checked id → command map. */
+/**
+ * A flat, collision-checked id → command map.
+ */
 export interface CommandService<Context = unknown> {
-  /** Register commands; duplicate or blank ids/titles are programmer errors. */
+  /**
+   * Register commands; duplicate or blank ids/titles are programmer errors.
+   */
   register(definitions: readonly Command<Context>[]): void
-  /** Every registered command, in registration order. */
+  /**
+   * Every registered command, in registration order.
+   */
   list(): Command<Context>[]
-  /** Run a command by id; unknown ids are a loud no-op (deep links may dangle). */
+  /**
+   * Run a command by id; unknown ids are a loud no-op (deep links may dangle).
+   */
   run(id: string, context: Context): Promise<void>
   /**
    * The id of the command whose keybinding `event` types, or `null`. Only
@@ -47,8 +65,8 @@ export interface CommandService<Context = unknown> {
 }
 
 export interface CommandServiceDeps {
-  platform: Pick<PlatformFacts, 'isApplePlatform'>
-  logger: LoggerService
+  readonly platform: Pick<PlatformFacts, 'isApplePlatform'>
+  readonly logger: LoggerService
 }
 
 const CODE_TO_BINDING_KEY: Record<string, string> = {
@@ -116,64 +134,77 @@ function bindingLookupsFor(event: CommandKeyEvent): BindingKeyLookup[] {
   return lookups
 }
 
+class CommandServiceImpl<Context> implements CommandService<Context> {
+  readonly #deps: CommandServiceDeps
+  readonly #commands = new Map<string, Command<Context>>()
+  /**
+   * Normalized binding → command id, for Apple platforms and for the others.
+   */
+  readonly #appleBindingToId = new Map<string, string>()
+  readonly #otherBindingToId = new Map<string, string>()
+
+  constructor(deps: CommandServiceDeps) {
+    this.#deps = deps
+  }
+
+  register(definitions: readonly Command<Context>[]): void {
+    for (const command of definitions) {
+      if (command.id.trim() === '') {
+        throw new Error('command id cannot be empty')
+      }
+      if (command.title.trim() === '') {
+        throw new Error(`command title cannot be empty: ${command.id}`)
+      }
+      if (this.#commands.has(command.id)) {
+        throw new Error(`command id already registered: ${command.id}`)
+      }
+      this.#commands.set(command.id, command)
+      if (command.keybinding) {
+        this.#appleBindingToId.set(normalizeBinding(command.keybinding, true), command.id)
+        this.#otherBindingToId.set(normalizeBinding(command.keybinding, false), command.id)
+      }
+    }
+  }
+
+  list(): Command<Context>[] {
+    return [...this.#commands.values()]
+  }
+
+  async run(id: string, context: Context): Promise<void> {
+    const command = this.#commands.get(id)
+    if (!command) {
+      this.#deps.logger.error(`unknown command: ${id}`)
+      return
+    }
+    await command.run(context)
+  }
+
+  commandForKeyDown(event: CommandKeyEvent): string | null {
+    if ((!event.metaKey && !event.ctrlKey) || event.repeat) {
+      return null // held keys must not spam navigations (e.g. a stack of new notes)
+    }
+    const apple = this.#deps.platform.isApplePlatform
+    const ids = apple ? this.#appleBindingToId : this.#otherBindingToId
+    for (const { key, shift } of bindingLookupsFor(event)) {
+      // Every held modifier is part of the lookup, so `Mod-Alt-l` can bind while
+      // an alt chord still never fires a plain `Mod-` command.
+      const modifiers = [
+        event.ctrlKey ? 'Ctrl' : null,
+        event.metaKey ? 'Meta' : null,
+        event.altKey ? 'Alt' : null,
+        shift ? 'Shift' : null,
+      ].filter((modifier): modifier is string => modifier !== null)
+      const id = ids.get(normalizeBinding([...modifiers, key].join('-'), apple))
+      if (id !== undefined) {
+        return id
+      }
+    }
+    return null
+  }
+}
+
 export function createCommandService<Context = unknown>(
   deps: CommandServiceDeps,
 ): CommandService<Context> {
-  const { platform, logger } = deps
-  const commands = new Map<string, Command<Context>>()
-  /** Normalized binding → command id, for Apple platforms and for the others. */
-  const appleBindingToId = new Map<string, string>()
-  const otherBindingToId = new Map<string, string>()
-
-  return {
-    register(definitions) {
-      for (const command of definitions) {
-        if (command.id.trim() === '') {
-          throw new Error('command id cannot be empty')
-        }
-        if (command.title.trim() === '') {
-          throw new Error(`command title cannot be empty: ${command.id}`)
-        }
-        if (commands.has(command.id)) {
-          throw new Error(`command id already registered: ${command.id}`)
-        }
-        commands.set(command.id, command)
-        if (command.keybinding) {
-          appleBindingToId.set(normalizeBinding(command.keybinding, true), command.id)
-          otherBindingToId.set(normalizeBinding(command.keybinding, false), command.id)
-        }
-      }
-    },
-    list: () => [...commands.values()],
-    async run(id, context) {
-      const command = commands.get(id)
-      if (!command) {
-        logger.error(`unknown command: ${id}`)
-        return
-      }
-      await command.run(context)
-    },
-    commandForKeyDown(event) {
-      if ((!event.metaKey && !event.ctrlKey) || event.repeat) {
-        return null // held keys must not spam navigations (e.g. a stack of new notes)
-      }
-      const apple = platform.isApplePlatform
-      const ids = apple ? appleBindingToId : otherBindingToId
-      for (const { key, shift } of bindingLookupsFor(event)) {
-        // Every held modifier is part of the lookup, so `Mod-Alt-l` can bind while
-        // an alt chord still never fires a plain `Mod-` command.
-        const modifiers = [
-          event.ctrlKey ? 'Ctrl' : null,
-          event.metaKey ? 'Meta' : null,
-          event.altKey ? 'Alt' : null,
-          shift ? 'Shift' : null,
-        ].filter((modifier): modifier is string => modifier !== null)
-        const id = ids.get(normalizeBinding([...modifiers, key].join('-'), apple))
-        if (id !== undefined) {
-          return id
-        }
-      }
-      return null
-    },
-  }
+  return new CommandServiceImpl<Context>(deps)
 }

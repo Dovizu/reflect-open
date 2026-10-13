@@ -27,7 +27,9 @@ const presentOfferCodeRedeemSheetCommand = definePluginCommand<Record<string, ne
   ignoredResult,
 )
 
-/** The App Store install channel and its restore and redeem flows. */
+/**
+ * The App Store install channel and its restore and redeem flows.
+ */
 export interface AppStoreService {
   /**
    * Which channel installed this build, per StoreKit 2's
@@ -51,17 +53,30 @@ export interface AppStoreService {
   presentOfferCodeRedeemSheet(): Promise<void>
 }
 
-export function createAppStoreService(deps: { ipc: IpcBridgeService }): AppStoreService {
-  const { ipc } = deps
-  return {
-    async environment() {
-      return (await getEnvironmentCommand(ipc, {})).environment
-    },
-    async sync() {
-      await syncCommand(ipc, {})
-    },
-    async presentOfferCodeRedeemSheet() {
-      await presentOfferCodeRedeemSheetCommand(ipc, {})
-    },
+export interface AppStoreServiceDeps {
+  readonly ipc: IpcBridgeService
+}
+
+class AppStoreServiceImpl implements AppStoreService {
+  readonly #deps: AppStoreServiceDeps
+
+  constructor(deps: AppStoreServiceDeps) {
+    this.#deps = deps
   }
+
+  async environment(): Promise<string> {
+    return (await getEnvironmentCommand(this.#deps.ipc, {})).environment
+  }
+
+  async sync(): Promise<void> {
+    await syncCommand(this.#deps.ipc, {})
+  }
+
+  async presentOfferCodeRedeemSheet(): Promise<void> {
+    await presentOfferCodeRedeemSheetCommand(this.#deps.ipc, {})
+  }
+}
+
+export function createAppStoreService(deps: AppStoreServiceDeps): AppStoreService {
+  return new AppStoreServiceImpl(deps)
 }

@@ -13,7 +13,9 @@ const impactLightCommand = definePluginCommand<Record<string, never>, unknown>(
   ignoredResult,
 )
 
-/** The haptic engine. */
+/**
+ * The haptic engine.
+ */
 export interface HapticsService {
   /**
    * Fire a light impact haptic. Never rejects: where the plugin is missing
@@ -23,28 +25,37 @@ export interface HapticsService {
   impactLight(): Promise<void>
 }
 
-export function createHapticsService(deps: {
-  ipc: IpcBridgeService
-  logger: LoggerService
-}): HapticsService {
-  const { ipc, logger } = deps
-  let available = true
-  return {
-    async impactLight() {
-      if (!available) {
+export interface HapticsServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly logger: Pick<LoggerService, 'warn'>
+}
+
+class HapticsServiceImpl implements HapticsService {
+  readonly #deps: HapticsServiceDeps
+  #available = true
+
+  constructor(deps: HapticsServiceDeps) {
+    this.#deps = deps
+  }
+
+  async impactLight(): Promise<void> {
+    if (!this.#available) {
+      return
+    }
+    try {
+      await impactLightCommand(this.#deps.ipc, {})
+    } catch (error) {
+      // Several calls can be in flight before the first rejection lands;
+      // only one of them warns.
+      if (!this.#available) {
         return
       }
-      try {
-        await impactLightCommand(ipc, {})
-      } catch (error) {
-        // Several calls can be in flight before the first rejection lands;
-        // only one of them warns.
-        if (!available) {
-          return
-        }
-        available = false
-        logger.warn('haptics unavailable', error)
-      }
-    },
+      this.#available = false
+      this.#deps.logger.warn('haptics unavailable', error)
+    }
   }
+}
+
+export function createHapticsService(deps: HapticsServiceDeps): HapticsService {
+  return new HapticsServiceImpl(deps)
 }

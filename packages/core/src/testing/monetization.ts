@@ -1,9 +1,11 @@
 import type {
+  ClassicAccess,
   ClassicAccessService,
   ClassicAccessState,
   ClassicSignInOptions,
   ClassicSignInResult,
 } from '../classic/classic-access-service.ts'
+import type { IapProduct } from '../ipc/iap-plugin.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type {
   AppStoreEnvironment,
@@ -12,43 +14,109 @@ import type {
 } from '../monetization/app-store-environment-service.ts'
 import type { PaywallGate, PaywallService } from '../monetization/paywall-service.ts'
 import type {
+  ActiveSubscription,
   SubscriptionService,
   SubscriptionState,
 } from '../monetization/subscription-service.ts'
 
-interface Listeners {
-  subscribe: (listener: () => void) => Unlisten
-  notify: () => void
-}
+class Listeners {
+  readonly #listeners = new Set<() => void>()
 
-function createListeners(): Listeners {
-  const listeners = new Set<() => void>()
-  return {
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    notify() {
-      for (const listener of listeners) {
-        listener()
-      }
-    },
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly notify = (): void => {
+    for (const listener of this.#listeners) {
+      listener()
+    }
   }
 }
 
 export type ClassicAccessCall = 'read' | 'load' | 'signIn' | 'signOut' | 'start'
 
 export interface TestClassicAccessService extends ClassicAccessService {
-  /** Replaces part of the state and notifies subscribers. */
+  /**
+   * Replaces part of the state and notifies subscribers.
+   */
   setState(patch: Partial<ClassicAccessState>): void
-  /** Answers every later `signIn`. */
+  /**
+   * Answers every later `signIn`.
+   */
   setSignIn(handler: (options: ClassicSignInOptions) => Promise<ClassicSignInResult>): void
-  /** Every call, in order. */
+  /**
+   * Every call, in order.
+   */
   calls(): readonly ClassicAccessCall[]
-  /** The options of every `signIn`, in order. */
+  /**
+   * The options of every `signIn`, in order.
+   */
   signIns(): readonly ClassicSignInOptions[]
+}
+
+class TestClassicAccessServiceImpl implements TestClassicAccessService {
+  #current: ClassicAccessState
+  #signIn: (options: ClassicSignInOptions) => Promise<ClassicSignInResult> = async () => ({
+    kind: 'cancelled',
+  })
+  readonly #log: ClassicAccessCall[] = []
+  readonly #signInLog: ClassicSignInOptions[] = []
+  readonly #listeners = new Listeners()
+
+  constructor(state?: Partial<ClassicAccessState>) {
+    this.#current = { access: null, active: false, isLoading: false, ...state }
+  }
+
+  readonly getState = (): ClassicAccessState => this.#current
+
+  readonly subscribe = this.#listeners.subscribe
+
+  readonly read = (): Promise<ClassicAccess | null> => {
+    this.#log.push('read')
+    return Promise.resolve(this.#current.access)
+  }
+
+  readonly load = (): Promise<ClassicAccess | null> => {
+    this.#log.push('load')
+    return Promise.resolve(this.#current.access)
+  }
+
+  readonly signIn = async (options: ClassicSignInOptions): Promise<ClassicSignInResult> => {
+    this.#log.push('signIn')
+    this.#signInLog.push(options)
+    return await this.#signIn(options)
+  }
+
+  readonly signOut = (): Promise<void> => {
+    this.#log.push('signOut')
+    this.setState({ access: null, active: false })
+    return Promise.resolve()
+  }
+
+  readonly start = (): Unlisten => {
+    this.#log.push('start')
+    return () => {}
+  }
+
+  setState(patch: Partial<ClassicAccessState>): void {
+    this.#current = { ...this.#current, ...patch }
+    this.#listeners.notify()
+  }
+
+  setSignIn(handler: (options: ClassicSignInOptions) => Promise<ClassicSignInResult>): void {
+    this.#signIn = handler
+  }
+
+  calls(): readonly ClassicAccessCall[] {
+    return [...this.#log]
+  }
+
+  signIns(): readonly ClassicSignInOptions[] {
+    return [...this.#signInLog]
+  }
 }
 
 /**
@@ -59,121 +127,120 @@ export interface TestClassicAccessService extends ClassicAccessService {
 export function createTestClassicAccessService(
   state?: Partial<ClassicAccessState>,
 ): TestClassicAccessService {
-  let current: ClassicAccessState = { access: null, active: false, isLoading: false, ...state }
-  let signIn: (options: ClassicSignInOptions) => Promise<ClassicSignInResult> = async () => ({
-    kind: 'cancelled',
-  })
-  const log: ClassicAccessCall[] = []
-  const signInLog: ClassicSignInOptions[] = []
-  const listeners = createListeners()
-  const setState = (patch: Partial<ClassicAccessState>): void => {
-    current = { ...current, ...patch }
-    listeners.notify()
-  }
-  return {
-    getState: () => current,
-    subscribe: listeners.subscribe,
-    read() {
-      log.push('read')
-      return Promise.resolve(current.access)
-    },
-    load() {
-      log.push('load')
-      return Promise.resolve(current.access)
-    },
-    async signIn(options) {
-      log.push('signIn')
-      signInLog.push(options)
-      return await signIn(options)
-    },
-    signOut() {
-      log.push('signOut')
-      setState({ access: null, active: false })
-      return Promise.resolve()
-    },
-    start() {
-      log.push('start')
-      return () => {}
-    },
-    setState,
-    setSignIn(handler) {
-      signIn = handler
-    },
-    calls: () => [...log],
-    signIns: () => [...signInLog],
-  }
+  return new TestClassicAccessServiceImpl(state)
 }
 
 export type SubscriptionCall = 'activeSubscription' | 'refetch' | 'invalidate'
 
 export interface TestSubscriptionService extends SubscriptionService {
-  /** Replaces part of the state and notifies subscribers. */
+  /**
+   * Replaces part of the state and notifies subscribers.
+   */
   setState(patch: Partial<SubscriptionState>): void
-  /** Every call, in order. */
+  /**
+   * Every call, in order.
+   */
   calls(): readonly SubscriptionCall[]
 }
 
-/** A {@link SubscriptionService} over a settable state; lookups resolve the current value. */
+class TestSubscriptionServiceImpl implements TestSubscriptionService {
+  #current: SubscriptionState
+  readonly #log: SubscriptionCall[] = []
+  readonly #listeners = new Listeners()
+
+  constructor(state?: Partial<SubscriptionState>) {
+    this.#current = { value: null, isLoading: false, isError: false, ...state }
+  }
+
+  readonly getState = (): SubscriptionState => this.#current
+
+  readonly subscribe = this.#listeners.subscribe
+
+  readonly activeSubscription = (): Promise<ActiveSubscription> => {
+    this.#log.push('activeSubscription')
+    return Promise.resolve(this.#current.value)
+  }
+
+  readonly refetch = (): Promise<ActiveSubscription> => {
+    this.#log.push('refetch')
+    return Promise.resolve(this.#current.value)
+  }
+
+  readonly invalidate = (): void => {
+    this.#log.push('invalidate')
+  }
+
+  setState(patch: Partial<SubscriptionState>): void {
+    this.#current = { ...this.#current, ...patch }
+    this.#listeners.notify()
+  }
+
+  calls(): readonly SubscriptionCall[] {
+    return [...this.#log]
+  }
+}
+
+/**
+ * A {@link SubscriptionService} over a settable state; lookups resolve the current value.
+ */
 export function createTestSubscriptionService(
   state?: Partial<SubscriptionState>,
 ): TestSubscriptionService {
-  let current: SubscriptionState = { value: null, isLoading: false, isError: false, ...state }
-  const log: SubscriptionCall[] = []
-  const listeners = createListeners()
-  return {
-    getState: () => current,
-    subscribe: listeners.subscribe,
-    activeSubscription() {
-      log.push('activeSubscription')
-      return Promise.resolve(current.value)
-    },
-    refetch() {
-      log.push('refetch')
-      return Promise.resolve(current.value)
-    },
-    invalidate() {
-      log.push('invalidate')
-    },
-    setState(patch) {
-      current = { ...current, ...patch }
-      listeners.notify()
-    },
-    calls: () => [...log],
-  }
+  return new TestSubscriptionServiceImpl(state)
 }
 
 export type AppStoreEnvironmentCall = 'environment' | 'invalidate'
 
 export interface TestAppStoreEnvironmentService extends AppStoreEnvironmentService {
-  /** Replaces part of the state and notifies subscribers. */
+  /**
+   * Replaces part of the state and notifies subscribers.
+   */
   setState(patch: Partial<AppStoreEnvironmentState>): void
-  /** Every call, in order. */
+  /**
+   * Every call, in order.
+   */
   calls(): readonly AppStoreEnvironmentCall[]
 }
 
-/** An {@link AppStoreEnvironmentService} that answers `env`; defaults to `Production`. */
+class TestAppStoreEnvironmentServiceImpl implements TestAppStoreEnvironmentService {
+  #current: AppStoreEnvironmentState
+  readonly #log: AppStoreEnvironmentCall[] = []
+  readonly #listeners = new Listeners()
+
+  constructor(env: AppStoreEnvironment) {
+    this.#current = { value: env, isLoading: false, isError: false }
+  }
+
+  readonly getState = (): AppStoreEnvironmentState => this.#current
+
+  readonly subscribe = this.#listeners.subscribe
+
+  readonly environment = (): Promise<AppStoreEnvironment> => {
+    this.#log.push('environment')
+    return Promise.resolve(this.#current.value)
+  }
+
+  readonly invalidate = (): void => {
+    this.#log.push('invalidate')
+  }
+
+  setState(patch: Partial<AppStoreEnvironmentState>): void {
+    this.#current = { ...this.#current, ...patch }
+    this.#listeners.notify()
+  }
+
+  calls(): readonly AppStoreEnvironmentCall[] {
+    return [...this.#log]
+  }
+}
+
+/**
+ * An {@link AppStoreEnvironmentService} that answers `env`; defaults to `Production`.
+ */
 export function createTestAppStoreEnvironmentService(
   env: AppStoreEnvironment = 'Production',
 ): TestAppStoreEnvironmentService {
-  let current: AppStoreEnvironmentState = { value: env, isLoading: false, isError: false }
-  const log: AppStoreEnvironmentCall[] = []
-  const listeners = createListeners()
-  return {
-    getState: () => current,
-    subscribe: listeners.subscribe,
-    environment() {
-      log.push('environment')
-      return Promise.resolve(current.value)
-    },
-    invalidate() {
-      log.push('invalidate')
-    },
-    setState(patch) {
-      current = { ...current, ...patch }
-      listeners.notify()
-    },
-    calls: () => [...log],
-  }
+  return new TestAppStoreEnvironmentServiceImpl(env)
 }
 
 export type PaywallAction =
@@ -183,10 +250,66 @@ export type PaywallAction =
   | { kind: 'redeemCode' }
 
 export interface TestPaywallService extends PaywallService {
-  /** Changes the gate and notifies subscribers. */
+  /**
+   * Changes the gate and notifies subscribers.
+   */
   setGate(gate: PaywallGate): void
-  /** Every action, in order. */
+  /**
+   * Every action, in order.
+   */
   actions(): readonly PaywallAction[]
+}
+
+class TestPaywallServiceImpl implements TestPaywallService {
+  #current: PaywallGate
+  #requested = false
+  readonly #log: PaywallAction[] = []
+  readonly #listeners = new Listeners()
+
+  constructor(gate: PaywallGate) {
+    this.#current = gate
+  }
+
+  readonly gate = (): PaywallGate => this.#current
+
+  readonly subscribe = this.#listeners.subscribe
+
+  readonly requested = (): boolean => this.#requested
+
+  readonly setRequested = (next: boolean): void => {
+    if (next === this.#requested) return
+    this.#requested = next
+    this.#listeners.notify()
+  }
+
+  readonly products = (): Promise<IapProduct[]> => {
+    this.#log.push({ kind: 'products' })
+    return Promise.resolve([])
+  }
+
+  readonly purchase = (productId: string): Promise<void> => {
+    this.#log.push({ kind: 'purchase', productId })
+    return Promise.resolve()
+  }
+
+  readonly restore = (): Promise<ActiveSubscription> => {
+    this.#log.push({ kind: 'restore' })
+    return Promise.resolve(null)
+  }
+
+  readonly redeemCode = (): Promise<void> => {
+    this.#log.push({ kind: 'redeemCode' })
+    return Promise.resolve()
+  }
+
+  setGate(next: PaywallGate): void {
+    this.#current = next
+    this.#listeners.notify()
+  }
+
+  actions(): readonly PaywallAction[] {
+    return [...this.#log]
+  }
 }
 
 /**
@@ -194,39 +317,5 @@ export interface TestPaywallService extends PaywallService {
  * empty, actions resolve at once, and `restore` finds nothing.
  */
 export function createTestPaywallService(gate: PaywallGate = 'hide'): TestPaywallService {
-  let current = gate
-  let requested = false
-  const log: PaywallAction[] = []
-  const listeners = createListeners()
-  return {
-    gate: () => current,
-    subscribe: listeners.subscribe,
-    requested: () => requested,
-    setRequested(next) {
-      if (next === requested) return
-      requested = next
-      listeners.notify()
-    },
-    products() {
-      log.push({ kind: 'products' })
-      return Promise.resolve([])
-    },
-    purchase(productId) {
-      log.push({ kind: 'purchase', productId })
-      return Promise.resolve()
-    },
-    restore() {
-      log.push({ kind: 'restore' })
-      return Promise.resolve(null)
-    },
-    redeemCode() {
-      log.push({ kind: 'redeemCode' })
-      return Promise.resolve()
-    },
-    setGate(next) {
-      current = next
-      listeners.notify()
-    },
-    actions: () => [...log],
-  }
+  return new TestPaywallServiceImpl(gate)
 }

@@ -6,9 +6,36 @@ import type { HapticsService } from '../ipc/mobile-haptics-plugin.ts'
 import type { WebAuthOptions, WebAuthService } from '../ipc/web-auth-plugin.ts'
 
 export interface TestHapticsService extends HapticsService {
-  /** The number of `impactLight` calls since creation or the last `reset`. */
+  /**
+   * The number of `impactLight` calls since creation or the last `reset`.
+   */
   impacts(): number
   reset(): void
+}
+
+class TestHapticsServiceImpl implements TestHapticsService {
+  readonly #fail: boolean
+  #count = 0
+
+  constructor(options?: { fail?: boolean }) {
+    this.#fail = options?.fail ?? false
+  }
+
+  impactLight(): Promise<void> {
+    this.#count += 1
+    if (this.#fail) {
+      return Promise.reject(new ReflectError('io', 'test haptics: no haptic engine'))
+    }
+    return Promise.resolve()
+  }
+
+  impacts(): number {
+    return this.#count
+  }
+
+  reset(): void {
+    this.#count = 0
+  }
 }
 
 /**
@@ -16,27 +43,66 @@ export interface TestHapticsService extends HapticsService {
  * still counted but rejects, like an engine that is not there.
  */
 export function createTestHapticsService(options?: { fail?: boolean }): TestHapticsService {
-  let count = 0
-  return {
-    impactLight() {
-      count += 1
-      if (options?.fail ?? false) {
-        return Promise.reject(new ReflectError('io', 'test haptics: no haptic engine'))
-      }
-      return Promise.resolve()
-    },
-    impacts: () => count,
-    reset() {
-      count = 0
-    },
-  }
+  return new TestHapticsServiceImpl(options)
 }
 
 export interface TestIapService extends IapService {
-  /** Calls every `subscribePurchaseUpdated` listener. */
+  /**
+   * Calls every `subscribePurchaseUpdated` listener.
+   */
   emitPurchaseUpdated(): void
-  /** Every `purchase` product id, in order. */
+  /**
+   * Every `purchase` product id, in order.
+   */
   purchases(): readonly string[]
+}
+
+class TestIapServiceImpl implements TestIapService {
+  readonly #products: readonly IapProduct[]
+  readonly #owned: Set<string>
+  readonly #purchased: string[] = []
+  readonly #listeners = new Set<() => void>()
+
+  constructor(options?: { products?: readonly IapProduct[]; owned?: readonly string[] }) {
+    this.#products = options?.products ?? []
+    this.#owned = new Set(options?.owned ?? [])
+  }
+
+  async getProducts(productIds: string[]): Promise<IapProduct[]> {
+    return this.#products
+      .filter((product) => productIds.includes(product.productId))
+      .map((product) => ({ ...product }))
+  }
+
+  purchase(productId: string): Promise<void> {
+    this.#purchased.push(productId)
+    this.#owned.add(productId)
+    return Promise.resolve()
+  }
+
+  async isOwned(productId: string): Promise<boolean> {
+    return this.#owned.has(productId)
+  }
+
+  subscribePurchaseUpdated(listener: () => void): Unlisten {
+    const entry = (): void => {
+      listener()
+    }
+    this.#listeners.add(entry)
+    return () => {
+      this.#listeners.delete(entry)
+    }
+  }
+
+  emitPurchaseUpdated(): void {
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  purchases(): readonly string[] {
+    return [...this.#purchased]
+  }
 }
 
 /**
@@ -47,84 +113,86 @@ export function createTestIapService(options?: {
   products?: readonly IapProduct[]
   owned?: readonly string[]
 }): TestIapService {
-  const products = options?.products ?? []
-  const owned = new Set(options?.owned ?? [])
-  const purchased: string[] = []
-  const listeners = new Set<() => void>()
-  return {
-    getProducts: async (productIds) =>
-      products
-        .filter((product) => productIds.includes(product.productId))
-        .map((product) => ({ ...product })),
-    purchase(productId) {
-      purchased.push(productId)
-      owned.add(productId)
-      return Promise.resolve()
-    },
-    isOwned: async (productId) => owned.has(productId),
-    subscribePurchaseUpdated(listener): Unlisten {
-      const entry = (): void => {
-        listener()
-      }
-      listeners.add(entry)
-      return () => {
-        listeners.delete(entry)
-      }
-    },
-    emitPurchaseUpdated() {
-      for (const listener of listeners) {
-        listener()
-      }
-    },
-    purchases: () => [...purchased],
-  }
+  return new TestIapServiceImpl(options)
 }
 
 export type AppStoreCall = 'environment' | 'sync' | 'presentOfferCodeRedeemSheet'
 
 export interface TestAppStoreService extends AppStoreService {
-  /** Every call, in order. */
+  /**
+   * Every call, in order.
+   */
   calls(): readonly AppStoreCall[]
 }
 
-/** An in-memory {@link AppStoreService}; `environment` defaults to `'Production'`. */
-export function createTestAppStoreService(options?: { environment?: string }): TestAppStoreService {
-  const log: AppStoreCall[] = []
-  return {
-    environment() {
-      log.push('environment')
-      return Promise.resolve(options?.environment ?? 'Production')
-    },
-    sync() {
-      log.push('sync')
-      return Promise.resolve()
-    },
-    presentOfferCodeRedeemSheet() {
-      log.push('presentOfferCodeRedeemSheet')
-      return Promise.resolve()
-    },
-    calls: () => [...log],
+class TestAppStoreServiceImpl implements TestAppStoreService {
+  readonly #environment: string
+  readonly #log: AppStoreCall[] = []
+
+  constructor(options?: { environment?: string }) {
+    this.#environment = options?.environment ?? 'Production'
+  }
+
+  environment(): Promise<string> {
+    this.#log.push('environment')
+    return Promise.resolve(this.#environment)
+  }
+
+  sync(): Promise<void> {
+    this.#log.push('sync')
+    return Promise.resolve()
+  }
+
+  presentOfferCodeRedeemSheet(): Promise<void> {
+    this.#log.push('presentOfferCodeRedeemSheet')
+    return Promise.resolve()
+  }
+
+  calls(): readonly AppStoreCall[] {
+    return [...this.#log]
   }
 }
 
+/**
+ * An in-memory {@link AppStoreService}; `environment` defaults to `'Production'`.
+ */
+export function createTestAppStoreService(options?: { environment?: string }): TestAppStoreService {
+  return new TestAppStoreServiceImpl(options)
+}
+
 export interface TestWebAuthService extends WebAuthService {
-  /** The options of every `start`, in order. */
+  /**
+   * The options of every `start`, in order.
+   */
   starts(): readonly WebAuthOptions[]
   setCallbackUrl(callbackUrl: string | null): void
 }
 
-/** A {@link WebAuthService} whose sessions end at `callbackUrl`; `null` is a cancel. */
-export function createTestWebAuthService(callbackUrl: string | null): TestWebAuthService {
-  let callback = callbackUrl
-  const log: WebAuthOptions[] = []
-  return {
-    start(options) {
-      log.push({ ...options })
-      return Promise.resolve(callback)
-    },
-    starts: () => [...log],
-    setCallbackUrl(next) {
-      callback = next
-    },
+class TestWebAuthServiceImpl implements TestWebAuthService {
+  #callback: string | null
+  readonly #log: WebAuthOptions[] = []
+
+  constructor(callbackUrl: string | null) {
+    this.#callback = callbackUrl
   }
+
+  readonly start = (options: WebAuthOptions): Promise<string | null> => {
+    this.#log.push({ ...options })
+    return Promise.resolve(this.#callback)
+  }
+
+  starts(): readonly WebAuthOptions[] {
+    return [...this.#log]
+  }
+
+  setCallbackUrl(next: string | null): void {
+    this.#callback = next
+  }
+}
+
+/**
+ * A {@link WebAuthService} whose sessions end at `callbackUrl`; `null` is a cancel.
+ */
+export function createTestWebAuthService(callbackUrl: string | null): TestWebAuthService {
+  return new TestWebAuthServiceImpl(callbackUrl)
 }

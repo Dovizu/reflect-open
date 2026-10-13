@@ -75,25 +75,21 @@ beforeEach(() => {
   logger = base.logger
   subscription = createTestSubscriptionService()
   classicAccess = createTestClassicAccessService()
-  const iap = {
-    ...createTestIapService(),
-    getProducts: () => getProducts(),
-    purchase: (productId: string) => {
-      purchases.push(productId)
-      return purchase()
-    },
-  }
-  const appStore = {
-    ...createTestAppStoreService(),
-    sync: () => {
-      syncs += 1
-      return sync()
-    },
-    presentOfferCodeRedeemSheet: () => {
-      redeems += 1
-      return redeem()
-    },
-  }
+  const iap = createTestIapService()
+  vi.spyOn(iap, 'getProducts').mockImplementation(() => getProducts())
+  vi.spyOn(iap, 'purchase').mockImplementation((productId: string) => {
+    purchases.push(productId)
+    return purchase()
+  })
+  const appStore = createTestAppStoreService()
+  vi.spyOn(appStore, 'sync').mockImplementation(() => {
+    syncs += 1
+    return sync()
+  })
+  vi.spyOn(appStore, 'presentOfferCodeRedeemSheet').mockImplementation(() => {
+    redeems += 1
+    return redeem()
+  })
   services = {
     ...base,
     classicAccess,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestAppStoreService } from '../testing/plugins.ts'
 import { createTestStorageService, type TestStorageService } from '../testing/storage.ts'
@@ -20,14 +20,13 @@ beforeEach(() => {
 })
 
 function service(appPlatform: 'ios' | 'desktop' = 'ios'): AppStoreEnvironmentService {
+  const appStore = createTestAppStoreService()
+  vi.spyOn(appStore, 'environment').mockImplementation(() => {
+    probes += 1
+    return probe()
+  })
   return createAppStoreEnvironmentService({
-    appStore: {
-      ...createTestAppStoreService(),
-      environment() {
-        probes += 1
-        return probe()
-      },
-    },
+    appStore,
     storage,
     platform: createTestPlatformService({ appPlatform }),
   })

@@ -25,12 +25,18 @@ export const calendarAuthorizationStatusSchema = z.enum([
 export type CalendarAuthorizationStatus = z.infer<typeof calendarAuthorizationStatusSchema>
 
 export const calendarInfoSchema = z.object({
-  /** EventKit's stable calendar identifier: what `calendarIds` stores. */
+  /**
+   * EventKit's stable calendar identifier: what `calendarIds` stores.
+   */
   id: z.string(),
   title: z.string(),
-  /** The owning account's display name ("iCloud", "Google", "On My Mac"). */
+  /**
+   * The owning account's display name ("iCloud", "Google", "On My Mac").
+   */
   source: z.string(),
-  /** Display color as `#rrggbb`, when the calendar has one. */
+  /**
+   * Display color as `#rrggbb`, when the calendar has one.
+   */
   color: z.string().nullable(),
 })
 
@@ -45,7 +51,9 @@ export const calendarAttendeeSchema = z.object({
    */
   email: z.string().nullable().catch(null),
   isCurrentUser: z.boolean(),
-  /** People, as opposed to rooms and other booked resources. */
+  /**
+   * People, as opposed to rooms and other booked resources.
+   */
   isPerson: z.boolean(),
   status: z.enum(['accepted', 'declined', 'tentative', 'pending', 'unknown']),
 })
@@ -60,7 +68,9 @@ export const calendarEventSchema = z.object({
   id: z.string(),
   calendarId: z.string(),
   title: z.string(),
-  /** Start/end as Unix epoch milliseconds. */
+  /**
+   * Start/end as Unix epoch milliseconds.
+   */
   startsAt: z.number(),
   endsAt: z.number(),
   allDay: z.boolean(),
@@ -72,15 +82,21 @@ export const calendarEventSchema = z.object({
 
 export type CalendarEvent = z.infer<typeof calendarEventSchema>
 
-/** A time range as epoch milliseconds, `start` inclusive. */
+/**
+ * A time range as epoch milliseconds, `start` inclusive.
+ */
 export interface CalendarRange {
   start: number
   end: number
 }
 
-/** Live reads of the OS calendar database. */
+/**
+ * Live reads of the OS calendar database.
+ */
 export interface CalendarService {
-  /** The current calendar permission state. Never prompts. */
+  /**
+   * The current calendar permission state. Never prompts.
+   */
   authorizationStatus(): Promise<CalendarAuthorizationStatus>
   /**
    * Trigger the OS calendar permission prompt and resolve with whether full
@@ -88,7 +104,9 @@ export interface CalendarService {
    * `false` at once and the user must change the switch in System Settings.
    */
   requestAccess(): Promise<boolean>
-  /** Every event calendar, across all accounts. */
+  /**
+   * Every event calendar, across all accounts.
+   */
   listCalendars(): Promise<CalendarInfo[]>
   /**
    * Events from `calendarIds` overlapping `range`, unfiltered (display
@@ -105,31 +123,56 @@ export interface CalendarService {
 
 const CHANGED_EVENT = 'calendar:changed'
 
-export function createCalendarService(deps: {
-  ipc: IpcBridgeService
-  logger: LoggerService
-}): CalendarService {
-  const { ipc, logger } = deps
-  return {
-    authorizationStatus: () =>
-      ipc.call('calendar_authorization_status', {}, calendarAuthorizationStatusSchema),
-    requestAccess: () => ipc.call('calendar_request_access', {}, z.boolean()),
-    listCalendars: () => ipc.call('calendar_list_calendars', {}, z.array(calendarInfoSchema)),
-    listEvents: (range, calendarIds) =>
-      ipc.call(
-        'calendar_list_events',
-        { start: range.start, end: range.end, calendarIds: [...calendarIds] },
-        z.array(calendarEventSchema),
-      ),
-    subscribeChanged: (listener) =>
-      listenNow(
-        () =>
-          ipc.listen(CHANGED_EVENT, () => {
-            listener()
-          }),
-        (cause) => {
-          logger.warn(`failed to listen for "${CHANGED_EVENT}"`, cause)
-        },
-      ),
+export interface CalendarServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly logger: Pick<LoggerService, 'warn'>
+}
+
+class CalendarServiceImpl implements CalendarService {
+  readonly #deps: CalendarServiceDeps
+
+  constructor(deps: CalendarServiceDeps) {
+    this.#deps = deps
   }
+
+  authorizationStatus(): Promise<CalendarAuthorizationStatus> {
+    return this.#deps.ipc.call(
+      'calendar_authorization_status',
+      {},
+      calendarAuthorizationStatusSchema,
+    )
+  }
+
+  requestAccess(): Promise<boolean> {
+    return this.#deps.ipc.call('calendar_request_access', {}, z.boolean())
+  }
+
+  listCalendars(): Promise<CalendarInfo[]> {
+    return this.#deps.ipc.call('calendar_list_calendars', {}, z.array(calendarInfoSchema))
+  }
+
+  listEvents(range: CalendarRange, calendarIds: readonly string[]): Promise<CalendarEvent[]> {
+    return this.#deps.ipc.call(
+      'calendar_list_events',
+      { start: range.start, end: range.end, calendarIds: [...calendarIds] },
+      z.array(calendarEventSchema),
+    )
+  }
+
+  subscribeChanged(listener: () => void): Unlisten {
+    const { ipc, logger } = this.#deps
+    return listenNow(
+      () =>
+        ipc.listen(CHANGED_EVENT, () => {
+          listener()
+        }),
+      (cause) => {
+        logger.warn(`failed to listen for "${CHANGED_EVENT}"`, cause)
+      },
+    )
+  }
+}
+
+export function createCalendarService(deps: CalendarServiceDeps): CalendarService {
+  return new CalendarServiceImpl(deps)
 }

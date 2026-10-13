@@ -4,7 +4,9 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { ThemePreference } from './schema.ts'
 import type { SettingsService } from './settings-service.ts'
 
-/** The concrete theme applied to the document. */
+/**
+ * The concrete theme applied to the document.
+ */
 export type ResolvedTheme = ColorScheme
 
 /**
@@ -24,100 +26,130 @@ export const THEME_PREFERENCE_CACHE_KEY = 'reflect.theme.preference'
 export interface ThemeService {
   preference: () => ThemePreference
   resolved: () => ResolvedTheme
-  /** True once the settings load has ended, successfully or not. */
+  /**
+   * True once the settings load has ended, successfully or not.
+   */
   settled: () => boolean
   setPreference: (preference: ThemePreference) => void
-  /** Calls `listener` after the preference, the resolved theme, or `settled()` changes. */
+  /**
+   * Calls `listener` after the preference, the resolved theme, or `settled()` changes.
+   */
   subscribe: (listener: () => void) => Unlisten
-  /** Resolves once the settings load has ended, successfully or not. */
+  /**
+   * Resolves once the settings load has ended, successfully or not.
+   */
   whenSettled: () => Promise<void>
 }
 
-export function createThemeService(deps: {
-  settings: SettingsService
-  storage: StorageService
-  platform: PlatformService
-}): ThemeService {
-  const { settings, storage, platform } = deps
-  const listeners = new Set<() => void>()
+export interface ThemeServiceDeps {
+  readonly settings: Pick<SettingsService, 'get' | 'status' | 'subscribe' | 'update' | 'whenLoaded'>
+  readonly storage: Pick<StorageService, 'local'>
+  readonly platform: Pick<PlatformService, 'colorScheme' | 'subscribeColorScheme'>
+}
 
-  let started = false
-  let system: ColorScheme = 'light'
-  let preference: ThemePreference = 'system'
-  let isSettled = false
-  let mirrored: ThemePreference | null = null
+class ThemeServiceImpl implements ThemeService {
+  readonly #deps: ThemeServiceDeps
+  readonly #listeners = new Set<() => void>()
+  #started = false
+  #system: ColorScheme = 'light'
+  #preference: ThemePreference = 'system'
+  #isSettled = false
+  #mirrored: ThemePreference | null = null
 
-  const resolve = (): ResolvedTheme => (preference === 'system' ? system : preference)
+  constructor(deps: ThemeServiceDeps) {
+    this.#deps = deps
+  }
 
-  const sync = (): void => {
-    const previous = { preference, resolved: resolve(), settled: isSettled }
-    preference = settings.get().theme
+  readonly preference = (): ThemePreference => {
+    this.#start()
+    return this.#preference
+  }
+
+  readonly resolved = (): ResolvedTheme => {
+    this.#start()
+    return this.#resolve()
+  }
+
+  readonly settled = (): boolean => {
+    this.#start()
+    return this.#isSettled
+  }
+
+  readonly setPreference = (preference: ThemePreference): void => {
+    this.#start()
+    this.#deps.settings.update({ theme: preference })
+  }
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#start()
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly whenSettled = async (): Promise<void> => {
+    this.#start()
+    await this.#deps.settings.whenLoaded()
+  }
+
+  #resolve(): ResolvedTheme {
+    return this.#preference === 'system' ? this.#system : this.#preference
+  }
+
+  #notify(): void {
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  #sync(): void {
+    const { settings, storage } = this.#deps
+    const previous = {
+      preference: this.#preference,
+      resolved: this.#resolve(),
+      settled: this.#isSettled,
+    }
+    this.#preference = settings.get().theme
     const status = settings.status()
-    isSettled = status !== 'loading'
-    if (status === 'loaded' && mirrored !== preference) {
-      mirrored = preference
-      storage.local.set(THEME_PREFERENCE_CACHE_KEY, preference)
+    this.#isSettled = status !== 'loading'
+    if (status === 'loaded' && this.#mirrored !== this.#preference) {
+      this.#mirrored = this.#preference
+      storage.local.set(THEME_PREFERENCE_CACHE_KEY, this.#preference)
     }
     if (
-      previous.preference !== preference ||
-      previous.resolved !== resolve() ||
-      previous.settled !== isSettled
+      previous.preference !== this.#preference ||
+      previous.resolved !== this.#resolve() ||
+      previous.settled !== this.#isSettled
     ) {
-      for (const listener of listeners) {
-        listener()
-      }
+      this.#notify()
     }
   }
 
-  const start = (): void => {
-    if (started) {
+  #start(): void {
+    const { settings, platform } = this.#deps
+    if (this.#started) {
       return
     }
-    started = true
-    system = platform.colorScheme()
+    this.#started = true
+    this.#system = platform.colorScheme()
     platform.subscribeColorScheme((value) => {
-      if (value === system) {
+      if (value === this.#system) {
         return
       }
-      const before = resolve()
-      system = value
-      if (resolve() !== before) {
-        for (const listener of listeners) {
-          listener()
-        }
+      const before = this.#resolve()
+      this.#system = value
+      if (this.#resolve() !== before) {
+        this.#notify()
       }
     })
-    settings.subscribe(sync)
-    sync()
+    settings.subscribe(() => {
+      this.#sync()
+    })
+    this.#sync()
   }
+}
 
-  return {
-    preference() {
-      start()
-      return preference
-    },
-    resolved() {
-      start()
-      return resolve()
-    },
-    settled() {
-      start()
-      return isSettled
-    },
-    setPreference(next) {
-      start()
-      settings.update({ theme: next })
-    },
-    subscribe(listener) {
-      start()
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    async whenSettled() {
-      start()
-      await settings.whenLoaded()
-    },
-  }
+export function createThemeService(deps: ThemeServiceDeps): ThemeService {
+  return new ThemeServiceImpl(deps)
 }
