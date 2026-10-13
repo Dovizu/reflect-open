@@ -335,10 +335,6 @@ export interface CoreServices {
    */
   readonly chatHistory: ChatHistoryService
   /**
-   * The capture inbox of envelopes that the browser extension, the iOS share extension, and deep links spool.
-   */
-  readonly captureInbox: CaptureInboxService
-  /**
    * The `reflect://` intake of this webview: buffers incoming URLs and resolves them.
    */
   readonly deepLinkIntake: DeepLinkIntakeService
@@ -901,6 +897,10 @@ export interface CoreInternalServices {
    * The verdict on whether an asset's bytes may be sent to a provider.
    */
   readonly assetPrivacy: AssetPrivacyService
+  /**
+   * The capture inbox of envelopes that the browser extension, the iOS share extension, and deep links spool.
+   */
+  readonly captureInbox: CaptureInboxService
 }
 
 export function createCoreServices(
@@ -1236,7 +1236,6 @@ export function composeCoreServices(
     persistenceFlush,
     embeddingRuntime,
     chatHistory,
-    captureInbox,
     deepLinkIntake: create.deepLinkIntake({
       source: adapters.deepLink ?? createNoDeepLinkSource(),
       indexQuery: indexReads.indexQuery,
@@ -1455,6 +1454,7 @@ export function composeCoreServices(
     chatGraphContext,
     backlinkTarget,
     assetPrivacy,
+    captureInbox,
   }
   return { services, internal }
 }

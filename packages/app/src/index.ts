@@ -5,7 +5,6 @@
  */
 export { createAppServices, type AppHost, type AppServices } from './create-app-services.ts'
 export {
-  createDisabledExceptionTelemetry,
   type ExceptionErrorHandler,
   type ExceptionErrorInfo,
   type ExceptionRootOptions,
@@ -23,12 +22,7 @@ export {
   MIN_VISIBLE_MS,
   type OperationsService,
 } from './app/operations-service.ts'
-export {
-  createUpdateService,
-  type UpdaterAdapter,
-  type UpdateService,
-  type UpdateState,
-} from './app/update-service.ts'
+export { type UpdaterAdapter, type UpdateService, type UpdateState } from './app/update-service.ts'
 export {
   createThemeService,
   THEME_PREFERENCE_CACHE_KEY,
@@ -37,7 +31,6 @@ export {
 } from './settings/theme-service.ts'
 export { type ClipboardService } from './app/clipboard-service.ts'
 export {
-  createOpenerService,
   type OpenerService,
   type OpenerTransport,
   type SystemSettingsPane,
@@ -136,7 +129,6 @@ export {
 } from './search/palette-entries.ts'
 export { type PaletteSearchService } from './search/palette-search-service.ts'
 export { deepLinkForRoute } from './navigation/deep-link-format.ts'
-export { initialRouteForDeepLink } from './navigation/deep-link-route.ts'
 export { type DeepLinkRouter } from './navigation/deep-link-router.ts'
 export {
   routeForTag,
