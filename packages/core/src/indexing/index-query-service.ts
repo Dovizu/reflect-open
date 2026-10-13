@@ -6,7 +6,9 @@ import { foldKey } from '../markdown/index.ts'
 import type { DatabaseService } from './database-service.ts'
 import { inClauseChunks } from './query-utils.ts'
 
-/** One pinned note, as the sidebar's Pinned section lists it. */
+/**
+ * One pinned note, as the sidebar's Pinned section lists it.
+ */
 export interface PinnedNote {
   path: string
   title: string
@@ -14,7 +16,9 @@ export interface PinnedNote {
   pinnedOrder?: number | null
 }
 
-/** Core fields of one note row: identity path, title, daily date, privacy flag. */
+/**
+ * Core fields of one note row: identity path, title, daily date, privacy flag.
+ */
 export interface NoteRow {
   path: string
   title: string
@@ -26,46 +30,76 @@ export interface NoteRow {
    * truthy number.
    */
   isPrivate: boolean
-  /** The file carries sync conflict markers (Plan 12) — surface `Needs review`. */
+  /**
+   * The file carries sync conflict markers (Plan 12) — surface `Needs review`.
+   */
   hasConflict: boolean
-  /** The published gist's html url, or null when the note has none. */
+  /**
+   * The published gist's html url, or null when the note has none.
+   */
   gistUrl: string | null
-  /** The body changed since it was last published — the "Republish" nudge. */
+  /**
+   * The body changed since it was last published — the "Republish" nudge.
+   */
   gistStale: boolean
 }
 
-/** A note flagged `Needs review`: its file carries sync conflict markers. */
+/**
+ * A note flagged `Needs review`: its file carries sync conflict markers.
+ */
 export interface ConflictedNote {
   path: string
   title: string
 }
 
-/** Notes sharing one frontmatter `id` — a sync fork (Plan 17). */
+/**
+ * Notes sharing one frontmatter `id` — a sync fork (Plan 17).
+ */
 export interface DuplicateIdGroup {
   id: string
-  /** Every path claiming the id, ordered (the first is resolution's winner). */
+  /**
+   * Every path claiming the id, ordered (the first is resolution's winner).
+   */
   paths: string[]
 }
 
-/** What a pass knows about an indexed note without reading its file. */
+/**
+ * What a pass knows about an indexed note without reading its file.
+ */
 export interface IndexedFileFacts {
-  /** Content hash the row was built from — the authority for "changed". */
+  /**
+   * Content hash the row was built from — the authority for "changed".
+   */
   readonly fileHash: string
-  /** The mtime stamped on the row — lets a pass skip reading untouched files. */
+  /**
+   * The mtime stamped on the row — lets a pass skip reading untouched files.
+   */
   readonly mtime: number
 }
 
-/** One template: its file and its display name (H1 or filename-derived title). */
+/**
+ * One template: its file and its display name (H1 or filename-derived title).
+ */
 export interface TemplateEntry {
   path: string
   title: string
-  /** File modification time (epoch ms). */
+  /**
+   * File modification time (epoch ms).
+   */
   mtime: number
 }
 
-/** Row lookups over the index's `notes` and `aliases` tables. */
+export interface IndexQueryServiceDeps {
+  readonly database: DatabaseService
+}
+
+/**
+ * Row lookups over the index's `notes` and `aliases` tables.
+ */
 export interface IndexQueryService {
-  /** Fetch a single note's row by graph-relative path, or `undefined` if absent. */
+  /**
+   * Fetch a single note's row by graph-relative path, or `undefined` if absent.
+   */
   getNote(path: string): Promise<NoteRow | undefined>
   /**
    * Every pinned note, in shelf order: explicit `pinned: <n>` orders first
@@ -74,7 +108,9 @@ export interface IndexQueryService {
    * the point of pinning: the list must not reshuffle as notes are edited.
    */
   getPinnedNotes(): Promise<PinnedNote[]>
-  /** Every note whose file carries sync conflict markers, ordered by path. */
+  /**
+   * Every note whose file carries sync conflict markers, ordered by path.
+   */
   getConflictedNotes(): Promise<ConflictedNote[]>
   /**
    * Frontmatter `id`s claimed by more than one note. Two files claiming one
@@ -102,7 +138,9 @@ export interface IndexQueryService {
    * once, beyond SQLite's bound-variable budget.
    */
   getNoteIdsByPath(paths: string[]): Promise<Map<string, string | null>>
-  /** A uniformly random note path, or null on an empty graph (Plan 08 command). */
+  /**
+   * A uniformly random note path, or null on an empty graph (Plan 08 command).
+   */
   randomNotePath(): Promise<string | null>
   /**
    * Resolve a free-form note target — a deep link's `reflect://note/<target>`
@@ -128,170 +166,186 @@ export interface IndexQueryService {
   resolveNoteTarget(target: string): Promise<string | null>
 }
 
-export function createIndexQueryService(deps: { database: DatabaseService }): IndexQueryService {
-  const { db } = deps.database
-  return {
-    async getNote(path) {
-      const row = await db
-        .selectFrom('notes')
-        .where('path', '=', path)
-        .select(['path', 'title', 'dailyDate', 'isPrivate', 'hasConflict', 'gistUrl', 'gistStale'])
-        .executeTakeFirst()
-      return row
-        ? {
-            ...row,
-            isPrivate: row.isPrivate !== 0,
-            hasConflict: row.hasConflict !== 0,
-            gistStale: row.gistStale !== 0,
-          }
-        : undefined
-    },
+class IndexQueryServiceImpl implements IndexQueryService {
+  readonly #deps: IndexQueryServiceDeps
 
-    async getPinnedNotes() {
-      return await db
-        .selectFrom('notes')
-        .where('isPinned', '=', 1)
-        .where('kind', '!=', 'template')
-        .select(['path', 'title', 'dailyDate', 'pinnedOrder'])
-        .orderBy(sql`pinned_order IS NULL`)
-        .orderBy('pinnedOrder')
-        .orderBy('titleKey')
-        .orderBy('path')
-        .execute()
-    },
-
-    async getConflictedNotes() {
-      return await db
-        .selectFrom('notes')
-        .where('hasConflict', '=', 1)
-        .select(['path', 'title'])
-        .orderBy('path')
-        .execute()
-    },
-
-    async getDuplicateNoteIds() {
-      const duplicated = await db
-        .selectFrom('notes')
-        .where('id', 'is not', null)
-        .select('id')
-        .groupBy('id')
-        .having(sql<number>`count(*)`, '>', 1)
-        .execute()
-      // Sorted before chunking so group order stays deterministic across chunks.
-      const ids = duplicated
-        .map((row) => row.id)
-        .filter(isNotNullish)
-        .sort()
-      const groups = new Map<string, string[]>()
-      for (const chunk of inClauseChunks(ids)) {
-        const rows = await db
-          .selectFrom('notes')
-          .where('id', 'in', chunk)
-          .select(['id', 'path'])
-          .orderBy('id')
-          .orderBy('path')
-          .execute()
-        for (const row of rows) {
-          if (row.id === null) {
-            continue
-          }
-          const paths = groups.get(row.id) ?? []
-          paths.push(row.path)
-          groups.set(row.id, paths)
-        }
-      }
-      return [...groups].map(([id, paths]) => ({ id, paths }))
-    },
-
-    async listTemplates() {
-      return await db
-        .selectFrom('notes')
-        .where('kind', '=', 'template')
-        .select(['path', 'title', 'mtime'])
-        .orderBy('titleKey')
-        .orderBy('path')
-        .execute()
-    },
-
-    async getIndexedFileFactsByPath(paths) {
-      const facts = new Map<string, IndexedFileFacts>()
-      for (const chunk of inClauseChunks(paths)) {
-        const rows = await db
-          .selectFrom('notes')
-          .where('path', 'in', chunk)
-          .select(['path', 'fileHash', 'mtime'])
-          .execute()
-        for (const row of rows) {
-          facts.set(row.path, { fileHash: row.fileHash, mtime: row.mtime })
-        }
-      }
-      return facts
-    },
-
-    async getNoteIdsByPath(paths) {
-      const ids = new Map<string, string | null>()
-      for (const chunk of inClauseChunks(paths)) {
-        const rows = await db
-          .selectFrom('notes')
-          .where('path', 'in', chunk)
-          .select(['path', 'id'])
-          .execute()
-        for (const row of rows) {
-          ids.set(row.path, row.id)
-        }
-      }
-      return ids
-    },
-
-    async randomNotePath() {
-      const result = await sql<{ path: string }>`
-        SELECT path FROM notes ORDER BY random() LIMIT 1
-      `.execute(db)
-      return result.rows[0]?.path ?? null
-    },
-
-    async resolveNoteTarget(target) {
-      const byId = await db
-        .selectFrom('notes')
-        .where('id', '=', target)
-        .select('path')
-        .orderBy('path')
-        .executeTakeFirst()
-      if (byId !== undefined) {
-        return byId.path
-      }
-
-      if (isIsoDate(target)) {
-        return dailyPath(target)
-      }
-
-      const byPath = await db
-        .selectFrom('notes')
-        .where('path', '=', target)
-        .select('path')
-        .executeTakeFirst()
-      if (byPath !== undefined) {
-        return byPath.path
-      }
-
-      const key = foldKey(target)
-      const byTitle = await db
-        .selectFrom('notes')
-        .where('titleKey', '=', key)
-        .select('path')
-        .orderBy('path')
-        .executeTakeFirst()
-      if (byTitle !== undefined) {
-        return byTitle.path
-      }
-
-      const byAlias = await db
-        .selectFrom('aliases')
-        .where('aliasKey', '=', key)
-        .select('notePath')
-        .orderBy('notePath')
-        .executeTakeFirst()
-      return byAlias?.notePath ?? null
-    },
+  constructor(deps: IndexQueryServiceDeps) {
+    this.#deps = deps
   }
+
+  async getNote(path: string): Promise<NoteRow | undefined> {
+    const { db } = this.#deps.database
+    const row = await db
+      .selectFrom('notes')
+      .where('path', '=', path)
+      .select(['path', 'title', 'dailyDate', 'isPrivate', 'hasConflict', 'gistUrl', 'gistStale'])
+      .executeTakeFirst()
+    return row
+      ? {
+          ...row,
+          isPrivate: row.isPrivate !== 0,
+          hasConflict: row.hasConflict !== 0,
+          gistStale: row.gistStale !== 0,
+        }
+      : undefined
+  }
+
+  async getPinnedNotes(): Promise<PinnedNote[]> {
+    const { db } = this.#deps.database
+    return await db
+      .selectFrom('notes')
+      .where('isPinned', '=', 1)
+      .where('kind', '!=', 'template')
+      .select(['path', 'title', 'dailyDate', 'pinnedOrder'])
+      .orderBy(sql`pinned_order IS NULL`)
+      .orderBy('pinnedOrder')
+      .orderBy('titleKey')
+      .orderBy('path')
+      .execute()
+  }
+
+  async getConflictedNotes(): Promise<ConflictedNote[]> {
+    const { db } = this.#deps.database
+    return await db
+      .selectFrom('notes')
+      .where('hasConflict', '=', 1)
+      .select(['path', 'title'])
+      .orderBy('path')
+      .execute()
+  }
+
+  async getDuplicateNoteIds(): Promise<DuplicateIdGroup[]> {
+    const { db } = this.#deps.database
+    const duplicated = await db
+      .selectFrom('notes')
+      .where('id', 'is not', null)
+      .select('id')
+      .groupBy('id')
+      .having(sql<number>`count(*)`, '>', 1)
+      .execute()
+    // Sorted before chunking so group order stays deterministic across chunks.
+    const ids = duplicated
+      .map((row) => row.id)
+      .filter(isNotNullish)
+      .sort()
+    const groups = new Map<string, string[]>()
+    for (const chunk of inClauseChunks(ids)) {
+      const rows = await db
+        .selectFrom('notes')
+        .where('id', 'in', chunk)
+        .select(['id', 'path'])
+        .orderBy('id')
+        .orderBy('path')
+        .execute()
+      for (const row of rows) {
+        if (row.id === null) {
+          continue
+        }
+        const paths = groups.get(row.id) ?? []
+        paths.push(row.path)
+        groups.set(row.id, paths)
+      }
+    }
+    return [...groups].map(([id, paths]) => ({ id, paths }))
+  }
+
+  async listTemplates(): Promise<TemplateEntry[]> {
+    const { db } = this.#deps.database
+    return await db
+      .selectFrom('notes')
+      .where('kind', '=', 'template')
+      .select(['path', 'title', 'mtime'])
+      .orderBy('titleKey')
+      .orderBy('path')
+      .execute()
+  }
+
+  async getIndexedFileFactsByPath(paths: string[]): Promise<Map<string, IndexedFileFacts>> {
+    const { db } = this.#deps.database
+    const facts = new Map<string, IndexedFileFacts>()
+    for (const chunk of inClauseChunks(paths)) {
+      const rows = await db
+        .selectFrom('notes')
+        .where('path', 'in', chunk)
+        .select(['path', 'fileHash', 'mtime'])
+        .execute()
+      for (const row of rows) {
+        facts.set(row.path, { fileHash: row.fileHash, mtime: row.mtime })
+      }
+    }
+    return facts
+  }
+
+  async getNoteIdsByPath(paths: string[]): Promise<Map<string, string | null>> {
+    const { db } = this.#deps.database
+    const ids = new Map<string, string | null>()
+    for (const chunk of inClauseChunks(paths)) {
+      const rows = await db
+        .selectFrom('notes')
+        .where('path', 'in', chunk)
+        .select(['path', 'id'])
+        .execute()
+      for (const row of rows) {
+        ids.set(row.path, row.id)
+      }
+    }
+    return ids
+  }
+
+  async randomNotePath(): Promise<string | null> {
+    const { db } = this.#deps.database
+    const result = await sql<{ path: string }>`
+      SELECT path FROM notes ORDER BY random() LIMIT 1
+    `.execute(db)
+    return result.rows[0]?.path ?? null
+  }
+
+  async resolveNoteTarget(target: string): Promise<string | null> {
+    const { db } = this.#deps.database
+    const byId = await db
+      .selectFrom('notes')
+      .where('id', '=', target)
+      .select('path')
+      .orderBy('path')
+      .executeTakeFirst()
+    if (byId !== undefined) {
+      return byId.path
+    }
+
+    if (isIsoDate(target)) {
+      return dailyPath(target)
+    }
+
+    const byPath = await db
+      .selectFrom('notes')
+      .where('path', '=', target)
+      .select('path')
+      .executeTakeFirst()
+    if (byPath !== undefined) {
+      return byPath.path
+    }
+
+    const key = foldKey(target)
+    const byTitle = await db
+      .selectFrom('notes')
+      .where('titleKey', '=', key)
+      .select('path')
+      .orderBy('path')
+      .executeTakeFirst()
+    if (byTitle !== undefined) {
+      return byTitle.path
+    }
+
+    const byAlias = await db
+      .selectFrom('aliases')
+      .where('aliasKey', '=', key)
+      .select('notePath')
+      .orderBy('notePath')
+      .executeTakeFirst()
+    return byAlias?.notePath ?? null
+  }
+}
+
+export function createIndexQueryService(deps: IndexQueryServiceDeps): IndexQueryService {
+  return new IndexQueryServiceImpl(deps)
 }

@@ -20,9 +20,13 @@ import { pairMovesById, type DetectedMove } from './move-detection.ts'
  * `docs/readable-filenames.md`.
  */
 
-/** What {@link MoveHealing.detectExternalMoves} found. */
+/**
+ * What {@link MoveHealing.detectExternalMoves} found.
+ */
 export interface ExternalMoveScan {
-  /** Orphan→arrival pairs whose frontmatter ids matched unambiguously. */
+  /**
+   * Orphan→arrival pairs whose frontmatter ids matched unambiguously.
+   */
   moves: DetectedMove[]
   /**
    * Arrival content read while pairing, keyed by path — handed back so the
@@ -31,7 +35,14 @@ export interface ExternalMoveScan {
   content: Map<string, string>
 }
 
-/** Pairs vanished index rows with arrived files by frontmatter id. */
+export interface MoveHealingDeps {
+  readonly noteFile: NoteFileService
+  readonly indexQuery: IndexQueryService
+}
+
+/**
+ * Pairs vanished index rows with arrived files by frontmatter id.
+ */
 export interface MoveHealing {
   /**
    * Pair orphaned index rows with arrived files by frontmatter id. An
@@ -46,33 +57,42 @@ export interface MoveHealing {
   ): Promise<ExternalMoveScan>
 }
 
-export function createMoveHealing(deps: {
-  noteFile: NoteFileService
-  indexQuery: IndexQueryService
-}): MoveHealing {
-  const { noteFile, indexQuery } = deps
-  return {
-    async detectExternalMoves(orphanPaths, arrivalPaths, options) {
-      const content = new Map<string, string>()
-      if (orphanPaths.length === 0 || arrivalPaths.length === 0) {
+class MoveHealingImpl implements MoveHealing {
+  readonly #deps: MoveHealingDeps
+
+  constructor(deps: MoveHealingDeps) {
+    this.#deps = deps
+  }
+
+  async detectExternalMoves(
+    orphanPaths: string[],
+    arrivalPaths: string[],
+    options?: { signal?: AbortSignal | undefined },
+  ): Promise<ExternalMoveScan> {
+    const { noteFile, indexQuery } = this.#deps
+    const content = new Map<string, string>()
+    if (orphanPaths.length === 0 || arrivalPaths.length === 0) {
+      return { moves: [], content }
+    }
+    const orphanIds = await indexQuery.getNoteIdsByPath(orphanPaths)
+    const arrivalIds = new Map<string, string | null>()
+    for (const path of arrivalPaths) {
+      if (options?.signal?.aborted) {
         return { moves: [], content }
       }
-      const orphanIds = await indexQuery.getNoteIdsByPath(orphanPaths)
-      const arrivalIds = new Map<string, string | null>()
-      for (const path of arrivalPaths) {
-        if (options?.signal?.aborted) {
-          return { moves: [], content }
-        }
-        try {
-          const source = await noteFile.read(path)
-          content.set(path, source)
-          const parsed = parseNote({ path, source })
-          arrivalIds.set(path, parsed.frontmatter.id ?? null)
-        } catch {
-          // Unreadable arrival: it can't pair; the caller's plain path retries.
-        }
+      try {
+        const source = await noteFile.read(path)
+        content.set(path, source)
+        const parsed = parseNote({ path, source })
+        arrivalIds.set(path, parsed.frontmatter.id ?? null)
+      } catch {
+        // Unreadable arrival: it can't pair; the caller's plain path retries.
       }
-      return { moves: pairMovesById(orphanIds, arrivalIds), content }
-    },
+    }
+    return { moves: pairMovesById(orphanIds, arrivalIds), content }
   }
+}
+
+export function createMoveHealing(deps: MoveHealingDeps): MoveHealing {
+  return new MoveHealingImpl(deps)
 }

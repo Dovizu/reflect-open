@@ -66,24 +66,23 @@ function createApp(database: TestDatabaseService) {
     write: (...args) => writeNote(...args),
   }
   const indexStore = createTestIndexStoreService()
+  const moveIndexed = indexStore.moveIndexed.bind(indexStore)
+  // Mirrors the Rust command for the paths these tests exercise: a free
+  // destination renames (occupied ones refuse, but no test stages that).
+  vi.spyOn(indexStore, 'moveIndexed').mockImplementation(async (from, to, generation) => {
+    const contents = noteFile.files().get(from)
+    if (contents !== undefined && !noteFile.files().has(to)) {
+      noteFile.set(to, contents)
+    }
+    await noteFile.delete(from, generation)
+    await moveIndexed(from, to, generation)
+  })
   return createTestAppServices({
     clock,
     logger,
     database,
     noteFile: files,
-    indexStore: {
-      ...indexStore,
-      // Mirrors the Rust command for the paths these tests exercise: a free
-      // destination renames (occupied ones refuse, but no test stages that).
-      moveIndexed: async (from, to, generation) => {
-        const contents = noteFile.files().get(from)
-        if (contents !== undefined && !noteFile.files().has(to)) {
-          noteFile.set(to, contents)
-        }
-        await noteFile.delete(from, generation)
-        await indexStore.moveIndexed(from, to, generation)
-      },
-    },
+    indexStore,
   })
 }
 

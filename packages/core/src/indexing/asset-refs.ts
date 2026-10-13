@@ -13,7 +13,14 @@ export function assetReferenceMatches(reference: string, assetPath: string): boo
     : reference === (assetPath.split('/').at(-1) ?? assetPath)
 }
 
-/** Which notes reference an asset, from the index `assets` projection. */
+export interface AssetReferencesDeps {
+  readonly database: DatabaseService
+  readonly xArchive: XArchiveService
+}
+
+/**
+ * Which notes reference an asset, from the index `assets` projection.
+ */
 export interface AssetReferences {
   /**
    * The notes that reference an asset (Plan 20). Used only to find
@@ -30,28 +37,33 @@ export interface AssetReferences {
   notePaths(assetPath: string, knownOwners?: readonly string[]): Promise<string[]>
 }
 
-export function createAssetReferences(deps: {
-  database: DatabaseService
-  xArchive: XArchiveService
-}): AssetReferences {
-  const { database, xArchive } = deps
-  return {
-    async notePaths(assetPath, knownOwners) {
-      const owners = knownOwners ?? (await xArchive.owners(assetPath))
-      const basename = assetPath.split('/').at(-1) ?? assetPath
-      const rows = await database.db
-        .selectFrom('assets')
-        .where((eb) =>
-          eb.or([
-            eb('assetPath', '=', assetPath),
-            eb('assetPath', '=', basename),
-            ...(owners.length > 0 ? [eb('assetPath', 'in', owners)] : []),
-          ]),
-        )
-        .select('notePath')
-        .distinct()
-        .execute()
-      return rows.map((row) => row.notePath)
-    },
+class AssetReferencesImpl implements AssetReferences {
+  readonly #deps: AssetReferencesDeps
+
+  constructor(deps: AssetReferencesDeps) {
+    this.#deps = deps
   }
+
+  async notePaths(assetPath: string, knownOwners?: readonly string[]): Promise<string[]> {
+    const { database, xArchive } = this.#deps
+    const owners = knownOwners ?? (await xArchive.owners(assetPath))
+    const basename = assetPath.split('/').at(-1) ?? assetPath
+    const rows = await database.db
+      .selectFrom('assets')
+      .where((eb) =>
+        eb.or([
+          eb('assetPath', '=', assetPath),
+          eb('assetPath', '=', basename),
+          ...(owners.length > 0 ? [eb('assetPath', 'in', owners)] : []),
+        ]),
+      )
+      .select('notePath')
+      .distinct()
+      .execute()
+    return rows.map((row) => row.notePath)
+  }
+}
+
+export function createAssetReferences(deps: AssetReferencesDeps): AssetReferences {
+  return new AssetReferencesImpl(deps)
 }

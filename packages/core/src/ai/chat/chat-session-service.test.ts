@@ -68,6 +68,21 @@ const REPLY: ChatStreamEvent[] = [
   { type: 'complete', messages: [{ role: 'assistant', content: 'Hi.' }] },
 ]
 
+function overrideHistory(
+  history: ChatHistoryService,
+  overrides: Partial<ChatHistoryService>,
+): ChatHistoryService {
+  return {
+    saveTurn: overrides.saveTurn ?? ((input) => history.saveTurn(input)),
+    deleteConversation:
+      overrides.deleteConversation ??
+      ((id, generation) => history.deleteConversation(id, generation)),
+    listRecent: overrides.listRecent ?? ((limit) => history.listRecent(limit)),
+    loadConversation:
+      overrides.loadConversation ?? ((conversationId) => history.loadConversation(conversationId)),
+  }
+}
+
 interface SetupOptions {
   conversations?: readonly TestChatConversation[]
   settings?: Partial<Settings>
@@ -166,13 +181,13 @@ describe('ChatSession persistence', () => {
     let loads = 0
     const { session } = await setup({
       conversations: [stored({ updatedMs: NOW - CHAT_IDLE_CUTOFF_MS - 1 })],
-      history: (history) => ({
-        ...history,
-        loadConversation: async (id) => {
-          loads += 1
-          return await history.loadConversation(id)
-        },
-      }),
+      history: (history) =>
+        overrideHistory(history, {
+          loadConversation: async (id) => {
+            loads += 1
+            return await history.loadConversation(id)
+          },
+        }),
     })
     session.attach()
     await flush()
@@ -384,7 +399,8 @@ describe('ChatSession persistence', () => {
     // streamed into the on-screen conversation.
     const pendingLoad = Promise.withResolvers<ChatTurn[]>()
     const { session } = await setup({
-      history: (history) => ({ ...history, loadConversation: () => pendingLoad.promise }),
+      history: (history) =>
+        overrideHistory(history, { loadConversation: () => pendingLoad.promise }),
     })
     const homeConversation = session.getState().activeConversationId
 
@@ -444,13 +460,13 @@ describe('ChatSession persistence', () => {
     // conversation's save chain settles, or the upsert could resurrect it.
     const pendingSave = Promise.withResolvers<void>()
     const { session, chatHistory } = await setup({
-      history: (history) => ({
-        ...history,
-        saveTurn: async (input) => {
-          await pendingSave.promise
-          await history.saveTurn(input)
-        },
-      }),
+      history: (history) =>
+        overrideHistory(history, {
+          saveTurn: async (input) => {
+            await pendingSave.promise
+            await history.saveTurn(input)
+          },
+        }),
     })
 
     await session.send('hello')
@@ -467,12 +483,12 @@ describe('ChatSession persistence', () => {
 
   it('logs a failed save and keeps the conversation in memory', async () => {
     const { session, logger } = await setup({
-      history: (history) => ({
-        ...history,
-        saveTurn: async () => {
-          throw new Error('disk full')
-        },
-      }),
+      history: (history) =>
+        overrideHistory(history, {
+          saveTurn: async () => {
+            throw new Error('disk full')
+          },
+        }),
     })
 
     await session.send('hello')

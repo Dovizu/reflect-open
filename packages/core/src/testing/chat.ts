@@ -18,7 +18,9 @@ import {
 
 export interface TestChatConversation {
   conversation: ChatConversation
-  /** The persisted turns, in order. */
+  /**
+   * The persisted turns, in order.
+   */
   turns: readonly ChatTurn[]
 }
 
@@ -27,15 +29,77 @@ export interface TestChatHistoryServiceOptions {
 }
 
 export interface TestChatHistoryService extends ChatHistoryService {
-  /** Every `saveTurn` input, in order. */
+  /**
+   * Every `saveTurn` input, in order.
+   */
   getSaves(): readonly SaveChatTurnInput[]
-  /** Every deleted conversation id, in order. */
+  /**
+   * Every deleted conversation id, in order.
+   */
   getDeletes(): readonly string[]
 }
 
 interface StoredConversation {
   conversation: ChatConversation
   turns: ChatTurn[]
+}
+
+class TestChatHistoryServiceImpl implements TestChatHistoryService {
+  readonly #stored = new Map<string, StoredConversation>()
+  readonly #saves: SaveChatTurnInput[] = []
+  readonly #deletes: string[] = []
+
+  constructor(options: TestChatHistoryServiceOptions | undefined) {
+    for (const seed of options?.conversations ?? []) {
+      this.#stored.set(seed.conversation.id, {
+        conversation: { ...seed.conversation },
+        turns: seed.turns.map((turn) => structuredClone(turn)),
+      })
+    }
+  }
+
+  async saveTurn(input: SaveChatTurnInput): Promise<void> {
+    this.#saves.push(structuredClone(input))
+    let entry = this.#stored.get(input.conversation.id)
+    if (entry === undefined) {
+      entry = { conversation: { ...input.conversation }, turns: [] }
+      this.#stored.set(input.conversation.id, entry)
+    } else {
+      entry.conversation = { ...entry.conversation, updatedMs: input.conversation.updatedMs }
+    }
+    const turn = structuredClone(input.turn)
+    const index = entry.turns.findIndex((existing) => existing.id === turn.id)
+    if (index === -1) {
+      entry.turns.push(turn)
+    } else {
+      entry.turns[index] = turn
+    }
+  }
+
+  async deleteConversation(id: string): Promise<void> {
+    this.#deletes.push(id)
+    this.#stored.delete(id)
+  }
+
+  async listRecent(limit = 50): Promise<ChatConversation[]> {
+    return [...this.#stored.values()]
+      .map((entry) => ({ ...entry.conversation }))
+      .sort((a, b) => b.updatedMs - a.updatedMs)
+      .slice(0, limit)
+  }
+
+  async loadConversation(conversationId: string): Promise<ChatTurn[]> {
+    const entry = this.#stored.get(conversationId)
+    return (entry?.turns ?? []).map((turn) => ({ ...structuredClone(turn), status: 'done' }))
+  }
+
+  getSaves(): readonly SaveChatTurnInput[] {
+    return [...this.#saves]
+  }
+
+  getDeletes(): readonly string[] {
+    return [...this.#deletes]
+  }
 }
 
 /**
@@ -47,63 +111,51 @@ interface StoredConversation {
 export function createTestChatHistoryService(
   options?: TestChatHistoryServiceOptions,
 ): TestChatHistoryService {
-  const stored = new Map<string, StoredConversation>()
-  for (const seed of options?.conversations ?? []) {
-    stored.set(seed.conversation.id, {
-      conversation: { ...seed.conversation },
-      turns: seed.turns.map((turn) => structuredClone(turn)),
-    })
-  }
-  const saves: SaveChatTurnInput[] = []
-  const deletes: string[] = []
-
-  return {
-    async saveTurn(input) {
-      saves.push(structuredClone(input))
-      let entry = stored.get(input.conversation.id)
-      if (entry === undefined) {
-        entry = { conversation: { ...input.conversation }, turns: [] }
-        stored.set(input.conversation.id, entry)
-      } else {
-        entry.conversation = { ...entry.conversation, updatedMs: input.conversation.updatedMs }
-      }
-      const turn = structuredClone(input.turn)
-      const index = entry.turns.findIndex((existing) => existing.id === turn.id)
-      if (index === -1) {
-        entry.turns.push(turn)
-      } else {
-        entry.turns[index] = turn
-      }
-    },
-    async deleteConversation(id) {
-      deletes.push(id)
-      stored.delete(id)
-    },
-    async listRecent(limit = 50) {
-      return [...stored.values()]
-        .map((entry) => ({ ...entry.conversation }))
-        .sort((a, b) => b.updatedMs - a.updatedMs)
-        .slice(0, limit)
-    },
-    async loadConversation(conversationId) {
-      const entry = stored.get(conversationId)
-      return (entry?.turns ?? []).map((turn) => ({ ...structuredClone(turn), status: 'done' }))
-    },
-    getSaves: () => [...saves],
-    getDeletes: () => [...deletes],
-  }
+  return new TestChatHistoryServiceImpl(options)
 }
 
-/** The events of a turn, or a function that answers each `streamTurn` call. */
+/**
+ * The events of a turn, or a function that answers each `streamTurn` call.
+ */
 export type TestChatTurnScript =
   | readonly ChatStreamEvent[]
   | ((request: ChatTurnRequest) => Iterable<ChatStreamEvent> | AsyncIterable<ChatStreamEvent>)
 
 export interface TestChatEngineService extends ChatEngineService {
-  /** Every `streamTurn` request, in order. */
+  /**
+   * Every `streamTurn` request, in order.
+   */
   calls(): readonly ChatTurnRequest[]
-  /** Replaces the script that later `streamTurn` calls play. */
+  /**
+   * Replaces the script that later `streamTurn` calls play.
+   */
   setScript(script: TestChatTurnScript): void
+}
+
+class TestChatEngineServiceImpl implements TestChatEngineService {
+  #current: TestChatTurnScript
+  readonly #log: ChatTurnRequest[] = []
+
+  constructor(script: TestChatTurnScript) {
+    this.#current = script
+  }
+
+  readonly streamTurn = (request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> =>
+    this.#streamTurn(request)
+
+  calls(): readonly ChatTurnRequest[] {
+    return [...this.#log]
+  }
+
+  setScript(script: TestChatTurnScript): void {
+    this.#current = script
+  }
+
+  async *#streamTurn(request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> {
+    this.#log.push(request)
+    const script = this.#current
+    yield* typeof script === 'function' ? script(request) : script
+  }
 }
 
 /**
@@ -113,30 +165,58 @@ export interface TestChatEngineService extends ChatEngineService {
 export function createTestChatEngineService(
   script: TestChatTurnScript = [{ type: 'complete', messages: [] }],
 ): TestChatEngineService {
-  let current = script
-  const log: ChatTurnRequest[] = []
-  return {
-    async *streamTurn(request) {
-      log.push(request)
-      yield* typeof current === 'function' ? current(request) : current
-    },
-    calls: () => [...log],
-    setScript(next) {
-      current = next
-    },
-  }
+  return new TestChatEngineServiceImpl(script)
 }
 
-/** A graph overview, or a function that answers each `load` call. */
+/**
+ * A graph overview, or a function that answers each `load` call.
+ */
 export type TestChatGraphContextSource =
   | CloudGraphContext
   | ((graphName: string) => CloudGraphContext | Promise<CloudGraphContext>)
 
 export interface TestChatGraphContextService extends ChatGraphContextService {
-  /** The graph name of every `load` call, in order. */
+  /**
+   * The graph name of every `load` call, in order.
+   */
   calls(): readonly string[]
-  /** Replaces the overview that later `load` calls answer with. */
+  /**
+   * Replaces the overview that later `load` calls answer with.
+   */
   setResult(result: TestChatGraphContextSource): void
+}
+
+class TestChatGraphContextServiceImpl implements TestChatGraphContextService {
+  #source: TestChatGraphContextSource
+  readonly #log: string[] = []
+
+  constructor(result: TestChatGraphContextSource | undefined) {
+    this.#source =
+      result ??
+      ((graphName) => ({
+        graphName,
+        noteCount: 0,
+        dailyNoteCount: 0,
+        earliestDailyDate: null,
+        latestDailyDate: null,
+        tags: [],
+        tagsTruncated: false,
+      }))
+  }
+
+  readonly load = async (graphName: string): Promise<CloudSafe<CloudGraphContext>> => {
+    this.#log.push(graphName)
+    const source = this.#source
+    return cloudSafeGraphContext(typeof source === 'function' ? await source(graphName) : source)
+  }
+
+  calls(): readonly string[] {
+    return [...this.#log]
+  }
+
+  setResult(result: TestChatGraphContextSource): void {
+    this.#source = result
+  }
 }
 
 /**
@@ -146,26 +226,5 @@ export interface TestChatGraphContextService extends ChatGraphContextService {
 export function createTestChatGraphContextService(
   result?: TestChatGraphContextSource,
 ): TestChatGraphContextService {
-  let source: TestChatGraphContextSource =
-    result ??
-    ((graphName) => ({
-      graphName,
-      noteCount: 0,
-      dailyNoteCount: 0,
-      earliestDailyDate: null,
-      latestDailyDate: null,
-      tags: [],
-      tagsTruncated: false,
-    }))
-  const log: string[] = []
-  return {
-    load: async (graphName): Promise<CloudSafe<CloudGraphContext>> => {
-      log.push(graphName)
-      return cloudSafeGraphContext(typeof source === 'function' ? await source(graphName) : source)
-    },
-    calls: () => [...log],
-    setResult(next) {
-      source = next
-    },
-  }
+  return new TestChatGraphContextServiceImpl(result)
 }

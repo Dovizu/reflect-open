@@ -19,7 +19,9 @@ export type Backlink = Pick<
   'sourcePath' | 'targetRaw' | 'alias' | 'posFrom' | 'posTo'
 >
 
-/** One backlink with the context the panel renders (Plan 07). */
+/**
+ * One backlink with the context the panel renders (Plan 07).
+ */
 export interface BacklinkContext {
   sourcePath: string
   sourceTitle: string
@@ -48,19 +50,31 @@ export interface BacklinkSourceCursor {
   readonly sourcePath: string
 }
 
-/** Keyset page controls for {@link BacklinkService.getBacklinksWithContext}. */
+/**
+ * Keyset page controls for {@link BacklinkService.getBacklinksWithContext}.
+ */
 export interface BacklinkContextPageOptions {
-  /** Maximum distinct source notes to return. A source is never split across pages. */
+  /**
+   * Maximum distinct source notes to return. A source is never split across pages.
+   */
   readonly limit: number
-  /** The previous page's final source, or `null` for the first page. */
+  /**
+   * The previous page's final source, or `null` for the first page.
+   */
   readonly cursor: BacklinkSourceCursor | null
 }
 
-/** One source-bounded page of incoming backlink contexts. */
+/**
+ * One source-bounded page of incoming backlink contexts.
+ */
 export interface BacklinkContextPage {
-  /** Deduplicated contexts for every source included in this page. */
+  /**
+   * Deduplicated contexts for every source included in this page.
+   */
   readonly contexts: BacklinkContext[]
-  /** The next page's keyset cursor, or `null` when every source is loaded. */
+  /**
+   * The next page's keyset cursor, or `null` when every source is loaded.
+   */
   readonly nextCursor: BacklinkSourceCursor | null
   /**
    * Resolved wiki-link rows with an indexed source note, before block-context
@@ -92,9 +106,18 @@ function throughSource(cursor: BacklinkSourceCursor) {
   )`
 }
 
-/** Incoming links of a note, raw or with their rendered block context. */
+export interface BacklinkServiceDeps {
+  readonly database: DatabaseService
+  readonly noteFile: NoteFileService
+}
+
+/**
+ * Incoming links of a note, raw or with their rendered block context.
+ */
 export interface BacklinkService {
-  /** Notes that link to `path` (resolved at query time via the `backlinks` view). */
+  /**
+   * Notes that link to `path` (resolved at query time via the `backlinks` view).
+   */
   getBacklinks(path: string): Promise<Backlink[]>
   /**
    * Backlinks of `path` with source titles and block-context snippets. One read
@@ -113,164 +136,169 @@ export interface BacklinkService {
   ): Promise<BacklinkContextPage>
 }
 
-export function createBacklinkService(deps: {
-  database: DatabaseService
-  noteFile: NoteFileService
-}): BacklinkService {
-  const { noteFile } = deps
-  const { db } = deps.database
-  return {
-    async getBacklinks(path) {
-      return await db
-        .selectFrom('backlinks')
-        .where('targetPath', '=', path)
-        .select(['sourcePath', 'targetRaw', 'alias', 'posFrom', 'posTo'])
-        .orderBy('sourcePath')
-        .execute()
-    },
+class BacklinkServiceImpl implements BacklinkService {
+  readonly #deps: BacklinkServiceDeps
 
-    async getBacklinksWithContext(path, options) {
-      if (!Number.isSafeInteger(options.limit) || options.limit <= 0) {
-        throw new RangeError('backlink page limit must be a positive safe integer')
-      }
+  constructor(deps: BacklinkServiceDeps) {
+    this.#deps = deps
+  }
 
-      let sourceQuery = db
-        .selectFrom('backlinks')
-        .innerJoin('notes', 'notes.path', 'backlinks.sourcePath')
-        .where('targetPath', '=', path)
-        .select([
-          'backlinks.sourcePath',
-          'notes.title as sourceTitle',
-          sourceRecency.as('recencyMs'),
-        ])
-        .$narrowType<{ sourcePath: string }>()
-        .distinct()
-      if (options.cursor !== null) {
-        sourceQuery = sourceQuery.where(afterSource(options.cursor))
-      }
+  async getBacklinks(path: string): Promise<Backlink[]> {
+    const { db } = this.#deps.database
+    return await db
+      .selectFrom('backlinks')
+      .where('targetPath', '=', path)
+      .select(['sourcePath', 'targetRaw', 'alias', 'posFrom', 'posTo'])
+      .orderBy('sourcePath')
+      .execute()
+  }
 
-      const candidateLimit =
-        options.limit === Number.MAX_SAFE_INTEGER ? options.limit : options.limit + 1
-      const [candidateSources, countRow] = await Promise.all([
-        sourceQuery
-          .orderBy(sourceRecency, 'desc')
-          .orderBy('backlinks.sourcePath')
-          .limit(candidateLimit)
-          .execute(),
-        db
-          .selectFrom('backlinks')
-          .innerJoin('notes', 'notes.path', 'backlinks.sourcePath')
-          .where('targetPath', '=', path)
-          .select(sql<number>`count(*)`.as('count'))
-          .executeTakeFirst(),
-      ])
-      const pageSources = candidateSources.slice(0, options.limit)
-      const lastSource = pageSources.at(-1)
-      const nextCursor =
-        candidateSources.length > options.limit && lastSource !== undefined
-          ? { recencyMs: lastSource.recencyMs, sourcePath: lastSource.sourcePath }
-          : null
-      const indexedLinkCount = countRow?.count ?? 0
+  async getBacklinksWithContext(
+    path: string,
+    options: BacklinkContextPageOptions,
+  ): Promise<BacklinkContextPage> {
+    const { noteFile } = this.#deps
+    const { db } = this.#deps.database
+    if (!Number.isSafeInteger(options.limit) || options.limit <= 0) {
+      throw new RangeError('backlink page limit must be a positive safe integer')
+    }
 
-      if (lastSource === undefined) {
-        return { contexts: [], nextCursor: null, indexedLinkCount }
-      }
+    let sourceQuery = db
+      .selectFrom('backlinks')
+      .innerJoin('notes', 'notes.path', 'backlinks.sourcePath')
+      .where('targetPath', '=', path)
+      .select(['backlinks.sourcePath', 'notes.title as sourceTitle', sourceRecency.as('recencyMs')])
+      .$narrowType<{ sourcePath: string }>()
+      .distinct()
+    if (options.cursor !== null) {
+      sourceQuery = sourceQuery.where(afterSource(options.cursor))
+    }
 
-      // Select the complete source range rather than binding one parameter per
-      // source path. This keeps arbitrarily large safe limits below SQLite's bound
-      // parameter ceiling; the selected-path guard below also closes the tiny race
-      // where an index write lands between the source and context queries.
-      let contextRowQuery = db
-        .selectFrom('backlinks')
-        .innerJoin('notes', 'notes.path', 'backlinks.sourcePath')
-        .where('targetPath', '=', path)
-        .where(
-          throughSource({
-            recencyMs: lastSource.recencyMs,
-            sourcePath: lastSource.sourcePath,
-          }),
-        )
-        .select(['backlinks.sourcePath', 'backlinks.posFrom'])
-        .$narrowType<{ sourcePath: string; posFrom: number }>()
-      if (options.cursor !== null) {
-        contextRowQuery = contextRowQuery.where(afterSource(options.cursor))
-      }
-      const rows = await contextRowQuery
+    const candidateLimit =
+      options.limit === Number.MAX_SAFE_INTEGER ? options.limit : options.limit + 1
+    const [candidateSources, countRow] = await Promise.all([
+      sourceQuery
         .orderBy(sourceRecency, 'desc')
         .orderBy('backlinks.sourcePath')
-        .orderBy('backlinks.posFrom')
-        .execute()
+        .limit(candidateLimit)
+        .execute(),
+      db
+        .selectFrom('backlinks')
+        .innerJoin('notes', 'notes.path', 'backlinks.sourcePath')
+        .where('targetPath', '=', path)
+        .select(sql<number>`count(*)`.as('count'))
+        .executeTakeFirst(),
+    ])
+    const pageSources = candidateSources.slice(0, options.limit)
+    const lastSource = pageSources.at(-1)
+    const nextCursor =
+      candidateSources.length > options.limit && lastSource !== undefined
+        ? { recencyMs: lastSource.recencyMs, sourcePath: lastSource.sourcePath }
+        : null
+    const indexedLinkCount = countRow?.count ?? 0
 
-      const selectedSourcePaths = new Set(pageSources.map((source) => source.sourcePath))
-      const positionsBySource = new Map<string, number[]>()
-      for (const row of rows) {
-        if (!selectedSourcePaths.has(row.sourcePath)) {
-          continue
-        }
-        const positions = positionsBySource.get(row.sourcePath)
-        if (positions === undefined) {
-          positionsBySource.set(row.sourcePath, [row.posFrom])
-        } else {
-          positions.push(row.posFrom)
-        }
-      }
+    if (lastSource === undefined) {
+      return { contexts: [], nextCursor: null, indexedLinkCount }
+    }
 
-      // Every spelling that resolves to the target (title, aliases, daily date),
-      // so sibling branches co-group under any of them — old Reflect compared
-      // resolved note ids, not link text.
-      const targetKeys = new Set(
-        (await db.selectFrom('noteKeys').where('notePath', '=', path).select('key').execute())
-          .map((row) => row.key)
-          .filter((key): key is string => typeof key === 'string'),
-      )
-
-      // One read *and one parse* per distinct source: a well-linked source
-      // contributes many rows, and context extraction walks the parsed body.
-      const sources = new Map<string, BlockContextSource | null>()
-      const locators = new Map<string, SourceTaskLocate>()
-      await Promise.all(
-        pageSources.map(async ({ sourcePath }) => {
-          try {
-            const source = prepareBlockContext(await noteFile.read(sourcePath))
-            sources.set(sourcePath, source)
-            locators.set(sourcePath, createSourceTaskLocator(source))
-          } catch {
-            sources.set(sourcePath, null)
-          }
+    // Select the complete source range rather than binding one parameter per
+    // source path. This keeps arbitrarily large safe limits below SQLite's bound
+    // parameter ceiling; the selected-path guard below also closes the tiny race
+    // where an index write lands between the source and context queries.
+    let contextRowQuery = db
+      .selectFrom('backlinks')
+      .innerJoin('notes', 'notes.path', 'backlinks.sourcePath')
+      .where('targetPath', '=', path)
+      .where(
+        throughSource({
+          recencyMs: lastSource.recencyMs,
+          sourcePath: lastSource.sourcePath,
         }),
       )
-      const noLocator: SourceTaskLocate = () => undefined
+      .select(['backlinks.sourcePath', 'backlinks.posFrom'])
+      .$narrowType<{ sourcePath: string; posFrom: number }>()
+    if (options.cursor !== null) {
+      contextRowQuery = contextRowQuery.where(afterSource(options.cursor))
+    }
+    const rows = await contextRowQuery
+      .orderBy(sourceRecency, 'desc')
+      .orderBy('backlinks.sourcePath')
+      .orderBy('backlinks.posFrom')
+      .execute()
 
-      const results: BacklinkContext[] = []
-      for (const pageSource of pageSources) {
-        const source = sources.get(pageSource.sourcePath)
-        const seenSnippets = new Set<string>()
-        for (const posFrom of positionsBySource.get(pageSource.sourcePath) ?? []) {
-          const context =
-            source == null
-              ? { text: '', lineOrigins: [] }
-              : blockContextLinesAt(source, posFrom, targetKeys)
-          const snippet = context.text
-          if (snippet !== '') {
-            if (seenSnippets.has(snippet)) {
-              continue
-            }
-            seenSnippets.add(snippet)
-          }
-          results.push({
-            sourcePath: pageSource.sourcePath,
-            sourceTitle: pageSource.sourceTitle,
-            snippet,
-            posFrom,
-            tasks: extractSnippetTasks(
-              snippet,
-              context.lineOrigins,
-              locators.get(pageSource.sourcePath) ?? noLocator,
-            ),
-          })
-        }
+    const selectedSourcePaths = new Set(pageSources.map((source) => source.sourcePath))
+    const positionsBySource = new Map<string, number[]>()
+    for (const row of rows) {
+      if (!selectedSourcePaths.has(row.sourcePath)) {
+        continue
       }
-      return { contexts: results, nextCursor, indexedLinkCount }
-    },
+      const positions = positionsBySource.get(row.sourcePath)
+      if (positions === undefined) {
+        positionsBySource.set(row.sourcePath, [row.posFrom])
+      } else {
+        positions.push(row.posFrom)
+      }
+    }
+
+    // Every spelling that resolves to the target (title, aliases, daily date),
+    // so sibling branches co-group under any of them — old Reflect compared
+    // resolved note ids, not link text.
+    const targetKeys = new Set(
+      (await db.selectFrom('noteKeys').where('notePath', '=', path).select('key').execute())
+        .map((row) => row.key)
+        .filter((key): key is string => typeof key === 'string'),
+    )
+
+    // One read *and one parse* per distinct source: a well-linked source
+    // contributes many rows, and context extraction walks the parsed body.
+    const sources = new Map<string, BlockContextSource | null>()
+    const locators = new Map<string, SourceTaskLocate>()
+    await Promise.all(
+      pageSources.map(async ({ sourcePath }) => {
+        try {
+          const source = prepareBlockContext(await noteFile.read(sourcePath))
+          sources.set(sourcePath, source)
+          locators.set(sourcePath, createSourceTaskLocator(source))
+        } catch {
+          sources.set(sourcePath, null)
+        }
+      }),
+    )
+    const noLocator: SourceTaskLocate = () => undefined
+
+    const results: BacklinkContext[] = []
+    for (const pageSource of pageSources) {
+      const source = sources.get(pageSource.sourcePath)
+      const seenSnippets = new Set<string>()
+      for (const posFrom of positionsBySource.get(pageSource.sourcePath) ?? []) {
+        const context =
+          source == null
+            ? { text: '', lineOrigins: [] }
+            : blockContextLinesAt(source, posFrom, targetKeys)
+        const snippet = context.text
+        if (snippet !== '') {
+          if (seenSnippets.has(snippet)) {
+            continue
+          }
+          seenSnippets.add(snippet)
+        }
+        results.push({
+          sourcePath: pageSource.sourcePath,
+          sourceTitle: pageSource.sourceTitle,
+          snippet,
+          posFrom,
+          tasks: extractSnippetTasks(
+            snippet,
+            context.lineOrigins,
+            locators.get(pageSource.sourcePath) ?? noLocator,
+          ),
+        })
+      }
+    }
+    return { contexts: results, nextCursor, indexedLinkCount }
   }
+}
+
+export function createBacklinkService(deps: BacklinkServiceDeps): BacklinkService {
+  return new BacklinkServiceImpl(deps)
 }
