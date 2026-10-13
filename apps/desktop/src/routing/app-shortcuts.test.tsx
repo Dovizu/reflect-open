@@ -9,11 +9,11 @@ import {
 import {
   createTestCoreServices,
   createTestPlatformService,
-  createTestThemeService,
   type TestCoreServices,
   type TestOpenGraph,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
+import { createTestThemeService } from '@reflect/app/testing'
 import {
   FocusedDailyProvider,
   useSetFocusedDailyDate,
@@ -88,7 +88,6 @@ async function shortcutsHook() {
   const readSource = async (): Promise<string> => '# A\n'
   const services = createTestCoreServices({
     platform: createTestPlatformService(platform),
-    theme: createTestThemeService('light'),
     noteDocuments: {
       readSource,
       readExisting: readSource,
@@ -124,6 +123,7 @@ async function shortcutsHook() {
     },
     {
       app: services,
+      appServices: { theme: createTestThemeService('light') },
       graph: GRAPH,
       graphState: {
         recents: [

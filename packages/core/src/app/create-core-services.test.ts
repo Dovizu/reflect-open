@@ -10,7 +10,6 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestCoreServices } from '../testing/services.ts'
 import { createTestClipboardService, createTestDialogService } from '../testing/shell.ts'
-import { createTestUpdaterAdapter } from '../testing/update.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import {
   composeCoreServices,
@@ -48,15 +47,12 @@ const SERVICE_KEYS = [
   'imageCodec',
   'indexLifecycle',
   'graphSession',
-  'exceptionTelemetry',
   'operations',
   'settings',
-  'theme',
   'persistenceFlush',
   'fileChanges',
   'embeddingRuntime',
   'chatHistory',
-  'update',
   'navigation',
   'deepLink',
   'linkNavigation',
@@ -149,15 +145,6 @@ describe('createCoreServices', () => {
     expect(services.platform.appVersion).toBe('0.0.0-test')
     await expect(services.path.homeDir()).resolves.toBe('/home/test')
     expect(services.window.isMainWindow()).toBe(true)
-  })
-
-  it('supports updates only with an updater adapter', () => {
-    expect(createCoreServices(requiredAdapters()).update.supported).toBe(false)
-    const services = createCoreServices({
-      ...requiredAdapters(),
-      updater: createTestUpdaterAdapter(),
-    })
-    expect(services.update.supported).toBe(true)
   })
 
   it('defaults the logger, clock, id, and hash', () => {

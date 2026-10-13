@@ -1,9 +1,12 @@
-import type { Unlisten } from '../unlisten.ts'
-import type { ClockService, TimerHandle } from './clock-service.ts'
-import type { LoggerService } from './logger-service.ts'
-import { isMobilePlatform } from './platform.ts'
-import type { PlatformFacts } from './platform-service.ts'
-import type { WindowService } from './window-service.ts'
+import {
+  isMobilePlatform,
+  type ClockService,
+  type LoggerService,
+  type PlatformFacts,
+  type TimerHandle,
+  type Unlisten,
+  type WindowService,
+} from '@reflect/core'
 
 /**
  * The auto-update lifecycle, as plain-language phases the UI renders

@@ -1,3 +1,4 @@
+import type { AppHost } from '@reflect/app'
 import {
   createConsoleLogger,
   createBrowserHttpService,
@@ -46,12 +47,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
     clipboard: createNavigatorClipboardService(),
     lifecycle: createDomLifecycleAdapter(),
     imageCodec: createBrowserImageCodec(),
-    exceptionTelemetry: createExceptionTelemetry({
-      dsn: buildExceptionTelemetryDsn(),
-      release: `reflect@${facts.appVersion}`,
-      sdk: sentryExceptionTelemetrySdk,
-      logger,
-    }),
   }
   if (facts.isNativeShell) {
     return {
@@ -61,7 +56,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
       opener: createTauriOpenerTransport(),
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
-      updater: createTauriUpdaterAdapter(),
       nativeMenu: createTauriNativeMenuHost(),
       deepLink: createTauriDeepLinkSource(),
       convertFileSrc,
@@ -75,4 +69,22 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
     path: createPosixPathTransport('/'),
     window: createSingleWindowHost(),
   }
+}
+
+/**
+ * The desktop app's host for the app layer: the Tauri updater inside the
+ * native shell, and Sentry exception telemetry everywhere.
+ */
+export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost {
+  void ipc
+  const exceptionTelemetry = createExceptionTelemetry({
+    dsn: buildExceptionTelemetryDsn(),
+    release: `reflect@${facts.appVersion}`,
+    sdk: sentryExceptionTelemetrySdk,
+    logger: createConsoleLogger(),
+  })
+  if (facts.isNativeShell) {
+    return { exceptionTelemetry, updater: createTauriUpdaterAdapter() }
+  }
+  return { exceptionTelemetry }
 }

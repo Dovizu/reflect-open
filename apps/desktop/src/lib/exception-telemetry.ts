@@ -1,4 +1,5 @@
-import type { ExceptionErrorHandler, ExceptionTelemetryService, LoggerService } from '@reflect/core'
+import type { ExceptionErrorHandler, ExceptionTelemetryService } from '@reflect/app'
+import type { LoggerService } from '@reflect/core'
 import {
   dedupeIntegration,
   globalHandlersIntegration,

@@ -60,7 +60,7 @@ Every native call goes through one seam:
 
 | Module | What it owns |
 |---|---|
-| `app/` | The composition root (`create-core-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformService`, `StorageService`, `HttpService`, `OperationsService`, `AppLifecycleService`, `WindowService`, `PersistenceFlushService`, `UpdateService`. |
+| `app/` | The composition root (`create-core-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformService`, `StorageService`, `HttpService`, `OperationsService`, `AppLifecycleService`, `WindowService`, `PersistenceFlushService`. |
 | `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, the typed file services (`NoteFileService`, `AssetStoreService`), note creation and link resolution (`NoteCreationService`, `NoteLinkResolverService`), and the open graph (`GraphSessionService`, `MobileOnboardingService`). |
 | `documents/` | Open notes: the `NoteSession` state machine (`NoteSessionService`), the registry of live sessions (`OpenDocumentsService`), session-aware reads and writes (`NoteDocumentService`), moves and title renames (`NoteMoveService`, `TitleRenameService`), note actions (`NoteActionsService`), attachments and templates. |
 | `markdown/` | The document model (Plan 03): frontmatter parsing, the canonical Lezer grammar with the `[[wiki link]]` extension, extraction (`parseNote`), source-level edits, and pure wiki-link resolution policy. |
@@ -76,7 +76,7 @@ Every native call goes through one seam:
 | `sync/` | Git backup (`BackupService`, the sync engine, `GitRepositoryService`, the GitHub services) and iCloud (`ICloudSyncService`, `ICloudDownloadService`, `ConflictResolutionService`). |
 | `calendar/` | The read-only Apple Calendar integration: `CalendarService` (live EventKit reads), `CalendarEventsService` (the day's events, the settings switch and calendar choice), and the pure display policy of the events panel. |
 | `contacts/` | The Apple Contacts integration: `ContactsService` (live lookups), `PersonNoteService` (email identities to `#person` notes), `MeetingService` (a calendar event into its daily note), `ContactSuggestionService` (the suggested-contact card), and the pure matching and Markdown rules. |
-| `settings/` | The settings schema, `SettingsService` (the one settings document) and `ThemeService`. |
+| `settings/` | The settings schema, `SettingsService` (the one settings document). |
 | `ipc/` | The `IpcBridge` transport type and `IpcBridgeService` described above, plus the typed plugin bindings. |
 | `testing/` | The `@reflect/core/testing` entry: test doubles and `createTestCoreServices()`. Never imported by production code. |
 | `errors.ts` | The `AppError` discriminated union shared with Rust. |

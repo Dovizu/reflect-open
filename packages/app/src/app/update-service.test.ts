@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createTestClockService, type TestClockService } from '../testing/clock.ts'
-import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
-import { createTestPlatformService, type TestPlatformOptions } from '../testing/platform.ts'
-import { createTestWindowService } from '../testing/shell.ts'
+import {
+  createTestClockService,
+  createTestLoggerService,
+  createTestPlatformService,
+  createTestWindowService,
+  type TestClockService,
+  type TestLoggerService,
+  type TestPlatformOptions,
+} from '@reflect/core/testing'
 import {
   createTestUpdaterAdapter,
   createTestUpdateService,

@@ -1,6 +1,6 @@
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check } from '@tauri-apps/plugin-updater'
-import type { UpdaterAdapter } from '@reflect/core'
+import type { UpdaterAdapter } from '@reflect/app'
 
 /**
  * The Tauri updater and process plugins. Both are registered only under

@@ -1,5 +1,5 @@
 import { installQueryInvalidation } from '@/lib/query-invalidation.ts'
-import { createDesktopAdapters } from '@/services/create-desktop-services.ts'
+import { createDesktopAdapters, createDesktopHost } from '@/services/create-desktop-services.ts'
 import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
@@ -20,13 +20,14 @@ export const pendingDevIpc = facts.isNativeShell ? null : createDeferredIpcTrans
 /**
  * The app-scoped services of this webview.
  */
-export const coreServices = createCoreServices(
-  createDesktopAdapters(facts, pendingDevIpc?.transport ?? createTauriIpcTransport()),
-)
+const ipc = pendingDevIpc?.transport ?? createTauriIpcTransport()
+
+export const coreServices = createCoreServices(createDesktopAdapters(facts, ipc))
+
+export const appServices = createAppServices(coreServices, createDesktopHost(facts, ipc))
 
 // Runs before every module imported after this one, so exception telemetry
 // exists while the rest of the app's modules evaluate.
-coreServices.exceptionTelemetry.install()
-export const appServices = createAppServices(coreServices, {})
+appServices.exceptionTelemetry.install()
 installQueryInvalidation(coreServices)
 void coreServices.contacts.refresh()

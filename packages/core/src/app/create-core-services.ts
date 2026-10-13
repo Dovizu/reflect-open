@@ -243,17 +243,12 @@ import {
 } from '../navigation/navigation-service.ts'
 import { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
 import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
-import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
 import type { ClipboardService } from './clipboard-service.ts'
 import { createSystemClock, type ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
-import {
-  createDisabledExceptionTelemetry,
-  type ExceptionTelemetryService,
-} from './exception-telemetry-service.ts'
 import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
@@ -280,7 +275,6 @@ import {
   type PlatformService,
 } from './platform-service.ts'
 import { createWebStorageService, type StorageService } from './storage-service.ts'
-import { createUpdateService, type UpdaterAdapter, type UpdateService } from './update-service.ts'
 import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
 import { createCommandService, type CommandService } from '../commands/command-service.ts'
 import { createKeymapService, type KeymapService } from '../commands/keymap-service.ts'
@@ -394,10 +388,6 @@ export interface CoreServices {
    */
   readonly imageCodec: ImageCodecService
   /**
-   * Exception-only crash reporting.
-   */
-  readonly exceptionTelemetry: ExceptionTelemetryService
-  /**
    * The app-wide list of visible background operations.
    */
   readonly operations: OperationsService
@@ -405,10 +395,6 @@ export interface CoreServices {
    * The global settings document: loaded once, patched in memory, and saved one write at a time.
    */
   readonly settings: SettingsService
-  /**
-   * The app theme: the `theme` setting resolved against the system color scheme.
-   */
-  readonly theme: ThemeService
   /**
    * Lands dirty state before the app exits or the OS suspends it.
    */
@@ -425,10 +411,6 @@ export interface CoreServices {
    * The graph's persisted chat conversations.
    */
   readonly chatHistory: ChatHistoryService
-  /**
-   * Checks for, downloads, and installs app updates.
-   */
-  readonly update: UpdateService
   /**
    * The webview's navigation history; a note window has its own webview, hence its own.
    */
@@ -775,14 +757,6 @@ export interface CoreAdapters {
    */
   readonly imageCodec?: ImageCodecService
   /**
-   * Defaults to telemetry that reports nothing.
-   */
-  readonly exceptionTelemetry?: ExceptionTelemetryService
-  /**
-   * The native updater; without one, updates are unsupported.
-   */
-  readonly updater?: UpdaterAdapter
-  /**
    * The native menus; without a host, every menu operation rejects.
    */
   readonly nativeMenu?: NativeMenuHost
@@ -891,9 +865,7 @@ export const coreServiceFactories = {
   contactSuggestions: createContactSuggestionService,
   meetings: createMeetingService,
   agentSkill: createAgentSkillService,
-  theme: createThemeService,
   linkNavigation: createLinkNavigationService,
-  update: createUpdateService,
   gistPublish: createGistPublishService,
   icloudMigration: createICloudMigrationService,
   conflictResolution: createConflictResolutionService,
@@ -1442,10 +1414,8 @@ export function composeCoreServices(
     agentSkill: create.agentSkill({ ipc, graphSession }),
     mobileStorage,
     imageCodec,
-    exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
     settings,
-    theme: create.theme({ settings, storage, platform }),
     persistenceFlush,
     embeddingRuntime,
     chatHistory,
@@ -1464,13 +1434,6 @@ export function composeCoreServices(
       operations,
       logger,
       graphSession,
-    }),
-    update: create.update({
-      updater: adapters.updater,
-      clock,
-      logger,
-      platform,
-      window: windowService,
     }),
     githubAuth,
     gistPublish: create.gistPublish({

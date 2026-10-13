@@ -2,7 +2,8 @@ import type { ReactElement, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { onTestFinished } from 'vitest'
 import { render, renderHook, type RenderHookResult, type RenderResult } from 'vitest-browser-react'
-import { createAppServices } from '@reflect/app'
+import type { AppServices } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import type {
   CoreServices,
   BackupState,
@@ -74,6 +75,10 @@ export interface RenderInAppOptions {
    * Defaults to a fresh client without retries, cleared when the test ends.
    */
   queryClient?: QueryClient
+  /**
+   * Replaces fields of the test app-layer services, e.g. `{ update }`.
+   */
+  appServices?: Partial<AppServices>
   /**
    * Wraps `ui` inside every provider, for providers this helper does not mount.
    */
@@ -170,7 +175,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   registerAppCommands(app.commands)
 
   const route = options?.route
-  const appLayer = createAppServices(app, {})
+  const appLayer = createTestAppServices(app, options?.appServices)
   const wrap = (children: ReactNode): ReactElement => {
     const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
     if (servicesOnly) {
