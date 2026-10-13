@@ -51,7 +51,7 @@ describe('renderInApp', () => {
       .toHaveTextContent('ready /graphs/test 1 1 idle 0 -')
     await expect.element(page.getByTestId('session')).toHaveTextContent('/graphs/test')
     await expect.element(page.getByTestId('route')).toHaveTextContent('{"kind":"today"}')
-    await expect.element(page.getByTestId('backup')).toHaveTextContent('no sync')
+    await expect.element(page.getByTestId('backup')).toHaveTextContent('disconnected')
   })
 
   it('reports the graph, the graph state and a later graph switch', async () => {

@@ -169,9 +169,10 @@ commands in `app.commands`, as `main.tsx` does.
 ### `renderInApp(ui, options)`
 
 `render-in-app.tsx`. Renders `ui` the way the app does: inside
-`AppServicesProvider`, a query client, and the **real** `GraphProvider`,
-`RouterProvider` and, on request, `SyncProvider`, all reading `app`. This is
-the default for components.
+`AppServicesProvider`, a query client, and the **real** `GraphProvider` and
+`RouterProvider`, all reading `app`. The open graph gets its graph services
+(backup, chat session, and the rest) as in the app. This is the default for
+components.
 
 ```tsx
 const { app } = await renderInApp(<RebuildIndexField />, { graph: { indexGeneration: 7 } })
@@ -184,14 +185,16 @@ await vi.waitFor(() => expect(app.indexLifecycle.rebuilds()).toEqual([7]))
 Options: `app`; `graph` (default: the graph `test` at `/graphs/test`, both
 generations 1; `null` is the graph chooser) and `graphState`; `settings` (the
 stored document, loaded before the first render); `mobile`; `route` (`null`
-mounts no router); `sync`; `platform` (`MOBILE_PLATFORM` renders a mobile
+mounts no router); `sync` (a `BackupState`: the backup is a scripted one that
+the result's `backup` drives); `platform` (`MOBILE_PLATFORM` renders a mobile
 surface); `queryClient`; `wrapper`; `servicesOnly`. The result adds `app`,
 `queryClient` and `backup`.
 
 Drive and observe the app through `app`, not through mocks:
 
 - Change the graph with `app.graphSession.setGraph({...})` or `setGraph(null)`.
-  No rerender is needed.
+  No rerender is needed. The previous graph's session ends, so its graph
+  services are disposed.
 - Assert a settings change with `app.settings.get()` or `app.settings.saves()`.
 - Assert navigation with `app.navigation.navigations()` or
   `app.navigation.getState().route`.
@@ -237,13 +240,12 @@ settings load. `app` keeps its own graph session. Use it for a provider under
 test, or a component that needs the services and nothing else.
 
 ```tsx
-const view = await renderInApp(<CaptureProvider graph={GRAPH}>child</CaptureProvider>, {
-  servicesOnly: true,
-})
-
-expect(view.app.capture.sessions()).toEqual([
-  { generation: 7, starts: 1, schedules: 0, disposed: false },
-])
+const view = await renderInApp(
+  <GraphProvider>
+    <Probe />
+  </GraphProvider>,
+  { app, servicesOnly: true },
+)
 ```
 
 ### The test database in the browser

@@ -121,16 +121,6 @@ async function prepare(options: AnyOptions | undefined): Promise<
   }
 
   const { graphSession, settings, mobileOnboarding } = app
-  if (!servicesOnly) {
-    if (!('setGraph' in graphSession) || !('setState' in graphSession)) {
-      throw new Error('renderInApp: `app.graphSession` must be a test graph session')
-    }
-    const session = graphSession as TestAppServices['graphSession']
-    session.setGraph(options?.graph === undefined ? {} : options.graph)
-    if (options?.graphState !== undefined) {
-      session.setState(options.graphState)
-    }
-  }
   if (options?.settings !== undefined) {
     if (!('seed' in settings)) {
       throw new Error('renderInApp: `settings` needs a test settings service in `app`')
@@ -144,8 +134,17 @@ async function prepare(options: AnyOptions | undefined): Promise<
     ;(mobileOnboarding as TestAppServices['mobileOnboarding']).setState(options.mobile)
   }
   if (!servicesOnly) {
-    // The first render already shows the stored settings, not the defaults.
+    if (!('setGraph' in graphSession) || !('setState' in graphSession)) {
+      throw new Error('renderInApp: `app.graphSession` must be a test graph session')
+    }
+    // The first render already shows the stored settings, not the defaults,
+    // and the graph services start over them.
     await settings.whenLoaded()
+    const session = graphSession as TestAppServices['graphSession']
+    session.setGraph(options?.graph === undefined ? {} : options.graph)
+    if (options?.graphState !== undefined) {
+      session.setState(options.graphState)
+    }
   }
 
   const queryClient =

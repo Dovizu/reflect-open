@@ -173,8 +173,9 @@ The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
   `services: AppServices` field. A command that calls a service reads it from the
   context it runs with, never from an import.
 
-Providers are thin shells. `GraphProvider` and `SyncProvider` read their service with
-`useServiceState` and pass its methods through; the state machine is in core.
+Providers are thin shells. `GraphProvider` reads its service with
+`useServiceState` and passes its methods through (`useSync()` does the same for the
+graph's backup); the state machine is in core.
 `useSettings()` and `useTheme()` read their service directly, with no provider.
 (`RouterProvider` uses `subscribe` + `useState`: a `useSyncExternalStore` update inside
 a transition still commits the `Suspense` fallback of a lazy screen.)
@@ -184,18 +185,21 @@ a transition still commits the `Suspense` fallback of a lazy screen.)
 Some work belongs to one graph session, not to the app: it starts when a graph (or an
 index session) opens and must stop, with its timers and subscriptions, when that graph
 closes. Building it once per app would let a pass or a pending turn of the previous
-graph leak into the next one. For these, `AppServices` holds a **factory** (or an
-`openSession` method), and a provider creates and disposes one instance per mount:
+graph leak into the next one. For these, the app holds a **factory** (or an
+`openSession` method), and `createGraphServices` (`app/create-graph-services.ts`)
+creates one instance per `GraphSession` and disposes it when `session.signal` aborts:
 
 | On `AppServices` | Creates | Lifetime |
 |---|---|---|
-| `backups.create({ generation, indexGeneration })` | `BackupService` | one per (graph, index session), main window only (`SyncProvider`) |
-| `icloudSyncs.create(...)`, `icloudDownloads.create(...)` | `ICloudSyncService`, `ICloudDownloadService` | one per open iCloud graph |
+| `backups.create({ generation, indexGeneration })` | `BackupService` | one per graph session, main window only (`GraphServices.backup`) |
+| `icloudSyncs.create(...)` | `ICloudSyncService` | one per iCloud graph session, main window only |
+| `icloudDownloads.create(...)` | `ICloudDownloadService` | while the mobile graph is stored in iCloud |
 | `syncEngines.create(options)` | the git sync engine of one backup | owned by its `BackupService` |
-| `chatSessions.create({ graph })` | `ChatSession` | one per workspace mount (`ChatProvider`) |
-| `capture.openSession({ generation })` | the capture drain and enrich loop | one per open graph, main window only |
-| `assetDescription.openSession({ generation })` | the asset description loop | same |
-| `audioMemo.openSession(...)` / `openPipeline(...)` | the recording surface and its transcription pipeline | one per workspace mount |
+| `chatSessions.create({ graph })` | `ChatSession` | one per graph session, every window (`GraphServices.chat`) |
+| `capture.openSession({ generation })` | the capture drain and enrich loop | one per graph session, main window only |
+| `assetDescription.openSession({ generation })` | the asset description loop | same, desktop, while `describeAssets` is on |
+| `attachments.watchCatalog(generation)` | the attachment catalog watch | one per graph session, every window |
+| `audioMemo.openSession(...)` / `openPipeline(...)` | the recording surface and its transcription pipeline | one per workspace mount (`AudioMemoProvider`: it needs UI callbacks) |
 | `noteSessions.create(options)` | `NoteSession` | one per open note pane |
 
 The app-lifetime service keeps what is shared across sessions (its `deps`, its event
@@ -215,15 +219,17 @@ Rust pins every write to a session with two independent counters: the file
 rejects a file write, and drops an index write, that carries a stale one, so a pass
 that outlives a graph switch cannot land in the next graph.
 
-**Today, service methods still take `generation` as a parameter**
+`GraphSessionService` builds the graph-scoped container (`GraphServices`,
+`createGraphServices(app, session, role, deps)` in `app/create-graph-services.ts`)
+for each session and publishes it as `getState().services`; the app reads it with
+`useGraphServices()`. It holds the per-graph lifecycles above. A background pass that
+must stop with the graph checks `session.signal.aborted` (`indexLifecycle.sync(session)`).
+
+**Ordinary service methods still take `generation` as a parameter**
 (`noteFile.write(path, contents, generation)`,
-`indexLifecycle.rebuildVisibly(generation)`). All services are app-scoped. The types
-for graph-scoped construction exist (`GraphServices`, `createGraphServices(app,
-session, role)` in `app/create-graph-services.ts`, `useGraphServices()`), but
-`GraphServices` is only `{ app, session, role }` and nothing consumes it yet. Building
-the graph-scoped services per `GraphSession`, and removing the `generation`
-parameters, is future work. Until then: thread the generation through, read it at
-call time, and never cache one across a graph switch.
+`indexLifecycle.rebuildVisibly(generation)`). Removing those parameters is future
+work. Until then: thread the generation through, read it at call time, and never
+cache one across a graph switch.
 
 ### Events, not query-cache writes
 
@@ -234,11 +240,11 @@ maps events to cache invalidation in a few small adapters:
 
 | Event | Desktop adapter | Effect |
 |---|---|---|
-| `indexLifecycle.onApplied`, `onReconciled`, `onMoved`, `onStalePlaceholders` | `providers/graph-index.ts` (`bindGraphIndex`) | invalidate index queries, reload open documents, follow healed moves, request iCloud downloads |
-| `graphSession.onGraphReleased`, `onGraphDeleted` | `providers/graph-session.ts` (`bootGraphSession`) | drop what the app holds per graph |
+| `indexLifecycle.onApplied`, `onReconciled` | `lib/query-invalidation.ts` | invalidate index queries |
+| `graphSession.onGraphReleased`, `onGraphDeleted` | `lib/query-invalidation.ts` | drop the similar notes and the iCloud listing |
 | `capture.onXPostsWritten` | `lib/query-invalidation.ts` | invalidate X post queries |
 | `assetDescription.onDescriptionsIndexed` | `lib/query-invalidation.ts` | invalidate index queries |
-| `chatSessions.onConversationsChanged` | `providers/chat-provider.tsx` | invalidate chat history queries |
+| `chatSessions.onConversationsChanged` | `lib/query-invalidation.ts` | invalidate chat history queries |
 | `noteMove.onMoved` | `routing/router.tsx` | rewrite history entries to the new path |
 
 Optimistic cache updates stay in the desktop hook or `lib/` function that wraps the
@@ -283,7 +289,7 @@ shape of the data:
   uncontrolled, so this is never mirrored into a store.
 - **Shared UI state** (command palette, sidebar + AI-context toggles, the focused daily)
   → **React context + hooks by default**. The contexts over service-owned state
-  (`GraphProvider`, `SyncProvider`) are thin shells
+  (`GraphProvider`) are thin shells
   that only forward the service. **Zustand** is in the toolbox for when
   a slice outgrows context — frequent updates that re-render too widely, or state needed far
   from where it's provided — but that's a per-slice judgement call, not a mandate. Reach for

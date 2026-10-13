@@ -136,7 +136,7 @@ others care about **emits an event** instead of writing to a cache:
   (`noteActions.togglePinned` resolves with the new `pinned` and `pinOrder`).
 
 The desktop app subscribes and decides what an event means for it: the router
-rewrites its history on `noteMove.onMoved`, and `providers/graph-index.ts`
+rewrites its history on `noteMove.onMoved`, and `lib/query-invalidation.ts`
 invalidates queries on `indexLifecycle.onApplied`.
 
 ## 5. Add it to the composition root
@@ -297,9 +297,10 @@ useEffect(
 - A store is read with `useServiceState(service)` (or
   `useServiceState(service, service.get)` for a getter with another name),
   from `apps/desktop/src/services/use-service-state.ts`. Read an app-scoped
-  service where it is used, as `useSettings()` does. A provider is only for an
-  instance it creates (`ChatProvider`); its context value is the state spread
-  with the instance, and it holds no logic of its own.
+  service where it is used, as `useSettings()` does. Read a graph-scoped
+  instance from `useGraphServices()`, as `useChatSession()` does. A provider
+  is only for an instance it creates (`AudioMemoProvider`); its context value
+  is the state spread with the instance, and it holds no logic of its own.
 - Query-backed reads call the service in the `queryFn`. Put the options in
   `apps/desktop/src/lib/query-options.ts`, with the services as `ctx`.
 
@@ -308,9 +309,9 @@ services as a first parameter `ctx`, typed as the `Pick` they use. The React
 caller passes `useAppServices()`:
 
 ```ts
-// apps/desktop/src/providers/graph-index.ts
-export function bindGraphIndex(
-  ctx: Pick<AppServices, 'indexLifecycle' | 'openDocuments' | 'noteMove' | 'icloudNative'>,
+// apps/desktop/src/providers/graph-session.ts
+export function bootGraphSession(
+  ctx: Pick<AppServices, 'graphSession' | 'deepLink' | 'window'>,
 ): Unlisten
 ```
 
@@ -364,15 +365,25 @@ The shape:
   closes over the `deps`; `create(options)` takes what identifies the session.
 - The instance exposes `start()` and `dispose()`, plus `getState()` /
   `subscribe()` when the UI reads it.
-- A provider creates the instance in an effect and disposes it in the cleanup.
-  Use `useMainWindowEffect` when only the main window may run it
-  (`providers/sync-provider.tsx`, `providers/capture-provider.tsx`).
+- A per-graph lifecycle is constructed in `createGraphServices`
+  (`app/create-graph-services.ts`). `GraphSessionService` calls it when a graph
+  reaches `ready` with an index session, publishes the result as
+  `GraphSessionState.services`, and aborts `GraphSession.signal` when the graph
+  closes or another open starts; the container disposes everything it started
+  on that abort. The app reads it with `useGraphServices()`.
+- A lifecycle only the main window may run is built only for
+  `role === 'main'`; its field is `null` in a note window. Do not check
+  `isMainWindow()` in a React effect.
+- A background pass that must stop with the graph takes the `GraphSession` and
+  checks `session.signal.aborted`, not an `isStale` callback
+  (`indexLifecycle.sync(session)`).
+- A provider creates an instance in an effect only when it needs UI callbacks
+  (`AudioMemoProvider` passes its `surface`).
 - What all sessions share stays on the app-scoped object
   (`capture.onXPostsWritten`).
 
-Graph-scoped construction of ordinary services (one set per `GraphSession`,
-without `generation` parameters) does not exist yet. Until it does, an ordinary
-service stays app-scoped and takes `generation` per call.
+Ordinary services stay app-scoped and take `generation` per call until they
+move into the container.
 
 ## Checklist
 

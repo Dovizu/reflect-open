@@ -84,7 +84,7 @@ Every native call goes through one seam:
 - **`IndexLifecycleService`** (`AppServices.indexLifecycle`) runs the open graph's
   index and owns every pass:
   - **`indexNote(path, { generation })`** — one note changed; parse and apply it.
-  - **`sync(generation, isStale)`** — the graph-open path: re-index files whose
+  - **`sync(session)`** — the graph-open path: re-index files whose
     content hash changed and drop rows for deleted files (cheap on an
     already-populated index), or rebuild when the stored projection version is
     stale. Then it subscribes to live changes and starts the Rust file watcher,
@@ -149,11 +149,14 @@ window adopts the main window's sessions. Read it with `getState()` /
 `subscribe()`. `getState().session` is the open graph as one `GraphSession`
 object; its `signal` aborts when the graph closes or another open is requested.
 
-All services are app-scoped today, and their methods take `generation` as a
-parameter. `GraphServices` / `createGraphServices(app, session, role)`
-(`app/create-graph-services.ts`) are the types for building graph-scoped
-services per `GraphSession`; that construction is future work, and today the
-object only carries `{ app, session, role }`.
+`getState().services` is the graph-scoped container of that session
+(`GraphServices`, built by `createGraphServices` in
+`app/create-graph-services.ts`): the chat session, the backup, and the other
+per-graph lifecycles, disposed when `signal` aborts. The session also reloads
+open documents after a sync pass, follows healed moves, requests iCloud
+downloads for stale placeholders, and drops note-row overlays when a graph is
+released. Ordinary services stay app-scoped, and their methods take
+`generation` as a parameter.
 
 **`MobileOnboardingService`** (`AppServices.mobileOnboarding`) is the mobile
 boot path over that session: `boot()` parks a fresh install on onboarding or
