@@ -1,8 +1,9 @@
 import type { ClockService } from '../app/clock-service.ts'
-import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
+import type { GraphRole, GraphSession } from '../app/graph-session.ts'
 import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { ProgressPort } from '../app/ports.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
+import type { ActivityPort, ProgressPort } from '../app/ports.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
@@ -10,6 +11,7 @@ import {
   createIndexLifecycleService,
   type IndexAppliedEvent,
   type IndexFileProgress,
+  type IndexLifecycleDeps,
   type IndexLifecycleProgress,
   type IndexLifecycleService,
   type IndexReconciledEvent,
@@ -26,7 +28,9 @@ import { createTestNoteFileService } from './graph.ts'
 import { createTestHashService } from './id.ts'
 import { createTestIndexStoreService } from './index-store.ts'
 import { createTestLoggerService } from './logger.ts'
+import { createTestPlatformService } from './platform.ts'
 import { createTestProgressPort } from './ports.ts'
+import { createTestActivityPort } from './shell.ts'
 
 /**
  * The services a test lifecycle runs on; each defaults to a fresh test double.
@@ -51,7 +55,16 @@ export interface TestIndexLifecycleServiceOptions {
   /**
    * Where `rebuildVisibly` reads the open graph from; defaults to no graph open.
    */
-  graphSession?: GraphSessionSource
+  graphSession?: IndexLifecycleDeps['graphSession']
+  /**
+   * Defaults to a visible app.
+   */
+  activity?: ActivityPort
+  /**
+   * Defaults to desktop, where the lifecycle never follows the activity.
+   */
+  platform?: PlatformFacts
+  role?: GraphRole
 }
 
 export interface TestIndexLifecycleService extends IndexLifecycleService {
@@ -73,13 +86,13 @@ export interface TestIndexLifecycleService extends IndexLifecycleService {
 
 class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
   readonly #inner: IndexLifecycleService
-  readonly #graphSession: GraphSessionSource
+  readonly #graphSession: IndexLifecycleDeps['graphSession']
   readonly #rebuildLog: number[] = []
   readonly #seededListeners = new Set<() => void>()
   readonly #appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
   #seeded: { progress: IndexFileProgress | null } | null = null
 
-  constructor(inner: IndexLifecycleService, graphSession: GraphSessionSource) {
+  constructor(inner: IndexLifecycleService, graphSession: IndexLifecycleDeps['graphSession']) {
     this.#inner = inner
     this.#graphSession = graphSession
     inner.subscribeFileProgress(() => {
@@ -121,6 +134,10 @@ class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
 
   setSuspendGuard(shouldSuspend: (() => boolean) | null): void {
     this.#inner.setSuspendGuard(shouldSuspend)
+  }
+
+  followActivity(): Unlisten {
+    return this.#inner.followActivity()
   }
 
   onProgress(listener: (progress: IndexLifecycleProgress) => void): Unlisten {
@@ -217,8 +234,9 @@ export function createTestIndexLifecycleService(
 ): TestIndexLifecycleService {
   const database = options?.database ?? createTestDatabaseService()
   const clock = options?.clock ?? createTestClockService()
-  const graphSession: GraphSessionSource = options?.graphSession ?? {
+  const graphSession = options?.graphSession ?? {
     getState: () => ({ session: null }),
+    subscribe: () => () => {},
   }
   const inner = createIndexLifecycleService({
     indexStore: options?.indexStore ?? createTestIndexStoreService(),
@@ -232,6 +250,9 @@ export function createTestIndexLifecycleService(
     logger: options?.logger ?? createTestLoggerService(),
     progress: options?.progress ?? createTestProgressPort(),
     graphSession,
+    activity: options?.activity ?? createTestActivityPort(),
+    platform: options?.platform ?? createTestPlatformService(),
+    role: options?.role ?? 'main',
   })
   return new TestIndexLifecycleServiceImpl(inner, graphSession)
 }

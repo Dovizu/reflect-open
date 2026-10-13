@@ -1,9 +1,7 @@
 import {
   errorMessage,
   isMobilePlatform,
-  type ActivityPort,
   type GraphSessionService,
-  type IndexLifecycleService,
   type LoggerService,
   type PathService,
   type PlatformFacts,
@@ -17,7 +15,7 @@ import type { DeepLinkRouter } from '../navigation/deep-link-router.ts'
 /**
  * The window-aware graph flows of this webview over the core graph session:
  * the boot path, the opens and closes that end the session note windows
- * adopted, the folder picker, and the mobile index suspension.
+ * adopted, and the folder picker.
  */
 export interface GraphBootService {
   /**
@@ -55,11 +53,6 @@ export interface GraphBootService {
    * trash. Throws when the delete fails.
    */
   deleteGraph(): Promise<void>
-  /**
-   * Mobile main window: keep index writes off while the app is hidden, and
-   * recover what was missed on the way back. The returned function stops it.
-   */
-  followSuspension(): Unlisten
 }
 
 export interface GraphBootServiceDeps {
@@ -78,14 +71,12 @@ export interface GraphBootServiceDeps {
     | 'park'
     | 'reportError'
   >
-  readonly indexLifecycle: Pick<IndexLifecycleService, 'suspend' | 'resume' | 'setSuspendGuard'>
   readonly window: Pick<
     WindowService,
     'isMainWindow' | 'closeSecondaryWindows' | 'bootstrap' | 'subscribeNavigate'
   >
   readonly dialog: Pick<DialogService, 'pickFolder'>
   readonly path: Pick<PathService, 'icloudDriveRoot'>
-  readonly lifecycle: Pick<ActivityPort, 'isHidden' | 'subscribeHidden' | 'subscribeVisible'>
   readonly platform: Pick<PlatformFacts, 'appPlatform' | 'isMacosDesktop'>
   readonly deepLinkRouter: Pick<DeepLinkRouter, 'setInitialWindowRoute' | 'dispatch'>
   readonly logger: Pick<LoggerService, 'warn'>
@@ -118,7 +109,7 @@ class GraphBootServiceImpl implements GraphBootService {
   boot(): Unlisten {
     const { graphSession, window } = this.#deps
     let active = true
-    const unlisteners = [graphSession.attach(), this.followSuspension()]
+    const unlisteners = [graphSession.attach()]
 
     if (!this.#isMobile() && window.isMainWindow()) {
       // Desktop main window: reopen the most recent graph so the app resumes
@@ -273,49 +264,6 @@ class GraphBootServiceImpl implements GraphBootService {
       await this.#closeSecondaryWindows() // before the delete invalidates the session
     }
     await graphSession.deleteGraph()
-  }
-
-  followSuspension(): Unlisten {
-    const { graphSession, indexLifecycle, window, lifecycle } = this.#deps
-    if (!this.#isMobile() || !window.isMainWindow()) {
-      return () => {}
-    }
-    // The lifecycle events perform the active teardown; this dynamic guard
-    // also closes the launch race where the first sync is scheduled after iOS
-    // has already hidden the webview.
-    indexLifecycle.setSuspendGuard(() => lifecycle.isHidden())
-    if (lifecycle.isHidden()) {
-      indexLifecycle.suspend()
-    }
-    // A session that opens while hidden starts suspended.
-    let indexGeneration = graphSession.getState().indexGeneration
-    const stopSession = graphSession.subscribe(() => {
-      const next = graphSession.getState().indexGeneration
-      if (next !== indexGeneration) {
-        indexGeneration = next
-        if (lifecycle.isHidden()) {
-          indexLifecycle.suspend()
-        }
-      }
-    })
-    // Synchronous teardown prevents a locally emitted or metadata-watcher
-    // batch from entering the index queue after iOS begins suspension.
-    const stopHidden = lifecycle.subscribeHidden(() => {
-      indexLifecycle.suspend()
-    })
-    const stopVisible = lifecycle.subscribeVisible(() => {
-      // A null session still clears suspension: mobile can foreground
-      // before onboarding/open has produced an index session. With a session,
-      // the full pass recovers every event missed while hidden; stacked
-      // resume/iCloud triggers fold into the lifecycle's queued rerun.
-      indexLifecycle.resume(graphSession.getState().session)
-    })
-    return () => {
-      stopSession()
-      stopHidden()
-      stopVisible()
-      indexLifecycle.setSuspendGuard(null)
-    }
   }
 }
 

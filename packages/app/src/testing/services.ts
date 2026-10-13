@@ -143,11 +143,9 @@ export function createTestAppServices(
     theme: createThemeService({ settings: core.settings, storage: core.storage, platform }),
     graphBoot: createGraphBootService({
       graphSession: core.graphSession,
-      indexLifecycle: core.indexLifecycle,
       window,
       dialog,
       path: core.path,
-      lifecycle,
       platform: core.platform,
       deepLinkRouter,
       logger: core.logger,

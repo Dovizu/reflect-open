@@ -1052,7 +1052,13 @@ export function composeCoreServices(
     logger,
     progress,
     // Read at call time: the graph session is built on this lifecycle.
-    graphSession: { getState: () => graphSession.getState() },
+    graphSession: {
+      getState: () => graphSession.getState(),
+      subscribe: (listener) => graphSession.subscribe(listener),
+    },
+    activity,
+    platform,
+    role: adapters.role,
   })
   const noteRows = create.noteRows({
     // Read at call time: the graph session is built on these rows.

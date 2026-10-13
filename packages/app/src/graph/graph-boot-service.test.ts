@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  createGraphSession,
   createPathService,
   createPosixPathTransport,
   type RecentGraph,
   type WindowBootstrap,
 } from '@reflect/core'
 import {
-  createTestActivityPort,
   createTestFileChangeService,
   createTestGraphSessionService,
   createTestIndexLifecycleService,
@@ -34,7 +32,6 @@ interface SetupOptions {
   platform?: TestPlatformOptions
   windowLabel?: string
   bootstrap?: WindowBootstrap
-  hidden?: boolean
   /**
    * Hold every `graph_open` until `resolveOpen(root)`.
    */
@@ -85,7 +82,10 @@ function setup(options?: SetupOptions) {
     noteFile,
     fileChanges,
     logger,
-    graphSession: { getState: () => session.getState() },
+    graphSession: {
+      getState: () => session.getState(),
+      subscribe: (listener) => session.subscribe(listener),
+    },
   })
   const window = createTestWindowService({
     ...(options?.windowLabel === undefined ? {} : { label: options.windowLabel }),
@@ -101,16 +101,13 @@ function setup(options?: SetupOptions) {
     logger,
   })
   const dialog = createTestDialogService()
-  const lifecycle = createTestActivityPort({ hidden: options?.hidden ?? false })
   const routes: Route[] = []
   const dispatched: string[] = []
   const boot = createGraphBootService({
     graphSession: session,
-    indexLifecycle,
     window,
     dialog,
     path: createPathService({ transport: createPosixPathTransport('/Users/me') }),
-    lifecycle,
     platform: createTestPlatformService(options?.platform),
     deepLinkRouter: {
       setInitialWindowRoute: (route) => {
@@ -127,11 +124,7 @@ function setup(options?: SetupOptions) {
     session,
     window,
     dialog,
-    lifecycle,
     logger,
-    indexStore,
-    indexLifecycle,
-    fileChanges,
     failures,
     routes,
     dispatched,
@@ -153,14 +146,6 @@ async function bootDesktop(options?: SetupOptions) {
   await expect.poll(() => context.session.getState().status).not.toBe('loading')
   await expect.poll(() => context.session.getState().status).not.toBe('opening')
   return { ...context, stop }
-}
-
-/**
- * Wait until every pass the index lifecycle started has settled.
- */
-async function settleIndex(context: { indexLifecycle: { settled: () => Promise<void> } }) {
-  await Promise.resolve()
-  await context.indexLifecycle.settled()
 }
 
 describe('GraphBootService desktop boot', () => {
@@ -407,80 +392,5 @@ describe('GraphBootService folder picker', () => {
     }
     await context.boot.pickAndOpen()
     expect(context.session.getState()).toMatchObject({ status: 'ready', error: 'picker crashed' })
-  })
-})
-
-describe('GraphBootService mobile suspension', () => {
-  const ios = { appPlatform: 'ios' } as const
-
-  function passes(context: { indexStore: { calls: () => readonly { method: string }[] } }): number {
-    return context.indexStore.calls().filter((call) => call.method === 'clear').length
-  }
-
-  it('defers the first index pass while hidden and replays it on foreground', async () => {
-    const context = setup({ platform: ios, hidden: true })
-    context.boot.boot()
-
-    await expect(context.boot.openRecent('/Documents')).resolves.toBe(true)
-    await expect.poll(() => context.indexStore.getMeta('welcomeSeeded')).toBe('true')
-    await settleIndex(context)
-    expect(passes(context)).toBe(0)
-
-    // Resume performs a full sync, which catches files and local events the
-    // intentionally absent live subscription could not observe while hidden.
-    context.lifecycle.emitVisible()
-    await expect.poll(() => passes(context)).toBe(1)
-  })
-
-  it('clears suspension when the app foregrounds before its index session opens', async () => {
-    const context = setup({ platform: ios, hidden: true })
-    context.boot.boot()
-    expect(context.session.getState().indexGeneration).toBeNull()
-
-    // The app foregrounds while onboarding still has no graph/index. This
-    // must clear the sticky suspension even though there is nothing to sync.
-    context.lifecycle.emitVisible()
-    await settleIndex(context)
-    expect(passes(context)).toBe(0)
-
-    await context.boot.openRecent('/Documents')
-    await expect.poll(() => passes(context)).toBe(1)
-    expect(context.session.getState().status).toBe('ready')
-  })
-
-  it('suspends the live index when the app hides', async () => {
-    const context = setup({ platform: ios })
-    context.boot.boot()
-    await context.boot.openRecent('/Documents')
-    await expect.poll(() => context.fileChanges.listenerCount().changes).toBe(1)
-
-    context.lifecycle.emitHidden()
-
-    expect(context.fileChanges.listenerCount().changes).toBe(0)
-    context.session.refreshIndex()
-    await settleIndex(context)
-    expect(passes(context)).toBe(1)
-  })
-
-  it('never suspends on desktop', async () => {
-    const context = await bootDesktop({ hidden: true })
-    await context.boot.openRecent('/a')
-    await expect.poll(() => passes(context)).toBe(1)
-    context.lifecycle.emitHidden()
-    await settleIndex(context)
-    expect(context.fileChanges.listenerCount().changes).toBe(1)
-  })
-
-  it('removes the suspend guard once the boot is stopped', async () => {
-    const context = setup({ platform: ios })
-    const stop = context.boot.boot()
-    stop()
-    context.lifecycle.setHidden(true)
-
-    context.indexLifecycle.sync(
-      createGraphSession({ root: '/a', name: 'a', generation: 1, indexGeneration: 1 }),
-    )
-    await settleIndex(context)
-    expect(passes(context)).toBe(1)
   })
 })
