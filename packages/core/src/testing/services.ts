@@ -87,9 +87,7 @@ import { createTestAppInfoService, createTestSecretStoreService } from './secret
 import { createTestSettingsService } from './settings.ts'
 import {
   createTestActivityPort,
-  createTestClipboardService,
   createTestDialogService,
-  createTestOpenerService,
   createTestWindowService,
 } from './shell.ts'
 import { createTestStorageService } from './storage.ts'
@@ -124,7 +122,6 @@ function createTestEdgeServices() {
     hash: createTestHashService(),
     http: createTestHttpService(),
     dialog: createTestDialogService(),
-    clipboard: createTestClipboardService(),
     imageCodec: createTestImageCodec(),
     activity: createTestActivityPort(),
   }
@@ -212,7 +209,6 @@ function createTestServiceFactories(
       createTestGraphSessionService(
         overrides?.ipc === undefined ? deps : { ...deps, ipc: overrides.ipc },
       ),
-    opener: ({ logger }) => createTestOpenerService({ logger }),
     attachments: ({ graphSession }) => createTestAttachmentService({ graphSession }),
     persistenceFlush: ({ openDocuments }) => createTestPersistenceFlushService({ openDocuments }),
     gitRepository: () => createTestGitRepositoryService(),
@@ -296,8 +292,6 @@ export function createTestCoreServices<
     http: edge.http,
     storage: { local: null, session: null },
     dialog: edge.dialog,
-    clipboard: edge.clipboard,
-    opener: { openUrl: async () => {}, revealItemInDir: async () => {} },
     path: createPosixPathTransport('/home/test'),
     window: createSingleWindowHost(),
     activity: edge.activity,

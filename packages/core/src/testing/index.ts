@@ -17,17 +17,13 @@ export {
   type TestIpcBridgeServiceOptions,
 } from './ipc.ts'
 export {
-  createTestClipboardService,
   createTestDialogService,
   createTestActivityPort,
-  createTestOpenerService,
   createTestWindowService,
   type DialogCall,
-  type TestClipboardService,
   type TestDialogService,
   type TestActivityPort,
   type TestActivityPortOptions,
-  type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
 export {

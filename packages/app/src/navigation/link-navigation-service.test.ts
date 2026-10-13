@@ -13,13 +13,13 @@ import {
   createTestNoteCreationService,
   createTestNoteFileService,
   createTestNoteLinkResolverService,
-  createTestOpenerService,
   createTestOperationsService,
   createTestPlatformService,
   createTestWindowService,
   type TestOpenGraph,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
+import { createTestOpenerService } from '../testing/opener.ts'
 import { createTestDeepLinkService, createTestNavigationService } from '../testing/navigation.ts'
 import {
   createLinkNavigationService,

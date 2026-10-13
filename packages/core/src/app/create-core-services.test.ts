@@ -9,11 +9,7 @@ import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestCoreServices } from '../testing/services.ts'
-import {
-  createTestActivityPort,
-  createTestClipboardService,
-  createTestDialogService,
-} from '../testing/shell.ts'
+import { createTestActivityPort, createTestDialogService } from '../testing/shell.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import {
   composeCoreServices,
@@ -33,8 +29,6 @@ const SERVICE_KEYS = [
   'platform',
   'storage',
   'dialog',
-  'clipboard',
-  'opener',
   'path',
   'window',
   'appInfo',
@@ -105,8 +99,6 @@ function requiredAdapters(): CoreAdapters {
     http: createTestHttpService(),
     storage: { local: null, session: null },
     dialog: createTestDialogService(),
-    clipboard: createTestClipboardService(),
-    opener: { openUrl: async () => {}, revealItemInDir: async () => {} },
     path: createPosixPathTransport('/home/test'),
     window: createSingleWindowHost(),
     activity: createTestActivityPort(),
@@ -134,7 +126,6 @@ describe('createCoreServices', () => {
     expect(services.logger).toBe(adapters.logger)
     expect(services.clock).toBe(adapters.clock)
     expect(services.dialog).toBe(adapters.dialog)
-    expect(services.clipboard).toBe(adapters.clipboard)
     await expect(services.ipc.call('app_version', {}, z.string())).resolves.toBe('1.2.3')
     expect(services.platform.appVersion).toBe('0.0.0-test')
     await expect(services.path.homeDir()).resolves.toBe('/home/test')

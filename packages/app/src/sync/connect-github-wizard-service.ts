@@ -8,11 +8,11 @@ import {
   type GithubRepoRef,
   type GithubAuthService,
   type GithubUser,
-  type OpenerService,
   type TimerHandle,
   type Unlisten,
 } from '@reflect/core'
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { OpenerService } from '../app/opener-service.ts'
 
 export type ConnectWizardStep = 'repo' | 'auth' | 'finish'
 

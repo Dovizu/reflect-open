@@ -78,8 +78,8 @@ export function useConnectGithubWizard({
   pollIntervalMs = 3000,
 }: ConnectGithubWizardOptions): ConnectGithubWizard {
   const sync = useSync()
-  const { githubAuth, opener, clock } = useCoreServices()
-  const { lifecycle } = useAppServices()
+  const { githubAuth, clock } = useCoreServices()
+  const { opener, lifecycle } = useAppServices()
   // The wizard lives as long as the surface; it always calls the latest
   // actions and `onClose` without being rebuilt every render.
   const latest = useRef({ sync, onClose })

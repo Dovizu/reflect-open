@@ -1,4 +1,3 @@
-import type { ClipboardService } from '../app/clipboard-service.ts'
 import type { GraphSessionSource } from '../app/graph-session.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { NoteDocumentService } from '../documents/note-document-service.ts'
@@ -33,14 +32,10 @@ export interface GistPublishResult {
 export interface GistPublishService {
   /**
    * The publish action as every entry point runs it (Note actions button,
-   * ⌘K command): publish, copy the gist link, and surface progress through
-   * the operations status line. The second short-lived entry is the only
-   * success feedback ("Gist link copied"), in keeping with no-toast feedback.
-   * Resolves the row fields whenever the publish itself landed (a failed
-   * clipboard copy gets its own failure line, never a phantom "publish
-   * failed" for a gist that exists), or `null` when the publish failed
-   * (already surfaced), another gist action on the note is in flight, or no
-   * graph is open.
+   * ⌘K command): publish and surface progress through the operations status
+   * line. Resolves the row fields (the gist url) whenever the publish itself
+   * landed, or `null` when the publish failed (already surfaced), another
+   * gist action on the note is in flight, or no graph is open.
    *
    * On success it records the url in the optimistic note-row overlay, so every
    * sidebar surface (the gist action's label, the Published URL section)
@@ -63,7 +58,6 @@ export interface GistPublishServiceDeps {
   readonly noteRows: Pick<NoteRowService, 'setOverlay'>
   readonly privacy: Pick<PrivacyService, 'assertCloudAllowed'>
   readonly operations: Pick<OperationsService, 'start'>
-  readonly clipboard: ClipboardService
   readonly graphSession: GraphSessionSource
 }
 
@@ -76,7 +70,7 @@ class GistPublishServiceImpl implements GistPublishService {
   }
 
   async publish(path: string): Promise<GistPublishResult | null> {
-    const { noteRows, operations, clipboard, graphSession } = this.#deps
+    const { noteRows, operations, graphSession } = this.#deps
     const session = graphSession.getState().session
     if (session === null || !this.#claim(path)) {
       return null
@@ -96,12 +90,6 @@ class GistPublishServiceImpl implements GistPublishService {
       // that resolves after a graph switch can't surface on the new graph.
       const result = { url, stale: false }
       noteRows.setOverlay(path, generation, { gistUrl: result.url, gistStale: result.stale })
-      try {
-        await clipboard.writeText(url)
-        operations.start('Gist link copied').done()
-      } catch (cause) {
-        operations.start('Copying the gist link').fail(errorMessage(cause))
-      }
       return result
     } finally {
       this.#active.delete(path)

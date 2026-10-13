@@ -29,6 +29,13 @@ export {
   type ResolvedTheme,
   type ThemeService,
 } from './settings/theme-service.ts'
+export { type ClipboardService } from './app/clipboard-service.ts'
+export {
+  createOpenerService,
+  type OpenerService,
+  type OpenerTransport,
+  type SystemSettingsPane,
+} from './app/opener-service.ts'
 export { type KeyboardService } from './mobile/keyboard-service.ts'
 export { type ShareService } from './mobile/share-service.ts'
 export { type MobileSyncStatus, type SyncStatusService } from './sync/sync-status-service.ts'

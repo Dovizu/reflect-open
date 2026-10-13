@@ -57,7 +57,6 @@ export function createDesktopAdapters(
       local: reachWebStorage(logger, 'localStorage'),
       session: reachWebStorage(logger, 'sessionStorage'),
     },
-    clipboard: createNavigatorClipboardService(),
     imageCodec: createBrowserImageCodec(),
   }
   if (facts.isNativeShell) {
@@ -65,7 +64,6 @@ export function createDesktopAdapters(
       ...common,
       http: createTauriHttpService(),
       dialog: createTauriDialogService(),
-      opener: createTauriOpenerTransport(),
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
       convertFileSrc,
@@ -75,7 +73,6 @@ export function createDesktopAdapters(
     ...common,
     http: createBrowserHttpService(),
     dialog: createBrowserDialogService(),
-    opener: createBrowserOpenerTransport(),
     path: createPosixPathTransport('/'),
     window: createSingleWindowHost(),
   }
@@ -91,6 +88,7 @@ export function createDesktopHost(
   { ipc, clock, logger }: DesktopPrimitives,
 ): AppHost {
   const lifecycle = createLifecycleService({ ipc, dom: createDomLifecycleAdapter(), clock, logger })
+  const common = { lifecycle, clipboard: createNavigatorClipboardService() }
   const exceptionTelemetry = createExceptionTelemetry({
     dsn: buildExceptionTelemetryDsn(),
     release: `reflect@${facts.appVersion}`,
@@ -99,12 +97,13 @@ export function createDesktopHost(
   })
   if (facts.isNativeShell) {
     return {
-      lifecycle,
+      ...common,
+      opener: createTauriOpenerTransport(),
       exceptionTelemetry,
       updater: createTauriUpdaterAdapter(),
       nativeMenu: createTauriNativeMenuHost(),
       deepLink: createTauriDeepLinkSource(),
     }
   }
-  return { lifecycle, exceptionTelemetry }
+  return { ...common, opener: createBrowserOpenerTransport(), exceptionTelemetry }
 }

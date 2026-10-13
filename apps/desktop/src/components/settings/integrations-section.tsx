@@ -20,8 +20,8 @@ import { SettingsSwitchField } from './switch-field.tsx'
  */
 export function IntegrationsSection(): ReactElement | null {
   const { settings } = useSettings()
-  const { contacts, contactSuggestions, opener } = useCoreServices()
-  const { calendarEvents } = useAppServices()
+  const { contacts, contactSuggestions } = useCoreServices()
+  const { opener, calendarEvents } = useAppServices()
   const { authorization } = useContactsState()
   const [isPrompting, setIsPrompting] = useState(false)
 
