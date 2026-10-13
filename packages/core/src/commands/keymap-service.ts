@@ -19,50 +19,66 @@ export interface KeymapService {
    * mutated.
    */
   register<T>(scope: KeymapScope, bindings: Record<string, T>): Record<string, T>
-  /** Every registered binding, as registered. */
+  /**
+   * Every registered binding, as registered.
+   */
   list(): ReadonlyMap<string, KeymapScope>
-  /** One plain-text label for tooltips and AT, e.g. `⌘D` on Apple, `Ctrl+D` elsewhere. */
+  /**
+   * One plain-text label for tooltips and AT, e.g. `⌘D` on Apple, `Ctrl+D` elsewhere.
+   */
   formatLabel(binding: string): string
 }
 
 export interface KeymapServiceDeps {
-  platform: Pick<PlatformFacts, 'isApplePlatform'>
+  readonly platform: Pick<PlatformFacts, 'isApplePlatform'>
+}
+
+class KeymapServiceImpl implements KeymapService {
+  readonly #deps: KeymapServiceDeps
+  readonly #registeredBindings = new Map<string, KeymapScope>()
+  /**
+   * Normalized binding → the binding as registered.
+   */
+  readonly #registeredKeystrokes = new Map<string, string>()
+
+  constructor(deps: KeymapServiceDeps) {
+    this.#deps = deps
+  }
+
+  register<T>(scope: KeymapScope, bindings: Record<string, T>): Record<string, T> {
+    const apple = this.#deps.platform.isApplePlatform
+    const claimed = new Map<string, string>()
+    for (const binding of Object.keys(bindings)) {
+      if (binding.split('-').slice(0, -1).includes('Meta')) {
+        throw new Error(`keybinding "${binding}" uses Meta; use Mod instead`)
+      }
+      const keystroke = normalizeBinding(binding, apple)
+      const existing = this.#registeredKeystrokes.get(keystroke) ?? claimed.get(keystroke)
+      if (existing !== undefined) {
+        const owner = this.#registeredBindings.get(existing) ?? scope
+        throw new Error(
+          `duplicate keybinding "${binding}": already registered by the ${owner} scope as "${existing}"`,
+        )
+      }
+      claimed.set(keystroke, binding)
+    }
+    for (const [keystroke, binding] of claimed) {
+      this.#registeredKeystrokes.set(keystroke, binding)
+      this.#registeredBindings.set(binding, scope)
+    }
+    return bindings
+  }
+
+  list(): ReadonlyMap<string, KeymapScope> {
+    return this.#registeredBindings
+  }
+
+  formatLabel(binding: string): string {
+    const apple = this.#deps.platform.isApplePlatform
+    return formatBinding(binding, apple).join(apple ? '' : '+')
+  }
 }
 
 export function createKeymapService(deps: KeymapServiceDeps): KeymapService {
-  const { platform } = deps
-  const registeredBindings = new Map<string, KeymapScope>()
-  /** Normalized binding → the binding as registered. */
-  const registeredKeystrokes = new Map<string, string>()
-
-  return {
-    register(scope, bindings) {
-      const apple = platform.isApplePlatform
-      const claimed = new Map<string, string>()
-      for (const binding of Object.keys(bindings)) {
-        if (binding.split('-').slice(0, -1).includes('Meta')) {
-          throw new Error(`keybinding "${binding}" uses Meta; use Mod instead`)
-        }
-        const keystroke = normalizeBinding(binding, apple)
-        const existing = registeredKeystrokes.get(keystroke) ?? claimed.get(keystroke)
-        if (existing !== undefined) {
-          const owner = registeredBindings.get(existing) ?? scope
-          throw new Error(
-            `duplicate keybinding "${binding}": already registered by the ${owner} scope as "${existing}"`,
-          )
-        }
-        claimed.set(keystroke, binding)
-      }
-      for (const [keystroke, binding] of claimed) {
-        registeredKeystrokes.set(keystroke, binding)
-        registeredBindings.set(binding, scope)
-      }
-      return bindings
-    },
-    list: () => registeredBindings,
-    formatLabel(binding) {
-      const apple = platform.isApplePlatform
-      return formatBinding(binding, apple).join(apple ? '' : '+')
-    },
-  }
+  return new KeymapServiceImpl(deps)
 }

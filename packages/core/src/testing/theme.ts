@@ -1,58 +1,80 @@
+import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { ThemePreference } from '../settings/schema.ts'
 import type { ResolvedTheme, ThemeService } from '../settings/theme-service.ts'
 
 export interface TestThemeService extends ThemeService {
-  /** Makes `resolved()` return `value`: changes the system scheme, or moves a pinned preference to `value`. */
+  /**
+   * Makes `resolved()` return `value`: changes the system scheme, or moves a pinned preference to `value`.
+   */
   setResolved: (value: ResolvedTheme) => void
-  /** Every preference passed to `setPreference`, oldest first. */
+  /**
+   * Every preference passed to `setPreference`, oldest first.
+   */
   writes: () => ThemePreference[]
 }
 
-/** An in-memory {@link ThemeService} that is already settled. `system` resolves to `light` until `setResolved`. */
-export function createTestThemeService(preference: ThemePreference = 'system'): TestThemeService {
-  let current = preference
-  let system: ResolvedTheme = 'light'
-  const written: ThemePreference[] = []
-  const listeners = new Set<() => void>()
+class TestThemeServiceImpl implements TestThemeService {
+  #current: ThemePreference
+  #system: ResolvedTheme = 'light'
+  readonly #written: ThemePreference[] = []
+  readonly #listeners = new Set<() => void>()
 
-  const resolve = (): ResolvedTheme => (current === 'system' ? system : current)
+  constructor(preference: ThemePreference) {
+    this.#current = preference
+  }
 
-  const update = (change: () => void): void => {
-    const before = { preference: current, resolved: resolve() }
+  readonly preference = (): ThemePreference => this.#current
+
+  readonly resolved = (): ResolvedTheme => this.#resolve()
+
+  readonly settled = (): boolean => true
+
+  readonly setPreference = (next: ThemePreference): void => {
+    this.#written.push(next)
+    this.#update(() => {
+      this.#current = next
+    })
+  }
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly whenSettled = async (): Promise<void> => {}
+
+  readonly setResolved = (value: ResolvedTheme): void => {
+    this.#update(() => {
+      if (this.#current === 'system') {
+        this.#system = value
+      } else {
+        this.#current = value
+      }
+    })
+  }
+
+  readonly writes = (): ThemePreference[] => [...this.#written]
+
+  #resolve(): ResolvedTheme {
+    return this.#current === 'system' ? this.#system : this.#current
+  }
+
+  #update(change: () => void): void {
+    const before = { preference: this.#current, resolved: this.#resolve() }
     change()
-    if (before.preference !== current || before.resolved !== resolve()) {
-      for (const listener of listeners) {
+    if (before.preference !== this.#current || before.resolved !== this.#resolve()) {
+      for (const listener of this.#listeners) {
         listener()
       }
     }
   }
+}
 
-  return {
-    preference: () => current,
-    resolved: resolve,
-    settled: () => true,
-    setPreference(next) {
-      written.push(next)
-      update(() => {
-        current = next
-      })
-    },
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    whenSettled: async () => {},
-    setResolved(value) {
-      update(() => {
-        if (current === 'system') {
-          system = value
-        } else {
-          current = value
-        }
-      })
-    },
-    writes: () => [...written],
-  }
+/**
+ * An in-memory {@link ThemeService} that is already settled. `system` resolves to `light` until `setResolved`.
+ */
+export function createTestThemeService(preference: ThemePreference = 'system'): TestThemeService {
+  return new TestThemeServiceImpl(preference)
 }

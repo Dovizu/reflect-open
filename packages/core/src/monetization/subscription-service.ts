@@ -8,7 +8,9 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
 
 const activeSubscriptionSchema = z.enum(['yearly', 'monthly']).nullable()
 
-/** The App Store subscription this device owns, or `null` for none. */
+/**
+ * The App Store subscription this device owns, or `null` for none.
+ */
 export type ActiveSubscription = z.infer<typeof activeSubscriptionSchema>
 
 type SubscriptionPlan = Exclude<ActiveSubscription, null>
@@ -21,21 +23,33 @@ const activeSubscriptionSeedSchema = z.object({
 export const ACTIVE_SUBSCRIPTION_STORAGE_KEY = 'reflect.iap.active-subscription'
 const ACTIVE_SUBSCRIPTION_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000
 const ENTITLEMENT_LOOKUP_TIMEOUT_MS = 15_000
-/** How long a live answer counts as fresh for `activeSubscription`. */
+/**
+ * How long a live answer counts as fresh for `activeSubscription`.
+ */
 const FRESH_MS = 60_000
-/** A failed lookup is retried once after this delay. */
+/**
+ * A failed lookup is retried once after this delay.
+ */
 const RETRY_DELAY_MS = 1000
 
 export interface SubscriptionState {
-  /** The live answer, else a seed from the last two days, else `null`. */
+  /**
+   * The live answer, else a seed from the last two days, else `null`.
+   */
   readonly value: ActiveSubscription
-  /** True while no plan is known and this launch has no settled answer yet. */
+  /**
+   * True while no plan is known and this launch has no settled answer yet.
+   */
   readonly isLoading: boolean
-  /** True when the last lookup failed and no plan is known. */
+  /**
+   * True when the last lookup failed and no plan is known.
+   */
   readonly isError: boolean
 }
 
-/** The current App Store subscription, seeded from the last launch. */
+/**
+ * The current App Store subscription, seeded from the last launch.
+ */
 export interface SubscriptionService {
   getState: () => SubscriptionState
   subscribe: (listener: () => void) => Unlisten
@@ -45,9 +59,13 @@ export interface SubscriptionService {
    * `getState().isError`.
    */
   activeSubscription: () => Promise<ActiveSubscription>
-  /** Looks the subscription up in StoreKit now and resolves the current value. */
+  /**
+   * Looks the subscription up in StoreKit now and resolves the current value.
+   */
   refetch: () => Promise<ActiveSubscription>
-  /** Marks the answer stale, and looks it up again while anyone is subscribed. */
+  /**
+   * Marks the answer stale, and looks it up again while anyone is subscribed.
+   */
   invalidate: () => void
 }
 
@@ -94,50 +112,97 @@ function resolveActiveSubscription(
   })
 }
 
-export function createSubscriptionService(deps: {
-  iap: IapService
-  storage: StorageService
-  clock: ClockService
-  platform: PlatformService
-  logger: LoggerService
-}): SubscriptionService {
-  const { iap, storage, clock, platform, logger } = deps
-  const enabled = platform.appPlatform === 'ios'
-  const listeners = new Set<() => void>()
-  const pendingEntitlementLookups = new Map<string, Promise<boolean>>()
+export interface SubscriptionServiceDeps {
+  readonly iap: Pick<IapService, 'isOwned' | 'subscribePurchaseUpdated'>
+  readonly storage: Pick<StorageService, 'local'>
+  readonly clock: Pick<ClockService, 'now' | 'setTimeout' | 'clearTimeout' | 'sleep'>
+  readonly platform: Pick<PlatformService, 'appPlatform'>
+  readonly logger: Pick<LoggerService, 'warn'>
+}
 
-  let value: ActiveSubscription = null
-  /** Epoch ms of the last live answer, or `null` before one or after `invalidate`. */
-  let answeredAt: number | null = null
-  let hasLiveAnswer = false
-  let settled = false
-  let fetching = false
-  let failed = false
-  let pendingRun: Promise<ActiveSubscription> | null = null
-  let state: SubscriptionState = IDLE_STATE
+class SubscriptionServiceImpl implements SubscriptionService {
+  readonly #deps: SubscriptionServiceDeps
+  readonly #enabled: boolean
+  readonly #listeners = new Set<() => void>()
+  readonly #pendingEntitlementLookups = new Map<string, Promise<boolean>>()
+  #value: ActiveSubscription = null
+  /**
+   * Epoch ms of the last live answer, or `null` before one or after `invalidate`.
+   */
+  #answeredAt: number | null = null
+  #hasLiveAnswer = false
+  #settled = false
+  #fetching = false
+  #failed = false
+  #pendingRun: Promise<ActiveSubscription> | null = null
+  #state: SubscriptionState = IDLE_STATE
 
-  if (enabled) {
-    const seed = getJson(
-      storage.local,
-      ACTIVE_SUBSCRIPTION_STORAGE_KEY,
-      activeSubscriptionSeedSchema,
-    )
-    if (seed !== undefined && clock.now() - seed.updatedAt <= ACTIVE_SUBSCRIPTION_MAX_AGE_MS) {
-      value = seed.value
+  constructor(deps: SubscriptionServiceDeps) {
+    this.#deps = deps
+    const { iap, storage, clock, platform } = deps
+    this.#enabled = platform.appPlatform === 'ios'
+    if (this.#enabled) {
+      const seed = getJson(
+        storage.local,
+        ACTIVE_SUBSCRIPTION_STORAGE_KEY,
+        activeSubscriptionSeedSchema,
+      )
+      if (seed !== undefined && clock.now() - seed.updatedAt <= ACTIVE_SUBSCRIPTION_MAX_AGE_MS) {
+        this.#value = seed.value
+      }
+      this.#state = this.#computeState()
+      iap.subscribePurchaseUpdated(this.invalidate)
     }
-    state = computeState()
   }
 
-  function computeState(): SubscriptionState {
+  readonly getState = (): SubscriptionState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly activeSubscription = (): Promise<ActiveSubscription> => {
+    if (this.#answeredAt !== null && this.#deps.clock.now() - this.#answeredAt < FRESH_MS) {
+      return Promise.resolve(this.#value)
+    }
+    return this.refetch()
+  }
+
+  readonly refetch = (): Promise<ActiveSubscription> => {
+    if (!this.#enabled) {
+      return Promise.resolve(null)
+    }
+    if (this.#pendingRun === null) {
+      const current = this.#run()
+      this.#pendingRun = current
+      void current.finally(() => {
+        if (this.#pendingRun === current) this.#pendingRun = null
+      })
+    }
+    return this.#pendingRun
+  }
+
+  readonly invalidate = (): void => {
+    this.#answeredAt = null
+    if (this.#listeners.size > 0) {
+      void this.refetch()
+    }
+  }
+
+  #computeState(): SubscriptionState {
     return {
-      value,
-      isLoading: value === null && !hasLiveAnswer && (fetching || !settled),
-      isError: failed && value === null,
+      value: this.#value,
+      isLoading: this.#value === null && !this.#hasLiveAnswer && (this.#fetching || !this.#settled),
+      isError: this.#failed && this.#value === null,
     }
   }
 
-  function publish(): void {
-    const next = computeState()
+  #publish(): void {
+    const next = this.#computeState()
+    const state = this.#state
     if (
       next.value === state.value &&
       next.isLoading === state.isLoading &&
@@ -145,13 +210,14 @@ export function createSubscriptionService(deps: {
     ) {
       return
     }
-    state = next
-    for (const listener of listeners) {
+    this.#state = next
+    for (const listener of this.#listeners) {
       listener()
     }
   }
 
-  function withEntitlementTimeout(operation: Promise<boolean>): Promise<boolean> {
+  #withEntitlementTimeout(operation: Promise<boolean>): Promise<boolean> {
+    const { clock } = this.#deps
     return new Promise((resolve, reject) => {
       const timeout = clock.setTimeout(() => {
         reject(new Error('StoreKit entitlement lookup timed out'))
@@ -170,107 +236,69 @@ export function createSubscriptionService(deps: {
     })
   }
 
-  function lookupEntitlement(productId: string): Promise<boolean> {
-    const pending = pendingEntitlementLookups.get(productId)
+  #lookupEntitlement(productId: string): Promise<boolean> {
+    const pending = this.#pendingEntitlementLookups.get(productId)
     if (pending !== undefined) {
       return pending
     }
 
-    const lookup = iap.isOwned(productId)
-    pendingEntitlementLookups.set(productId, lookup)
-    function clearPendingLookup(): void {
-      if (pendingEntitlementLookups.get(productId) === lookup) {
-        pendingEntitlementLookups.delete(productId)
+    const lookup = this.#deps.iap.isOwned(productId)
+    this.#pendingEntitlementLookups.set(productId, lookup)
+    const clearPendingLookup = (): void => {
+      if (this.#pendingEntitlementLookups.get(productId) === lookup) {
+        this.#pendingEntitlementLookups.delete(productId)
       }
     }
     void lookup.then(clearPendingLookup, clearPendingLookup)
     return lookup
   }
 
-  async function lookupOnce(): Promise<ActiveSubscription> {
+  async #lookupOnce(): Promise<ActiveSubscription> {
     return await resolveActiveSubscription([
-      withEntitlementTimeout(lookupEntitlement(IAP_PRODUCT_IDS.yearly)).then((owned) =>
+      this.#withEntitlementTimeout(this.#lookupEntitlement(IAP_PRODUCT_IDS.yearly)).then((owned) =>
         owned ? 'yearly' : null,
       ),
-      withEntitlementTimeout(lookupEntitlement(IAP_PRODUCT_IDS.monthly)).then((owned) =>
-        owned ? 'monthly' : null,
+      this.#withEntitlementTimeout(this.#lookupEntitlement(IAP_PRODUCT_IDS.monthly)).then(
+        (owned) => (owned ? 'monthly' : null),
       ),
     ])
   }
 
-  async function lookupWithRetry(): Promise<ActiveSubscription> {
+  async #lookupWithRetry(): Promise<ActiveSubscription> {
     try {
-      return await lookupOnce()
+      return await this.#lookupOnce()
     } catch {
-      await clock.sleep(RETRY_DELAY_MS)
-      return await lookupOnce()
+      await this.#deps.clock.sleep(RETRY_DELAY_MS)
+      return await this.#lookupOnce()
     }
   }
 
-  async function run(): Promise<ActiveSubscription> {
-    fetching = true
-    publish()
+  async #run(): Promise<ActiveSubscription> {
+    const { storage, clock, logger } = this.#deps
+    this.#fetching = true
+    this.#publish()
     try {
-      const next = await lookupWithRetry()
-      value = next
-      hasLiveAnswer = true
-      answeredAt = clock.now()
-      failed = false
+      const next = await this.#lookupWithRetry()
+      this.#value = next
+      this.#hasLiveAnswer = true
+      this.#answeredAt = clock.now()
+      this.#failed = false
       setJson(storage.local, ACTIVE_SUBSCRIPTION_STORAGE_KEY, activeSubscriptionSeedSchema, {
         value: next,
         updatedAt: clock.now(),
       })
     } catch (error) {
-      failed = true
+      this.#failed = true
       logger.warn('Looking up the App Store subscription failed', error)
     } finally {
-      fetching = false
-      settled = true
-      publish()
+      this.#fetching = false
+      this.#settled = true
+      this.#publish()
     }
-    return value
+    return this.#value
   }
+}
 
-  function refetch(): Promise<ActiveSubscription> {
-    if (!enabled) {
-      return Promise.resolve(null)
-    }
-    if (pendingRun === null) {
-      const current = run()
-      pendingRun = current
-      void current.finally(() => {
-        if (pendingRun === current) pendingRun = null
-      })
-    }
-    return pendingRun
-  }
-
-  function invalidate(): void {
-    answeredAt = null
-    if (listeners.size > 0) {
-      void refetch()
-    }
-  }
-
-  if (enabled) {
-    iap.subscribePurchaseUpdated(invalidate)
-  }
-
-  return {
-    getState: () => state,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    activeSubscription() {
-      if (answeredAt !== null && clock.now() - answeredAt < FRESH_MS) {
-        return Promise.resolve(value)
-      }
-      return refetch()
-    },
-    refetch,
-    invalidate,
-  }
+export function createSubscriptionService(deps: SubscriptionServiceDeps): SubscriptionService {
+  return new SubscriptionServiceImpl(deps)
 }

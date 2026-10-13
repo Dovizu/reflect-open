@@ -47,97 +47,86 @@ export interface SettingsService {
 
 const voidSchema = z.null()
 
-export function createSettingsService(deps: {
-  ipc: IpcBridgeService
-  operations: OperationsService
-}): SettingsService {
-  const { ipc, operations } = deps
-  const listeners = new Set<() => void>()
+export interface SettingsServiceDeps {
+  readonly ipc: Pick<IpcBridgeService, 'call'>
+  readonly operations: OperationsService
+}
 
-  let state: SettingsStatus = 'loading'
-  let started = false
-  let current: Settings = DEFAULT_SETTINGS
-  let preloadPatch: Partial<Settings> = {}
-  let pendingUpdaters: SettingsUpdater[] = []
+class SettingsServiceImpl implements SettingsService {
+  readonly #deps: SettingsServiceDeps
+  readonly #listeners = new Set<() => void>()
 
-  let dirty = false
-  let lastSubmission: Promise<void> = Promise.resolve()
+  #state: SettingsStatus = 'loading'
+  #started = false
+  #current: Settings = DEFAULT_SETTINGS
+  #preloadPatch: Partial<Settings> = {}
+  #pendingUpdaters: SettingsUpdater[] = []
 
-  let resolveLoad: (outcome: SettingsLoadOutcome) => void = () => {}
-  let loaded = new Promise<SettingsLoadOutcome>((resolve) => {
-    resolveLoad = resolve
+  #dirty = false
+  #lastSubmission: Promise<void> = Promise.resolve()
+
+  #resolveLoad: (outcome: SettingsLoadOutcome) => void = () => {}
+  #loaded = new Promise<SettingsLoadOutcome>((resolve) => {
+    this.#resolveLoad = resolve
   })
-  let reloading: Promise<SettingsLoadOutcome> | null = null
+  #reloading: Promise<SettingsLoadOutcome> | null = null
 
-  const emit = (): void => {
-    for (const listener of listeners) {
-      listener()
+  constructor(deps: SettingsServiceDeps) {
+    this.#deps = deps
+  }
+
+  readonly get = (): Settings => {
+    this.#start()
+    return this.#current
+  }
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#start()
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
     }
   }
 
-  const submit = (target: Settings): void => {
-    dirty = true
-    lastSubmission = lastSubmission.then(async () => {
-      try {
-        await ipc.call('settings_save', { settings: target }, voidSchema)
-        if (current === target) {
-          dirty = false
-        }
-      } catch (error) {
-        operations.start('Saving settings').fail(errorMessage(error))
-      }
-    })
-  }
-
-  const hydrate = (outcome: SettingsLoadOutcome, document: Settings): void => {
-    let next: Settings = { ...document, ...preloadPatch }
-    const queued = pendingUpdaters
-    pendingUpdaters = []
-    preloadPatch = {}
-    for (const updater of queued) {
-      next = { ...next, ...updater(next) }
-    }
-    state = outcome
-    if (outcome === 'loaded') {
-      next = replaceEqualDeep(document, next)
-      current = next
-      if (next !== document) {
-        submit(next)
-      }
-    } else {
-      current = next
-    }
-    resolveLoad(outcome)
-    emit()
-  }
-
-  const start = (): void => {
-    if (started) {
+  readonly update = (patch: Partial<Settings>): void => {
+    this.#start()
+    if (this.#state === 'loading') {
+      this.#preloadPatch = { ...this.#preloadPatch, ...patch }
+      this.#current = { ...DEFAULT_SETTINGS, ...this.#preloadPatch }
+      this.#emit()
       return
     }
-    started = true
-    ipc.call('settings_load', {}, settingsSchema).then(
-      (document) => hydrate('loaded', document),
-      (error: unknown) => {
-        operations.start('Loading settings').fail(errorMessage(error))
-        hydrate('failed', DEFAULT_SETTINGS)
-      },
-    )
+    this.#apply(() => patch)
   }
 
-  const reload = (): Promise<SettingsLoadOutcome> => {
-    if (state !== 'failed') {
-      start()
-      return loaded
+  readonly updateWith = (updater: SettingsUpdater): void => {
+    this.#start()
+    if (this.#state === 'loading') {
+      this.#pendingUpdaters.push(updater)
+      return
     }
-    reloading ??= ipc
+    this.#apply(updater)
+  }
+
+  readonly whenLoaded = (): Promise<SettingsLoadOutcome> => {
+    this.#start()
+    return this.#loaded
+  }
+
+  readonly reload = (): Promise<SettingsLoadOutcome> => {
+    const { ipc, operations } = this.#deps
+    if (this.#state !== 'failed') {
+      this.#start()
+      return this.#loaded
+    }
+    this.#reloading ??= ipc
       .call('settings_load', {}, settingsSchema)
       .then(
         (document): SettingsLoadOutcome => {
-          state = 'loaded'
-          current = document
-          loaded = Promise.resolve('loaded')
-          emit()
+          this.#state = 'loaded'
+          this.#current = document
+          this.#loaded = Promise.resolve('loaded')
+          this.#emit()
           return 'loaded'
         },
         (error: unknown): SettingsLoadOutcome => {
@@ -146,82 +135,109 @@ export function createSettingsService(deps: {
         },
       )
       .finally(() => {
-        reloading = null
+        this.#reloading = null
       })
-    return reloading
+    return this.#reloading
   }
 
-  const apply = (updater: SettingsUpdater): void => {
-    const previous = current
+  readonly flush = async (): Promise<void> => {
+    await this.#drain()
+    if (this.#dirty && this.#state === 'loaded') {
+      this.#submit(this.#current)
+      await this.#drain()
+    }
+  }
+
+  readonly status = (): SettingsStatus => this.#state
+
+  #emit(): void {
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  #submit(target: Settings): void {
+    const { ipc, operations } = this.#deps
+    this.#dirty = true
+    this.#lastSubmission = this.#lastSubmission.then(async () => {
+      try {
+        await ipc.call('settings_save', { settings: target }, voidSchema)
+        if (this.#current === target) {
+          this.#dirty = false
+        }
+      } catch (error) {
+        operations.start('Saving settings').fail(errorMessage(error))
+      }
+    })
+  }
+
+  #hydrate(outcome: SettingsLoadOutcome, document: Settings): void {
+    let next: Settings = { ...document, ...this.#preloadPatch }
+    const queued = this.#pendingUpdaters
+    this.#pendingUpdaters = []
+    this.#preloadPatch = {}
+    for (const updater of queued) {
+      next = { ...next, ...updater(next) }
+    }
+    this.#state = outcome
+    if (outcome === 'loaded') {
+      next = replaceEqualDeep(document, next)
+      this.#current = next
+      if (next !== document) {
+        this.#submit(next)
+      }
+    } else {
+      this.#current = next
+    }
+    this.#resolveLoad(outcome)
+    this.#emit()
+  }
+
+  #start(): void {
+    const { ipc, operations } = this.#deps
+    if (this.#started) {
+      return
+    }
+    this.#started = true
+    ipc.call('settings_load', {}, settingsSchema).then(
+      (document) => this.#hydrate('loaded', document),
+      (error: unknown) => {
+        operations.start('Loading settings').fail(errorMessage(error))
+        this.#hydrate('failed', DEFAULT_SETTINGS)
+      },
+    )
+  }
+
+  #apply(updater: SettingsUpdater): void {
+    const previous = this.#current
     const merged = { ...previous, ...updater(previous) }
-    if (state === 'failed') {
-      current = merged
-      emit()
+    if (this.#state === 'failed') {
+      this.#current = merged
+      this.#emit()
       return
     }
     const next = replaceEqualDeep(previous, merged)
-    current = next
+    this.#current = next
     if (next !== previous) {
-      emit()
+      this.#emit()
     }
-    if (dirty || next !== previous) {
-      submit(next)
+    if (this.#dirty || next !== previous) {
+      this.#submit(next)
     }
   }
 
-  const drain = async (): Promise<void> => {
-    let submission = lastSubmission
+  async #drain(): Promise<void> {
+    let submission = this.#lastSubmission
     await submission
-    while (submission !== lastSubmission) {
-      submission = lastSubmission
+    while (submission !== this.#lastSubmission) {
+      submission = this.#lastSubmission
       await submission
     }
   }
+}
 
-  return {
-    get() {
-      start()
-      return current
-    },
-    subscribe(listener) {
-      start()
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    update(patch) {
-      start()
-      if (state === 'loading') {
-        preloadPatch = { ...preloadPatch, ...patch }
-        current = { ...DEFAULT_SETTINGS, ...preloadPatch }
-        emit()
-        return
-      }
-      apply(() => patch)
-    },
-    updateWith(updater) {
-      start()
-      if (state === 'loading') {
-        pendingUpdaters.push(updater)
-        return
-      }
-      apply(updater)
-    },
-    whenLoaded() {
-      start()
-      return loaded
-    },
-    reload,
-    async flush() {
-      await drain()
-      if (dirty && state === 'loaded') {
-        submit(current)
-        await drain()
-      }
-    },
-    status: () => state,
-  }
+export function createSettingsService(deps: SettingsServiceDeps): SettingsService {
+  return new SettingsServiceImpl(deps)
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -7,37 +7,50 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
  * are function properties so surfaces can pass them around unbound.
  */
 export interface KeyboardService {
-  /** The last published keyboard overlap in px: `0` when the keyboard is closed. */
+  /**
+   * The last published keyboard overlap in px: `0` when the keyboard is closed.
+   */
   getHeight: () => number
-  /** Whether the software keyboard is up. */
+  /**
+   * Whether the software keyboard is up.
+   */
   isVisible: () => boolean
-  /** Listen for a changed height. */
+  /**
+   * Listen for a changed height.
+   */
   subscribe: (listener: () => void) => Unlisten
-  /** Record the keyboard overlap height. A height equal to the current one notifies nobody. */
+  /**
+   * Record the keyboard overlap height. A height equal to the current one notifies nobody.
+   */
   publish: (height: number) => void
 }
 
-export function createKeyboardService(): KeyboardService {
-  let currentHeight = 0
-  const listeners = new Set<() => void>()
+class KeyboardServiceImpl implements KeyboardService {
+  readonly #listeners = new Set<() => void>()
+  #currentHeight = 0
 
-  return {
-    getHeight: () => currentHeight,
-    isVisible: () => currentHeight > 0,
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    publish: (height) => {
-      if (height === currentHeight) {
-        return
-      }
-      currentHeight = height
-      for (const listener of listeners) {
-        listener()
-      }
-    },
+  readonly getHeight = (): number => this.#currentHeight
+
+  readonly isVisible = (): boolean => this.#currentHeight > 0
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
   }
+
+  readonly publish = (height: number): void => {
+    if (height === this.#currentHeight) {
+      return
+    }
+    this.#currentHeight = height
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+}
+
+export function createKeyboardService(): KeyboardService {
+  return new KeyboardServiceImpl()
 }

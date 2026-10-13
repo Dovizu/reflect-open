@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IAP_PRODUCT_IDS } from '../ipc/iap-plugin.ts'
 import {
   createTestAppStoreEnvironmentService,
@@ -160,7 +160,7 @@ describe('PaywallService actions', () => {
   })
 
   it('does not look the subscription up after a failed purchase', async () => {
-    iap = { ...iap, purchase: () => Promise.reject(new Error('cancelled')) }
+    vi.spyOn(iap, 'purchase').mockRejectedValue(new Error('cancelled'))
     await expect(service().purchase(IAP_PRODUCT_IDS.monthly)).rejects.toThrow('cancelled')
     expect(subscription.calls()).toEqual([])
   })
@@ -173,7 +173,7 @@ describe('PaywallService actions', () => {
   })
 
   it('does not refetch when the sync fails', async () => {
-    appStore = { ...appStore, sync: () => Promise.reject(new Error('offline')) }
+    vi.spyOn(appStore, 'sync').mockRejectedValue(new Error('offline'))
     await expect(service().restore()).rejects.toThrow('offline')
     expect(subscription.calls()).toEqual([])
   })

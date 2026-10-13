@@ -15,7 +15,9 @@ export type IcloudDownloadScope = 'notes' | 'all'
 const icloudStatusSchema = z.object({
   available: z.boolean(),
   documentsRoot: z.string().nullable(),
-  /** Every graph in the container (name-sorted) — onboarding lists them. */
+  /**
+   * Every graph in the container (name-sorted) — onboarding lists them.
+   */
   existingGraphRoots: z.array(z.string()),
 })
 
@@ -57,11 +59,17 @@ export type IcloudSweepOutcome = z.infer<typeof icloudSweepOutcomeSchema>
  */
 export type IcloudSweepScope = 'full' | 'candidates' | 'ingested'
 
-/** Options for {@link ICloudNativeService.conflictsScan}. */
+/**
+ * Options for {@link ICloudNativeService.conflictsScan}.
+ */
 export interface IcloudScanOptions {
-  /** The open graph's generation — the scan is pinned to it. */
+  /**
+   * The open graph's generation — the scan is pinned to it.
+   */
   generation: number
-  /** Notes with dirty open sessions; their conflicts defer to the next scan. */
+  /**
+   * Notes with dirty open sessions; their conflicts defer to the next scan.
+   */
   skipPaths?: string[]
   /**
    * External changes just applied cleanly — their content becomes the new
@@ -73,21 +81,31 @@ export interface IcloudScanOptions {
    * their current content. Safe to repeat — existing bases never move here.
    */
   recordBaseline?: boolean
-  /** Version-check coverage; defaults to `'full'` (the safe backstop). */
+  /**
+   * Version-check coverage; defaults to `'full'` (the safe backstop).
+   */
   scope?: IcloudSweepScope
 }
 
-/** The Rust iCloud watch's conflict event (Plan 21 Phase 2). */
+/**
+ * The Rust iCloud watch's conflict event (Plan 21 Phase 2).
+ */
 const ICLOUD_CONFLICTS_EVENT = 'icloud:conflicts'
 
-/** The Rust iCloud watch's install-failure event (Plan 21). */
+/**
+ * The Rust iCloud watch's install-failure event (Plan 21).
+ */
 const ICLOUD_WATCH_FAILED_EVENT = 'icloud:watch-failed'
 
 const conflictsPayloadSchema = z.array(z.string())
 
-/** The native side of the iCloud Drive container (Plan 21). */
+/**
+ * The native side of the iCloud Drive container (Plan 21).
+ */
 export interface ICloudNativeService {
-  /** Resolve iCloud container availability. */
+  /**
+   * Resolve iCloud container availability.
+   */
   status(): Promise<IcloudStatus>
   /**
    * Copy the open graph into the iCloud container and return the new root
@@ -96,7 +114,9 @@ export interface ICloudNativeService {
    * re-opens the graph at the returned root and runs a baseline conflict scan.
    */
   adoptGraph(generation: number): Promise<string>
-  /** Run an iCloud conflict sweep over the open graph (Plan 21 Phase 2). */
+  /**
+   * Run an iCloud conflict sweep over the open graph (Plan 21 Phase 2).
+   */
   conflictsScan(options: IcloudScanOptions): Promise<IcloudSweepOutcome>
   /**
    * Start the iCloud metadata-query watch over `root` (Plan 21 Phase 2): its
@@ -106,7 +126,9 @@ export interface ICloudNativeService {
    * what pinned `fileproviderd` there (issue #1180).
    */
   watchStart(root: string): Promise<void>
-  /** Stop the active iCloud watch (graph switch). Idempotent. */
+  /**
+   * Stop the active iCloud watch (graph switch). Idempotent.
+   */
   watchStop(): Promise<void>
   /**
    * Asks iCloud to download every not-yet-local file in `scope` under `root`,
@@ -150,65 +172,101 @@ export interface ICloudNativeService {
   subscribeWatchFailed(listener: () => void): Unlisten
 }
 
-export function createICloudNativeService(deps: {
-  ipc: IpcBridgeService
-  logger: LoggerService
-}): ICloudNativeService {
-  const { ipc, logger } = deps
+export interface ICloudNativeServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly logger: Pick<LoggerService, 'error'>
+}
 
-  const listen = (event: string, handler: (payload: unknown) => void): Unlisten =>
-    listenNow(
+class ICloudNativeServiceImpl implements ICloudNativeService {
+  readonly #deps: ICloudNativeServiceDeps
+
+  constructor(deps: ICloudNativeServiceDeps) {
+    this.#deps = deps
+  }
+
+  status(): Promise<IcloudStatus> {
+    return this.#deps.ipc.call('icloud_status', {}, icloudStatusSchema)
+  }
+
+  adoptGraph(generation: number): Promise<string> {
+    return this.#deps.ipc.call('icloud_adopt_graph', { generation }, z.string())
+  }
+
+  conflictsScan(options: IcloudScanOptions): Promise<IcloudSweepOutcome> {
+    return this.#deps.ipc.call(
+      'icloud_conflicts_scan',
+      {
+        generation: options.generation,
+        skipPaths: options.skipPaths ?? [],
+        ingestedPaths: options.ingestedPaths ?? [],
+        recordBaseline: options.recordBaseline ?? false,
+        scope: options.scope ?? 'full',
+      },
+      icloudSweepOutcomeSchema,
+    )
+  }
+
+  async watchStart(root: string): Promise<void> {
+    await this.#deps.ipc.call('icloud_watch_start', { root }, z.null())
+  }
+
+  async watchStop(): Promise<void> {
+    await this.#deps.ipc.call('icloud_watch_stop', {}, z.null())
+  }
+
+  downloadPending(root: string, scope: IcloudDownloadScope): Promise<number> {
+    return this.#deps.ipc.call(
+      'icloud_download_pending',
+      { root, notesOnly: scope === 'notes' },
+      countSchema,
+    )
+  }
+
+  pendingCount(root: string, scope: IcloudDownloadScope): Promise<number> {
+    return this.#deps.ipc.call(
+      'icloud_pending_count',
+      { root, notesOnly: scope === 'notes' },
+      countSchema,
+    )
+  }
+
+  async requestDownloads(paths: readonly string[]): Promise<number> {
+    if (paths.length === 0) {
+      return 0
+    }
+    return await this.#deps.ipc.call('icloud_request_downloads', { paths }, countSchema)
+  }
+
+  subscribeConflicts(listener: (paths: string[]) => void): Unlisten {
+    return this.#listen(ICLOUD_CONFLICTS_EVENT, (payload) => {
+      const parsed = conflictsPayloadSchema.safeParse(payload)
+      if (parsed.success) {
+        listener(parsed.data)
+      } else {
+        // Contract drift between the Rust event and this schema — loud beats
+        // silently never sweeping.
+        this.#deps.logger.error(`invalid ${ICLOUD_CONFLICTS_EVENT} payload:`, parsed.error)
+      }
+    })
+  }
+
+  subscribeWatchFailed(listener: () => void): Unlisten {
+    return this.#listen(ICLOUD_WATCH_FAILED_EVENT, () => {
+      listener()
+    })
+  }
+
+  #listen(event: string, handler: (payload: unknown) => void): Unlisten {
+    const { ipc, logger } = this.#deps
+    return listenNow(
       () => ipc.listen(event, handler),
       (cause) => {
         logger.error(`${event} listener failed:`, cause)
       },
     )
-
-  return {
-    status: () => ipc.call('icloud_status', {}, icloudStatusSchema),
-    adoptGraph: (generation) => ipc.call('icloud_adopt_graph', { generation }, z.string()),
-    conflictsScan: (options) =>
-      ipc.call(
-        'icloud_conflicts_scan',
-        {
-          generation: options.generation,
-          skipPaths: options.skipPaths ?? [],
-          ingestedPaths: options.ingestedPaths ?? [],
-          recordBaseline: options.recordBaseline ?? false,
-          scope: options.scope ?? 'full',
-        },
-        icloudSweepOutcomeSchema,
-      ),
-    watchStart: async (root) => {
-      await ipc.call('icloud_watch_start', { root }, z.null())
-    },
-    watchStop: async () => {
-      await ipc.call('icloud_watch_stop', {}, z.null())
-    },
-    downloadPending: (root, scope) =>
-      ipc.call('icloud_download_pending', { root, notesOnly: scope === 'notes' }, countSchema),
-    pendingCount: (root, scope) =>
-      ipc.call('icloud_pending_count', { root, notesOnly: scope === 'notes' }, countSchema),
-    requestDownloads: async (paths) => {
-      if (paths.length === 0) {
-        return 0
-      }
-      return await ipc.call('icloud_request_downloads', { paths }, countSchema)
-    },
-    subscribeConflicts: (listener) =>
-      listen(ICLOUD_CONFLICTS_EVENT, (payload) => {
-        const parsed = conflictsPayloadSchema.safeParse(payload)
-        if (parsed.success) {
-          listener(parsed.data)
-        } else {
-          // Contract drift between the Rust event and this schema — loud beats
-          // silently never sweeping.
-          logger.error(`invalid ${ICLOUD_CONFLICTS_EVENT} payload:`, parsed.error)
-        }
-      }),
-    subscribeWatchFailed: (listener) =>
-      listen(ICLOUD_WATCH_FAILED_EVENT, () => {
-        listener()
-      }),
   }
+}
+
+export function createICloudNativeService(deps: ICloudNativeServiceDeps): ICloudNativeService {
+  return new ICloudNativeServiceImpl(deps)
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService, type TestPlatformOptions } from '../testing/platform.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
@@ -115,11 +115,13 @@ function setup(options?: {
     hideCalls: () => hides,
   }
   const logger = createTestLoggerService()
+  const settingsService = createTestSettingsService()
+  vi.spyOn(settingsService, 'flush').mockImplementation(settings.fn)
   const service = createPersistenceFlushService({
     lifecycle,
     window,
     platform: createTestPlatformService(options?.platform),
-    settings: { ...createTestSettingsService(), flush: settings.fn },
+    settings: settingsService,
     openDocuments: { flushAll: documents.fn },
     logger,
   })

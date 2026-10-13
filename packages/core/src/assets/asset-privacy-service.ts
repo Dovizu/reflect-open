@@ -4,7 +4,9 @@ import { assetReferenceMatches, type AssetReferences } from '../indexing/asset-r
 import { parseNote } from '../markdown/extract.ts'
 import type { XArchiveService } from '../x-archive.ts'
 
-/** Outcome of the privacy gate for one asset. */
+/**
+ * Outcome of the privacy gate for one asset.
+ */
 export type AssetVerdict = 'send' | 'skip-unreferenced' | 'skip-private'
 
 /**
@@ -41,14 +43,32 @@ export interface AssetPrivacyService {
   ): Promise<AssetVerdict>
 }
 
-export function createAssetPrivacyService(deps: {
-  noteFile: Pick<NoteFileService, 'read'>
-  xArchive: Pick<XArchiveService, 'owners'>
-  assetReferences: AssetReferences
-}): AssetPrivacyService {
-  const { noteFile, xArchive, assetReferences } = deps
+export interface AssetPrivacyServiceDeps {
+  readonly noteFile: Pick<NoteFileService, 'read'>
+  readonly xArchive: Pick<XArchiveService, 'owners'>
+  readonly assetReferences: Pick<AssetReferences, 'notePaths'>
+}
 
-  async function classifyAssetFromNotes(
+class AssetPrivacyServiceImpl implements AssetPrivacyService {
+  readonly #deps: AssetPrivacyServiceDeps
+
+  constructor(deps: AssetPrivacyServiceDeps) {
+    this.#deps = deps
+  }
+
+  async classifyAsset(assetPath: string, generation: number): Promise<AssetVerdict> {
+    const { noteFile, xArchive, assetReferences } = this.#deps
+    const owners = await xArchive.owners(assetPath, generation)
+    const candidates = await assetReferences.notePaths(assetPath, owners)
+    return await this.classifyAssetFromNotes(
+      assetPath,
+      candidates,
+      (notePath) => noteFile.read(notePath, generation),
+      owners,
+    )
+  }
+
+  async classifyAssetFromNotes(
     assetPath: string,
     candidates: readonly string[],
     readSource: (notePath: string) => Promise<string>,
@@ -57,7 +77,7 @@ export function createAssetPrivacyService(deps: {
     if (candidates.length === 0) {
       return 'skip-unreferenced'
     }
-    const owners = knownOwners ?? (await xArchive.owners(assetPath))
+    const owners = knownOwners ?? (await this.#deps.xArchive.owners(assetPath))
     const references = [assetPath, ...owners]
     let publicRefs = 0
     for (const notePath of candidates) {
@@ -85,18 +105,8 @@ export function createAssetPrivacyService(deps: {
     }
     return publicRefs > 0 ? 'send' : 'skip-unreferenced'
   }
+}
 
-  return {
-    async classifyAsset(assetPath, generation) {
-      const owners = await xArchive.owners(assetPath, generation)
-      const candidates = await assetReferences.notePaths(assetPath, owners)
-      return await classifyAssetFromNotes(
-        assetPath,
-        candidates,
-        (notePath) => noteFile.read(notePath, generation),
-        owners,
-      )
-    },
-    classifyAssetFromNotes,
-  }
+export function createAssetPrivacyService(deps: AssetPrivacyServiceDeps): AssetPrivacyService {
+  return new AssetPrivacyServiceImpl(deps)
 }

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { IAP_PRODUCT_IDS } from '../ipc/iap-plugin.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
@@ -33,13 +33,12 @@ beforeEach(() => {
   owned = () => Promise.resolve(false)
   lookups = []
   const base = createTestIapService()
-  iap = {
-    ...base,
-    isOwned(productId) {
-      lookups.push(productId)
-      return owned(productId)
-    },
-  }
+  const spy = vi.spyOn(base, 'isOwned')
+  spy.mockImplementation((productId) => {
+    lookups.push(productId)
+    return owned(productId)
+  })
+  iap = base
 })
 
 function seed(value: 'yearly' | 'monthly' | null, updatedAt: number): void {

@@ -11,16 +11,26 @@ import { localIsoDate } from '../lib/dates.ts'
 import { updatedPresetFilter, type UpdatedFilter, type UpdatedPreset } from './all-notes-filters.ts'
 import { buildPaletteSections, type PaletteHit, type PaletteSections } from './palette-entries.ts'
 
-/** What {@link PaletteSearchService.sections} merges. */
+/**
+ * What {@link PaletteSearchService.sections} merges.
+ */
 export interface PaletteSectionsInput {
-  /** The live query, as typed. */
+  /**
+   * The live query, as typed.
+   */
   query: string
-  /** The query the data arrays actually answer (the deferred value). */
+  /**
+   * The query the data arrays actually answer (the deferred value).
+   */
   dataQuery: string
   suggestions: WikiSuggestion[]
-  /** The one search path's results (filters may be empty — Plan 08b). */
+  /**
+   * The one search path's results (filters may be empty — Plan 08b).
+   */
   hits: PaletteHit[]
-  /** True when the data query carried filter tokens (describes `hits`). */
+  /**
+   * True when the data query carried filter tokens (describes `hits`).
+   */
   filtered: boolean
 }
 
@@ -39,7 +49,9 @@ export interface PaletteSearchService<Context = unknown> {
    * {@link suggestTitles} make it part of the cache identity.
    */
   today(): string
-  /** Title suggestions for `text` (at most 8), generated date phrases merged in. */
+  /**
+   * Title suggestions for `text` (at most 8), generated date phrases merged in.
+   */
   suggestTitles(text: string, dateContext: DateSuggestionContext): Promise<WikiSuggestion[]>
   /**
    * The search hits for `text`. Filter tokens (#tag, is:daily, is:pinned,
@@ -49,48 +61,68 @@ export interface PaletteSearchService<Context = unknown> {
    * constraint-based — filters are exact by nature.
    */
   search(text: string, options: { hybrid: boolean }): Promise<PaletteHit[]>
-  /** Merge the data with every registered command into the palette's sections. */
+  /**
+   * Merge the data with every registered command into the palette's sections.
+   */
   sections(input: PaletteSectionsInput): PaletteSections<Command<Context>>
-  /** Resolve a relative updated-at preset of the mobile All tab against the clock. */
+  /**
+   * Resolve a relative updated-at preset of the mobile All tab against the clock.
+   */
   updatedPresetFilter(preset: UpdatedPreset): UpdatedFilter
 }
 
 export interface PaletteSearchServiceDeps<Context = unknown> {
-  suggestions: Pick<SuggestionService, 'suggestWikiTargets'>
-  search: Pick<SearchService, 'searchWithFilters'>
-  retrieval: Pick<RetrievalService, 'retrieve'>
-  commands: Pick<CommandService<Context>, 'list'>
-  clock: Pick<ClockService, 'now'>
+  readonly suggestions: Pick<SuggestionService, 'suggestWikiTargets'>
+  readonly search: Pick<SearchService, 'searchWithFilters'>
+  readonly retrieval: Pick<RetrievalService, 'retrieve'>
+  readonly commands: Pick<CommandService<Context>, 'list'>
+  readonly clock: Pick<ClockService, 'now'>
+}
+
+class PaletteSearchServiceImpl<Context> implements PaletteSearchService<Context> {
+  readonly #deps: PaletteSearchServiceDeps<Context>
+
+  constructor(deps: PaletteSearchServiceDeps<Context>) {
+    this.#deps = deps
+  }
+
+  today(): string {
+    return localIsoDate(new Date(this.#deps.clock.now()))
+  }
+
+  suggestTitles(text: string, dateContext: DateSuggestionContext): Promise<WikiSuggestion[]> {
+    return this.#deps.suggestions.suggestWikiTargets(text, 8, dateContext)
+  }
+
+  async search(text: string, options: { hybrid: boolean }): Promise<PaletteHit[]> {
+    const { search, retrieval } = this.#deps
+    const parsed = parseSearchQuery(text)
+    if (!options.hybrid || parsed.filtered) {
+      return await search.searchWithFilters(parsed)
+    }
+    // Adapt RetrievalHit → PaletteHit: semantic chunk text rides in
+    // the snippet slot, and the path stands in for the dailyDate the
+    // retrieval contract doesn't carry.
+    const hits = await retrieval.retrieve(text, { mode: 'hybrid' })
+    return hits.map((hit) => ({
+      path: hit.path,
+      title: hit.title,
+      dailyDate: dateFromDailyPath(hit.path),
+      snippet: hit.snippet === '' ? null : hit.snippet,
+    }))
+  }
+
+  sections(input: PaletteSectionsInput): PaletteSections<Command<Context>> {
+    return buildPaletteSections({ ...input, commands: this.#deps.commands.list() })
+  }
+
+  updatedPresetFilter(preset: UpdatedPreset): UpdatedFilter {
+    return updatedPresetFilter(preset, new Date(this.#deps.clock.now()))
+  }
 }
 
 export function createPaletteSearchService<Context = unknown>(
   deps: PaletteSearchServiceDeps<Context>,
 ): PaletteSearchService<Context> {
-  const { suggestions, search, retrieval, commands, clock } = deps
-  return {
-    today: () => localIsoDate(new Date(clock.now())),
-
-    suggestTitles: (text, dateContext) => suggestions.suggestWikiTargets(text, 8, dateContext),
-
-    async search(text, options) {
-      const parsed = parseSearchQuery(text)
-      if (!options.hybrid || parsed.filtered) {
-        return await search.searchWithFilters(parsed)
-      }
-      // Adapt RetrievalHit → PaletteHit: semantic chunk text rides in
-      // the snippet slot, and the path stands in for the dailyDate the
-      // retrieval contract doesn't carry.
-      const hits = await retrieval.retrieve(text, { mode: 'hybrid' })
-      return hits.map((hit) => ({
-        path: hit.path,
-        title: hit.title,
-        dailyDate: dateFromDailyPath(hit.path),
-        snippet: hit.snippet === '' ? null : hit.snippet,
-      }))
-    },
-
-    sections: (input) => buildPaletteSections({ ...input, commands: commands.list() }),
-
-    updatedPresetFilter: (preset) => updatedPresetFilter(preset, new Date(clock.now())),
-  }
+  return new PaletteSearchServiceImpl<Context>(deps)
 }
