@@ -97,7 +97,7 @@ export interface IndexLifecycleService {
    * Best-effort: returns `null` (and logs the error) if the open fails, so
    * a broken index never blocks editing.
    */
-  open: () => Promise<number | null>
+  open(): Promise<number | null>
   /**
    * Background-sync the open index of `session`: sync the whole graph
    * (hash reconcile, or a full rebuild when the stored projection version is
@@ -106,55 +106,55 @@ export interface IndexLifecycleService {
    * steps once `session.signal` aborts; a session without an index runs none.
    * Call only after the graph row is committed.
    */
-  sync: (session: GraphSession) => void
+  sync(session: GraphSession): void
   /**
    * Re-run the sync pass, coalescing concurrent triggers (resume, poll-end,
    * watch-failed can fire together): while one refresh is settling, further
    * calls fold into a single queued rerun instead of stacking abort/restart
    * cycles — on a large graph each stacked cycle was a full pass.
    */
-  refresh: (session: GraphSession) => void
+  refresh(session: GraphSession): void
   /**
    * Abort the in-flight reconcile (if any) and wait for the sync pass to fully
    * settle, so a stale pass can't keep running into the next graph's open.
    */
-  stop: () => Promise<void>
+  stop(): Promise<void>
   /**
    * Wait for the current sync pass (if any) to finish, without aborting it.
    * The refresh coalescer serializes reruns off this.
    */
-  settled: () => Promise<void>
+  settled(): Promise<void>
   /**
    * Fully close the active index lifecycle: abort any reconcile, drop the live
    * subscription, stop the file watcher, and report idle progress.
    */
-  close: () => Promise<void>
+  close(): Promise<void>
   /**
    * Suspend index writes for a backgrounded mobile app: abort the bulk pass
    * and drop the live subscription synchronously. A later
    * {@link IndexLifecycleService.resume} reconciles the whole graph, so file
    * events missed while suspended converge.
    */
-  suspend: () => void
+  suspend(): void
   /**
    * Resume after {@link IndexLifecycleService.suspend} and run one coalesced
    * full sync for anything that changed while the live subscription was
    * absent. A null session, or one without an index, clears suspension
    * without starting work (foreground can precede graph open).
    */
-  resume: (session: GraphSession | null) => void
+  resume(session: GraphSession | null): void
   /**
    * Install a dynamic guard for platforms that must not start index work
    * while the app is suspended; `null` removes it. Checked at every lifecycle
    * boundary in addition to the explicit
    * {@link IndexLifecycleService.suspend} transition.
    */
-  setSuspendGuard: (shouldSuspend: (() => boolean) | null) => void
+  setSuspendGuard(shouldSuspend: (() => boolean) | null): void
   /**
    * Listen as the sync pass progresses. Bailed (superseded) passes emit
    * nothing further: the newer open's pass owns the indicator.
    */
-  onProgress: (listener: (progress: IndexLifecycleProgress) => void) => Unlisten
+  onProgress(listener: (progress: IndexLifecycleProgress) => void): Unlisten
   /**
    * Listen for changes the index applied: once when a sync pass commits
    * (`changes: null`), then per watcher batch (notes and asset files, even
@@ -163,7 +163,7 @@ export interface IndexLifecycleService {
    * Fires after the rows are written, so a cache refetch never reads stale
    * rows. A follower must drop events of a `generation` other than its own.
    */
-  onApplied: (listener: (event: IndexAppliedEvent) => void) => Unlisten
+  onApplied(listener: (event: IndexAppliedEvent) => void): Unlisten
   /**
    * Apply `changes` to the index at `generation` now, without waiting for the
    * live subscription: files a pull wrote must reach the index even before
@@ -172,11 +172,7 @@ export interface IndexLifecycleService {
    * {@link IndexLifecycleService.onApplied} when there was any. `canApply` is
    * checked before every write; a rejection is the caller's to handle.
    */
-  applyChanges: (
-    changes: FileChange[],
-    generation: number,
-    canApply?: () => boolean,
-  ) => Promise<number>
+  applyChanges(changes: FileChange[], generation: number, canApply?: () => boolean): Promise<number>
   /**
    * Listen for whole-graph passes that ran to completion. A sync pass reports
    * right after its {@link IndexLifecycleService.onApplied}; one that was
@@ -190,26 +186,26 @@ export interface IndexLifecycleService {
    * until every listener's returned promise settles, so the work a listener
    * starts (re-embedding) is part of the same coalesced request.
    */
-  onReconciled: (listener: (event: IndexReconciledEvent) => void | Promise<void>) => Unlisten
+  onReconciled(listener: (event: IndexReconciledEvent) => void | Promise<void>): Unlisten
   /**
    * Listen for id-based heals that relocate a note's rows (Plan 17): an
    * external rename observed by the reconcile or a watcher batch. The app
    * carries live sessions and rewrites routes off this, exactly as for an
    * in-app rename.
    */
-  onMoved: (listener: (from: string, to: string) => void) => Unlisten
+  onMoved(listener: (from: string, to: string) => void): Unlisten
   /**
    * Listen as a sync pass advances through the file listing (`done`,
    * `total`, `worked`): the substrate for a "Preparing your notes… 400 of
    * 3,000" surface during a first index. Superseded passes stop reporting.
    */
-  onFileProgress: (listener: (done: number, total: number, worked: number) => void) => Unlisten
+  onFileProgress(listener: (done: number, total: number, worked: number) => void): Unlisten
   /**
    * Listen for iCloud-evicted notes whose content the index lacks (see
    * `IndexPassOptions.onStalePlaceholders`). The app requests targeted
    * downloads for exactly these paths.
    */
-  onStalePlaceholders: (listener: (paths: readonly string[]) => void) => Unlisten
+  onStalePlaceholders(listener: (paths: readonly string[]) => void): Unlisten
   /**
    * The running sync pass's file progress, or `null` when no pass is
    * reconciling. Published apart from {@link IndexLifecycleService.onProgress}
@@ -237,22 +233,22 @@ export interface IndexLifecycleService {
    * *different* generation starts fresh: the graph changed, and Rust's
    * generation gate drops the superseded pass's writes anyway.
    */
-  rebuildVisibly: () => Promise<void>
+  rebuildVisibly(): Promise<void>
   /**
    * Read, parse, and index one note now, without waiting for the watcher. For
    * an in-app write whose row must be readable at once.
    */
-  indexNote: (
+  indexNote(
     path: string,
     options: { generation: number; content?: string | undefined; mtime?: number | undefined },
-  ) => Promise<void>
+  ): Promise<void>
   /**
    * Re-index every note that references any of `assetPaths`, so an asset
    * description written after its notes were indexed reaches their search
    * rows. The re-applied notes report through
    * {@link IndexLifecycleService.onApplied}.
    */
-  reindexNotesReferencing: (assetPaths: readonly string[], generation: number) => Promise<void>
+  reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void>
 }
 
 /**
@@ -294,7 +290,7 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     this.#liveIndex = createLiveIndex({ ...deps, emitChangesApplied })
   }
 
-  readonly open = async (): Promise<number | null> => {
+  async open(): Promise<number | null> {
     try {
       return await this.#deps.indexStore.open()
     } catch (error) {
@@ -303,7 +299,7 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     }
   }
 
-  readonly sync = (session: GraphSession): void => {
+  sync(session: GraphSession): void {
     const { clock, logger, fileChanges } = this.#deps
     const generation = session.indexGeneration
     const isStale = (): boolean => session.signal.aborted
@@ -411,7 +407,7 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     })()
   }
 
-  readonly refresh = (session: GraphSession): void => {
+  refresh(session: GraphSession): void {
     if (this.#isSuspended()) {
       return
     }
@@ -439,16 +435,16 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     })()
   }
 
-  readonly stop = async (): Promise<void> => {
+  async stop(): Promise<void> {
     this.#abort?.abort()
     await this.#done.catch(() => {})
   }
 
-  readonly settled = async (): Promise<void> => {
+  async settled(): Promise<void> {
     await this.#done.catch(() => {})
   }
 
-  readonly close = async (): Promise<void> => {
+  async close(): Promise<void> {
     await this.stop()
     this.#liveUnlisten?.()
     this.#liveUnlisten = null
@@ -457,7 +453,7 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     await this.#deps.fileChanges.stopWatcher().catch(() => {})
   }
 
-  readonly suspend = (): void => {
+  suspend(): void {
     this.#suspended = true
     this.#abort?.abort()
     this.#liveUnlisten?.()
@@ -465,7 +461,7 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     this.#emitProgress('idle')
   }
 
-  readonly resume = (session: GraphSession | null): void => {
+  resume(session: GraphSession | null): void {
     this.#suspended = false
     if (session !== null && session.indexGeneration !== null && !session.signal.aborted) {
       // Events intentionally dropped while suspended are recovered by the
@@ -475,21 +471,23 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     }
   }
 
-  readonly setSuspendGuard = (shouldSuspend: (() => boolean) | null): void => {
+  setSuspendGuard(shouldSuspend: (() => boolean) | null): void {
     this.#suspendGuard = shouldSuspend
   }
 
-  readonly onProgress = (listener: (progress: IndexLifecycleProgress) => void): Unlisten =>
-    attach(this.#progressListeners, listener)
+  onProgress(listener: (progress: IndexLifecycleProgress) => void): Unlisten {
+    return attach(this.#progressListeners, listener)
+  }
 
-  readonly onApplied = (listener: (event: IndexAppliedEvent) => void): Unlisten =>
-    attach(this.#appliedListeners, listener)
+  onApplied(listener: (event: IndexAppliedEvent) => void): Unlisten {
+    return attach(this.#appliedListeners, listener)
+  }
 
-  readonly applyChanges = async (
+  async applyChanges(
     changes: FileChange[],
     generation: number,
     canApply?: () => boolean,
-  ): Promise<number> => {
+  ): Promise<number> {
     const mutations = await this.#liveIndex.apply(
       changes,
       generation,
@@ -506,26 +504,28 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     return mutations
   }
 
-  readonly onReconciled = (
-    listener: (event: IndexReconciledEvent) => void | Promise<void>,
-  ): Unlisten => attach(this.#reconciledListeners, listener)
+  onReconciled(listener: (event: IndexReconciledEvent) => void | Promise<void>): Unlisten {
+    return attach(this.#reconciledListeners, listener)
+  }
 
-  readonly onMoved = (listener: (from: string, to: string) => void): Unlisten =>
-    attach(this.#movedListeners, listener)
+  onMoved(listener: (from: string, to: string) => void): Unlisten {
+    return attach(this.#movedListeners, listener)
+  }
 
-  readonly onFileProgress = (
-    listener: (done: number, total: number, worked: number) => void,
-  ): Unlisten => attach(this.#fileProgressListeners, listener)
+  onFileProgress(listener: (done: number, total: number, worked: number) => void): Unlisten {
+    return attach(this.#fileProgressListeners, listener)
+  }
 
-  readonly onStalePlaceholders = (listener: (paths: readonly string[]) => void): Unlisten =>
-    attach(this.#stalePlaceholderListeners, listener)
+  onStalePlaceholders(listener: (paths: readonly string[]) => void): Unlisten {
+    return attach(this.#stalePlaceholderListeners, listener)
+  }
 
   readonly fileProgress = (): IndexFileProgress | null => this.#currentFileProgress
 
   readonly subscribeFileProgress = (listener: () => void): Unlisten =>
     attach(this.#fileProgressStoreListeners, listener)
 
-  readonly rebuildVisibly = (): Promise<void> => {
+  rebuildVisibly(): Promise<void> {
     const generation = this.#deps.graphSession.getState().session?.indexGeneration ?? null
     if (generation === null) {
       return Promise.resolve()
@@ -542,17 +542,14 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     return promise
   }
 
-  readonly indexNote = async (
+  async indexNote(
     path: string,
     options: { generation: number; content?: string | undefined; mtime?: number | undefined },
-  ): Promise<void> => {
+  ): Promise<void> {
     await this.#indexer.indexNote(path, options)
   }
 
-  readonly reindexNotesReferencing = async (
-    assetPaths: readonly string[],
-    generation: number,
-  ): Promise<void> => {
+  async reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void> {
     await this.#indexer.reindexNotesReferencing(assetPaths, generation)
   }
 

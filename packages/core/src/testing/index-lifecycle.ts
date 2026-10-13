@@ -58,17 +58,17 @@ export interface TestIndexLifecycleService extends IndexLifecycleService {
   /**
    * Publish file progress as a running pass would; `null` clears it.
    */
-  setFileProgress: (progress: IndexFileProgress | null) => void
+  setFileProgress(progress: IndexFileProgress | null): void
   /**
    * The index generation of every `rebuildVisibly` request with an open index, in order.
    */
-  rebuilds: () => readonly number[]
+  rebuilds(): readonly number[]
   /**
    * Report `changes` as applied at `generation` to this lifecycle's
    * `onApplied` listeners, as an applied watcher batch (or, with `null`, a
    * sync pass) does.
    */
-  emitApplied: (changes: readonly FileChange[] | null, generation: number) => void
+  emitApplied(changes: readonly FileChange[] | null, generation: number): void
 }
 
 class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
@@ -87,38 +87,47 @@ class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
     })
   }
 
-  readonly open = (): Promise<number | null> => this.#inner.open()
+  open(): Promise<number | null> {
+    return this.#inner.open()
+  }
 
-  readonly sync = (session: GraphSession): void => {
+  sync(session: GraphSession): void {
     this.#inner.sync(session)
   }
 
-  readonly refresh = (session: GraphSession): void => {
+  refresh(session: GraphSession): void {
     this.#inner.refresh(session)
   }
 
-  readonly stop = (): Promise<void> => this.#inner.stop()
+  stop(): Promise<void> {
+    return this.#inner.stop()
+  }
 
-  readonly settled = (): Promise<void> => this.#inner.settled()
+  settled(): Promise<void> {
+    return this.#inner.settled()
+  }
 
-  readonly close = (): Promise<void> => this.#inner.close()
+  close(): Promise<void> {
+    return this.#inner.close()
+  }
 
-  readonly suspend = (): void => {
+  suspend(): void {
     this.#inner.suspend()
   }
 
-  readonly resume = (session: GraphSession | null): void => {
+  resume(session: GraphSession | null): void {
     this.#inner.resume(session)
   }
 
-  readonly setSuspendGuard = (shouldSuspend: (() => boolean) | null): void => {
+  setSuspendGuard(shouldSuspend: (() => boolean) | null): void {
     this.#inner.setSuspendGuard(shouldSuspend)
   }
 
-  readonly onProgress = (listener: (progress: IndexLifecycleProgress) => void): Unlisten =>
-    this.#inner.onProgress(listener)
+  onProgress(listener: (progress: IndexLifecycleProgress) => void): Unlisten {
+    return this.#inner.onProgress(listener)
+  }
 
-  readonly onApplied = (listener: (event: IndexAppliedEvent) => void): Unlisten => {
+  onApplied(listener: (event: IndexAppliedEvent) => void): Unlisten {
     const unlisten = this.#inner.onApplied(listener)
     this.#appliedListeners.add(listener)
     return () => {
@@ -127,25 +136,29 @@ class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
     }
   }
 
-  readonly applyChanges = (
+  applyChanges(
     changes: FileChange[],
     generation: number,
     canApply?: () => boolean,
-  ): Promise<number> => this.#inner.applyChanges(changes, generation, canApply)
+  ): Promise<number> {
+    return this.#inner.applyChanges(changes, generation, canApply)
+  }
 
-  readonly onReconciled = (
-    listener: (event: IndexReconciledEvent) => void | Promise<void>,
-  ): Unlisten => this.#inner.onReconciled(listener)
+  onReconciled(listener: (event: IndexReconciledEvent) => void | Promise<void>): Unlisten {
+    return this.#inner.onReconciled(listener)
+  }
 
-  readonly onMoved = (listener: (from: string, to: string) => void): Unlisten =>
-    this.#inner.onMoved(listener)
+  onMoved(listener: (from: string, to: string) => void): Unlisten {
+    return this.#inner.onMoved(listener)
+  }
 
-  readonly onFileProgress = (
-    listener: (done: number, total: number, worked: number) => void,
-  ): Unlisten => this.#inner.onFileProgress(listener)
+  onFileProgress(listener: (done: number, total: number, worked: number) => void): Unlisten {
+    return this.#inner.onFileProgress(listener)
+  }
 
-  readonly onStalePlaceholders = (listener: (paths: readonly string[]) => void): Unlisten =>
-    this.#inner.onStalePlaceholders(listener)
+  onStalePlaceholders(listener: (paths: readonly string[]) => void): Unlisten {
+    return this.#inner.onStalePlaceholders(listener)
+  }
 
   readonly fileProgress = (): IndexFileProgress | null =>
     this.#seeded !== null ? this.#seeded.progress : this.#inner.fileProgress()
@@ -159,7 +172,7 @@ class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
     }
   }
 
-  readonly rebuildVisibly = (): Promise<void> => {
+  rebuildVisibly(): Promise<void> {
     const generation = this.#graphSession.getState().session?.indexGeneration ?? null
     if (generation !== null) {
       this.#rebuildLog.push(generation)
@@ -167,26 +180,29 @@ class TestIndexLifecycleServiceImpl implements TestIndexLifecycleService {
     return this.#inner.rebuildVisibly()
   }
 
-  readonly indexNote = (
+  indexNote(
     path: string,
     options: { generation: number; content?: string | undefined; mtime?: number | undefined },
-  ): Promise<void> => this.#inner.indexNote(path, options)
+  ): Promise<void> {
+    return this.#inner.indexNote(path, options)
+  }
 
-  readonly reindexNotesReferencing = (
-    assetPaths: readonly string[],
-    generation: number,
-  ): Promise<void> => this.#inner.reindexNotesReferencing(assetPaths, generation)
+  reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void> {
+    return this.#inner.reindexNotesReferencing(assetPaths, generation)
+  }
 
-  readonly setFileProgress = (progress: IndexFileProgress | null): void => {
+  setFileProgress(progress: IndexFileProgress | null): void {
     this.#seeded = { progress }
     for (const listener of this.#seededListeners) {
       listener()
     }
   }
 
-  readonly rebuilds = (): readonly number[] => [...this.#rebuildLog]
+  rebuilds(): readonly number[] {
+    return [...this.#rebuildLog]
+  }
 
-  readonly emitApplied = (changes: readonly FileChange[] | null, generation: number): void => {
+  emitApplied(changes: readonly FileChange[] | null, generation: number): void {
     for (const listener of this.#appliedListeners) {
       listener({ generation, changes })
     }
