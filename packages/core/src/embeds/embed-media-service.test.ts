@@ -131,7 +131,9 @@ describe('EmbedMediaService.loadXPost', () => {
     let failures = 1
     let requests = 0
     const xArchive: XArchiveService = {
-      ...fake,
+      resolve: (generation, postId) => fake.resolve(generation, postId),
+      owners: (assetPath, generation) => fake.owners(assetPath, generation),
+      write: (generation, post) => fake.write(generation, post),
       async fetchSyndication(postId) {
         requests += 1
         if (failures > 0) {

@@ -26,6 +26,7 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import {
   createAudioMemoTranscriptionService,
+  type AudioMemoTranscriptionService,
   type AudioMemoTranscriptionSession,
 } from './audio-memo-transcription-service.ts'
 import type {
@@ -36,29 +37,45 @@ import type {
 } from './audio-recorder-service.ts'
 
 export interface CaptureAudioMemoPartInput {
-  /** One finished segment, as the recorder produced it. */
+  /**
+   * One finished segment, as the recorder produced it.
+   */
   audio: RecordedAudio
-  /** The segment's MIME type, possibly with codec parameters. */
+  /**
+   * The segment's MIME type, possibly with codec parameters.
+   */
   mimeType: string
-  /** When the *session* started — every part shares the session identity. */
+  /**
+   * When the *session* started — every part shares the session identity.
+   */
   recordedAt: Date
-  /** 1-based position within the session. */
+  /**
+   * 1-based position within the session.
+   */
   part: number
-  /** True on the session's final segment. */
+  /**
+   * True on the session's final segment.
+   */
   end: boolean
 }
 
-/** Expected failures are data: the caller retries with the same recording. */
+/**
+ * Expected failures are data: the caller retries with the same recording.
+ */
 export type CaptureAudioMemoOutcome =
   | { ok: true; memo: AudioMemoIdentity }
   | { ok: false; message: string }
 
-/** A stopped recording waiting its turn through the capture queue. */
+/**
+ * A stopped recording waiting its turn through the capture queue.
+ */
 export interface PendingAudioCapture {
   audio: RecordedAudio
   mimeType: string
   recordedAt: Date
-  /** Placement within the recording session this segment belongs to. */
+  /**
+   * Placement within the recording session this segment belongs to.
+   */
   segment: { part: number; end: boolean }
   /**
    * Runs after the recording's bytes are durably in the graph — mobile
@@ -67,21 +84,35 @@ export interface PendingAudioCapture {
    * lingering) re-ingests idempotently by its stop time.
    */
   onCaptured?: () => Promise<void> | void
-  /** Runs when the user discards this capture after it failed to write. */
+  /**
+   * Runs when the user discards this capture after it failed to write.
+   */
   onDiscarded?: () => Promise<void> | void
 }
 
-/** What an {@link AudioMemoPipeline} shows of itself. */
+/**
+ * What an {@link AudioMemoPipeline} shows of itself.
+ */
 export interface AudioMemoPipelineState {
-  /** Recordings committed but not yet written to the graph. */
+  /**
+   * Recordings committed but not yet written to the graph.
+   */
   readonly pendingCount: number
-  /** True while a reconcile pass has memos to transcribe. */
+  /**
+   * True while a reconcile pass has memos to transcribe.
+   */
   readonly transcribing: boolean
-  /** False when no OpenAI/Gemini model is configured. */
+  /**
+   * False when no OpenAI/Gemini model is configured.
+   */
   readonly hasTranscriptionConfig: boolean
-  /** The failure shown in the error phase. */
+  /**
+   * The failure shown in the error phase.
+   */
   readonly error: string | null
-  /** True when a retry can re-run a failed capture. */
+  /**
+   * True when a retry can re-run a failed capture.
+   */
   readonly canRetry: boolean
 }
 
@@ -110,16 +141,26 @@ export interface AudioMemoPipelineOptions {
  * a Retry/Discard error.
  */
 export interface AudioMemoPipeline {
-  /** The current state. The same object until something changes. */
+  /**
+   * The current state. The same object until something changes.
+   */
   getState(): AudioMemoPipelineState
   subscribe(listener: () => void): Unlisten
-  /** Queue a stopped recording for capture into the graph. */
+  /**
+   * Queue a stopped recording for capture into the graph.
+   */
   enqueue(capture: PendingAudioCapture): void
-  /** Surface a recorder failure (mic denied, hardware) in the error state. */
+  /**
+   * Surface a recorder failure (mic denied, hardware) in the error state.
+   */
   reportError(message: string): void
-  /** Re-run the failed capture. */
+  /**
+   * Re-run the failed capture.
+   */
   retry(): void
-  /** Drop the failed memo (or clear a recorder error) and continue. */
+  /**
+   * Drop the failed memo (or clear a recorder error) and continue.
+   */
   discard(): void
   /**
    * Graph paths of every segment of one recording, in listing order. The
@@ -127,9 +168,13 @@ export interface AudioMemoPipeline {
    * cannot see segments a previous webview ingested for the same recording.
    */
   listSegments(memo: AudioMemoIdentity): Promise<string[]>
-  /** Delete one segment from the graph. Idempotent. */
+  /**
+   * Delete one segment from the graph. Idempotent.
+   */
   deleteSegment(path: string): Promise<void>
-  /** Stop the transcription lifecycle. Queued captures still drain. */
+  /**
+   * Stop the transcription lifecycle. Queued captures still drain.
+   */
   dispose(): void
 }
 
@@ -140,39 +185,65 @@ export interface AudioMemoPipeline {
  */
 export type AudioMemoPhase = 'idle' | 'requesting' | 'recording' | 'transcribing' | 'error'
 
-/** The recording UI of a desktop {@link AudioMemoSession}, as its host shows it. */
+/**
+ * The recording UI of a desktop {@link AudioMemoSession}, as its host shows it.
+ */
 export interface AudioMemoSurface {
-  /** Bring the hidden recording UI on screen (expand the collapsed sidebar). */
+  /**
+   * Bring the hidden recording UI on screen (expand the collapsed sidebar).
+   */
   reveal(): void
-  /** Tell the user the session is still running; `stopAndSave` ends it. */
+  /**
+   * Tell the user the session is still running; `stopAndSave` ends it.
+   */
   showReminder(elapsedMs: number, stopAndSave: () => void): void
   dismissReminder(): void
 }
 
 export interface AudioMemoSessionOptions {
   surface: AudioMemoSurface
-  /** Whether the recording UI is hidden when the session opens. */
+  /**
+   * Whether the recording UI is hidden when the session opens.
+   */
   surfaceHidden: boolean
 }
 
-/** What a desktop {@link AudioMemoSession} shows of itself. */
+/**
+ * What a desktop {@link AudioMemoSession} shows of itself.
+ */
 export interface AudioMemoSessionState {
   readonly phase: AudioMemoPhase
-  /** Live while recording. */
+  /**
+   * Live while recording.
+   */
   readonly elapsedMs: number
-  /** The live input stream, for the waveform. */
+  /**
+   * The live input stream, for the waveform.
+   */
   readonly stream: MediaStream | null
-  /** Recordings committed but not yet written to the graph. */
+  /**
+   * Recordings committed but not yet written to the graph.
+   */
   readonly pendingCount: number
-  /** False when no OpenAI/Gemini model is configured or the platform can't record. */
+  /**
+   * False when no OpenAI/Gemini model is configured or the platform can't record.
+   */
   readonly available: boolean
-  /** Why the mic is disabled (tooltip copy), null when `available`. */
+  /**
+   * Why the mic is disabled (tooltip copy), null when `available`.
+   */
   readonly unavailableReason: string | null
-  /** The failure shown in the error phase. */
+  /**
+   * The failure shown in the error phase.
+   */
   readonly error: string | null
-  /** True when a retry can re-run the failed capture. */
+  /**
+   * True when a retry can re-run the failed capture.
+   */
   readonly canRetry: boolean
-  /** The recorder behind the phase. */
+  /**
+   * The recorder behind the phase.
+   */
   readonly recorderState: AudioRecorderState
 }
 
@@ -184,16 +255,26 @@ export interface AudioMemoSessionState {
  * instead of leaving a hidden hot microphone.
  */
 export interface AudioMemoSession {
-  /** The current state. The same object until something changes. */
+  /**
+   * The current state. The same object until something changes.
+   */
   getState: () => AudioMemoSessionState
   subscribe: (listener: () => void) => Unlisten
-  /** Idle → start recording (revealing a hidden UI); recording → stop & save. */
+  /**
+   * Idle → start recording (revealing a hidden UI); recording → stop & save.
+   */
   toggle(): void
-  /** Discard the in-flight recording without saving. */
+  /**
+   * Discard the in-flight recording without saving.
+   */
   cancel(): void
-  /** Re-run the failed capture. */
+  /**
+   * Re-run the failed capture.
+   */
   retry(): void
-  /** Drop the failed memo and let the queue continue. */
+  /**
+   * Drop the failed memo and let the queue continue.
+   */
   discard(): void
   /**
    * The host rendered with the recording UI hidden or shown. While hidden, a
@@ -203,8 +284,42 @@ export interface AudioMemoSession {
    * {@link AudioMemoSessionState.recorderState} changes.
    */
   setSurfaceHidden(hidden: boolean): void
-  /** Release the microphone and stop the transcription lifecycle. */
+  /**
+   * Release the microphone and stop the transcription lifecycle.
+   */
   dispose(): void
+}
+
+export interface AudioMemoServiceDeps {
+  readonly assetStore: Pick<
+    AssetStoreService,
+    | 'uploadToPath'
+    | 'importAudioMemo'
+    | 'deleteAudioMemo'
+    | 'readBytes'
+    | 'readTranscriptCache'
+    | 'writeTranscriptCache'
+  >
+  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listDir' | 'listNotes'>
+  readonly backlinkTarget: BacklinkTargetService
+  readonly transcription: TranscriptionService
+  readonly transcriptEnrichment: Pick<TranscriptEnrichmentService, 'enrich'>
+  readonly aiProviderConfig: Pick<
+    AiProviderConfigService,
+    'subscribe' | 'transcriptionConfig' | 'resolveTranscriptionTarget' | 'audioMemoEnrichmentConfig'
+  >
+  readonly aiCredentials: Pick<AiCredentialService, 'read' | 'createPassReader'>
+  readonly audioRecorder: AudioRecorderService
+  readonly reconcilers: BackgroundReconcilerFactory
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly settings: Pick<SettingsService, 'get'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly clock: Pick<ClockService, 'now'>
+  readonly platform: Pick<PlatformFacts, 'isMacosDesktop'>
+  readonly window: Pick<WindowService, 'isMainWindow'>
+  readonly graphSession: GraphSessionSource
+  readonly logger: Pick<LoggerService, 'error'>
 }
 
 /**
@@ -229,96 +344,658 @@ export interface AudioMemoService {
    * the watcher stream.
    */
   openPipeline(options: AudioMemoPipelineOptions): AudioMemoPipeline
-  /** Open the desktop recording surface of the open graph's session; throws when no graph is open. */
+  /**
+   * Open the desktop recording surface of the open graph's session; throws when no graph is open.
+   */
   openSession(options: AudioMemoSessionOptions): AudioMemoSession
 }
 
 const NO_PROVIDER_REASON = 'Add an OpenAI or Gemini model in Settings to record audio memos'
 const UNSUPPORTED_REASON = 'Audio recording is not supported on this platform'
 
-/** A live session's bookkeeping: identity once known, and cancel cleanup. */
+/**
+ * A live session's bookkeeping: identity once known, and cancel cleanup.
+ */
 interface LiveSession {
   recordedAt: Date
   memo: AudioMemoIdentity | null
   cancelled: boolean
-  /** Segment paths already durably written, in case of a later cancel. */
+  /**
+   * Segment paths already durably written, in case of a later cancel.
+   */
   captured: string[]
 }
 
-export function createAudioMemoService(deps: {
-  assetStore: Pick<
-    AssetStoreService,
-    | 'uploadToPath'
-    | 'importAudioMemo'
-    | 'deleteAudioMemo'
-    | 'readBytes'
-    | 'readTranscriptCache'
-    | 'writeTranscriptCache'
-  >
-  noteFile: Pick<NoteFileService, 'read' | 'write' | 'listDir' | 'listNotes'>
-  backlinkTarget: BacklinkTargetService
-  transcription: TranscriptionService
-  transcriptEnrichment: Pick<TranscriptEnrichmentService, 'enrich'>
-  aiProviderConfig: Pick<
-    AiProviderConfigService,
-    'subscribe' | 'transcriptionConfig' | 'resolveTranscriptionTarget' | 'audioMemoEnrichmentConfig'
-  >
-  aiCredentials: Pick<AiCredentialService, 'read' | 'createPassReader'>
-  audioRecorder: AudioRecorderService
-  reconcilers: BackgroundReconcilerFactory
-  lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
-  fileChanges: Pick<FileChangeService, 'subscribe'>
-  settings: Pick<SettingsService, 'get'>
-  operations: Pick<OperationsService, 'start'>
-  clock: Pick<ClockService, 'now'>
-  platform: Pick<PlatformFacts, 'isMacosDesktop'>
-  window: Pick<WindowService, 'isMainWindow'>
-  graphSession: GraphSessionSource
-  logger: Pick<LoggerService, 'error'>
-}): AudioMemoService {
-  const {
-    assetStore,
-    noteFile,
-    backlinkTarget,
-    transcription,
-    transcriptEnrichment,
-    aiProviderConfig,
-    aiCredentials,
-    audioRecorder,
-    reconcilers,
-    lifecycle,
-    fileChanges,
-    settings,
-    operations,
-    clock,
-    platform,
-    window: windowService,
-    graphSession,
-    logger,
-  } = deps
+/**
+ * The settings path differs per OS.
+ */
+function micDeniedMessage(platform: Pick<PlatformFacts, 'isMacosDesktop'>): string {
+  return platform.isMacosDesktop
+    ? 'Microphone access was denied. Allow it in System Settings → Privacy & Security → Microphone.'
+    : 'Microphone access was denied. Allow microphone access for Reflect in your system settings.'
+}
 
-  const transcriptions = createAudioMemoTranscriptionService({
-    noteFile,
-    assetStore,
-    backlinkTarget,
-    transcription,
-    transcriptEnrichment,
-    aiProviderConfig,
-    aiCredentials,
-    settings,
-    reconcilers,
-    lifecycle,
-    fileChanges,
-    operations,
-    clock,
-  })
+interface AudioMemoPipelineDeps {
+  readonly aiProviderConfig: Pick<AiProviderConfigService, 'subscribe' | 'transcriptionConfig'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly logger: Pick<LoggerService, 'error'>
+  readonly noteFile: Pick<NoteFileService, 'listDir'>
+  readonly assetStore: Pick<AssetStoreService, 'deleteAudioMemo'>
+  /**
+   * The transcription lifecycle of the open graph's session, or `null` outside the main window.
+   */
+  readonly reconciler: AudioMemoTranscriptionSession | null
+  readonly capturePartAt: (
+    input: CaptureAudioMemoPartInput,
+    generation: number,
+  ) => Promise<CaptureAudioMemoOutcome>
+}
 
-  /** Persist one recording into the graph — the durable step, no network. */
-  async function writeAudioMemoAsset(
+class AudioMemoPipelineImpl implements AudioMemoPipeline {
+  readonly #deps: AudioMemoPipelineDeps
+  readonly #generation: number
+  readonly #isErrorSurfaceVisible: () => boolean
+  readonly #listeners = new Set<() => void>()
+  #pendingCount = 0
+  #error: string | null = null
+  /**
+   * Committed recordings waiting their turn; the pump owns the head.
+   */
+  readonly #queue: PendingAudioCapture[] = []
+  /**
+   * Single-drainer guard: one pump loop at a time, one capture at a time.
+   */
+  #pumping = false
+  /**
+   * The failed capture a retry should re-run. While parked, the queue holds,
+   * memo order in the graph must survive the failure. Taken synchronously:
+   * a rapid double Retry must see the first click's take, or two pipelines
+   * write the recording twice.
+   */
+  #parked: PendingAudioCapture | null = null
+  #hasTranscriptionConfig: boolean
+  #reconciler: AudioMemoTranscriptionSession | null
+  #state: AudioMemoPipelineState
+  readonly #stopTranscribing: Unlisten | undefined
+  readonly #stopConfig: Unlisten
+
+  constructor(deps: AudioMemoPipelineDeps, generation: number, options: AudioMemoPipelineOptions) {
+    const { aiProviderConfig } = deps
+    this.#deps = deps
+    this.#generation = generation
+    this.#isErrorSurfaceVisible = options.isErrorSurfaceVisible
+    this.#hasTranscriptionConfig = aiProviderConfig.transcriptionConfig() !== null
+    // One lifecycle per graph session. It owns the launch pass and all retry
+    // triggers; the pump only schedules. Main window only.
+    this.#reconciler = deps.reconciler
+    this.#state = this.#snapshot()
+
+    this.#stopTranscribing = this.#reconciler?.subscribe(() => {
+      this.#publish()
+    })
+    this.#reconciler?.start()
+
+    // Passes gate on a configured model before any IO. When the user adds the
+    // first key mid-session, kick the pass that gate was suppressing.
+    this.#stopConfig = aiProviderConfig.subscribe(() => {
+      const hadConfig = this.#hasTranscriptionConfig
+      this.#hasTranscriptionConfig = aiProviderConfig.transcriptionConfig() !== null
+      if (this.#hasTranscriptionConfig && !hadConfig) {
+        this.#reconciler?.schedule()
+      }
+      this.#publish()
+    })
+  }
+
+  getState(): AudioMemoPipelineState {
+    return this.#state
+  }
+
+  subscribe(listener: () => void): Unlisten {
+    const entry = (): void => {
+      listener()
+    }
+    this.#listeners.add(entry)
+    return () => {
+      this.#listeners.delete(entry)
+    }
+  }
+
+  enqueue(capture: PendingAudioCapture): void {
+    this.#queue.push(capture)
+    this.#pendingCount += 1
+    this.#publish()
+    void this.#pump()
+  }
+
+  reportError(message: string): void {
+    this.#error = message
+    this.#publish()
+  }
+
+  retry(): void {
+    const failed = this.#parked
+    if (failed === null) {
+      return
+    }
+    this.#parked = null
+    this.#error = null
+    this.#queue.unshift(failed)
+    this.#pendingCount += 1
+    this.#publish()
+    void this.#pump()
+  }
+
+  discard(): void {
+    const failed = this.#parked
+    this.#parked = null
+    this.#error = null
+    this.#publish()
+    if (failed !== null) {
+      void (async () => {
+        try {
+          await failed.onDiscarded?.()
+        } catch (cause) {
+          this.#deps.logger.error('audio memo discard cleanup failed:', cause)
+        }
+      })()
+    }
+    void this.#pump()
+  }
+
+  async listSegments(memo: AudioMemoIdentity): Promise<string[]> {
+    const files = await this.#deps.noteFile.listDir(AUDIO_MEMOS_DIR, this.#generation)
+    return files
+      .filter((file) => audioMemoPartFromPath(file.path)?.memo.base === memo.base)
+      .map((file) => file.path)
+  }
+
+  async deleteSegment(path: string): Promise<void> {
+    await this.#deps.assetStore.deleteAudioMemo(path, this.#generation)
+  }
+
+  dispose(): void {
+    this.#stopConfig()
+    this.#stopTranscribing?.()
+    this.#reconciler?.dispose()
+    this.#reconciler = null
+  }
+
+  #snapshot(): AudioMemoPipelineState {
+    return {
+      pendingCount: this.#pendingCount,
+      transcribing: this.#reconciler?.getTranscribing() ?? false,
+      hasTranscriptionConfig: this.#hasTranscriptionConfig,
+      error: this.#error,
+      canRetry: this.#parked !== null,
+    }
+  }
+
+  #publish(): void {
+    const state = this.#state
+    const next = this.#snapshot()
+    if (
+      next.pendingCount === state.pendingCount &&
+      next.transcribing === state.transcribing &&
+      next.hasTranscriptionConfig === state.hasTranscriptionConfig &&
+      next.error === state.error &&
+      next.canRetry === state.canRetry
+    ) {
+      return
+    }
+    this.#state = next
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  async #pump(): Promise<void> {
+    const { logger, operations, capturePartAt } = this.#deps
+    if (this.#pumping) {
+      return
+    }
+    this.#pumping = true
+    let captured = false
+    try {
+      while (this.#parked === null) {
+        const capture = this.#queue.shift()
+        if (capture === undefined) {
+          break
+        }
+        let outcome: CaptureAudioMemoOutcome
+        try {
+          outcome = await capturePartAt(
+            {
+              audio: capture.audio,
+              mimeType: capture.mimeType,
+              recordedAt: capture.recordedAt,
+              part: capture.segment.part,
+              end: capture.segment.end,
+            },
+            this.#generation,
+          )
+        } catch (cause) {
+          outcome = { ok: false, message: errorMessage(cause) }
+        } finally {
+          this.#pendingCount -= 1
+          this.#publish()
+        }
+        if (outcome.ok) {
+          captured = true
+          try {
+            await capture.onCaptured?.()
+          } catch (cause) {
+            // The audio is already durable in the graph, a cleanup failure
+            // must not park the queue behind it.
+            logger.error('audio memo post-capture cleanup failed:', cause)
+          }
+        } else {
+          // Park the queue behind the failure: the capture is the one step
+          // that can lose audio, and memo order in the graph must survive.
+          this.#parked = capture
+          this.#error = outcome.message
+          this.#publish()
+          if (!this.#isErrorSurfaceVisible()) {
+            // The error UI is off screen, the failure must still surface
+            // somewhere.
+            operations.start('Saving audio memo').fail(outcome.message)
+          }
+        }
+      }
+    } finally {
+      this.#pumping = false
+    }
+    if (captured) {
+      // The watcher (or mobile's in-process write echo) reports the recording
+      // write, which feeds the sync engine's commit debounce like any note
+      // edit. Transcription is kicked directly rather than waiting on the
+      // watcher's own debounce to echo our write back.
+      this.#reconciler?.schedule()
+    }
+  }
+}
+
+interface AudioMemoSessionDeps {
+  readonly audioRecorder: AudioRecorderService
+  readonly clock: Pick<ClockService, 'now'>
+  readonly platform: Pick<PlatformFacts, 'isMacosDesktop'>
+  readonly openPipeline: (options: AudioMemoPipelineOptions) => AudioMemoPipeline
+}
+
+class AudioMemoSessionImpl implements AudioMemoSession {
+  readonly #deps: AudioMemoSessionDeps
+  readonly #surface: AudioMemoSurface
+  readonly #pipeline: AudioMemoPipeline
+  readonly #listeners = new Set<() => void>()
+  readonly #unlisten: Unlisten[]
+  #surfaceHidden: boolean
+  /**
+   * True from the stop click until the recorder hands over the blob.
+   */
+  #stopping = false
+  #elapsedMs = 0
+  #live: LiveSession | null = null
+  /**
+   * Re-entry guard for the stop click's await gap.
+   */
+  #stopGuard = false
+  /**
+   * The in-flight stop, so a mic click in the gap can chain the next memo.
+   */
+  #stopSettled: Promise<void> = Promise.resolve()
+  /**
+   * Concurrent recorder stops share one result, so the final segment is handed over once.
+   */
+  #recorderStop: Promise<void> | null = null
+  #state: AudioMemoSessionState
+
+  constructor(deps: AudioMemoSessionDeps, options: AudioMemoSessionOptions) {
+    const { audioRecorder } = deps
+    this.#deps = deps
+    this.#surface = options.surface
+    this.#surfaceHidden = options.surfaceHidden
+    // The mic button (and its popover) unmount with the sidebar, so while
+    // hidden, a capture failure must surface as an operation instead.
+    this.#pipeline = deps.openPipeline({
+      isErrorSurfaceVisible: () => !this.#surfaceHidden,
+    })
+    this.#state = this.#snapshot()
+
+    this.#unlisten = [
+      this.#pipeline.subscribe(() => {
+        this.#publish()
+      }),
+      audioRecorder.subscribeState((next) => {
+        if (next !== 'recording') {
+          this.#elapsedMs = 0
+        }
+        this.#publish()
+      }),
+      audioRecorder.subscribeLevel((event) => {
+        this.#elapsedMs = event.elapsedMs
+        this.#publish()
+      }),
+      audioRecorder.subscribeSegment((segment) => {
+        this.#handleSegment(segment)
+      }),
+      audioRecorder.subscribeReminder((elapsed) => {
+        this.#surface.showReminder(elapsed, () => void this.#stopAndSave())
+      }),
+    ]
+  }
+
+  readonly getState = (): AudioMemoSessionState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    const entry = (): void => {
+      listener()
+    }
+    this.#listeners.add(entry)
+    return () => {
+      this.#listeners.delete(entry)
+    }
+  }
+
+  toggle(): void {
+    const recorderState = this.#deps.audioRecorder.state()
+    if (recorderState === 'recording') {
+      if (this.#stopGuard) {
+        // The click landed in the stop's await gap, where the button already
+        // reads as the idle mic. Honor it as "record the next memo" once
+        // the recorder frees, instead of swallowing it on the re-entry guard.
+        void this.#stopSettled.then(() => this.#start())
+      } else {
+        void this.#stopAndSave()
+      }
+    } else if (recorderState === 'requesting') {
+      // A second press while the OS prompt is up aborts the request. The
+      // alternative is a click that visibly does nothing.
+      this.#cancelRecorder()
+    } else if (this.#pipeline.getState().error !== null) {
+      // A parked error must never invisibly block recording. Hidden, the
+      // error UI doesn't exist, so surface it; visible, it was on screen and a
+      // fresh record request acknowledges it (the same click the red mic
+      // anchor handles).
+      if (this.#surfaceHidden) {
+        this.#surface.reveal()
+      } else {
+        this.#pipeline.discard()
+      }
+    } else {
+      void this.#start()
+    }
+  }
+
+  cancel(): void {
+    this.#surface.dismissReminder()
+    const session = this.#live
+    if (session !== null) {
+      // Discard means discard: segments already on disk go too. Segments
+      // whose write is still in flight delete themselves via onCaptured.
+      session.cancelled = true
+      for (const path of session.captured) {
+        void this.#pipeline.deleteSegment(path).catch(() => {})
+      }
+      session.captured = []
+    }
+    this.#cancelRecorder()
+  }
+
+  retry(): void {
+    this.#pipeline.retry()
+  }
+
+  discard(): void {
+    this.#pipeline.discard()
+  }
+
+  setSurfaceHidden(hidden: boolean): void {
+    this.#surfaceHidden = hidden
+    if (!hidden) {
+      return
+    }
+    const recorderState = this.#deps.audioRecorder.state()
+    if (recorderState === 'recording') {
+      void this.#stopAndSave()
+    } else if (recorderState === 'requesting') {
+      this.#cancelRecorder()
+    }
+  }
+
+  dispose(): void {
+    for (const stop of this.#unlisten) {
+      stop()
+    }
+    // Never leave the mic open past the session.
+    this.#cancelRecorder()
+    this.#pipeline.dispose()
+  }
+
+  #snapshot(): AudioMemoSessionState {
+    const { audioRecorder } = this.#deps
+    const recorderState = audioRecorder.state()
+    const pipelineState = this.#pipeline.getState()
+    const unavailableReason = !audioRecorder.isSupported()
+      ? UNSUPPORTED_REASON
+      : !pipelineState.hasTranscriptionConfig
+        ? NO_PROVIDER_REASON
+        : null
+    return {
+      // A live capture owns the surface. A background save's failure parks and
+      // shows after the stop, never yanking the waveform mid-recording.
+      phase:
+        recorderState === 'recording' && !this.#stopping
+          ? 'recording'
+          : recorderState === 'requesting'
+            ? 'requesting'
+            : pipelineState.error !== null
+              ? 'error'
+              : this.#stopping || pipelineState.pendingCount > 0 || pipelineState.transcribing
+                ? 'transcribing'
+                : 'idle',
+      elapsedMs: this.#elapsedMs,
+      stream: audioRecorder.stream(),
+      pendingCount: pipelineState.pendingCount,
+      available: unavailableReason === null,
+      unavailableReason,
+      error: pipelineState.error,
+      canRetry: pipelineState.canRetry,
+      recorderState,
+    }
+  }
+
+  #publish(): void {
+    const state = this.#state
+    const next = this.#snapshot()
+    if (
+      next.phase === state.phase &&
+      next.elapsedMs === state.elapsedMs &&
+      next.stream === state.stream &&
+      next.pendingCount === state.pendingCount &&
+      next.unavailableReason === state.unavailableReason &&
+      next.error === state.error &&
+      next.canRetry === state.canRetry &&
+      next.recorderState === state.recorderState
+    ) {
+      return
+    }
+    this.#state = next
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  #handleSegment(segment: AudioRecorderSegment): void {
+    if (segment.audio.kind !== 'blob') {
+      throw new Error('the webview audio recorder produced a staged segment')
+    }
+    const pipeline = this.#pipeline
+    const session = this.#live
+    if (session === null || session.cancelled) {
+      return
+    }
+    session.memo ??= audioMemoIdentity(session.recordedAt, segment.mimeType)
+    const path = audioMemoPartPath(session.memo, segment.part, segment.end)
+    pipeline.enqueue({
+      audio: segment.audio,
+      mimeType: segment.mimeType,
+      recordedAt: session.recordedAt,
+      segment: { part: segment.part, end: segment.end },
+      onCaptured: () => {
+        // A cancel may land while this segment's write is in flight. Its
+        // bytes are durable by now, so the cancel cleanup runs here.
+        if (session.cancelled) {
+          return pipeline.deleteSegment(path).catch(() => {})
+        }
+        session.captured.push(path)
+      },
+    })
+  }
+
+  /**
+   * Stop the recorder and hand over the final segment; `null` for a misclick.
+   */
+  #stopRecorder(): Promise<void> {
+    this.#recorderStop ??= (async (): Promise<void> => {
+      const final = await this.#deps.audioRecorder.stop()
+      if (final !== null) {
+        this.#handleSegment(final)
+      }
+    })().finally(() => {
+      this.#recorderStop = null
+    })
+    return this.#recorderStop
+  }
+
+  #cancelRecorder(): void {
+    void this.#deps.audioRecorder.cancel()
+  }
+
+  async #start(): Promise<void> {
+    const { audioRecorder, clock, platform } = this.#deps
+    if (!audioRecorder.isSupported() || !this.#pipeline.getState().hasTranscriptionConfig) {
+      return
+    }
+    if (this.#surfaceHidden) {
+      // Never record without visible recording UI.
+      this.#surface.reveal()
+    }
+    try {
+      await audioRecorder.start({
+        segmentMs: AUDIO_MEMO_SEGMENT_MS,
+        reminderMs: AUDIO_MEMO_REMINDER_MS,
+      })
+      // Identity derives from the session's start. Every segment shares it.
+      this.#live = { recordedAt: new Date(clock.now()), memo: null, cancelled: false, captured: [] }
+    } catch (cause) {
+      this.#pipeline.reportError(
+        cause instanceof DOMException && cause.name === 'NotAllowedError'
+          ? micDeniedMessage(platform)
+          : errorMessage(cause),
+      )
+    }
+  }
+
+  #stopAndSave(): Promise<void> {
+    if (this.#stopGuard) {
+      return Promise.resolve()
+    }
+    this.#stopGuard = true
+    this.#surface.dismissReminder()
+    // The stop click commits the memo: flip to 'transcribing' before the stop
+    // settles, so an Esc landing in the await gap can't read a lingering
+    // 'recording' phase and cancel a recording the user just saved.
+    this.#stopping = true
+    this.#publish()
+    const settled = (async (): Promise<void> => {
+      try {
+        // Segments (including the final one) flow through the segment
+        // handler as the recorder rotates; the stop only flushes.
+        await this.#stopRecorder()
+      } finally {
+        this.#stopGuard = false
+        this.#stopping = false
+        this.#publish()
+      }
+    })()
+    this.#stopSettled = settled
+    return settled
+  }
+}
+
+class AudioMemoServiceImpl implements AudioMemoService {
+  readonly #deps: AudioMemoServiceDeps
+  readonly #transcriptions: AudioMemoTranscriptionService
+
+  constructor(deps: AudioMemoServiceDeps) {
+    this.#deps = deps
+    this.#transcriptions = createAudioMemoTranscriptionService({
+      noteFile: deps.noteFile,
+      assetStore: deps.assetStore,
+      backlinkTarget: deps.backlinkTarget,
+      transcription: deps.transcription,
+      transcriptEnrichment: deps.transcriptEnrichment,
+      aiProviderConfig: deps.aiProviderConfig,
+      aiCredentials: deps.aiCredentials,
+      settings: deps.settings,
+      reconcilers: deps.reconcilers,
+      lifecycle: deps.lifecycle,
+      fileChanges: deps.fileChanges,
+      operations: deps.operations,
+      clock: deps.clock,
+    })
+  }
+
+  async capturePart(input: CaptureAudioMemoPartInput): Promise<CaptureAudioMemoOutcome> {
+    const { session } = this.#deps.graphSession.getState()
+    if (session === null) {
+      return { ok: false, message: 'No graph is open.' }
+    }
+    return await this.#capturePartAt(input, session.generation)
+  }
+
+  openPipeline(options: AudioMemoPipelineOptions): AudioMemoPipeline {
+    const { aiProviderConfig, operations, logger, noteFile, assetStore, graphSession, window } =
+      this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    return new AudioMemoPipelineImpl(
+      {
+        aiProviderConfig,
+        operations,
+        logger,
+        noteFile,
+        assetStore,
+        // One lifecycle per graph session, main window only.
+        reconciler: window.isMainWindow() ? this.#transcriptions.openSession({ generation }) : null,
+        capturePartAt: (input, at) => this.#capturePartAt(input, at),
+      },
+      generation,
+      options,
+    )
+  }
+
+  openSession(options: AudioMemoSessionOptions): AudioMemoSession {
+    const { audioRecorder, clock, platform } = this.#deps
+    return new AudioMemoSessionImpl(
+      {
+        audioRecorder,
+        clock,
+        platform,
+        openPipeline: (pipelineOptions) => this.openPipeline(pipelineOptions),
+      },
+      options,
+    )
+  }
+
+  /**
+   * Persist one recording into the graph, the durable step, no network.
+   */
+  async #writeAudioMemoAsset(
     path: string,
     audio: RecordedAudio,
     generation: number,
   ): Promise<void> {
+    const { assetStore } = this.#deps
     if (audio.kind === 'staged') {
       // The recorder already wrote the file: Rust copies it in file-to-file, so
       // a meeting-length segment never enters webview memory.
@@ -331,13 +1008,13 @@ export function createAudioMemoService(deps: {
     await assetStore.uploadToPath(path, audio.blob, generation)
   }
 
-  async function capturePartAt(
+  async #capturePartAt(
     input: CaptureAudioMemoPartInput,
     generation: number,
   ): Promise<CaptureAudioMemoOutcome> {
     const memo = audioMemoIdentity(input.recordedAt, input.mimeType)
     try {
-      await writeAudioMemoAsset(
+      await this.#writeAudioMemoAsset(
         audioMemoPartPath(memo, input.part, input.end),
         input.audio,
         generation,
@@ -347,494 +1024,8 @@ export function createAudioMemoService(deps: {
     }
     return { ok: true, memo }
   }
+}
 
-  async function capturePart(input: CaptureAudioMemoPartInput): Promise<CaptureAudioMemoOutcome> {
-    const { session } = graphSession.getState()
-    if (session === null) {
-      return { ok: false, message: 'No graph is open.' }
-    }
-    return await capturePartAt(input, session.generation)
-  }
-
-  async function listSegments(memo: AudioMemoIdentity, generation: number): Promise<string[]> {
-    const files = await noteFile.listDir(AUDIO_MEMOS_DIR, generation)
-    return files
-      .filter((file) => audioMemoPartFromPath(file.path)?.memo.base === memo.base)
-      .map((file) => file.path)
-  }
-
-  async function deleteSegment(path: string, generation: number): Promise<void> {
-    await assetStore.deleteAudioMemo(path, generation)
-  }
-
-  function openPipeline(options: AudioMemoPipelineOptions): AudioMemoPipeline {
-    const { isErrorSurfaceVisible } = options
-    const { generation } = requireGraphSession(graphSession)
-    const listeners = new Set<() => void>()
-
-    let pendingCount = 0
-    let error: string | null = null
-    /** Committed recordings waiting their turn; the pump owns the head. */
-    const queue: PendingAudioCapture[] = []
-    /** Single-drainer guard: one pump loop at a time, one capture at a time. */
-    let pumping = false
-    /**
-     * The failed capture a retry should re-run. While parked, the queue holds —
-     * memo order in the graph must survive the failure. Taken synchronously:
-     * a rapid double Retry must see the first click's take, or two pipelines
-     * write the recording twice.
-     */
-    let parked: PendingAudioCapture | null = null
-    let hasTranscriptionConfig = aiProviderConfig.transcriptionConfig() !== null
-
-    // One lifecycle per graph session. It owns the launch pass and all retry
-    // triggers; the pump only schedules. Main window only.
-    let reconciler: AudioMemoTranscriptionSession | null = windowService.isMainWindow()
-      ? transcriptions.openSession({ generation })
-      : null
-
-    const snapshot = (): AudioMemoPipelineState => ({
-      pendingCount,
-      transcribing: reconciler?.getTranscribing() ?? false,
-      hasTranscriptionConfig,
-      error,
-      canRetry: parked !== null,
-    })
-    let state = snapshot()
-
-    function publish(): void {
-      const next = snapshot()
-      if (
-        next.pendingCount === state.pendingCount &&
-        next.transcribing === state.transcribing &&
-        next.hasTranscriptionConfig === state.hasTranscriptionConfig &&
-        next.error === state.error &&
-        next.canRetry === state.canRetry
-      ) {
-        return
-      }
-      state = next
-      for (const listener of listeners) {
-        listener()
-      }
-    }
-
-    const stopTranscribing = reconciler?.subscribe(publish)
-    reconciler?.start()
-
-    // Passes gate on a configured model before any IO — when the user adds the
-    // first key mid-session, kick the pass that gate was suppressing.
-    const stopConfig = aiProviderConfig.subscribe(() => {
-      const hadConfig = hasTranscriptionConfig
-      hasTranscriptionConfig = aiProviderConfig.transcriptionConfig() !== null
-      if (hasTranscriptionConfig && !hadConfig) {
-        reconciler?.schedule()
-      }
-      publish()
-    })
-
-    async function pump(): Promise<void> {
-      if (pumping) {
-        return
-      }
-      pumping = true
-      let captured = false
-      try {
-        while (parked === null) {
-          const capture = queue.shift()
-          if (capture === undefined) {
-            break
-          }
-          let outcome: CaptureAudioMemoOutcome
-          try {
-            outcome = await capturePartAt(
-              {
-                audio: capture.audio,
-                mimeType: capture.mimeType,
-                recordedAt: capture.recordedAt,
-                part: capture.segment.part,
-                end: capture.segment.end,
-              },
-              generation,
-            )
-          } catch (cause) {
-            outcome = { ok: false, message: errorMessage(cause) }
-          } finally {
-            pendingCount -= 1
-            publish()
-          }
-          if (outcome.ok) {
-            captured = true
-            try {
-              await capture.onCaptured?.()
-            } catch (cause) {
-              // The audio is already durable in the graph — a cleanup failure
-              // must not park the queue behind it.
-              logger.error('audio memo post-capture cleanup failed:', cause)
-            }
-          } else {
-            // Park the queue behind the failure: the capture is the one step
-            // that can lose audio, and memo order in the graph must survive.
-            parked = capture
-            error = outcome.message
-            publish()
-            if (!isErrorSurfaceVisible()) {
-              // The error UI is off screen — the failure must still surface
-              // somewhere.
-              operations.start('Saving audio memo').fail(outcome.message)
-            }
-          }
-        }
-      } finally {
-        pumping = false
-      }
-      if (captured) {
-        // The watcher (or mobile's in-process write echo) reports the recording
-        // write, which feeds the sync engine's commit debounce like any note
-        // edit. Transcription is kicked directly rather than waiting on the
-        // watcher's own debounce to echo our write back.
-        reconciler?.schedule()
-      }
-    }
-
-    return {
-      getState: () => state,
-      subscribe(listener) {
-        const entry = (): void => {
-          listener()
-        }
-        listeners.add(entry)
-        return () => {
-          listeners.delete(entry)
-        }
-      },
-      enqueue(capture) {
-        queue.push(capture)
-        pendingCount += 1
-        publish()
-        void pump()
-      },
-      reportError(message) {
-        error = message
-        publish()
-      },
-      retry() {
-        const failed = parked
-        if (failed === null) {
-          return
-        }
-        parked = null
-        error = null
-        queue.unshift(failed)
-        pendingCount += 1
-        publish()
-        void pump()
-      },
-      discard() {
-        const failed = parked
-        parked = null
-        error = null
-        publish()
-        if (failed !== null) {
-          void (async () => {
-            try {
-              await failed.onDiscarded?.()
-            } catch (cause) {
-              logger.error('audio memo discard cleanup failed:', cause)
-            }
-          })()
-        }
-        void pump()
-      },
-      listSegments: (memo) => listSegments(memo, generation),
-      deleteSegment: (path) => deleteSegment(path, generation),
-      dispose() {
-        stopConfig()
-        stopTranscribing?.()
-        reconciler?.dispose()
-        reconciler = null
-      },
-    }
-  }
-
-  /** The settings path differs per OS. */
-  function micDeniedMessage(): string {
-    return platform.isMacosDesktop
-      ? 'Microphone access was denied. Allow it in System Settings → Privacy & Security → Microphone.'
-      : 'Microphone access was denied. Allow microphone access for Reflect in your system settings.'
-  }
-
-  function openSession(options: AudioMemoSessionOptions): AudioMemoSession {
-    const { surface } = options
-    const listeners = new Set<() => void>()
-    let surfaceHidden = options.surfaceHidden
-    /** True from the stop click until the recorder hands over the blob. */
-    let stopping = false
-    let elapsedMs = 0
-    let live: LiveSession | null = null
-    /** Re-entry guard for the stop click's await gap. */
-    let stopGuard = false
-    /** The in-flight stop, so a mic click in the gap can chain the next memo. */
-    let stopSettled: Promise<void> = Promise.resolve()
-    /** Concurrent recorder stops share one result, so the final segment is handed over once. */
-    let recorderStop: Promise<void> | null = null
-
-    // The mic button (and its popover) unmount with the sidebar — while
-    // hidden, a capture failure must surface as an operation instead.
-    const pipeline = openPipeline({
-      isErrorSurfaceVisible: () => !surfaceHidden,
-    })
-
-    const snapshot = (): AudioMemoSessionState => {
-      const recorderState = audioRecorder.state()
-      const pipelineState = pipeline.getState()
-      const unavailableReason = !audioRecorder.isSupported()
-        ? UNSUPPORTED_REASON
-        : !pipelineState.hasTranscriptionConfig
-          ? NO_PROVIDER_REASON
-          : null
-      return {
-        // A live capture owns the surface — a background save's failure parks and
-        // shows after the stop, never yanking the waveform mid-recording.
-        phase:
-          recorderState === 'recording' && !stopping
-            ? 'recording'
-            : recorderState === 'requesting'
-              ? 'requesting'
-              : pipelineState.error !== null
-                ? 'error'
-                : stopping || pipelineState.pendingCount > 0 || pipelineState.transcribing
-                  ? 'transcribing'
-                  : 'idle',
-        elapsedMs,
-        stream: audioRecorder.stream(),
-        pendingCount: pipelineState.pendingCount,
-        available: unavailableReason === null,
-        unavailableReason,
-        error: pipelineState.error,
-        canRetry: pipelineState.canRetry,
-        recorderState,
-      }
-    }
-    let state = snapshot()
-
-    function publish(): void {
-      const next = snapshot()
-      if (
-        next.phase === state.phase &&
-        next.elapsedMs === state.elapsedMs &&
-        next.stream === state.stream &&
-        next.pendingCount === state.pendingCount &&
-        next.unavailableReason === state.unavailableReason &&
-        next.error === state.error &&
-        next.canRetry === state.canRetry &&
-        next.recorderState === state.recorderState
-      ) {
-        return
-      }
-      state = next
-      for (const listener of listeners) {
-        listener()
-      }
-    }
-
-    function handleSegment(segment: AudioRecorderSegment): void {
-      if (segment.audio.kind !== 'blob') {
-        throw new Error('the webview audio recorder produced a staged segment')
-      }
-      const session = live
-      if (session === null || session.cancelled) {
-        return
-      }
-      session.memo ??= audioMemoIdentity(session.recordedAt, segment.mimeType)
-      const path = audioMemoPartPath(session.memo, segment.part, segment.end)
-      pipeline.enqueue({
-        audio: segment.audio,
-        mimeType: segment.mimeType,
-        recordedAt: session.recordedAt,
-        segment: { part: segment.part, end: segment.end },
-        onCaptured: () => {
-          // A cancel may land while this segment's write is in flight — its
-          // bytes are durable by now, so the cancel cleanup runs here.
-          if (session.cancelled) {
-            return pipeline.deleteSegment(path).catch(() => {})
-          }
-          session.captured.push(path)
-        },
-      })
-    }
-
-    /** Stop the recorder and hand over the final segment; `null` for a misclick. */
-    function stopRecorder(): Promise<void> {
-      recorderStop ??= (async (): Promise<void> => {
-        const final = await audioRecorder.stop()
-        if (final !== null) {
-          handleSegment(final)
-        }
-      })().finally(() => {
-        recorderStop = null
-      })
-      return recorderStop
-    }
-
-    function cancelRecorder(): void {
-      void audioRecorder.cancel()
-    }
-
-    async function start(): Promise<void> {
-      if (!audioRecorder.isSupported() || !pipeline.getState().hasTranscriptionConfig) {
-        return
-      }
-      if (surfaceHidden) {
-        // Never record without visible recording UI.
-        surface.reveal()
-      }
-      try {
-        await audioRecorder.start({
-          segmentMs: AUDIO_MEMO_SEGMENT_MS,
-          reminderMs: AUDIO_MEMO_REMINDER_MS,
-        })
-        // Identity derives from the session's start — every segment shares it.
-        live = { recordedAt: new Date(clock.now()), memo: null, cancelled: false, captured: [] }
-      } catch (cause) {
-        pipeline.reportError(
-          cause instanceof DOMException && cause.name === 'NotAllowedError'
-            ? micDeniedMessage()
-            : errorMessage(cause),
-        )
-      }
-    }
-
-    function stopAndSave(): Promise<void> {
-      if (stopGuard) {
-        return Promise.resolve()
-      }
-      stopGuard = true
-      surface.dismissReminder()
-      // The stop click commits the memo: flip to 'transcribing' before the stop
-      // settles, so an Esc landing in the await gap can't read a lingering
-      // 'recording' phase and cancel a recording the user just saved.
-      stopping = true
-      publish()
-      const settled = (async (): Promise<void> => {
-        try {
-          // Segments (including the final one) flow through the segment
-          // handler as the recorder rotates; the stop only flushes.
-          await stopRecorder()
-        } finally {
-          stopGuard = false
-          stopping = false
-          publish()
-        }
-      })()
-      stopSettled = settled
-      return settled
-    }
-
-    const unlisten = [
-      pipeline.subscribe(publish),
-      audioRecorder.subscribeState((next) => {
-        if (next !== 'recording') {
-          elapsedMs = 0
-        }
-        publish()
-      }),
-      audioRecorder.subscribeLevel((event) => {
-        elapsedMs = event.elapsedMs
-        publish()
-      }),
-      audioRecorder.subscribeSegment(handleSegment),
-      audioRecorder.subscribeReminder((elapsed) => {
-        surface.showReminder(elapsed, () => void stopAndSave())
-      }),
-    ]
-
-    return {
-      getState: () => state,
-      subscribe(listener) {
-        const entry = (): void => {
-          listener()
-        }
-        listeners.add(entry)
-        return () => {
-          listeners.delete(entry)
-        }
-      },
-      toggle() {
-        const recorderState = audioRecorder.state()
-        if (recorderState === 'recording') {
-          if (stopGuard) {
-            // The click landed in the stop's await gap, where the button already
-            // reads as the idle mic — honor it as "record the next memo" once
-            // the recorder frees, instead of swallowing it on the re-entry guard.
-            void stopSettled.then(() => start())
-          } else {
-            void stopAndSave()
-          }
-        } else if (recorderState === 'requesting') {
-          // A second press while the OS prompt is up aborts the request — the
-          // alternative is a click that visibly does nothing.
-          cancelRecorder()
-        } else if (pipeline.getState().error !== null) {
-          // A parked error must never invisibly block recording. Hidden, the
-          // error UI doesn't exist — surface it; visible, it was on screen and a
-          // fresh record request acknowledges it (the same click the red mic
-          // anchor handles).
-          if (surfaceHidden) {
-            surface.reveal()
-          } else {
-            pipeline.discard()
-          }
-        } else {
-          void start()
-        }
-      },
-      cancel() {
-        surface.dismissReminder()
-        const session = live
-        if (session !== null) {
-          // Discard means discard: segments already on disk go too. Segments
-          // whose write is still in flight delete themselves via onCaptured.
-          session.cancelled = true
-          for (const path of session.captured) {
-            void pipeline.deleteSegment(path).catch(() => {})
-          }
-          session.captured = []
-        }
-        cancelRecorder()
-      },
-      retry() {
-        pipeline.retry()
-      },
-      discard() {
-        pipeline.discard()
-      },
-      setSurfaceHidden(hidden) {
-        surfaceHidden = hidden
-        if (!hidden) {
-          return
-        }
-        const recorderState = audioRecorder.state()
-        if (recorderState === 'recording') {
-          void stopAndSave()
-        } else if (recorderState === 'requesting') {
-          cancelRecorder()
-        }
-      },
-      dispose() {
-        for (const stop of unlisten) {
-          stop()
-        }
-        // Never leave the mic open past the session.
-        cancelRecorder()
-        pipeline.dispose()
-      },
-    }
-  }
-
-  return {
-    capturePart,
-    openPipeline,
-    openSession,
-  }
+export function createAudioMemoService(deps: AudioMemoServiceDeps): AudioMemoService {
+  return new AudioMemoServiceImpl(deps)
 }

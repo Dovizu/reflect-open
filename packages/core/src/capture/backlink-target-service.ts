@@ -4,7 +4,14 @@ import type { NoteFileService } from '../graph/note-file-service.ts'
 import { wikiLinkSafe } from '../markdown/edit.ts'
 import { parseNote } from '../markdown/extract.ts'
 
-/** The category notes that automatic backlinks point at (`Links`, `Audio memos`). */
+export interface BacklinkTargetServiceDeps {
+  readonly noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
+  readonly noteFile: Pick<NoteFileService, 'read'>
+}
+
+/**
+ * The category notes that automatic backlinks point at (`Links`, `Audio memos`).
+ */
 export interface BacklinkTargetService {
   /**
    * Resolve the note targeted by an automatic backlink, or create it safely.
@@ -19,24 +26,31 @@ export interface BacklinkTargetService {
   ensure(title: string, generation: number): Promise<string>
 }
 
-export function createBacklinkTargetService(deps: {
-  noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-  noteFile: Pick<NoteFileService, 'read'>
-}): BacklinkTargetService {
-  const { noteCreation, noteFile } = deps
-  return {
-    async ensure(title, generation) {
-      const outcome = await noteCreation.resolveOrCreateNoteWithTitle(title, generation)
-      if (outcome.kind === 'unavailable') {
-        return title
-      }
-      const path = outcome.kind === 'ambiguous' ? [...outcome.paths].sort().at(0) : outcome.path
-      if (path === undefined) {
-        throw new ReflectError('unknown', `The [[${title}]] backlink target could not be resolved.`)
-      }
-      const source = await noteFile.read(path, generation)
-      const currentTitle = parseNote({ path, source }).title
-      return wikiLinkSafe(currentTitle) === currentTitle ? currentTitle : title
-    },
+class BacklinkTargetServiceImpl implements BacklinkTargetService {
+  readonly #deps: BacklinkTargetServiceDeps
+
+  constructor(deps: BacklinkTargetServiceDeps) {
+    this.#deps = deps
   }
+
+  async ensure(title: string, generation: number): Promise<string> {
+    const { noteCreation, noteFile } = this.#deps
+    const outcome = await noteCreation.resolveOrCreateNoteWithTitle(title, generation)
+    if (outcome.kind === 'unavailable') {
+      return title
+    }
+    const path = outcome.kind === 'ambiguous' ? [...outcome.paths].sort().at(0) : outcome.path
+    if (path === undefined) {
+      throw new ReflectError('unknown', `The [[${title}]] backlink target could not be resolved.`)
+    }
+    const source = await noteFile.read(path, generation)
+    const currentTitle = parseNote({ path, source }).title
+    return wikiLinkSafe(currentTitle) === currentTitle ? currentTitle : title
+  }
+}
+
+export function createBacklinkTargetService(
+  deps: BacklinkTargetServiceDeps,
+): BacklinkTargetService {
+  return new BacklinkTargetServiceImpl(deps)
 }

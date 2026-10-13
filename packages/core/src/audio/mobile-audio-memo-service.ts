@@ -17,25 +17,53 @@ import type { NativeActionService } from './native-action-service.ts'
 
 const MIC_DENIED_REASON = 'Microphone access was denied. Allow it for Reflect in the Settings app.'
 
-/** What a {@link MobileAudioMemoSession} shows of itself. */
+/**
+ * What a {@link MobileAudioMemoSession} shows of itself.
+ */
 export interface MobileAudioMemoSessionState {
   readonly phase: AudioMemoPhase
-  /** Live while recording. */
+  /**
+   * Live while recording.
+   */
   readonly elapsedMs: number
-  /** Latest input level 0…1, for the waveform. */
+  /**
+   * Latest input level 0…1, for the waveform.
+   */
   readonly level: number
-  /** Recordings committed but not yet written to the graph. */
+  /**
+   * Recordings committed but not yet written to the graph.
+   */
   readonly pendingCount: number
-  /** False without the native shell (the recorder is a native plugin). */
+  /**
+   * False without the native shell (the recorder is a native plugin).
+   */
   readonly available: boolean
-  /** False when no OpenAI/Gemini model is configured; the drawer then guides key setup. */
+  /**
+   * False when no OpenAI/Gemini model is configured; the drawer then guides key setup.
+   */
   readonly hasTranscriptionConfig: boolean
-  /** The failure shown in the error phase. */
+  /**
+   * The failure shown in the error phase.
+   */
   readonly error: string | null
-  /** True when a retry can re-run the failed capture. */
+  /**
+   * True when a retry can re-run the failed capture.
+   */
   readonly canRetry: boolean
-  /** The recording drawer's visibility. */
+  /**
+   * The recording drawer's visibility.
+   */
   readonly drawerOpen: boolean
+}
+
+export interface MobileAudioMemoServiceDeps {
+  readonly audioMemo: Pick<AudioMemoService, 'openPipeline'>
+  readonly audioRecorder: AudioRecorderService
+  readonly nativeAction: NativeActionService
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly haptics: Pick<HapticsService, 'impactLight'>
+  readonly platform: Pick<PlatformFacts, 'isNativeShell'>
+  readonly logger: Pick<LoggerService, 'error' | 'warn'>
 }
 
 /**
@@ -67,34 +95,58 @@ export interface MobileAudioMemoSessionState {
  *   queued `recordAudio` requests are claimed and confirmed.
  */
 export interface MobileAudioMemoSession {
-  /** The current state. The same object until something changes. */
+  /**
+   * The current state. The same object until something changes.
+   */
   getState: () => MobileAudioMemoSessionState
   subscribe: (listener: () => void) => Unlisten
-  /** Audio action tap: idle → record (or key setup); recording → stop & save; error → show it. */
+  /**
+   * Audio action tap: idle → record (or key setup); recording → stop & save; error → show it.
+   */
   toggle(): void
-  /** The drawer's stop control — commit the memo. */
+  /**
+   * The drawer's stop control — commit the memo.
+   */
   stopAndSave(): void
-  /** The drawer's discard control — drop the live recording. */
+  /**
+   * The drawer's discard control — drop the live recording.
+   */
   cancelRecording(): void
-  /** Drawer dismissal: a live recording stops-and-saves, never silently drops. */
+  /**
+   * Drawer dismissal: a live recording stops-and-saves, never silently drops.
+   */
   setDrawerOpen(open: boolean): void
-  /** Re-run the failed capture. */
+  /**
+   * Re-run the failed capture.
+   */
   retry(): void
-  /** Drop the failed memo and let the queue continue. */
+  /**
+   * Drop the failed memo and let the queue continue.
+   */
   discard(): void
-  /** Detach from the recorder and stop the transcription lifecycle. A live recording keeps running. */
+  /**
+   * Detach from the recorder and stop the transcription lifecycle. A live recording keeps running.
+   */
   dispose(): void
 }
 
-/** Native recording sessions end to end: start, stop-and-save, discard, and exactly-once ingest. */
+/**
+ * Native recording sessions end to end: start, stop-and-save, discard, and exactly-once ingest.
+ */
 export interface MobileAudioMemoService {
-  /** Open the mobile recording surface of the open graph's session; throws when no graph is open. */
+  /**
+   * Open the mobile recording surface of the open graph's session; throws when no graph is open.
+   */
   openSession(): MobileAudioMemoSession
 }
 
-/** One finished segment of a recording session, staged and ready to ingest. */
+/**
+ * One finished segment of a recording session, staged and ready to ingest.
+ */
 interface StagedPart {
-  /** The staged file's absolute path; deleted once the graph write lands. */
+  /**
+   * The staged file's absolute path; deleted once the graph write lands.
+   */
   stagedPath: string
   /**
    * The session's start time, used as the memo's identity timestamp. Every
@@ -103,9 +155,13 @@ interface StagedPart {
    * under the same memo basename.
    */
   recordedAt: Date
-  /** 1-based position within the session. */
+  /**
+   * 1-based position within the session.
+   */
   part: number
-  /** True on the session's final segment (its file carries `-end`). */
+  /**
+   * True on the session's final segment (its file carries `-end`).
+   */
   end: boolean
 }
 
@@ -116,7 +172,9 @@ interface StagedPart {
  * previous webview ingested for the same recording.
  */
 interface LiveSession {
-  /** Identity derives from the session's start: every segment shares it. */
+  /**
+   * Identity derives from the session's start: every segment shares it.
+   */
   recordedAt: Date
   cancelled: boolean
 }
@@ -133,376 +191,418 @@ function toStagedPart(segment: AudioRecorderSegment): StagedPart {
   }
 }
 
-/** True when the native recorder rejected `start` because access was denied. */
+/**
+ * True when the native recorder rejected `start` because access was denied.
+ */
 function isMicDeniedError(cause: unknown): boolean {
   return errorMessage(cause).includes('denied')
 }
 
-export function createMobileAudioMemoService(deps: {
-  audioMemo: Pick<AudioMemoService, 'openPipeline'>
-  audioRecorder: AudioRecorderService
-  nativeAction: NativeActionService
-  lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
-  haptics: Pick<HapticsService, 'impactLight'>
-  platform: Pick<PlatformFacts, 'isNativeShell'>
-  logger: Pick<LoggerService, 'error' | 'warn'>
-}): MobileAudioMemoService {
-  const { audioMemo, audioRecorder, nativeAction, lifecycle, haptics, platform, logger } = deps
+class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
+  readonly #deps: MobileAudioMemoServiceDeps
+  readonly #listeners = new Set<() => void>()
+  readonly #pipeline: ReturnType<AudioMemoService['openPipeline']>
+  readonly #available: boolean
+  readonly #unlisten: Unlisten[]
+  #drawerOpen = false
+  /**
+   * True from the stop tap until the recorder hands over the file.
+   */
+  #stopping = false
+  #elapsedMs = 0
+  #level = 0
+  #live: LiveSession | null = null
+  /**
+   * Sessions the user discarded, by identity timestamp. A native discard that
+   * fails to delete a staged segment leaves it for the orphan scan, which
+   * would otherwise resurrect a memo the user threw away on the next
+   * foreground.
+   */
+  readonly #cancelledSessions = new Set<number>()
+  /**
+   * Re-entry guard for the stop tap's await gap.
+   */
+  #stopGuard = false
+  /**
+   * One orphan scan at a time.
+   */
+  #scanning = false
+  #disposed = false
+  #state: MobileAudioMemoSessionState
 
-  function hapticImpactLight(): void {
-    void haptics.impactLight().catch(() => {})
-  }
-
-  function openSession(): MobileAudioMemoSession {
-    const listeners = new Set<() => void>()
-    let drawerOpen = false
-    /** True from the stop tap until the recorder hands over the file. */
-    let stopping = false
-    let elapsedMs = 0
-    let level = 0
-    let live: LiveSession | null = null
-    /**
-     * Sessions the user discarded, by identity timestamp. A native discard that
-     * fails to delete a staged segment leaves it for the orphan scan, which
-     * would otherwise resurrect a memo the user threw away on the next
-     * foreground.
-     */
-    const cancelledSessions = new Set<number>()
-    /** Re-entry guard for the stop tap's await gap. */
-    let stopGuard = false
-    /** One orphan scan at a time. */
-    let scanning = false
-    let disposed = false
-
+  constructor(deps: MobileAudioMemoServiceDeps) {
+    const { audioMemo, audioRecorder, nativeAction, lifecycle, platform } = deps
+    this.#deps = deps
     // The pump consults the drawer the instant a capture fails.
-    const pipeline = audioMemo.openPipeline({
-      isErrorSurfaceVisible: () => drawerOpen,
+    this.#pipeline = audioMemo.openPipeline({
+      isErrorSurfaceVisible: () => this.#drawerOpen,
     })
-    const available = platform.isNativeShell
+    this.#available = platform.isNativeShell
+    this.#state = this.#snapshot()
 
-    const snapshot = (): MobileAudioMemoSessionState => {
-      const recorderState: AudioRecorderState = audioRecorder.state()
-      const pipelineState = pipeline.getState()
-      return {
-        // A live capture owns the surface — a background save's failure parks and
-        // shows after the stop, never yanking the waveform mid-recording.
-        phase:
-          recorderState === 'recording' && !stopping
-            ? 'recording'
-            : recorderState === 'requesting'
-              ? 'requesting'
-              : pipelineState.error !== null
-                ? 'error'
-                : stopping || pipelineState.pendingCount > 0 || pipelineState.transcribing
-                  ? 'transcribing'
-                  : 'idle',
-        elapsedMs,
-        level,
-        pendingCount: pipelineState.pendingCount,
-        available,
-        hasTranscriptionConfig: pipelineState.hasTranscriptionConfig,
-        error: pipelineState.error,
-        canRetry: pipelineState.canRetry,
-        drawerOpen,
-      }
-    }
-    let state = snapshot()
-
-    function publish(): void {
-      const next = snapshot()
-      if (
-        next.phase === state.phase &&
-        next.elapsedMs === state.elapsedMs &&
-        next.level === state.level &&
-        next.pendingCount === state.pendingCount &&
-        next.hasTranscriptionConfig === state.hasTranscriptionConfig &&
-        next.error === state.error &&
-        next.canRetry === state.canRetry &&
-        next.drawerOpen === state.drawerOpen
-      ) {
-        return
-      }
-      state = next
-      for (const listener of listeners) {
-        listener()
-      }
-    }
-
-    function setDrawerOpen(open: boolean): void {
-      drawerOpen = open
-      publish()
-    }
-
-    function setStopping(next: boolean): void {
-      stopping = next
-      publish()
-    }
-
-    /** Wrap a staged segment as a pipeline capture that owns the file. */
-    function enqueuePart(part: StagedPart): void {
-      const release = async (): Promise<void> => {
-        // Always drop the claim, even if the delete fails: a still-claimed
-        // path is skipped forever by the orphan scan, so a discarded memo
-        // whose delete threw would otherwise reappear on the next launch.
-        try {
-          await audioRecorder.deleteStaged(part.stagedPath)
-        } finally {
-          audioRecorder.releaseStaged(part.stagedPath)
-        }
-      }
-      if (cancelledSessions.has(part.recordedAt.getTime())) {
-        void release()
-        return
-      }
-      const memo = audioMemoIdentity(part.recordedAt, NATIVE_RECORDING_MIME)
-      const path = audioMemoPartPath(memo, part.part, part.end)
-      // Only the live session's segments answer to its cancel: a segment the
-      // orphan scan found from an earlier run must not be swept away by
-      // discarding the recording running now.
-      const session = live
-      const owner =
-        session !== null && session.recordedAt.getTime() === part.recordedAt.getTime()
-          ? session
-          : null
-      pipeline.enqueue({
-        audio: { kind: 'staged', path: part.stagedPath },
-        mimeType: NATIVE_RECORDING_MIME,
-        recordedAt: part.recordedAt,
-        segment: { part: part.part, end: part.end },
-        onCaptured: async () => {
-          // A cancel that swept the directory before this segment's copy
-          // landed has to be honored here instead.
-          if (owner?.cancelled === true) {
-            await pipeline.deleteSegment(path).catch(() => {})
-          }
-          await release()
-        },
-        onDiscarded: release,
-      })
-    }
-
-    async function start(): Promise<void> {
-      if (!available) {
-        return
-      }
-      setDrawerOpen(true)
-      // Recording never starts without a transcription key: the drawer opens on
-      // its key-setup guidance instead. OS entry points (Siri, the widget, the
-      // quick action) funnel through here too, so they surface the same guidance.
-      if (!pipeline.getState().hasTranscriptionConfig) {
-        return
-      }
-      try {
-        const session = await audioRecorder.start({
-          segmentMs: AUDIO_MEMO_SEGMENT_MS,
-          reminderMs: AUDIO_MEMO_REMINDER_MS,
-        })
-        if (session !== null) {
-          live = { recordedAt: new Date(session.sessionStartedMs), cancelled: false }
-        }
-        hapticImpactLight()
-      } catch (cause) {
-        pipeline.reportError(isMicDeniedError(cause) ? MIC_DENIED_REASON : errorMessage(cause))
-      }
-    }
-
-    /** Stop and hand back the final segment — `null` for a session too short to keep. */
-    async function stopRecorder(): Promise<StagedPart | null> {
-      // A stop in flight keeps the state at `recording` until it settles, and
-      // the recorder hands every concurrent caller the same result.
-      if (audioRecorder.state() !== 'recording') {
-        return null
-      }
-      const final = await audioRecorder.stop()
-      return final === null ? null : toStagedPart(final)
-    }
-
-    async function stopAndSave(): Promise<void> {
-      if (stopGuard) {
-        return
-      }
-      stopGuard = true
-      // The stop tap commits the memo: the drawer closes now, and the capture
-      // menu's mic action reflects the 'transcribing' state when reopened.
-      setStopping(true)
-      setDrawerOpen(false)
-      try {
-        const part = await stopRecorder()
-        if (part !== null) {
-          enqueuePart(part)
-        }
-        live = null
-        hapticImpactLight()
-      } catch (cause) {
-        // A native stop (interruption, backgrounding) won the race — its
-        // stopped event delivers the memo instead.
-        logger.warn('stop raced a native finalize:', cause)
-      } finally {
-        stopGuard = false
-        setStopping(false)
-      }
-    }
-
-    function cancelRecording(): void {
-      setDrawerOpen(false)
-      const session = live
-      if (session !== null) {
-        // Discard means discard: every segment already in the graph goes too.
-        // What is on disk is the only complete account of what this session
-        // wrote, and the flag catches the segments still being copied.
-        session.cancelled = true
-        cancelledSessions.add(session.recordedAt.getTime())
-        const memo = audioMemoIdentity(session.recordedAt, NATIVE_RECORDING_MIME)
-        void (async () => {
-          for (const path of await pipeline.listSegments(memo)) {
-            await pipeline.deleteSegment(path).catch(() => {})
-          }
-        })().catch((cause: unknown) => {
-          logger.error('discarding the recorded segments failed:', cause)
-        })
-      }
-      void audioRecorder
-        .cancel()
-        .catch((cause: unknown) => {
-          logger.warn('cancel raced a native finalize:', cause)
-        })
-        .finally(() => {
-          if (live === session) {
-            live = null
-          }
-        })
-    }
-
-    /** Hand unclaimed staged segments to the capture pipeline. */
-    async function scan(): Promise<void> {
-      if (scanning) {
-        return
-      }
-      scanning = true
-      try {
-        const files = await audioRecorder.listStaged()
-        for (const file of files) {
-          if (disposed) {
-            return
-          }
-          if (audioRecorder.isStagedClaimed(file.path)) {
-            continue
-          }
-          audioRecorder.claimStaged(file.path)
-          enqueuePart({
-            stagedPath: file.path,
-            recordedAt: new Date(file.sessionStartedMs),
-            part: file.part,
-            end: file.end,
-          })
-        }
-      } catch (cause) {
-        logger.error('audio memo orphan scan failed:', cause)
-      } finally {
-        scanning = false
-      }
-    }
-
-    const unlisten: Unlisten[] = [
-      pipeline.subscribe(publish),
+    this.#unlisten = [
+      this.#pipeline.subscribe(() => {
+        this.#publish()
+      }),
       audioRecorder.subscribeState((next) => {
         if (next !== 'recording') {
-          elapsedMs = 0
-          level = 0
+          this.#elapsedMs = 0
+          this.#level = 0
         }
-        publish()
+        this.#publish()
       }),
       audioRecorder.subscribeLevel((event) => {
-        level = event.level
-        elapsedMs = event.elapsedMs
-        publish()
+        this.#level = event.level
+        this.#elapsedMs = event.elapsedMs
+        this.#publish()
       }),
       // A segment the recorder rotated away from; the session keeps recording.
       audioRecorder.subscribeSegment((segment) => {
-        enqueuePart(toStagedPart(segment))
+        this.#enqueuePart(toStagedPart(segment))
       }),
       // A stop the native side initiated (interruption, route change): the file
-      // is already staged and end-marked — treated exactly like a user stop.
+      // is already staged and end-marked, treated exactly like a user stop.
       audioRecorder.subscribeStopped((stopped) => {
-        setDrawerOpen(false)
-        setStopping(false)
+        this.#setDrawerOpen(false)
+        this.#setStopping(false)
         if (stopped.segment !== null) {
-          enqueuePart(toStagedPart(stopped.segment))
+          this.#enqueuePart(toStagedPart(stopped.segment))
         }
-        live = null
+        this.#live = null
       }),
       nativeAction.open({
-        start,
+        start: () => this.#start(),
         onReconciledSegment: (segment) => {
-          enqueuePart(toStagedPart(segment))
+          this.#enqueuePart(toStagedPart(segment))
         },
       }),
     ]
     if (platform.isNativeShell) {
-      void scan()
-      unlisten.push(lifecycle.subscribeVisible(() => void scan()))
-    }
-
-    return {
-      getState: () => state,
-      subscribe(listener) {
-        const entry = (): void => {
-          listener()
-        }
-        listeners.add(entry)
-        return () => {
-          listeners.delete(entry)
-        }
-      },
-      toggle() {
-        const recorderState = audioRecorder.state()
-        if (recorderState === 'recording') {
-          void stopAndSave()
-        } else if (recorderState === 'requesting') {
-          void audioRecorder.cancel().catch(() => {})
-          setDrawerOpen(false)
-        } else if (pipeline.getState().error !== null) {
-          // A parked error must never invisibly block recording — the audio
-          // action reopens the drawer, which shows the failure with Retry/Discard.
-          setDrawerOpen(true)
-        } else {
-          void start()
-        }
-      },
-      stopAndSave() {
-        void stopAndSave()
-      },
-      cancelRecording,
-      setDrawerOpen(open) {
-        if (open) {
-          setDrawerOpen(true)
-          return
-        }
-        // Dismissing the drawer mid-recording saves — a swipe-down must never
-        // silently drop audio (discarding is the explicit Cancel control).
-        const recorderState = audioRecorder.state()
-        if (recorderState === 'recording') {
-          void stopAndSave()
-        } else if (recorderState === 'requesting') {
-          void audioRecorder.cancel().catch(() => {})
-        }
-        setDrawerOpen(false)
-      },
-      retry() {
-        pipeline.retry()
-      },
-      discard() {
-        pipeline.discard()
-      },
-      dispose() {
-        disposed = true
-        for (const stop of unlisten) {
-          stop()
-        }
-        pipeline.dispose()
-      },
+      void this.#scan()
+      this.#unlisten.push(lifecycle.subscribeVisible(() => void this.#scan()))
     }
   }
 
-  return { openSession }
+  readonly getState = (): MobileAudioMemoSessionState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    const entry = (): void => {
+      listener()
+    }
+    this.#listeners.add(entry)
+    return () => {
+      this.#listeners.delete(entry)
+    }
+  }
+
+  toggle(): void {
+    const { audioRecorder } = this.#deps
+    const recorderState = audioRecorder.state()
+    if (recorderState === 'recording') {
+      void this.#stopAndSave()
+    } else if (recorderState === 'requesting') {
+      void audioRecorder.cancel().catch(() => {})
+      this.#setDrawerOpen(false)
+    } else if (this.#pipeline.getState().error !== null) {
+      // A parked error must never invisibly block recording. The audio
+      // action reopens the drawer, which shows the failure with Retry/Discard.
+      this.#setDrawerOpen(true)
+    } else {
+      void this.#start()
+    }
+  }
+
+  stopAndSave(): void {
+    void this.#stopAndSave()
+  }
+
+  cancelRecording(): void {
+    const { audioRecorder, logger } = this.#deps
+    this.#setDrawerOpen(false)
+    const session = this.#live
+    if (session !== null) {
+      // Discard means discard: every segment already in the graph goes too.
+      // What is on disk is the only complete account of what this session
+      // wrote, and the flag catches the segments still being copied.
+      session.cancelled = true
+      this.#cancelledSessions.add(session.recordedAt.getTime())
+      const memo = audioMemoIdentity(session.recordedAt, NATIVE_RECORDING_MIME)
+      void (async () => {
+        for (const path of await this.#pipeline.listSegments(memo)) {
+          await this.#pipeline.deleteSegment(path).catch(() => {})
+        }
+      })().catch((cause: unknown) => {
+        logger.error('discarding the recorded segments failed:', cause)
+      })
+    }
+    void audioRecorder
+      .cancel()
+      .catch((cause: unknown) => {
+        logger.warn('cancel raced a native finalize:', cause)
+      })
+      .finally(() => {
+        if (this.#live === session) {
+          this.#live = null
+        }
+      })
+  }
+
+  setDrawerOpen(open: boolean): void {
+    const { audioRecorder } = this.#deps
+    if (open) {
+      this.#setDrawerOpen(true)
+      return
+    }
+    // Dismissing the drawer mid-recording saves. A swipe-down must never
+    // silently drop audio (discarding is the explicit Cancel control).
+    const recorderState = audioRecorder.state()
+    if (recorderState === 'recording') {
+      void this.#stopAndSave()
+    } else if (recorderState === 'requesting') {
+      void audioRecorder.cancel().catch(() => {})
+    }
+    this.#setDrawerOpen(false)
+  }
+
+  retry(): void {
+    this.#pipeline.retry()
+  }
+
+  discard(): void {
+    this.#pipeline.discard()
+  }
+
+  dispose(): void {
+    this.#disposed = true
+    for (const stop of this.#unlisten) {
+      stop()
+    }
+    this.#pipeline.dispose()
+  }
+
+  #snapshot(): MobileAudioMemoSessionState {
+    const recorderState: AudioRecorderState = this.#deps.audioRecorder.state()
+    const pipelineState = this.#pipeline.getState()
+    return {
+      // A live capture owns the surface. A background save's failure parks and
+      // shows after the stop, never yanking the waveform mid-recording.
+      phase:
+        recorderState === 'recording' && !this.#stopping
+          ? 'recording'
+          : recorderState === 'requesting'
+            ? 'requesting'
+            : pipelineState.error !== null
+              ? 'error'
+              : this.#stopping || pipelineState.pendingCount > 0 || pipelineState.transcribing
+                ? 'transcribing'
+                : 'idle',
+      elapsedMs: this.#elapsedMs,
+      level: this.#level,
+      pendingCount: pipelineState.pendingCount,
+      available: this.#available,
+      hasTranscriptionConfig: pipelineState.hasTranscriptionConfig,
+      error: pipelineState.error,
+      canRetry: pipelineState.canRetry,
+      drawerOpen: this.#drawerOpen,
+    }
+  }
+
+  #publish(): void {
+    const state = this.#state
+    const next = this.#snapshot()
+    if (
+      next.phase === state.phase &&
+      next.elapsedMs === state.elapsedMs &&
+      next.level === state.level &&
+      next.pendingCount === state.pendingCount &&
+      next.hasTranscriptionConfig === state.hasTranscriptionConfig &&
+      next.error === state.error &&
+      next.canRetry === state.canRetry &&
+      next.drawerOpen === state.drawerOpen
+    ) {
+      return
+    }
+    this.#state = next
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  #setDrawerOpen(open: boolean): void {
+    this.#drawerOpen = open
+    this.#publish()
+  }
+
+  #setStopping(next: boolean): void {
+    this.#stopping = next
+    this.#publish()
+  }
+
+  #hapticImpactLight(): void {
+    void this.#deps.haptics.impactLight().catch(() => {})
+  }
+
+  /**
+   * Wrap a staged segment as a pipeline capture that owns the file.
+   */
+  #enqueuePart(part: StagedPart): void {
+    const { audioRecorder } = this.#deps
+    const pipeline = this.#pipeline
+    const release = async (): Promise<void> => {
+      // Always drop the claim, even if the delete fails: a still-claimed
+      // path is skipped forever by the orphan scan, so a discarded memo
+      // whose delete threw would otherwise reappear on the next launch.
+      try {
+        await audioRecorder.deleteStaged(part.stagedPath)
+      } finally {
+        audioRecorder.releaseStaged(part.stagedPath)
+      }
+    }
+    if (this.#cancelledSessions.has(part.recordedAt.getTime())) {
+      void release()
+      return
+    }
+    const memo = audioMemoIdentity(part.recordedAt, NATIVE_RECORDING_MIME)
+    const path = audioMemoPartPath(memo, part.part, part.end)
+    // Only the live session's segments answer to its cancel: a segment the
+    // orphan scan found from an earlier run must not be swept away by
+    // discarding the recording running now.
+    const session = this.#live
+    const owner =
+      session !== null && session.recordedAt.getTime() === part.recordedAt.getTime()
+        ? session
+        : null
+    pipeline.enqueue({
+      audio: { kind: 'staged', path: part.stagedPath },
+      mimeType: NATIVE_RECORDING_MIME,
+      recordedAt: part.recordedAt,
+      segment: { part: part.part, end: part.end },
+      onCaptured: async () => {
+        // A cancel that swept the directory before this segment's copy
+        // landed has to be honored here instead.
+        if (owner?.cancelled === true) {
+          await pipeline.deleteSegment(path).catch(() => {})
+        }
+        await release()
+      },
+      onDiscarded: release,
+    })
+  }
+
+  async #start(): Promise<void> {
+    const { audioRecorder } = this.#deps
+    if (!this.#available) {
+      return
+    }
+    this.#setDrawerOpen(true)
+    // Recording never starts without a transcription key: the drawer opens on
+    // its key-setup guidance instead. OS entry points (Siri, the widget, the
+    // quick action) funnel through here too, so they surface the same guidance.
+    if (!this.#pipeline.getState().hasTranscriptionConfig) {
+      return
+    }
+    try {
+      const session = await audioRecorder.start({
+        segmentMs: AUDIO_MEMO_SEGMENT_MS,
+        reminderMs: AUDIO_MEMO_REMINDER_MS,
+      })
+      if (session !== null) {
+        this.#live = { recordedAt: new Date(session.sessionStartedMs), cancelled: false }
+      }
+      this.#hapticImpactLight()
+    } catch (cause) {
+      this.#pipeline.reportError(isMicDeniedError(cause) ? MIC_DENIED_REASON : errorMessage(cause))
+    }
+  }
+
+  /**
+   * Stop and hand back the final segment, `null` for a session too short to keep.
+   */
+  async #stopRecorder(): Promise<StagedPart | null> {
+    const { audioRecorder } = this.#deps
+    // A stop in flight keeps the state at `recording` until it settles, and
+    // the recorder hands every concurrent caller the same result.
+    if (audioRecorder.state() !== 'recording') {
+      return null
+    }
+    const final = await audioRecorder.stop()
+    return final === null ? null : toStagedPart(final)
+  }
+
+  async #stopAndSave(): Promise<void> {
+    if (this.#stopGuard) {
+      return
+    }
+    this.#stopGuard = true
+    // The stop tap commits the memo: the drawer closes now, and the capture
+    // menu's mic action reflects the 'transcribing' state when reopened.
+    this.#setStopping(true)
+    this.#setDrawerOpen(false)
+    try {
+      const part = await this.#stopRecorder()
+      if (part !== null) {
+        this.#enqueuePart(part)
+      }
+      this.#live = null
+      this.#hapticImpactLight()
+    } catch (cause) {
+      // A native stop (interruption, backgrounding) won the race. Its
+      // stopped event delivers the memo instead.
+      this.#deps.logger.warn('stop raced a native finalize:', cause)
+    } finally {
+      this.#stopGuard = false
+      this.#setStopping(false)
+    }
+  }
+
+  /**
+   * Hand unclaimed staged segments to the capture pipeline.
+   */
+  async #scan(): Promise<void> {
+    const { audioRecorder, logger } = this.#deps
+    if (this.#scanning) {
+      return
+    }
+    this.#scanning = true
+    try {
+      const files = await audioRecorder.listStaged()
+      for (const file of files) {
+        if (this.#disposed) {
+          return
+        }
+        if (audioRecorder.isStagedClaimed(file.path)) {
+          continue
+        }
+        audioRecorder.claimStaged(file.path)
+        this.#enqueuePart({
+          stagedPath: file.path,
+          recordedAt: new Date(file.sessionStartedMs),
+          part: file.part,
+          end: file.end,
+        })
+      }
+    } catch (cause) {
+      logger.error('audio memo orphan scan failed:', cause)
+    } finally {
+      this.#scanning = false
+    }
+  }
+}
+
+class MobileAudioMemoServiceImpl implements MobileAudioMemoService {
+  readonly #deps: MobileAudioMemoServiceDeps
+
+  constructor(deps: MobileAudioMemoServiceDeps) {
+    this.#deps = deps
+  }
+
+  openSession(): MobileAudioMemoSession {
+    return new MobileAudioMemoSessionImpl(this.#deps)
+  }
+}
+
+export function createMobileAudioMemoService(
+  deps: MobileAudioMemoServiceDeps,
+): MobileAudioMemoService {
+  return new MobileAudioMemoServiceImpl(deps)
 }

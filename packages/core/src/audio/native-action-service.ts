@@ -3,6 +3,7 @@ import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { AudioRecorderFinalSegment, AudioRecorderService } from './audio-recorder-service.ts'
+
 /**
  * How long the recording UI must survive before a delivered native action is
  * confirmed (V1 parity): a webview crash during presentation must leave the
@@ -10,12 +11,28 @@ import type { AudioRecorderFinalSegment, AudioRecorderService } from './audio-re
  */
 const ACTION_CONFIRM_DELAY_MS = 2000
 
-/** The recording surface that answers the OS entry points. */
+/**
+ * The recording surface that answers the OS entry points.
+ */
 export interface NativeRecordActionHandler {
-  /** Start a memo — the surface's usual start (opens the drawer, records). */
+  /**
+   * Start a memo, the surface's usual start (opens the drawer, records).
+   */
   start(): Promise<void>
-  /** Receives the final segment of a recording that outlived its UI. */
+  /**
+   * Receives the final segment of a recording that outlived its UI.
+   */
   onReconciledSegment(segment: AudioRecorderFinalSegment): void
+}
+
+export interface NativeActionServiceDeps {
+  readonly audioRecorder: Pick<
+    AudioRecorderService,
+    'status' | 'stop' | 'subscribeNativeAction' | 'actionsReady' | 'actionPerformed'
+  >
+  readonly clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
+  readonly platform: Pick<PlatformFacts, 'isNativeShell'>
+  readonly logger: Pick<LoggerService, 'error' | 'warn'>
 }
 
 /**
@@ -42,75 +59,75 @@ export interface NativeActionService {
   open(handler: NativeRecordActionHandler): Unlisten
 }
 
-export function createNativeActionService(deps: {
-  audioRecorder: Pick<
-    AudioRecorderService,
-    'status' | 'stop' | 'subscribeNativeAction' | 'actionsReady' | 'actionPerformed'
-  >
-  clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
-  platform: Pick<PlatformFacts, 'isNativeShell'>
-  logger: Pick<LoggerService, 'error' | 'warn'>
-}): NativeActionService {
-  const { audioRecorder, clock, platform, logger } = deps
-  return {
-    open(handler) {
-      if (!platform.isNativeShell) {
-        return () => {}
-      }
-      let disposed = false
-      let confirmTimer: TimerHandle | null = null
-      let unlisten: Unlisten | null = null
-      void (async () => {
-        try {
-          const status = await audioRecorder.status()
-          if (status.recording) {
-            const final = await audioRecorder.stop()
-            if (final !== null) {
-              handler.onReconciledSegment(final)
-            }
+class NativeActionServiceImpl implements NativeActionService {
+  readonly #deps: NativeActionServiceDeps
+
+  constructor(deps: NativeActionServiceDeps) {
+    this.#deps = deps
+  }
+
+  open(handler: NativeRecordActionHandler): Unlisten {
+    const { audioRecorder, clock, platform, logger } = this.#deps
+    if (!platform.isNativeShell) {
+      return () => {}
+    }
+    let disposed = false
+    let confirmTimer: TimerHandle | null = null
+    let unlisten: Unlisten | null = null
+    void (async () => {
+      try {
+        const status = await audioRecorder.status()
+        if (status.recording) {
+          const final = await audioRecorder.stop()
+          if (final !== null) {
+            handler.onReconciledSegment(final)
           }
-        } catch (cause) {
-          // A user stop or native finalize winning the race lands here — the
-          // memo arrives through that path (or the orphan scan) instead.
-          logger.warn('reconciling a live native recording failed:', cause)
         }
-        if (disposed) {
+      } catch (cause) {
+        // A user stop or native finalize winning the race lands here — the
+        // memo arrives through that path (or the orphan scan) instead.
+        logger.warn('reconciling a live native recording failed:', cause)
+      }
+      if (disposed) {
+        return
+      }
+      unlisten = audioRecorder.subscribeNativeAction((event) => {
+        if (event.action !== 'recordAudio') {
           return
         }
-        unlisten = audioRecorder.subscribeNativeAction((event) => {
-          if (event.action !== 'recordAudio') {
-            return
-          }
-          void handler.start()
-          // A repeat delivery (double widget open, or a redelivery while the
-          // action is still queued) restarts the confirm window against the
-          // latest start — otherwise an earlier timer could confirm before
-          // this start's UI has survived its full window.
-          if (confirmTimer !== null) {
-            clock.clearTimeout(confirmTimer)
-          }
-          // Confirmation is about delivery, not success — a mic-denied start
-          // still confirms, or the queue would re-surface the same failure
-          // every launch.
-          confirmTimer = clock.setTimeout(() => {
-            void audioRecorder.actionPerformed().catch((cause: unknown) => {
-              logger.warn('confirming a native action failed:', cause)
-            })
-          }, ACTION_CONFIRM_DELAY_MS)
-        })
-        try {
-          await audioRecorder.actionsReady()
-        } catch (cause) {
-          logger.error('the native-action handshake is unavailable:', cause)
-        }
-      })()
-      return () => {
-        disposed = true
+        void handler.start()
+        // A repeat delivery (double widget open, or a redelivery while the
+        // action is still queued) restarts the confirm window against the
+        // latest start — otherwise an earlier timer could confirm before
+        // this start's UI has survived its full window.
         if (confirmTimer !== null) {
           clock.clearTimeout(confirmTimer)
         }
-        unlisten?.()
+        // Confirmation is about delivery, not success — a mic-denied start
+        // still confirms, or the queue would re-surface the same failure
+        // every launch.
+        confirmTimer = clock.setTimeout(() => {
+          void audioRecorder.actionPerformed().catch((cause: unknown) => {
+            logger.warn('confirming a native action failed:', cause)
+          })
+        }, ACTION_CONFIRM_DELAY_MS)
+      })
+      try {
+        await audioRecorder.actionsReady()
+      } catch (cause) {
+        logger.error('the native-action handshake is unavailable:', cause)
       }
-    },
+    })()
+    return () => {
+      disposed = true
+      if (confirmTimer !== null) {
+        clock.clearTimeout(confirmTimer)
+      }
+      unlisten?.()
+    }
   }
+}
+
+export function createNativeActionService(deps: NativeActionServiceDeps): NativeActionService {
+  return new NativeActionServiceImpl(deps)
 }

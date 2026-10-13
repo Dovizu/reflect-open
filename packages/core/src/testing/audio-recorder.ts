@@ -6,6 +6,8 @@ import type {
   AudioRecorderStopped,
   RecordingLevelEvent,
   RecordingNativeActionEvent,
+  RecordingSessionStart,
+  RecordingStatus,
   StagedRecordingFile,
   StartRecordingOptions,
 } from '../audio/audio-recorder-service.ts'
@@ -19,11 +21,17 @@ export type AudioRecorderCall =
   | { method: 'deleteStaged'; path: string }
 
 export interface TestAudioRecorderService extends AudioRecorderService {
-  /** Every recorder call, in order. */
+  /**
+   * Every recorder call, in order.
+   */
   calls(): readonly AudioRecorderCall[]
-  /** What the next `stop` resolves; `null` (a misclick) until set. */
+  /**
+   * What the next `stop` resolves; `null` (a misclick) until set.
+   */
   setStopResult(segment: AudioRecorderFinalSegment | null): void
-  /** Makes the next `start` reject with `error`, as a denied microphone does. */
+  /**
+   * Makes the next `start` reject with `error`, as a denied microphone does.
+   */
   failNextStart(error: unknown): void
   /**
    * Parks the next `start` at `requesting`, as an open permission prompt
@@ -38,10 +46,31 @@ export interface TestAudioRecorderService extends AudioRecorderService {
   setStaged(files: readonly StagedRecordingFile[]): void
   emitLevel(event: RecordingLevelEvent): void
   emitSegment(segment: AudioRecorderSegment): void
-  /** Ends the session as the recorder would, then notifies listeners. */
+  /**
+   * Ends the session as the recorder would, then notifies listeners.
+   */
   emitStopped(stopped: AudioRecorderStopped): void
   emitReminder(elapsedMs: number): void
   emitNativeAction(event: RecordingNativeActionEvent): void
+}
+
+function subscribeTo<Value>(
+  listeners: Set<(value: Value) => void>,
+  listener: (value: Value) => void,
+): Unlisten {
+  const entry = (value: Value): void => {
+    listener(value)
+  }
+  listeners.add(entry)
+  return () => {
+    listeners.delete(entry)
+  }
+}
+
+function emit<Value>(listeners: Set<(value: Value) => void>, value: Value): void {
+  for (const listener of listeners) {
+    listener(value)
+  }
 }
 
 /**
@@ -49,175 +78,218 @@ export interface TestAudioRecorderService extends AudioRecorderService {
  * `recording` with the session stamp `sessionStartedMs`; `stop` and `cancel`
  * return to `idle`.
  */
+class TestAudioRecorderServiceImpl implements TestAudioRecorderService {
+  readonly #sessionStartedMs: number
+  readonly #supported: boolean
+  #state: AudioRecorderState = 'idle'
+  #stopResult: AudioRecorderFinalSegment | null = null
+  #startFailure: { error: unknown } | null = null
+  #startHeld: Promise<void> | null = null
+  /**
+   * Settles the parked `start` as cancelled.
+   */
+  #cancelHeldStart: (() => void) | null = null
+  #stopHeld: Promise<void> | null = null
+  #staged: StagedRecordingFile[] = []
+  readonly #log: AudioRecorderCall[] = []
+  readonly #claimed = new Set<string>()
+  readonly #stateListeners = new Set<(state: AudioRecorderState) => void>()
+  readonly #levelListeners = new Set<(event: RecordingLevelEvent) => void>()
+  readonly #segmentListeners = new Set<(segment: AudioRecorderSegment) => void>()
+  readonly #stoppedListeners = new Set<(stopped: AudioRecorderStopped) => void>()
+  readonly #reminderListeners = new Set<(elapsedMs: number) => void>()
+  readonly #nativeActionListeners = new Set<(event: RecordingNativeActionEvent) => void>()
+
+  constructor(options?: { sessionStartedMs?: number; supported?: boolean }) {
+    this.#sessionStartedMs = options?.sessionStartedMs ?? 0
+    this.#supported = options?.supported ?? true
+  }
+
+  isSupported(): boolean {
+    return this.#supported
+  }
+
+  state(): AudioRecorderState {
+    return this.#state
+  }
+
+  subscribeState(listener: (state: AudioRecorderState) => void): Unlisten {
+    return subscribeTo(this.#stateListeners, listener)
+  }
+
+  stream(): MediaStream | null {
+    return null
+  }
+
+  async start(startOptions: StartRecordingOptions): Promise<RecordingSessionStart | null> {
+    this.#log.push({ method: 'start', options: { ...startOptions } })
+    if (this.#state !== 'idle') {
+      return null
+    }
+    if (this.#startFailure !== null) {
+      const { error } = this.#startFailure
+      this.#startFailure = null
+      throw error
+    }
+    if (this.#startHeld !== null) {
+      const held = this.#startHeld
+      this.#startHeld = null
+      this.#setState('requesting')
+      const cancelled = Promise.withResolvers<boolean>()
+      this.#cancelHeldStart = () => {
+        cancelled.resolve(true)
+      }
+      const wasCancelled = await Promise.race([held.then(() => false), cancelled.promise])
+      this.#cancelHeldStart = null
+      if (wasCancelled) {
+        return null
+      }
+    }
+    this.#setState('recording')
+    return { sessionStartedMs: this.#sessionStartedMs }
+  }
+
+  async stop(): Promise<AudioRecorderFinalSegment | null> {
+    this.#log.push({ method: 'stop' })
+    const result = this.#stopResult
+    if (this.#stopHeld !== null) {
+      const held = this.#stopHeld
+      this.#stopHeld = null
+      await held
+    }
+    this.#setState('idle')
+    if (result?.audio.kind === 'staged') {
+      this.#claimed.add(result.audio.path)
+    }
+    return result
+  }
+
+  cancel(): Promise<void> {
+    this.#log.push({ method: 'cancel' })
+    this.#cancelHeldStart?.()
+    this.#setState('idle')
+    return Promise.resolve()
+  }
+
+  status(): Promise<RecordingStatus> {
+    this.#log.push({ method: 'status' })
+    return Promise.resolve({ recording: this.#state === 'recording', elapsedMs: 0 })
+  }
+
+  listStaged(): Promise<StagedRecordingFile[]> {
+    this.#log.push({ method: 'listStaged' })
+    return Promise.resolve(this.#staged.map((file) => ({ ...file })))
+  }
+
+  deleteStaged(path: string): Promise<void> {
+    this.#log.push({ method: 'deleteStaged', path })
+    this.#staged = this.#staged.filter((file) => file.path !== path)
+    return Promise.resolve()
+  }
+
+  claimStaged(path: string): void {
+    this.#claimed.add(path)
+  }
+
+  releaseStaged(path: string): void {
+    this.#claimed.delete(path)
+  }
+
+  isStagedClaimed(path: string): boolean {
+    return this.#claimed.has(path)
+  }
+
+  actionsReady(): Promise<void> {
+    this.#log.push({ method: 'actionsReady' })
+    return Promise.resolve()
+  }
+
+  actionPerformed(): Promise<void> {
+    this.#log.push({ method: 'actionPerformed' })
+    return Promise.resolve()
+  }
+
+  subscribeLevel(listener: (event: RecordingLevelEvent) => void): Unlisten {
+    return subscribeTo(this.#levelListeners, listener)
+  }
+
+  subscribeSegment(listener: (segment: AudioRecorderSegment) => void): Unlisten {
+    return subscribeTo(this.#segmentListeners, listener)
+  }
+
+  subscribeStopped(listener: (stopped: AudioRecorderStopped) => void): Unlisten {
+    return subscribeTo(this.#stoppedListeners, listener)
+  }
+
+  subscribeReminder(listener: (elapsedMs: number) => void): Unlisten {
+    return subscribeTo(this.#reminderListeners, listener)
+  }
+
+  subscribeNativeAction(listener: (event: RecordingNativeActionEvent) => void): Unlisten {
+    return subscribeTo(this.#nativeActionListeners, listener)
+  }
+
+  calls(): readonly AudioRecorderCall[] {
+    return [...this.#log]
+  }
+
+  setStopResult(segment: AudioRecorderFinalSegment | null): void {
+    this.#stopResult = segment
+  }
+
+  failNextStart(error: unknown): void {
+    this.#startFailure = { error }
+  }
+
+  holdNextStart(): () => void {
+    const held = Promise.withResolvers<void>()
+    this.#startHeld = held.promise
+    return held.resolve
+  }
+
+  holdNextStop(): () => void {
+    const held = Promise.withResolvers<void>()
+    this.#stopHeld = held.promise
+    return held.resolve
+  }
+
+  setStaged(files: readonly StagedRecordingFile[]): void {
+    this.#staged = [...files]
+  }
+
+  emitLevel(event: RecordingLevelEvent): void {
+    emit(this.#levelListeners, event)
+  }
+
+  emitSegment(segment: AudioRecorderSegment): void {
+    emit(this.#segmentListeners, segment)
+  }
+
+  emitStopped(stopped: AudioRecorderStopped): void {
+    this.#setState('idle')
+    emit(this.#stoppedListeners, stopped)
+  }
+
+  emitReminder(elapsedMs: number): void {
+    emit(this.#reminderListeners, elapsedMs)
+  }
+
+  emitNativeAction(event: RecordingNativeActionEvent): void {
+    emit(this.#nativeActionListeners, event)
+  }
+
+  #setState(next: AudioRecorderState): void {
+    if (next === this.#state) {
+      return
+    }
+    this.#state = next
+    emit(this.#stateListeners, next)
+  }
+}
+
 export function createTestAudioRecorderService(options?: {
   sessionStartedMs?: number
   supported?: boolean
 }): TestAudioRecorderService {
-  const sessionStartedMs = options?.sessionStartedMs ?? 0
-  let state: AudioRecorderState = 'idle'
-  let stopResult: AudioRecorderFinalSegment | null = null
-  let startFailure: { error: unknown } | null = null
-  let startHeld: Promise<void> | null = null
-  /** Settles the parked `start` as cancelled. */
-  let cancelHeldStart: (() => void) | null = null
-  let stopHeld: Promise<void> | null = null
-  let staged: StagedRecordingFile[] = []
-  const log: AudioRecorderCall[] = []
-  const claimed = new Set<string>()
-  const stateListeners = new Set<(state: AudioRecorderState) => void>()
-  const levelListeners = new Set<(event: RecordingLevelEvent) => void>()
-  const segmentListeners = new Set<(segment: AudioRecorderSegment) => void>()
-  const stoppedListeners = new Set<(stopped: AudioRecorderStopped) => void>()
-  const reminderListeners = new Set<(elapsedMs: number) => void>()
-  const nativeActionListeners = new Set<(event: RecordingNativeActionEvent) => void>()
-
-  function subscribe<Value>(listeners: Set<(value: Value) => void>) {
-    return (listener: (value: Value) => void): Unlisten => {
-      const entry = (value: Value): void => {
-        listener(value)
-      }
-      listeners.add(entry)
-      return () => {
-        listeners.delete(entry)
-      }
-    }
-  }
-
-  function emit<Value>(listeners: Set<(value: Value) => void>, value: Value): void {
-    for (const listener of listeners) {
-      listener(value)
-    }
-  }
-
-  const setState = (next: AudioRecorderState): void => {
-    if (next === state) {
-      return
-    }
-    state = next
-    emit(stateListeners, next)
-  }
-
-  return {
-    isSupported: () => options?.supported ?? true,
-    state: () => state,
-    subscribeState: subscribe(stateListeners),
-    stream: () => null,
-    async start(startOptions) {
-      log.push({ method: 'start', options: { ...startOptions } })
-      if (state !== 'idle') {
-        return null
-      }
-      if (startFailure !== null) {
-        const { error } = startFailure
-        startFailure = null
-        throw error
-      }
-      if (startHeld !== null) {
-        const held = startHeld
-        startHeld = null
-        setState('requesting')
-        const cancelled = Promise.withResolvers<boolean>()
-        cancelHeldStart = () => {
-          cancelled.resolve(true)
-        }
-        const wasCancelled = await Promise.race([held.then(() => false), cancelled.promise])
-        cancelHeldStart = null
-        if (wasCancelled) {
-          return null
-        }
-      }
-      setState('recording')
-      return { sessionStartedMs }
-    },
-    async stop() {
-      log.push({ method: 'stop' })
-      const result = stopResult
-      if (stopHeld !== null) {
-        const held = stopHeld
-        stopHeld = null
-        await held
-      }
-      setState('idle')
-      if (result?.audio.kind === 'staged') {
-        claimed.add(result.audio.path)
-      }
-      return result
-    },
-    cancel() {
-      log.push({ method: 'cancel' })
-      cancelHeldStart?.()
-      setState('idle')
-      return Promise.resolve()
-    },
-    status() {
-      log.push({ method: 'status' })
-      return Promise.resolve({ recording: state === 'recording', elapsedMs: 0 })
-    },
-    listStaged() {
-      log.push({ method: 'listStaged' })
-      return Promise.resolve(staged.map((file) => ({ ...file })))
-    },
-    deleteStaged(path) {
-      log.push({ method: 'deleteStaged', path })
-      staged = staged.filter((file) => file.path !== path)
-      return Promise.resolve()
-    },
-    claimStaged(path) {
-      claimed.add(path)
-    },
-    releaseStaged(path) {
-      claimed.delete(path)
-    },
-    isStagedClaimed: (path) => claimed.has(path),
-    actionsReady() {
-      log.push({ method: 'actionsReady' })
-      return Promise.resolve()
-    },
-    actionPerformed() {
-      log.push({ method: 'actionPerformed' })
-      return Promise.resolve()
-    },
-    subscribeLevel: subscribe(levelListeners),
-    subscribeSegment: subscribe(segmentListeners),
-    subscribeStopped: subscribe(stoppedListeners),
-    subscribeReminder: subscribe(reminderListeners),
-    subscribeNativeAction: subscribe(nativeActionListeners),
-
-    calls: () => [...log],
-    setStopResult(segment) {
-      stopResult = segment
-    },
-    failNextStart(error) {
-      startFailure = { error }
-    },
-    holdNextStart() {
-      const held = Promise.withResolvers<void>()
-      startHeld = held.promise
-      return held.resolve
-    },
-    holdNextStop() {
-      const held = Promise.withResolvers<void>()
-      stopHeld = held.promise
-      return held.resolve
-    },
-    setStaged(files) {
-      staged = [...files]
-    },
-    emitLevel(event) {
-      emit(levelListeners, event)
-    },
-    emitSegment(segment) {
-      emit(segmentListeners, segment)
-    },
-    emitStopped(stopped) {
-      setState('idle')
-      emit(stoppedListeners, stopped)
-    },
-    emitReminder(elapsedMs) {
-      emit(reminderListeners, elapsedMs)
-    },
-    emitNativeAction(event) {
-      emit(nativeActionListeners, event)
-    },
-  }
+  return new TestAudioRecorderServiceImpl(options)
 }
