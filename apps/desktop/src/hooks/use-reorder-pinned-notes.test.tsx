@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { NoteActionsService, PinnedNote } from '@reflect/core'
 import {
-  createTestAppServices,
-  type TestAppServices,
+  createTestCoreServices,
+  type TestCoreServices,
   type TestOpenGraph,
 } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
@@ -10,7 +10,7 @@ import { useReorderPinnedNotes } from './use-reorder-pinned-notes.ts'
 
 const GRAPH: TestOpenGraph = { generation: 7, root: '/graphs/personal' }
 
-let app: TestAppServices
+let app: TestCoreServices
 let reorderPinnedNotes: MockInstance<NoteActionsService['reorderPinned']>
 
 const NOTE_A = { dailyDate: null, path: 'a.md', title: 'A', pinnedOrder: 1024 } satisfies PinnedNote
@@ -30,7 +30,7 @@ function renderReorder(pinned: readonly PinnedNote[] = NOTES) {
 }
 
 beforeEach(() => {
-  app = createTestAppServices()
+  app = createTestCoreServices()
   reorderPinnedNotes = vi.spyOn(app.noteActions, 'reorderPinned')
 })
 

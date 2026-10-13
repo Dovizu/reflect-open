@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 export interface NoteTrash {
   /**
@@ -32,7 +32,7 @@ export interface NoteTrash {
  *   trash; the toast reports the count couldn't-trash via the last error.
  */
 export function useNoteTrash(): NoteTrash {
-  const { noteActions } = useAppServices()
+  const { noteActions } = useCoreServices()
   const [isTrashing, setIsTrashing] = useState(false)
 
   const trash = useCallback(

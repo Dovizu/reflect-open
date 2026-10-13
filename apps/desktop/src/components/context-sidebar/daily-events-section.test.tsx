@@ -7,11 +7,11 @@ import {
   type Settings,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestCalendarService,
   createTestContactsService,
   seedNotes,
-  type TestAppServices,
+  type TestCoreServices,
   type TestCalendarService,
   type TestContactsService,
   type TestDatabaseService,
@@ -48,7 +48,7 @@ let stored: Partial<Settings>
 let calendar: TestCalendarService
 let contacts: TestContactsService
 let database: TestDatabaseService
-let app: TestAppServices
+let app: TestCoreServices
 
 // The meeting service writes into the open graph.
 async function renderSection(): Promise<HTMLElement> {
@@ -67,7 +67,7 @@ beforeEach(async () => {
   // Already open: the attendee field ignores Enter while its suggestions
   // load, and the default test database opens on its first query.
   database = await createWasmTestDatabaseService()
-  app = createTestAppServices({ calendar, contacts, database })
+  app = createTestCoreServices({ calendar, contacts, database })
   addMeetingToDaily = vi.spyOn(app.meetings, 'addMeetingToDaily')
   return () => database.close()
 })

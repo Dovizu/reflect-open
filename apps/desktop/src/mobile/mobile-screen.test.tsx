@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { StrictMode, type ReactElement } from 'react'
 import { act } from '@/test-utils/act.ts'
 import type { DailyNoteService } from '@reflect/core'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import {
   clearFormattingToolbar,
   publishFormattingToolbar,
@@ -121,12 +121,12 @@ vi.mock('@/mobile/audio-memo-provider.tsx', () => ({
 }))
 
 // The services of the running test: the graph's files live in `app.noteFile`.
-let app: TestAppServices
+let app: TestCoreServices
 let dailyDatesInRange: MockInstance<DailyNoteService['dailyDatesInRange']>
 
 beforeEach(async () => {
   await page.viewport(375, 700)
-  app = createTestAppServices()
+  app = createTestCoreServices()
   // The tests compute dates from the real clock.
   app.clock.setNow(Date.now())
   // The browser context prefers reduced motion; the test platform says the same.

@@ -14,7 +14,7 @@ import { createDailyDatesQueryOptions } from '@/lib/query-options.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { isModEvent } from '@meowdown/core'
 
@@ -44,7 +44,7 @@ export function DayCalendar({ selectedDate, today }: DayCalendarProps): ReactEle
   const { navigate } = useRouter()
   const navigateNoteLink = useNoteLinkNavigation(selectedDate)
   const { graph } = useGraph()
-  const { dailyNotes } = useAppServices()
+  const { dailyNotes } = useCoreServices()
   const { settings } = useSettings()
   const weekStartsOn = weekStartDow(settings.weekStartDay)
 

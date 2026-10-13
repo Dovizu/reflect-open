@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { ReflectError, resolveConflictMarkers } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestFileChangeService,
   createTestIndexLifecycleService,
   createTestNoteFileService,
@@ -49,7 +49,7 @@ beforeEach(() => {
  * Render the hook over app services built on the fakes above.
  */
 async function mount(overrides?: { noteFile?: TestNoteFileService; graph?: null }) {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteFile: overrides?.noteFile ?? noteFile,
     fileChanges,
     indexLifecycle,

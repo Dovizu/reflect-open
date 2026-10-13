@@ -5,7 +5,7 @@ import {
   createSingleWindowHost,
   isMobilePlatform,
   reachWebStorage,
-  type AppAdapters,
+  type CoreAdapters,
   type IpcBridge,
   type PlatformFacts,
 } from '@reflect/core'
@@ -33,7 +33,7 @@ import { createTauriWindowHost } from '@/services/tauri-window.ts'
  * The desktop app's adapters over `ipc`: the Tauri ones inside the native
  * shell (`facts.isNativeShell`), the browser ones in plain-browser dev.
  */
-export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): AppAdapters {
+export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): CoreAdapters {
   const logger = createConsoleLogger()
   const common = {
     ipc,

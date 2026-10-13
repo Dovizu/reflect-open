@@ -1,20 +1,20 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestAssetDescriptionService,
   createTestCaptureService,
   createTestGraphSessionService,
   createTestIndexLifecycleService,
   createTestIndexStoreService,
   createTestWindowService,
-  type TestAppServices,
+  type TestCoreServices,
 } from '@reflect/core/testing'
 import type { XPost } from '@post-embed/types'
 import { createXPostResolver, xPostQueryOptions } from '@/editor/use-x-post-resolver.ts'
 import { queryClient, queryKeys } from './query-client.ts'
 import { installQueryInvalidation } from './query-invalidation.ts'
 
-const app = { embedMedia: createTestAppServices().embedMedia }
+const app = { embedMedia: createTestCoreServices().embedMedia }
 const url = 'https://x.com/jack/status/123'
 const post: XPost = {
   id: '123',
@@ -23,12 +23,12 @@ const post: XPost = {
   body: [{ type: 'text', text: 'Saved tweet' }],
 }
 
-let services: TestAppServices | null = null
+let services: TestCoreServices | null = null
 
 /**
  * Install over `app`, which the test ends with.
  */
-function installApp(app: TestAppServices) {
+function installApp(app: TestCoreServices) {
   services = app
   const stop = installQueryInvalidation(app)
   return { app, stop }
@@ -36,7 +36,7 @@ function installApp(app: TestAppServices) {
 
 function install(capture: ReturnType<typeof createTestCaptureService>): () => void {
   return installApp(
-    createTestAppServices({ capture, assetDescription: createTestAssetDescriptionService() }),
+    createTestCoreServices({ capture, assetDescription: createTestAssetDescriptionService() }),
   ).stop
 }
 
@@ -91,7 +91,7 @@ describe('installQueryInvalidation', () => {
 describe('installQueryInvalidation for the index and the graph', () => {
   it('invalidates the index queries once a pass commits and after a rebuild', async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    const { app, stop } = installApp(createTestAppServices())
+    const { app, stop } = installApp(createTestCoreServices())
     app.graphSession.setGraph({ indexGeneration: 5 })
 
     app.indexLifecycle.emitApplied(null, 5)
@@ -111,7 +111,7 @@ describe('installQueryInvalidation for the index and the graph', () => {
       }),
       graphSession: createTestGraphSessionService({ graph: { indexGeneration: 5 } }),
     })
-    const { stop } = installApp(createTestAppServices({ indexLifecycle }))
+    const { stop } = installApp(createTestCoreServices({ indexLifecycle }))
 
     await indexLifecycle.rebuildVisibly()
 
@@ -122,7 +122,7 @@ describe('installQueryInvalidation for the index and the graph', () => {
   it('refreshes the chat history queries after a saved turn', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     const listeners: Array<() => void> = []
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     vi.spyOn(app.chatSessions, 'onConversationsChanged').mockImplementation((listener) => {
       listeners.push(listener)
       return () => {}
@@ -138,7 +138,7 @@ describe('installQueryInvalidation for the index and the graph', () => {
   })
 
   it('drops the similar notes on a graph switch and the iCloud listing on a delete', async () => {
-    const { app, stop } = installApp(createTestAppServices())
+    const { app, stop } = installApp(createTestCoreServices())
     app.graphSession.setGraph({ root: '/known' })
     queryClient.setQueryData([...queryKeys.similar.all, '/known', 'notes/a.md'], [])
     queryClient.setQueryData(queryKeys.icloud.status, { available: true })
@@ -158,7 +158,7 @@ describe('installQueryInvalidation for the index and the graph', () => {
   })
 
   it('drops the archived X posts whenever the graph session ends', async () => {
-    const { app, stop } = installApp(createTestAppServices())
+    const { app, stop } = installApp(createTestCoreServices())
     app.graphSession.setGraph({ root: '/known' })
     cachePost()
 
@@ -175,14 +175,14 @@ describe('installQueryInvalidation for the index and the graph', () => {
     // The throttle may hold the call until its window ends.
     vi.useFakeTimers()
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
-    const main = installApp(createTestAppServices())
+    const main = installApp(createTestCoreServices())
     main.app.window.emitIndexWritten()
     expect(invalidate).not.toHaveBeenCalled()
     main.stop()
     main.app.database.close()
 
     const note = installApp(
-      createTestAppServices({ window: createTestWindowService({ label: 'note-1' }) }),
+      createTestCoreServices({ window: createTestWindowService({ label: 'note-1' }) }),
     )
     note.app.window.emitIndexWritten()
     vi.advanceTimersByTime(3_000)

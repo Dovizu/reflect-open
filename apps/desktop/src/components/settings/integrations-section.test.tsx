@@ -2,7 +2,7 @@ import { page } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Settings } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestContactsService,
   createTestPlatformService,
   type TestContactsService,
@@ -25,7 +25,7 @@ let settings: TestSettingsService
  * Render the section over a settings document that starts as `stored`.
  */
 async function renderSection(stored: Partial<Settings> = {}): Promise<void> {
-  const app = createTestAppServices({ contacts, platform: createTestPlatformService(platform) })
+  const app = createTestCoreServices({ contacts, platform: createTestPlatformService(platform) })
   ;({ opener, settings } = app)
   await renderInApp(<IntegrationsSection />, { app, settings: stored })
 }

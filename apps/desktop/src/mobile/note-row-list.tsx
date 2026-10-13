@@ -6,7 +6,7 @@ import {
   SwipeableNoteRow,
   type NoteRowModel,
 } from '@/mobile/swipeable-note-row.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface NoteRowListProps {
   rows: NoteRowModel[]
@@ -19,7 +19,7 @@ interface NoteRowListProps {
  * the plain list, the filtered feed, and search results — V1's one row shape.
  */
 export function NoteRowList({ rows, onOpen }: NoteRowListProps): ReactElement {
-  const { noteActions } = useAppServices()
+  const { noteActions } = useCoreServices()
   const [revealedPath, setRevealedPath] = useState<string | null>(null)
   const [deletePath, setDeletePath] = useState<string | null>(null)
 

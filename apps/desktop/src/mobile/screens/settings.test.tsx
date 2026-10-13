@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { BackupState, Settings } from '@reflect/core'
 import {
   createTestAppInfoService,
-  createTestAppServices,
+  createTestCoreServices,
   createTestBackupService,
   createTestWindowService,
   seedNotes,
@@ -68,7 +68,7 @@ async function mount(options?: MountOptions) {
   const backup = createTestBackupService({
     state: options?.backup ?? connected({ state: 'idle' }),
   })
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     appInfo: createTestAppInfoService('1.2.3-beta.4'),
     backup,
     // A note window's graph runs no backup.

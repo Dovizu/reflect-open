@@ -1,10 +1,10 @@
 import { queryOptions } from '@tanstack/react-query'
-import type { AppServices } from '@reflect/core'
+import type { CoreServices } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
 
 /** Conflicted-note rows shared by every sync status and settings surface. */
 export function createConflictedNotesQueryOptions(
-  ctx: Pick<AppServices, 'indexQuery'>,
+  ctx: Pick<CoreServices, 'indexQuery'>,
   root: string | undefined,
 ) {
   return queryOptions({
@@ -15,7 +15,7 @@ export function createConflictedNotesQueryOptions(
 
 /** Duplicate note IDs shared by the Git and iCloud settings surfaces. */
 export function createDuplicateNoteIdsQueryOptions(
-  ctx: Pick<AppServices, 'indexQuery'>,
+  ctx: Pick<CoreServices, 'indexQuery'>,
   root: string | undefined,
 ) {
   return queryOptions({
@@ -26,7 +26,7 @@ export function createDuplicateNoteIdsQueryOptions(
 
 /** Templates shared by the settings list and insertion picker. */
 export function createTemplatesQueryOptions(
-  ctx: Pick<AppServices, 'indexQuery'>,
+  ctx: Pick<CoreServices, 'indexQuery'>,
   root: string | undefined,
 ) {
   return queryOptions({
@@ -37,7 +37,7 @@ export function createTemplatesQueryOptions(
 
 /** Daily-note dates shared by desktop and mobile calendars. */
 export function createDailyDatesQueryOptions(
-  ctx: Pick<AppServices, 'dailyNotes'>,
+  ctx: Pick<CoreServices, 'dailyNotes'>,
   root: string | undefined,
   start: string,
   end: string,
@@ -50,7 +50,7 @@ export function createDailyDatesQueryOptions(
 
 /** Persisted chat conversations shared by desktop and mobile history menus. */
 export function createChatConversationsQueryOptions(
-  ctx: Pick<AppServices, 'chatHistory'>,
+  ctx: Pick<CoreServices, 'chatHistory'>,
   root: string | undefined,
 ) {
   return queryOptions({

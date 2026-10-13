@@ -1,7 +1,7 @@
 import { StrictMode, type ReactElement, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestCaptureInboxService,
   createTestDeepLinkService,
   createTestGraphSessionService,
@@ -27,7 +27,7 @@ function setup() {
     operations,
     graphSession,
   })
-  const app = createTestAppServices({ deepLink, captureInbox, operations, graphSession })
+  const app = createTestCoreServices({ deepLink, captureInbox, operations, graphSession })
 
   function tree(): ReactElement {
     return <DeepLinkProvider>{null}</DeepLinkProvider>

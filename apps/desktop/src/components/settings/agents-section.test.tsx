@@ -3,9 +3,9 @@ import type { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentSkillService, AgentSkillStatus } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestPlatformService,
-  type TestAppServices,
+  type TestCoreServices,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
@@ -44,12 +44,12 @@ const agentSkill: AgentSkillService = {
 }
 
 interface SectionView {
-  graphSession: TestAppServices['graphSession']
+  graphSession: TestCoreServices['graphSession']
   queryClient: QueryClient
 }
 
 async function renderSection(platform?: TestPlatformOptions): Promise<SectionView> {
-  const app = createTestAppServices({ agentSkill, platform: createTestPlatformService(platform) })
+  const app = createTestCoreServices({ agentSkill, platform: createTestPlatformService(platform) })
   const { queryClient } = await renderInApp(<AgentsSection />, { app, graph: GRAPH })
   return { graphSession: app.graphSession, queryClient }
 }

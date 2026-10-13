@@ -3,12 +3,12 @@ import { actAsync } from '@/test-utils/act.ts'
 import {
   createThemeService,
   THEME_PREFERENCE_CACHE_KEY,
-  type AppServices,
+  type CoreServices,
   type Settings,
   type ThemeService,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestPlatformService,
   createTestSettingsService,
   createTestStorageService,
@@ -27,7 +27,7 @@ import { ThemeEffect, useTheme } from './theme-provider.tsx'
 let settings: TestSettingsService
 let storage: TestStorageService
 let theme: ThemeService
-let app: AppServices
+let app: CoreServices
 let releaseLoad: () => void
 let originalClassName: string
 let originalColorScheme: string
@@ -45,7 +45,7 @@ function install(stored: Partial<Settings>, options: { gateLoad?: boolean } = {}
   storage = createTestStorageService()
   const platform = createTestPlatformService({ colorScheme: 'light' })
   theme = createThemeService({ settings, storage, platform })
-  app = createTestAppServices({ settings, storage, platform, theme })
+  app = createTestCoreServices({ settings, storage, platform, theme })
 }
 
 /**

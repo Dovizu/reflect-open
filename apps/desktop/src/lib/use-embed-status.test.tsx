@@ -1,10 +1,10 @@
 import { expect, it, vi } from 'vitest'
-import { createTestAppServices, createTestEmbeddingRuntimeService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestEmbeddingRuntimeService } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useEmbedStatus } from './use-embed-status.ts'
 
 it('starts a later mount from the last status an earlier mount received', async () => {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     embeddingRuntime: createTestEmbeddingRuntimeService({ status: { status: 'unsupported' } }),
   })
   const first = await renderHookInApp(() => useEmbedStatus(), { app })
@@ -26,7 +26,7 @@ it('starts a later mount from the last status an earlier mount received', async 
 
 it('tracks status changes while mounted', async () => {
   const runtime = createTestEmbeddingRuntimeService({ status: { status: 'loading' } })
-  const app = createTestAppServices({ embeddingRuntime: runtime })
+  const app = createTestCoreServices({ embeddingRuntime: runtime })
   const view = await renderHookInApp(() => useEmbedStatus(), { app })
   await vi.waitFor(() => expect(view.result.current).toEqual({ status: 'loading' }))
 

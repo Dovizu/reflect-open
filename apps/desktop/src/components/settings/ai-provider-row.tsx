@@ -8,7 +8,7 @@ import {
   type AiProviderConfig,
 } from '@reflect/core'
 import { Button } from '@/components/ui/button.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { ModelCombobox } from './model-combobox.tsx'
 
 interface AiProviderRowProps {
@@ -36,7 +36,7 @@ export function AiProviderRow({
   onSetDefaultModel,
   onRemove,
 }: AiProviderRowProps): ReactElement {
-  const { operations } = useAppServices()
+  const { operations } = useCoreServices()
   const provider = aiProvider(config.provider)
   const providerLabel = provider.label
   const modelLabel = aiModelLabel(config.provider, config.model)

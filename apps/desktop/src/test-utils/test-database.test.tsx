@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildIndexedNote, createSuggestionService, parseNote } from '@reflect/core'
-import { createTestAppServices, seedNotes } from '@reflect/core/testing'
+import { createTestCoreServices, seedNotes } from '@reflect/core/testing'
 import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 
 function projection(path: string, source: string) {
@@ -32,9 +32,9 @@ describe('createWasmTestDatabaseService', () => {
   })
 })
 
-describe('createTestAppServices in the browser', () => {
+describe('createTestCoreServices in the browser', () => {
   it('reads the index through the wasm database by default', async () => {
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     seedNotes(app.database, [{ path: 'notes/hub.md', markdown: '# Hub\n' }])
     try {
       await expect(app.wikiResolver.resolveWikiTarget('Hub')).resolves.toEqual({

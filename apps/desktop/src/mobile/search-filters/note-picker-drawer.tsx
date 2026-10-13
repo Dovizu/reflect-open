@@ -6,7 +6,7 @@ import { Drawer, DrawerBody, DrawerContent, DrawerTitle } from '@/components/ui/
 import { queryKeys } from '@/lib/query-client.ts'
 import { SearchInput } from '@/mobile/search-input.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import type { NoteFilterRef } from './filter-state.ts'
 import { useNoteLabel } from '@/hooks/use-note-label.ts'
 
@@ -35,7 +35,7 @@ export function NotePickerDrawer({
   onPick,
 }: NotePickerDrawerProps): ReactElement {
   const { graph } = useGraph()
-  const { search } = useAppServices()
+  const { search } = useCoreServices()
   const [query, setQuery] = useState('')
   const deferredQuery = useDeferredValue(query)
 

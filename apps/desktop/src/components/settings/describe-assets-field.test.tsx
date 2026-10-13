@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi } from 'vitest'
 import type { Settings } from '@reflect/core'
-import type { TestAppServices } from '@reflect/core/testing'
+import type { TestCoreServices } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { DescribeAssetsField } from './describe-assets-field.tsx'
 
@@ -12,7 +12,7 @@ const PROVIDER = {
   keyHint: 'wxyz1',
 }
 
-async function renderField(settings?: Partial<Settings>): Promise<TestAppServices> {
+async function renderField(settings?: Partial<Settings>): Promise<TestCoreServices> {
   const { app } = await renderInApp(<DescribeAssetsField />, {
     graph: { generation: 5 },
     settings: {

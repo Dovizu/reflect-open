@@ -9,7 +9,7 @@ import {
 import { useNoteRowOverlays } from '@/hooks/note-row-overlay.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 const EMPTY: readonly PinnedNote[] = []
 
@@ -28,7 +28,7 @@ function titleFromPath(path: string): string {
 export function usePinnedNotes(): readonly PinnedNote[] {
   const { graph } = useGraph()
   const root = graph?.root
-  const { indexQuery, noteRows } = useAppServices()
+  const { indexQuery, noteRows } = useCoreServices()
   const queryClient = useQueryClient()
   const { data } = useQuery({
     queryKey: queryKeys.index.pinnedNotes(root),

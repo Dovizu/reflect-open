@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useLinkNavigationHost } from '@/hooks/use-link-navigation-host.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Navigation for a clicked Markdown note link (`[Plan](./Plan.md)`), the
@@ -13,7 +13,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
 export function useMarkdownLinkNavigation(
   sourcePath: string,
 ): (options: { href: string; openInNewWindow: boolean }) => void {
-  const { linkNavigation } = useAppServices()
+  const { linkNavigation } = useCoreServices()
   const host = useLinkNavigationHost()
 
   return useCallback(

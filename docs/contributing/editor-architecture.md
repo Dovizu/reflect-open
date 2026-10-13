@@ -27,7 +27,7 @@ owns every save/conflict/protection rule as a state machine with no React and
 no editor: file access, the clock and the logger come through the service's
 `deps`. `use-note-document.ts` only wires it to React state, the watcher
 stream, and the editor's imperative handle; it gets `noteSessions`,
-`openDocuments` and `titleRename` from `useAppServices()`.
+`openDocuments` and `titleRename` from `useCoreServices()`.
 `documents/document-binding.ts` owns the pane lifecycle around that session:
 create, adopt after a rename-following route change, teardown, and the
 microtask hand-off when a moved note is not adopted. Tests drive the session
@@ -116,7 +116,7 @@ services (`packages/core/src/documents/`):
   cursor, selection, undo history, conflict state, and pending writes. If no
   adoption happens, the deferred hand-off tears the session down.
 - **`OpenDocumentsService`** (`open-documents-service.ts`,
-  `AppServices.openDocuments`) — the registry of live sessions of this
+  `CoreServices.openDocuments`) — the registry of live sessions of this
   webview. Quit teardown flushes every buffer and awaits settle-time work
   before the webview dies: `PersistenceFlushService` calls
   `openDocuments.flushAll()` as its `documents` flusher. The
@@ -182,7 +182,7 @@ Desktop, `apps/desktop/src/editor/`:
 - **Logic that reads or writes notes for an editor feature** (a preview, a
   suggestion source, an action on the open note) → the core service that owns
   the domain, or a new one ([services.md](services.md)). The hook in
-  `editor/` reads it with `useAppServices()` and stays thin.
+  `editor/` reads it with `useCoreServices()` and stays thin.
 - **A new editor feature** (decoration, input rule) → its own module composed
   in `note-editor.tsx`, or upstream in meowdown. Keep markdown *literal* in the
   document and render via decorations — that's what keeps serialization

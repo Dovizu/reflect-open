@@ -1,5 +1,5 @@
 // Must stay the first import: see `boot.ts`.
-import { appServices } from '@/boot.ts'
+import { appServices, coreServices } from '@/boot.ts'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -12,16 +12,16 @@ import { PlatformRoot, warmPlatformRoot } from '@platform-root'
 import { EditorFullWidthEffect } from '@/providers/editor-full-width.tsx'
 import { EditorTextSizeEffect } from '@/providers/editor-text-size.tsx'
 import { ThemeEffect } from '@/providers/theme-provider.tsx'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { AppServicesProvider, CoreServicesProvider } from '@/services/services-provider.tsx'
 import '@/styles/index.css'
 
 // Start the platform root's boot-critical work (on mobile, the
 // iCloud-container resolve) now, ahead of React's first render.
 warmPlatformRoot()
-registerAppCommands(appServices.commands)
-registerAppKeymaps(appServices.keymap)
-installNativeMenu(appServices.nativeMenu).catch((cause: unknown) => {
-  appServices.logger.error('failed to install the native menu', cause)
+registerAppCommands(coreServices.commands)
+registerAppKeymaps(coreServices.keymap)
+installNativeMenu(coreServices.nativeMenu).catch((cause: unknown) => {
+  coreServices.logger.error('failed to install the native menu', cause)
 })
 
 const rootElement = document.getElementById('root')
@@ -29,20 +29,22 @@ if (!rootElement) {
   throw new Error('Root element #root was not found')
 }
 
-const reactRootOptions = appServices.exceptionTelemetry.reactRootOptions()
+const reactRootOptions = coreServices.exceptionTelemetry.reactRootOptions()
 
 // Platform-neutral providers only — everything desktop- or mobile-specific
 // (update checks, drag region, graph bootstrap mode) lives inside the
 // platform root (Plan 19).
 createRoot(rootElement, reactRootOptions).render(
   <StrictMode>
-    <AppServicesProvider services={appServices}>
-      <QueryClientProvider client={queryClient}>
-        <EditorFullWidthEffect />
-        <EditorTextSizeEffect />
-        <ThemeEffect />
-        <PlatformRoot />
-      </QueryClientProvider>
-    </AppServicesProvider>
+    <CoreServicesProvider services={coreServices}>
+      <AppServicesProvider services={appServices}>
+        <QueryClientProvider client={queryClient}>
+          <EditorFullWidthEffect />
+          <EditorTextSizeEffect />
+          <ThemeEffect />
+          <PlatformRoot />
+        </QueryClientProvider>
+      </AppServicesProvider>
+    </CoreServicesProvider>
   </StrictMode>,
 )

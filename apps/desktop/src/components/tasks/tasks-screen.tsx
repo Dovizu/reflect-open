@@ -29,7 +29,7 @@ import { useTaskSelection } from '@/lib/tasks/use-task-selection.ts'
 import { useScrollRestoration } from '@/lib/use-scroll-restoration.ts'
 import { useToday } from '@/lib/use-today.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 import { routeForPath } from '@/routing/route.ts'
 import { TaskFiltersMenu } from './task-filters-menu.tsx'
@@ -74,7 +74,7 @@ function focusedSelectedKey(
  */
 export function TasksScreen(): ReactElement {
   const { graph } = useGraph()
-  const { tasks: taskService } = useAppServices()
+  const { tasks: taskService } = useCoreServices()
   const navigateNoteLink = useNoteLinkNavigation()
   const today = useToday()
   const { filters, toggle } = useTaskFilters()

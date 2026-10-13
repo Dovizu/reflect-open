@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestContactsService,
   createTestPlatformService,
 } from '@reflect/core/testing'
@@ -34,7 +34,7 @@ function sectionTop(index: number): number {
 }
 
 async function renderNavigatorPage(): Promise<HTMLElement> {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     platform: createTestPlatformService({ isMacosDesktop: false }),
     contacts: createTestContactsService({ status: 'unavailable' }),
   })

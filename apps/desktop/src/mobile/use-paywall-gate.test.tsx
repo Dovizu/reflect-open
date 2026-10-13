@@ -8,7 +8,7 @@ import {
   createSubscriptionService,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestAppStoreService,
   createTestIapService,
   createTestPlatformService,
@@ -27,7 +27,7 @@ afterEach(() => {
 })
 
 function iosServices() {
-  return createTestAppServices({ platform: createTestPlatformService({ appPlatform: 'ios' }) })
+  return createTestCoreServices({ platform: createTestPlatformService({ appPlatform: 'ios' }) })
 }
 
 describe('usePaywallGate', () => {

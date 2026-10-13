@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser'
 import { expect, it, vi } from 'vitest'
 import type { ResolvedArchivedPost } from '@reflect/core/x-archive'
-import { createTestAppServices, createTestNoteFileService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestNoteFileService } from '@reflect/core/testing'
 import { PaletteProvider } from '@/components/command-palette/palette-provider.tsx'
 import { queryClient } from '@/lib/query-client.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -31,7 +31,7 @@ async function renderNote(
   source: string,
   resolveArchive: (postId: string) => Promise<ResolvedArchive>,
 ) {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteFile: createTestNoteFileService({ files: { [path]: source } }),
   })
   vi.spyOn(app.xArchive, 'resolve').mockImplementation(

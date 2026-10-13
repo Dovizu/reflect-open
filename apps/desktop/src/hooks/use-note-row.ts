@@ -4,7 +4,7 @@ import type { NoteRow } from '@reflect/core'
 import { applyNoteRowOverlay, useNoteRowOverlay } from '@/hooks/note-row-overlay.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 export interface NoteRowState {
   /** The overlay-bridged row, `null` while loading or when no row exists. */
@@ -25,7 +25,7 @@ export interface NoteRowState {
  */
 export function useNoteRowState(path: string): NoteRowState {
   const { graph } = useGraph()
-  const { indexQuery, noteRows } = useAppServices()
+  const { indexQuery, noteRows } = useCoreServices()
   const { data, isFetched } = useQuery({
     queryKey: queryKeys.index.note(graph?.root, path),
     queryFn: async () => (await indexQuery.getNote(path)) ?? null,

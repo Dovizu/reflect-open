@@ -1,5 +1,5 @@
 import type { Settings, SettingsLoadOutcome } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { SettingsLoadOutcome } from '@reflect/core'
@@ -21,10 +21,10 @@ interface SettingsValue {
 }
 
 /**
- * Access the current settings and the updater. Use within an `AppServicesProvider`.
+ * Access the current settings and the updater. Use within an `CoreServicesProvider`.
  */
 export function useSettings(): SettingsValue {
-  const service = useAppServices().settings
+  const service = useCoreServices().settings
   const settings = useServiceState(service, service.get)
   return {
     settings,

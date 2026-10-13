@@ -1,6 +1,6 @@
 import { act } from '@/test-utils/act.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useKeyboardHeightVar, useKeyboardVisible } from './use-keyboard.ts'
 
@@ -13,7 +13,7 @@ import { useKeyboardHeightVar, useKeyboardVisible } from './use-keyboard.ts'
  */
 describe('keyboard height', () => {
   it('starts closed and reflects the last published height', async () => {
-    const { keyboard } = createTestAppServices()
+    const { keyboard } = createTestCoreServices()
     expect(keyboard.getHeight()).toBe(0)
     keyboard.publish(316)
     expect(keyboard.getHeight()).toBe(316)
@@ -35,7 +35,7 @@ describe('keyboard height', () => {
   })
 
   it('keeps notifying after an unrelated subscriber unmounts', async () => {
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     const { keyboard } = app
     const first = await renderHookInApp(() => useKeyboardVisible(), { app })
     const second = await renderHookInApp(() => useKeyboardVisible(), { app })

@@ -2,7 +2,7 @@ import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RetrievalService } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestNoteFileService,
   createTestRetrievalService,
   createTestWindowService,
@@ -23,7 +23,7 @@ function RouteProbe(): ReactNode {
 }
 
 async function renderSimilar(path: string, probe: boolean = true) {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteFile: createTestNoteFileService({ files: { 'daily/2026-06-09.md': '- daily entry\n' } }),
     retrieval: createTestRetrievalService({ relatedNotes }),
     window: createTestWindowService({ openNoteWindow }),

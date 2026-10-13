@@ -3,7 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { MobileOnboardingService, MobileStorageInfo } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestMobileStorageService,
   createTestPlatformService,
 } from '@reflect/core/testing'
@@ -50,7 +50,7 @@ let completeOnboarding: MockInstance<CompleteOnboarding>
  * Render the screen on the mobile platform, with the switch flow observed and answered by the spy.
  */
 async function mount(storage: MobileStorageInfo = STORAGE): Promise<void> {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     platform: createTestPlatformService(MOBILE_PLATFORM),
     mobileStorage: createTestMobileStorageService({ storage }),
   })

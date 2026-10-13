@@ -1,6 +1,6 @@
 import { useSyncExternalStore, type ReactElement } from 'react'
 import { useKeyboardVisible } from '@/mobile/use-keyboard.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Below this listing size the pass finishes before a pill is worth showing —
@@ -26,7 +26,7 @@ const MIN_WORKED = 100
  * directly (not graph context) so per-tick updates re-render this pill alone.
  */
 export function IndexProgressPill(): ReactElement | null {
-  const { indexLifecycle } = useAppServices()
+  const { indexLifecycle } = useCoreServices()
   const progress = useSyncExternalStore(
     indexLifecycle.subscribeFileProgress,
     indexLifecycle.fileProgress,

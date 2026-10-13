@@ -3,7 +3,7 @@ import type { ICloudDownloadServiceOptions } from '../sync/icloud-download-servi
 import type { ICloudSyncServiceOptions } from '../sync/icloud-sync-service.ts'
 import type { TestPlatformOptions } from '../testing/platform.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
-import { createTestAppServices, type TestAppServices } from '../testing/services.ts'
+import { createTestCoreServices, type TestCoreServices } from '../testing/services.ts'
 import {
   createTestBackupService,
   createTestICloudSyncService,
@@ -26,7 +26,7 @@ interface SetupOptions {
  * The deps of the per-session services, taken from the test app.
  */
 function sessionDeps(
-  app: TestAppServices,
+  app: TestCoreServices,
 ): Pick<GraphServicesDeps, 'backup' | 'icloudSync' | 'icloudDownload'> {
   const { icloudNative, fileChanges, indexLifecycle, lifecycle, clock, logger } = app
   return {
@@ -60,7 +60,7 @@ function sessionDeps(
  * One graph session's services over recording doubles.
  */
 function setup(options?: SetupOptions) {
-  const app = createTestAppServices({ platform: createTestPlatformService(options?.platform) })
+  const app = createTestCoreServices({ platform: createTestPlatformService(options?.platform) })
   const controller = new AbortController()
   const session = createGraphSession(
     {
@@ -244,7 +244,7 @@ describe('createGraphServices', () => {
   })
 
   it('leaves nothing running for a session that already ended', () => {
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     const controller = new AbortController()
     controller.abort()
     const session = createGraphSession(

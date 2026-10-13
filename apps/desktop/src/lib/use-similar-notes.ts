@@ -5,7 +5,7 @@ import { queryKeys } from '@/lib/query-client.ts'
 import { useEmbedStatus } from '@/lib/use-embed-status.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 const SIMILAR_NOTES_LIMIT = 6
 
@@ -43,7 +43,7 @@ export function useSimilarNotes(path: string): RetrievalHit[] {
   const { graph } = useGraph()
   const { settings } = useSettings()
   const queryClient = useQueryClient()
-  const { semanticSearch, noteDocuments } = useAppServices()
+  const { semanticSearch, noteDocuments } = useCoreServices()
   const dailyNote = isDaily(path)
   const embedStatus = useEmbedStatus()
   const semanticSearchEnabled =

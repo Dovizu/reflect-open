@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { errorMessage } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /** What a device-flow surface renders: nothing yet, or the code to enter. */
 export type DeviceFlowView =
@@ -31,7 +31,7 @@ export interface DeviceFlowAuth {
  * unmounts.
  */
 export function useDeviceFlowAuth(): DeviceFlowAuth {
-  const { githubAuth } = useAppServices()
+  const { githubAuth } = useCoreServices()
   const [view, setView] = useState<DeviceFlowView>({ view: 'idle' })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

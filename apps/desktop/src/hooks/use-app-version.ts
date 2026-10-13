@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /** The native app version for display, or `null` until (unless) it resolves. */
 export function useAppVersion(): string | null {
-  const { appInfo } = useAppServices()
+  const { appInfo } = useCoreServices()
   const [version, setVersion] = useState<string | null>(null)
 
   useEffect(() => {

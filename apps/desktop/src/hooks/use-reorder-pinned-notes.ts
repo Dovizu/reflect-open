@@ -1,4 +1,4 @@
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { arrayMove } from '@dnd-kit/sortable'
 import { updatePinOrder, type PinnedNote } from '@reflect/core'
 import { useCallback } from 'react'
@@ -6,7 +6,7 @@ import { useCallback } from 'react'
 export function useReorderPinnedNotes(
   pinned: readonly PinnedNote[],
 ): (activePath: string, overPath: string) => void {
-  const { noteActions } = useAppServices()
+  const { noteActions } = useCoreServices()
 
   return useCallback(
     (activePath: string, overPath: string): void => {

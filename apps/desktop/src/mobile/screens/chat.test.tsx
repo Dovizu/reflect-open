@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { aiKeySecretName, type AiProviderConfig, type ChatStreamEvent } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestChatEngineService,
   createTestSecretStoreService,
   type TestChatEngineService,
@@ -90,7 +90,7 @@ function Harness(): ReactElement {
 }
 
 async function renderHarness() {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     secretStore: createTestSecretStoreService({ [aiKeySecretName(MODEL.id)]: 'sk-test' }),
     chatEngine,
   })

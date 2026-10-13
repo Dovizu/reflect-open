@@ -1,4 +1,4 @@
-import type { AppServices, LoggerService, UpdateService, UpdateState } from '@reflect/core'
+import type { CoreServices, LoggerService, UpdateService, UpdateState } from '@reflect/core'
 import { toast } from '@/components/ui/toast.tsx'
 
 const UPDATE_TOAST_ID = 'reflect-update'
@@ -89,7 +89,7 @@ function showUpdateToast(state: UpdateState, update: UpdateService, logger: Logg
  * transitions (check results, download progress callbacks), not in a React
  * render cycle. Returns a detach.
  */
-export function attachUpdateToasts(ctx: Pick<AppServices, 'update' | 'logger'>): () => void {
+export function attachUpdateToasts(ctx: Pick<CoreServices, 'update' | 'logger'>): () => void {
   const { update, logger } = ctx
   const sync = (): void => showUpdateToast(update.getState(), update, logger)
   sync()

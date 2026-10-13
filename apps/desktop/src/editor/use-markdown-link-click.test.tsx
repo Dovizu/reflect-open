@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import type { LinkClickHandler } from '@meowdown/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestAttachmentService,
   createTestGraphSessionService,
   createTestOpenerService,
@@ -32,13 +32,13 @@ let onLinkClick: LinkClickHandler
 
 async function mount(sourcePath: string | null): Promise<void> {
   const graphSession = createTestGraphSessionService()
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     opener,
     attachments,
     graphSession,
-    linkNavigation: createTestAppServices({
+    linkNavigation: createTestCoreServices({
       graphSession,
-      deepLink: Object.assign(createTestAppServices().deepLink, { dispatch: dispatchDeepLink }),
+      deepLink: Object.assign(createTestCoreServices().deepLink, { dispatch: dispatchDeepLink }),
       noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
       window: createTestWindowService({ openNoteWindow }),
       opener,

@@ -3,7 +3,7 @@ import { useToday } from '@/lib/use-today.ts'
 import { useFocusedDailyDate } from '@/providers/focused-daily-provider.tsx'
 import { focusedNotePathForRoute } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import type { FocusedNoteMenuCommand } from '@reflect/core'
 import { getIsComposing, isModEvent, type SearchStatus } from '@meowdown/core'
 import {
@@ -55,7 +55,7 @@ const NoteFindReportContext = createContext<(path: string, status: SearchStatus)
 
 /** One note-local Find session for the current webview window. */
 export function NoteFindProvider({ children }: { children: ReactNode }): ReactElement {
-  const { nativeMenu, window: windowService } = useAppServices()
+  const { nativeMenu, window: windowService } = useCoreServices()
   const { route, arrivalSeq } = useRouter()
   const today = useToday()
   const focusedDailyDate = useFocusedDailyDate()

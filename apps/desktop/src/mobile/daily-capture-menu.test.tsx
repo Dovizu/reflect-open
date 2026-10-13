@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TestAppServices } from '@reflect/core/testing'
+import type { TestCoreServices } from '@reflect/core/testing'
 import { renderInApp, type InAppRenderResult } from '@/test-utils/render-in-app.tsx'
 import { DailyCaptureMenu } from './daily-capture-menu.tsx'
 
@@ -25,7 +25,7 @@ vi.mock('@/mobile/audio-memo-provider.tsx', () => ({
   useMobileAudioMemo: () => ({ ...memo }),
 }))
 
-function renderMenu(): Promise<InAppRenderResult<TestAppServices>> {
+function renderMenu(): Promise<InAppRenderResult<TestCoreServices>> {
   return renderInApp(<DailyCaptureMenu />)
 }
 

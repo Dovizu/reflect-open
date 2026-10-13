@@ -1,9 +1,9 @@
 import type { ReactElement, ReactNode } from 'react'
 import { actAsync } from '@/test-utils/act.ts'
 import { describe, expect, it, vi } from 'vitest'
-import type { AppPlatform, AppServices, RecentGraph } from '@reflect/core'
+import type { AppPlatform, CoreServices, RecentGraph } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestDialogService,
   createTestGraphSessionService,
   createTestMobileStorageService,
@@ -32,7 +32,7 @@ function tree(children: ReactNode, platform?: AppPlatform): ReactElement {
 /**
  * Mount the provider over `app` and read its context.
  */
-async function renderGraph<App extends AppServices>(app: App, platform?: AppPlatform) {
+async function renderGraph<App extends CoreServices>(app: App, platform?: AppPlatform) {
   const result = {} as { current: ReturnType<typeof useGraph> }
   function Probe(): null {
     result.current = useGraph()
@@ -47,7 +47,7 @@ async function renderGraph<App extends AppServices>(app: App, platform?: AppPlat
 
 describe('GraphProvider', () => {
   it('starts at the chooser when there are no recents', async () => {
-    const { result } = await renderGraph(createTestAppServices())
+    const { result } = await renderGraph(createTestCoreServices())
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
     expect(result.current.graph).toBeNull()
   })
@@ -56,7 +56,7 @@ describe('GraphProvider', () => {
     const recents: RecentGraph[] = [{ root: '/known', name: 'known', openedMs: 1 }]
     const dialog = createTestDialogService()
     const { result } = await renderGraph(
-      createTestAppServices({
+      createTestCoreServices({
         dialog,
         graphSession: createTestGraphSessionService({ dialog, recents }),
       }),
@@ -76,7 +76,7 @@ describe('GraphProvider', () => {
   })
 
   it('opens a picked folder and seeds the empty graph', async () => {
-    const { app, result } = await renderGraph(createTestAppServices())
+    const { app, result } = await renderGraph(createTestCoreServices())
     app.dialog.setFolder('/fresh')
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
@@ -92,7 +92,7 @@ describe('GraphProvider', () => {
   })
 
   it('boots the app’s graph session and passes its actions through', async () => {
-    const { app, result } = await renderGraph(createTestAppServices())
+    const { app, result } = await renderGraph(createTestCoreServices())
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
     await actAsync(async () => {
@@ -129,7 +129,7 @@ describe('GraphProvider', () => {
         </button>
       )
     }
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     const screen = await renderInApp(tree(<Probe />), { app, servicesOnly: true })
 
     await screen.getByRole('button', { name: 'Open' }).click()
@@ -147,7 +147,7 @@ describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
       icloudGraphRoots: [],
     }
     const { app, result } = await renderGraph(
-      createTestAppServices({
+      createTestCoreServices({
         platform: createTestPlatformService({ appPlatform: 'ios' }),
         mobileStorage: createTestMobileStorageService({ storage }),
       }),
@@ -164,7 +164,7 @@ describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
 
   it('publishes the app’s mobile onboarding and passes completeOnboarding through', async () => {
     const { app, result } = await renderGraph(
-      createTestAppServices({
+      createTestCoreServices({
         platform: createTestPlatformService({ appPlatform: 'ios' }),
       }),
       'ios',

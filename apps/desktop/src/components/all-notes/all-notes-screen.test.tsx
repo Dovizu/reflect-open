@@ -1,4 +1,4 @@
-import { createTestAppServices, createTestNoteFileService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestNoteFileService } from '@reflect/core/testing'
 import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it, vi, type MockInstance } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
@@ -104,7 +104,7 @@ interface RenderScreenOptions {
 
 async function renderScreen(options: RenderScreenOptions = {}) {
   const notes = options.notes ?? [...noteRows, taggedDailyRow]
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteFile: createTestNoteFileService({
       files: Object.fromEntries(notes.map((note) => [note.path, noteMarkdown(note)])),
       // A delete pinned to another generation rejects.

@@ -13,7 +13,7 @@ import { useSettings } from '@/providers/settings-provider.tsx'
 import { useShortcuts } from '@/providers/shortcuts-provider.tsx'
 import { useSidebar } from '@/providers/sidebar-provider.tsx'
 import { useTheme } from '@/providers/theme-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 import { focusedNotePathForRoute } from './route.ts'
 import { useRouter } from './router.tsx'
 
@@ -48,9 +48,10 @@ const NATIVE_MACOS_MENU_COMMAND_IDS = new Set([
 function doNothing(): void {}
 
 export function useAppShortcuts(): CommandContext {
-  const services = useAppServices()
+  const services = useCoreServices()
+  const appServices = useAppServices()
   const { route, navigate, back, forward, clearScrollState } = useRouter()
-  const { commands, nativeMenu, platform, semanticSearch } = useAppServices()
+  const { commands, nativeMenu, platform, semanticSearch } = useCoreServices()
   const focusedDailyDate = useFocusedDailyDate()
   const { resolvedTheme, setTheme } = useTheme()
   const { graph, recents, openRecent } = useGraph()
@@ -105,6 +106,7 @@ export function useAppShortcuts(): CommandContext {
   const context = useMemo<CommandContext>(
     () => ({
       services,
+      app: appServices,
       navigate,
       route: () => routeRef.current,
       // Resolve through the focused stream day so a note-scoped command targets
@@ -166,6 +168,7 @@ export function useAppShortcuts(): CommandContext {
     }),
     [
       services,
+      appServices,
       navigate,
       back,
       forward,

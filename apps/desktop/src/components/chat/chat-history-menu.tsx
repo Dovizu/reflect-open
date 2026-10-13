@@ -12,7 +12,7 @@ import {
 import { createChatConversationsQueryOptions } from '@/lib/query-options.ts'
 import { useChatSession } from '@/providers/chat-provider.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * The conversation history: a dropdown over the persisted conversations,
@@ -22,7 +22,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  */
 export function ChatHistoryMenu(): ReactElement | null {
   const { graph, indexGeneration } = useGraph()
-  const { chatHistory } = useAppServices()
+  const { chatHistory } = useCoreServices()
   const { activeConversationId, openConversation, deleteConversation } = useChatSession()
 
   const enabled = indexGeneration !== null

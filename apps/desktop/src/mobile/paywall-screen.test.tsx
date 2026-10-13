@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   IAP_PRODUCT_IDS,
   createPaywallService,
-  type AppServices,
+  type CoreServices,
   type ClassicSignInOptions,
   type ClassicSignInResult,
   type IapProduct,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestAppStoreService,
   createTestClassicAccessService,
   createTestIapService,
@@ -43,13 +43,13 @@ let redeems: number
 let subscription: TestSubscriptionService
 let classicAccess: TestClassicAccessService
 let logger: TestLoggerService
-let services: AppServices
+let services: CoreServices
 let queryClient: QueryClient
 
 /**
  * Render the paywall over the services of the running test.
  */
-async function mount(): Promise<InAppRenderResult<AppServices>> {
+async function mount(): Promise<InAppRenderResult<CoreServices>> {
   const view = await renderInApp(<PaywallScreen />, { app: services })
   queryClient = view.queryClient
   return view
@@ -71,7 +71,7 @@ beforeEach(() => {
   purchases = []
   syncs = 0
   redeems = 0
-  const base = createTestAppServices({
+  const base = createTestCoreServices({
     platform: createTestPlatformService({ appPlatform: 'ios' }),
   })
   logger = base.logger

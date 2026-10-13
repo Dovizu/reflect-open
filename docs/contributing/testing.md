@@ -135,17 +135,17 @@ in-memory SQLite index built from the production migrations, so index reads
 are tested by seeding notes and asserting the query results, not by matching
 SQL.
 
-### `createTestAppServices()`
+### `createTestCoreServices()`
 
-`createTestAppServices()` builds the whole `AppServices` object through the
-production composition root, `composeAppServices` in
-`app/create-app-services.ts`. It passes test adapters and a test factory table
+`createTestCoreServices()` builds the whole `CoreServices` object through the
+production composition root, `composeCoreServices` in
+`app/create-core-services.ts`. It passes test adapters and a test factory table
 (`testing/services.ts`) that replaces only the services with a test double.
 Every other service is the real one, over doubles that share one clock, one
-note-file store, one database and one logger. Its type, `TestAppServices`,
+note-file store, one database and one logger. Its type, `TestCoreServices`,
 takes each member type from the table, so it keeps the test members:
 `app.noteFile.getWrites(path)`, `app.clock.advance(ms)`. It also exposes the
-services that `AppServices` keeps internal (`InternalServices`, e.g.
+services that `CoreServices` keeps internal (`CoreInternalServices`, e.g.
 `app.database`) and always has `app.mobile`.
 
 Pass overrides to replace a service. Each override becomes the factory of its
@@ -153,7 +153,7 @@ key, so every service built after it gets your override:
 
 ```ts
 const noteFile = createTestNoteFileService({ files: { 'notes/a.md': '# A\n' } })
-const app = createTestAppServices({ noteFile })
+const app = createTestCoreServices({ noteFile })
 ```
 
 Use it for desktop tests and for core tests of something that takes many
@@ -161,16 +161,16 @@ services. For a single service, construct the service directly.
 
 ## Testing React code
 
-Components and hooks read services with `useAppServices()`, which throws
+Components and hooks read services with `useCoreServices()`, which throws
 outside a provider. So every desktop test renders through one of two helpers
 in `apps/desktop/src/test-utils/`. Each takes an optional `app` (default: a
-fresh `createTestAppServices()`) and returns it, and each registers the app
+fresh `createTestCoreServices()`) and returns it, and each registers the app
 commands in `app.commands`, as `main.tsx` does.
 
 ### `renderInApp(ui, options)`
 
 `render-in-app.tsx`. Renders `ui` the way the app does: inside
-`AppServicesProvider`, a query client, and the **real** `GraphProvider` and
+`CoreServicesProvider`, a query client, and the **real** `GraphProvider` and
 `RouterProvider`, all reading `app`. The open graph gets its graph services
 (backup, chat session, and the rest) as in the app. This is the default for
 components.
@@ -207,14 +207,14 @@ hand that function to their context, so a spy installed later is not the
 function the component calls:
 
 ```tsx
-const app = createTestAppServices()
+const app = createTestCoreServices()
 const rebuild = Promise.withResolvers<void>()
 vi.spyOn(app.indexLifecycle, 'rebuildVisibly').mockReturnValueOnce(rebuild.promise)
 await renderInApp(<RebuildIndexField />, { app, graph: { indexGeneration: 7 } })
 ```
 
 With your own `app`, put the platform and the backup factory in it yourself
-(`createTestAppServices({ platform: createTestPlatformService(MOBILE_PLATFORM) })`);
+(`createTestCoreServices({ platform: createTestPlatformService(MOBILE_PLATFORM) })`);
 the helper throws if you pass both `app` and `platform`.
 
 ### `renderHookInApp(hook, options)`
@@ -224,7 +224,7 @@ The same tree and options for a hook, plus `initialProps`. It returns the
 
 ```tsx
 const settings = createTestSettingsService({ editorMarkdownSyntax: 'show' })
-const app = createTestAppServices({ settings })
+const app = createTestCoreServices({ settings })
 const { result, act } = await renderHookInApp(() => useSettings(), { app })
 
 await act(() => {
@@ -235,7 +235,7 @@ expect(result.current.settings.editorFullWidth).toBe(true)
 
 ### `servicesOnly`
 
-`renderInApp(ui, { servicesOnly: true })` mounts only `AppServicesProvider` and
+`renderInApp(ui, { servicesOnly: true })` mounts only `CoreServicesProvider` and
 the query client: no graph, router or sync, and it does not wait for the
 settings load. `app` keeps its own graph session. Use it for a provider under
 test, or a component that needs the services and nothing else.
@@ -272,7 +272,7 @@ depends on a query result. Open it first and pass it as the override
 import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 
 const database = await createWasmTestDatabaseService()
-const app = createTestAppServices({ database })
+const app = createTestCoreServices({ database })
 ```
 
 ### `vi.mock` is only for pure UI children

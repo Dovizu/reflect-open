@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { upsertFrontmatter, type FileChange } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestClockService,
   createTestIndexStoreService,
   createTestLoggerService,
@@ -79,7 +79,7 @@ function createApp(database: TestDatabaseService) {
     await noteFile.delete(from, generation)
     await moveIndexed(from, to, generation)
   })
-  return createTestAppServices({
+  return createTestCoreServices({
     clock,
     logger,
     database,

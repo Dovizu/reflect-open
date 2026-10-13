@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useEditor } from '@meowdown/react'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { whenEditorMounted } from './when-editor-mounted.ts'
 
 /**
@@ -23,7 +23,7 @@ import { whenEditorMounted } from './when-editor-mounted.ts'
  */
 export function EditorInputTraits(): null {
   const editor = useEditor()
-  const { platform, logger } = useAppServices()
+  const { platform, logger } = useCoreServices()
   const touchEditor = platform.surface.touchEditor
 
   useEffect(() => {

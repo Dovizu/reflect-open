@@ -116,14 +116,14 @@ a `CloudSafe<T>` value (`privacy/cloud-safe.ts`) is minted only by the gate in
 `privacy/privacy-service.ts` (`PrivacyService` and its pure `cloudSafe*` constructors),
 and every provider-bound input requires one.
 
-### `AppServices` and `createAppServices(adapters)`
+### `CoreServices` and `createCoreServices(adapters)`
 
-`packages/core/src/app/create-app-services.ts` is the composition root.
-`createAppServices(adapters)` builds every service in dependency order and returns
-them as one `AppServices` object (`ipc`, `noteFile`, `indexLifecycle`, `settings`,
+`packages/core/src/app/create-core-services.ts` is the composition root.
+`createCoreServices(adapters)` builds every service in dependency order and returns
+them as one `CoreServices` object (`ipc`, `noteFile`, `indexLifecycle`, `settings`,
 `graphSession`, ...). It runs once per webview.
 
-`AppAdapters` is what the host must supply, because core never imports
+`CoreAdapters` is what the host must supply, because core never imports
 `@tauri-apps/*`: the IPC transport (`IpcBridge`: `invoke` + `listen`), the platform
 facts, HTTP, Web storage, dialog, clipboard, opener, path, window and lifecycle
 primitives, and optionally a logger, clock, updater, native menu host and deep-link
@@ -136,42 +136,42 @@ The desktop app's adapters live in `apps/desktop/src/services/`:
   equivalents for `pnpm dev` without the shell.
 - `create-desktop-services.ts` (`createDesktopAdapters(facts, ipc)`) picks one set by
   `facts.isNativeShell`.
-- `apps/desktop/src/boot.ts` detects the platform facts, calls `createAppServices`,
+- `apps/desktop/src/boot.ts` detects the platform facts, calls `createCoreServices`,
   and exports the result as `appServices`. Only `main.tsx` and the platform roots
   import it. In browser dev the transport is a deferred one (`deferred-ipc.ts`): calls
   made before the in-memory dev backend connects wait for it.
 
 The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
-`paywall`, `mobileAudioMemo`, ...) are optional fields of `AppServices`.
+`paywall`, `mobileAudioMemo`, ...) are optional fields of `CoreServices`.
 
 ### How code reaches a service
 
 - **Core:** through `deps`. Nothing else.
-- **React:** `main.tsx` renders `<AppServicesProvider services={appServices}>`
+- **React:** `main.tsx` renders `<CoreServicesProvider services={appServices}>`
   (`apps/desktop/src/services/services-provider.tsx`). Components and hooks call
-  `useAppServices()` and destructure what they use:
+  `useCoreServices()` and destructure what they use:
 
   ```ts
-  const { agentSkill, platform } = useAppServices()
+  const { agentSkill, platform } = useCoreServices()
   ```
 
-  `useAppServices()` throws outside a provider. Do not add per-service hooks. The
+  `useCoreServices()` throws outside a provider. Do not add per-service hooks. The
   mobile tree uses `useMobileAppServices()` (`mobile/mobile-services.ts`), which adds
   `app.mobile` and throws when it is `null`.
 - **Non-React desktop modules** (`lib/`, `providers/*.ts`): the first parameter is
-  `ctx`, typed as the `Pick` of `AppServices` the function uses. The React caller
-  passes `useAppServices()`:
+  `ctx`, typed as the `Pick` of `CoreServices` the function uses. The React caller
+  passes `useCoreServices()`:
 
   ```ts
   // apps/desktop/src/lib/query-options.ts
   export function createConflictedNotesQueryOptions(
-    ctx: Pick<AppServices, 'indexQuery'>,
+    ctx: Pick<CoreServices, 'indexQuery'>,
     root: string | undefined,
   )
   ```
 
 - **Commands:** `CommandContext` (`apps/desktop/src/lib/commands/types.ts`) has a
-  `services: AppServices` field. A command that calls a service reads it from the
+  `services: CoreServices` field. A command that calls a service reads it from the
   context it runs with, never from an import.
 
 Providers are thin shells. `GraphProvider` reads its service with
@@ -210,7 +210,7 @@ listeners such as `capture.onXPostsWritten`). A session exposes `start()` /
 
 ### `GraphSessionService`, `GraphSession`, and `generation`
 
-`GraphSessionService` (`AppServices.graphSession`, `graph/graph-session-service.ts`)
+`GraphSessionService` (`CoreServices.graphSession`, `graph/graph-session-service.ts`)
 owns the active graph of a webview: status, recents, and the open, create, switch,
 forget and delete flows. `getState().session` is the open graph as one read-only
 `GraphSession`: `{ root, name, generation, indexGeneration, signal }`. `signal` aborts

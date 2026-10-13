@@ -11,7 +11,7 @@ import {
 import { Switch } from '@/components/ui/switch.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { SettingsField } from './field.tsx'
 
 /**
@@ -24,7 +24,7 @@ import { SettingsField } from './field.tsx'
 export function DescribeAssetsField(): ReactElement {
   const { settings, updateSettings } = useSettings()
   const { graph } = useGraph()
-  const { assetDescription } = useAppServices()
+  const { assetDescription } = useCoreServices()
   const [confirming, setConfirming] = useState(false)
   const [running, setRunning] = useState(false)
 

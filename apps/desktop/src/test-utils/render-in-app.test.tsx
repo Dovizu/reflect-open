@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { useGraph, useMaybeGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useSyncContext } from '@/providers/sync-provider.tsx'
@@ -106,7 +106,7 @@ describe('renderInApp', () => {
   })
 
   it('uses the given app, so a test can spy on a service before the first render', async () => {
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     const view = await renderInApp(<Probe />, { app })
 
     expect(view.app).toBe(app)

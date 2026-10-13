@@ -1,15 +1,15 @@
-import type { AppServices, GraphInfo } from '@reflect/core'
+import type { CoreServices, GraphInfo } from '@reflect/core'
 import type { XPostResolver } from '@meowdown/core'
 import { queryOptions } from '@tanstack/react-query'
 import { parseXPostId } from '@post-embed/schema'
 import { queryClient, queryKeys } from '@/lib/query-client.ts'
 import { useMaybeGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * The services the X post archive reads go through.
  */
-export type XPostContext = Pick<AppServices, 'embedMedia'>
+export type XPostContext = Pick<CoreServices, 'embedMedia'>
 
 export const X_MEDIA_URL_PROTOCOLS = ['reflect-asset:']
 
@@ -53,6 +53,6 @@ export function getXPostResolver(ctx: XPostContext, graph: GraphInfo | null): XP
 }
 
 export function useXPostResolver() {
-  const { embedMedia } = useAppServices()
+  const { embedMedia } = useCoreServices()
   return getXPostResolver({ embedMedia }, useMaybeGraph()?.graph ?? null)
 }

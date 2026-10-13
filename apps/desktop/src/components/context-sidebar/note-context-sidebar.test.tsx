@@ -1,7 +1,7 @@
 import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RetrievalService } from '@reflect/core'
-import { createTestAppServices, createTestRetrievalService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestRetrievalService } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
 import { useRouter } from '@/routing/router.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -21,7 +21,7 @@ async function renderSidebar(path: string) {
       <RouteProbe />
     </>,
     {
-      app: createTestAppServices({ retrieval: createTestRetrievalService({ relatedNotes }) }),
+      app: createTestCoreServices({ retrieval: createTestRetrievalService({ relatedNotes }) }),
       graph: { root: '/g', name: 'g' },
       settings: { semanticSearchEnabled: true },
     },

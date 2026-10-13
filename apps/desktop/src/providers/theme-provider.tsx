@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import type { ResolvedTheme as CoreResolvedTheme, ThemePreference } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 /** User-selectable theme; `system` follows the OS preference. */
@@ -20,7 +20,7 @@ export type ResolvedTheme = CoreResolvedTheme
  * straight back.
  */
 export function ThemeEffect(): null {
-  const { theme: service } = useAppServices()
+  const { theme: service } = useCoreServices()
   const resolvedTheme = useServiceState(service, service.resolved)
   const settled = useServiceState(service, service.settled)
 
@@ -44,7 +44,7 @@ export function useTheme(): {
   resolvedTheme: ResolvedTheme
   setTheme: (theme: Theme) => void
 } {
-  const { theme: service } = useAppServices()
+  const { theme: service } = useCoreServices()
   const theme = useServiceState(service, service.preference)
   const resolvedTheme = useServiceState(service, service.resolved)
   return { theme, resolvedTheme, setTheme: service.setPreference }

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { useEffect, type ReactElement, type ReactNode } from 'react'
 import { act, actAsync } from '@/test-utils/act.ts'
 import { createSystemClock, type ClockService } from '@reflect/core'
-import { createTestAppServices, createTestClockService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestClockService } from '@reflect/core/testing'
 import { FocusedDailyProvider, useFocusedDailyDate } from '@/providers/focused-daily-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { formatDayLabel, todayIso } from '@/lib/dates.ts'
@@ -40,7 +40,7 @@ function Stream({ children }: { children: ReactNode }): ReactElement {
  * Render `children` in a stream-sized box; the app runs on `clock` (the system clock by default).
  */
 async function renderStream(children: ReactNode, clock: ClockService = createSystemClock()) {
-  const app = createTestAppServices({ clock })
+  const app = createTestCoreServices({ clock })
   // Reads never resolve: every day stays a loading placeholder.
   vi.spyOn(app.noteFile, 'read').mockReturnValue(new Promise(() => {}))
   return await renderInApp(<Stream>{children}</Stream>, {

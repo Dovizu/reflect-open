@@ -1,7 +1,7 @@
 import { createContext, use, useEffect, useMemo, type ReactElement, type ReactNode } from 'react'
 import type { UpdateService, UpdateState } from '@reflect/core'
 import { attachUpdateToasts } from '@/components/update-toasts.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 type UpdateContextValue = { state: UpdateState } & Pick<
@@ -27,7 +27,7 @@ interface UpdateProviderProps {
  * from first launch, before any graph is open.
  */
 export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): ReactElement {
-  const { update, platform, logger } = useAppServices()
+  const { update, platform, logger } = useCoreServices()
   const supported = update.supported
   const resolvedAutoCheck = autoCheck ?? !platform.isDev
 

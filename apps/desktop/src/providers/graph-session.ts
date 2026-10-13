@@ -1,4 +1,4 @@
-import { initialRouteForDeepLink, type AppServices, type Unlisten } from '@reflect/core'
+import { initialRouteForDeepLink, type CoreServices, type Unlisten } from '@reflect/core'
 import { trackSubscriptions } from '@/lib/subscriptions.ts'
 
 /**
@@ -7,7 +7,7 @@ import { trackSubscriptions } from '@/lib/subscriptions.ts'
  * requests.
  */
 export function bootGraphSession(
-  ctx: Pick<AppServices, 'graphSession' | 'deepLink' | 'window'>,
+  ctx: Pick<CoreServices, 'graphSession' | 'deepLink' | 'window'>,
 ): Unlisten {
   const { graphSession: session, deepLink, window } = ctx
   const subscriptions = trackSubscriptions()

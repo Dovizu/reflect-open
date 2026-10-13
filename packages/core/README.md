@@ -14,15 +14,15 @@ fields. A service
 receives the other services it calls through `deps`, and nothing else: the
 package has no process-wide instances and no module-level mutable state.
 
-- **`createAppServices(adapters)`** (`app/create-app-services.ts`) is the
+- **`createCoreServices(adapters)`** (`app/create-core-services.ts`) is the
   composition root. It builds every service once, in dependency order, and
-  returns them as one **`AppServices`** object. The host calls it once per
+  returns them as one **`CoreServices`** object. The host calls it once per
   webview.
-- **`AppAdapters`** is what the host supplies: the IPC transport, the platform
+- **`CoreAdapters`** is what the host supplies: the IPC transport, the platform
   facts, and the HTTP, storage, dialog, clipboard, opener, path, window and
   lifecycle primitives. The desktop app's adapters are in
   `apps/desktop/src/services/`, and it reads services in React with
-  `useAppServices()`.
+  `useCoreServices()`.
 - **Per-session factories.** Work that belongs to one graph session is created
   per session, not per app: `createBackupService(deps, options)` and
   `createICloudSyncService(deps, options)` (through `graphServiceFactories`),
@@ -34,8 +34,8 @@ package has no process-wide instances and no module-level mutable state.
   This package never touches a UI cache; the app maps events to invalidation.
 - **`@reflect/core/testing`** (`testing/`) holds the test doubles
   (`createTestXxxService()`) of the services that cannot run in a test or that
-  tests script or observe, and `createTestAppServices()`, the whole
-  `AppServices` object built by the production composition root over them.
+  tests script or observe, and `createTestCoreServices()`, the whole
+  `CoreServices` object built by the production composition root over them.
   Tests construct the service under test over these doubles.
 
 The conventions are in
@@ -47,7 +47,7 @@ add a service, follow [services.md](../../docs/contributing/services.md).
 Every native call goes through one seam:
 
 - **`IpcBridge`** is the transport (`invoke` + `listen`) the host gives to
-  `createAppServices`. The desktop app adapts Tauri; browser dev passes a
+  `createCoreServices`. The desktop app adapts Tauri; browser dev passes a
   deferred transport that the in-memory dev backend connects later; tests use
   `createTestIpcBridgeService()`.
 - **`IpcBridgeService`** (`createIpcBridgeService({ transport, logger })`)
@@ -60,7 +60,7 @@ Every native call goes through one seam:
 
 | Module | What it owns |
 |---|---|
-| `app/` | The composition root (`create-app-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformService`, `StorageService`, `HttpService`, `OperationsService`, `AppLifecycleService`, `WindowService`, `PersistenceFlushService`, `UpdateService`. |
+| `app/` | The composition root (`create-core-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformService`, `StorageService`, `HttpService`, `OperationsService`, `AppLifecycleService`, `WindowService`, `PersistenceFlushService`, `UpdateService`. |
 | `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, the typed file services (`NoteFileService`, `AssetStoreService`), note creation and link resolution (`NoteCreationService`, `NoteLinkResolverService`), and the open graph (`GraphSessionService`, `MobileOnboardingService`). |
 | `documents/` | Open notes: the `NoteSession` state machine (`NoteSessionService`), the registry of live sessions (`OpenDocumentsService`), session-aware reads and writes (`NoteDocumentService`), moves and title renames (`NoteMoveService`, `TitleRenameService`), note actions (`NoteActionsService`), attachments and templates. |
 | `markdown/` | The document model (Plan 03): frontmatter parsing, the canonical Lezer grammar with the `[[wiki link]]` extension, extraction (`parseNote`), source-level edits, and pure wiki-link resolution policy. |
@@ -78,12 +78,12 @@ Every native call goes through one seam:
 | `contacts/` | The Apple Contacts integration: `ContactsService` (live lookups), `PersonNoteService` (email identities to `#person` notes), `MeetingService` (a calendar event into its daily note), `ContactSuggestionService` (the suggested-contact card), and the pure matching and Markdown rules. |
 | `settings/` | The settings schema, `SettingsService` (the one settings document) and `ThemeService`. |
 | `ipc/` | The `IpcBridge` transport type and `IpcBridgeService` described above, plus the typed plugin bindings. |
-| `testing/` | The `@reflect/core/testing` entry: test doubles and `createTestAppServices()`. Never imported by production code. |
+| `testing/` | The `@reflect/core/testing` entry: test doubles and `createTestCoreServices()`. Never imported by production code. |
 | `errors.ts` | The `AppError` discriminated union shared with Rust. |
 
 ## Indexing: which entry point?
 
-- **`IndexLifecycleService`** (`AppServices.indexLifecycle`) runs the open graph's
+- **`IndexLifecycleService`** (`CoreServices.indexLifecycle`) runs the open graph's
   index and owns every pass:
   - **`indexNote(path, { generation })`** — one note changed; parse and apply it.
   - **`sync(session)`** — the graph-open path: re-index files whose
@@ -130,12 +130,12 @@ background with a BYOK model, in `audio/`:
 
 - **`AudioRecorderService`** is the microphone: the webview `MediaRecorder` on
   desktop, the native recorder plugin in the mobile app.
-- **`AudioMemoService`** (`AppServices.audioMemo`) owns the pipeline of one
+- **`AudioMemoService`** (`CoreServices.audioMemo`) owns the pipeline of one
   graph session. `openPipeline()` is the serial capture queue plus, in the main
   window, the transcription lifecycle; `openSession()` is the desktop recording
   surface over it. A session exposes `getState()` / `subscribe()` and the
   controls the UI calls.
-- **`MobileAudioMemoService`** (`AppServices.mobileAudioMemo`, mobile only) is
+- **`MobileAudioMemoService`** (`CoreServices.mobileAudioMemo`, mobile only) is
   the same surface over the native recorder: staged segments, the orphan scan,
   and, through **`NativeActionService`**, the OS entry points.
 
@@ -144,7 +144,7 @@ The App Review demo key writes one canned note per session. That rule lives in
 
 ## The open graph
 
-**`GraphSessionService`** (`AppServices.graphSession`) owns the active graph of
+**`GraphSessionService`** (`CoreServices.graphSession`) owns the active graph of
 a webview: its status, the graph and index generations, the recents list, and
 the open, create, switch, forget and delete flows. `boot()` runs the window's
 boot path: the desktop main window reopens the most recent graph, a note
@@ -163,7 +163,7 @@ released. Ordinary services stay app-scoped. Rust-boundary wrappers
 (`NoteActionsService`) read the session once at method entry through
 `graphSession.getState()` or `requireGraphSession`.
 
-**`MobileOnboardingService`** (`AppServices.mobileOnboarding`) is the mobile
+**`MobileOnboardingService`** (`CoreServices.mobileOnboarding`) is the mobile
 boot path over that session: `boot()` parks a fresh install on onboarding or
 opens the graph of the persisted storage kind, and `completeOnboarding()`
 opens and persists a storage choice. Storage roots are resolved fresh every

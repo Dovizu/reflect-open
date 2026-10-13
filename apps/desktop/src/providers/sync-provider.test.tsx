@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { describe, expect, it } from 'vitest'
 import { page } from 'vitest/browser'
-import { createTestAppServices, createTestWindowService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestWindowService } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { useSync, useSyncContext } from './sync-provider.tsx'
 
@@ -30,7 +30,7 @@ describe('useSync', () => {
   })
 
   it('reads loading, and no context, where the graph runs no backup', async () => {
-    const app = createTestAppServices({ window: createTestWindowService({ label: 'note-1' }) })
+    const app = createTestCoreServices({ window: createTestWindowService({ label: 'note-1' }) })
     await renderInApp(<Probe />, { app })
 
     const button = page.getByRole('button', { name: 'loading' })

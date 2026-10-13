@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore, type ReactElement } from 'react'
 import { cn } from '@/lib/utils.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Failed and warning background operations as tappable pills (Plan 19
@@ -13,7 +13,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * surface only speaks up when something went wrong.
  */
 export function MobileOperationsPills(): ReactElement | null {
-  const { operations } = useAppServices()
+  const { operations } = useCoreServices()
   const subscribe = useCallback(
     (listener: () => void) => operations.subscribe(listener),
     [operations],

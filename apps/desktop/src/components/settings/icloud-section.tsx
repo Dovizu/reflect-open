@@ -21,7 +21,7 @@ import {
 } from '@/lib/query-options.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSync } from '@/providers/sync-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 const PENDING_NOTES_REFETCH_MS = 5_000
 
@@ -70,7 +70,7 @@ function reviewLine(conflictCount: number, forkCount: number): string {
 export function IcloudSettingsField(): ReactElement | null {
   const { graph, openRecent } = useGraph()
   const { backup, disconnectGraph } = useSync()
-  const { icloudMigration: migration, icloudNative, indexQuery, platform } = useAppServices()
+  const { icloudMigration: migration, icloudNative, indexQuery, platform } = useCoreServices()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

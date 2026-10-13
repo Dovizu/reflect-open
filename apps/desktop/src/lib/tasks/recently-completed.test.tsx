@@ -2,9 +2,9 @@ import { act } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getTaskKey, type OpenTask, type TaskService, type TaskSnapshot } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   makeOpenTask as task,
-  type TestAppServices,
+  type TestCoreServices,
 } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useRecentlyCompleted } from './recently-completed.ts'
@@ -16,12 +16,12 @@ function snapshot(astPath: number[], markdown: string, checked = true): TaskSnap
   return { astPath, markdown, breadcrumbs: [], checked }
 }
 
-let app: TestAppServices
+let app: TestCoreServices
 let tasks: TaskService
 
 // A fresh service per test, so its recently-completed set starts empty.
 beforeEach(() => {
-  app = createTestAppServices()
+  app = createTestCoreServices()
   tasks = app.tasks
 })
 

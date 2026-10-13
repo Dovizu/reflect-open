@@ -27,7 +27,7 @@ import { useAiPrompts } from '@/hooks/use-ai-prompts.ts'
 import { useAiProviders } from '@/hooks/use-ai-providers.ts'
 import { useNoteRow } from '@/hooks/use-note-row.ts'
 import { useRouter } from '@/routing/router.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * The editor AI menu (the "run a prompt on the selection" flow): meowdown owns
@@ -102,7 +102,7 @@ export function useEditorAiMenu({
     noteRow?.isPrivate ??
     (resolvedPrivacy?.epoch === sessionEpoch ? resolvedPrivacy.isPrivate : true)
   const { providers } = useAiProviders()
-  const { selectionTransform } = useAppServices()
+  const { selectionTransform } = useCoreServices()
   const { prompts } = useAiPrompts()
   const { navigate } = useRouter()
 

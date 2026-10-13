@@ -5,7 +5,7 @@ import {
   createNoteServices,
   type IndexReadServices,
   type NoteServices,
-} from '../app/create-app-services.ts'
+} from '../app/create-core-services.ts'
 import { ReflectError } from '../errors.ts'
 import { createNoteFileService } from '../graph/note-file-service.ts'
 import { normalizeWikiTarget, parseNote } from '../markdown/index.ts'

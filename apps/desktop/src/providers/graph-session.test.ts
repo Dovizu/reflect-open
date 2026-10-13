@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RecentGraph, WindowBootstrap } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestGraphSessionService,
   createTestWindowService,
   type TestWindowService,
@@ -28,7 +28,7 @@ afterEach(() => {
  */
 function boot(windowService: TestWindowService, recents: readonly RecentGraph[] = []) {
   const session = createTestGraphSessionService({ window: windowService, recents })
-  const app = createTestAppServices({ window: windowService, graphSession: session })
+  const app = createTestCoreServices({ window: windowService, graphSession: session })
   closeDatabase = () => app.database.close()
   const deepLinks: string[] = []
   app.deepLink.setHandler((url) => {

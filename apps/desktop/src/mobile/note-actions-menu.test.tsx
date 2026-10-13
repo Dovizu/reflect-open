@@ -6,7 +6,7 @@ import {
   type NoteDocumentService,
   type NoteRow,
 } from '@reflect/core'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import { frontmatterPatchToYaml } from '@/editor/note-session.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import type { ReactElement, ReactNode } from 'react'
@@ -24,9 +24,9 @@ const SHARED = { title: 'meeting', text: '# Meeting\n' }
 const noteSource = { value: '# A\n' }
 
 // The services of the rendered app; set by `mount`.
-let app: TestAppServices
+let app: TestCoreServices
 let trash: MockInstance<NoteActionsService['trashOne']>
-let noteContent: MockInstance<TestAppServices['share']['noteContent']>
+let noteContent: MockInstance<TestCoreServices['share']['noteContent']>
 
 /**
  * The mobile note actions drawer: pin/share/delete already live here; this
@@ -134,7 +134,7 @@ afterEach(() => {
 })
 
 async function mount(path = 'notes/meeting.md', onDeleted = vi.fn()) {
-  const created = createTestAppServices({
+  const created = createTestCoreServices({
     noteDocuments: {
       readSource: readNoteSource,
       readExisting: async (notePath) => await readNoteSource(notePath),

@@ -2,7 +2,7 @@ import { page, userEvent } from 'vitest/browser'
 import { describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { BuildPlatform, GraphSessionService, IcloudStatus, Settings } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestGraphSessionService,
   createTestICloudNativeService,
   createTestPlatformService,
@@ -26,7 +26,7 @@ async function renderChooser(options?: {
   settings?: Partial<Settings>
   buildPlatform?: BuildPlatform
 }): Promise<void> {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     platform: createTestPlatformService({ buildPlatform: options?.buildPlatform ?? 'darwin' }),
     graphSession: createTestGraphSessionService({ recents: RECENTS }),
     icloudNative: createTestICloudNativeService(

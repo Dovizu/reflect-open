@@ -8,7 +8,7 @@ import {
   type GithubUser,
 } from '@reflect/core'
 import { useSync } from '@/providers/sync-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 export type {
   ConnectAuthKind,
@@ -78,7 +78,7 @@ export function useConnectGithubWizard({
   pollIntervalMs = 3000,
 }: ConnectGithubWizardOptions): ConnectGithubWizard {
   const sync = useSync()
-  const { githubAuth, opener, lifecycle, clock } = useAppServices()
+  const { githubAuth, opener, lifecycle, clock } = useCoreServices()
   // The wizard lives as long as the surface; it always calls the latest
   // actions and `onClose` without being rebuilt every render.
   const latest = useRef({ sync, onClose })

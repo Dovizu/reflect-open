@@ -2,7 +2,7 @@ import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { MIN_VISIBLE_MS, type GistPublishService, type NoteRow } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   type TestClipboardService,
   type TestOpenerService,
   type TestOperationsService,
@@ -36,7 +36,7 @@ function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
 }
 
 async function renderSection(path = 'notes/a.md') {
-  const app = createTestAppServices()
+  const app = createTestCoreServices()
   vi.spyOn(app.indexQuery, 'getNote').mockImplementation(async () => row ?? undefined)
   publish = vi
     .spyOn(app.gistPublish, 'publish')

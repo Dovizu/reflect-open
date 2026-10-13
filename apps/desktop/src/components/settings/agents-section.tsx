@@ -7,7 +7,7 @@ import { SettingsSection } from '@/components/settings/section.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface AgentSkillAction {
   action: 'install' | 'uninstall'
@@ -23,7 +23,7 @@ interface AgentSkillAction {
  */
 export function AgentsSection(): ReactElement | null {
   const { graph } = useGraph()
-  const { agentSkill, platform } = useAppServices()
+  const { agentSkill, platform } = useCoreServices()
   const queryClient = useQueryClient()
   const queryKey = queryKeys.agentSkill.status(graph?.root)
   const { data: status } = useQuery({

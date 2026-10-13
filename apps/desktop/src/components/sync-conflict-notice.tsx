@@ -8,7 +8,7 @@ import { useConflictResolution } from '@/hooks/use-conflict-resolution.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface SyncConflictNoticeProps {
   /** Graph-relative path of the open note. */
@@ -42,7 +42,7 @@ export function SyncConflictNotice({
 }: SyncConflictNoticeProps): ReactElement | null {
   const { graph } = useGraph()
   const { busy, error, resolve } = useConflictResolution(path)
-  const { indexQuery, conflictResolution, platform } = useAppServices()
+  const { indexQuery, conflictResolution, platform } = useCoreServices()
   const { data } = useQuery({
     queryKey: queryKeys.index.noteConflict(graph?.root, path),
     queryFn: async () => (await indexQuery.getNote(path)) ?? null,

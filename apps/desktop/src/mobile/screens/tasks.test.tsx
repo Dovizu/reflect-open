@@ -2,11 +2,11 @@ import type { ReactNode } from 'react'
 import { page, userEvent, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestOperationsService,
   createTestPlatformService,
   makeOpenTask as task,
-  type TestAppServices,
+  type TestCoreServices,
   type TestHapticsService,
   type TestStorageService,
 } from '@reflect/core/testing'
@@ -233,13 +233,13 @@ async function revealSwipeActions(
 
 let storage: TestStorageService
 
-let app: Omit<TestAppServices, 'tasks'> & { tasks: TaskService }
+let app: Omit<TestCoreServices, 'tasks'> & { tasks: TaskService }
 
 beforeEach(async () => {
   const operations = createTestOperationsService()
   await page.viewport(375, 700)
   // A fresh service per test, so its recently-completed set starts empty.
-  app = createTestAppServices({
+  app = createTestCoreServices({
     operations,
     // Reduced motion: an instant settle, so row transforms can be asserted synchronously.
     platform: createTestPlatformService({ reducedMotion: true }),

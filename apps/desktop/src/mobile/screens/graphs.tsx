@@ -11,7 +11,7 @@ import { MobileScreenHeader } from '@/mobile/screen-header.tsx'
 import { SettingsActionRow, SettingsGroup, SettingsSelectRow } from '@/mobile/settings-list.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * The Graphs screen (route kind `graphs`) — the mobile graph switcher as an
@@ -31,7 +31,7 @@ export function MobileGraphs(): ReactElement {
   const [switchError, setSwitchError] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
 
-  const { mobileStorage } = useAppServices()
+  const { mobileStorage } = useCoreServices()
   const { data: storage } = useQuery({
     queryKey: queryKeys.mobile.storage,
     queryFn: () => mobileStorage.resolve(),

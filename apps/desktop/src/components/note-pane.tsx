@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useNoteSearchQuery, useNoteSearchReport } from '@/providers/note-find-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface NotePaneProps {
   /** Graph-relative path of the note to edit. */
@@ -129,7 +129,7 @@ export function NotePaneComponent({
 }: NotePaneProps): ReactElement {
   const { graph } = useGraph()
   const { settings } = useSettings()
-  const { noteCreation, platform } = useAppServices()
+  const { noteCreation, platform } = useCoreServices()
   const graphKey = graph?.root ?? null
   const dailyNote = isDaily(path)
   const policy = deferredCreationPolicy(path)

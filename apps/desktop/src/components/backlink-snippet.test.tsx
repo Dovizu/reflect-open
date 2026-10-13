@@ -1,4 +1,4 @@
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import { userEvent } from 'vitest/browser'
 import { describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { SnippetTask, TaskService } from '@reflect/core'
@@ -34,7 +34,7 @@ function anchors(): SnippetTask[] {
   ]
 }
 
-let operations: TestAppServices['operations']
+let operations: TestCoreServices['operations']
 let writeTask: MockInstance<TaskService['writeTask']>
 
 async function renderSnippet(
@@ -42,7 +42,7 @@ async function renderSnippet(
   text: string = SNIPPET,
   onWikilinkClick: () => void = () => {},
 ) {
-  const app = createTestAppServices()
+  const app = createTestCoreServices()
   operations = app.operations
   writeTask = vi
     .spyOn(app.tasks, 'writeTask')

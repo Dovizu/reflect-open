@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
 import type { GraphImportProgress, GraphImportSummary, GraphInfo } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestGraphSessionService,
   createTestIpcBridgeService,
 } from '@reflect/core/testing'
@@ -54,7 +54,7 @@ async function renderProvider(result?: GraphImportSummary | Error) {
   })
   const session = createTestGraphSessionService({ state: { status: 'ready', graph: GRAPH } })
   const refreshIndex = vi.spyOn(session, 'refreshIndex').mockImplementation(() => {})
-  const app = createTestAppServices({ ipc, graphSession: session })
+  const app = createTestCoreServices({ ipc, graphSession: session })
   const view = await renderInApp(
     <V1ImportProvider>
       <Probe />

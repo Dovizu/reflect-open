@@ -6,14 +6,14 @@ a method on the core service that owns the domain.** The canonical in-tree
 example is `app_version`: a real `#[tauri::command]` (`lib.rs`), bound as
 `AppInfoService.version()` (`packages/core/src/app/app-info-service.ts`) with a
 zod-validated response, and read in React by `useAppVersion()`
-(`apps/desktop/src/hooks/use-app-version.ts`) through `useAppServices()`. This
+(`apps/desktop/src/hooks/use-app-version.ts`) through `useCoreServices()`. This
 guide walks the same path with a hypothetical `note_stat` command.
 
 ```text
-React component / hook        useAppServices()
+React component / hook        useCoreServices()
   └─ service method           packages/core/src/<domain>/<name>-service.ts
        └─ ipc.call            packages/core/src/ipc/ipc-service.ts  (zod validation)
-            └─ transport.invoke   the `IpcBridge` given to `createAppServices`
+            └─ transport.invoke   the `IpcBridge` given to `createCoreServices`
                  └─ Tauri IPC apps/desktop/src/services/tauri-ipc.ts
                       └─ #[tauri::command]  apps/desktop/src-tauri/src/<module>.rs
 ```
@@ -154,13 +154,13 @@ rejects the ones it does not know. Add a `case` there if the feature must work
 in that mode.
 
 If no existing service owns the capability, add one: a small
-`createXxxService({ ipc })` like `AppInfoService`, a field on `AppServices`,
+`createXxxService({ ipc })` like `AppInfoService`, a field on `CoreServices`,
 and a test double. [Adding a service](services.md) is the guide.
 
 React then reaches the method through the service, as `useAppVersion()` does:
 
 ```ts
-const { noteFile } = useAppServices()
+const { noteFile } = useCoreServices()
 const stat = await noteFile.stat(path)
 ```
 

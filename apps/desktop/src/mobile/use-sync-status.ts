@@ -3,7 +3,7 @@ import type { MobileSyncStatus } from '@reflect/core'
 import { createConflictedNotesQueryOptions } from '@/lib/query-options.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSyncContext } from '@/providers/sync-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * The mobile sync status, ready to display — engine state joined with the
@@ -18,7 +18,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
 export function useMobileSyncStatus(): MobileSyncStatus | null {
   const { graph } = useGraph()
   const sync = useSyncContext()
-  const { indexQuery, syncStatus } = useAppServices()
+  const { indexQuery, syncStatus } = useCoreServices()
   const backup = sync?.backup ?? null
   const connected = backup !== null && backup.phase === 'connected'
 

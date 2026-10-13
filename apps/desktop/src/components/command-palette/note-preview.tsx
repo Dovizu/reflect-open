@@ -7,7 +7,7 @@ import { formatDayLabel } from '@/lib/dates.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import type { NoteEntry } from './entries.ts'
 
 /**
@@ -27,7 +27,7 @@ interface NotePreviewProps {
 export function NotePreview({ entry }: NotePreviewProps): ReactElement {
   const { graph } = useGraph()
   const { settings } = useSettings()
-  const { noteDocuments } = useAppServices()
+  const { noteDocuments } = useCoreServices()
   const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(entry.path)
   const { data, isError } = useQuery({
     queryKey: queryKeys.index.notePreview(graph?.root, entry.path),

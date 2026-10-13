@@ -5,7 +5,7 @@ import type {
   NoteCreationService,
   NoteLinkResolverService,
 } from '@reflect/core'
-import { createTestAppServices, createTestWindowService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestWindowService } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
 import { useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
@@ -27,7 +27,7 @@ const getBacklinksPage: BacklinkService['getBacklinksWithContext'] = async (path
 }
 
 function createApp() {
-  const services = createTestAppServices({
+  const services = createTestCoreServices({
     window: createTestWindowService({ openNoteWindow }),
   })
   vi.spyOn(services.backlinks, 'getBacklinksWithContext').mockImplementation(getBacklinksPage)

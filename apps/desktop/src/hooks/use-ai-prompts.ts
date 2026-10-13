@@ -1,5 +1,5 @@
 import type { AiPrompt, AiPromptDraft } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { AiPromptDraft } from '@reflect/core'
@@ -15,7 +15,7 @@ interface UseAiPromptsValue {
  * The saved-AI-prompts surface (the editor AI menu's user library), over the `AiPromptService`.
  */
 export function useAiPrompts(): UseAiPromptsValue {
-  const { aiPrompts: service } = useAppServices()
+  const { aiPrompts: service } = useCoreServices()
   const prompts = useServiceState(service, service.list)
   return {
     prompts,

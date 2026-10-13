@@ -2,7 +2,7 @@ import { page } from 'vitest/browser'
 import { describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { MobileOnboardingService, MobileStorageInfo } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestMobileStorageService,
   createTestPlatformService,
 } from '@reflect/core/testing'
@@ -26,7 +26,7 @@ async function mount(options?: {
   resolving?: boolean
 }): Promise<void> {
   const storage = options?.storage ?? STORAGE
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     platform: createTestPlatformService(MOBILE_PLATFORM),
     mobileStorage: createTestMobileStorageService({ storage }),
   })

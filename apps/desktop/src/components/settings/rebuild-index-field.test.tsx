@@ -1,6 +1,6 @@
 import { page, type Locator } from 'vitest/browser'
 import { describe, expect, it, vi } from 'vitest'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { RebuildIndexField } from './rebuild-index-field.tsx'
 
@@ -18,7 +18,7 @@ describe('RebuildIndexField', () => {
   })
 
   it('disables the button while a rebuild is in flight, then re-enables it', async () => {
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     const rebuild = Promise.withResolvers<void>()
     vi.spyOn(app.indexLifecycle, 'rebuildVisibly').mockReturnValueOnce(rebuild.promise)
     await renderInApp(<RebuildIndexField />, { app, graph: { indexGeneration: 7 } })

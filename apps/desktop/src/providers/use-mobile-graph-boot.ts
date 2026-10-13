@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import type { MobileStorageInfo, MobileStorageKind } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
@@ -53,7 +53,7 @@ export interface MobileGraphBoot {
  * desktop.
  */
 export function useMobileGraphBoot(): MobileGraphBoot {
-  const { mobileOnboarding: service } = useAppServices()
+  const { mobileOnboarding: service } = useCoreServices()
   const state = useServiceState(service, service.getState)
 
   useEffect(() => service.boot(), [service])

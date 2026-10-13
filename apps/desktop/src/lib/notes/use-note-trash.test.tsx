@@ -1,7 +1,7 @@
 import { actAsync } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestNoteFileService,
   type TestNoteFileService,
   type TestOpenGraph,
@@ -21,7 +21,7 @@ beforeEach(() => {
 
 async function mount(graph: TestOpenGraph | null = GRAPH) {
   return await renderHookInApp(() => useNoteTrash(), {
-    app: createTestAppServices({ noteFile }),
+    app: createTestCoreServices({ noteFile }),
     graph,
   })
 }

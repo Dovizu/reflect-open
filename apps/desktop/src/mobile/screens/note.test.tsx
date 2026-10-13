@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, useRef, type ReactElement } from 'react'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { useRouter, type NavigateOptions } from '@/routing/router.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { MobileNote } from './note.tsx'
@@ -93,7 +93,7 @@ describe('MobileNote focus contract', () => {
   })
 
   it('autofocuses a fresh untitled note (the + flow)', async () => {
-    await renderArrival(createTestAppServices().noteCreation.untitledNotePath())
+    await renderArrival(createTestCoreServices().noteCreation.untitledNotePath())
     await expect.element(page.getByRole('heading', { name: 'New note' })).toBeVisible()
     expect(paneProps.autoFocus).toBe(true)
   })

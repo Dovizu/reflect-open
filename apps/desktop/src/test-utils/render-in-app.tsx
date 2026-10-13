@@ -2,8 +2,9 @@ import type { ReactElement, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { onTestFinished } from 'vitest'
 import { render, renderHook, type RenderHookResult, type RenderResult } from 'vitest-browser-react'
+import { createAppServices } from '@reflect/app'
 import type {
-  AppServices,
+  CoreServices,
   BackupState,
   GraphServices,
   GraphSessionState,
@@ -11,11 +12,11 @@ import type {
   Settings,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestPlatformService,
   createTestBackupService,
-  type TestAppServiceOverrides,
-  type TestAppServices,
+  type TestCoreServiceOverrides,
+  type TestCoreServices,
   type TestBackupService,
   type TestOpenGraph,
   type TestPlatformOptions,
@@ -25,7 +26,7 @@ import { registerAppCommands } from '@/lib/commands/app-commands.ts'
 import { GraphProvider } from '@/providers/graph-provider.tsx'
 import type { Route } from '@/routing/route.ts'
 import { RouterProvider } from '@/routing/router.tsx'
-import { AppServicesProvider } from '@/services/services-provider.tsx'
+import { AppServicesProvider, CoreServicesProvider } from '@/services/services-provider.tsx'
 
 /**
  * The platform facts of the mobile app: pass as `platform` to render a mobile surface.
@@ -78,7 +79,7 @@ export interface RenderInAppOptions {
    */
   wrapper?: (children: ReactNode) => ReactNode
   /**
-   * Mount only `AppServicesProvider` and the query client, for a test of a
+   * Mount only `CoreServicesProvider` and the query client, for a test of a
    * provider this helper otherwise mounts, or of one that needs no graph.
    * `app` keeps its own graph session, and the settings load is not awaited.
    * Not with `graph`, `graphState`, `route` or `sync`.
@@ -86,7 +87,7 @@ export interface RenderInAppOptions {
   servicesOnly?: boolean
 }
 
-interface InAppHandles<App extends AppServices> {
+interface InAppHandles<App extends CoreServices> {
   readonly app: App
   readonly queryClient: QueryClient
   /**
@@ -95,19 +96,19 @@ interface InAppHandles<App extends AppServices> {
   readonly backup: TestBackupService | null
 }
 
-export interface InAppRenderResult<App extends AppServices>
+export interface InAppRenderResult<App extends CoreServices>
   extends RenderResult, InAppHandles<App> {}
 
-export interface InAppRenderHookResult<Result, Props, App extends AppServices>
+export interface InAppRenderHookResult<Result, Props, App extends CoreServices>
   extends RenderHookResult<Result, Props>, InAppHandles<App> {}
 
-type AnyOptions = RenderInAppOptions & { app?: AppServices | undefined }
+type AnyOptions = RenderInAppOptions & { app?: CoreServices | undefined }
 
 /**
  * Prepare `app` and the provider tree; the caller renders `wrap(ui)` and calls `dispose` after.
  */
 async function prepare(options: AnyOptions | undefined): Promise<
-  InAppHandles<AppServices> & {
+  InAppHandles<CoreServices> & {
     wrap: (children: ReactNode) => ReactElement
     dispose: () => void
   }
@@ -119,13 +120,13 @@ async function prepare(options: AnyOptions | undefined): Promise<
       'renderInApp: with your own `app`, give it the platform and the backup service yourself',
     )
   }
-  const overrides: TestAppServiceOverrides = {
+  const overrides: TestCoreServiceOverrides = {
     ...(options?.platform === undefined
       ? {}
       : { platform: createTestPlatformService(options.platform) }),
     ...(backup === null ? {} : { backup }),
   }
-  const app: AppServices = options?.app ?? (createTestAppServices(overrides) as AppServices)
+  const app: CoreServices = options?.app ?? (createTestCoreServices(overrides) as CoreServices)
   const servicesOnly = options?.servicesOnly ?? false
   if (
     servicesOnly &&
@@ -142,13 +143,13 @@ async function prepare(options: AnyOptions | undefined): Promise<
     if (!('seed' in settings)) {
       throw new Error('renderInApp: `settings` needs a test settings service in `app`')
     }
-    ;(settings as TestAppServices['settings']).seed(options.settings)
+    ;(settings as TestCoreServices['settings']).seed(options.settings)
   }
   if (options?.mobile !== undefined) {
     if (!('setState' in mobileOnboarding)) {
       throw new Error('renderInApp: `mobile` needs a test mobile onboarding service in `app`')
     }
-    ;(mobileOnboarding as TestAppServices['mobileOnboarding']).setState(options.mobile)
+    ;(mobileOnboarding as TestCoreServices['mobileOnboarding']).setState(options.mobile)
   }
   if (!servicesOnly) {
     if (!('setGraph' in graphSession) || !('setState' in graphSession)) {
@@ -157,7 +158,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
     // The first render already shows the stored settings, not the defaults,
     // and the graph services start over them.
     await settings.whenLoaded()
-    const session = graphSession as TestAppServices['graphSession']
+    const session = graphSession as TestCoreServices['graphSession']
     session.setGraph(options?.graph === undefined ? {} : options.graph)
     if (options?.graphState !== undefined) {
       session.setState(options.graphState)
@@ -169,31 +170,36 @@ async function prepare(options: AnyOptions | undefined): Promise<
   registerAppCommands(app.commands)
 
   const route = options?.route
+  const appLayer = createAppServices(app, {})
   const wrap = (children: ReactNode): ReactElement => {
     const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
     if (servicesOnly) {
       return (
-        <AppServicesProvider services={app}>
-          <QueryClientProvider client={queryClient}>{wrapped}</QueryClientProvider>
-        </AppServicesProvider>
+        <CoreServicesProvider services={app}>
+          <AppServicesProvider services={appLayer}>
+            <QueryClientProvider client={queryClient}>{wrapped}</QueryClientProvider>
+          </AppServicesProvider>
+        </CoreServicesProvider>
       )
     }
     return (
-      <AppServicesProvider services={app}>
-        <QueryClientProvider client={queryClient}>
-          <GraphProvider platform={app.platform.appPlatform}>
-            <TooltipProvider>
-              {route === null ? (
-                wrapped
-              ) : (
-                <RouterProvider {...(route === undefined ? {} : { initialRoute: route })}>
-                  {wrapped}
-                </RouterProvider>
-              )}
-            </TooltipProvider>
-          </GraphProvider>
-        </QueryClientProvider>
-      </AppServicesProvider>
+      <CoreServicesProvider services={app}>
+        <AppServicesProvider services={appLayer}>
+          <QueryClientProvider client={queryClient}>
+            <GraphProvider platform={app.platform.appPlatform}>
+              <TooltipProvider>
+                {route === null ? (
+                  wrapped
+                ) : (
+                  <RouterProvider {...(route === undefined ? {} : { initialRoute: route })}>
+                    {wrapped}
+                  </RouterProvider>
+                )}
+              </TooltipProvider>
+            </GraphProvider>
+          </QueryClientProvider>
+        </AppServicesProvider>
+      </CoreServicesProvider>
     )
   }
   return {
@@ -208,7 +214,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
 }
 
 /**
- * Render `ui` the way the app does: inside `AppServicesProvider`, a query
+ * Render `ui` the way the app does: inside `CoreServicesProvider`, a query
  * client, and the real `GraphProvider` (which provides
  * the graph services) and `RouterProvider`. All of them read `app`, which defaults to test doubles. Tests drive and observe
  * the app through the returned `app`: `app.graphSession.setGraph()`,
@@ -217,7 +223,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
  *
  * Pass your own `app` to replace or spy on a service before the first render.
  */
-export async function renderInApp<App extends AppServices = TestAppServices>(
+export async function renderInApp<App extends CoreServices = TestCoreServices>(
   ui: ReactNode,
   options?: RenderInAppOptions & { app?: App },
 ): Promise<InAppRenderResult<App>> {
@@ -236,7 +242,7 @@ export async function renderInApp<App extends AppServices = TestAppServices>(
 export async function renderHookInApp<
   Result,
   Props = undefined,
-  App extends AppServices = TestAppServices,
+  App extends CoreServices = TestCoreServices,
 >(
   hook: (props?: Props) => Result,
   options?: RenderInAppOptions & { app?: App; initialProps?: Props },

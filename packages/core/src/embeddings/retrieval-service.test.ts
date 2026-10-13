@@ -9,7 +9,7 @@ import {
   seedNotes,
   type TestNote,
 } from '../testing/index.ts'
-import { createIndexReadServices } from '../app/create-app-services.ts'
+import { createIndexReadServices } from '../app/create-core-services.ts'
 import type { EmbedStatus } from './embedding-runtime-service.ts'
 import { createRetrievalService } from './retrieval-service.ts'
 

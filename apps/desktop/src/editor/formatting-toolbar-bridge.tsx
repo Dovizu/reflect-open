@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 import { useEditor } from '@meowdown/react'
 import { buildFileMarkdown, type EditorExtension } from '@meowdown/core'
 import { toPortableImageFile } from '@/lib/image-file.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { whenEditorMounted } from './when-editor-mounted.ts'
 import {
   clearFormattingToolbar,
@@ -43,7 +43,7 @@ export function FormattingToolbarBridge({
   saveFile?: ((file: File) => Promise<string | undefined>) | undefined
 }): null {
   const editor = useEditor<EditorExtension>()
-  const { imageCodec, platform, logger } = useAppServices()
+  const { imageCodec, platform, logger } = useCoreServices()
   const touchEditor = platform.surface.touchEditor
   // Read through a ref like the editor's other host callbacks: a changing
   // identity must not tear down and re-attach the published toolbar.

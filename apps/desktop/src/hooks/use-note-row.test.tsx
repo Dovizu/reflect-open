@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { IndexQueryService, NoteRow } from '@reflect/core'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useNoteRow } from './use-note-row.ts'
 
 const GENERATION = 5
 
-let app: TestAppServices
+let app: TestCoreServices
 let getNote: MockInstance<IndexQueryService['getNote']>
 
 function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
@@ -33,7 +33,7 @@ async function mount() {
 }
 
 beforeEach(() => {
-  app = createTestAppServices()
+  app = createTestCoreServices()
   getNote = vi.spyOn(app.indexQuery, 'getNote')
 })
 

@@ -11,7 +11,7 @@ import type { CommandContext } from '@/lib/commands/types.ts'
 import { cn } from '@/lib/utils.ts'
 import { notePathForRoute } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { GraphFooter } from './graph-footer.tsx'
 import { NavigateArrows } from './navigate-arrows.tsx'
 import { SidebarItem } from './sidebar-item.tsx'
@@ -34,7 +34,7 @@ interface SidebarProps {
  * `Mod-\` via the command registry.)
  */
 export function Sidebar({ graph, context }: SidebarProps): ReactElement {
-  const { platform } = useAppServices()
+  const { platform } = useCoreServices()
   const { route } = useRouter()
   const today = useToday()
   const pinned = usePinnedNotes()

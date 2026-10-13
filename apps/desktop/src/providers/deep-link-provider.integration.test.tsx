@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestCaptureInboxService,
   createTestDeepLinkService,
   createTestGraphSessionService,
@@ -16,7 +16,7 @@ describe('DeepLinkProvider navigation intent integration', () => {
     )
     const captureInbox = createTestCaptureInboxService()
     const graphSession = createTestGraphSessionService()
-    const app = createTestAppServices({
+    const app = createTestCoreServices({
       captureInbox,
       graphSession,
       deepLink: createTestDeepLinkService({

@@ -10,7 +10,7 @@ responsibilities follows the usual rule:
   no idea what keys exist. **You will not touch Rust to add a setting.**
 - **`@reflect/core`** owns the known keys, their defaults, and validation
   (`packages/core/src/settings/schema.ts`), and the runtime document:
-  `SettingsService` (`settings/settings-service.ts`, `AppServices.settings`)
+  `SettingsService` (`settings/settings-service.ts`, `CoreServices.settings`)
   loads it once, applies patches, and persists them.
 - **The desktop app** consumes settings through `useSettings()`
   (`apps/desktop/src/providers/settings-provider.tsx`, a thin shell over the

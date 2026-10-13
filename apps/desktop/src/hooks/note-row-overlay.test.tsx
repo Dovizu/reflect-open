@@ -1,7 +1,7 @@
 import { act } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { NoteRow } from '@reflect/core'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useNoteRowOverlay } from './note-row-overlay.ts'
 
@@ -21,7 +21,7 @@ function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
 const URL = 'https://gist.github.com/alex/g1'
 const GEN = 1
 
-let app: TestAppServices
+let app: TestCoreServices
 
 /**
  * Render the overlay hook for `path` over the shared `app`.
@@ -31,7 +31,7 @@ async function mount(path: string) {
 }
 
 beforeEach(() => {
-  app = createTestAppServices()
+  app = createTestCoreServices()
 })
 
 describe('useNoteRowOverlay', () => {

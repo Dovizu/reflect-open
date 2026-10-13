@@ -1,7 +1,8 @@
+import { createAppServices } from '@reflect/app'
 import type { ReactElement } from 'react'
 import { page } from 'vitest/browser'
 import { expect, it, vi } from 'vitest'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { NoteTemplatesProvider, useNoteTemplates } from '@/providers/note-templates-provider.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -16,11 +17,12 @@ function Opener(): ReactElement {
   )
 }
 
-async function renderDialog(): Promise<{ context: CommandContext; app: TestAppServices }> {
-  const app = createTestAppServices()
+async function renderDialog(): Promise<{ context: CommandContext; app: TestCoreServices }> {
+  const app = createTestCoreServices()
   app.graphSession.setGraph({ generation: 1 })
   const context: CommandContext = {
     services: app,
+    app: createAppServices(app, {}),
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => null,

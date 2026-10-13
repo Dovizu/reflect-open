@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { xPostQueryOptions } from '@/editor/use-x-post-resolver.ts'
 import { queryClient } from '@/lib/query-client.ts'
 import { useMaybeGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 // Longest wait before mounting anyway; cold-start archive reads measured up to 258 ms.
 const PRELOAD_BUDGET_MS = 300
@@ -16,7 +16,7 @@ const PRELOAD_BUDGET_MS = 300
  * is no editor content yet.
  */
 export function useXPostPreload(markdown: string | null): boolean {
-  const { embedMedia } = useAppServices()
+  const { embedMedia } = useCoreServices()
   const root = useMaybeGraph()?.graph?.root ?? null
   const queries = useMemo(() => {
     if (markdown === null || root === null) return []

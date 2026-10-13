@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestNoteFileService,
   createTestPlatformService,
   seedNotes,
@@ -39,7 +39,7 @@ const CONFLICTED = [
 describe('MobileNote with a conflicted note', () => {
   it('opens protected with raw markers and conflict resolution actions', async () => {
     // The file and its indexed row both carry the markers, as after a sync.
-    const app = createTestAppServices({
+    const app = createTestCoreServices({
       platform: createTestPlatformService(MOBILE_PLATFORM),
       noteFile: createTestNoteFileService({ files: { 'notes/standup.md': CONFLICTED } }),
     })

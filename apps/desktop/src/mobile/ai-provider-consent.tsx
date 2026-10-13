@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { TRANSCRIPTION_PROVIDERS, type AiProviderInfo } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { PRIVACY_POLICY_URL } from '@/mobile/legal-urls.ts'
 
 const TRANSCRIBING_PROVIDER_IDS: readonly string[] = TRANSCRIPTION_PROVIDERS
@@ -22,7 +22,7 @@ export function AiProviderConsent({
   consented,
   onConsentedChange,
 }: AiProviderConsentProps): ReactElement {
-  const { opener } = useAppServices()
+  const { opener } = useCoreServices()
   const sendsAudio = TRANSCRIBING_PROVIDER_IDS.includes(provider.id)
   return (
     <div className="flex flex-col gap-2">

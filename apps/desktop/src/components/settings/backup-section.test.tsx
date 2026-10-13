@@ -2,7 +2,7 @@ import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { BackupService, BackupState, OpenerService } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestOpenerService,
   createTestBackupService,
   type TestOpenerService,
@@ -36,7 +36,7 @@ beforeEach(() => {
 
 async function renderSection(state: BackupState): Promise<void> {
   backup.setState(state)
-  const app = createTestAppServices({ opener, backup })
+  const app = createTestCoreServices({ opener, backup })
   if (githubConnected) {
     await app.githubAuth.save({ kind: 'pat', token: 'ghp_test' })
   }

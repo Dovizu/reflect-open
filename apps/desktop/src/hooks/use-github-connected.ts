@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
@@ -9,7 +9,7 @@ import { useServiceState } from '@/services/use-service-state.ts'
  * False until the first keychain read answers.
  */
 export function useGithubConnected(): boolean {
-  const { githubAuth, logger } = useAppServices()
+  const { githubAuth, logger } = useCoreServices()
   const { connected } = useServiceState(githubAuth, githubAuth.getState)
 
   useEffect(() => {

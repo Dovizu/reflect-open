@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect } from 'react'
 import { act } from '@/test-utils/act.ts'
 import { createSystemClock } from '@reflect/core'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { todayIso } from '@/lib/dates.ts'
 import { createDayWindow, neighborDate } from '@/lib/day-window.ts'
 import { useRouter, type NavigateOptions } from '@/routing/router.tsx'
@@ -117,7 +117,7 @@ async function renderStream() {
     </div>,
     {
       // The tests name days by the real date, so the app runs on the system clock.
-      app: createTestAppServices({ clock: createSystemClock() }),
+      app: createTestCoreServices({ clock: createSystemClock() }),
       settings: { dateFormat: 'mdy' },
       route: { kind: 'today' },
     },

@@ -7,7 +7,7 @@ import {
   type GraphInfo,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestAssetStoreService,
   createTestAudioRecorderService,
   createTestPlatformService,
@@ -51,7 +51,7 @@ async function setup(provider: AiProviderConfig = OPENAI) {
   const audioRecorder = createTestAudioRecorderService({ sessionStartedMs: SESSION_STARTED_MS })
   audioRecorder.setStopResult(RECORDING)
   const assetStore = createTestAssetStoreService({ sources: { [STAGED]: 'audio' } })
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     audioRecorder,
     assetStore,
     platform: createTestPlatformService({ appPlatform: 'ios' }),

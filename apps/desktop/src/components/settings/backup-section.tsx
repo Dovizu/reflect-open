@@ -16,7 +16,7 @@ import {
 } from '@/lib/query-options.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSync, type BackupState } from '@/providers/sync-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /** A short, plain-language line for each backup state — never Git jargon. */
 function statusLine(backup: Extract<BackupState, { phase: 'connected' }>): string {
@@ -51,7 +51,7 @@ function githubRepoBrowserUrl(
 export function BackupSettingsField(): ReactElement {
   const { backup, disconnectGraph, signOut, backUpNow } = useSync()
   const { graph } = useGraph()
-  const { indexQuery, opener } = useAppServices()
+  const { indexQuery, opener } = useCoreServices()
   const githubConnected = useGithubConnected()
   const [connectOpen, setConnectOpen] = useState(false)
   const openRepoAttempt = useRef(0)

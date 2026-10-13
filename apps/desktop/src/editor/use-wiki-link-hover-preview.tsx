@@ -2,7 +2,7 @@ import { useCallback, type ReactNode } from 'react'
 import type { WikilinkHoverHit } from '@meowdown/core'
 import type { DateFormat } from '@reflect/core'
 import { WikiLinkHoverPreview } from '@/components/wiki-link-hover-preview.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface WikiLinkHoverPreviewOptions {
   dateFormat: DateFormat
@@ -18,7 +18,7 @@ interface WikiLinkHoverPreviewOptions {
 export function useWikiLinkHoverPreview({
   dateFormat,
 }: WikiLinkHoverPreviewOptions): (hit: WikilinkHoverHit) => Promise<ReactNode> {
-  const { notePreview } = useAppServices()
+  const { notePreview } = useCoreServices()
   return useCallback(
     async ({ target }: WikilinkHoverHit): Promise<ReactNode> => {
       const preview = await notePreview.previewWikiTarget(target)

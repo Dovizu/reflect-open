@@ -1,9 +1,9 @@
 import { userEvent, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   makeOpenTask as task,
-  type TestAppServices,
+  type TestCoreServices,
 } from '@reflect/core/testing'
 import type { OpenTask, TaskAction, TaskService, TaskWriteResult } from '@reflect/core'
 import { useEffect, useState, type MutableRefObject, type ReactNode } from 'react'
@@ -229,15 +229,15 @@ function renderScreen() {
 
 const waitFor = vi.waitFor
 
-let storage: TestAppServices['storage']
+let storage: TestCoreServices['storage']
 
-let operations: TestAppServices['operations']
+let operations: TestCoreServices['operations']
 
-let app: TestAppServices
+let app: TestCoreServices
 
 beforeEach(() => {
   // A fresh app per test, so its task service's recently-completed set starts empty.
-  app = createTestAppServices()
+  app = createTestCoreServices()
   operations = app.operations
   storage = app.storage
   app.clock.setToday('2026-06-14')

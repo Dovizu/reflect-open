@@ -1,7 +1,7 @@
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface SidebarSectionProps {
   /** Session-storage key suffix persisting this section's open state. */
@@ -20,7 +20,7 @@ const STORAGE_PREFIX = 'reflect.context-sidebar.'
  * section stays collapsed while navigating between days and notes.
  */
 export function SidebarSection({ storageKey, title, children }: SidebarSectionProps): ReactElement {
-  const { storage } = useAppServices()
+  const { storage } = useCoreServices()
   const [open, setOpen] = useState(
     () => storage.session.get(STORAGE_PREFIX + storageKey) !== 'closed',
   )

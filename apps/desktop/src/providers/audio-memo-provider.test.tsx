@@ -8,9 +8,9 @@ import {
   type GraphInfo,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestSettingsService,
-  type TestAppServices,
+  type TestCoreServices,
 } from '@reflect/core/testing'
 import { toast } from '@/components/ui/toast.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
@@ -52,7 +52,7 @@ async function setup(provider: AiProviderConfig = OPENAI) {
     defaultAiProviderId: provider.id,
   })
   await settings.whenLoaded()
-  const app: TestAppServices = createTestAppServices({ settings })
+  const app: TestCoreServices = createTestCoreServices({ settings })
   app.audioRecorder.setStopResult(RECORDING)
 
   const hook = await renderHookInApp(() => ({ memo: useAudioMemo(), sidebar: useSidebar() }), {

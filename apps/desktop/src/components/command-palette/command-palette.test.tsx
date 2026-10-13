@@ -1,9 +1,10 @@
+import { createAppServices } from '@reflect/app'
 import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, type ReactNode } from 'react'
 import type { RetrievalService, SearchService, SuggestionService } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestEmbeddingRuntimeService,
   createTestNoteFileService,
   createTestRetrievalService,
@@ -88,7 +89,7 @@ function RouteProbe(): ReactNode {
 
 async function renderPalette(query: string, context?: Partial<CommandContext>) {
   const navigate = vi.fn()
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     suggestions: {
       suggestWikiTargets,
       suggestWikiLinkTargets: async () => ({
@@ -110,6 +111,7 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
   })
   const fullContext: CommandContext = {
     services: app,
+    app: createAppServices(app, {}),
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,

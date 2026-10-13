@@ -1,5 +1,5 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * One sessionStorage key as React state, as the raw string it is stored as.
@@ -9,7 +9,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
 export function useSessionStorageExternalStore(
   key: string,
 ): [value: string | null, setValue: (value: string | null) => void] {
-  const { storage } = useAppServices()
+  const { storage } = useCoreServices()
   const session = storage.session
   const subscribe = useCallback(
     (listener: () => void) => session.subscribe(key, listener),

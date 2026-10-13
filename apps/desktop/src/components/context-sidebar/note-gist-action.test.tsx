@@ -2,7 +2,7 @@ import { userEvent } from 'vitest/browser'
 import type { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { GistPublishService, NoteRow } from '@reflect/core'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { NoteGistAction } from './note-gist-action.tsx'
@@ -14,7 +14,7 @@ let connected: boolean
 let row: NoteRow | null
 
 // The services of the app under test; created fresh for each test.
-let app: TestAppServices
+let app: TestCoreServices
 let publish: MockInstance<GistPublishService['publish']>
 let unpublish: MockInstance<GistPublishService['unpublish']>
 
@@ -54,7 +54,7 @@ async function waitForReads(queryClient: QueryClient): Promise<void> {
 beforeEach(() => {
   connected = true
   row = null
-  app = createTestAppServices()
+  app = createTestCoreServices()
   vi.spyOn(app.indexQuery, 'getNote').mockImplementation(async () => row ?? undefined)
   publish = vi.spyOn(app.gistPublish, 'publish').mockResolvedValue({ url: GIST_URL, stale: false })
   unpublish = vi.spyOn(app.gistPublish, 'unpublish').mockResolvedValue({ url: null, stale: false })

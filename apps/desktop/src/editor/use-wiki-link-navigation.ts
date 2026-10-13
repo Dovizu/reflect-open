@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useLinkNavigationHost } from '@/hooks/use-link-navigation-host.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Navigation for a clicked `[[wiki link]]`. Calendar-valid ISO dates preserve
@@ -27,7 +27,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
 export function useWikiLinkNavigation(options?: {
   readOnly?: boolean
 }): (options: { target: string; openInNewWindow: boolean }) => void {
-  const { linkNavigation } = useAppServices()
+  const { linkNavigation } = useCoreServices()
   const host = useLinkNavigationHost()
   const readOnly = options?.readOnly ?? false
 

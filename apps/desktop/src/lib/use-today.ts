@@ -1,11 +1,11 @@
 import { useCallback, useSyncExternalStore } from 'react'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Today's ISO date as **live** state: re-renders when the local date changes.
  */
 export function useToday(): string {
-  const { clock } = useAppServices()
+  const { clock } = useCoreServices()
   const subscribe = useCallback(
     (listener: () => void) =>
       clock.subscribeToday(() => {

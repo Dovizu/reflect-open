@@ -7,7 +7,7 @@ import {
   type RenameCoordinator,
 } from '@reflect/core'
 import { useMaybeGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { checkRoundTrip } from './roundtrip.ts'
 
@@ -87,7 +87,7 @@ export function useNoteDocument(path: string | null, options?: NoteDocumentOptio
   /**
    * The pane's lifecycle policy object — one per hook instance.
    */
-  const { noteSessions, openDocuments, titleRename } = useAppServices()
+  const { noteSessions, openDocuments, titleRename } = useCoreServices()
   const [binding] = useState<DocumentBinding<RenameCoordinator>>(() =>
     createDocumentBinding({ openDocuments }),
   )

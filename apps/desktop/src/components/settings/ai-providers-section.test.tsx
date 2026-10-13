@@ -7,7 +7,7 @@ import {
   type Settings,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestSecretStoreService,
   createTestSettingsService,
   type TestAiKeyValidationService,
@@ -33,7 +33,7 @@ async function renderSection(): Promise<void> {
   if (failLoad) {
     settings.failLoad()
   }
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     settings,
     secretStore: secrets,
   })

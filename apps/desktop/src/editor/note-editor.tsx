@@ -5,7 +5,7 @@ import { useWikilinkResolver } from '@/editor/resolve-wikilink.ts'
 import { useXPostResolver, X_MEDIA_URL_PROTOCOLS } from '@/editor/use-x-post-resolver.ts'
 import { lightboxItemFromXPostMedia } from '@/editor/x-post-media-lightbox-item.ts'
 import { useYouTubeVideoResolver } from '@/editor/youtube-video-resolver.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { cn } from '@/lib/utils.ts'
 import type {
   AcceptPendingReplacementOptions,
@@ -290,7 +290,7 @@ export function NoteEditor({
   onSearchChange,
   handleRef,
 }: NoteEditorProps): ReactElement {
-  const { platform, logger } = useAppServices()
+  const { platform, logger } = useCoreServices()
   const touchEditor = platform.surface.touchEditor
   const resolveXPost = useXPostResolver()
   const resolveWikilink = useWikilinkResolver()

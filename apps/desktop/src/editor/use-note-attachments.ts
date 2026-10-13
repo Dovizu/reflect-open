@@ -2,7 +2,7 @@ import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver } from '@meowdown/core'
 import type { AttachmentService, GraphInfo } from '@reflect/core'
 import { useMaybeGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * How one note's images, `![[embeds]]`, and attachment links render.
@@ -50,7 +50,7 @@ export function createNoteAttachments(
  */
 export function useNoteAttachments(notePath: string): NoteAttachments {
   const graph = useMaybeGraph()?.graph ?? null
-  const { attachments } = useAppServices()
+  const { attachments } = useCoreServices()
   const subscribeCatalog = useCallback(
     (listener: () => void) => attachments.onCatalogChanged(listener),
     [attachments],

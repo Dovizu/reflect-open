@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { EmbedStatus, RetrievalHit } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestEmbeddingRuntimeService,
   createTestNoteFileService,
   createTestRetrievalService,
@@ -41,7 +41,7 @@ async function mount(path: string, client: QueryClient) {
   const embeddingRuntime = createTestEmbeddingRuntimeService({ status: embedStatus })
   // The runtime has reported before the mount, as on a second visit to a note.
   await embeddingRuntime.status()
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteFile,
     retrieval: createTestRetrievalService({ relatedNotes }),
     embeddingRuntime,

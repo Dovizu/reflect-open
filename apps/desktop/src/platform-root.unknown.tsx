@@ -1,6 +1,6 @@
 import type { IpcBridge } from '@reflect/core'
 
-import { appServices, pendingDevIpc } from '@/boot.ts'
+import { coreServices, pendingDevIpc } from '@/boot.ts'
 import { createDevBridge } from '@/dev/dev-bridge.ts'
 import { createDevFileStore } from '@/dev/dev-file-store.ts'
 import { createDevIndexDb } from '@/dev/dev-index-db.ts'
@@ -12,7 +12,7 @@ async function createDevIpc(): Promise<IpcBridge> {
   return createDevBridge({ files, index })
 }
 
-const { appPlatform } = appServices.platform
+const { appPlatform } = coreServices.platform
 
 if (pendingDevIpc !== null) {
   pendingDevIpc.connect(await createDevIpc())

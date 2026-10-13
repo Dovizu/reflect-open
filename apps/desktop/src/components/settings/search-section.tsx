@@ -3,7 +3,7 @@ import { Sparkles } from 'lucide-react'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { useEmbedStatus } from '@/lib/use-embed-status.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { DescribeAssetsField } from './describe-assets-field.tsx'
 import { SettingsField } from './field.tsx'
 import { ModelDownloadProgress } from './model-download-progress.tsx'
@@ -20,7 +20,7 @@ import { SettingsSection } from './section.tsx'
 export function SearchSection(): ReactElement {
   const { settings, updateSettings } = useSettings()
   const status = useEmbedStatus()
-  const { semanticSearch } = useAppServices()
+  const { semanticSearch } = useCoreServices()
 
   let control: ReactNode
   if (status.status === 'unsupported') {

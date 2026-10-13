@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { NavigateOptions } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import type { Route } from './route.ts'
 
 /**
@@ -85,7 +85,7 @@ export function RouterProvider({
   initialRoute = { kind: 'today' },
   children,
 }: RouterProviderProps): ReactElement {
-  const { navigation: appNavigation, noteMove } = useAppServices()
+  const { navigation: appNavigation, noteMove } = useCoreServices()
   const [navigation] = useState(() => {
     appNavigation.reset(initialRoute)
     return appNavigation

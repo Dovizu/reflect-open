@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { applyNoteRowOverlays, type NoteListRowFacts, type NoteRowOverlay } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /*
  * The optimistic read overlay for note index rows lives in `@reflect/core`
@@ -13,7 +13,7 @@ export { applyNoteRowOverlay, type NoteRowOverlay, type NoteRowOverlayPatch } fr
  * Subscribe a component to `path`'s overlay on the open graph; `null` when none.
  */
 export function useNoteRowOverlay(path: string): NoteRowOverlay | null {
-  const { noteRows } = useAppServices()
+  const { noteRows } = useCoreServices()
   const subscribe = useCallback((listener: () => void) => noteRows.subscribe(listener), [noteRows])
   const getSnapshot = useCallback(() => noteRows.getOverlay(path), [noteRows, path])
   return useSyncExternalStore(subscribe, getSnapshot)
@@ -23,7 +23,7 @@ export function useNoteRowOverlay(path: string): NoteRowOverlay | null {
  * Subscribe a component to every overlay on the open graph, by path.
  */
 export function useNoteRowOverlays(): ReadonlyMap<string, NoteRowOverlay> {
-  const { noteRows } = useAppServices()
+  const { noteRows } = useCoreServices()
   const subscribe = useCallback((listener: () => void) => noteRows.subscribe(listener), [noteRows])
   const getSnapshot = useCallback(() => noteRows.getOverlays(), [noteRows])
   return useSyncExternalStore(subscribe, getSnapshot)
@@ -47,7 +47,7 @@ export function useNoteRows<Row extends NoteListRowFacts>(
   rows: readonly Row[] | undefined,
   options?: UseNoteRowsOptions,
 ): readonly Row[] | undefined {
-  const { noteRows } = useAppServices()
+  const { noteRows } = useCoreServices()
   const overlays = useNoteRowOverlays()
   const complete = options?.complete ?? false
 

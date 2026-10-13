@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { useLinkIntentGuard } from '@/lib/windows/use-link-intent-guard.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /** Follow one in-app `reflect://` link. */
 export type FollowDeepLink = (options: { href: string; openInNewWindow: boolean }) => void
@@ -12,7 +12,7 @@ export type FollowDeepLink = (options: { href: string; openInNewWindow: boolean 
  * ({@link useLinkIntentGuard}) is still current.
  */
 export function useFollowDeepLink(): FollowDeepLink {
-  const { linkNavigation } = useAppServices()
+  const { linkNavigation } = useCoreServices()
   const beginIntent = useLinkIntentGuard()
 
   return useCallback(

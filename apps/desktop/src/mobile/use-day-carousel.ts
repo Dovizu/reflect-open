@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import useEmblaCarousel from 'embla-carousel-react'
 import { createDayWindow, dateAtIndex, indexWithin, type DayWindow } from '@/lib/day-window.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Days either side of the carousel anchor. A fixed **symmetric** window
@@ -155,7 +155,7 @@ export function useDayCarousel(
   onSelect: (date: string) => void,
   onTarget: (date: string, navigationKey: string) => void,
 ): DayCarousel {
-  const { keyboard } = useAppServices()
+  const { keyboard } = useCoreServices()
   const [dayWindow, setDayWindow] = useState<DayWindow>(() =>
     createDayWindow(date, CAROUSEL_WINDOW),
   )

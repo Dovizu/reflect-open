@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import type { SlashMenuItem, SlashMenuSearchHandler } from '@meowdown/react'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
 
 /**
@@ -20,7 +20,7 @@ export function useTemplateSlashItems(
   getEditor: () => NoteEditorHandle | null,
 ): SlashMenuSearchHandler {
   const { graph } = useGraph()
-  const { templates } = useAppServices()
+  const { templates } = useCoreServices()
 
   return useCallback(
     async (_query: string): Promise<SlashMenuItem[]> => {

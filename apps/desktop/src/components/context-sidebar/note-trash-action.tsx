@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog.tsx'
 import { useRouter } from '@/routing/router.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface NoteTrashActionProps {
   /** Graph-relative path of the regular note to move into trash. */
@@ -25,7 +25,7 @@ interface NoteTrashActionProps {
  */
 export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | null {
   const { navigate } = useRouter()
-  const { noteActions, operations } = useAppServices()
+  const { noteActions, operations } = useCoreServices()
   const [confirmingTrash, setConfirmingTrash] = useState(false)
   const [isTrashing, setIsTrashing] = useState(false)
   const [error, setError] = useState<string | null>(null)

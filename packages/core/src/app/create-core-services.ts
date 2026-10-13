@@ -304,7 +304,7 @@ import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 /**
  * The app-scoped services: one instance each for the lifetime of the webview.
  */
-export interface AppServices {
+export interface CoreServices {
   /**
    * The typed IPC boundary that turns an untyped native response into a validated domain value.
    */
@@ -711,9 +711,9 @@ export function createNoteServices(deps: {
 }
 
 /**
- * The host primitives that {@link createAppServices} builds the services on.
+ * The host primitives that {@link createCoreServices} builds the services on.
  */
-export interface AppAdapters {
+export interface CoreAdapters {
   /**
    * The raw IPC transport that the host implements.
    */
@@ -809,9 +809,9 @@ function createMobileServices(deps: {
 }
 
 /**
- * The factory of every service {@link createAppServices} builds, by key.
+ * The factory of every service {@link createCoreServices} builds, by key.
  */
-export const appServiceFactories = {
+export const coreServiceFactories = {
   ipc: createIpcBridgeService,
   database: createDatabaseService,
   platform: createPlatformService,
@@ -924,12 +924,12 @@ export const appServiceFactories = {
 /**
  * The factory of each service key; a replacement gets the same dependencies.
  */
-export type ServiceFactories = typeof appServiceFactories
+export type ServiceFactories = typeof coreServiceFactories
 
 /**
- * The services that {@link createAppServices} builds but keeps out of {@link AppServices}.
+ * The services that {@link createCoreServices} builds but keeps out of {@link CoreServices}.
  */
-export interface InternalServices {
+export interface CoreInternalServices {
   /**
    * Outbound HTTP, in the shape of the global `fetch`.
    */
@@ -1072,21 +1072,21 @@ export interface InternalServices {
   readonly assetPrivacy: AssetPrivacyService
 }
 
-export function createAppServices(
-  adapters: AppAdapters,
+export function createCoreServices(
+  adapters: CoreAdapters,
   factories?: Partial<ServiceFactories>,
-): AppServices {
-  return composeAppServices(adapters, factories).services
+): CoreServices {
+  return composeCoreServices(adapters, factories).services
 }
 
 /**
- * {@link createAppServices}, plus the services it keeps internal.
+ * {@link createCoreServices}, plus the services it keeps internal.
  */
-export function composeAppServices(
-  adapters: AppAdapters,
+export function composeCoreServices(
+  adapters: CoreAdapters,
   factories?: Partial<ServiceFactories>,
-): { services: AppServices; internal: InternalServices } {
-  const create: ServiceFactories = { ...appServiceFactories, ...factories }
+): { services: CoreServices; internal: CoreInternalServices } {
+  const create: ServiceFactories = { ...coreServiceFactories, ...factories }
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
   const ipc = create.ipc({ transport: adapters.ipc, logger })
@@ -1396,7 +1396,7 @@ export function composeAppServices(
     logger,
   }
   const icloudDownloadDeps: ICloudDownloadServiceDeps = { icloudNative, lifecycle, clock, logger }
-  const services: AppServices = {
+  const services: CoreServices = {
     ipc,
     logger,
     clock,
@@ -1678,7 +1678,7 @@ export function composeAppServices(
     }),
     mobile: mobileServices,
   }
-  const internal: InternalServices = {
+  const internal: CoreInternalServices = {
     http: adapters.http,
     secretStore,
     personNotes,

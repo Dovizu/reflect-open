@@ -8,7 +8,7 @@ import { TooltipProvider } from '@/components/ui/tooltip.tsx'
 import { GraphProvider } from '@/providers/graph-provider.tsx'
 import { SidebarWidthEffect } from '@/providers/sidebar-width.tsx'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * The desktop surface tree (split out of `main.tsx` by the Plan 19 platform
@@ -16,7 +16,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * chooser/workspace app — none of which exist on mobile.
  */
 export function DesktopRoot(): ReactElement {
-  const { deepLink, noteMove, operations, platform, logger } = useAppServices()
+  const { deepLink, noteMove, operations, platform, logger } = useCoreServices()
   // Deep-link intake starts with the surface, not the workspace: a
   // `reflect://` URL that launched the app (or arrived on the graph chooser)
   // buffers in `intake.ts` until a graph opens. Browser dev has no plugin.

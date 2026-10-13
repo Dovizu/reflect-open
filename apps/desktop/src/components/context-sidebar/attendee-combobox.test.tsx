@@ -7,7 +7,7 @@ import type {
   WikiSuggestion,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestContactsService,
   type TestContactsService,
 } from '@reflect/core/testing'
@@ -30,10 +30,10 @@ function contact(fullName: string, email: string): ContactMatch {
 const onAdd = vi.fn<(attendee: MeetingAttendee) => void>()
 
 async function renderCombobox(attendees: MeetingAttendee[] = []): Promise<Locator> {
-  const base = createTestAppServices()
-  const app = createTestAppServices({
+  const base = createTestCoreServices()
+  const app = createTestCoreServices({
     contacts,
-    meetings: createTestAppServices({
+    meetings: createTestCoreServices({
       suggestions: { ...base.suggestions, suggestWikiTargets },
       contacts,
     }).meetings,

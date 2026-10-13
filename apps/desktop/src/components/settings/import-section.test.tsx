@@ -1,9 +1,9 @@
 import { page, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestDialogService,
-  type TestAppServices,
+  type TestCoreServices,
   type TestDialogService,
 } from '@reflect/core/testing'
 import { V1ImportProvider } from '@/providers/v1-import-provider.tsx'
@@ -21,8 +21,8 @@ beforeEach(() => {
 /**
  * The section under the workspace's real V1 import, whose native import never finishes.
  */
-async function renderSection(): Promise<TestAppServices> {
-  const app = createTestAppServices({ dialog })
+async function renderSection(): Promise<TestCoreServices> {
+  const app = createTestCoreServices({ dialog })
   app.ipc.onCommand(IMPORT_COMMAND, () => new Promise<never>(() => {}))
   await renderInApp(<ImportSection />, {
     app,
@@ -32,7 +32,7 @@ async function renderSection(): Promise<TestAppServices> {
   return app
 }
 
-function importCalls(app: TestAppServices): Record<string, unknown>[] {
+function importCalls(app: TestCoreServices): Record<string, unknown>[] {
   return app.ipc
     .calls()
     .filter((call) => call.command === IMPORT_COMMAND)

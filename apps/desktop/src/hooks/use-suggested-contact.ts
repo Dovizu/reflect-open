@@ -3,7 +3,7 @@ import type { ContactMatch } from '@reflect/core'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useContactsState } from './use-contacts-state.ts'
 
 /**
@@ -27,7 +27,7 @@ export function useSuggestedContact(path: string): ContactMatch | null {
   const { settings } = useSettings()
   // Re-render when the permission state changes; the gate reads it.
   useContactsState()
-  const { contactSuggestions } = useAppServices()
+  const { contactSuggestions } = useCoreServices()
   const enabled = graph !== null && contactSuggestions.showsSuggestionFor(settings, path)
   const { data } = useQuery({
     queryKey: queryKeys.index.suggestedContact(graph?.root, path),

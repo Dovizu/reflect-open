@@ -8,7 +8,7 @@ import {
   DrawerDescription,
   DrawerTitle,
 } from '@/components/ui/drawer.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface NoteDeleteDrawerProps {
   /** Graph-relative path of the regular note to move to trash. */
@@ -30,7 +30,7 @@ export function NoteDeleteDrawer({
   onOpenChange,
   onDeleted,
 }: NoteDeleteDrawerProps): ReactElement {
-  const { noteActions } = useAppServices()
+  const { noteActions } = useCoreServices()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const submittingRef = useRef(false)

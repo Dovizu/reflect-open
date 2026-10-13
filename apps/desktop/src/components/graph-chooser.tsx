@@ -18,7 +18,7 @@ import { queryKeys } from '@/lib/query-client.ts'
 import { graphColorCss } from '@/lib/graph-colors.ts'
 import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * First-run / no-graph screen (Plan 21 UX pass). One decision, stated
@@ -34,7 +34,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
 export function GraphChooser(): ReactElement {
   const { recents, error, pickAndOpen, openRecent, createAt, forget } = useGraph()
   const { colorFor } = useGraphColors()
-  const { platform } = useAppServices()
+  const { platform } = useCoreServices()
   // iCloud is a real option only in the macOS shell.
   const icloudCapable = platform.buildPlatform === 'darwin'
 
@@ -203,7 +203,7 @@ function IcloudCard({
   const [typedName, setTypedName] = useState<string | null>(null)
   const [busy, setBusy] = useState<IcloudBusy>(null)
   const nameId = useId()
-  const { icloudNative } = useAppServices()
+  const { icloudNative } = useCoreServices()
   const { data: status } = useQuery({
     queryKey: queryKeys.icloud.status,
     queryFn: () => icloudNative.status(),

@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react'
 import { keybindingFor, newNoteRoute } from '@/lib/commands/app-commands.ts'
 import { useRouter } from '@/routing/router.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 const NEW_NOTE_BINDING = keybindingFor('note.new')
 
@@ -11,7 +11,7 @@ const NEW_NOTE_BINDING = keybindingFor('note.new')
  */
 export function NewNoteButton(): ReactElement {
   const { navigate } = useRouter()
-  const { keymap, noteCreation } = useAppServices()
+  const { keymap, noteCreation } = useCoreServices()
   return (
     <button
       type="button"

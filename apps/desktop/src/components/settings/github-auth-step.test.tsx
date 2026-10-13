@@ -3,7 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { GithubAuthService } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestClipboardService,
   createTestHttpService,
   createTestOpenerService,
@@ -47,7 +47,7 @@ beforeEach(() => {
  * Render the step in an app over the test's keychain, HTTP, clipboard and opener.
  */
 async function renderStep(step: ReactNode): Promise<void> {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     http,
     clipboard,
     opener,

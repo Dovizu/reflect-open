@@ -5,7 +5,7 @@ import type {
   WikiLinkSuggestionResult,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestContactsService,
   createTestGraphSessionService,
   createTestOperationsService,
@@ -58,7 +58,7 @@ async function setup(options?: SetupOptions) {
     status: options?.authorization ?? 'authorized',
     contacts: [ADA],
   })
-  const base = createTestAppServices()
+  const base = createTestCoreServices()
   const personNotes: typeof base.personNotes = {
     ...base.personNotes,
     resolvePersonContact: async (contact) => ({
@@ -70,7 +70,7 @@ async function setup(options?: SetupOptions) {
       await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation),
   }
   const graphSession = createTestGraphSessionService()
-  const { autocompleteSuggestions } = createTestAppServices({
+  const { autocompleteSuggestions } = createTestCoreServices({
     graphSession,
     suggestions: {
       ...base.suggestions,
@@ -87,7 +87,7 @@ async function setup(options?: SetupOptions) {
     settings,
     operations,
   })
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     graphSession,
     autocompleteSuggestions,
     operations,

@@ -5,7 +5,7 @@ import type {
   GraphSessionService,
   GraphSessionState,
 } from '@reflect/core'
-import { GraphServicesProvider, useAppServices } from '@/services/services-provider.tsx'
+import { GraphServicesProvider, useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 import { bootGraphSession } from './graph-session.ts'
 import { useMobileGraphBoot, type MobileGraphBoot } from './use-mobile-graph-boot.ts'
@@ -60,7 +60,7 @@ export function GraphProvider({
   children: ReactNode
   platform?: AppPlatform
 }) {
-  const app = useAppServices()
+  const app = useCoreServices()
   const session = app.graphSession
   const state = useServiceState(session, session.getState)
 

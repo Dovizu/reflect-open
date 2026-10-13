@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
 import { aiKeySecretName, type AiProviderConfig, type ChatTurn, type Settings } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestChatEngineService,
   createTestChatHistoryService,
   createTestSecretStoreService,
@@ -58,7 +58,7 @@ async function renderProvider(options?: {
     { type: 'text-delta', text: 'Hi.' },
     { type: 'complete', messages: [{ role: 'assistant', content: 'Hi.' }] },
   ])
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     settings,
     secretStore: createTestSecretStoreService({ [aiKeySecretName(MODEL.id)]: 'sk-test' }),
     chatHistory,

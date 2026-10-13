@@ -4,7 +4,7 @@ import { page, userEvent } from 'vitest/browser'
 import type { Locator } from 'vitest/browser'
 import type { GraphSessionService, Settings } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestEmbeddingRuntimeService,
   createTestPlatformService,
   createTestBackupService,
@@ -41,7 +41,7 @@ function saved(): Settings[] {
 // The screen runs off macOS desktop (no Agents, iCloud or Calendar rows), with
 // a graph open and its backup disconnected.
 function createApp() {
-  return createTestAppServices({
+  return createTestCoreServices({
     embeddingRuntime: embedRuntime,
     platform: createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
     backup: createTestBackupService({ state: { phase: 'disconnected' } }),

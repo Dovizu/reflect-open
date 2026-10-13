@@ -1,10 +1,10 @@
 import {
   isOstensiblyEmptyNoteSource,
-  type AppServices,
+  type CoreServices,
   type FilteredSearchHit,
   type NoteDocumentService,
 } from '@reflect/core'
-import { createTestAppServices, createTestPlatformService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestPlatformService } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useQuery } from '@tanstack/react-query'
 import { useNoteRows } from '@/hooks/note-row-overlay.ts'
@@ -20,9 +20,9 @@ const commitNoteFrontmatter = vi.fn<NoteDocumentService['commitFrontmatter']>()
 /**
  * Render `ui` in the graph `/g` with reduced motion, so a swipe settles at once.
  */
-function mount(ui: ReactNode): Promise<InAppRenderResult<AppServices>> {
+function mount(ui: ReactNode): Promise<InAppRenderResult<CoreServices>> {
   const readSource = async (): Promise<string> => '# A\n'
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     platform: createTestPlatformService({ reducedMotion: true }),
     noteDocuments: {
       readSource,

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { actAsync } from '@/test-utils/act.ts'
 import type { DailyNoteService, NoteRow, RetrievalService } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestNoteFileService,
   createTestRetrievalService,
   createTestStorageService,
@@ -47,7 +47,7 @@ function sidebar(date: string): ReactNode {
 
 function createApp(storage: TestStorageService = createTestStorageService()) {
   noteFile = createTestNoteFileService({ files: { 'daily/2026-06-09.md': dailySource } })
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteFile,
     storage,
     retrieval: createTestRetrievalService({ relatedNotes }),

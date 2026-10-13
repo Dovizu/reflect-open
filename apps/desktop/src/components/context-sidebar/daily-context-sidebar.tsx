@@ -7,7 +7,7 @@ import { PublishedUrlSection } from './published-url-section.tsx'
 import { SimilarNotesSection } from './similar-notes-section.tsx'
 import { useToday } from '@/lib/use-today.ts'
 import { cn } from '@/lib/utils.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface DailyContextSidebarProps {
   /** The day the sidebar describes — a validated ISO date from the route. */
@@ -24,7 +24,7 @@ interface DailyContextSidebarProps {
  */
 export function DailyContextSidebar({ date }: DailyContextSidebarProps): ReactElement {
   const today = useToday()
-  const { platform } = useAppServices()
+  const { platform } = useCoreServices()
 
   return (
     <div

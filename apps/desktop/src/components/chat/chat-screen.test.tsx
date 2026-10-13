@@ -10,12 +10,12 @@ import {
   type CloudGraphContext,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestChatEngineService,
   createTestChatGraphContextService,
   createTestSecretStoreService,
   seedNotes,
-  type TestAppServices,
+  type TestCoreServices,
   type TestChatEngineService,
   type TestChatGraphContextService,
   type TestOpenGraph,
@@ -57,7 +57,7 @@ const GRAPH_CONTEXT: CloudGraphContext = {
 
 let chatEngine: TestChatEngineService
 let chatGraphContext: TestChatGraphContextService
-let noteWindows: TestAppServices['window']
+let noteWindows: TestCoreServices['window']
 
 beforeEach(() => {
   settingsState.models = []
@@ -114,7 +114,7 @@ function RouteProbe(): ReactElement | null {
 async function renderChat() {
   probedSend = null
   probedRoute = null
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     secretStore: createTestSecretStoreService(
       settingsState.apiKey === null ? {} : { [aiKeySecretName(MODEL.id)]: settingsState.apiKey },
     ),

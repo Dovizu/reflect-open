@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useSessionFlag } from './use-session-flag.ts'
 
 describe('useSessionFlag', () => {
   it('falls back to the default until set, then persists for the session', async () => {
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     const first = await renderHookInApp(() => useSessionFlag('reflect.test-flag', true), { app })
     expect(first.result.current[0]).toBe(true)
 

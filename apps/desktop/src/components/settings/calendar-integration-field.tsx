@@ -20,7 +20,7 @@ import {
   useCalendars,
 } from '@/lib/use-calendar.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { SettingsSwitchField } from './switch-field.tsx'
 
 const ACTION_BUTTON_CLASS =
@@ -38,7 +38,7 @@ const ACTION_BUTTON_CLASS =
 export function CalendarIntegrationField(): ReactElement | null {
   const { settings } = useSettings()
   const queryClient = useQueryClient()
-  const { calendarEvents, opener } = useAppServices()
+  const { calendarEvents, opener } = useCoreServices()
   const status = useCalendarAuthorization(settings.calendarEnabled)
   const canRead = status !== undefined && canReadCalendars(status)
   const { calendars, isLoaded } = useCalendars(settings.calendarEnabled && canRead)

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestGraphSessionService,
   createTestNoteFileService,
   createTestOperationsService,
@@ -11,8 +11,8 @@ import { useTemplateSlashItems } from './use-template-slash-items.ts'
 
 function setup() {
   const operations = createTestOperationsService()
-  const base = createTestAppServices()
-  const { templates } = createTestAppServices({
+  const base = createTestCoreServices()
+  const { templates } = createTestCoreServices({
     graphSession: createTestGraphSessionService({ graph: {} }),
     noteFile: createTestNoteFileService({
       files: {
@@ -29,7 +29,7 @@ function setup() {
     },
     operations,
   })
-  const app = createTestAppServices({ templates, operations })
+  const app = createTestCoreServices({ templates, operations })
   return { app, operations }
 }
 

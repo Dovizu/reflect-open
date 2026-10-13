@@ -22,7 +22,7 @@ import {
 import { Input } from '@/components/ui/input.tsx'
 import { formatTimeOfDay } from '@/lib/dates.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { AttendeeCombobox } from './attendee-combobox.tsx'
 
 interface AddMeetingDialogProps {
@@ -47,7 +47,7 @@ const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
  */
 export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps): ReactElement {
   const { settings } = useSettings()
-  const { contacts, meetings, logger } = useAppServices()
+  const { contacts, meetings, logger } = useCoreServices()
   const [name, setName] = useState(event.title)
   const [attendees, setAttendees] = useState<MeetingAttendee[]>(() => defaultAttendees(event))
   const [createNote, setCreateNote] = useState(event.recurring)

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 interface TemplateCreateFormProps {
   context: CommandContext
@@ -21,7 +21,7 @@ export function TemplateCreateForm({ context, onClose }: TemplateCreateFormProps
     defaultValues: { name: '' },
   })
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const { templates } = useAppServices()
+  const { templates } = useCoreServices()
 
   const submit = handleSubmit(async (values) => {
     setSubmitError(null)

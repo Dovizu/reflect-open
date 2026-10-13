@@ -4,7 +4,7 @@ import type { BacklinkContext, BacklinkContextPage, BacklinkSourceCursor } from 
 import { groupBacklinksBySource, type BacklinkSource } from '@/lib/group-backlinks.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 const BACKLINK_SOURCES_PER_PAGE = 10
 
@@ -65,7 +65,7 @@ function groupLoadedBacklinks(pages: readonly BacklinkContextPage[]): BacklinkSo
  */
 export function useBacklinkSources(path: string): BacklinkSources {
   const { graph } = useGraph()
-  const { backlinks } = useAppServices()
+  const { backlinks } = useCoreServices()
   const {
     data,
     fetchNextPage,

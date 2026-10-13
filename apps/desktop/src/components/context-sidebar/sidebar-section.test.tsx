@@ -1,7 +1,7 @@
 import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestStorageService,
   type TestStorageService,
 } from '@reflect/core/testing'
@@ -16,7 +16,7 @@ async function renderSection() {
     <SidebarSection storageKey="probe" title="Probe">
       <p>section body</p>
     </SidebarSection>,
-    { app: createTestAppServices({ storage }) },
+    { app: createTestCoreServices({ storage }) },
   )
 }
 

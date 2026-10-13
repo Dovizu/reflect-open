@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useNoteAttachments, type NoteAttachments } from './use-note-attachments.ts'
 
@@ -17,7 +17,7 @@ afterEach(() => {
 
 describe('useNoteAttachments', () => {
   it('resolves from the note it renders', async () => {
-    const app = createTestAppServices()
+    const app = createTestCoreServices()
     app.attachments.setCatalog([
       { path: 'Projects/attachments/plan.png', size: 1 },
       { path: 'attachments/plan.png', size: 1 },

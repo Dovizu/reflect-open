@@ -1,13 +1,13 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import type { LinkPreviewResolver } from '@meowdown/core'
 import type { LinkPreviewSession } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /** A privacy-gated, note-scoped link-preview resolver for one editor session. */
 export function useLinkPreview(
   session: LinkPreviewSession | null,
 ): LinkPreviewResolver | undefined {
-  const { linkPreview } = useAppServices()
+  const { linkPreview } = useCoreServices()
   const currentSessionRef = useRef<LinkPreviewSession | null>(session)
   useLayoutEffect(() => {
     currentSessionRef.current = session

@@ -9,7 +9,7 @@ import {
   type NoteRow,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestPlatformService,
   type TestOperationsService,
 } from '@reflect/core/testing'
@@ -42,7 +42,7 @@ function pinnedTitles(): string | null {
 }
 
 async function renderSection(path: string, showTrash = false, copies = 1) {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteDocuments: {
       readSource: readNoteSource,
       readExisting: async (notePath) => await readNoteSource(notePath),

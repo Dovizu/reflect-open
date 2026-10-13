@@ -1,4 +1,4 @@
-import type { AppServices } from '@reflect/core'
+import type { CoreServices } from '@reflect/core'
 
 /** How many animation frames to wait for ProseKit to attach the editor view
  *  before giving up. In practice the view is attached via ref before effects
@@ -18,7 +18,7 @@ const MOUNT_RETRY_FRAMES = 30
  * fired (or after the budget lapsed) is a no-op.
  */
 export function whenEditorMounted(
-  ctx: Pick<AppServices, 'logger'>,
+  ctx: Pick<CoreServices, 'logger'>,
   editor: { readonly mounted: boolean },
   run: () => void,
 ): () => void {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
 import type { EmbedStatus, Unlisten } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * The embedding runtime's live status (Plan 09). Polls once on mount, then
@@ -8,7 +8,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * the runtime observed.
  */
 export function useEmbedStatus(): EmbedStatus {
-  const { embeddingRuntime } = useAppServices()
+  const { embeddingRuntime } = useCoreServices()
   const subscribe = useCallback(
     (onChange: () => void): Unlisten => embeddingRuntime.subscribe(onChange),
     [embeddingRuntime],

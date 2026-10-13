@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import type { ClassicAccess, ClassicSignInResult } from '@reflect/core'
 import { mutationKeys, mutationScopeIds } from '@/lib/query-client.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
@@ -15,7 +15,7 @@ export function useClassicAccess(): {
   active: boolean
   isLoading: boolean
 } {
-  const { classicAccess: classic, platform } = useAppServices()
+  const { classicAccess: classic, platform } = useCoreServices()
   const enabled = platform.appPlatform === 'ios'
   const state = useServiceState(classic, classic.getState)
 
@@ -34,7 +34,7 @@ export function useClassicAccess(): {
  * the subscription is being read.
  */
 export function useClassicSignIn() {
-  const { classicAccess: classic, logger } = useAppServices()
+  const { classicAccess: classic, logger } = useCoreServices()
   const [browserClosed, setBrowserClosed] = useState(false)
   const mutation = useMutation<ClassicSignInResult, Error, boolean>({
     mutationKey: mutationKeys.classic.signIn,
@@ -56,7 +56,7 @@ export type ClassicSignIn = ReturnType<typeof useClassicSignIn>
  * Forgets this device's Reflect Classic verification.
  */
 export function useClassicSignOut() {
-  const { classicAccess: classic } = useAppServices()
+  const { classicAccess: classic } = useCoreServices()
   return useMutation({
     mutationKey: mutationKeys.classic.signOut,
     mutationFn: () => classic.signOut(),

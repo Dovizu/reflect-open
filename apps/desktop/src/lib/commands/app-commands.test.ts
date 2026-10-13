@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createAppServices } from '@reflect/app'
 import { buildIndexedNote, parseNote } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
   createTestPlatformService,
@@ -23,7 +24,7 @@ function createApp() {
   const embeddingIndex: TestEmbeddingIndexService = createTestEmbeddingIndexService({
     backfill: async () => 'completed',
   })
-  return createTestAppServices({ embeddingRuntime, embeddingIndex })
+  return createTestCoreServices({ embeddingRuntime, embeddingIndex })
 }
 
 let app: ReturnType<typeof createApp>
@@ -50,6 +51,7 @@ function fakeContext(overrides?: Partial<CommandContext>) {
   const route: () => Route = overrides?.route ?? (() => ({ kind: 'today' }))
   const context: CommandContext = {
     services: app,
+    app: createAppServices(app, {}),
     navigate: (target, options) => {
       navigated.push(target)
       navigateOptions.push(options)
@@ -311,7 +313,7 @@ describe('app commands', () => {
   })
 
   it('dev.toggleDevtools no-ops without a native shell (plain-browser dev)', async () => {
-    const browser = createTestAppServices({
+    const browser = createTestCoreServices({
       platform: createTestPlatformService({ isNativeShell: false }),
     })
     const { context } = fakeContext({ services: browser })

@@ -1,10 +1,10 @@
 import { render } from 'vitest-browser-react'
 import { describe, expect, it } from 'vitest'
-import { useAppServices, useGraphServices } from '@/services/services-provider.tsx'
+import { useCoreServices, useGraphServices } from '@/services/services-provider.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 
 function AppVersion() {
-  const { platform } = useAppServices()
+  const { platform } = useCoreServices()
   return <p>version {platform.appVersion}</p>
 }
 
@@ -31,7 +31,7 @@ describe('services providers', () => {
 
   it('throws outside the providers', async () => {
     await expect(render(<AppVersion />)).rejects.toThrow(
-      /useAppServices\(\) must be called inside an <AppServicesProvider>/,
+      /useCoreServices\(\) must be called inside an <CoreServicesProvider>/,
     )
   })
 })

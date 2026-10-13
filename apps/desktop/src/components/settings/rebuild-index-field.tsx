@@ -1,7 +1,7 @@
 import { useState, type ReactElement } from 'react'
 import { Button } from '@/components/ui/button.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { SettingsField } from './field.tsx'
 
 /**
@@ -14,7 +14,7 @@ import { SettingsField } from './field.tsx'
  */
 export function RebuildIndexField(): ReactElement {
   const { indexGeneration } = useGraph()
-  const { indexLifecycle } = useAppServices()
+  const { indexLifecycle } = useCoreServices()
   const [rebuilding, setRebuilding] = useState(false)
 
   const rebuild = async (): Promise<void> => {

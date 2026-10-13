@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react'
 import { withoutReopenedTasks, type OpenTask } from '@reflect/core'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * The React view of `TaskService`'s "recently completed" set (Plan 18) — V1's
@@ -24,7 +24,7 @@ export function useRecentlyCompleted(
   root: string | null,
   open: readonly OpenTask[] | undefined,
 ): readonly OpenTask[] {
-  const { tasks } = useAppServices()
+  const { tasks } = useCoreServices()
   useEffect(() => {
     if (open !== undefined) {
       tasks.reconcileRecentlyCompleted(root, open)

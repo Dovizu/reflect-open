@@ -3,7 +3,7 @@ import { cleanup } from 'vitest-browser-react'
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { Settings, SettingsService } from '@reflect/core'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { activeSidebarWidthDrags } from '@/hooks/use-sidebar-resize.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { SidebarResizeHandle } from './sidebar-resize-handle.tsx'
@@ -17,7 +17,7 @@ const DEFAULT_WIDTHS: SidebarWidths = { sidebarWidth: 260, contextSidebarWidth: 
 let updateSettings: MockInstance<SettingsService['update']>
 
 async function renderWithWidths(ui: ReactNode, widths: SidebarWidths): Promise<void> {
-  const app = createTestAppServices()
+  const app = createTestCoreServices()
   updateSettings = vi.spyOn(app.settings, 'update').mockImplementation(() => {})
   await renderInApp(ui, { app, settings: widths })
 }

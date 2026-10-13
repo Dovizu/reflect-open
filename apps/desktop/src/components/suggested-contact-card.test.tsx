@@ -1,7 +1,7 @@
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestContactsService,
   createTestNoteFileService,
   type TestContactsService,
@@ -29,7 +29,7 @@ let contacts: TestContactsService
  */
 async function renderCard(contactsEnabled = true): Promise<void> {
   await renderInApp(<SuggestedContactCard path={PATH} />, {
-    app: createTestAppServices({ noteFile, contacts }),
+    app: createTestCoreServices({ noteFile, contacts }),
     // The card writes with the generation of the open graph.
     graph: { root: '/g', generation: 3 },
     settings: { contactsEnabled },

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
 import { isModEvent } from '@meowdown/core'
-import { createTestAppServices, createTestWindowService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestWindowService } from '@reflect/core/testing'
 import { useRouter } from '@/routing/router.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { useNoteLinkNavigation } from './use-note-link-navigation.ts'
@@ -78,7 +78,7 @@ function Harness({ scopeKey, visible = true }: HarnessProps): ReactElement {
  * Render `ui` on the All Notes route of an app whose note windows go to `openNoteWindow`.
  */
 async function mount(ui: ReactElement) {
-  const app = createTestAppServices({ window: createTestWindowService({ openNoteWindow }) })
+  const app = createTestCoreServices({ window: createTestWindowService({ openNoteWindow }) })
   return await renderInApp(ui, { app, route: { kind: 'allNotes', tag: null } })
 }
 

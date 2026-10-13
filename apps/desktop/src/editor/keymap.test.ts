@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { createTestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { registerAppKeymaps } from '@/lib/shortcuts.ts'
 
 function registered() {
-  const { keymap } = createTestAppServices()
+  const { keymap } = createTestCoreServices()
   registerAppKeymaps(keymap)
   return keymap
 }

@@ -2,7 +2,7 @@ import { useEffect, type ReactElement } from 'react'
 import { GraphChooser } from '@/components/graph-chooser.tsx'
 import { GraphWorkspace } from '@/components/graph-workspace.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Root component — the Plan 02 loading gate. Routes between the graph chooser
@@ -10,7 +10,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * (daily notes, search, AI) hang off the workspace in later plans.
  */
 export function App(): ReactElement {
-  const services = useAppServices()
+  const services = useCoreServices()
   const { status, graph, error } = useGraph()
 
   // Quit-time persistence: flush dirty note buffers when exiting, awaiting

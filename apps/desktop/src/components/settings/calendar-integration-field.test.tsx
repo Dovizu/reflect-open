@@ -2,7 +2,7 @@ import { page, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Settings } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestCalendarService,
   type TestCalendarService,
   type TestOpenerService,
@@ -25,7 +25,7 @@ let settings: TestSettingsService
 
 // The field renders only on macOS desktop, which is the test platform.
 async function renderSection(): Promise<void> {
-  const app = createTestAppServices({ calendar })
+  const app = createTestCoreServices({ calendar })
   opener = app.opener
   settings = app.settings
   await renderInApp(<CalendarIntegrationField />, { app, settings: stored })

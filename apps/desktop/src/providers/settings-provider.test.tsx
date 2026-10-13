@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { StrictMode, type ReactNode } from 'react'
-import { createTestAppServices, createTestSettingsService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestSettingsService } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useSettings } from './settings-provider.tsx'
 
 describe('useSettings', () => {
   it('renders the settings of the app services and forwards updates', async () => {
     const settings = createTestSettingsService({ editorMarkdownSyntax: 'show' })
-    const app = createTestAppServices({ settings })
+    const app = createTestCoreServices({ settings })
     const { result, act } = await renderHookInApp(() => useSettings(), { app })
 
     await act(async () => {
@@ -33,7 +33,7 @@ describe('useSettings', () => {
 
   it('loads once in StrictMode', async () => {
     const settings = createTestSettingsService()
-    const app = createTestAppServices({ settings })
+    const app = createTestCoreServices({ settings })
     const { result, act } = await renderHookInApp(() => useSettings(), {
       app,
       wrapper: (children: ReactNode) => <StrictMode>{children}</StrictMode>,

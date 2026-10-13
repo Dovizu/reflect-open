@@ -15,7 +15,7 @@ import { usePaywallGate } from '@/mobile/use-paywall-gate.ts'
 import { useTaskCheckboxHaptics } from '@/mobile/use-task-haptics.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { RouterProvider } from '@/routing/router.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Mobile root component (Plan 19): the graph provider bootstraps the fixed
@@ -30,7 +30,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * checkbox-haptic listener mount here so they cover every screen's inputs.
  */
 export function MobileApp(): ReactElement {
-  const services = useAppServices()
+  const services = useCoreServices()
   const { status, graph, error, needsOnboarding } = useGraph()
   const paywallGate = usePaywallGate()
   useKeyboardHeightVar()

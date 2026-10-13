@@ -1,7 +1,7 @@
 import { page, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
-import { createTestAppServices, type TestAiKeyValidationService } from '@reflect/core/testing'
+import { createTestCoreServices, type TestAiKeyValidationService } from '@reflect/core/testing'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 
@@ -34,7 +34,7 @@ beforeEach(() => {
 })
 
 async function renderSheet(): Promise<void> {
-  const app = createTestAppServices()
+  const app = createTestCoreServices()
   keyValidation = app.aiKeyValidation
   await renderInApp(<AddAiProviderDrawer open onOpenChange={onOpenChange} onAdd={onAdd} />, {
     app,

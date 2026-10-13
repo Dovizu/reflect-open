@@ -192,11 +192,11 @@ The short version:
   class that implements the `XxxService` interface. A service
   gets other services only through `deps`. Core has no process-wide instances, no
   module-level mutable state, and never imports `@tauri-apps/*`.
-- `createAppServices(adapters)` (`packages/core/src/app/create-app-services.ts`) builds
-  every service once and returns `AppServices`. The desktop app supplies the platform
+- `createCoreServices(adapters)` (`packages/core/src/app/create-core-services.ts`) builds
+  every service once and returns `CoreServices`. The desktop app supplies the platform
   adapters from `apps/desktop/src/services/` and builds the services in
   `apps/desktop/src/boot.ts`.
-- React reads services with `useAppServices()`
+- React reads services with `useCoreServices()`
   (`apps/desktop/src/services/services-provider.tsx`). Non-React desktop modules take
   them as a first parameter `ctx`. Commands get them from `CommandContext.services`.
   Never import `appServices` from `boot.ts` outside `main.tsx` and the platform roots.
@@ -208,7 +208,7 @@ The short version:
   Background loops get the session from `createGraphServices`. See
   [docs/contributing/services.md](docs/contributing/services.md) §2.
 - Tests construct services over the test doubles in `@reflect/core/testing`
-  (`createTestAppServices()`, `createTestXxxService()`), and desktop tests render with
+  (`createTestCoreServices()`, `createTestXxxService()`), and desktop tests render with
   `renderInApp` / `renderHookInApp`. `vi.mock` is only for stubbing a pure UI child.
   See [docs/contributing/testing.md](docs/contributing/testing.md).
 

@@ -8,7 +8,7 @@ import type {
 import type { AssetSaveError } from '@reflect/core'
 import { useNoteAttachments } from '@/editor/use-note-attachments.ts'
 import { useMaybeGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 export type { AssetSaveError }
 
@@ -61,7 +61,7 @@ export interface AssetPersistence {
  */
 export function useAssetPersistence(path: string): AssetPersistence {
   const graph = useMaybeGraph()?.graph ?? null
-  const { attachments } = useAppServices()
+  const { attachments } = useCoreServices()
   const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(path)
   // The pane outlives the note (and graph session) it shows, so a save that
   // finishes after a switch must not put its outcome on the next note's banner.

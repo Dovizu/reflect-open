@@ -10,7 +10,7 @@ import {
 import { createV1ImportService, type V1ImportService } from '@reflect/core'
 import { V1ImportDialog } from '@/components/v1-import-dialog.tsx'
 import type { V1ImportState } from '@/lib/v1-import-state.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 type V1ImportContextValue = { state: V1ImportState } & Pick<V1ImportService, 'dismiss'> & {
@@ -38,7 +38,7 @@ interface V1ImportProviderProps {
  * import is the only activity until it finishes, errors, or is cancelled.
  */
 export function V1ImportProvider({ children }: V1ImportProviderProps): ReactElement {
-  const { ipc, fileChanges, graphSession, clock, logger } = useAppServices()
+  const { ipc, fileChanges, graphSession, clock, logger } = useCoreServices()
   const [service] = useState(() =>
     createV1ImportService({ ipc, fileChanges, graphSession, clock, logger }),
   )

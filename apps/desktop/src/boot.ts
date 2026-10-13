@@ -3,7 +3,8 @@ import { createDesktopAdapters } from '@/services/create-desktop-services.ts'
 import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
-import { createAppServices } from '@reflect/core'
+import { createAppServices } from '@reflect/app'
+import { createCoreServices } from '@reflect/core'
 import { isTauri } from '@tauri-apps/api/core'
 
 const facts = detectPlatformFacts(isTauri())
@@ -19,12 +20,13 @@ export const pendingDevIpc = facts.isNativeShell ? null : createDeferredIpcTrans
 /**
  * The app-scoped services of this webview.
  */
-export const appServices = createAppServices(
+export const coreServices = createCoreServices(
   createDesktopAdapters(facts, pendingDevIpc?.transport ?? createTauriIpcTransport()),
 )
 
 // Runs before every module imported after this one, so exception telemetry
 // exists while the rest of the app's modules evaluate.
-appServices.exceptionTelemetry.install()
-installQueryInvalidation(appServices)
-void appServices.contacts.refresh()
+coreServices.exceptionTelemetry.install()
+export const appServices = createAppServices(coreServices, {})
+installQueryInvalidation(coreServices)
+void coreServices.contacts.refresh()

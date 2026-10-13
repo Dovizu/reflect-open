@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { ConflictResolutionService, IndexQueryService, NoteFileService } from '@reflect/core'
-import { createTestAppServices, createTestPlatformService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestPlatformService } from '@reflect/core/testing'
 import { MOBILE_PLATFORM, renderInApp } from '@/test-utils/render-in-app.tsx'
 import { SyncConflictNotice } from './sync-conflict-notice.tsx'
 
@@ -26,7 +26,7 @@ async function renderNotice(options?: {
   source?: string
   mobile?: boolean
 }): Promise<void> {
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     platform: createTestPlatformService(options?.mobile ? MOBILE_PLATFORM : {}),
   })
   getNote = vi.spyOn(app.indexQuery, 'getNote').mockResolvedValue(options?.note ?? NOTE)

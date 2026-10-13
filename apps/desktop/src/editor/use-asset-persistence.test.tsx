@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { ReflectError, createAttachmentService, type AttachmentService } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestAssetStoreService,
   createTestAttachmentService,
   createTestClockService,
@@ -18,7 +18,7 @@ import { useAssetPersistence, type AssetPersistence } from './use-asset-persiste
 
 let persistence: AssetPersistence | null = null
 // The app of the latest `renderPersistence`; the attachment services read its graph.
-let app: ReturnType<typeof createTestAppServices<{ attachments: AttachmentService }>>
+let app: ReturnType<typeof createTestCoreServices<{ attachments: AttachmentService }>>
 const graphSession = { getState: () => app.graphSession.getState() }
 // The attachment service of the next `renderPersistence`.
 let attachmentService: AttachmentService = createTestAttachmentService({ graphSession })
@@ -30,7 +30,7 @@ function renderPersistence({
   generation: number | null
   path?: string
 }) {
-  app = createTestAppServices({ attachments: attachmentService })
+  app = createTestCoreServices({ attachments: attachmentService })
   return renderHookInApp(
     ({ path }: { path: string } = { path: 'notes/a.md' }) => {
       persistence = useAssetPersistence(path)

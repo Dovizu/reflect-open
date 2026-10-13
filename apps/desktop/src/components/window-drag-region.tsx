@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Invisible strip standing in for the macOS title bar when it's overlaid
@@ -15,7 +15,7 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * outside the macOS desktop webview, where the native title bar still exists.
  */
 export function WindowDragRegion(): ReactElement | null {
-  const { platform } = useAppServices()
+  const { platform } = useCoreServices()
   if (!platform.hasMacosTitleBarOverlay) {
     return null
   }

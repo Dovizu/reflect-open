@@ -189,11 +189,11 @@ export {
 } from '../app/operations-service.ts'
 export { type GraphSession } from '../app/graph-session.ts'
 export {
-  createAppServices,
-  type AppAdapters,
-  type AppServices,
+  createCoreServices,
+  type CoreAdapters,
+  type CoreServices,
   type MobileServices,
-} from '../app/create-app-services.ts'
+} from '../app/create-core-services.ts'
 export type { GraphServices } from '../app/create-graph-services.ts'
 export { type AgentSkillStatus } from '../app/agent-skill-service.ts'
 export { type AgentSkillService } from '../app/agent-skill-service.ts'

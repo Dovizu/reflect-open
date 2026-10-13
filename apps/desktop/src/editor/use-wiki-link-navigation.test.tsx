@@ -1,5 +1,5 @@
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestGraphSessionService,
   createTestLoggerService,
   createTestOperationsService,
@@ -42,12 +42,12 @@ function RouteProbe(): ReactNode {
  * Render `ui` in an app whose link navigation runs on the scripted resolvers above.
  */
 function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
-  const base = createTestAppServices()
+  const base = createTestCoreServices()
   const graphSession = createTestGraphSessionService()
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     operations,
     graphSession,
-    linkNavigation: createTestAppServices({
+    linkNavigation: createTestCoreServices({
       graphSession,
       wikiResolver: { ...base.wikiResolver, resolveWikiTarget },
       noteLinkResolver: {

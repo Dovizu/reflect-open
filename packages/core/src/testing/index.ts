@@ -44,11 +44,11 @@ export {
   type TestHttpService,
 } from './http.ts'
 export { createTestStorageService, type TestStorageService } from './storage.ts'
-export type { InternalServices } from '../app/create-app-services.ts'
+export type { CoreInternalServices } from '../app/create-core-services.ts'
 export {
-  createTestAppServices,
-  type TestAppServiceOverrides,
-  type TestAppServices,
+  createTestCoreServices,
+  type TestCoreServiceOverrides,
+  type TestCoreServices,
   type TestMobileServices,
 } from './services.ts'
 export {

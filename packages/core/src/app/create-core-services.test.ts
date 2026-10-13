@@ -8,16 +8,16 @@ import { createTestHttpService } from '../testing/http.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
-import { createTestAppServices } from '../testing/services.ts'
+import { createTestCoreServices } from '../testing/services.ts'
 import { createTestClipboardService, createTestDialogService } from '../testing/shell.ts'
 import { createTestUpdaterAdapter } from '../testing/update.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import {
-  composeAppServices,
-  createAppServices,
-  type AppAdapters,
-  type AppServices,
-} from './create-app-services.ts'
+  composeCoreServices,
+  createCoreServices,
+  type CoreAdapters,
+  type CoreServices,
+} from './create-core-services.ts'
 import { createDetachedLifecycleDom } from './lifecycle-service.ts'
 import { createPosixPathTransport } from './path-service.ts'
 import { createSingleWindowHost } from './window-service.ts'
@@ -103,9 +103,9 @@ const SERVICE_KEYS = [
   'autocompleteSuggestions',
   'paletteSearch',
   'mobile',
-] as const satisfies readonly (keyof AppServices)[]
+] as const satisfies readonly (keyof CoreServices)[]
 
-function requiredAdapters(): AppAdapters {
+function requiredAdapters(): CoreAdapters {
   const ipc = createTestIpcBridgeService({ commands: { app_version: () => '1.2.3' } })
   return {
     ipc: ipc.transport,
@@ -122,15 +122,15 @@ function requiredAdapters(): AppAdapters {
 }
 
 function setup() {
-  const adapters: AppAdapters = {
+  const adapters: CoreAdapters = {
     ...requiredAdapters(),
     logger: createTestLoggerService(),
     clock: createTestClockService({ now: 5 }),
   }
-  return { adapters, services: createAppServices(adapters) }
+  return { adapters, services: createCoreServices(adapters) }
 }
 
-describe('createAppServices', () => {
+describe('createCoreServices', () => {
   it('composes every app service', () => {
     const { services } = setup()
     expect(Object.keys(services).toSorted()).toEqual([...SERVICE_KEYS].toSorted())
@@ -152,8 +152,8 @@ describe('createAppServices', () => {
   })
 
   it('supports updates only with an updater adapter', () => {
-    expect(createAppServices(requiredAdapters()).update.supported).toBe(false)
-    const services = createAppServices({
+    expect(createCoreServices(requiredAdapters()).update.supported).toBe(false)
+    const services = createCoreServices({
       ...requiredAdapters(),
       updater: createTestUpdaterAdapter(),
     })
@@ -161,19 +161,19 @@ describe('createAppServices', () => {
   })
 
   it('defaults the logger, clock, id, and hash', () => {
-    const services = createAppServices(requiredAdapters())
+    const services = createCoreServices(requiredAdapters())
     expect(services.clock.now()).toBeGreaterThan(5)
     expect(services.id.noteId()).toMatch(/^[0-9a-z]{26}$/)
     expect(typeof services.logger.warn).toBe('function')
   })
 
   it('composes the mobile services on mobile only', () => {
-    const desktop = createAppServices({ ...requiredAdapters(), logger: createTestLoggerService() })
+    const desktop = createCoreServices({ ...requiredAdapters(), logger: createTestLoggerService() })
     expect(desktop.mobile).toBeNull()
     expect(desktop.audioMemo).toBeDefined()
     expect(desktop.classicAccess).toBeDefined()
 
-    const mobile = createAppServices({
+    const mobile = createCoreServices({
       ...requiredAdapters(),
       logger: createTestLoggerService(),
       platform: createTestPlatformService({ appPlatform: 'ios' }),
@@ -190,7 +190,7 @@ describe('createAppServices', () => {
       ['desktop', 0],
       ['ios', 1],
     ] as const) {
-      const services = createAppServices({
+      const services = createCoreServices({
         ...requiredAdapters(),
         logger: createTestLoggerService(),
         platform: createTestPlatformService({ appPlatform }),
@@ -208,7 +208,7 @@ describe('createAppServices', () => {
     const ipc = createTestIpcBridgeService({
       commands: { note_write: () => null },
     })
-    const { services, internal } = composeAppServices({
+    const { services, internal } = composeCoreServices({
       ...requiredAdapters(),
       ipc: ipc.transport,
       logger: createTestLoggerService(),
@@ -226,7 +226,7 @@ describe('createAppServices', () => {
     const ipc = createTestIpcBridgeService({
       commands: { db_query: () => [{ path: 'notes/a.md' }] },
     })
-    const services = createAppServices({
+    const services = createCoreServices({
       ...requiredAdapters(),
       ipc: ipc.transport,
       logger: createTestLoggerService(),
@@ -238,7 +238,7 @@ describe('createAppServices', () => {
   it('builds each replaced service with its factory over the same dependencies', () => {
     const noteFile = createTestNoteFileService()
     const received: unknown[] = []
-    const { internal } = composeAppServices(requiredAdapters(), {
+    const { internal } = composeCoreServices(requiredAdapters(), {
       noteFile: () => noteFile,
       noteDocuments: (deps) => {
         received.push(deps.noteFile)
@@ -250,9 +250,9 @@ describe('createAppServices', () => {
   })
 })
 
-describe('createTestAppServices', () => {
+describe('createTestCoreServices', () => {
   it('builds the index reads over the test database and note files', async () => {
-    const services = createTestAppServices()
+    const services = createTestCoreServices()
     seedNotes(services.database, [{ path: 'notes/plan.md', markdown: '# Plan\n' }])
     await services.noteFile.write('notes/plan-2.md', '# Plan\n', 1)
 
@@ -268,7 +268,7 @@ describe('createTestAppServices', () => {
   it('builds the index reads over an overriding database', async () => {
     const database = createTestDatabaseService()
     seedNotes(database, [{ path: 'notes/other.md', markdown: '# Other\n' }])
-    const services = createTestAppServices({ database })
+    const services = createTestCoreServices({ database })
 
     await expect(services.indexQuery.resolveNoteTarget('other')).resolves.toBe('notes/other.md')
   })

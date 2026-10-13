@@ -1,14 +1,14 @@
 import type { GraphSessionSource } from '../app/graph-session.ts'
 import {
-  composeAppServices,
+  composeCoreServices,
   createIndexReadServices,
-  type AppAdapters,
-  type AppServices,
-  type InternalServices,
+  type CoreAdapters,
+  type CoreServices,
+  type CoreInternalServices,
   type MobileServices,
   type NoteServices,
   type ServiceFactories,
-} from '../app/create-app-services.ts'
+} from '../app/create-core-services.ts'
 import { createGraphServices } from '../app/create-graph-services.ts'
 import { createDetachedLifecycleDom } from '../app/lifecycle-service.ts'
 import { createPosixPathTransport } from '../app/path-service.ts'
@@ -105,9 +105,9 @@ import { createTestThemeService } from './theme.ts'
 import { createTestUpdateService } from './update.ts'
 
 /**
- * Replacements for the services of {@link createTestAppServices}.
+ * Replacements for the services of {@link createTestCoreServices}.
  */
-export type TestAppServiceOverrides = Partial<AppServices & InternalServices> & {
+export type TestCoreServiceOverrides = Partial<CoreServices & CoreInternalServices> & {
   /**
    * The backup service of every main-window graph session.
    */
@@ -115,7 +115,7 @@ export type TestAppServiceOverrides = Partial<AppServices & InternalServices> & 
 }
 
 /**
- * The services that {@link createTestAppServices} passes as adapters.
+ * The services that {@link createTestCoreServices} passes as adapters.
  */
 function createTestEdgeServices() {
   return {
@@ -155,7 +155,7 @@ function createTestNoteServices(deps: {
  */
 function createTestServiceFactories(
   shared: { ipc: TestIpcBridgeService; platform: TestPlatformService; clock: TestClockService },
-  overrides: TestAppServiceOverrides | undefined,
+  overrides: TestCoreServiceOverrides | undefined,
 ) {
   /**
    * Puts the overrides of a group's members in place of the built ones.
@@ -163,7 +163,7 @@ function createTestServiceFactories(
   function withOverrides<Group extends object>(group: Group): Group {
     const result = { ...group } as Record<string, unknown>
     for (const key of Object.keys(group)) {
-      const service = overrides?.[key as keyof TestAppServiceOverrides]
+      const service = overrides?.[key as keyof TestCoreServiceOverrides]
       if (service !== undefined) {
         result[key] = service
       }
@@ -277,30 +277,30 @@ export type TestMobileServices = Override<
 >
 
 /**
- * {@link AppServices} plus {@link InternalServices}, where each service with
+ * {@link CoreServices} plus {@link CoreInternalServices}, where each service with
  * a test double is that double. The mobile services always exist.
  */
-export type TestAppServices = Override<
-  AppServices & InternalServices,
+export type TestCoreServices = Override<
+  CoreServices & CoreInternalServices,
   Omit<Built<TestServiceFactories>, MobileKey | 'mobile' | 'indexReads' | 'noteServices'> &
     Built<TestServiceFactories>['noteServices'] &
     TestEdgeServices & { readonly mobile: TestMobileServices }
 >
 
 /**
- * {@link createAppServices} over test adapters, with the test double of each
+ * {@link createCoreServices} over test adapters, with the test double of each
  * service that has one and `overrides` in place of the matching services.
  */
-export function createTestAppServices<
-  Overrides extends TestAppServiceOverrides = Record<never, never>,
+export function createTestCoreServices<
+  Overrides extends TestCoreServiceOverrides = Record<never, never>,
 >(
-  overrides?: Overrides & TestAppServiceOverrides,
-): Omit<TestAppServices, keyof Overrides> & Omit<Overrides, 'backup'> {
+  overrides?: Overrides & TestCoreServiceOverrides,
+): Omit<TestCoreServices, keyof Overrides> & Omit<Overrides, 'backup'> {
   const defaults = createTestEdgeServices()
   const edge = { ...defaults, ...overrides }
   const ipc = createTestIpcBridgeService({ logger: edge.logger })
   const platform = createTestPlatformService()
-  const adapters: AppAdapters = {
+  const adapters: CoreAdapters = {
     ipc: ipc.transport,
     platform: edge.platform ?? platform,
     http: edge.http,
@@ -324,10 +324,10 @@ export function createTestAppServices<
       fixed[key] = () => service
     }
   }
-  const { services, internal } = composeAppServices(adapters, {
+  const { services, internal } = composeCoreServices(adapters, {
     ...createTestServiceFactories({ ipc, platform, clock: defaults.clock }, overrides),
     ...(fixed as Partial<ServiceFactories>),
   })
-  return { ...services, ...internal } as Omit<TestAppServices, keyof Overrides> &
+  return { ...services, ...internal } as Omit<TestCoreServices, keyof Overrides> &
     Omit<Overrides, 'backup'>
 }

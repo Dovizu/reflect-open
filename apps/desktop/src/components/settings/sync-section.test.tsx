@@ -11,7 +11,7 @@ import {
   type IcloudStatus,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestICloudNativeService,
   createTestPlatformService,
   createTestBackupService,
@@ -64,7 +64,7 @@ async function renderSection(): Promise<void> {
     )
   }
   backup.setState(backupState)
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     icloudNative,
     backup,
     platform: createTestPlatformService(platform),

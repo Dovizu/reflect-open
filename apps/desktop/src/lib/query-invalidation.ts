@@ -1,4 +1,4 @@
-import type { AppServices, Unlisten } from '@reflect/core'
+import type { CoreServices, Unlisten } from '@reflect/core'
 import {
   dropIcloudStatusQuery,
   dropSimilarNotesQueries,
@@ -18,7 +18,7 @@ import {
  */
 export function installQueryInvalidation(
   app: Pick<
-    AppServices,
+    CoreServices,
     'capture' | 'assetDescription' | 'chatSessions' | 'indexLifecycle' | 'graphSession' | 'window'
   >,
 ): Unlisten {

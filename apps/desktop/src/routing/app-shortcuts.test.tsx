@@ -7,10 +7,10 @@ import {
   type NoteDocumentService,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestPlatformService,
   createTestThemeService,
-  type TestAppServices,
+  type TestCoreServices,
   type TestOpenGraph,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
@@ -69,7 +69,7 @@ const commitNoteFrontmatter = vi.fn<NoteDocumentService['commitFrontmatter']>()
 // The platform of the next `shortcutsHook`; each `describe` sets it.
 let platform: TestPlatformOptions
 // The services of the rendered app; set by `shortcutsHook`.
-let app: TestAppServices
+let app: TestCoreServices
 let openRecent: MockInstance<GraphSessionService['openRecent']>
 let openRouteInNewWindow: MockInstance<LinkNavigationService['openRouteInNewWindow']>
 let isNativeMenuInstalled: MockInstance<NativeMenuService['isInstalled']>
@@ -86,7 +86,7 @@ beforeEach(() => {
 
 async function shortcutsHook() {
   const readSource = async (): Promise<string> => '# A\n'
-  const services = createTestAppServices({
+  const services = createTestCoreServices({
     platform: createTestPlatformService(platform),
     theme: createTestThemeService('light'),
     noteDocuments: {
@@ -230,7 +230,7 @@ describe('app shortcuts', () => {
   })
 
   it('registers the command keybindings in the central keymap registry', () => {
-    const { keymap } = createTestAppServices()
+    const { keymap } = createTestCoreServices()
     registerAppKeymaps(keymap)
     const bindings = keymap.list()
     for (const key of [

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react'
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi } from 'vitest'
-import type { AppServices } from '@reflect/core'
+import type { CoreServices } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestHttpService,
   createTestPlatformService,
   createTestBackupService,
@@ -37,10 +37,10 @@ vi.mock('@/components/ui/drawer.tsx', () => ({
 async function mount(
   ui: ReactNode,
   script?: (backup: TestBackupService) => void,
-): Promise<InAppRenderResult<AppServices> & { backup: TestBackupService }> {
+): Promise<InAppRenderResult<CoreServices> & { backup: TestBackupService }> {
   const backup = createTestBackupService({ state: { phase: 'disconnected' } })
   script?.(backup)
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     platform: createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
     // A stored PAT + GitHub accepting it ("alex") makes the auth step skip
     // itself, so a Continue lands straight on the finish step.

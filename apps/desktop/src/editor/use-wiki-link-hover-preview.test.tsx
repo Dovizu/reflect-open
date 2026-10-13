@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver, WikilinkHoverHit } from '@meowdown/core'
 import {
-  createTestAppServices,
-  type TestAppServices,
+  createTestCoreServices,
+  type TestCoreServices,
   type TestOpenGraph,
 } from '@reflect/core/testing'
 import { renderHookInApp, renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -29,7 +29,7 @@ function hoverHit(target: string): WikilinkHoverHit {
   return { target, from: 0, to: 0, element: document.createElement('span') }
 }
 
-let app: TestAppServices
+let app: TestCoreServices
 
 async function setupRenderer(
   graph: TestOpenGraph | null = { generation: 7 },
@@ -43,7 +43,7 @@ async function setupRenderer(
 
 describe('useWikiLinkHoverPreview', () => {
   beforeEach(() => {
-    app = createTestAppServices()
+    app = createTestCoreServices()
     markdownPreview.mockReset()
   })
 

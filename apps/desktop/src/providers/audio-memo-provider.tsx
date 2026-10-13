@@ -20,7 +20,7 @@ import {
   showRecordingReminder,
 } from '@/components/audio-memo/recording-reminder.ts'
 import { useSidebar } from '@/providers/sidebar-provider.tsx'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
@@ -70,7 +70,7 @@ interface AudioMemoProviderProps {
 }
 
 export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): ReactElement {
-  const { audioMemo } = useAppServices()
+  const { audioMemo } = useCoreServices()
   const { collapsed, toggleSidebar } = useSidebar()
 
   // Read at call time: the session outlives the renders that made these.

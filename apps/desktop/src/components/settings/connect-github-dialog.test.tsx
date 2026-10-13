@@ -2,7 +2,7 @@ import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { createSystemClock, type BackupService, type ConnectExistingResult } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestHttpService,
   createTestOpenerService,
   createTestPlatformService,
@@ -64,7 +64,7 @@ async function renderWizard(onClose = vi.fn()): Promise<ReturnType<typeof vi.fn>
   const backup = createTestBackupService({ state: { phase: 'disconnected' } })
   backup.onConnectNewRepo(sync.connectNewRepo)
   backup.onConnectExistingRepo(sync.connectExistingRepo)
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     backup,
     opener,
     // The wizard polls on the clock: real time, so `pollIntervalMs` elapses.

@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { BacklinkContext, BacklinkContextPage, BacklinkService } from '@reflect/core'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useBacklinkSources } from './use-backlink-sources.ts'
 
-let app: TestAppServices
+let app: TestCoreServices
 let getBacklinksWithContext: MockInstance<BacklinkService['getBacklinksWithContext']>
 
 function context(sourcePath: string, snippet: string, posFrom: number): BacklinkContext {
@@ -28,7 +28,7 @@ async function mount() {
 }
 
 beforeEach(() => {
-  app = createTestAppServices()
+  app = createTestCoreServices()
   getBacklinksWithContext = vi.spyOn(app.backlinks, 'getBacklinksWithContext')
 })
 

@@ -1,5 +1,6 @@
+import { createAppServices } from '@reflect/app'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import {
   registerNoteEditorHandle,
   unregisterNoteEditorHandle,
@@ -8,10 +9,10 @@ import type { NoteEditorHandle } from '@/editor/note-editor.tsx'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { attachFilesToNote } from './attach-files.ts'
 
-let app: TestAppServices
+let app: TestCoreServices
 
 beforeEach(() => {
-  app = createTestAppServices()
+  app = createTestCoreServices()
   app.graphSession.setGraph({ generation: 4 })
 })
 
@@ -22,6 +23,7 @@ afterEach(() => {
 function contextFor(notePath: string | null): CommandContext {
   return {
     services: app,
+    app: createAppServices(app, {}),
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => notePath,

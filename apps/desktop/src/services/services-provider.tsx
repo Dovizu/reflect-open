@@ -1,9 +1,24 @@
 import { createContext, use, type ReactElement, type ReactNode } from 'react'
-import type { AppServices, GraphServices } from '@reflect/core'
+import type { AppServices } from '@reflect/app'
+import type { CoreServices, GraphServices } from '@reflect/core'
 
+const CoreServicesContext = createContext<CoreServices | null>(null)
 const AppServicesContext = createContext<AppServices | null>(null)
 const GraphServicesContext = createContext<GraphServices | null>(null)
 
+export function CoreServicesProvider({
+  services,
+  children,
+}: {
+  services: CoreServices
+  children: ReactNode
+}): ReactElement {
+  return <CoreServicesContext value={services}>{children}</CoreServicesContext>
+}
+
+/**
+ * Provides the open graph's services; `null` while no graph session is open.
+ */
 export function AppServicesProvider({
   services,
   children,
@@ -14,9 +29,6 @@ export function AppServicesProvider({
   return <AppServicesContext value={services}>{children}</AppServicesContext>
 }
 
-/**
- * Provides the open graph's services; `null` while no graph session is open.
- */
 export function GraphServicesProvider({
   services,
   children,
@@ -28,7 +40,18 @@ export function GraphServicesProvider({
 }
 
 /**
- * The {@link AppServices} of the nearest `AppServicesProvider`.
+ * The {@link CoreServices} of the nearest `CoreServicesProvider`.
+ */
+export function useCoreServices(): CoreServices {
+  const services = use(CoreServicesContext)
+  if (services === null) {
+    throw new Error('useCoreServices() must be called inside an <CoreServicesProvider>')
+  }
+  return services
+}
+
+/**
+ * The {@link GraphServices} of the nearest `GraphServicesProvider`.
  */
 export function useAppServices(): AppServices {
   const services = use(AppServicesContext)
@@ -38,9 +61,6 @@ export function useAppServices(): AppServices {
   return services
 }
 
-/**
- * The {@link GraphServices} of the nearest `GraphServicesProvider`.
- */
 export function useGraphServices(): GraphServices {
   const services = useMaybeGraphServices()
   if (services === null) {

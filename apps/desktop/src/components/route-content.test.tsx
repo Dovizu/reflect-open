@@ -4,7 +4,7 @@ import type { ReactElement } from 'react'
 import { act, actAsync } from '@/test-utils/act.ts'
 import { upsertFrontmatter } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestIdService,
   createTestNoteFileService,
   createTestPlatformService,
@@ -118,7 +118,7 @@ function PaletteProbe(): ReactElement {
 
 async function renderRoute(route: Route, platform?: TestPlatformOptions) {
   noteFile = createTestNoteFileService({ files })
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteFile,
     // A seeded id service mints note ids that read as ULIDs, not as numbers.
     id: createTestIdService({ seed: 'route-content' }),

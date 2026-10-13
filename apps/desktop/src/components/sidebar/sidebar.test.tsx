@@ -1,3 +1,4 @@
+import { createAppServices } from '@reflect/app'
 import type { ReactNode } from 'react'
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
@@ -11,7 +12,7 @@ import {
   type SettingsService,
 } from '@reflect/core'
 import {
-  createTestAppServices,
+  createTestCoreServices,
   createTestBackupService,
   createTestWindowService,
   type TestOpenerService,
@@ -60,7 +61,7 @@ let operations: TestOperationsService
  * A fresh untitled placeholder path, as the new-note route has it.
  */
 function untitledNotePath(): string {
-  return createTestAppServices().noteCreation.untitledNotePath()
+  return createTestCoreServices().noteCreation.untitledNotePath()
 }
 
 let openRecent: MockInstance<GraphSessionService['openRecent']>
@@ -84,7 +85,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
   const navigate = vi.fn()
   const openPalette = vi.fn()
   const readSource = async (): Promise<string> => '# Rust\n'
-  const app = createTestAppServices({
+  const app = createTestCoreServices({
     noteDocuments: {
       readSource,
       readExisting: readSource,
@@ -97,6 +98,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
   })
   const context: CommandContext = {
     services: app,
+    app: createAppServices(app, {}),
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,
