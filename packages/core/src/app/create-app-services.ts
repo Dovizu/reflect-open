@@ -366,7 +366,7 @@ export interface AppServices {
   readonly navigation: NavigationService
   /** The `reflect://` intake of this webview and the handler behind it. */
   readonly deepLink: DeepLinkService
-  /** Turns an activated link into a navigation, a new window, or a refusal. */
+  /** Turns an activated link into a navigation, a new window, or a refusal. */ // FIXME: just like this line. in interface AppServices and other XXXServices, for each services, add a one line description of what the service does
   readonly linkNavigation: LinkNavigationService
   readonly githubAuth: GithubAuthService
   readonly gistPublish: GistPublishService
