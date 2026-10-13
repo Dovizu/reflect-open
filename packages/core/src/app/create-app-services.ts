@@ -289,9 +289,9 @@ import {
   type PaletteSearchService,
 } from '../search/palette-search-service.ts'
 import {
-  createWikiLinkSuggestionService,
-  type WikiLinkSuggestionService,
-} from '../search/wiki-link-suggestion-service.ts'
+  createAutocompleteSuggestionService,
+  type AutocompleteSuggestionService,
+} from '../search/autocomplete-suggestion-service.ts'
 import {
   createNativeMenuService,
   createUnsupportedNativeMenuHost,
@@ -616,7 +616,7 @@ export interface AppServices {
   /**
    * The editor's `[[` and `#` menus.
    */
-  readonly wikiLinkSuggestions: WikiLinkSuggestionService
+  readonly autocompleteSuggestions: AutocompleteSuggestionService
   /**
    * The command palette's data layer.
    */
@@ -917,7 +917,7 @@ export const appServiceFactories = {
   chatSessions: createChatSessionService,
   capture: createCaptureService,
   assetDescription: createAssetDescriptionService,
-  wikiLinkSuggestions: createWikiLinkSuggestionService,
+  autocompleteSuggestions: createAutocompleteSuggestionService,
   paletteSearch: createPaletteSearchService,
 }
 
@@ -1649,7 +1649,7 @@ export function composeAppServices(
       graphSession,
       logger,
     }),
-    wikiLinkSuggestions: create.wikiLinkSuggestions({
+    autocompleteSuggestions: create.autocompleteSuggestions({
       suggestions: indexReads.suggestions,
       noteCreation: noteServices.noteCreation,
       contacts,

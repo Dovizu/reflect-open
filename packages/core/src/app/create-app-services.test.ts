@@ -100,7 +100,7 @@ const SERVICE_KEYS = [
   'chatSessions',
   'capture',
   'assetDescription',
-  'wikiLinkSuggestions',
+  'autocompleteSuggestions',
   'paletteSearch',
   'mobile',
 ] as const satisfies readonly (keyof AppServices)[]

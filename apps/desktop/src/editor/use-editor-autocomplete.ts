@@ -19,7 +19,7 @@ export interface EditorAutocomplete {
 /**
  * The editor's `[[` and `#` autocomplete, shared by every note editor (the
  * note pane and the Tasks view's inline editor). meowdown owns the menu UI;
- * the rows come from `WikiLinkSuggestionService`. Both handlers are no-ops
+ * the rows come from `AutocompleteSuggestionService`. Both handlers are no-ops
  * without an open graph.
  *
  * A consumer wires whichever menus it wants — the note pane and the task editor
@@ -28,11 +28,11 @@ export interface EditorAutocomplete {
  */
 export function useEditorAutocomplete(): EditorAutocomplete {
   const { graph } = useGraph()
-  const { wikiLinkSuggestions } = useAppServices()
+  const { autocompleteSuggestions } = useAppServices()
 
   const onWikilinkSearch = useCallback(
-    (query: string): Promise<WikilinkItem[]> => wikiLinkSuggestions.suggestLinks(query),
-    [wikiLinkSuggestions],
+    (query: string): Promise<WikilinkItem[]> => autocompleteSuggestions.suggestLinks(query),
+    [autocompleteSuggestions],
   )
 
   const onTagSearch = useCallback(
@@ -40,9 +40,9 @@ export function useEditorAutocomplete(): EditorAutocomplete {
       if (graph === null) {
         return []
       }
-      return await wikiLinkSuggestions.suggestTags(query)
+      return await autocompleteSuggestions.suggestTags(query)
     },
-    [graph, wikiLinkSuggestions],
+    [graph, autocompleteSuggestions],
   )
 
   return { onWikilinkSearch, onTagSearch }

@@ -35,7 +35,7 @@ interface SetupOptions {
 }
 
 /**
- * The hook over the real `WikiLinkSuggestionService` with scripted index and
+ * The hook over the real `AutocompleteSuggestionService` with scripted index and
  * address-book answers; the row rules themselves are covered in core.
  */
 async function setup(options?: SetupOptions) {
@@ -70,7 +70,7 @@ async function setup(options?: SetupOptions) {
       await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation),
   }
   const graphSession = createTestGraphSessionService()
-  const { wikiLinkSuggestions } = createTestAppServices({
+  const { autocompleteSuggestions } = createTestAppServices({
     graphSession,
     suggestions: {
       ...base.suggestions,
@@ -89,7 +89,7 @@ async function setup(options?: SetupOptions) {
   })
   const app = createTestAppServices({
     graphSession,
-    wikiLinkSuggestions,
+    autocompleteSuggestions,
     operations,
     settings,
     contacts,

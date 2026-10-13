@@ -27,7 +27,7 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import { createTestNoteCreationService } from '../testing/graph.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
-import { createWikiLinkSuggestionService } from './wiki-link-suggestion-service.ts'
+import { createAutocompleteSuggestionService } from './autocomplete-suggestion-service.ts'
 
 const NO_SUGGESTIONS: WikiLinkSuggestionResult = {
   suggestions: [],
@@ -80,7 +80,7 @@ async function setup(options?: SetupOptions) {
   const created: { title: string; generation: number; body?: string }[] = []
   const ensured: EnsurePersonNoteInput[] = []
   const graphSession = createTestGraphSessionService({ graph: { generation: 7 } })
-  const service = createWikiLinkSuggestionService({
+  const service = createAutocompleteSuggestionService({
     suggestions: {
       suggestWikiLinkTargets: async (query, limit, dateGen) => {
         linkQueries.push({
@@ -156,7 +156,7 @@ async function settle(): Promise<void> {
   }
 }
 
-describe('WikiLinkSuggestionService.suggestLinks', () => {
+describe('AutocompleteSuggestionService.suggestLinks', () => {
   it('asks the index for 8 link targets, with the date context of the settings and the clock', async () => {
     const { suggest, linkQueries } = await setup({
       settings: { dateFormat: 'dmy', weekStartDay: 'sunday' },
@@ -555,7 +555,7 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
       { path: 'notes/road-trip.md', markdown: '# Road trip\n' },
     ])
     const noteCreation = createTestNoteCreationService()
-    const service = createWikiLinkSuggestionService({
+    const service = createAutocompleteSuggestionService({
       suggestions: createSuggestionService({ database }),
       noteCreation,
       contacts: createTestContactsService(),
@@ -577,7 +577,7 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
   })
 })
 
-describe('WikiLinkSuggestionService.suggestTags', () => {
+describe('AutocompleteSuggestionService.suggestTags', () => {
   it('maps the index suggestions to tag rows, in order', async () => {
     const { service, tagQueries } = await setup()
     await expect(service.suggestTags('o')).resolves.toEqual([{ tag: 'work' }, { tag: 'Home' }])
