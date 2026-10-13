@@ -1,8 +1,11 @@
-import type { ColorScheme, PlatformService } from '../app/platform-service.ts'
-import type { StorageService } from '../app/storage-service.ts'
-import type { Unlisten } from '../unlisten.ts'
-import type { ThemePreference } from './schema.ts'
-import type { SettingsService } from './settings-service.ts'
+import type {
+  ColorScheme,
+  PlatformService,
+  SettingsService,
+  StorageService,
+  ThemePreference,
+  Unlisten,
+} from '@reflect/core'
 
 /**
  * The concrete theme applied to the document.

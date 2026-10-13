@@ -113,12 +113,6 @@ export {
   type TestImageSize,
 } from './image-codec.ts'
 export {
-  createTestExceptionTelemetry,
-  type ExceptionReport,
-  type ExceptionReportSource,
-  type TestExceptionTelemetryService,
-} from './exception-telemetry.ts'
-export {
   createTestAssetDescriptionService,
   createTestAssetReferences,
   type TestAssetDescriptionService,
@@ -204,7 +198,6 @@ export {
   type TestOperationsService,
 } from './operations.ts'
 export { createTestSettingsService, type TestSettingsService } from './settings.ts'
-export { createTestThemeService, type TestThemeService } from './theme.ts'
 export {
   createTestPersistenceFlushService,
   type TestPersistenceFlushService,
@@ -214,15 +207,6 @@ export {
   type TestFileChangeService,
   type TestFileChangeServiceOptions,
 } from './file-change.ts'
-export {
-  createTestUpdateService,
-  createTestUpdaterAdapter,
-  type TestUpdateCall,
-  type TestUpdaterAdapter,
-  type TestUpdaterCall,
-  type TestUpdaterOptions,
-  type TestUpdateService,
-} from './update.ts'
 export {
   createTestAppStoreService,
   createTestHapticsService,

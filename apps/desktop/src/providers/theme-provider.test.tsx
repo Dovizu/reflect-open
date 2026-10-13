@@ -1,12 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { actAsync } from '@/test-utils/act.ts'
-import {
-  createThemeService,
-  THEME_PREFERENCE_CACHE_KEY,
-  type CoreServices,
-  type Settings,
-  type ThemeService,
-} from '@reflect/core'
+import { createThemeService, THEME_PREFERENCE_CACHE_KEY, type ThemeService } from '@reflect/app'
+import type { CoreServices, Settings } from '@reflect/core'
 import {
   createTestCoreServices,
   createTestPlatformService,
@@ -45,7 +40,7 @@ function install(stored: Partial<Settings>, options: { gateLoad?: boolean } = {}
   storage = createTestStorageService()
   const platform = createTestPlatformService({ colorScheme: 'light' })
   theme = createThemeService({ settings, storage, platform })
-  app = createTestCoreServices({ settings, storage, platform, theme })
+  app = createTestCoreServices({ settings, storage, platform })
 }
 
 /**
@@ -62,7 +57,7 @@ async function renderTheme() {
       <ThemeEffect />
       <Probe />
     </>,
-    { app, servicesOnly: true },
+    { app, appServices: { theme }, servicesOnly: true },
   )
   return {
     result,

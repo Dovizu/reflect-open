@@ -52,7 +52,6 @@ import {
   createTestRetrievalService,
   createTestSemanticSearchService,
 } from './embeddings.ts'
-import { createTestExceptionTelemetry } from './exception-telemetry.ts'
 import { createTestFileChangeService } from './file-change.ts'
 import {
   createTestAssetStoreService,
@@ -101,8 +100,6 @@ import {
   createTestGithubAuthService,
   createTestICloudNativeService,
 } from './sync.ts'
-import { createTestThemeService } from './theme.ts'
-import { createTestUpdateService } from './update.ts'
 
 /**
  * Replacements for the services of {@link createTestCoreServices}.
@@ -127,7 +124,6 @@ function createTestEdgeServices() {
     dialog: createTestDialogService(),
     clipboard: createTestClipboardService(),
     imageCodec: createTestImageCodec(),
-    exceptionTelemetry: createTestExceptionTelemetry(),
   }
 }
 
@@ -232,8 +228,6 @@ function createTestServiceFactories(
     chatGraphContext: () => createTestChatGraphContextService(),
     appInfo: () => createTestAppInfoService(),
     agentSkill: () => createTestAgentSkillService(),
-    theme: () => createTestThemeService(),
-    update: () => createTestUpdateService(),
     semanticSearch: (deps) => createTestSemanticSearchService(deps),
     mobileOnboarding: (deps) => createTestMobileOnboardingService(deps),
     nativeMenu: ({ commands, window, platform, logger }) =>
@@ -316,7 +310,6 @@ export function createTestCoreServices<
     id: edge.id,
     hash: edge.hash,
     imageCodec: edge.imageCodec,
-    exceptionTelemetry: edge.exceptionTelemetry,
   }
   const fixed: Record<string, () => unknown> = {}
   for (const [key, service] of Object.entries(overrides ?? {})) {

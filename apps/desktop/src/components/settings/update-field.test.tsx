@@ -1,11 +1,7 @@
 import { page, userEvent } from 'vitest/browser'
 import { describe, expect, it } from 'vitest'
-import type { UpdateState } from '@reflect/core'
-import {
-  createTestCoreServices,
-  createTestUpdateService,
-  type TestUpdateService,
-} from '@reflect/core/testing'
+import type { UpdateState } from '@reflect/app'
+import { createTestUpdateService, type TestUpdateService } from '@reflect/app/testing'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { UpdateField } from './update-field.tsx'
@@ -13,7 +9,7 @@ import { UpdateField } from './update-field.tsx'
 async function renderField(state: UpdateState): Promise<TestUpdateService> {
   const update = createTestUpdateService(state)
   await renderInApp(<UpdateField />, {
-    app: createTestCoreServices({ update }),
+    appServices: { update },
     wrapper: (children) => <UpdateProvider autoCheck={false}>{children}</UpdateProvider>,
   })
   return update
