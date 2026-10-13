@@ -64,6 +64,10 @@ export interface IndexReconciledEvent {
    */
   readonly generation: number
   /**
+   * The file generation the pass read at.
+   */
+  readonly fileGeneration: number
+  /**
    * `sync` is a background sync pass (hash reconcile, or a rebuild for a
    * stale projection version). `rebuild` is a requested
    * {@link IndexLifecycleService.rebuildVisibly}, which wiped every derived
@@ -88,9 +92,9 @@ export interface IndexReconciledEvent {
  * ```
  *
  * Every write carries the index `generation` returned by
- * {@link IndexLifecycleService.open}; Rust no-ops a write whose generation is
- * stale, so even a pass that races a connection swap can't corrupt the
- * newly-opened index. The lifecycle itself never throws: a failed stage is
+ * {@link IndexLifecycleService.open}, and every file read carries the session's
+ * file generation; Rust no-ops a write whose generation is stale, so even a
+ * pass that races a connection swap can't corrupt the newly-opened index. The lifecycle itself never throws: a failed stage is
  * logged.
  */
 export interface IndexLifecycleService {
@@ -172,14 +176,19 @@ export interface IndexLifecycleService {
    */
   onApplied(listener: (event: IndexAppliedEvent) => void): Unlisten
   /**
-   * Apply `changes` to the index at `generation` now, without waiting for the
-   * live subscription: files a pull wrote must reach the index even before
+   * Apply `changes` to the index at `generation` now, reading the files at
+   * `fileGeneration`, without waiting for the live subscription: files a pull wrote must reach the index even before
    * the watcher runs. Applying a batch the live subscription also applies is
    * idempotent. Resolves with the number of index mutations and reports
    * {@link IndexLifecycleService.onApplied} when there was any. `canApply` is
    * checked before every write; a rejection is the caller's to handle.
    */
-  applyChanges(changes: FileChange[], generation: number, canApply?: () => boolean): Promise<number>
+  applyChanges(
+    changes: FileChange[],
+    generation: number,
+    fileGeneration: number,
+    canApply?: () => boolean,
+  ): Promise<number>
   /**
    * Listen for whole-graph passes that ran to completion. A sync pass reports
    * right after its {@link IndexLifecycleService.onApplied}; one that was
@@ -243,19 +252,29 @@ export interface IndexLifecycleService {
   rebuildVisibly(): Promise<void>
   /**
    * Read, parse, and index one note now, without waiting for the watcher. For
-   * an in-app write whose row must be readable at once.
+   * an in-app write whose row must be readable at once. The read carries
+   * `fileGeneration` and the write carries the index `generation`.
    */
   indexNote(
     path: string,
-    options: { generation: number; content?: string | undefined; mtime?: number | undefined },
+    options: {
+      generation: number
+      fileGeneration: number
+      content?: string | undefined
+      mtime?: number | undefined
+    },
   ): Promise<void>
   /**
    * Re-index every note that references any of `assetPaths`, so an asset
    * description written after its notes were indexed reaches their search
    * rows. The re-applied notes report through
-   * {@link IndexLifecycleService.onApplied}.
+   * {@link IndexLifecycleService.onApplied}. Writes carry the index
+   * `generation`, reads carry `fileGeneration`.
    */
-  reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void>
+  reindexNotesReferencing(
+    assetPaths: readonly string[],
+    options: { generation: number; fileGeneration: number },
+  ): Promise<void>
 }
 
 /**
@@ -311,7 +330,7 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
 
   sync(session: GraphSession): void {
     const { clock, logger, fileChanges } = this.#deps
-    const generation = session.indexGeneration
+    const { indexGeneration: generation, generation: fileGeneration } = session
     const isStale = (): boolean => session.signal.aborted
     // Tear down the previous graph's live subscription unconditionally, so a
     // failed/absent open can't leave it bound to a different graph.
@@ -341,6 +360,7 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
         }
         await this.#indexer.sync({
           generation,
+          fileGeneration,
           signal: controller.signal,
           onMoved: (from, to) => {
             this.#emitMoved(from, to)
@@ -386,10 +406,11 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
         }
         this.#emitApplied({ generation, changes: null })
         for (const listener of this.#reconciledListeners) {
-          void listener({ generation, source: 'sync' })
+          void listener({ generation, fileGeneration, source: 'sync' })
         }
         pending = this.#liveIndex.subscribe(
           generation,
+          fileGeneration,
           (from, to) => {
             this.#emitMoved(from, to)
           },
@@ -539,11 +560,13 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
   async applyChanges(
     changes: FileChange[],
     generation: number,
+    fileGeneration: number,
     canApply?: () => boolean,
   ): Promise<number> {
     const mutations = await this.#liveIndex.apply(
       changes,
       generation,
+      fileGeneration,
       undefined,
       undefined,
       canApply,
@@ -579,14 +602,15 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     attach(this.#fileProgressStoreListeners, listener)
 
   rebuildVisibly(): Promise<void> {
-    const generation = this.#deps.graphSession.getState().session?.indexGeneration ?? null
-    if (generation === null) {
+    const { session } = this.#deps.graphSession.getState()
+    const generation = session?.indexGeneration ?? null
+    if (session === null || generation === null) {
       return Promise.resolve()
     }
     if (this.#rebuildInFlight !== null && this.#rebuildInFlight.generation === generation) {
       return this.#rebuildInFlight.promise
     }
-    const promise = this.#runRebuild(generation).finally(() => {
+    const promise = this.#runRebuild(generation, session.generation).finally(() => {
       if (this.#rebuildInFlight !== null && this.#rebuildInFlight.promise === promise) {
         this.#rebuildInFlight = null
       }
@@ -597,13 +621,21 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
 
   async indexNote(
     path: string,
-    options: { generation: number; content?: string | undefined; mtime?: number | undefined },
+    options: {
+      generation: number
+      fileGeneration: number
+      content?: string | undefined
+      mtime?: number | undefined
+    },
   ): Promise<void> {
     await this.#indexer.indexNote(path, options)
   }
 
-  async reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void> {
-    await this.#indexer.reindexNotesReferencing(assetPaths, generation)
+  async reindexNotesReferencing(
+    assetPaths: readonly string[],
+    options: { generation: number; fileGeneration: number },
+  ): Promise<void> {
+    await this.#indexer.reindexNotesReferencing(assetPaths, options)
   }
 
   #emitApplied(event: IndexAppliedEvent): void {
@@ -650,13 +682,14 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     return this.#suspended || this.#suspendGuard?.() === true
   }
 
-  async #runRebuild(generation: number): Promise<void> {
+  async #runRebuild(generation: number, fileGeneration: number): Promise<void> {
     const { progress, logger } = this.#deps
     const operation = progress.start('Rebuilding search index')
     const skippedNotes: string[] = []
     try {
       await this.#indexer.rebuild({
         generation,
+        fileGeneration,
         onSkippedNote: (note) => {
           // The status toast lingers only briefly and samples the first few, so
           // log every skip in full — this is the durable record of which notes
@@ -680,7 +713,7 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
     // the embedding tables with everything else: followers refresh their
     // caches and re-embed off this, one after another.
     for (const listener of this.#reconciledListeners) {
-      await listener({ generation, source: 'rebuild' })
+      await listener({ generation, fileGeneration, source: 'rebuild' })
     }
   }
 }

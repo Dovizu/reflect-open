@@ -130,9 +130,11 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
   const assetReads: string[] = []
   const appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
   /**
-   * Every `reindexNotesReferencing` call, as `[assetPaths, generation]`.
+   * Every `reindexNotesReferencing` call, as `[assetPaths, generations]`.
    */
-  const reindexed: Array<[readonly string[], number]> = []
+  const reindexed: Array<
+    [readonly string[], { readonly generation: number; readonly fileGeneration: number }]
+  > = []
   const index = {
     /**
      * When set, the next re-index rejects with it.
@@ -179,8 +181,8 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     }
   })
   vi.spyOn(indexLifecycle, 'reindexNotesReferencing').mockImplementation(
-    async (assetPaths, generation) => {
-      reindexed.push([assetPaths, generation])
+    async (assetPaths, generations) => {
+      reindexed.push([assetPaths, generations])
       if (index.reindexError !== null) {
         const error = index.reindexError
         index.reindexError = null
@@ -597,7 +599,9 @@ describe('AssetDescriptionService.openSession', () => {
     index.emit([upsert('assets/a.png')])
     await flush()
 
-    expect(reindexed).toEqual([[['assets/a.png'], INDEX_GENERATION]])
+    expect(reindexed).toEqual([
+      [['assets/a.png'], { generation: INDEX_GENERATION, fileGeneration: GENERATION }],
+    ])
     // The re-index wrote search rows directly, so index-backed caches must be
     // told for ⌘K to reflect the new descriptions.
     expect(indexedEvents()).toBe(1)
@@ -788,7 +792,12 @@ describe('AssetDescriptionService.backfillVisibly', () => {
     const outcome = await running
 
     expect(outcome.described).toBe(2)
-    expect(reindexed).toEqual([[['assets/a.png', 'assets/b.pdf'], INDEX_GENERATION]])
+    expect(reindexed).toEqual([
+      [
+        ['assets/a.png', 'assets/b.pdf'],
+        { generation: INDEX_GENERATION, fileGeneration: GENERATION },
+      ],
+    ])
     expect(indexedEvents()).toBe(1)
     expect(operations.getAll().filter((operation) => operation.status !== 'running')).toEqual([])
   })

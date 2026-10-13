@@ -87,7 +87,7 @@ afterEach(() => {
 function service(overrides: { watch?: boolean } = {}) {
   const indexLifecycle = createTestIndexLifecycleService()
   vi.spyOn(indexLifecycle, 'applyChanges').mockImplementation(
-    async (changes, generation, canApply) => {
+    async (changes, generation, _fileGeneration, canApply) => {
       indexApplies.push({
         paths: changes.map((change) => change.path),
         generation,

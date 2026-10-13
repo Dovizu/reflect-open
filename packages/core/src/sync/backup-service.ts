@@ -398,6 +398,7 @@ class BackupServiceImpl implements BackupService {
         await indexLifecycle.applyChanges(
           indexable,
           indexGeneration,
+          this.#generation,
           () => !this.#mobile || !activity.isHidden(),
         )
       })

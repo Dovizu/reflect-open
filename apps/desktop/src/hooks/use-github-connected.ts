@@ -16,9 +16,12 @@ export function useGithubConnected(): boolean {
     if (githubAuth.getState().connected !== null) {
       return
     }
-    githubAuth.load().catch((error: unknown) => {
-      logger.error('reading the GitHub credential failed', error)
-    })
+    githubAuth
+      .load()
+      .catch(() => githubAuth.load())
+      .catch((error: unknown) => {
+        logger.error('reading the GitHub credential failed', error)
+      })
   }, [githubAuth, logger])
 
   return connected ?? false

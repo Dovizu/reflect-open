@@ -12,6 +12,10 @@ import { useCoreServices } from '@/services/services-provider.tsx'
 interface AgentSkillAction {
   action: 'install' | 'uninstall'
   root: string
+  /**
+   * The file generation of the graph the action was requested in.
+   */
+  generation: number
 }
 
 /**
@@ -23,7 +27,7 @@ interface AgentSkillAction {
  */
 export function AgentsSection(): ReactElement | null {
   const { graph } = useGraph()
-  const { agentSkill, platform } = useCoreServices()
+  const { agentSkill, platform, graphSession } = useCoreServices()
   const queryClient = useQueryClient()
   const queryKey = queryKeys.agentSkill.status(graph?.root)
   const { data: status } = useQuery({
@@ -34,8 +38,14 @@ export function AgentsSection(): ReactElement | null {
   const mutation = useMutation({
     mutationKey: mutationKeys.agentSkill.write(graph?.root),
     scope: { id: mutationScopeIds.agentSkillWrite(graph?.root) },
-    mutationFn: (variables: AgentSkillAction): Promise<AgentSkillStatus> =>
-      variables.action === 'uninstall' ? agentSkill.uninstall() : agentSkill.install(),
+    mutationFn: async (variables: AgentSkillAction): Promise<AgentSkillStatus> => {
+      if (graphSession.getState().session?.generation !== variables.generation) {
+        throw new Error('The graph changed before the agent skill write ran')
+      }
+      return variables.action === 'uninstall'
+        ? await agentSkill.uninstall()
+        : await agentSkill.install()
+    },
     onSuccess: (nextStatus, variables) => {
       queryClient.setQueryData(queryKeys.agentSkill.status(variables.root), nextStatus)
     },
@@ -51,7 +61,7 @@ export function AgentsSection(): ReactElement | null {
   const actionError =
     isCurrentMutation && mutation.error !== null ? errorMessage(mutation.error) : null
   const mutate = (action: AgentSkillAction['action']): void =>
-    mutation.mutate({ action, root: graph.root })
+    mutation.mutate({ action, root: graph.root, generation: graph.generation })
   return (
     <SettingsSection id="agents">
       <SettingsField

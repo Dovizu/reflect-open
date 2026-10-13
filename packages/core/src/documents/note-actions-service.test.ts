@@ -643,8 +643,8 @@ describe('trash', () => {
     })
 
     expect(deleteFile).not.toHaveBeenCalled()
-    // No row was ever listed, so there is nothing to hide.
-    expect(noteRows.getOverlay('notes/new.md')).toBeNull()
+    // The row leaves the list at once; the overlay retires when the index reports no row.
+    expect(noteRows.getOverlay('notes/new.md')).toEqual({ trashed: true })
     expect(session?.getCalls('discard')).toHaveLength(1)
   })
 

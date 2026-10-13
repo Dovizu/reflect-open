@@ -413,6 +413,10 @@ type TaskListPatch = (rows: readonly OpenTask[] | undefined) => readonly OpenTas
  * Both task lists as they were before an optimistic write.
  */
 interface TaskListSnapshot {
+  /**
+   * The session key of the graph the snapshot was taken in.
+   */
+  readonly key: string | null
   readonly open: readonly OpenTask[] | undefined
   readonly completed: readonly OpenTask[] | undefined
 }
@@ -561,7 +565,8 @@ class TaskServiceImpl implements TaskService {
   }
 
   async completeTasks(tasks: readonly OpenTask[]): Promise<void> {
-    const { root } = this.#begin()
+    const session = this.#begin()
+    const { root } = session
     this.#snapshot()
     this.#patch(
       (rows) => withoutTasks(rows, tasks),
@@ -569,7 +574,7 @@ class TaskServiceImpl implements TaskService {
     )
     this.markRecentlyCompleted(root, tasks)
     try {
-      await this.#writeEach(root, tasks, () => [{ kind: 'toggle' }])
+      await this.#writeEach(session, tasks, () => [{ kind: 'toggle' }])
     } catch (cause) {
       // Earlier writes of the batch may have landed: re-read rather than restore.
       this.#invalidate()
@@ -579,15 +584,15 @@ class TaskServiceImpl implements TaskService {
   }
 
   async reopenTasks(tasks: readonly OpenTask[]): Promise<void> {
-    const { root } = this.#begin()
+    const session = this.#begin()
     this.#snapshot()
     this.#patch(
       (rows) => asOpen(rows, tasks),
       (rows) => withoutTasks(rows, tasks),
     )
-    this.forgetRecentlyCompleted(root, keysOf(tasks))
+    this.forgetRecentlyCompleted(session.root, keysOf(tasks))
     try {
-      await this.#writeEach(root, tasks, () => [{ kind: 'toggle' }])
+      await this.#writeEach(session, tasks, () => [{ kind: 'toggle' }])
     } catch (cause) {
       this.#invalidate()
       throw cause
@@ -612,7 +617,7 @@ class TaskServiceImpl implements TaskService {
   }
 
   async scheduleTasks(tasks: readonly OpenTask[], isoDate: string | null): Promise<void> {
-    const { root } = this.#begin()
+    const session = this.#begin()
     this.#snapshot()
     // The row keeps its bucket until the reindex re-derives the due date.
     const patch: TaskListPatch = (rows) =>
@@ -622,7 +627,7 @@ class TaskServiceImpl implements TaskService {
       )
     this.#patch(patch, patch)
     try {
-      await this.#writeEach(root, tasks, (task) => [
+      await this.#writeEach(session, tasks, (task) => [
         { kind: 'setMarkdown', markdown: getScheduledMarkdown(task, isoDate) },
       ])
     } catch (cause) {
@@ -636,7 +641,8 @@ class TaskServiceImpl implements TaskService {
   }
 
   async editAndConvertTask(task: OpenTask, content: string): Promise<void> {
-    const { root } = this.#begin()
+    const session = this.#begin()
+    const { root } = session
     const snapshot = this.#snapshot()
     this.#patch(
       (rows) => withoutTasks(rows, [task]),
@@ -648,7 +654,7 @@ class TaskServiceImpl implements TaskService {
         { kind: 'setMarkdown', markdown: content },
         { kind: 'toBullet' },
       ])
-      this.#relocate(root, task.notePath, result.moved)
+      this.#relocate(session, task.notePath, result.moved)
     } catch (cause) {
       this.#restore(snapshot)
       if (task.checked) {
@@ -697,7 +703,7 @@ class TaskServiceImpl implements TaskService {
   }
 
   async addTask(target: InsertTaskTarget): Promise<OpenTask> {
-    const { root } = this.#begin()
+    const session = this.#begin()
     let result: InsertedTask
     try {
       result = await this.insertTask(target.notePath)
@@ -705,11 +711,11 @@ class TaskServiceImpl implements TaskService {
       this.#invalidate()
       throw cause
     }
-    return this.#addInserted(root, target, result)
+    return this.#addInserted(session, target, result)
   }
 
   async addTaskAfter(task: OpenTask, content: string | null): Promise<OpenTask> {
-    const { root } = this.#begin()
+    const session = this.#begin()
     const snapshot = this.#snapshot()
     // The anchor resolves in the same write: a cleared row leaves, an edited one shows its text.
     const patch: TaskListPatch = (rows) =>
@@ -726,7 +732,7 @@ class TaskServiceImpl implements TaskService {
       this.#restore(snapshot)
       throw cause
     }
-    return this.#addInserted(root, task, result)
+    return this.#addInserted(session, task, result)
   }
 
   resolveSnippetTask(tasks: readonly SnippetTask[], click: SnippetTaskClick): SnippetTask | null {
@@ -1052,10 +1058,16 @@ class TaskServiceImpl implements TaskService {
         slot.stale = true
       }
     }
-    return { open: this.#open.rows, completed: this.#completed.rows }
+    return { key: this.#sessionKey, open: this.#open.rows, completed: this.#completed.rows }
   }
 
+  /**
+   * Put back the rows of `snapshot`, unless another graph opened since it was taken.
+   */
   #restore(snapshot: TaskListSnapshot): void {
+    if (snapshot.key !== this.#currentKey()) {
+      return
+    }
     this.#setRows(this.#open, snapshot.open)
     this.#setRows(this.#completed, snapshot.completed)
     this.#publish()
@@ -1079,24 +1091,35 @@ class TaskServiceImpl implements TaskService {
   }
 
   /**
-   * Re-key the rows and the recently-completed set from a write's `moved` map.
+   * The session key of the open graph.
    */
-  #relocate(root: string, notePath: string, moved: TaskMoves): void {
+  #currentKey(): string | null {
+    return sessionKey(this.#deps.graphSession.getState().session)
+  }
+
+  /**
+   * Re-key the rows and the recently-completed set from a write's `moved` map,
+   * unless another graph opened since `session` began the write.
+   */
+  #relocate(session: GraphSession, notePath: string, moved: TaskMoves): void {
+    if (sessionKey(session) !== this.#currentKey()) {
+      return
+    }
     const { logger } = this.#deps
     const relocate: TaskListPatch = (rows) => withRelocatedTasks({ logger }, rows, notePath, moved)
     this.#patch(relocate, relocate)
-    this.relocateRecentlyCompleted(root, notePath, moved)
+    this.relocateRecentlyCompleted(session.root, notePath, moved)
   }
 
   /**
    * Write `tasks` one at a time, re-keying the rows from each write before the next.
    */
   async #writeEach(
-    root: string,
+    session: GraphSession,
     tasks: readonly OpenTask[],
     actionsFor: (task: OpenTask) => readonly TaskAction[],
   ): Promise<void> {
-    const { signal } = requireGraphSession(this.#deps.graphSession)
+    const { signal } = session
     let pending: readonly OpenTask[] = tasks
     for (let task = pending[0]; task !== undefined; task = pending[0]) {
       // After the batch's graph closes or switches, a write would land in the next graph.
@@ -1104,7 +1127,7 @@ class TaskServiceImpl implements TaskService {
         throw new ReflectError('noGraph', 'No graph is open.')
       }
       const result = await this.writeTask(task, actionsFor(task))
-      this.#relocate(root, task.notePath, result.moved)
+      this.#relocate(session, task.notePath, result.moved)
       const rest: readonly OpenTask[] = pending.slice(1)
       pending =
         withRelocatedTasks({ logger: this.#deps.logger }, rest, task.notePath, result.moved) ?? []
@@ -1115,7 +1138,8 @@ class TaskServiceImpl implements TaskService {
    * Delete or convert `tasks`: the rows leave both lists outright.
    */
   async #removeEach(tasks: readonly OpenTask[], kind: 'remove' | 'toBullet'): Promise<void> {
-    const { root } = this.#begin()
+    const session = this.#begin()
+    const { root } = session
     this.#snapshot()
     this.#patch(
       (rows) => withoutTasks(rows, tasks),
@@ -1123,7 +1147,7 @@ class TaskServiceImpl implements TaskService {
     )
     this.forgetRecentlyCompleted(root, keysOf(tasks))
     try {
-      await this.#writeEach(root, tasks, () => [{ kind }])
+      await this.#writeEach(session, tasks, () => [{ kind }])
     } catch (cause) {
       this.#invalidate()
       // A checked task is still `[x]` on disk: keep it struck, or it would vanish from the list.
@@ -1136,11 +1160,15 @@ class TaskServiceImpl implements TaskService {
   }
 
   /**
-   * Re-key the rows a task insert moved, then add the new task's row to the open list.
+   * Re-key the rows a task insert moved, then add the new task's row to the open
+   * list; the rows stay as they are when another graph opened since `session`.
    */
-  #addInserted(root: string, target: InsertTaskTarget, result: InsertedTask): OpenTask {
-    this.#relocate(root, target.notePath, result.moved)
+  #addInserted(session: GraphSession, target: InsertTaskTarget, result: InsertedTask): OpenTask {
     const created = createInsertedTaskRow(target, result.created, result.updatedAt)
+    if (sessionKey(session) !== this.#currentKey()) {
+      return created
+    }
+    this.#relocate(session, target.notePath, result.moved)
     this.#patch(
       (rows) => [...(rows ?? []).filter((row) => !isSameTask(row, created)), created],
       (rows) => rows?.filter((row) => !isSameTask(row, created)),

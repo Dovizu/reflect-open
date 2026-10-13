@@ -20,7 +20,8 @@ import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
  * (Plan 03) → hash → hand the flattened projection to Rust, which applies it in
  * one transaction. The index is a rebuildable cache.
  *
- * Every write carries the index `generation` returned by `IndexStoreService.open`. Rust
+ * Every write carries the index `generation` returned by `IndexStoreService.open`, and
+ * every file read carries the file `fileGeneration` from `graph_open`. Rust
  * no-ops a write whose generation is stale, so a pass started for one graph can
  * never mutate a newly-opened index — cancellation is correct regardless of
  * caller timing (the watcher in Plan 04b indexes outside the serialized open
@@ -67,6 +68,10 @@ export interface IndexPassOptions {
    * The index generation from `IndexStoreService.open`; stale writes are dropped by Rust.
    */
   generation: number
+  /**
+   * The file generation from `graph_open`; every file read of the pass carries it.
+   */
+  fileGeneration: number
   /**
    * Aborts the pass early when the active graph changes.
    */
@@ -121,7 +126,8 @@ export {
  */
 export interface NoteIndexer {
   /**
-   * Read, parse, and (re)index a single note for the given index generation.
+   * Read, parse, and (re)index a single note: the read carries `fileGeneration`
+   * and the write carries the index `generation`.
    * Without an explicit `mtime` the row is stamped "now": a watcher event
    * means the file just changed, and a real timestamp beats epoch zero (which
    * would sink the note to the bottom of every recency sort and, because
@@ -129,19 +135,24 @@ export interface NoteIndexer {
    */
   indexNote(
     path: string,
-    options: { generation: number; content?: string | undefined; mtime?: number | undefined },
+    options: {
+      generation: number
+      fileGeneration: number
+      content?: string | undefined
+      mtime?: number | undefined
+    },
   ): Promise<void>
   /**
    * Parse `content` and flatten it into the note's index projection: the one
    * home of the parse, asset-description-gather and build step that every
    * indexing path (single note, rebuild, reconcile, watcher batch) shares.
    * Callers hash first: the hash gates whether this (comparatively expensive)
-   * step runs at all.
+   * step runs at all. Asset description files are read at `fileGeneration`.
    */
   buildNoteProjection(
     path: string,
     content: string,
-    facts: { fileHash: string; mtime: number; generation: number },
+    facts: { fileHash: string; mtime: number; fileGeneration: number },
   ): Promise<IndexedNote>
   /**
    * Re-index every note referencing any of `assetPaths` (Plan 20 search
@@ -150,7 +161,7 @@ export interface NoteIndexer {
    * stale; this folds the new description text into their FTS documents.
    * `indexNote` is not hash-gated, so the unchanged note files re-index
    * unconditionally. A note removed since it referenced the asset is
-   * skipped. Pinned to `generation`.
+   * skipped. Writes are pinned to `generation`, reads to `fileGeneration`.
    *
    * The re-applied notes broadcast through `emitChangesApplied`, the same
    * post-apply signal the live indexer emits, because these writes bypass the
@@ -159,7 +170,10 @@ export interface NoteIndexer {
    * all, which must re-embed the notes so the new description text reaches
    * the semantic leg too) would never hear about description-driven changes.
    */
-  reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void>
+  reindexNotesReferencing(
+    assetPaths: readonly string[],
+    options: { generation: number; fileGeneration: number },
+  ): Promise<void>
   /**
    * Full rebuild: wipe derived tables and re-index every markdown file. Used
    * for explicit repair and schema-bump triggers, not the hot graph-switch
@@ -218,12 +232,12 @@ class NoteIndexerImpl implements NoteIndexer {
   async buildNoteProjection(
     path: string,
     content: string,
-    facts: { fileHash: string; mtime: number; generation: number },
+    facts: { fileHash: string; mtime: number; fileGeneration: number },
   ): Promise<IndexedNote> {
     const parsed = parseNote({ path, source: content })
     const text = await this.#assetText.gatherText(
       parsed.assets.map((asset) => asset.path),
-      facts.generation,
+      facts.fileGeneration,
     )
     return buildIndexedNote(parsed, {
       fileHash: facts.fileHash,
@@ -235,21 +249,30 @@ class NoteIndexerImpl implements NoteIndexer {
 
   async indexNote(
     path: string,
-    options: { generation: number; content?: string | undefined; mtime?: number | undefined },
+    options: {
+      generation: number
+      fileGeneration: number
+      content?: string | undefined
+      mtime?: number | undefined
+    },
   ): Promise<void> {
     const { indexStore: store, noteFile, hash, clock } = this.#deps
-    const content = options.content ?? (await noteFile.read(path, options.generation))
+    const content = options.content ?? (await noteFile.read(path, options.fileGeneration))
     const fileHash = await hash.sha256Hex(content)
     const note = await this.buildNoteProjection(path, content, {
       fileHash,
       mtime: options.mtime ?? clock.now(),
-      generation: options.generation,
+      fileGeneration: options.fileGeneration,
     })
     await store.apply(note, options.generation)
   }
 
-  async reindexNotesReferencing(assetPaths: readonly string[], generation: number): Promise<void> {
+  async reindexNotesReferencing(
+    assetPaths: readonly string[],
+    options: { generation: number; fileGeneration: number },
+  ): Promise<void> {
     const { emitChangesApplied } = this.#deps
+    const { generation, fileGeneration } = options
     const notePaths = new Set<string>()
     for (const assetPath of assetPaths) {
       for (const notePath of await this.#assetReferences.notePaths(assetPath)) {
@@ -260,7 +283,7 @@ class NoteIndexerImpl implements NoteIndexer {
     try {
       for (const notePath of notePaths) {
         try {
-          await this.indexNote(notePath, { generation })
+          await this.indexNote(notePath, { generation, fileGeneration })
           applied.push(notePath)
         } catch (cause) {
           if (isAppError(cause) && cause.kind === 'notFound') {
@@ -284,7 +307,8 @@ class NoteIndexerImpl implements NoteIndexer {
 
   async rebuild(options: IndexPassOptions): Promise<void> {
     const { indexStore: store, noteFile, hash } = this.#deps
-    const { generation, onSkippedNote, onFileProgress, onStalePlaceholders } = options
+    const { generation, fileGeneration, onSkippedNote, onFileProgress, onStalePlaceholders } =
+      options
     if (options.signal?.aborted) {
       return // don't wipe the current index for an already-cancelled pass
     }
@@ -292,7 +316,7 @@ class NoteIndexerImpl implements NoteIndexer {
     if (options.signal?.aborted) {
       return
     }
-    const files = await noteFile.listNotes(generation)
+    const files = await noteFile.listNotes(fileGeneration)
     const batch = store.createApplyBatch(generation, onSkippedNote)
     const evicted: string[] = []
     let done = 0
@@ -318,12 +342,12 @@ class NoteIndexerImpl implements NoteIndexer {
         continue
       }
       worked += 1
-      const content = await noteFile.read(file.path, generation)
+      const content = await noteFile.read(file.path, fileGeneration)
       const fileHash = await hash.sha256Hex(content)
       const projection = await this.buildNoteProjection(file.path, content, {
         fileHash,
         mtime: file.modifiedMs,
-        generation,
+        fileGeneration,
       })
       if (options.signal?.aborted) {
         return
@@ -350,8 +374,15 @@ class NoteIndexerImpl implements NoteIndexer {
 
   async reconcile(options: IndexPassOptions): Promise<void> {
     const { indexStore: store, noteFile, hash, logger } = this.#deps
-    const { generation, signal, onMoved, onSkippedNote, onFileProgress, onStalePlaceholders } =
-      options
+    const {
+      generation,
+      fileGeneration,
+      signal,
+      onMoved,
+      onSkippedNote,
+      onFileProgress,
+      onStalePlaceholders,
+    } = options
     const scan = await store.reconcileScan(generation)
     if (signal?.aborted) {
       return
@@ -394,7 +425,7 @@ class NoteIndexerImpl implements NoteIndexer {
       const healScan = await this.#moveHealing.detectExternalMoves(
         [...removals.keys()],
         arrivalPaths,
-        generation,
+        fileGeneration,
         {
           signal,
         },
@@ -448,7 +479,7 @@ class NoteIndexerImpl implements NoteIndexer {
       let content = arrivalContent.get(candidate.path)
       if (content === undefined) {
         try {
-          content = await noteFile.read(candidate.path, generation)
+          content = await noteFile.read(candidate.path, fileGeneration)
         } catch (err) {
           // The file moved/was deleted/locked between the scan and here (TOCTOU).
           // If it's gone and had a row, that row is now a ghost — remove it this
@@ -482,7 +513,7 @@ class NoteIndexerImpl implements NoteIndexer {
       const projection = await this.buildNoteProjection(candidate.path, content, {
         fileHash,
         mtime: candidate.modifiedMs,
-        generation,
+        fileGeneration,
       })
       if (signal?.aborted) {
         return

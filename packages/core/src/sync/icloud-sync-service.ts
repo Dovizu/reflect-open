@@ -405,7 +405,7 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
    */
   #applySweepChanges(changes: FileChange[]): void {
     const { fileChanges, indexLifecycle, activity, clock } = this.#deps
-    const { indexGeneration, metadataWatch } = this.#options
+    const { generation, indexGeneration, metadataWatch } = this.#options
     // Sweep rewrites ARE this device's writes, but they don't route through
     // the note file service, so no own-write echo fires — and
     // `applyingSweepResult` below can't cover the *debounced* watcher echo
@@ -428,6 +428,7 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
       void indexLifecycle.applyChanges(
         indexable,
         indexGeneration,
+        generation,
         () => !metadataWatch || !activity.isHidden(),
       )
     }
