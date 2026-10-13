@@ -1,3 +1,4 @@
+import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
@@ -62,8 +63,9 @@ export interface TemplateService {
    * authored H1 still works (and inserts) when the user wants one. Returns the
    * new graph-relative path. The first template write also creates the
    * `templates/` folder — it is not bootstrapped with the graph (no-litter).
+   * Rejects when no graph is open.
    */
-  createTemplate(name: string, generation: number): Promise<string>
+  createTemplate(name: string): Promise<string>
   /**
    * Rename a template to `name`: move the file onto the new name's slug
    * (carrying any open editor session) **and** rewrite the authored title the
@@ -71,9 +73,10 @@ export interface TemplateService {
    * Without the rewrite, an authored title would keep presenting the old name
    * everywhere no matter where the file lives. A title authored nowhere
    * (filename-only templates) needs no rewrite — the moved filename is the
-   * name. Returns the template's (possibly unchanged) path.
+   * name. Returns the template's (possibly unchanged) path. Rejects when no
+   * graph is open.
    */
-  renameTemplate(path: string, name: string, generation: number): Promise<string>
+  renameTemplate(path: string, name: string): Promise<string>
 }
 
 export interface TemplateServiceDeps {
@@ -83,10 +86,11 @@ export interface TemplateServiceDeps {
   noteMove: Pick<NoteMoveService, 'moveNote'>
   openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
   operations: Pick<OperationsService, 'start'>
+  graphSession: GraphSessionSource
 }
 
 export function createTemplateService(deps: TemplateServiceDeps): TemplateService {
-  const { noteFile, indexQuery, notePath, noteMove, openDocuments, operations } = deps
+  const { noteFile, indexQuery, notePath, noteMove, openDocuments, operations, graphSession } = deps
 
   const templateBody = async (path: string): Promise<string> => {
     return splitFrontmatter(await noteFile.read(path)).body
@@ -151,14 +155,16 @@ export function createTemplateService(deps: TemplateServiceDeps): TemplateServic
       }))
     },
 
-    async createTemplate(name, generation) {
+    async createTemplate(name) {
+      const { generation } = requireGraphSession(graphSession)
       const title = name.trim()
       const path = await notePath.availableTemplatePath(slugForTitle(title))
       await noteFile.write(path, upsertFrontmatter('', { title }), generation)
       return path
     },
 
-    async renameTemplate(path, name, generation) {
+    async renameTemplate(path, name) {
+      const { generation } = requireGraphSession(graphSession)
       const title = name.trim()
       // Flush first so the retitle below edits settled bytes; the move flushes on
       // its own, but a same-slug rename skips the move entirely.

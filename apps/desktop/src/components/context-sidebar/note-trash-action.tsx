@@ -10,7 +10,6 @@ import {
   DialogFooter,
   DialogTitle,
 } from '@/components/ui/dialog.tsx'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
@@ -25,7 +24,6 @@ interface NoteTrashActionProps {
  * enforces the same rule before touching disk.
  */
 export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | null {
-  const { graph } = useGraph()
   const { navigate } = useRouter()
   const { noteActions, operations } = useAppServices()
   const [confirmingTrash, setConfirmingTrash] = useState(false)
@@ -37,15 +35,11 @@ export function NoteTrashAction({ path }: NoteTrashActionProps): ReactElement | 
   }
 
   const onTrash = async (): Promise<void> => {
-    const generation = graph?.generation
-    if (generation === undefined) {
-      return
-    }
     const operation = operations.start('Trashing note')
     setIsTrashing(true)
     setError(null)
     try {
-      await noteActions.trashOne(path, generation)
+      await noteActions.trashOne(path)
       operation.done()
       setConfirmingTrash(false)
       navigate({ kind: 'today' })

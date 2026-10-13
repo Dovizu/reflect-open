@@ -25,7 +25,6 @@ export interface NoteRowState {
  */
 export function useNoteRowState(path: string): NoteRowState {
   const { graph } = useGraph()
-  const generation = graph?.generation
   const { indexQuery, noteRows } = useAppServices()
   const { data, isFetched } = useQuery({
     queryKey: queryKeys.index.note(graph?.root, path),
@@ -33,16 +32,16 @@ export function useNoteRowState(path: string): NoteRowState {
     enabled: graph !== null,
   })
   const row = data ?? null
-  const overlay = useNoteRowOverlay(path, generation)
+  const overlay = useNoteRowOverlay(path)
 
   // Retire the overlay once the index reports the same value. An effect, not a
   // render-time mutation: the store is shared, and writing it during render
   // would tear other subscribers.
   useEffect(() => {
-    if (generation !== undefined && overlay !== null) {
-      noteRows.reconcile(path, generation, row)
+    if (overlay !== null) {
+      noteRows.reconcile(path, row)
     }
-  }, [noteRows, path, generation, overlay, row])
+  }, [noteRows, path, overlay, row])
 
   return { row: applyNoteRowOverlay(row, overlay), settled: isFetched }
 }

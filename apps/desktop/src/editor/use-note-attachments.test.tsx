@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { createTestAppServices, createTestAttachmentService } from '@reflect/core/testing'
+import { createTestAppServices } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useNoteAttachments, type NoteAttachments } from './use-note-attachments.ts'
 
@@ -17,19 +17,16 @@ afterEach(() => {
 
 describe('useNoteAttachments', () => {
   it('resolves from the note it renders', async () => {
-    const app = createTestAppServices({
-      attachments: createTestAttachmentService({
-        catalog: [
-          { path: 'Projects/attachments/plan.png', size: 1 },
-          { path: 'attachments/plan.png', size: 1 },
-        ],
-      }),
-    })
+    const app = createTestAppServices()
+    app.attachments.setCatalog([
+      { path: 'Projects/attachments/plan.png', size: 1 },
+      { path: 'attachments/plan.png', size: 1 },
+    ])
     await renderHookInApp(
       () => {
-        attachments = useNoteAttachments(3, 'Projects/Plan.md')
+        attachments = useNoteAttachments('Projects/Plan.md')
       },
-      { app },
+      { app, graph: { generation: 3 } },
     )
 
     expect(attachments?.resolveImageUrl('attachments/plan.png')).toBe(
@@ -43,10 +40,13 @@ describe('useNoteAttachments', () => {
 
   it('re-renders when the catalog changes', async () => {
     let renders = 0
-    const { act, app: services } = await renderHookInApp(() => {
-      renders += 1
-      attachments = useNoteAttachments(3, 'Home.md')
-    })
+    const { act, app: services } = await renderHookInApp(
+      () => {
+        renders += 1
+        attachments = useNoteAttachments('Home.md')
+      },
+      { graph: { generation: 3 } },
+    )
     const rendersBefore = renders
     expect(attachments?.resolveImageUrl('garden-budget.png')).toBe(assetUrl(3, 'garden-budget.png'))
 
@@ -59,5 +59,22 @@ describe('useNoteAttachments', () => {
     expect(attachments?.resolveImageUrl('garden-budget.png')).toBe(
       assetUrl(3, 'attachments/garden-budget.png'),
     )
+  })
+
+  it('resolves against the new generation when the graph reopens', async () => {
+    const { act, app } = await renderHookInApp(
+      () => {
+        attachments = useNoteAttachments('Home.md')
+      },
+      { graph: { generation: 3 } },
+    )
+    app.attachments.setCatalog([{ path: 'assets/cat.png', size: 1 }])
+    const before = attachments
+
+    await act(() => app.graphSession.setGraph({ generation: 4 }))
+
+    // New resolvers, so an editor re-resolves its images.
+    expect(attachments).not.toBe(before)
+    expect(attachments?.resolveImageUrl('assets/cat.png')).toBe(assetUrl(4, 'assets/cat.png'))
   })
 })

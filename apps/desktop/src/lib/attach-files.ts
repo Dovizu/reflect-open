@@ -7,13 +7,11 @@ import type { CommandContext } from '@/lib/commands/types.ts'
  * routed note.
  */
 export async function attachFilesToNote(context: CommandContext): Promise<void> {
-  const generation = context.generation()
   const notePath = context.notePath()
-  if (generation === null || notePath === null) {
+  if (notePath === null) {
     return
   }
   await context.services.attachments.attachFilesToNote({
-    generation,
     findEditor: () => noteEditorHandleFor(notePath),
   })
 }

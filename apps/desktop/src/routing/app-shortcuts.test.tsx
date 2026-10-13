@@ -178,7 +178,7 @@ describe('app shortcuts', () => {
     await vi.waitFor(() =>
       expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/a.md', { pinned: 1024 }, 1),
     )
-    expect(app.noteRows.getOverlay('notes/a.md', 1)).toEqual({ isPinned: true, pinnedOrder: 1024 })
+    expect(app.noteRows.getOverlay('notes/a.md')).toEqual({ isPinned: true, pinnedOrder: 1024 })
     await act(() => press('o'))
     expect(commitNoteFrontmatter).toHaveBeenCalledTimes(1)
     write.resolve()
@@ -193,7 +193,7 @@ describe('app shortcuts', () => {
     await act(() => result.current.setFocusedDailyDate('2026-09-07'))
     await act(() => result.current.context.togglePin())
     expect(commitNoteFrontmatter).toHaveBeenCalledWith('daily/2026-09-07.md', { pinned: 1024 }, 1)
-    expect(app.noteRows.getOverlay('daily/2026-09-07.md', 1)).toMatchObject({ isPinned: true })
+    expect(app.noteRows.getOverlay('daily/2026-09-07.md')).toMatchObject({ isPinned: true })
   })
 
   it('palette privacy updates the focused daily note row before the write resolves', async () => {
@@ -210,7 +210,7 @@ describe('app shortcuts', () => {
         1,
       ),
     )
-    expect(app.noteRows.getOverlay('daily/2026-09-07.md', 1)).toEqual({ isPrivate: true })
+    expect(app.noteRows.getOverlay('daily/2026-09-07.md')).toEqual({ isPrivate: true })
     write.resolve()
     await action
   })

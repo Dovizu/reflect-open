@@ -28,7 +28,6 @@ function titleFromPath(path: string): string {
 export function usePinnedNotes(): readonly PinnedNote[] {
   const { graph } = useGraph()
   const root = graph?.root
-  const generation = graph?.generation
   const { indexQuery, noteRows } = useAppServices()
   const queryClient = useQueryClient()
   const { data } = useQuery({
@@ -36,12 +35,11 @@ export function usePinnedNotes(): readonly PinnedNote[] {
     queryFn: () => indexQuery.getPinnedNotes(),
     enabled: graph !== null,
   })
-  const overlays = useNoteRowOverlays(generation)
+  const overlays = useNoteRowOverlays()
 
   useEffect(() => {
-    if (generation !== undefined && data !== undefined && overlays.size > 0) {
+    if (data !== undefined && overlays.size > 0) {
       noteRows.reconcileRows(
-        generation,
         data.map((note) => ({
           path: note.path,
           isPinned: true,
@@ -49,7 +47,7 @@ export function usePinnedNotes(): readonly PinnedNote[] {
         })),
       )
     }
-  }, [noteRows, generation, data, overlays])
+  }, [noteRows, data, overlays])
 
   // A note the index does not list yet: its cached row's title, else its file name.
   const preview = useCallback(

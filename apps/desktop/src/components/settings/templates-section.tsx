@@ -108,20 +108,18 @@ interface TemplateDialogProps {
 
 /** Rename = move onto the new name's slug and rewrite the authored title. */
 function TemplateRenameDialog({ template, onClose }: TemplateDialogProps): ReactElement {
-  const { graph } = useGraph()
   const { templates } = useAppServices()
   const [name, setName] = useState(template.title)
   const [error, setError] = useState<string | null>(null)
 
   const rename = async (): Promise<void> => {
-    const generation = graph?.generation
     const trimmed = name.trim()
-    if (generation === undefined || trimmed === '') {
+    if (trimmed === '') {
       return
     }
     setError(null)
     try {
-      await templates.renameTemplate(template.path, trimmed, generation)
+      await templates.renameTemplate(template.path, trimmed)
       onClose()
     } catch (cause) {
       setError(errorMessage(cause))
@@ -178,19 +176,14 @@ function TemplateRenameDialog({ template, onClose }: TemplateDialogProps): React
 
 /** Delete = move the file to the trash (recoverable), confirmed first. */
 function TemplateDeleteDialog({ template, onClose }: TemplateDialogProps): ReactElement {
-  const { graph } = useGraph()
   const { noteActions, operations } = useAppServices()
   const [error, setError] = useState<string | null>(null)
 
   const trash = async (): Promise<void> => {
-    const generation = graph?.generation
-    if (generation === undefined) {
-      return
-    }
     const operation = operations.start('Trashing template')
     setError(null)
     try {
-      await noteActions.trashOne(template.path, generation)
+      await noteActions.trashOne(template.path)
       operation.done()
       onClose()
     } catch (cause) {

@@ -819,7 +819,13 @@ export function composeAppServices(
     // Read at call time: the graph session is built on this lifecycle.
     graphSession: { getState: () => graphSession.getState() },
   })
-  const noteRows = create.noteRows()
+  const noteRows = create.noteRows({
+    // Read at call time: the graph session is built on these rows.
+    graphSession: {
+      getState: () => graphSession.getState(),
+      subscribe: (listener) => graphSession.subscribe(listener),
+    },
+  })
   const icloudNative = create.icloudNative({ ipc, logger })
   const graphSession = create.graphSession({
     ipc,
@@ -876,6 +882,7 @@ export function composeAppServices(
     operations,
     clock,
     platform,
+    graphSession,
   })
   const persistenceFlush = create.persistenceFlush({
     lifecycle,
@@ -1063,6 +1070,7 @@ export function composeAppServices(
       privacy: noteServices.privacy,
       operations,
       clipboard: adapters.clipboard,
+      graphSession,
     }),
     icloudNative,
     icloudMigration: create.icloudMigration({ icloudNative, graphSession }),
@@ -1085,7 +1093,7 @@ export function composeAppServices(
     fileChanges,
     noteFile,
     attachments,
-    noteSessions: create.noteSessions({ noteFile, clock, logger }),
+    noteSessions: create.noteSessions({ noteFile, clock, logger, graphSession }),
     openDocuments,
     noteMove,
     titleRename: create.titleRename({
@@ -1098,6 +1106,7 @@ export function composeAppServices(
       operations,
       clock,
       logger,
+      graphSession,
     }),
     keyboard: create.keyboard(),
     share: create.share({ openDocuments }),
@@ -1106,6 +1115,7 @@ export function composeAppServices(
       noteLinkResolver: noteServices.noteLinkResolver,
       noteDocuments,
       attachments,
+      graphSession,
     }),
     tasks: create.tasks({ database, noteDocuments, operations, clock, logger, graphSession }),
     noteActions: create.noteActions({
@@ -1119,6 +1129,7 @@ export function composeAppServices(
       clipboard: adapters.clipboard,
       path,
       id,
+      graphSession,
     }),
     noteRows,
     dailyNotes,
@@ -1129,6 +1140,7 @@ export function composeAppServices(
       noteMove,
       openDocuments,
       operations,
+      graphSession,
     }),
     indexQuery: indexReads.indexQuery,
     backlinks: indexReads.backlinks,

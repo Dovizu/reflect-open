@@ -71,8 +71,6 @@ function fakeContext(overrides?: Partial<CommandContext>) {
     findPreviousInNote: vi.fn(),
     switchGraph: vi.fn(),
     toggleAudioMemo: vi.fn(),
-    generation: () => 7,
-    graphRoot: () => '/g',
     openPalette: vi.fn(),
     openShortcuts: vi.fn(),
     openTemplatePicker: vi.fn(),
@@ -282,23 +280,21 @@ describe('app commands', () => {
     const copyDeepLink = vi.spyOn(app.noteActions, 'copyDeepLink').mockResolvedValue()
     const { context } = fakeContext({ route: () => ({ kind: 'note', path: 'notes/a.md' }) })
     await command('note.copyDeepLink').run(context)
-    expect(copyDeepLink).toHaveBeenCalledWith('notes/a.md', 7)
+    expect(copyDeepLink).toHaveBeenCalledWith('notes/a.md')
   })
 
-  it('note.copyDeepLink no-ops on note-less routes and without a graph', async () => {
+  it('note.copyDeepLink no-ops on note-less routes', async () => {
     const copyDeepLink = vi.spyOn(app.noteActions, 'copyDeepLink').mockResolvedValue()
     const { context } = fakeContext({ route: () => ({ kind: 'settings' }) })
     await command('note.copyDeepLink').run(context)
-    const { context: noGraph } = fakeContext({ generation: () => null })
-    await command('note.copyDeepLink').run(noGraph)
     expect(copyDeepLink).not.toHaveBeenCalled()
   })
 
-  it('note.copyPath hands the graph root and route note to the service', async () => {
+  it('note.copyPath hands the route note to the service', async () => {
     const copyPath = vi.spyOn(app.noteActions, 'copyPath').mockResolvedValue()
     const { context } = fakeContext({ route: () => ({ kind: 'note', path: 'notes/a.md' }) })
     await command('note.copyPath').run(context)
-    expect(copyPath).toHaveBeenCalledWith('/g', 'notes/a.md')
+    expect(copyPath).toHaveBeenCalledWith('notes/a.md')
   })
 
   it('note.copyPath no-ops on note-less routes', async () => {
@@ -306,16 +302,6 @@ describe('app commands', () => {
     const { context } = fakeContext({ route: () => ({ kind: 'settings' }) })
     await command('note.copyPath').run(context)
     expect(copyPath).not.toHaveBeenCalled()
-  })
-
-  it('note.copyPath lets the service surface the no-graph failure', async () => {
-    const copyPath = vi.spyOn(app.noteActions, 'copyPath').mockResolvedValue()
-    const { context } = fakeContext({
-      route: () => ({ kind: 'note', path: 'notes/a.md' }),
-      graphRoot: () => null,
-    })
-    await command('note.copyPath').run(context)
-    expect(copyPath).toHaveBeenCalledWith(null, 'notes/a.md')
   })
 
   it('dev.toggleDevtools toggles the inspector through the native shell', async () => {

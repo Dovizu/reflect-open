@@ -5,8 +5,6 @@ import { WikiLinkHoverPreview } from '@/components/wiki-link-hover-preview.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 interface WikiLinkHoverPreviewOptions {
-  generation: number | null
-  graphKey: string | null
   dateFormat: DateFormat
 }
 
@@ -18,17 +16,12 @@ interface WikiLinkHoverPreviewOptions {
  * `NotePreviewService.previewWikiTarget`).
  */
 export function useWikiLinkHoverPreview({
-  generation,
-  graphKey,
   dateFormat,
 }: WikiLinkHoverPreviewOptions): (hit: WikilinkHoverHit) => Promise<ReactNode> {
   const { notePreview } = useAppServices()
   return useCallback(
     async ({ target }: WikilinkHoverHit): Promise<ReactNode> => {
-      if (generation === null || graphKey === null) {
-        return null
-      }
-      const preview = await notePreview.previewWikiTarget(target, generation)
+      const preview = await notePreview.previewWikiTarget(target)
       if (preview === null) {
         return null
       }
@@ -42,6 +35,6 @@ export function useWikiLinkHoverPreview({
         />
       )
     },
-    [dateFormat, generation, graphKey, notePreview],
+    [dateFormat, notePreview],
   )
 }

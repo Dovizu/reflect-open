@@ -1,3 +1,4 @@
+import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 import type { AttachmentService, WikiEmbedDisplay } from './attachment-service.ts'
@@ -20,26 +21,33 @@ export interface NotePreviewService {
   /**
    * The preview of the note that a `[[wiki link]]` target names. Only an
    * existing target resolves to a snapshot; missing, ambiguous, unavailable,
-   * and failed targets resolve to `null`. Failures are swallowed into `null`
-   * rather than rejected: transient read errors (an iCloud eviction, a graph
-   * switch) are expected and should not log as errors.
+   * and failed targets resolve to `null`, as does any target while no graph is
+   * open. Failures are swallowed into `null` rather than rejected: transient
+   * read errors (an iCloud eviction, a graph switch) are expected and should
+   * not log as errors.
    */
-  previewWikiTarget(target: string, generation: number): Promise<NotePreview | null>
+  previewWikiTarget(target: string): Promise<NotePreview | null>
   /** Read an existing note without disturbing its editor session: `NoteDocumentService.readExisting`. */
-  readExistingNoteSource(path: string, generation: number): Promise<string>
+  readExistingNoteSource(path: string): Promise<string>
 }
 
 export interface NotePreviewServiceDeps {
   noteLinkResolver: Pick<NoteLinkResolverService, 'resolveWikiTarget'>
   noteDocuments: Pick<NoteDocumentService, 'readExisting'>
   attachments: Pick<AttachmentService, 'resolvePreviewImageUrl' | 'resolveWikiEmbed'>
+  graphSession: GraphSessionSource
 }
 
 export function createNotePreviewService(deps: NotePreviewServiceDeps): NotePreviewService {
-  const { noteLinkResolver, noteDocuments, attachments } = deps
+  const { noteLinkResolver, noteDocuments, attachments, graphSession } = deps
 
   return {
-    async previewWikiTarget(target, generation) {
+    async previewWikiTarget(target) {
+      const session = graphSession.getState().session
+      if (session === null) {
+        return null
+      }
+      const { generation } = session
       try {
         const resolution = await noteLinkResolver.resolveWikiTarget(target, generation)
         if (resolution.kind !== 'resolved') {
@@ -58,6 +66,8 @@ export function createNotePreviewService(deps: NotePreviewServiceDeps): NotePrev
         return null
       }
     },
-    readExistingNoteSource: (path, generation) => noteDocuments.readExisting(path, generation),
+    async readExistingNoteSource(path) {
+      return await noteDocuments.readExisting(path, requireGraphSession(graphSession).generation)
+    },
   }
 }

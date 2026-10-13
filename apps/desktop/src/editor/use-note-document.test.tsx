@@ -122,7 +122,7 @@ async function emitChange(changes: FileChange[]): Promise<void> {
 }
 
 async function readyHook() {
-  const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+  const hook = await mount(() => useNoteDocument('notes/a.md'))
   await vi.waitFor(() => expect(hook.result.current.status).toBe('ready'))
   return hook
 }
@@ -167,7 +167,7 @@ describe('useNoteDocument', () => {
   })
 
   it('debounces edits into an atomic write and clears dirty', async () => {
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
 
@@ -181,7 +181,7 @@ describe('useNoteDocument', () => {
   })
 
   it('flushOpenDocuments persists a pending edit without waiting out the debounce (quit path)', async () => {
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
 
@@ -233,7 +233,7 @@ describe('useNoteDocument', () => {
       ['notes/a.md', 'notes/src.md'],
     )
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
 
@@ -264,7 +264,7 @@ describe('useNoteDocument', () => {
       ['notes/a.md', 'notes/src.md'],
     )
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000)) // save lands, quiet timer armed
@@ -291,14 +291,14 @@ describe('useNoteDocument', () => {
     )
 
     // Note A: edit the title, save lands, rename pending.
-    const paneA = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const paneA = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await paneA.act(() => clock.advance(0))
     await paneA.act(() => paneA.result.current.onEditorChange('# New Title\n'))
     await paneA.act(() => clock.advance(1000))
     await paneA.unmount() // teardown settles A's rename asynchronously
 
     // Note B mounts immediately — the rename must not be able to see it.
-    const paneB = await mount(() => useNoteDocument('notes/b.md', 1, { trackRenames: true }))
+    const paneB = await mount(() => useNoteDocument('notes/b.md', { trackRenames: true }))
     await paneB.act(() => runAllTimers())
 
     expect(file('notes/src.md')).toBe('see [[New Title]]\n')
@@ -317,7 +317,7 @@ describe('useNoteDocument', () => {
       ['notes/other-owner.md', 'notes/src.md'],
     )
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -346,7 +346,7 @@ describe('useNoteDocument', () => {
     vi.spyOn(app.wikiResolver, 'getLinkSources').mockRejectedValue(unavailable)
     vi.spyOn(app.wikiResolver, 'getPathLinkSources').mockRejectedValue(unavailable)
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -375,7 +375,7 @@ describe('useNoteDocument', () => {
 
     const placeholderPath = 'notes/01arz3ndektsv4rrffq69g5fav.md'
     const hook = await mount(() =>
-      useNoteDocument(placeholderPath, 1, {
+      useNoteDocument(placeholderPath, {
         createIfMissing: true,
         trackRenames: true,
         missingSeed: managedNote('#\n'),
@@ -412,7 +412,7 @@ describe('useNoteDocument', () => {
     const linkSources = vi.spyOn(app.wikiResolver, 'getLinkSources')
     const pathLinkSources = vi.spyOn(app.wikiResolver, 'getPathLinkSources')
 
-    const hook = await mount(() => useNoteDocument('notes/adopted.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/adopted.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -436,7 +436,7 @@ describe('useNoteDocument', () => {
 
     const hook = await mount(
       ({ path }: { path: string } = { path: 'notes/a.md' }) =>
-        useNoteDocument(path, 1, { trackRenames: true }),
+        useNoteDocument(path, { trackRenames: true }),
       { initialProps: { path: 'notes/a.md' } },
     )
     await hook.act(() => clock.advance(0))
@@ -471,7 +471,7 @@ describe('useNoteDocument', () => {
 
   it('watcher upserts at the retargeted path reconcile before React catches up (Plan 17)', async () => {
     seedGraph({ 'notes/a.md': managedNote('# Old Title\n') })
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -491,7 +491,7 @@ describe('useNoteDocument', () => {
   it('an unadopted retargeted session still tears down on unmount (no orphan flush)', async () => {
     seedGraph({ 'notes/a.md': managedNote('# Old Title\n') })
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -517,7 +517,7 @@ describe('useNoteDocument', () => {
       ['notes/a.md', 'notes/src.md'],
     )
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000))
@@ -543,7 +543,7 @@ describe('useNoteDocument', () => {
       ['notes/a.md', 'notes/src.md'],
     )
 
-    const paneA = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const paneA = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await paneA.act(() => clock.advance(0))
     await paneA.act(() => paneA.result.current.onEditorChange('# New Title\n'))
     await paneA.act(() => clock.advance(1000))
@@ -554,7 +554,7 @@ describe('useNoteDocument', () => {
 
     // The same note is reopened immediately and edited before the chain's
     // alias placement runs.
-    const paneA2 = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const paneA2 = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await paneA2.act(() => clock.advance(0))
     await paneA2.act(() => paneA2.result.current.onEditorChange('# New Title\n\nfresh edit\n'))
     releaseRewrite()
@@ -579,7 +579,7 @@ describe('useNoteDocument', () => {
       ['notes/a.md', 'notes/src.md'],
     )
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1, { trackRenames: true }))
+    const hook = await mount(() => useNoteDocument('notes/a.md', { trackRenames: true }))
     await hook.act(() => clock.advance(0))
     await hook.act(() => hook.result.current.onEditorChange('# New Title\n'))
     await hook.act(() => clock.advance(1000)) // save lands, quiet timer armed
@@ -640,7 +640,7 @@ describe('useNoteDocument', () => {
       'notes/tasks.md',
       '# Shared\n\n<<<<<<< this device\nedited on a\n=======\nedited on b\n>>>>>>> other device\n',
     )
-    const hook = await mount(() => useNoteDocument('notes/tasks.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/tasks.md'))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
     expect(hook.result.current.protected).toBe(true)
@@ -652,7 +652,7 @@ describe('useNoteDocument', () => {
   })
 
   it('an external change that introduces conflict markers flips the note protected', async () => {
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
     const editor = fakeEditor()
     await hook.act(() => hook.result.current.bindEditor(editor))
@@ -674,7 +674,7 @@ describe('useNoteDocument', () => {
     const disk =
       '# How to resolve\n\n```\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n```\n'
     noteFile.set('notes/tasks.md', disk)
-    const hook = await mount(() => useNoteDocument('notes/tasks.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/tasks.md'))
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
     expect(hook.result.current.protected).toBe(false)
@@ -686,7 +686,7 @@ describe('useNoteDocument', () => {
   })
 
   it('an external reload never dirties the buffer, even when serialization normalizes', async () => {
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
 
     // The editor's change handler fires synchronously inside setMarkdown and
@@ -724,7 +724,7 @@ describe('useNoteDocument', () => {
   })
 
   it('pauses saves while a conflict is parked (no clobbering theirs)', async () => {
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
 
     // An edit schedules a save, then an external change parks a conflict
@@ -758,7 +758,7 @@ describe('useNoteDocument', () => {
       return await written
     }
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
 
     await hook.act(() => hook.result.current.onEditorChange('# Saved\n'))
@@ -792,7 +792,7 @@ describe('useNoteDocument', () => {
       return await written
     }
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
 
     await hook.act(() => hook.result.current.onEditorChange('# A\n'))
@@ -822,7 +822,7 @@ describe('useNoteDocument', () => {
       return await noteFile.write(...args)
     }
 
-    const hook = await mount(() => useNoteDocument('notes/a.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
 
     await hook.act(() => hook.result.current.onEditorChange('# Edited\n'))
@@ -841,7 +841,7 @@ describe('useNoteDocument', () => {
     noteFile.set('notes/b.md', '# Hello\n')
 
     const hook = await mount(
-      ({ path }: { path: string } = { path: 'notes/a.md' }) => useNoteDocument(path, 1),
+      ({ path }: { path: string } = { path: 'notes/a.md' }) => useNoteDocument(path),
       {
         initialProps: { path: 'notes/a.md' },
       },
@@ -861,7 +861,7 @@ describe('useNoteDocument', () => {
   it('reconciles pending editor input during a same-path session rebind', async () => {
     const hook = await mount(
       ({ createIfMissing }: { createIfMissing: boolean } = { createIfMissing: false }) =>
-        useNoteDocument('notes/a.md', 1, { createIfMissing }),
+        useNoteDocument('notes/a.md', { createIfMissing }),
       { initialProps: { createIfMissing: false } },
     )
     await hook.act(() => clock.advance(0))
@@ -890,7 +890,7 @@ describe('useNoteDocument', () => {
 
   it('lazy notes open empty when missing and are created by the first save', async () => {
     const hook = await mount(() =>
-      useNoteDocument('daily/2026-06-09.md', 1, { createIfMissing: true }),
+      useNoteDocument('daily/2026-06-09.md', { createIfMissing: true }),
     )
     await hook.act(() => clock.advance(0))
     expect(hook.result.current.status).toBe('ready')
@@ -904,17 +904,12 @@ describe('useNoteDocument', () => {
   })
 
   it('a missing non-lazy note is still an error', async () => {
-    const hook = await mount(() => useNoteDocument('notes/gone.md', 1))
+    const hook = await mount(() => useNoteDocument('notes/gone.md'))
     await vi.waitFor(() => expect(hook.result.current.status).toBe('error'))
   })
 
   it('a same-graph generation bump keeps unsaved edits and saves with the new generation', async () => {
-    const hook = await mount(
-      ({ gen }: { gen: number } = { gen: 1 }) => useNoteDocument('notes/a.md', gen),
-      {
-        initialProps: { gen: 1 },
-      },
-    )
+    const hook = await mount(() => useNoteDocument('notes/a.md'))
     await hook.act(() => clock.advance(0))
 
     // Reopening the same graph bumps the generation without remounting the
@@ -922,7 +917,7 @@ describe('useNoteDocument', () => {
     // the pending save must carry the NEW generation — a stale one would be
     // rejected by Rust and the edit silently lost.
     await hook.act(() => hook.result.current.onEditorChange('# Unsaved\n'))
-    await hook.rerender({ gen: 2 })
+    await hook.act(() => app.graphSession.setGraph({ generation: 2 }))
     expect(hook.result.current.dirty).toBe(true)
 
     await hook.act(() => clock.advance(1000))

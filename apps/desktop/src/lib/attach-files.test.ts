@@ -12,13 +12,14 @@ let app: TestAppServices
 
 beforeEach(() => {
   app = createTestAppServices()
+  app.graphSession.setGraph({ generation: 4 })
 })
 
 afterEach(() => {
   app.database.close()
 })
 
-function contextFor(notePath: string | null, generation: number | null): CommandContext {
+function contextFor(notePath: string | null): CommandContext {
   return {
     services: app,
     navigate: vi.fn(),
@@ -36,8 +37,6 @@ function contextFor(notePath: string | null, generation: number | null): Command
     findPreviousInNote: vi.fn(),
     switchGraph: vi.fn(),
     toggleAudioMemo: vi.fn(),
-    generation: () => generation,
-    graphRoot: () => '/g',
     openPalette: vi.fn(),
     openShortcuts: vi.fn(),
     openTemplatePicker: vi.fn(),
@@ -67,10 +66,9 @@ function editorHandle(): NoteEditorHandle {
 
 describe('attachFilesToNote', () => {
   it("attaches into the routed note's editor, looked up on every call", async () => {
-    await attachFilesToNote(contextFor('notes/plan.md', 4))
+    await attachFilesToNote(contextFor('notes/plan.md'))
 
     const [request] = app.attachments.attachRequests()
-    expect(request?.generation).toBe(4)
     expect(request?.findEditor()).toBeNull()
 
     const handle = editorHandle()
@@ -81,8 +79,9 @@ describe('attachFilesToNote', () => {
   })
 
   it('does nothing without a routed note or a graph session', async () => {
-    await attachFilesToNote(contextFor(null, 4))
-    await attachFilesToNote(contextFor('notes/plan.md', null))
+    await attachFilesToNote(contextFor(null))
+    app.graphSession.setGraph(null)
+    await attachFilesToNote(contextFor('notes/plan.md'))
 
     expect(app.attachments.attachRequests()).toEqual([])
   })

@@ -184,12 +184,11 @@ const APP_COMMANDS: AppCommand[] = [
     // without spending a shortcut. `GistPublishService.publish` owns all feedback — the
     // progress line, the failure surface, and the "link copied" confirmation.
     run: async (context) => {
-      const generation = context.generation()
       const path = context.notePath()
-      if (generation === null || path === null) {
+      if (path === null) {
         return
       }
-      await context.services.gistPublish.publish(path, generation)
+      await context.services.gistPublish.publish(path)
     },
   },
   {
@@ -212,12 +211,11 @@ const APP_COMMANDS: AppCommand[] = [
     // feedback (the "Deep link copied" status line and failure surfaces).
     keybinding: 'Alt-Mod-l',
     run: async (context) => {
-      const generation = context.generation()
       const path = context.notePath()
-      if (generation === null || path === null) {
+      if (path === null) {
         return
       }
-      await context.services.noteActions.copyDeepLink(path, generation)
+      await context.services.noteActions.copyDeepLink(path)
     },
   },
   {
@@ -234,7 +232,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await context.services.noteActions.copyPath(context.graphRoot(), path)
+      await context.services.noteActions.copyPath(path)
     },
   },
   {

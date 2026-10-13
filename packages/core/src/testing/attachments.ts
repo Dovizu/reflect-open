@@ -1,3 +1,4 @@
+import { createGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import { appleFileSrc } from '../app/platform-service.ts'
 import {
   createAttachmentSaveScope,
@@ -25,6 +26,8 @@ export interface TestAttachmentServiceOptions {
   catalog?: readonly TestAttachmentEntry[]
   /** Make `openOrReveal` fall back to a reveal, as for a refused file type. */
   refuseOpen?: boolean
+  /** Where the open graph is read from. Defaults to a graph of generation 1 that is always open. */
+  graphSession?: GraphSessionSource
 }
 
 export interface AttachmentSave {
@@ -70,6 +73,14 @@ export function createTestAttachmentService(
   const openLog: string[] = []
   const revealLog: string[] = []
   const attachLog: AttachFilesRequest[] = []
+  const defaultSession = createGraphSession({
+    root: '/graphs/test',
+    name: 'test',
+    generation: 1,
+    indexGeneration: 1,
+  })
+  const graphSession = options?.graphSession ?? { getState: () => ({ session: defaultSession }) }
+  const openGeneration = (): number | null => graphSession.getState().session?.generation ?? null
 
   function resolveAttachmentPath(
     notePath: string,
@@ -93,7 +104,11 @@ export function createTestAttachmentService(
       : appleFileSrc(`${generation}/${path}`, 'reflect-asset')
   }
 
-  async function saveFile(file: File, generation: number): Promise<AssetSaveResult> {
+  async function saveFile(file: File): Promise<AssetSaveResult | null> {
+    const generation = openGeneration()
+    if (generation === null) {
+      return null
+    }
     if (saveFailure !== null) {
       return { ok: false, error: saveFailure }
     }
@@ -103,7 +118,7 @@ export function createTestAttachmentService(
   }
 
   return {
-    peekCatalog: () => catalog,
+    peekCatalog: () => (openGeneration() === null ? null : catalog),
     loadCatalog: async () => catalog,
     watchCatalog() {
       watching += 1
@@ -120,8 +135,10 @@ export function createTestAttachmentService(
         listeners.delete(deliver)
       }
     },
-    resolveAttachmentPath,
-    resolveAssetOpenPath(notePath, source, generation) {
+    resolveAttachmentPath: (notePath, destination) =>
+      resolveAttachmentPath(notePath, destination, openGeneration()),
+    resolveAssetOpenPath(notePath, source) {
+      const generation = openGeneration()
       if (generation === null) {
         return null
       }
@@ -130,7 +147,7 @@ export function createTestAttachmentService(
         (isManagedAssetPath(source) ? source : null)
       )
     },
-    resolveImageUrl,
+    resolveImageUrl: (notePath, source) => resolveImageUrl(notePath, source, openGeneration()),
     async resolvePreviewImageUrl(notePath, source, generation) {
       const path = resolveAttachmentPath(notePath, source, generation)
       if (path === null || path.toLowerCase().endsWith('.svg')) {
@@ -142,17 +159,22 @@ export function createTestAttachmentService(
     resolveWikiEmbed: wikiEmbedDisplay,
     claimsFileLink: (notePath, href) =>
       isManagedAssetPath(href) || resolveAttachmentLink(notePath, href, null) !== null,
-    async resolveFileInfo(notePath, href, generation) {
-      const path = resolveAttachmentPath(notePath, href, generation)
+    async resolveFileInfo(notePath, href) {
+      const path = resolveAttachmentPath(notePath, href, openGeneration())
       const size = path === null ? undefined : catalog.size(path)
       return size === undefined ? undefined : { size }
     },
     saveFile,
     createSaveScope: () => createAttachmentSaveScope(saveFile),
     async attachFilesToNote(request) {
-      attachLog.push(request)
+      if (openGeneration() !== null) {
+        attachLog.push(request)
+      }
     },
     async openOrReveal(path) {
+      if (openGeneration() === null) {
+        return
+      }
       if (options?.refuseOpen === true) {
         revealLog.push(path)
       } else {

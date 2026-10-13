@@ -58,6 +58,6 @@ describe('useNoteRow', () => {
     const { result } = await mount()
 
     await vi.waitFor(() => expect(result.current?.gistUrl).toBe('u'))
-    await vi.waitFor(() => expect(app.noteRows.getOverlay('notes/a.md', GENERATION)).toBeNull())
+    await vi.waitFor(() => expect(app.noteRows.getOverlay('notes/a.md')).toBeNull())
   })
 })

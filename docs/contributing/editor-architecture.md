@@ -64,10 +64,10 @@ Invariants the loop maintains:
 - **External changes never clobber a dirty buffer.** A clean buffer reloads
   imperatively; a dirty one parks the external content as a `conflict` for the
   user ("keep mine" rewrites the file, "load theirs" discards the buffer).
-- **Writes are generation-pinned.** Every write carries the open graph's
-  generation, read at write time rather than captured at session creation.
-  Rust rejects stale ones, so a flush racing a graph switch fails loudly
-  instead of landing in the wrong graph.
+- **Writes are generation-pinned.** Every write carries the generation of the
+  graph the session was opened on, read at write time so a reopen of that
+  graph carries over. Rust rejects stale ones, so a flush racing a graph
+  switch fails loudly instead of landing in the wrong graph.
 - **Frontmatter belongs to the session, not the editor.** meowdown mangles a
   `---` block, so the session splits every disk read, keeps the exact header
   bytes aside, and rejoins them on every write. The editor only ever sees the

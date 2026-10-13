@@ -35,16 +35,24 @@ beforeEach(() => {
 })
 
 describe('useReorderPinnedNotes', () => {
-  it('does nothing for a missing graph, missing note, or unchanged position', async () => {
+  it('does nothing for a missing note or unchanged position', async () => {
     const hook = await renderReorder()
 
     await hook.act(() => hook.result.current('missing.md', 'b.md'))
     await hook.act(() => hook.result.current('a.md', 'a.md'))
+
+    expect(reorderPinnedNotes).not.toHaveBeenCalled()
+    expect(app.noteRows.getOverlays().size).toBe(0)
+  })
+
+  it('writes nothing without a graph', async () => {
+    const hook = await renderReorder()
+
     await hook.act(() => app.graphSession.setGraph(null))
     await hook.act(() => hook.result.current('a.md', 'b.md'))
 
-    expect(reorderPinnedNotes).not.toHaveBeenCalled()
-    expect(app.noteRows.getOverlays(7).size).toBe(0)
+    await expect(reorderPinnedNotes.mock.results[0]?.value).resolves.toEqual([])
+    expect(app.noteRows.getOverlaysOn(7).size).toBe(0)
   })
 
   it('records the moved order in the overlay at once and writes it', async () => {
@@ -53,11 +61,8 @@ describe('useReorderPinnedNotes', () => {
     await hook.act(() => hook.result.current('a.md', 'b.md'))
 
     // A dropped between two neighbours takes the midpoint.
-    expect(app.noteRows.getOverlay('a.md', 7)).toEqual({ pinnedOrder: 2560 })
-    expect(reorderPinnedNotes).toHaveBeenCalledExactlyOnceWith(
-      [{ ...NOTE_A, pinnedOrder: 2560 }],
-      7,
-    )
+    expect(app.noteRows.getOverlay('a.md')).toEqual({ pinnedOrder: 2560 })
+    expect(reorderPinnedNotes).toHaveBeenCalledExactlyOnceWith([{ ...NOTE_A, pinnedOrder: 2560 }])
   })
 
   it('renumbers the whole shelf when a neighbour carries no order', async () => {
@@ -69,13 +74,10 @@ describe('useReorderPinnedNotes', () => {
 
     await hook.act(() => hook.result.current('a.md', 'b.md'))
 
-    expect(reorderPinnedNotes).toHaveBeenCalledExactlyOnceWith(
-      [
-        { ...bare[1], pinnedOrder: 1024 },
-        { ...bare[0], pinnedOrder: 2048 },
-      ],
-      7,
-    )
+    expect(reorderPinnedNotes).toHaveBeenCalledExactlyOnceWith([
+      { ...bare[1], pinnedOrder: 1024 },
+      { ...bare[0], pinnedOrder: 2048 },
+    ])
   })
 
   it('drops the overlay when the write fails, so the shelf shows the index again', async () => {
@@ -84,6 +86,6 @@ describe('useReorderPinnedNotes', () => {
 
     await hook.act(() => hook.result.current('a.md', 'b.md'))
 
-    await vi.waitFor(() => expect(app.noteRows.getOverlay('a.md', 7)).toBeNull())
+    await vi.waitFor(() => expect(app.noteRows.getOverlay('a.md')).toBeNull())
   })
 })

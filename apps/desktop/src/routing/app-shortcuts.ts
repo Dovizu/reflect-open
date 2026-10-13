@@ -86,7 +86,6 @@ export function useAppShortcuts(): CommandContext {
 
   // Read at run time, not captured: a command can fire long after the render
   // that created the context (palette open across an index rebuild, etc.).
-  const generationRef = useRef<number | null>(graph?.generation ?? null)
   const graphRootRef = useRef<string | null>(graph?.root ?? null)
   const recentsRef = useRef(recents)
   const openRecentRef = useRef(openRecent)
@@ -96,7 +95,6 @@ export function useAppShortcuts(): CommandContext {
     paletteOpenRef.current = paletteOpen
     shortcutsOpenRef.current = shortcutsOpen
     templatesOpenRef.current = templatePickerOpen || templateCreateOpen
-    generationRef.current = graph?.generation ?? null
     graphRootRef.current = graph?.root ?? null
     recentsRef.current = recents
     openRecentRef.current = openRecent
@@ -115,25 +113,23 @@ export function useAppShortcuts(): CommandContext {
       notePath: () =>
         focusedNotePathForRoute(routeRef.current, todayIso(), focusedDailyDateRef.current),
       togglePin: async () => {
-        const generation = generationRef.current
         const path = focusedNotePathForRoute(
           routeRef.current,
           todayIso(),
           focusedDailyDateRef.current,
         )
-        if (generation !== null && path !== null) {
-          await services.noteActions.togglePinned(path, generation)
+        if (path !== null) {
+          await services.noteActions.togglePinned(path)
         }
       },
       togglePrivate: async () => {
-        const generation = generationRef.current
         const path = focusedNotePathForRoute(
           routeRef.current,
           todayIso(),
           focusedDailyDateRef.current,
         )
-        if (generation !== null && path !== null) {
-          await services.noteActions.togglePrivate(path, generation)
+        if (path !== null) {
+          await services.noteActions.togglePrivate(path)
         }
       },
       back,
@@ -157,8 +153,6 @@ export function useAppShortcuts(): CommandContext {
         void openRecentRef.current(recent.root)
       },
       toggleAudioMemo,
-      generation: () => generationRef.current,
-      graphRoot: () => graphRootRef.current,
       openPalette,
       openShortcuts,
       openTemplatePicker,

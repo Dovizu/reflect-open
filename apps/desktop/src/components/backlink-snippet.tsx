@@ -8,7 +8,6 @@ import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
 import { useWikilinkResolver } from '@/editor/resolve-wikilink.ts'
 import { useNoteAttachments } from '@/editor/use-note-attachments.ts'
 import { useSnippetTaskToggle } from '@/hooks/use-snippet-task-toggle.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 
 interface BacklinkSnippetProps {
   /** The referencing block context's Markdown source (may span several lines). */
@@ -44,8 +43,7 @@ export function BacklinkSnippet({
   tasks,
   onWikilinkClick,
 }: BacklinkSnippetProps): ReactElement {
-  const generation = useGraph({ optional: true })?.graph?.generation ?? null
-  const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(generation, notePath)
+  const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(notePath)
   const resolveXPost = useXPostResolver()
   const resolveYouTubeVideo = useYouTubeVideoResolver()
   const resolveWikilink = useWikilinkResolver()

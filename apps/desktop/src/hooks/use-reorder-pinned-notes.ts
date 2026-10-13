@@ -1,4 +1,3 @@
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 import { arrayMove } from '@dnd-kit/sortable'
 import { updatePinOrder, type PinnedNote } from '@reflect/core'
@@ -7,15 +6,10 @@ import { useCallback } from 'react'
 export function useReorderPinnedNotes(
   pinned: readonly PinnedNote[],
 ): (activePath: string, overPath: string) => void {
-  const { graph } = useGraph()
   const { noteActions } = useAppServices()
 
   return useCallback(
     (activePath: string, overPath: string): void => {
-      if (graph === null) {
-        return
-      }
-
       const activeIndex = pinned.findIndex((note) => note.path === activePath)
       const overIndex = pinned.findIndex((note) => note.path === overPath)
       if (activeIndex === -1 || overIndex === -1 || activeIndex === overIndex) {
@@ -35,8 +29,8 @@ export function useReorderPinnedNotes(
       })
 
       // A failed write drops its overlay, so the shelf shows the index again.
-      noteActions.reorderPinned(updated, graph.generation).catch(() => {})
+      noteActions.reorderPinned(updated).catch(() => {})
     },
-    [graph, noteActions, pinned],
+    [noteActions, pinned],
   )
 }

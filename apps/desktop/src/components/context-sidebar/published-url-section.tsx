@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button.tsx'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx'
 import { useNoteRow } from '@/hooks/use-note-row.ts'
 import { cn } from '@/lib/utils.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 import { SidebarSection } from './sidebar-section.tsx'
 
@@ -23,7 +22,6 @@ const COPY_RESET_MS = 1400
  * plus a compact copy affordance for sharing it again.
  */
 export function PublishedUrlSection({ path }: PublishedUrlSectionProps): ReactElement | null {
-  const { graph } = useGraph()
   const { clipboard, gistPublish, opener, operations } = useAppServices()
   const row = useNoteRow(path)
   const url = row?.gistUrl ?? null
@@ -67,13 +65,9 @@ export function PublishedUrlSection({ path }: PublishedUrlSectionProps): ReactEl
   }
 
   const updateGist = async (): Promise<void> => {
-    const generation = graph?.generation
-    if (generation === undefined) {
-      return
-    }
     setIsUpdating(true)
     try {
-      await gistPublish.publish(path, generation)
+      await gistPublish.publish(path)
     } finally {
       setIsUpdating(false)
     }

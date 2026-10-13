@@ -18,6 +18,7 @@ function Opener(): ReactElement {
 
 async function renderDialog(): Promise<{ context: CommandContext; app: TestAppServices }> {
   const app = createTestAppServices()
+  app.graphSession.setGraph({ generation: 1 })
   const context: CommandContext = {
     services: app,
     navigate: vi.fn(),
@@ -36,8 +37,6 @@ async function renderDialog(): Promise<{ context: CommandContext; app: TestAppSe
     findPreviousInNote: vi.fn(),
     switchGraph: vi.fn(),
     toggleAudioMemo: vi.fn(),
-    generation: () => 1,
-    graphRoot: () => '/notes',
     openPalette: vi.fn(),
     openShortcuts: vi.fn(),
     openTemplatePicker: vi.fn(),

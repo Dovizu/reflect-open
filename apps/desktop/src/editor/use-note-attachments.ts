@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver } from '@meowdown/core'
-import type { AttachmentService } from '@reflect/core'
+import type { AttachmentService, GraphInfo } from '@reflect/core'
+import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 /** How one note's images, `![[embeds]]`, and attachment links render. */
@@ -21,35 +22,39 @@ export interface NoteAttachments {
   resolveWikiEmbed: WikiEmbedResolver
 }
 
-/** Attachment resolution for rendering `notePath` in graph session `generation`. */
+/**
+ * Attachment resolution for rendering `notePath` in the open `graph`; no image
+ * or attachment resolves while no graph is open.
+ */
 export function createNoteAttachments(
-  generation: number | null,
+  graph: GraphInfo | null,
   notePath: string,
   attachments: AttachmentService,
 ): NoteAttachments {
   return {
     resolveAttachmentPath: (destination) =>
-      attachments.resolveAttachmentPath(notePath, destination, generation),
-    resolveImageUrl: (source) => attachments.resolveImageUrl(notePath, source, generation),
+      graph === null ? null : attachments.resolveAttachmentPath(notePath, destination),
+    resolveImageUrl: (source) =>
+      graph === null ? undefined : attachments.resolveImageUrl(notePath, source),
     resolveWikiEmbed: ({ target }) => attachments.resolveWikiEmbed(target),
   }
 }
 
 /**
- * {@link createNoteAttachments} memoized per note and graph session. The
- * caller re-renders whenever the catalog changes.
+ * {@link createNoteAttachments} memoized per note and open graph: an image
+ * URL carries the graph's generation, so a reopened graph gets new resolvers.
+ * The caller re-renders whenever the catalog changes.
  */
-export function useNoteAttachments(generation: number | null, notePath: string): NoteAttachments {
+export function useNoteAttachments(notePath: string): NoteAttachments {
+  const graph = useGraph({ optional: true })?.graph ?? null
   const { attachments } = useAppServices()
   const subscribeCatalog = useCallback(
     (listener: () => void) => attachments.onCatalogChanged(listener),
     [attachments],
   )
-  useSyncExternalStore(subscribeCatalog, () =>
-    generation === null ? null : attachments.peekCatalog(generation),
-  )
+  useSyncExternalStore(subscribeCatalog, () => attachments.peekCatalog())
   return useMemo(
-    () => createNoteAttachments(generation, notePath, attachments),
-    [attachments, generation, notePath],
+    () => createNoteAttachments(graph, notePath, attachments),
+    [attachments, graph, notePath],
   )
 }

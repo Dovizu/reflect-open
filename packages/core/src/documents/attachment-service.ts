@@ -1,5 +1,6 @@
 import type { ClockService } from '../app/clock-service.ts'
 import type { DialogService } from '../app/dialog-service.ts'
+import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { PlatformService } from '../app/platform-service.ts'
 import { errorMessage } from '../errors.ts'
@@ -64,9 +65,10 @@ export interface AttachmentSaveScope {
   /**
    * Save `file` like {@link AttachmentService.saveFile}, resolving with the
    * saved path or null. A failure lands on {@link error}, never a rejection;
-   * the next success clears it.
+   * the next success clears it. With no graph open nothing is saved and
+   * {@link error} stays.
    */
-  saveFile(file: File, generation: number): Promise<string | null>
+  saveFile(file: File): Promise<string | null>
   /** The most recent failed save of this note session. */
   error(): AssetSaveError | null
   subscribe(listener: () => void): Unlisten
@@ -80,7 +82,6 @@ export interface AttachmentInsertTarget {
 }
 
 export interface AttachFilesRequest {
-  readonly generation: number
   /** The target note's mounted editor, or null; looked up again after every await. */
   readonly findEditor: () => AttachmentInsertTarget | null
 }
@@ -88,13 +89,14 @@ export interface AttachFilesRequest {
 /**
  * Note attachments (images, file pills, `![[embeds]]`): resolution against
  * the vault's attachment catalog, display URLs, opening, and saving new files
- * into `assets/`. Every graph-touching call is pinned to a graph `generation`.
+ * into `assets/`. Every graph-touching call is pinned to the generation of the
+ * graph open when it is made.
  */
 export interface AttachmentService {
-  /** The catalog of graph session `generation`, or null while its first listing loads. */
-  peekCatalog(generation: number): AttachmentCatalog | null
-  /** The catalog of graph session `generation`, waiting for its first listing. */
-  loadCatalog(generation: number): Promise<AttachmentCatalog>
+  /** The open graph's catalog, or null while its first listing loads or no graph is open. */
+  peekCatalog(): AttachmentCatalog | null
+  /** The open graph's catalog, waiting for its first listing. Rejects when no graph is open. */
+  loadCatalog(): Promise<AttachmentCatalog>
   /**
    * Load the catalog of `generation` and keep it fresh: re-list when a batch
    * names an attachment path, or on a reconcile request.
@@ -105,18 +107,14 @@ export interface AttachmentService {
   /**
    * The graph-relative attachment a link or image destination in `notePath`
    * names, from the catalog as loaded so far; null for URLs, notes, unsafe
-   * paths, and a null `generation`.
+   * paths, and while no graph is open.
    */
-  resolveAttachmentPath(
-    notePath: string,
-    destination: string,
-    generation: number | null,
-  ): string | null
+  resolveAttachmentPath(notePath: string, destination: string): string | null
   /**
    * The attachment a link or image source opens: {@link resolveAttachmentPath},
    * or a managed `assets/` path as written.
    */
-  resolveAssetOpenPath(notePath: string, source: string, generation: number | null): string | null
+  resolveAssetOpenPath(notePath: string, source: string): string | null
   /**
    * A displayable URL for an image source: http(s) as-is, a local attachment
    * as a generation-pinned `reflect-asset://` URL. Answers synchronously once
@@ -125,11 +123,11 @@ export interface AttachmentService {
   resolveImageUrl(
     notePath: string,
     source: string,
-    generation: number | null,
   ): string | undefined | Promise<string | undefined>
   /**
-   * The image URL for a passive preview: local bitmaps only, served with a
-   * raster-only query. Remote images and SVGs resolve to undefined.
+   * The image URL for a passive preview in graph session `generation`: local
+   * bitmaps only, served with a raster-only query. Remote images and SVGs
+   * resolve to undefined.
    */
   resolvePreviewImageUrl(
     notePath: string,
@@ -148,31 +146,29 @@ export interface AttachmentService {
    * session first, then the catalog. Undefined for anything else, a file the
    * catalog doesn't list, or a failed listing.
    */
-  resolveFileInfo(
-    notePath: string,
-    href: string,
-    generation: number | null,
-  ): Promise<{ size: number } | undefined>
+  resolveFileInfo(notePath: string, href: string): Promise<{ size: number } | undefined>
   /**
    * Stream a pasted or dropped file into `assets/`. Known image types get
    * `pasted-<now>.<ext>` names; everything else keeps its sanitized original
    * name. Rust resolves name collisions. Files over {@link LARGE_FILE_BYTES}
-   * get a status-line warning after they land.
+   * get a status-line warning after they land. Resolves `null`, saving
+   * nothing, when no graph is open.
    */
-  saveFile(file: File, generation: number): Promise<AssetSaveResult>
+  saveFile(file: File): Promise<AssetSaveResult | null>
   createSaveScope(): AttachmentSaveScope
   /**
    * The Attach file… command: native file picker, each pick copied into
    * `assets/`, one `[name](assets/…)` link per landed file inserted into the
    * note's editor. Copy failures and a closed editor are reported as one
-   * failed operation.
+   * failed operation. Does nothing when no graph is open.
    */
   attachFilesToNote(request: AttachFilesRequest): Promise<void>
   /**
    * Open an attachment in its default app. A refused open falls back to
    * revealing the file; failures surface as operations, never a rejection.
+   * Does nothing when no graph is open.
    */
-  openOrReveal(path: string, generation: number): Promise<void>
+  openOrReveal(path: string): Promise<void>
 }
 
 /** A visible managed file, including formats that can only be revealed. */
@@ -220,7 +216,7 @@ export function wikiEmbedDisplay(target: string): WikiEmbedDisplay | undefined {
 
 /** An {@link AttachmentSaveScope} over `save`. */
 export function createAttachmentSaveScope(
-  save: (file: File, generation: number) => Promise<AssetSaveResult>,
+  save: (file: File) => Promise<AssetSaveResult | null>,
 ): AttachmentSaveScope {
   const listeners = new Set<() => void>()
   let epoch = 0
@@ -237,9 +233,12 @@ export function createAttachmentSaveScope(
   }
 
   return {
-    async saveFile(file, generation) {
+    async saveFile(file) {
       const started = epoch
-      const result = await save(file, generation)
+      const result = await save(file)
+      if (result === null) {
+        return null
+      }
       if (epoch === started) {
         setError(result.ok ? null : result.error)
       }
@@ -288,14 +287,20 @@ export function createAttachmentService(deps: {
   operations: OperationsService
   clock: ClockService
   platform: PlatformService
+  graphSession: GraphSessionSource
 }): AttachmentService {
-  const { assetStore, noteFile, fileChanges, dialog, operations, clock, platform } = deps
+  const { assetStore, noteFile, fileChanges, dialog, operations, clock, platform, graphSession } =
+    deps
   const catalogListeners = new Set<() => void>()
   let entry: CatalogEntry | null = null
   // Sizes of files saved this graph session, by generation and asset path:
   // the size is already in hand, while the catalog only lists the file once
   // the watcher reports it.
   const savedSizes = new Map<number, Map<string, number>>()
+
+  function openGeneration(): number | null {
+    return graphSession.getState().session?.generation ?? null
+  }
 
   function entryFor(generation: number): CatalogEntry {
     if (entry?.generation !== generation) {
@@ -414,7 +419,11 @@ export function createAttachmentService(deps: {
     sizes.set(path, size)
   }
 
-  async function saveFile(file: File, generation: number): Promise<AssetSaveResult> {
+  async function saveFile(file: File): Promise<AssetSaveResult | null> {
+    const generation = openGeneration()
+    if (generation === null) {
+      return null
+    }
     const imageExtension = EXTENSION_BY_MIME[file.type]
     // Rust owns collision suffixes, so two pastes in the same millisecond
     // land as `pasted-<ts>.png` and `pasted-<ts>-2.png`.
@@ -448,8 +457,13 @@ export function createAttachmentService(deps: {
   }
 
   const service: AttachmentService = {
-    peekCatalog,
-    loadCatalog,
+    peekCatalog() {
+      const generation = openGeneration()
+      return generation === null ? null : peekCatalog(generation)
+    },
+    async loadCatalog() {
+      return await loadCatalog(requireGraphSession(graphSession).generation)
+    },
 
     watchCatalog(generation) {
       loadCatalog(generation).catch(() => {})
@@ -477,15 +491,20 @@ export function createAttachmentService(deps: {
       }
     },
 
-    resolveAttachmentPath,
+    resolveAttachmentPath(notePath, destination) {
+      return resolveAttachmentPath(notePath, destination, openGeneration())
+    },
 
-    resolveAssetOpenPath(notePath, source, generation) {
+    resolveAssetOpenPath(notePath, source) {
+      const generation = openGeneration()
       return generation === null
         ? null
         : assetOpenPath(source, resolveAttachmentPath(notePath, source, generation))
     },
 
-    resolveImageUrl,
+    resolveImageUrl(notePath, source) {
+      return resolveImageUrl(notePath, source, openGeneration())
+    },
 
     async resolvePreviewImageUrl(notePath, source, generation) {
       const assetPath = resolveAttachmentPath(notePath, source, generation)
@@ -506,7 +525,8 @@ export function createAttachmentService(deps: {
       return isManagedAssetPath(href) || resolveAttachmentLink(notePath, href, null) !== null
     },
 
-    async resolveFileInfo(notePath, href, generation) {
+    async resolveFileInfo(notePath, href) {
+      const generation = openGeneration()
       if (generation === null) {
         return
       }
@@ -534,8 +554,9 @@ export function createAttachmentService(deps: {
 
     createSaveScope: () => createAttachmentSaveScope(saveFile),
 
-    async attachFilesToNote({ generation, findEditor }) {
-      if (findEditor() === null) {
+    async attachFilesToNote({ findEditor }) {
+      const generation = openGeneration()
+      if (generation === null || findEditor() === null) {
         return
       }
       const sources = await dialog.pickFiles({ multiple: true, title: 'Attach files' })
@@ -583,7 +604,11 @@ export function createAttachmentService(deps: {
       }
     },
 
-    async openOrReveal(path, generation) {
+    async openOrReveal(path) {
+      const generation = openGeneration()
+      if (generation === null) {
+        return
+      }
       try {
         await assetStore.open(path, generation)
       } catch (openCause) {

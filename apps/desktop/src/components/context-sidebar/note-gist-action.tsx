@@ -5,7 +5,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useNoteRowOverlay } from '@/hooks/note-row-overlay.ts'
 import { useGithubConnected } from '@/hooks/use-github-connected.ts'
 import { useNoteRow } from '@/hooks/use-note-row.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
 interface NoteGistActionProps {
@@ -27,7 +26,6 @@ export function NoteGistAction({
   path,
   keybinding = null,
 }: NoteGistActionProps): ReactElement | null {
-  const { graph } = useGraph()
   const { gistPublish } = useAppServices()
   const connected = useGithubConnected()
   const row = useNoteRow(path)
@@ -35,7 +33,7 @@ export function NoteGistAction({
   // optimistic overlay flows through `useNoteRow`); the raw overlay tells us
   // that a publish is still catching up, which keeps the action in the
   // published state until the index agrees.
-  const optimistic = useNoteRowOverlay(path, graph?.generation)?.gistUrl != null
+  const optimistic = useNoteRowOverlay(path)?.gistUrl != null
   const [isPublishing, setIsPublishing] = useState(false)
   const [isUnpublishing, setIsUnpublishing] = useState(false)
 
@@ -45,26 +43,18 @@ export function NoteGistAction({
   }
 
   const onPublish = async (): Promise<void> => {
-    const generation = graph?.generation
-    if (generation === undefined) {
-      return
-    }
     setIsPublishing(true)
     try {
-      await gistPublish.publish(path, generation)
+      await gistPublish.publish(path)
     } finally {
       setIsPublishing(false)
     }
   }
 
   const onUnpublish = async (): Promise<void> => {
-    const generation = graph?.generation
-    if (generation === undefined) {
-      return
-    }
     setIsUnpublishing(true)
     try {
-      await gistPublish.unpublish(path, generation)
+      await gistPublish.unpublish(path)
     } finally {
       setIsUnpublishing(false)
     }

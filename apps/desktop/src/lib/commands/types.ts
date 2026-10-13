@@ -45,14 +45,6 @@ export interface CommandContext {
   switchGraph: (index: number) => void
   /** Start an audio memo, or stop-and-save the one recording. */
   toggleAudioMemo: () => void
-  /**
-   * The open **index session** generation (`index_open`), or null when none —
-   * what index/embedding commands echo. File writes (`note_write`) take
-   * `graph.generation` instead; no current command needs that one.
-   */
-  generation: () => number | null
-  /** Absolute root of the open graph, or null when none is open. */
-  graphRoot: () => string | null
   /** Open the ⌘K palette (optionally pre-filled). */
   openPalette: (query?: string) => void
   /** Open the ⌘/ shortcuts cheat-sheet. */

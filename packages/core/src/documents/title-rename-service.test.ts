@@ -12,6 +12,7 @@ import {
   type TestNoteSession,
 } from '../testing/documents.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
+import { createTestGraphSessionService, type TestOpenGraph } from '../testing/graph-session.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
@@ -55,7 +56,8 @@ interface SetupOptions {
   indexed?: Record<string, string>
   /** An open session for the tracked note, with this buffer. */
   session?: { content: string; accepts?: boolean }
-  generation?: () => number | null
+  /** The graph open when the coordinator is created; defaults to generation 7, `null` for none. */
+  graph?: TestOpenGraph | null
   canFire?: () => boolean
   /** Make every title resolution reject, so the link rewrite fails. */
   resolveError?: Error
@@ -114,6 +116,9 @@ function setup(options?: SetupOptions) {
   const wikiResolver = createWikiResolverService({ database })
   const resolveError = options?.resolveError
   const readError = options?.readError
+  const graph = createTestGraphSessionService(
+    options?.graph === null ? {} : { graph: options?.graph ?? { generation: 7 } },
+  )
   const titleRename = createTitleRenameService({
     noteFile:
       readError === undefined
@@ -143,10 +148,10 @@ function setup(options?: SetupOptions) {
     operations,
     clock,
     logger,
+    graphSession: graph,
   })
   const coordinator = titleRename.createCoordinator({
     path,
-    generation: options?.generation ?? (() => 7),
     canFire: options?.canFire ?? (() => true),
   })
 
@@ -164,6 +169,7 @@ function setup(options?: SetupOptions) {
 
   return {
     coordinator,
+    graph,
     clock,
     operations,
     logger,
@@ -189,14 +195,14 @@ async function renameOnce(coordinator: RenameCoordinator, from: string, to: stri
 describe('rename coordinator', () => {
   it('rewrites links with the generation read at run time, then writes the alias to disk', async () => {
     const content = managed('# New Title\n')
-    let generation = 3
-    const { coordinator, noteFile, operationOutcomes } = setup({
+    const { coordinator, graph, noteFile, operationOutcomes } = setup({
       files: { [PATH]: content, [LINKER]: 'see [[Old Title]]\n' },
-      generation: () => generation,
+      graph: { generation: 3 },
     })
     coordinator.content(managed('# Old Title\n'), 'load')
     coordinator.content(content, 'saved')
-    generation = 4 // bumps between save and settle — the rewrite must see 4
+    // The same graph reopens between save and settle: the rewrite must see 4.
+    graph.setGraph({ generation: 4 })
     coordinator.settle()
     await coordinator.settled()
 
@@ -212,6 +218,21 @@ describe('rename coordinator', () => {
     expect(await operationOutcomes()).toEqual([
       { label: 'Renaming "Old Title" → "New Title"', outcome: 'done', message: null },
     ])
+  })
+
+  it('writes with its own graph generation after another graph opened', async () => {
+    const content = managed('# New Title\n')
+    const { coordinator, graph, noteFile } = setup({
+      files: { [PATH]: content, [LINKER]: 'see [[Old Title]]\n' },
+      graph: { generation: 3 },
+    })
+    coordinator.content(managed('# Old Title\n'), 'load')
+    coordinator.content(content, 'saved')
+    graph.setGraph({ root: '/graphs/other', generation: 4 })
+    coordinator.settle()
+    await coordinator.settled()
+
+    expect(noteFile.writes().map((write) => write.generation)).toEqual([3, 3])
   })
 
   it('fires a saved title after the quiet period without a settle point', async () => {
@@ -360,7 +381,7 @@ describe('rename coordinator', () => {
   it('drops the rename loudly when no graph generation is available', async () => {
     const { coordinator, noteFile, logger, operationOutcomes } = setup({
       files: { [PATH]: managed('# New Title\n'), [LINKER]: 'see [[Old Title]]\n' },
-      generation: () => null,
+      graph: null,
     })
     await renameOnce(coordinator, 'Old Title', 'New Title')
 

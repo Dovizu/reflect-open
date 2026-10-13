@@ -44,3 +44,18 @@ export function requireGraphSession(graphSession: GraphSessionSource): GraphSess
   }
   return session
 }
+
+/**
+ * The generation a long-lived writer opened on `captured` writes with now: the
+ * open session's when it is the same graph reopened, else `captured`'s own,
+ * which Rust rejects once another graph replaced it.
+ */
+export function writeGenerationFor(
+  graphSession: GraphSessionSource,
+  captured: GraphSession,
+): number {
+  const { session } = graphSession.getState()
+  return session !== null && session.root === captured.root
+    ? session.generation
+    : captured.generation
+}

@@ -1,4 +1,5 @@
 import type { ClockService } from '../app/clock-service.ts'
+import { writeGenerationFor, type GraphSessionSource } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
@@ -49,8 +50,6 @@ import { createTitleRenameTracker, type TitleRename } from './title-rename-track
 export interface RenameCoordinatorOptions {
   /** Graph-relative path of the (possibly renamed) note. */
   path: string
-  /** Read the graph generation at rewrite time — never captured early. */
-  generation: () => number | null
   /**
    * Gate: no rename fires while false (a parked conflict contests the very
    * content the title came from; "keep mine" re-arms, "load theirs" cancels).
@@ -70,7 +69,11 @@ export interface RenameCoordinator {
 
 /** Keeps inbound links, aliases and filenames following each note's settled title. */
 export interface TitleRenameService {
-  /** The auto-rename lifecycle of one open note; the caller disposes it. */
+  /**
+   * The auto-rename lifecycle of one open note on the open graph; the caller
+   * disposes it. Each rename writes with that graph's generation as of when it
+   * fires.
+   */
   createCoordinator(options: RenameCoordinatorOptions): RenameCoordinator
 }
 
@@ -88,6 +91,7 @@ export interface TitleRenameServiceDeps {
   /** Runs each title tracker's quiet timer. */
   clock: ClockService
   logger: Pick<LoggerService, 'error'>
+  graphSession: GraphSessionSource
 }
 
 export function createTitleRenameService(deps: TitleRenameServiceDeps): TitleRenameService {
@@ -110,8 +114,10 @@ function createRenameCoordinator(
     operations,
     clock,
     logger,
+    graphSession,
   } = deps
-  const { generation, canFire } = options
+  const { canFire } = options
+  const graph = graphSession.getState().session
   /** The note's current path — a landed move advances it (Plan 17). */
   let currentPath = options.path
   /** Serializes rewrites — a second settle waits for the first. */
@@ -168,12 +174,12 @@ function createRenameCoordinator(
   // cross-written.
   const runRename = (rename: TitleRename): void => {
     chain = chain.then(async () => {
-      const gen = generation()
+      const gen = graph === null ? null : writeGenerationFor(graphSession, graph)
       if (gen === null) {
         // Unreachable in the current wiring (a rename only arms after a save,
-        // which requires a generation; an unmounted pane's ref keeps its
-        // non-null value) — but the tracker's baseline has already advanced,
-        // so if a future caller gets here the drop must be loud, not silent.
+        // which requires an open graph) — but the tracker's baseline has
+        // already advanced, so if a future caller gets here the drop must be
+        // loud, not silent.
         logger.error(
           `rename dropped (no graph generation): "${rename.from ?? ''}" → "${rename.to}" on ${currentPath}`,
         )

@@ -49,11 +49,12 @@ export interface NoteSessionOptions {
   /** Graph-relative path of the note this session owns. */
   path: string
   /**
-   * The graph generation every write is pinned to, read at write time. `null`
-   * when no generation is available — the session then tracks dirtiness but
-   * never writes.
+   * True for a session that tracks dirtiness but never writes, as is every
+   * session created while no graph is open. Otherwise every write is pinned to
+   * the generation of the graph open at creation, read at write time so a
+   * reopen of that graph carries over.
    */
-  generation: (() => number | null) | null
+  readOnly?: boolean
   /** Round-trip fidelity check gating editability (meowdown's `checkRoundTrip`). */
   classify: (markdown: string) => RoundTripFidelity
   /** Receives every state change. Not called after `dispose()`. */

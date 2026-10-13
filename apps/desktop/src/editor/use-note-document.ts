@@ -6,13 +6,14 @@ import {
   type NoteSessionSnapshot,
   type RenameCoordinator,
 } from '@reflect/core'
+import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { checkRoundTrip } from './roundtrip.ts'
 
 /**
  * React adapter over the `@reflect/core` document state machine
- * (`NoteSessionService`): one session per open `(path, generation)`, wired to
+ * (`NoteSessionService`): one session per open path, wired to
  * the watcher event stream (through `OpenDocumentsService`) and the editor's
  * imperative handle. All
  * save/conflict/protection semantics live in core's `note-session.ts`, and the
@@ -62,16 +63,10 @@ export interface NoteDocumentOptions {
 }
 
 /**
- * @param path graph-relative path of the open note
- * @param generation the open graph's session generation (`GraphInfo.generation`);
- *   pins every write to that graph — Rust rejects a write whose generation is
- *   stale, so a flush racing a graph switch can't land in the new graph.
+ * @param path graph-relative path of the open note; the session writes to the
+ *   graph open when it is created, and is read-only while no graph is open.
  */
-export function useNoteDocument(
-  path: string | null,
-  generation: number | null,
-  options?: NoteDocumentOptions,
-): NoteDocument {
+export function useNoteDocument(path: string | null, options?: NoteDocumentOptions): NoteDocument {
   const createIfMissing = options?.createIfMissing ?? false
   const trackRenames = options?.trackRenames ?? false
   const missingSeed = options?.missingSeed
@@ -85,22 +80,10 @@ export function useNoteDocument(
     createDocumentBinding({ openDocuments }),
   )
 
-  // Writes read the generation at write time, not at session creation, so the
-  // session must NOT be keyed on `generation`: reopening the *same* graph bumps
-  // it without remounting the pane, and recreating the session would dispose-
-  // flush with a stale generation (rejected by Rust) and silently reload the
-  // buffer from disk — losing unsaved edits. Cross-graph safety is preserved
-  // because a real graph switch remounts the whole workspace (keyed by root):
-  // the unmounted pane never re-renders, its ref keeps the old generation, and
-  // Rust rejects its final flush instead of landing it in the new graph.
-  const generationRef = useRef(generation)
-  // Written during render, not in an effect: a debounced save or rename reads
-  // this at write time, and reopening the *same* graph bumps the generation
-  // without remounting the pane — an effect-based update would lag and let a
-  // write land with the previous generation, which Rust rejects.
-  // eslint-disable-next-line react-hooks/refs
-  generationRef.current = generation
-  const canWrite = generation !== null
+  // The session is keyed on whether a graph is open, not on its generation:
+  // reopening the *same* graph bumps the generation without remounting the
+  // pane, and the session's writes follow that reopen on their own.
+  const canWrite = useGraph({ optional: true })?.graph != null
 
   useEffect(() => {
     if (!path) {
@@ -113,14 +96,13 @@ export function useNoteDocument(
         trackRenames
           ? titleRename.createCoordinator({
               path,
-              generation: () => generationRef.current,
               canFire: () => conflictRef.current === null,
             })
           : null,
       session: (coordinator) =>
         noteSessions.create({
           path,
-          generation: canWrite ? () => generationRef.current : null,
+          readOnly: !canWrite,
           classify: checkRoundTrip,
           onSnapshot: (next) => {
             conflictRef.current = next.conflict
