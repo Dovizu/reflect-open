@@ -1,6 +1,8 @@
 import { ReflectError } from '../errors.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
 import type {
   ICloudNativeService,
+  IcloudDownloadScope,
   IcloudScanOptions,
   IcloudStatus,
   IcloudSweepOutcome,
@@ -18,6 +20,7 @@ import type { ICloudSyncService } from '../sync/icloud-sync-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type {
   CommitOutcome,
+  GitCredential,
   GitRepositoryService,
   GitStatus,
   MergeOutcome,
@@ -27,8 +30,13 @@ import type {
 import {
   createGithubAuthService,
   GITHUB_AUTH_SECRET,
+  type DeviceFlowStart,
+  type DevicePollResult,
   type GithubAuth,
   type GithubAuthService,
+  type GithubAuthState,
+  type GithubUser,
+  type RunDeviceFlowOptions,
 } from '../sync/github-auth-service.ts'
 import type { GithubRepoRef } from '../sync/github-repo-service.ts'
 import { createTestClockService } from './clock.ts'
@@ -37,12 +45,16 @@ import { createTestSecretStoreService } from './secrets.ts'
 
 type GitMethod = keyof GitRepositoryService
 
-/** One recorded {@link GitRepositoryService} call. */
+/**
+ * One recorded {@link GitRepositoryService} call.
+ */
 export type GitRepositoryCall = {
   [M in GitMethod]: { readonly method: M; readonly args: Parameters<GitRepositoryService[M]> }
 }[GitMethod]
 
-/** Answers one {@link GitRepositoryService} method; may return the result directly or as a promise. */
+/**
+ * Answers one {@link GitRepositoryService} method; may return the result directly or as a promise.
+ */
 export type GitRepositoryHandler<M extends GitMethod> = (
   ...args: Parameters<GitRepositoryService[M]>
 ) => Awaited<ReturnType<GitRepositoryService[M]>> | ReturnType<GitRepositoryService[M]>
@@ -64,33 +76,23 @@ export interface TestGitRepositoryService extends GitRepositoryService {
  * clean tree, `fetch` reports no delta, `push` succeeds and `mergeRemote` is
  * up to date; the `onXxx` setters replace one method's answer.
  */
-export function createTestGitRepositoryService(
-  initialStatus?: Partial<GitStatus>,
-): TestGitRepositoryService {
-  let status: GitStatus = {
-    initialized: false,
-    branch: null,
-    remoteUrl: null,
-    ahead: 0,
-    behind: 0,
-    inProgress: false,
-    ...initialStatus,
-  }
-  const log: GitRepositoryCall[] = []
-  const handlers: { [M in GitMethod]: GitRepositoryHandler<M> } = {
-    status: () => ({ ...status }),
+class TestGitRepositoryServiceImpl implements TestGitRepositoryService {
+  #status: GitStatus
+  readonly #log: GitRepositoryCall[] = []
+  readonly #handlers: { [M in GitMethod]: GitRepositoryHandler<M> } = {
+    status: () => ({ ...this.#status }),
     setup: (remoteUrl, branch) => {
-      status = {
-        ...status,
+      this.#status = {
+        ...this.#status,
         initialized: true,
         remoteUrl,
-        branch: branch ?? status.branch ?? 'main',
+        branch: branch ?? this.#status.branch ?? 'main',
       }
-      return { ...status }
+      return { ...this.#status }
     },
     disconnect: () => {
-      status = { ...status, remoteUrl: null }
-      return { ...status }
+      this.#status = { ...this.#status, remoteUrl: null }
+      return { ...this.#status }
     },
     commitAll: (): CommitOutcome => ({
       committed: false,
@@ -103,58 +105,94 @@ export function createTestGitRepositoryService(
     mergeRemote: (): MergeOutcome => ({ kind: 'upToDate', conflictedPaths: [], changedFiles: [] }),
   }
 
-  return {
-    status: async (generation) => {
-      log.push({ method: 'status', args: [generation] })
-      return await handlers.status(generation)
-    },
-    setup: async (remoteUrl, branch, generation) => {
-      log.push({ method: 'setup', args: [remoteUrl, branch, generation] })
-      return await handlers.setup(remoteUrl, branch, generation)
-    },
-    disconnect: async (generation) => {
-      log.push({ method: 'disconnect', args: [generation] })
-      return await handlers.disconnect(generation)
-    },
-    commitAll: async (fallbackMessage, generation) => {
-      log.push({ method: 'commitAll', args: [fallbackMessage, generation] })
-      return await handlers.commitAll(fallbackMessage, generation)
-    },
-    fetch: async (credential, generation) => {
-      log.push({ method: 'fetch', args: [credential, generation] })
-      return await handlers.fetch(credential, generation)
-    },
-    push: async (credential, generation) => {
-      log.push({ method: 'push', args: [credential, generation] })
-      return await handlers.push(credential, generation)
-    },
-    mergeRemote: async (generation) => {
-      log.push({ method: 'mergeRemote', args: [generation] })
-      return await handlers.mergeRemote(generation)
-    },
-    calls: () => [...log],
-    onStatus(handler) {
-      handlers.status = handler
-    },
-    onSetup(handler) {
-      handlers.setup = handler
-    },
-    onDisconnect(handler) {
-      handlers.disconnect = handler
-    },
-    onCommitAll(handler) {
-      handlers.commitAll = handler
-    },
-    onFetch(handler) {
-      handlers.fetch = handler
-    },
-    onPush(handler) {
-      handlers.push = handler
-    },
-    onMergeRemote(handler) {
-      handlers.mergeRemote = handler
-    },
+  constructor(initialStatus?: Partial<GitStatus>) {
+    this.#status = {
+      initialized: false,
+      branch: null,
+      remoteUrl: null,
+      ahead: 0,
+      behind: 0,
+      inProgress: false,
+      ...initialStatus,
+    }
   }
+
+  async status(generation: number): Promise<GitStatus> {
+    this.#log.push({ method: 'status', args: [generation] })
+    return await this.#handlers.status(generation)
+  }
+
+  async setup(
+    remoteUrl: string | null,
+    branch: string | null,
+    generation: number,
+  ): Promise<GitStatus> {
+    this.#log.push({ method: 'setup', args: [remoteUrl, branch, generation] })
+    return await this.#handlers.setup(remoteUrl, branch, generation)
+  }
+
+  async disconnect(generation: number): Promise<GitStatus> {
+    this.#log.push({ method: 'disconnect', args: [generation] })
+    return await this.#handlers.disconnect(generation)
+  }
+
+  async commitAll(fallbackMessage: string, generation: number): Promise<CommitOutcome> {
+    this.#log.push({ method: 'commitAll', args: [fallbackMessage, generation] })
+    return await this.#handlers.commitAll(fallbackMessage, generation)
+  }
+
+  async fetch(credential: GitCredential | null, generation: number): Promise<RemoteDelta> {
+    this.#log.push({ method: 'fetch', args: [credential, generation] })
+    return await this.#handlers.fetch(credential, generation)
+  }
+
+  async push(credential: GitCredential | null, generation: number): Promise<PushOutcome> {
+    this.#log.push({ method: 'push', args: [credential, generation] })
+    return await this.#handlers.push(credential, generation)
+  }
+
+  async mergeRemote(generation: number): Promise<MergeOutcome> {
+    this.#log.push({ method: 'mergeRemote', args: [generation] })
+    return await this.#handlers.mergeRemote(generation)
+  }
+
+  calls(): readonly GitRepositoryCall[] {
+    return [...this.#log]
+  }
+
+  onStatus(handler: GitRepositoryHandler<'status'>): void {
+    this.#handlers.status = handler
+  }
+
+  onSetup(handler: GitRepositoryHandler<'setup'>): void {
+    this.#handlers.setup = handler
+  }
+
+  onDisconnect(handler: GitRepositoryHandler<'disconnect'>): void {
+    this.#handlers.disconnect = handler
+  }
+
+  onCommitAll(handler: GitRepositoryHandler<'commitAll'>): void {
+    this.#handlers.commitAll = handler
+  }
+
+  onFetch(handler: GitRepositoryHandler<'fetch'>): void {
+    this.#handlers.fetch = handler
+  }
+
+  onPush(handler: GitRepositoryHandler<'push'>): void {
+    this.#handlers.push = handler
+  }
+
+  onMergeRemote(handler: GitRepositoryHandler<'mergeRemote'>): void {
+    this.#handlers.mergeRemote = handler
+  }
+}
+
+export function createTestGitRepositoryService(
+  initialStatus?: Partial<GitStatus>,
+): TestGitRepositoryService {
+  return new TestGitRepositoryServiceImpl(initialStatus)
 }
 
 type ICloudCommand = Exclude<
@@ -162,7 +200,9 @@ type ICloudCommand = Exclude<
   'subscribeConflicts' | 'subscribeWatchFailed'
 >
 
-/** One recorded {@link ICloudNativeService} command call. */
+/**
+ * One recorded {@link ICloudNativeService} command call.
+ */
 export type ICloudNativeCall = {
   [M in ICloudCommand]: { readonly method: M; readonly args: Parameters<ICloudNativeService[M]> }
 }[ICloudCommand]
@@ -170,7 +210,9 @@ export type ICloudNativeCall = {
 export interface TestICloudNativeService extends ICloudNativeService {
   calls(): readonly ICloudNativeCall[]
   setStatus(status: Partial<IcloudStatus>): void
-  /** What `downloadPending` and `pendingCount` report from now on. */
+  /**
+   * What `downloadPending` and `pendingCount` report from now on.
+   */
   setPendingCount(count: number): void
   onConflictsScan(
     handler: (options: IcloudScanOptions) => IcloudSweepOutcome | Promise<IcloudSweepOutcome>,
@@ -184,113 +226,146 @@ export interface TestICloudNativeService extends ICloudNativeService {
  * unless `status` says otherwise; `adoptGraph` answers `<documentsRoot>/Notes`
  * and rejects with an `io` error while unavailable; sweeps change nothing.
  */
+class TestICloudNativeServiceImpl implements TestICloudNativeService {
+  #status: IcloudStatus
+  #pending: number
+  #scan: (scanOptions: IcloudScanOptions) => IcloudSweepOutcome | Promise<IcloudSweepOutcome> =
+    () => ({
+      changed: [],
+      needsReview: [],
+      deferred: [],
+      autoResolved: 0,
+    })
+  readonly #log: ICloudNativeCall[] = []
+  readonly #conflictListeners = new Set<(paths: string[]) => void>()
+  readonly #watchFailedListeners = new Set<() => void>()
+
+  constructor(options?: { status?: Partial<IcloudStatus>; pendingCount?: number }) {
+    this.#status = {
+      available: false,
+      documentsRoot: null,
+      existingGraphRoots: [],
+      ...options?.status,
+    }
+    this.#pending = options?.pendingCount ?? 0
+  }
+
+  async status(): Promise<IcloudStatus> {
+    this.#log.push({ method: 'status', args: [] })
+    return { ...this.#status, existingGraphRoots: [...this.#status.existingGraphRoots] }
+  }
+
+  async adoptGraph(generation: number): Promise<string> {
+    this.#log.push({ method: 'adoptGraph', args: [generation] })
+    if (!this.#status.available || this.#status.documentsRoot === null) {
+      throw new ReflectError('io', 'test iCloud: the container is unavailable')
+    }
+    return `${this.#status.documentsRoot}/Notes`
+  }
+
+  async conflictsScan(scanOptions: IcloudScanOptions): Promise<IcloudSweepOutcome> {
+    this.#log.push({ method: 'conflictsScan', args: [scanOptions] })
+    return await this.#scan(scanOptions)
+  }
+
+  async watchStart(root: string): Promise<void> {
+    this.#log.push({ method: 'watchStart', args: [root] })
+  }
+
+  async watchStop(): Promise<void> {
+    this.#log.push({ method: 'watchStop', args: [] })
+  }
+
+  async downloadPending(root: string, scope: IcloudDownloadScope): Promise<number> {
+    this.#log.push({ method: 'downloadPending', args: [root, scope] })
+    return this.#pending
+  }
+
+  async pendingCount(root: string, scope: IcloudDownloadScope): Promise<number> {
+    this.#log.push({ method: 'pendingCount', args: [root, scope] })
+    return this.#pending
+  }
+
+  async requestDownloads(paths: string[]): Promise<number> {
+    this.#log.push({ method: 'requestDownloads', args: [paths] })
+    return paths.length
+  }
+
+  subscribeConflicts(listener: (paths: string[]) => void): Unlisten {
+    // Wrapped for identity, so one function added twice detaches independently.
+    const deliver = (paths: string[]): void => {
+      listener(paths)
+    }
+    this.#conflictListeners.add(deliver)
+    return () => {
+      this.#conflictListeners.delete(deliver)
+    }
+  }
+
+  subscribeWatchFailed(listener: () => void): Unlisten {
+    const deliver = (): void => {
+      listener()
+    }
+    this.#watchFailedListeners.add(deliver)
+    return () => {
+      this.#watchFailedListeners.delete(deliver)
+    }
+  }
+
+  calls(): readonly ICloudNativeCall[] {
+    return [...this.#log]
+  }
+
+  setStatus(next: Partial<IcloudStatus>): void {
+    this.#status = { ...this.#status, ...next }
+  }
+
+  setPendingCount(count: number): void {
+    this.#pending = count
+  }
+
+  onConflictsScan(
+    handler: (options: IcloudScanOptions) => IcloudSweepOutcome | Promise<IcloudSweepOutcome>,
+  ): void {
+    this.#scan = handler
+  }
+
+  emitConflicts(paths: string[]): void {
+    for (const listener of this.#conflictListeners) {
+      listener([...paths])
+    }
+  }
+
+  emitWatchFailed(): void {
+    for (const listener of this.#watchFailedListeners) {
+      listener()
+    }
+  }
+}
+
 export function createTestICloudNativeService(options?: {
   status?: Partial<IcloudStatus>
   pendingCount?: number
 }): TestICloudNativeService {
-  let status: IcloudStatus = {
-    available: false,
-    documentsRoot: null,
-    existingGraphRoots: [],
-    ...options?.status,
-  }
-  let pending = options?.pendingCount ?? 0
-  let scan: (
-    scanOptions: IcloudScanOptions,
-  ) => IcloudSweepOutcome | Promise<IcloudSweepOutcome> = () => ({
-    changed: [],
-    needsReview: [],
-    deferred: [],
-    autoResolved: 0,
-  })
-  const log: ICloudNativeCall[] = []
-  const conflictListeners = new Set<(paths: string[]) => void>()
-  const watchFailedListeners = new Set<() => void>()
-
-  return {
-    status: async () => {
-      log.push({ method: 'status', args: [] })
-      return { ...status, existingGraphRoots: [...status.existingGraphRoots] }
-    },
-    adoptGraph: async (generation) => {
-      log.push({ method: 'adoptGraph', args: [generation] })
-      if (!status.available || status.documentsRoot === null) {
-        throw new ReflectError('io', 'test iCloud: the container is unavailable')
-      }
-      return `${status.documentsRoot}/Notes`
-    },
-    conflictsScan: async (scanOptions) => {
-      log.push({ method: 'conflictsScan', args: [scanOptions] })
-      return await scan(scanOptions)
-    },
-    watchStart: async (root) => {
-      log.push({ method: 'watchStart', args: [root] })
-    },
-    watchStop: async () => {
-      log.push({ method: 'watchStop', args: [] })
-    },
-    downloadPending: async (root, scope) => {
-      log.push({ method: 'downloadPending', args: [root, scope] })
-      return pending
-    },
-    pendingCount: async (root, scope) => {
-      log.push({ method: 'pendingCount', args: [root, scope] })
-      return pending
-    },
-    requestDownloads: async (paths) => {
-      log.push({ method: 'requestDownloads', args: [paths] })
-      return paths.length
-    },
-    subscribeConflicts: (listener) => {
-      // Wrapped for identity, so one function added twice detaches independently.
-      const deliver = (paths: string[]): void => {
-        listener(paths)
-      }
-      conflictListeners.add(deliver)
-      return () => {
-        conflictListeners.delete(deliver)
-      }
-    },
-    subscribeWatchFailed: (listener) => {
-      const deliver = (): void => {
-        listener()
-      }
-      watchFailedListeners.add(deliver)
-      return () => {
-        watchFailedListeners.delete(deliver)
-      }
-    },
-    calls: () => [...log],
-    setStatus(next) {
-      status = { ...status, ...next }
-    },
-    setPendingCount(count) {
-      pending = count
-    },
-    onConflictsScan(handler) {
-      scan = handler
-    },
-    emitConflicts(paths) {
-      for (const listener of conflictListeners) {
-        listener([...paths])
-      }
-    },
-    emitWatchFailed() {
-      for (const listener of watchFailedListeners) {
-        listener()
-      }
-    },
-  }
+  return new TestICloudNativeServiceImpl(options)
 }
 
 export interface TestGithubAuthOptions {
-  /** The credential stored at the start; none by default. Ignored when `secretStore` is given. */
+  /**
+   * The credential stored at the start; none by default. Ignored when `secretStore` is given.
+   */
   auth?: GithubAuth
-  /** Defaults to an in-memory keychain holding `auth`. */
+  /**
+   * Defaults to an in-memory keychain holding `auth`.
+   */
   secretStore?: SecretStoreService
-  /** Defaults to an HTTP fake with no routes. */
+  /**
+   * Defaults to an HTTP fake with no routes.
+   */
   http?: HttpService
-  /** Defaults to a test clock. */
+  /**
+   * Defaults to a test clock.
+   */
   clock?: ClockService
 }
 
@@ -306,33 +381,70 @@ export interface TestGithubAuthService extends GithubAuthService {
  * The real {@link GithubAuthService} over an in-memory keychain, an HTTP fake
  * and a test clock. `onRunDeviceFlow` scripts the device flow.
  */
-export function createTestGithubAuthService(
-  options?: TestGithubAuthOptions,
-): TestGithubAuthService {
-  const service = createGithubAuthService({
-    secretStore:
-      options?.secretStore ??
-      createTestSecretStoreService(
-        options?.auth === undefined ? {} : { [GITHUB_AUTH_SECRET]: JSON.stringify(options.auth) },
-      ),
-    http: options?.http ?? createTestHttpService(),
-    clock: options?.clock ?? createTestClockService(),
-  })
-  let deviceFlow: GithubAuthService['runDeviceFlow'] | null = null
-  return {
-    ...service,
-    runDeviceFlow: (flowOptions) => (deviceFlow ?? service.runDeviceFlow)(flowOptions),
-    onRunDeviceFlow(handler) {
-      deviceFlow = handler
-    },
+class TestGithubAuthServiceImpl implements TestGithubAuthService {
+  readonly #inner: GithubAuthService
+  #deviceFlow: GithubAuthService['runDeviceFlow'] | null = null
+
+  constructor(options?: TestGithubAuthOptions) {
+    this.#inner = createGithubAuthService({
+      secretStore:
+        options?.secretStore ??
+        createTestSecretStoreService(
+          options?.auth === undefined ? {} : { [GITHUB_AUTH_SECRET]: JSON.stringify(options.auth) },
+        ),
+      http: options?.http ?? createTestHttpService(),
+      clock: options?.clock ?? createTestClockService(),
+    })
+  }
+
+  readonly getState = (): GithubAuthState => this.#inner.getState()
+
+  readonly load = (): Promise<GithubAuth | null> => this.#inner.load()
+
+  readonly save = (auth: GithubAuth): Promise<void> => this.#inner.save(auth)
+
+  readonly clear = (): Promise<void> => this.#inner.clear()
+
+  readonly subscribe = (listener: () => void): Unlisten => this.#inner.subscribe(listener)
+
+  readonly getToken = (): Promise<string | null> => this.#inner.getToken()
+
+  readonly deviceFlowStart = (clientId?: string): Promise<DeviceFlowStart> =>
+    this.#inner.deviceFlowStart(clientId)
+
+  readonly deviceFlowPoll = (deviceCode: string, clientId?: string): Promise<DevicePollResult> =>
+    this.#inner.deviceFlowPoll(deviceCode, clientId)
+
+  readonly runDeviceFlow = (flowOptions: RunDeviceFlowOptions): Promise<GithubAuth | null> =>
+    (this.#deviceFlow ?? this.#inner.runDeviceFlow)(flowOptions)
+
+  readonly getAuthenticatedUser = (token: string): Promise<GithubUser> =>
+    this.#inner.getAuthenticatedUser(token)
+
+  readonly getSignedInUser = (): Promise<GithubUser | null> => this.#inner.getSignedInUser()
+
+  onRunDeviceFlow(handler: GithubAuthService['runDeviceFlow'] | null): void {
+    this.#deviceFlow = handler
   }
 }
 
-/** A {@link BackupServiceFactory} whose every `create` hands out one scripted service. */
+export function createTestGithubAuthService(
+  options?: TestGithubAuthOptions,
+): TestGithubAuthService {
+  return new TestGithubAuthServiceImpl(options)
+}
+
+/**
+ * A {@link BackupServiceFactory} whose every `create` hands out one scripted service.
+ */
 export interface TestScriptedBackupServiceFactory extends BackupServiceFactory {
-  /** The service every `create` call returns. */
+  /**
+   * The service every `create` call returns.
+   */
   readonly backup: TestBackupService
-  /** The options of every `create` call, in order. */
+  /**
+   * The options of every `create` call, in order.
+   */
   creations(): readonly BackupServiceOptions[]
 }
 
@@ -340,22 +452,33 @@ export interface TestScriptedBackupServiceFactory extends BackupServiceFactory {
  * A {@link BackupServiceFactory} for surfaces that only read a backup: no
  * engine runs, and the state is what `backup.setState` says (`state` at first).
  */
-export function createTestScriptedBackupServiceFactory(options?: {
-  state?: BackupState
-}): TestScriptedBackupServiceFactory {
-  const backup = createTestBackupService(options)
-  const created: BackupServiceOptions[] = []
-  return {
-    backup,
-    create: (createOptions) => {
-      created.push(createOptions)
-      return backup
-    },
-    creations: () => [...created],
+class TestScriptedBackupServiceFactoryImpl implements TestScriptedBackupServiceFactory {
+  readonly backup: TestBackupService
+  readonly #created: BackupServiceOptions[] = []
+
+  constructor(options?: { state?: BackupState }) {
+    this.backup = createTestBackupService(options)
+  }
+
+  create(createOptions: BackupServiceOptions): BackupService {
+    this.#created.push(createOptions)
+    return this.backup
+  }
+
+  creations(): readonly BackupServiceOptions[] {
+    return [...this.#created]
   }
 }
 
-/** One recorded {@link TestBackupService} action. */
+export function createTestScriptedBackupServiceFactory(options?: {
+  state?: BackupState
+}): TestScriptedBackupServiceFactory {
+  return new TestScriptedBackupServiceFactoryImpl(options)
+}
+
+/**
+ * One recorded {@link TestBackupService} action.
+ */
 export type BackupCall =
   | { readonly method: 'start' | 'disconnectGraph' | 'signOut' | 'backUpNow' | 'dispose' }
   | { readonly method: 'connectNewRepo'; readonly name: string }
@@ -366,13 +489,21 @@ export type BackupCall =
     }
 
 export interface TestBackupService extends BackupService {
-  /** Publish `state` as the backup state and notify subscribers. */
+  /**
+   * Publish `state` as the backup state and notify subscribers.
+   */
   setState(state: BackupState): void
-  /** Every action called, in order. */
+  /**
+   * Every action called, in order.
+   */
   calls(): readonly BackupCall[]
-  /** Answer `connectNewRepo`; it resolves `connected` by default. */
+  /**
+   * Answer `connectNewRepo`; it resolves `connected` by default.
+   */
   onConnectNewRepo(handler: BackupService['connectNewRepo']): void
-  /** Answer `connectExistingRepo`; it resolves `connected` by default. */
+  /**
+   * Answer `connectExistingRepo`; it resolves `connected` by default.
+   */
   onConnectExistingRepo(handler: BackupService['connectExistingRepo']): void
 }
 
@@ -381,84 +512,118 @@ export interface TestBackupService extends BackupService {
  * repository. The state starts at `state` (`loading` by default) and moves
  * only through `setState`; every action is recorded.
  */
-export function createTestBackupService(options?: { state?: BackupState }): TestBackupService {
-  let state: BackupState = options?.state ?? { phase: 'loading' }
-  const listeners = new Set<() => void>()
-  const log: BackupCall[] = []
-  let connectNew: BackupService['connectNewRepo'] = async () => 'connected'
-  let connectExisting: BackupService['connectExistingRepo'] =
+class TestBackupServiceImpl implements TestBackupService {
+  #state: BackupState
+  readonly #listeners = new Set<() => void>()
+  readonly #log: BackupCall[] = []
+  #connectNew: BackupService['connectNewRepo'] = async () => 'connected'
+  #connectExisting: BackupService['connectExistingRepo'] =
     async (): Promise<ConnectExistingResult> => 'connected'
 
-  return {
-    start: async () => {
-      log.push({ method: 'start' })
-    },
-    getState: () => state,
-    subscribe: (listener) => {
-      // Wrapped for identity, so one function added twice detaches independently.
-      const deliver = (): void => {
-        listener()
-      }
-      listeners.add(deliver)
-      return () => {
-        listeners.delete(deliver)
-      }
-    },
-    connectNewRepo: async (name) => {
-      log.push({ method: 'connectNewRepo', name })
-      return await connectNew(name)
-    },
-    connectExistingRepo: async (ref, connectOptions) => {
-      log.push({
-        method: 'connectExistingRepo',
-        ref,
-        allowPublic: connectOptions?.allowPublic ?? false,
-      })
-      return await connectExisting(ref, connectOptions)
-    },
-    disconnectGraph: async () => {
-      log.push({ method: 'disconnectGraph' })
-    },
-    signOut: async () => {
-      log.push({ method: 'signOut' })
-    },
-    backUpNow: async () => {
-      log.push({ method: 'backUpNow' })
-    },
-    dispose: () => {
-      log.push({ method: 'dispose' })
-    },
-    setState(next) {
-      state = next
-      for (const listener of listeners) {
-        listener()
-      }
-    },
-    calls: () => [...log],
-    onConnectNewRepo(handler) {
-      connectNew = handler
-    },
-    onConnectExistingRepo(handler) {
-      connectExisting = handler
-    },
+  constructor(options?: { state?: BackupState }) {
+    this.#state = options?.state ?? { phase: 'loading' }
   }
+
+  readonly start = async (): Promise<void> => {
+    this.#log.push({ method: 'start' })
+  }
+
+  readonly getState = (): BackupState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    // Wrapped for identity, so one function added twice detaches independently.
+    const deliver = (): void => {
+      listener()
+    }
+    this.#listeners.add(deliver)
+    return () => {
+      this.#listeners.delete(deliver)
+    }
+  }
+
+  readonly connectNewRepo = async (name: string): Promise<'connected' | 'manualCreateNeeded'> => {
+    this.#log.push({ method: 'connectNewRepo', name })
+    return await this.#connectNew(name)
+  }
+
+  readonly connectExistingRepo = async (
+    ref: GithubRepoRef,
+    connectOptions?: { allowPublic?: boolean },
+  ): Promise<ConnectExistingResult> => {
+    this.#log.push({
+      method: 'connectExistingRepo',
+      ref,
+      allowPublic: connectOptions?.allowPublic ?? false,
+    })
+    return await this.#connectExisting(ref, connectOptions)
+  }
+
+  readonly disconnectGraph = async (): Promise<void> => {
+    this.#log.push({ method: 'disconnectGraph' })
+  }
+
+  readonly signOut = async (): Promise<void> => {
+    this.#log.push({ method: 'signOut' })
+  }
+
+  readonly backUpNow = async (): Promise<void> => {
+    this.#log.push({ method: 'backUpNow' })
+  }
+
+  readonly dispose = (): void => {
+    this.#log.push({ method: 'dispose' })
+  }
+
+  setState(next: BackupState): void {
+    this.#state = next
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  calls(): readonly BackupCall[] {
+    return [...this.#log]
+  }
+
+  onConnectNewRepo(handler: BackupService['connectNewRepo']): void {
+    this.#connectNew = handler
+  }
+
+  onConnectExistingRepo(handler: BackupService['connectExistingRepo']): void {
+    this.#connectExisting = handler
+  }
+}
+
+export function createTestBackupService(options?: { state?: BackupState }): TestBackupService {
+  return new TestBackupServiceImpl(options)
 }
 
 export interface TestICloudSyncService extends ICloudSyncService {
-  /** Every lifecycle method called, in order. */
+  /**
+   * Every lifecycle method called, in order.
+   */
   calls(): readonly ('start' | 'dispose')[]
 }
 
-/** A scripted {@link ICloudSyncService}: it sweeps nothing and records its lifecycle calls. */
-export function createTestICloudSyncService(): TestICloudSyncService {
-  const log: ('start' | 'dispose')[] = []
-  return {
-    start: async () => {
-      log.push('start')
-    },
-    dispose: () => {
-      log.push('dispose')
-    },
-    calls: () => [...log],
+/**
+ * A scripted {@link ICloudSyncService}: it sweeps nothing and records its lifecycle calls.
+ */
+class TestICloudSyncServiceImpl implements TestICloudSyncService {
+  readonly #log: ('start' | 'dispose')[] = []
+
+  readonly start = async (): Promise<void> => {
+    this.#log.push('start')
   }
+
+  readonly dispose = (): void => {
+    this.#log.push('dispose')
+  }
+
+  calls(): readonly ('start' | 'dispose')[] {
+    return [...this.#log]
+  }
+}
+
+export function createTestICloudSyncService(): TestICloudSyncService {
+  return new TestICloudSyncServiceImpl()
 }

@@ -47,7 +47,9 @@ export type SyncStatus =
   | { state: 'offline'; message: string }
   | { state: 'error'; errorKind: SyncErrorKind; message: string }
 
-/** Narrows to the `error` arm — the one state that needs user attention. */
+/**
+ * Narrows to the `error` arm — the one state that needs user attention.
+ */
 export function isSyncError(status: SyncStatus): status is Extract<SyncStatus, { state: 'error' }> {
   return status.state === 'error'
 }
@@ -71,7 +73,9 @@ export interface SyncEngineOptions {
    * called again after `stop()`.
    */
   onStatus?: (status: SyncStatus) => void
-  /** Surfaced when the size guardrail withholds files from backup. */
+  /**
+   * Surfaced when the size guardrail withholds files from backup.
+   */
   onLargeFilesSkipped?: (files: SkippedFile[]) => void
   /**
    * Files a pull's merge changed on disk. The caller reindexes them directly:
@@ -84,9 +88,13 @@ export interface SyncEngineOptions {
    * its chance to make the Markdown source of truth durable.
    */
   onRemoteChanges?: (changes: ChangedFile[]) => void | Promise<void>
-  /** Quiet period after the last edit before a backup commit. */
+  /**
+   * Quiet period after the last edit before a backup commit.
+   */
   idleMs?: number
-  /** Ceiling on deferral while the user keeps typing. */
+  /**
+   * Ceiling on deferral while the user keeps typing.
+   */
   maxWaitMs?: number
   /**
    * Checked before a new cycle and again after every awaited command boundary.
@@ -105,9 +113,13 @@ export interface SyncEngineOptions {
 }
 
 export interface SyncEngine {
-  /** Mark the graph dirty (watcher file-change event); debounced. */
+  /**
+   * Mark the graph dirty (watcher file-change event); debounced.
+   */
   noteChanged(): void
-  /** Full cycle now — commit, pull/merge, push. For launch/focus/manual. */
+  /**
+   * Full cycle now — commit, pull/merge, push. For launch/focus/manual.
+   */
   syncNow(): Promise<void>
   /**
    * Commit now, nothing more: the quit-time and background flush. Joins the
@@ -147,13 +159,19 @@ const COMMIT: CycleRequest = { fetch: false, network: false }
 const PUSH: CycleRequest = { fetch: false, network: true }
 const FULL: CycleRequest = { fetch: true, network: true }
 
-/** A push the remote refused for a non-divergence reason (e.g. push protection). */
+/**
+ * A push the remote refused for a non-divergence reason (e.g. push protection).
+ */
 class PushRejectedError extends Error {}
 
-/** Internal control flow: the owner suspended cycles while one command was in flight. */
+/**
+ * Internal control flow: the owner suspended cycles while one command was in flight.
+ */
 class CycleSuppressedError extends Error {}
 
-/** Builds the {@link SyncEngine} of one graph session. */
+/**
+ * Builds the {@link SyncEngine} of one graph session.
+ */
 export interface SyncEngineFactory {
   /**
    * Build a sync engine for one graph session. The engine starts idle and does
@@ -165,27 +183,27 @@ export interface SyncEngineFactory {
   create(options: SyncEngineOptions): SyncEngine
 }
 
-export function createSyncEngineFactory(deps: {
-  git: GitRepositoryService
-  clock: ClockService
-}): SyncEngineFactory {
-  return { create: (options) => createSyncEngine(deps, options) }
+/**
+ * What a {@link SyncEngine} runs on.
+ */
+export interface SyncEngineDeps {
+  readonly git: GitRepositoryService
+  readonly clock: ClockService
 }
 
-function createSyncEngine(
-  deps: { git: GitRepositoryService; clock: ClockService },
-  options: SyncEngineOptions,
-): SyncEngine {
-  const { git, clock } = deps
-  const idleMs = options.idleMs ?? DEFAULT_IDLE_MS
-  const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS
-
-  const abort = new AbortController()
-  const signal = abort.signal
-  let timer: TimerHandle | null = null
-  /** Hard deadline (first unflushed edit + maxWaitMs); null = nothing pending. */
-  let deadline: number | null = null
-  let running: Promise<void> | null = null
+class SyncEngineImpl implements SyncEngine {
+  readonly #deps: SyncEngineDeps
+  readonly #options: SyncEngineOptions
+  readonly #idleMs: number
+  readonly #maxWaitMs: number
+  readonly #abort = new AbortController()
+  readonly #signal = this.#abort.signal
+  #timer: TimerHandle | null = null
+  /**
+   * Hard deadline (first unflushed edit + maxWaitMs); null = nothing pending.
+   */
+  #deadline: number | null = null
+  #running: Promise<void> | null = null
   /**
    * The one follow-up requested while a cycle was in flight (the union of
    * every request). Its callers await `done`, which settles when the
@@ -194,7 +212,7 @@ function createSyncEngine(
    * remembers that a commit-only request joined: a network follow-up the
    * owner gates in the meantime still owes that commit.
    */
-  let followUp: {
+  #followUp: {
     request: CycleRequest
     flush: boolean
     done: Promise<void>
@@ -207,13 +225,50 @@ function createSyncEngine(
    * retrying per edit would repeat the same failure, and for a GitHub remote
    * the same reconnect prompt, with nothing having changed in between.
    */
-  let authFailed = false
+  #authFailed = false
 
-  function emit(status: SyncStatus): void {
-    if (signal.aborted) {
+  constructor(deps: SyncEngineDeps, options: SyncEngineOptions) {
+    this.#deps = deps
+    this.#options = options
+    this.#idleMs = options.idleMs ?? DEFAULT_IDLE_MS
+    this.#maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS
+  }
+
+  noteChanged(): void {
+    if (this.#signal.aborted) {
+      return
+    }
+    const now = this.#deps.clock.now()
+    if (this.#deadline === null) {
+      this.#deadline = now + this.#maxWaitMs
+    }
+    // Wait for the idle window, but never past the deadline — a continuously
+    // edited graph still backs up at least every maxWaitMs.
+    this.#schedule(Math.max(0, Math.min(this.#idleMs, this.#deadline - now)))
+  }
+
+  syncNow(): Promise<void> {
+    this.#authFailed = false // a resume trigger: the user may have fixed the sign-in
+    return this.#run(FULL)
+  }
+
+  commitNow(): Promise<void> {
+    return this.#run(COMMIT)
+  }
+
+  stop(): void {
+    this.#abort.abort()
+    if (this.#timer !== null) {
+      this.#deps.clock.clearTimeout(this.#timer)
+      this.#timer = null
+    }
+  }
+
+  #emit(status: SyncStatus): void {
+    if (this.#signal.aborted) {
       return // a stopped engine must not resurrect UI state (e.g. post-disconnect)
     }
-    options.onStatus?.(status)
+    this.#options.onStatus?.(status)
   }
 
   /**
@@ -221,25 +276,25 @@ function createSyncEngine(
    * the engine stopped or the owner suppressed further cycles meanwhile. An
    * already-issued Git command cannot be recalled, but no later command starts.
    */
-  async function step<T>(promise: Promise<T>, onResult?: (result: T) => void): Promise<T> {
+  async #step<T>(promise: Promise<T>, onResult?: (result: T) => void): Promise<T> {
     const result = await promise
-    signal.throwIfAborted()
+    this.#signal.throwIfAborted()
     onResult?.(result)
     // A synchronous result notification can itself tear down the owner (for
     // example, a file-change subscriber closing the graph). Preserve stop's
     // command boundary before the caller is allowed to issue later Git work.
-    signal.throwIfAborted()
-    if (options.canStartCycle?.() === false) {
+    this.#signal.throwIfAborted()
+    if (this.#options.canStartCycle?.() === false) {
       throw new CycleSuppressedError()
     }
     return result
   }
 
   /** Start one merge notification now, without making later Git commands wait. */
-  function startRemoteChanges(changes: ChangedFile[]): Promise<void> {
+  #startRemoteChanges(changes: ChangedFile[]): Promise<void> {
     let task: Promise<void>
     try {
-      task = Promise.resolve(options.onRemoteChanges?.(changes))
+      task = Promise.resolve(this.#options.onRemoteChanges?.(changes))
     } catch (error) {
       task = Promise.reject(error)
     }
@@ -251,7 +306,7 @@ function createSyncEngine(
   }
 
   /** Join this cycle's observer tasks and rethrow the first error. */
-  async function settleRemoteChanges(
+  async #settleRemoteChanges(
     tasks: readonly Promise<void>[],
     checkSuppression = true,
   ): Promise<void> {
@@ -259,89 +314,76 @@ function createSyncEngine(
       return
     }
     const outcomes = await Promise.allSettled(tasks)
-    signal.throwIfAborted()
+    this.#signal.throwIfAborted()
     const failed = outcomes.find(
       (outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected',
     )
     if (failed !== undefined) {
       throw failed.reason
     }
-    if (checkSuppression && options.canStartCycle?.() === false) {
+    if (checkSuppression && this.#options.canStartCycle?.() === false) {
       throw new CycleSuppressedError()
     }
   }
 
-  function schedule(delayMs: number): void {
-    if (timer !== null) {
-      clock.clearTimeout(timer)
+  #schedule(delayMs: number): void {
+    if (this.#timer !== null) {
+      this.#deps.clock.clearTimeout(this.#timer)
     }
-    timer = clock.setTimeout(() => {
-      timer = null
-      void run(PUSH)
+    this.#timer = this.#deps.clock.setTimeout(() => {
+      this.#timer = null
+      void this.#run(PUSH)
     }, delayMs)
   }
 
-  function noteChanged(): void {
-    if (signal.aborted) {
-      return
-    }
-    const now = clock.now()
-    if (deadline === null) {
-      deadline = now + maxWaitMs
-    }
-    // Wait for the idle window, but never past the deadline — a continuously
-    // edited graph still backs up at least every maxWaitMs.
-    schedule(Math.max(0, Math.min(idleMs, deadline - now)))
-  }
-
-  async function run(request: CycleRequest): Promise<void> {
+  async #run(request: CycleRequest): Promise<void> {
     // A commit-only cycle is the background/quit flush: it must run while the
     // document is hidden (that is when it fires), so only network cycles
     // honor the owner's gate.
-    if (signal.aborted || (request.network && options.canStartCycle?.() === false)) {
+    if (this.#signal.aborted || (request.network && this.#options.canStartCycle?.() === false)) {
       return
     }
-    if (running !== null) {
+    if (this.#running !== null) {
       // Queue one follow-up that does everything asked of it: a syncNow
       // landing mid-cycle must still get its fetch+merge, not be downgraded
       // to a push-only pass.
-      if (followUp === null) {
+      if (this.#followUp === null) {
         let settle = (): void => {}
         const done = new Promise<void>((resolve) => {
           settle = resolve
         })
-        followUp = { request, flush: !request.network, done, settle }
+        this.#followUp = { request, flush: !request.network, done, settle }
       } else {
-        const queued = followUp.request
-        followUp.request = {
+        const queued = this.#followUp.request
+        this.#followUp.request = {
           fetch: queued.fetch || request.fetch,
           network: queued.network || request.network,
         }
-        followUp.flush ||= !request.network
+        this.#followUp.flush ||= !request.network
       }
-      return await followUp.done
+      return await this.#followUp.done
     }
-    running = (async () => {
-      const quiet = !request.fetch && authFailed
+    this.#running = (async () => {
+      const quiet = !request.fetch && this.#authFailed
       const remoteChangeTasks: Promise<void>[] = []
       // This cycle commits everything dirty so far — a pending debounce pass
       // (e.g. queued before a launch/focus/manual sync) would only duplicate it.
-      if (timer !== null) {
-        clock.clearTimeout(timer)
-        timer = null
+      if (this.#timer !== null) {
+        this.#deps.clock.clearTimeout(this.#timer)
+        this.#timer = null
       }
-      deadline = null
+      this.#deadline = null
       if (!quiet) {
-        emit({ state: 'syncing' })
+        this.#emit({ state: 'syncing' })
       }
       try {
-        await cycle(request, quiet, (changes) => {
-          remoteChangeTasks.push(startRemoteChanges(changes))
+        await this.#cycle(request, quiet, (changes) => {
+          remoteChangeTasks.push(this.#startRemoteChanges(changes))
         })
-        await settleRemoteChanges(remoteChangeTasks)
+        await this.#settleRemoteChanges(remoteChangeTasks)
         if (!quiet) {
-          authFailed = false
-          emit({ state: 'idle' })
+          this.#authFailed = false
+          this.#emit({ state: 'idle' })
         }
       } catch (error) {
         if (error instanceof CycleSuppressedError) {
@@ -349,60 +391,62 @@ function createSyncEngine(
           // suppresses later Git commands. Preserve the old boundary: finish
           // that notification before the suppressed cycle settles to idle.
           try {
-            await settleRemoteChanges(remoteChangeTasks, false)
-            emit({ state: 'idle' })
+            await this.#settleRemoteChanges(remoteChangeTasks, false)
+            this.#emit({ state: 'idle' })
           } catch (notificationError) {
-            if (!signal.aborted) {
-              emit(statusForError(notificationError))
+            if (!this.#signal.aborted) {
+              this.#emit(statusForError(notificationError))
             }
           }
-        } else if (!signal.aborted) {
+        } else if (!this.#signal.aborted) {
           const status = statusForError(error)
-          authFailed = status.state === 'error' && status.errorKind === 'auth'
-          emit(status)
+          this.#authFailed = status.state === 'error' && status.errorKind === 'auth'
+          this.#emit(status)
         }
       } finally {
-        running = null
-        if (followUp !== null) {
-          const next = followUp
-          followUp = null
+        this.#running = null
+        if (this.#followUp !== null) {
+          const next = this.#followUp
+          this.#followUp = null
           // A stopped engine runs nothing more, but its awaiters must not hang.
           // A gated network follow-up still runs the commit a flush asked for.
-          const gated = options.canStartCycle?.() === false
+          const gated = this.#options.canStartCycle?.() === false
           const request = gated && next.flush ? COMMIT : next.request
-          void (signal.aborted ? Promise.resolve() : run(request)).finally(next.settle)
+          void (this.#signal.aborted ? Promise.resolve() : this.#run(request)).finally(next.settle)
         }
       }
     })()
-    return await running
+    return await this.#running
   }
 
-  async function cycle(
+  async #cycle(
     request: CycleRequest,
     quiet: boolean,
     remoteChanges: (changes: ChangedFile[]) => void,
   ): Promise<void> {
     if (!request.network) {
       // One command, no gate: the flush's commit must finish even hidden.
-      const flushed = await git.commitAll('Update notes', options.generation)
-      signal.throwIfAborted()
+      const flushed = await this.#deps.git.commitAll('Update notes', this.#options.generation)
+      this.#signal.throwIfAborted()
       if (flushed.skippedLargeFiles.length > 0) {
-        options.onLargeFilesSkipped?.(flushed.skippedLargeFiles)
+        this.#options.onLargeFilesSkipped?.(flushed.skippedLargeFiles)
       }
       return
     }
-    const offline = options.localOnly === true || quiet
+    const offline = this.#options.localOnly === true || quiet
     // The commit comes first: it is the part of every cycle a flush is owed,
     // and it must land even if the owner gates the network work that follows
     // (the credential resolution is the first point a gate can interrupt).
-    const commit = await step(git.commitAll('Update notes', options.generation))
+    const commit = await this.#step(
+      this.#deps.git.commitAll('Update notes', this.#options.generation),
+    )
     if (commit.skippedLargeFiles.length > 0) {
-      options.onLargeFilesSkipped?.(commit.skippedLargeFiles)
+      this.#options.onLargeFilesSkipped?.(commit.skippedLargeFiles)
     }
     if (offline) {
       return // the commit is the whole cycle: no remote, or the sign-in is known bad
     }
-    const credential = await step(options.getCredential())
+    const credential = await this.#step(this.#options.getCredential())
     if (!request.fetch) {
       // The debounce path often fires for changes that are already committed
       // and pushed (a pull's own writes re-enter via the watcher). Nothing
@@ -413,15 +457,15 @@ function createSyncEngine(
       }
     } else {
       // Launch/focus: pick up other devices' changes even with nothing to push.
-      const delta = await step(git.fetch(credential, options.generation))
-      const merged = await merge(remoteChanges)
+      const delta = await this.#step(this.#deps.git.fetch(credential, this.#options.generation))
+      const merged = await this.#merge(remoteChanges)
       const localOnly = commit.committed || delta.ahead > 0
       if (!localOnly && (merged.kind === 'upToDate' || merged.kind === 'fastForward')) {
         return // pulled cleanly and have nothing of our own — no push needed
       }
     }
     for (let attempt = 0; attempt < MAX_PUSH_ATTEMPTS; attempt++) {
-      const push = await step(git.push(credential, options.generation))
+      const push = await this.#step(this.#deps.git.push(credential, this.#options.generation))
       if (push.pushed) {
         return
       }
@@ -430,8 +474,8 @@ function createSyncEngine(
       }
       // The normal two-device race: another device pushed first. Converge and
       // retry — a conflicted merge still commits (markers in the note).
-      await step(git.fetch(credential, options.generation))
-      await merge(remoteChanges)
+      await this.#step(this.#deps.git.fetch(credential, this.#options.generation))
+      await this.#merge(remoteChanges)
     }
     throw new PushRejectedError(
       'the backup repo kept changing while syncing; will retry on the next edit',
@@ -439,8 +483,8 @@ function createSyncEngine(
   }
 
   /** Merge fetched changes and start any changed-file notification. */
-  async function merge(remoteChanges: (changes: ChangedFile[]) => void): Promise<{ kind: string }> {
-    return await step(git.mergeRemote(options.generation), (outcome) => {
+  async #merge(remoteChanges: (changes: ChangedFile[]) => void): Promise<{ kind: string }> {
+    return await this.#step(this.#deps.git.mergeRemote(this.#options.generation), (outcome) => {
       // The command may already have rewritten files before suspension. Fan
       // those changes out before the boundary gate stops subsequent Git work.
       if (outcome.changedFiles.length > 0) {
@@ -448,25 +492,10 @@ function createSyncEngine(
       }
     }) // upToDate is a no-op
   }
+}
 
-  function syncNow(): Promise<void> {
-    authFailed = false // a resume trigger: the user may have fixed the sign-in
-    return run(FULL)
-  }
-
-  function commitNow(): Promise<void> {
-    return run(COMMIT)
-  }
-
-  function stop(): void {
-    abort.abort()
-    if (timer !== null) {
-      clock.clearTimeout(timer)
-      timer = null
-    }
-  }
-
-  return { noteChanged, syncNow, commitNow, stop }
+export function createSyncEngineFactory(deps: SyncEngineDeps): SyncEngineFactory {
+  return { create: (options) => new SyncEngineImpl(deps, options) }
 }
 
 function statusForError(error: unknown): SyncStatus {
