@@ -216,19 +216,6 @@ const MODULE_LET_SELECTORS = [
   },
 ]
 
-const APP_LAYER_MESSAGE =
-  'This belongs to the app layer: it lives in `@reflect/app`, not in `@reflect/core`.'
-
-const CORE_APP_LAYER_SELECTORS = [
-  ...['isMainWindow', 'openNoteWindow', 'closeSecondaryWindows'].map((name) => ({
-    selector: `Identifier[name='${name}']`,
-    message: `\`${name}\`: ${APP_LAYER_MESSAGE}`,
-  })),
-  {
-    selector: "TSTypeReference > Identifier[name='Route']",
-    message: `\`Route\`: ${APP_LAYER_MESSAGE}`,
-  },
-]
 
 const CORE_DYNAMIC_IMPORT_SELECTORS = [
   dynamicImportSelector(
@@ -374,7 +361,6 @@ export default defineESLintConfig(
         'error',
         ...CORE_DYNAMIC_IMPORT_SELECTORS,
         ...DEFAULT_INSTANCE_SELECTORS,
-        ...CORE_APP_LAYER_SELECTORS,
         ...MODULE_LET_SELECTORS,
         ...CODE_SHAPE_SELECTORS,
       ],
