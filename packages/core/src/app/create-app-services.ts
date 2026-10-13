@@ -618,6 +618,12 @@ export const appServiceFactories = {
     deps: Omit<UpdateServiceDeps, 'updater'> & { updater: UpdaterAdapter | undefined },
   ): UpdateService =>
     deps.updater
+      // FIXME:
+      // instead of using a lambda function here. let's do this:
+      // export interface UpdateService { ... }
+      // class UpdateServiceImpl implements UpdateService { ... }
+      // class UnsupportedUpdateService implements UpdateService { ... }
+      // export function createUpdateService(deps): UpdateService { if (deps.updater) { return new UpdateServiceImpl(deps) } else { return new UnsupportedUpdateService() } }
       ? createUpdateService({ ...deps, updater: deps.updater })
       : createUnsupportedUpdateService(),
   backups: createBackupServiceFactory,
