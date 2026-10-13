@@ -479,6 +479,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
     const session = openDocuments.sessionFor(path)
     const unpersisted = await session?.prepareDelete()
     if (session !== null && unpersisted === true) {
+      noteRows.setOverlay(path, generation, { trashed: true })
       session.discard()
       return
     }
