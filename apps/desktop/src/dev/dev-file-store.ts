@@ -18,33 +18,33 @@ export interface DevFileStore {
   /**
    * Every eligible Markdown note anywhere in the graph (`list_files`).
    */
-  list: () => FileMeta[]
+  list(): FileMeta[]
   /**
    * Files under a graph-relative directory prefix (the `dir_list` view).
    */
-  listDir: (dir: string) => FileMeta[]
+  listDir(dir: string): FileMeta[]
   /**
    * A note's markdown, or `null` when the path doesn't exist.
    */
-  read: (path: string) => string | null
-  exists: (path: string) => boolean
+  read(path: string): string | null
+  exists(path: string): boolean
   /**
    * Write a file and return the `modifiedMs` it was stamped with (the
    * `note_write` contract: the caller's index echo carries this stamp).
    */
-  write: (path: string, contents: string) => number
+  write(path: string, contents: string): number
   /**
    * Create a file only when its path is free; never replaces existing bytes.
    */
-  create: (path: string, contents: string) => NoteCreateOutcome
+  create(path: string, contents: string): NoteCreateOutcome
   /**
    * Delete a path; a missing path is a no-op (mirrors trashing semantics).
    */
-  remove: (path: string) => void
+  remove(path: string): void
   /**
    * Rename a file; refuses (returns false) when the destination exists.
    */
-  move: (from: string, to: string) => boolean
+  move(from: string, to: string): boolean
 }
 
 /**
@@ -66,25 +66,30 @@ class DevFileStoreImpl implements DevFileStore {
     }
   }
 
-  readonly list = (): FileMeta[] =>
-    [...this.#files].filter(([path]) => isNotePath(path)).map(toMeta)
+  list(): FileMeta[] {
+    return [...this.#files].filter(([path]) => isNotePath(path)).map(toMeta)
+  }
 
-  readonly listDir = (dir: string): FileMeta[] => {
+  listDir(dir: string): FileMeta[] {
     const prefix = dir.endsWith('/') ? dir : `${dir}/`
     return [...this.#files].filter(([path]) => path.startsWith(prefix)).map(toMeta)
   }
 
-  readonly read = (path: string): string | null => this.#files.get(path)?.contents ?? null
+  read(path: string): string | null {
+    return this.#files.get(path)?.contents ?? null
+  }
 
-  readonly exists = (path: string): boolean => this.#files.has(path)
+  exists(path: string): boolean {
+    return this.#files.has(path)
+  }
 
-  readonly write = (path: string, contents: string): number => {
+  write(path: string, contents: string): number {
     const modifiedMs = Date.now()
     this.#files.set(path, { contents, modifiedMs })
     return modifiedMs
   }
 
-  readonly create = (path: string, contents: string): NoteCreateOutcome => {
+  create(path: string, contents: string): NoteCreateOutcome {
     if (this.#files.has(path)) {
       return { kind: 'collision' }
     }
@@ -93,11 +98,11 @@ class DevFileStoreImpl implements DevFileStore {
     return { kind: 'created', modifiedMs }
   }
 
-  readonly remove = (path: string): void => {
+  remove(path: string): void {
     this.#files.delete(path)
   }
 
-  readonly move = (from: string, to: string): boolean => {
+  move(from: string, to: string): boolean {
     const file = this.#files.get(from)
     if (file === undefined || this.#files.has(to)) {
       return false

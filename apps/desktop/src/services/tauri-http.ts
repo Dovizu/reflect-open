@@ -1,6 +1,16 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import type { HttpService } from '@reflect/core'
 
+class TauriHttpServiceImpl implements HttpService {
+  fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+    const headers = new Headers(init?.headers)
+    if (!headers.has('Origin')) {
+      headers.set('Origin', '')
+    }
+    return tauriFetch(input, { ...init, headers })
+  }
+}
+
 /**
  * HTTP through the Tauri HTTP plugin. Requests go out from the Rust side, so
  * webview CORS does not apply (OpenAI's API sends no CORS headers and would be
@@ -19,13 +29,5 @@ import type { HttpService } from '@reflect/core'
  * empty value an explicit removal).
  */
 export function createTauriHttpService(): HttpService {
-  return {
-    fetch(input, init) {
-      const headers = new Headers(init?.headers)
-      if (!headers.has('Origin')) {
-        headers.set('Origin', '')
-      }
-      return tauriFetch(input, { ...init, headers })
-    },
-  }
+  return new TauriHttpServiceImpl()
 }
