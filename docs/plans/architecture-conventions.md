@@ -27,6 +27,7 @@ reflect-open/
 │   └── extension/        # Chrome MV3 capture extension (Plan 11) — added at Plan 11
 ├── packages/
 │   ├── core/             # ALL TS business logic: <domain>/<name>-service.ts, the markdown layer
+│   ├── app/              # the app layer: windows, routes, commands, menus, update, boot flows
 │   ├── db/               # Kysely schema/types + the IPC query-builder dialect
 │   └── design-system/    # existing design tokens/components (already present)
 ├── docs/
@@ -38,21 +39,22 @@ Reflect that means **no file/DB/AI/sync logic in React components, hooks, or Tau
 handlers.** Components and hooks call `@reflect/core` services (§3); Tauri `#[command]`
 handlers are thin wrappers over native primitives. Picardo's "never write DB queries in a
 tRPC router" becomes Reflect's "never write file/DB/AI logic in a component or a Rust
-command handler: put it in a core service."
+command handler: put it in a core service." No windows, routes, menus or pixels in
+core: those belong to `@reflect/app`.
 
 ## 2. TS core, Rust = primitives
 
 Reflect has no server. The boundary runs between **TypeScript business logic** and a
 **thin Rust primitive surface**, bridged by the IPC layer (`IpcBridgeService`, §3).
 
-| Lives in `@reflect/core` (TypeScript) | Lives in `apps/desktop/src-tauri` (Rust primitive) |
-|---|---|
-| Reads (Kysely queries over IPC) | SQLite open/migrate/query/exec; FTS5 + sqlite-vec extension loading |
-| Orchestration of file writes + reindex | Atomic file IO, OS-trash delete, path-traversal guard, file watching |
-| AI/provider calls, context assembly, patchsets | Local embedding runtime (model download + `embed`) |
-| Privacy/capability guards (`private: true`) | Git operations (libgit2), keychain get/set/delete |
-| Sync conflict normalization + resolution policy | Native menus, global shortcuts, dialogs |
-| The markdown parse/serialize layer (Plan 03) | — |
+| Lives in `@reflect/core` (TypeScript) | Lives in `@reflect/app` (TypeScript) | Lives in `apps/desktop/src-tauri` (Rust primitive) |
+|---|---|---|
+| Reads (Kysely queries over IPC) | Navigation history and `Route`; which route a deep link opens | SQLite open/migrate/query/exec; FTS5 + sqlite-vec extension loading |
+| Orchestration of file writes + reindex | Windows, the app lifecycle, the quit and background policy | Atomic file IO, OS-trash delete, path-traversal guard, file watching |
+| AI/provider calls, context assembly, patchsets | Commands, keymap, native menus, palette search | Local embedding runtime (model download + `embed`) |
+| Privacy/capability guards (`private: true`) | The operations list, update, theme, exception telemetry | Git operations (libgit2), keychain get/set/delete |
+| Sync conflict normalization + resolution policy | The graph boot flows (`GraphBootService`, mobile onboarding) | Native menus, global shortcuts, dialogs |
+| The markdown parse/serialize layer (Plan 03) | (none) | — |
 
 Rust owns *capabilities*; TypeScript owns *policy and composition*. A Rust command never
 encodes product rules beyond the primitive it exposes (e.g. the watcher emits events; it
@@ -65,9 +67,10 @@ guardrails.
 
 Business logic is organized by **domain** under `packages/core/src/<domain>/`
 (`graph`, `documents`, `indexing`, `daily`, `tasks`, `search`, `embeddings`, `ai`,
-`capture`, `audio`, `sync`, ...). Each domain exposes **services**. There are no
-process-wide instances and no module-level mutable state in `@reflect/core`: a
-composition root builds every service once and passes each one what it needs.
+`capture`, `audio`, `sync`, ...). The app layer uses the same layout under
+`packages/app/src/<domain>/`. Each domain exposes **services**. There are no
+process-wide instances and no module-level mutable state in either package: two
+composition roots build every service once and pass each one what it needs.
 [docs/contributing/services.md](../contributing/services.md) is the step-by-step guide.
 
 ### What a service is
@@ -88,18 +91,20 @@ composition root builds every service once and passes each one what it needs.
 
 ```ts
 // packages/core/src/app/app-info-service.ts
-export interface AppInfoService {
-  /** The application version reported by the native shell. */
-  version(): Promise<string>
+class AppInfoServiceImpl implements AppInfoService {
+  readonly #deps: AppInfoServiceDeps
+
+  constructor(deps: AppInfoServiceDeps) {
+    this.#deps = deps
+  }
+
+  async version(): Promise<string> {
+    return await this.#deps.ipc.call('app_version', {}, appVersionSchema)
+  }
 }
 
-export function createAppInfoService(deps: { ipc: IpcBridgeService }): AppInfoService {
-  const { ipc } = deps
-  return {
-    async version() {
-      return await ipc.call('app_version', {}, appVersionSchema)
-    },
-  }
+export function createAppInfoService(deps: AppInfoServiceDeps): AppInfoService {
+  return new AppInfoServiceImpl(deps)
 }
 ```
 
@@ -116,50 +121,56 @@ a `CloudSafe<T>` value (`privacy/cloud-safe.ts`) is minted only by the gate in
 `privacy/privacy-service.ts` (`PrivacyService` and its pure `cloudSafe*` constructors),
 and every provider-bound input requires one.
 
-### `CoreServices` and `createCoreServices(adapters)`
+### Three packages and two roots
 
-`packages/core/src/app/create-core-services.ts` is the composition root.
-`createCoreServices(adapters)` builds every service in dependency order and returns
-them as one `CoreServices` object (`ipc`, `noteFile`, `indexLifecycle`, `settings`,
-`graphSession`, ...). It runs once per webview.
+- `@reflect/core` (`packages/core`): business logic and the interfaces of the
+  platform primitives. `createCoreServices(adapters)` in `app/create-core-services.ts`
+  returns `CoreServices`. `CoreAdapters` is what the host supplies, because core never
+  imports `@tauri-apps/*`: the IPC bridge, the platform facts, HTTP, Web storage, path,
+  and the ports.
+- `@reflect/app` (`packages/app`): the app layer. `createAppServices(core, host)` in
+  `src/create-app-services.ts` returns `AppServices` over the core services. `AppHost`
+  is what the host supplies: the window, lifecycle and operations services, dialogs,
+  clipboard, opener, updater and native menu host.
+- `apps/desktop`: React and the adapters. Lint keeps React, TanStack and Tauri out of
+  both packages, and `@reflect/app` out of core.
 
-`CoreAdapters` is what the host must supply, because core never imports
-`@tauri-apps/*`: the IPC transport (`IpcBridge`: `invoke` + `listen`), the platform
-facts, HTTP, Web storage, dialog, clipboard, opener, path, window and lifecycle
-primitives, and optionally a logger, clock, updater, native menu host and deep-link
-source.
+A **port** is an interface in `packages/core/src/app/ports.ts` that core calls and an
+app service implements: `progress` (`ProgressPort`, the app's `OperationsService`) and
+`activity` (`ActivityPort`, the app's `AppLifecycleService`). `role` (`'main'` or
+`'note-window'`) tells core which window it runs in.
 
-The desktop app's adapters live in `apps/desktop/src/services/`:
+The desktop adapters live in `apps/desktop/src/services/`: `tauri-*.ts` wrap the Tauri
+APIs, `browser-*.ts` are the plain-browser equivalents for `pnpm dev` without the shell,
+and `create-desktop-services.ts` picks one set by `facts.isNativeShell`
+(`createDesktopAdapters` for core, `createDesktopHost` for app).
+`apps/desktop/src/boot.ts` builds, in order: the shared primitives (`logger`, `clock`,
+`ipc`), the host, `coreServices`, and `appServices`. Only `main.tsx` and the platform
+roots import them. In browser dev the transport is a deferred one (`deferred-ipc.ts`):
+calls made before the in-memory dev backend connects wait for it.
 
-- `tauri-*.ts` wrap the Tauri APIs (`tauri-ipc.ts`, `tauri-http.ts`,
-  `tauri-window.ts`, `tauri-dialog.ts`, ...). `browser-*.ts` are the plain-browser
-  equivalents for `pnpm dev` without the shell.
-- `create-desktop-services.ts` (`createDesktopAdapters(facts, ipc, primitives)`) picks one set by
-  `facts.isNativeShell`.
-- `apps/desktop/src/boot.ts` detects the platform facts, calls `createCoreServices`,
-  and exports the result as `appServices`. Only `main.tsx` and the platform roots
-  import it. In browser dev the transport is a deferred one (`deferred-ipc.ts`): calls
-  made before the in-memory dev backend connects wait for it.
-
-The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
-`paywall`, `mobileAudioMemo`, ...) are optional fields of `CoreServices`.
+The services only a mobile platform builds (`haptics`, `subscription`, `paywall`,
+`mobileAudioMemo`, ...) are in `CoreServices.mobile`, which is `null` elsewhere.
 
 ### How code reaches a service
 
 - **Core:** through `deps`. Nothing else.
-- **React:** `main.tsx` renders `<CoreServicesProvider services={appServices}>`
+- **React:** `main.tsx` renders `CoreServicesProvider` and `AppServicesProvider`
   (`apps/desktop/src/services/services-provider.tsx`). Components and hooks call
-  `useCoreServices()` and destructure what they use:
+  `useCoreServices()` for core services and `useAppServices()` for app services, and
+  destructure what they use:
 
   ```ts
-  const { agentSkill, platform } = useCoreServices()
+  const { agentSkill } = useCoreServices()
+  const { platform } = useAppServices()
   ```
 
-  `useCoreServices()` throws outside a provider. Do not add per-service hooks. The
+  Both hooks throw outside their provider. Do not add per-service hooks. The
   mobile tree uses `useMobileAppServices()` (`mobile/mobile-services.ts`), which adds
   `app.mobile` and throws when it is `null`.
 - **Non-React desktop modules** (`lib/`, `providers/*.ts`): the first parameter is
-  `ctx`, typed as the `Pick` of `CoreServices` the function uses. The React caller
+  `ctx`, typed as the `Pick` of `CoreServices` the function uses (a second `Pick` of
+  `AppServices` when it needs both). The React caller
   passes `useCoreServices()`:
 
   ```ts
@@ -170,8 +181,8 @@ The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
   )
   ```
 
-- **Commands:** `CommandContext` (`apps/desktop/src/lib/commands/types.ts`) has a
-  `services: CoreServices` field. A command that calls a service reads it from the
+- **Commands:** `CommandContext` (`apps/desktop/src/lib/commands/types.ts`) has
+  `services: CoreServices` and `app: AppServices`. A command that calls a service reads it from the
   context it runs with, never from an import.
 
 Providers are thin shells. `GraphProvider` reads its service with
@@ -189,7 +200,9 @@ closes. Building it once per app would let a pass or a pending turn of the previ
 graph leak into the next one. For these, a **factory** (in the `graphServiceFactories`
 table of `app/create-graph-services.ts`) or an app-scoped `openSession` method builds the
 instance, and `createGraphServices` (`app/create-graph-services.ts`)
-creates one instance per `GraphSession` and disposes it when `session.signal` aborts:
+creates one instance per `GraphSession` and disposes it when `session.signal` aborts.
+Its `GraphLifecycleFlags` pick the lifecycles; `createAppGraphServices`
+(`packages/app/src/graph/graph-lifecycles.ts`) decides them from the window role:
 
 | Created by | Creates | Lifetime |
 |---|---|---|
@@ -212,7 +225,8 @@ listeners such as `capture.onXPostsWritten`). A session exposes `start()` /
 
 `GraphSessionService` (`CoreServices.graphSession`, `graph/graph-session-service.ts`)
 owns the active graph of a webview: status, recents, and the open, create, switch,
-forget and delete flows. `getState().session` is the open graph as one read-only
+forget and delete flows. `GraphBootService` (`AppServices.graphBoot`) holds the
+window-aware parts: the boot path, the folder picker, and closing note windows. `getState().session` is the open graph as one read-only
 `GraphSession`: `{ root, name, generation, indexGeneration, signal }`. `signal` aborts
 when the graph closes or another one replaces it.
 
@@ -221,9 +235,8 @@ Rust pins every write to a session with two independent counters: the file
 rejects a file write, and drops an index write, that carries a stale one, so a pass
 that outlives a graph switch cannot land in the next graph.
 
-`GraphSessionService` builds the graph-scoped container (`GraphServices`,
-`createGraphServices(session, role, deps)` in `app/create-graph-services.ts`)
-for each session and publishes it as `getState().services`; the app reads it with
+`GraphSessionService` builds the graph-scoped container (`GraphServices`, through
+`CoreAdapters.createGraphServices`) for each session and publishes it as `getState().services`; the app reads it with
 `useGraphServices()`. It holds the per-graph lifecycles above. A background pass that
 must stop with the graph checks `session.signal.aborted` (`indexLifecycle.sync(session)`).
 
@@ -266,7 +279,7 @@ its overlay, so the index row is the truth again.
 ### Tests
 
 A service is unit-tested by constructing it over test doubles from
-`@reflect/core/testing`. No module mocks, no fake timers, no console spies. See
+`@reflect/core/testing` and `@reflect/app/testing`. No module mocks, no fake timers, no console spies. See
 [docs/contributing/testing.md](../contributing/testing.md).
 
 ## 4. Kysely discipline (adopt fully)
@@ -295,8 +308,8 @@ shape of the data:
   cached rows; the app only invalidates queries, it never patches them. SQLite stays the single
   source of truth — **the frontend caches the projection, it never holds a second copy of it.**
 - **Service-owned state** (settings, theme, the active graph and its recents, navigation
-  history, backup status, operations, the chat session) → lives **in the core service**
-  that owns it, exposed as a snapshot getter plus `subscribe()` and read in React with
+  history, backup status, operations, the chat session) → lives **in the service**
+  that owns it (core or app), exposed as a snapshot getter plus `subscribe()` and read in React with
   `useServiceState` (a `useSyncExternalStore` wrapper). It is not mirrored into TanStack Query or a store.
 - **Editor / document state** → owned by **meowdown/ProseMirror**; the `<Editor>` is
   uncontrolled, so this is never mirrored into a store.

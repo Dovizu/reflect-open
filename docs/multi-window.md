@@ -44,11 +44,11 @@ harness — get the single-window host (`createSingleWindowHost`), whose label i
 | Update checks, OS deep-link intake                | ✓ | — |
 | Graph management (open / switch / delete)         | ✓ | refused |
 
-The gate is structural: `createGraphServices` (`@reflect/core`) builds the
+The gate is structural: `createAppGraphServices` (`@reflect/app`) turns on the
 per-graph background lifecycles only for the main window's role, so a new one
 declares its ownership rather than remembering a guard. A note window's deep
 link intake has no OS source, and `UpdateService.start` does nothing there. Graph-mutating
-actions are refused off-main in `GraphSessionService` (`requireMainWindow`) —
+actions are refused off-main in `GraphSessionService` (`role !== 'main'`) —
 opening a graph from a note window would re-root the shared `GraphState`
 under every window at once.
 
@@ -89,7 +89,7 @@ below. The command is also exposed in the native Window menu.
    preferred for that target, a distinct suffixed `note-*` window is created
    and becomes preferred instead.
 3. The new webview boots the ordinary desktop tree. `GraphProvider` sees a
-   non-main label and takes the adoption leg (`GraphSessionService.boot`):
+   non-main label and takes the adoption leg (`GraphBootService.boot`):
    `window_bootstrap` returns the graph info + index generation (unbumped —
    pinned by the `session_adoption_reads_never_bump_generations` test) and
    drains the pending deep link. Because ⌘-click builds **path-shaped**
@@ -156,7 +156,7 @@ silently dropped the note window's initial link.
   their owner (via `close()`, so each child's flush runs exactly like ⌘W — no
   data loss).
 - **Switching or deleting the graph closes note windows first.** They
-  adopted the outgoing session, so `GraphSessionService` awaits
+  adopted the outgoing session, so `GraphBootService` awaits
   `close_note_windows` **before** anything bumps the generations: each
   child's flush runs against the still-valid session, and a destroyed
   webview implies its flush landed (close-requested defers destruction until
