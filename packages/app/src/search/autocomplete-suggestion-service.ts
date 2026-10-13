@@ -1,20 +1,23 @@
+import {
+  aliasHint,
+  ambiguousNoteTitleMessage,
+  contactDetailsMarkdown,
+  displayNoteTitle,
+  errorMessage,
+  formatDayLabel,
+  localIsoDate,
+  type ClockService,
+  type ContactsService,
+  type GraphSessionService,
+  type LoggerService,
+  type NoteCreationService,
+  type OperationsService,
+  type PersonContactResolution,
+  type PersonNoteService,
+  type SettingsService,
+  type SuggestionService,
+} from '@reflect/core'
 import { Counter, isNotNullish } from '@ocavue/utils'
-import type { ClockService } from '../app/clock-service.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
-import type { ContactsService } from '../contacts/contacts-service.ts'
-import { contactDetailsMarkdown } from '../contacts/markdown.ts'
-import type { PersonContactResolution, PersonNoteService } from '../contacts/person-note-service.ts'
-import { errorMessage } from '../errors.ts'
-import type { GraphSessionService } from '../graph/graph-session-service.ts'
-import type { NoteCreationService } from '../graph/note-creation-service.ts'
-import { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
-import { aliasHint } from '../indexing/suggest.ts'
-import type { SuggestionService } from '../indexing/suggestion-service.ts'
-import { formatDayLabel } from '../lib/date-labels.ts'
-import { localIsoDate } from '../lib/dates.ts'
-import { displayNoteTitle } from '../markdown/note-title.ts'
-import type { SettingsService } from '../settings/settings-service.ts'
 import { buildAutocompleteEntries } from './wiki-autocomplete-entries.ts'
 
 /**

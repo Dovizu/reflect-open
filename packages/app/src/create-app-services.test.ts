@@ -6,7 +6,7 @@ describe('createAppServices', () => {
   it('builds the app layer over the core services', () => {
     const core = createTestCoreServices()
     const app = createAppServices(core, {})
-    expect(app).toEqual({})
+    expect(app).toHaveProperty('autocompleteSuggestions')
     core.database.close()
   })
 })

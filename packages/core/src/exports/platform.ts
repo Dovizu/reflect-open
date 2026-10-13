@@ -96,13 +96,6 @@ export {
   type NoteSessionStatus,
 } from '../documents/note-session.ts'
 export {
-  buildAutocompleteEntries,
-  type AutocompleteEntry,
-  type ContactEntryCandidate,
-  type EntryOptions,
-} from '../search/wiki-autocomplete-entries.ts'
-export { type AutocompleteSuggestionService } from '../search/autocomplete-suggestion-service.ts'
-export {
   buildPaletteSections,
   type NoteEntry,
   type PaletteHit,
@@ -110,17 +103,8 @@ export {
 } from '../search/palette-entries.ts'
 export { type PaletteSearchService } from '../search/palette-search-service.ts'
 export {
-  EMPTY_ALL_NOTES_FILTERS,
   UPDATED_PRESETS,
-  buildAllNotesSearch,
-  hasActiveFilters,
-  pendingTagToken,
-  searchPlanFor,
   updatedPresetFilter,
-  updatedRangeFilter,
-  type AllNotesFilters,
-  type NoteFilterRef,
-  type PendingTag,
   type UpdatedFilter,
   type UpdatedPreset,
 } from '../search/all-notes-filters.ts'
@@ -322,7 +306,22 @@ export {
   type ThemeService,
 } from '../settings/theme-service.ts'
 export { type ContactsAuthorization, type ContactMatch } from '../contacts/commands.ts'
-export { type ContactsState } from '../contacts/contacts-service.ts'
+export {
+  contactsCanLookup,
+  lookupContactPeople,
+  type ContactsService,
+  type ContactsState,
+} from '../contacts/contacts-service.ts'
+export { contactDetailsMarkdown } from '../contacts/markdown.ts'
+export {
+  createPersonNoteService,
+  type EnsurePersonNoteInput,
+  type PersonContactResolution,
+  type PersonNoteService,
+} from '../contacts/person-note-service.ts'
+export { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
+export { localIsoDate } from '../lib/dates.ts'
+export { serializeWikiSuggestionAddress, type WikiLinkSuggestion } from '../indexing/suggest.ts'
 export { type ClassicAccess, type ClassicSignInResult } from '../classic/classic-access-service.ts'
 export {
   createClassicAccessService,

@@ -100,7 +100,8 @@ const SERVICE_KEYS = [
   'chatSessions',
   'capture',
   'assetDescription',
-  'autocompleteSuggestions',
+  'personNotes',
+  'suggestions',
   'paletteSearch',
   'mobile',
 ] as const satisfies readonly (keyof CoreServices)[]

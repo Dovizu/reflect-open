@@ -1,6 +1,10 @@
-import type { ContactMatch } from '../contacts/contacts-service.ts'
-import { serializeWikiSuggestionAddress, type WikiSuggestion } from '../indexing/suggest.ts'
-import { foldFallbackTitleKey, foldKey } from '../markdown/keys.ts'
+import {
+  foldFallbackTitleKey,
+  foldKey,
+  serializeWikiSuggestionAddress,
+  type ContactMatch,
+  type WikiSuggestion,
+} from '@reflect/core'
 
 /**
  * Pure assembly of the `[[` popover's rows (Plan 07): the ranked index

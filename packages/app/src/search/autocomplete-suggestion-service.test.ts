@@ -1,32 +1,31 @@
 import { describe, expect, it } from 'vitest'
 import {
   contactsCanLookup,
+  createPersonNoteService,
+  createSuggestionService,
+  createWikiResolverService,
   lookupContactPeople,
   type ContactMatch,
   type ContactsAuthorization,
-} from '../contacts/contacts-service.ts'
-import {
-  createPersonNoteService,
+  type DateSuggestionContext,
   type EnsurePersonNoteInput,
   type PersonContactResolution,
   type PersonNoteService,
-} from '../contacts/person-note-service.ts'
-import type { ResolveOrCreateNoteResult } from '../graph/note-creation-service.ts'
-import type { DateSuggestionContext } from '../indexing/date-suggestion-types.ts'
-import {
-  createSuggestionService,
+  type ResolveOrCreateNoteResult,
+  type Settings,
   type WikiLinkSuggestionResult,
-} from '../indexing/suggestion-service.ts'
-import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
-import type { Settings } from '../settings/schema.ts'
-import { createTestClockService } from '../testing/clock.ts'
-import { createTestContactsService } from '../testing/contacts.ts'
-import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
-import { createTestGraphSessionService } from '../testing/graph-session.ts'
-import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
-import { createTestNoteCreationService } from '../testing/graph.ts'
-import { createTestSettingsService } from '../testing/settings.ts'
+} from '@reflect/core'
+import {
+  createTestClockService,
+  createTestContactsService,
+  createTestDatabaseService,
+  createTestGraphSessionService,
+  createTestLoggerService,
+  createTestNoteCreationService,
+  createTestOperationsService,
+  createTestSettingsService,
+  seedNotes,
+} from '@reflect/core/testing'
 import { createAutocompleteSuggestionService } from './autocomplete-suggestion-service.ts'
 
 const NO_SUGGESTIONS: WikiLinkSuggestionResult = {

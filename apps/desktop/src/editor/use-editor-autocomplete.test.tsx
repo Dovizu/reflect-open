@@ -70,7 +70,7 @@ async function setup(options?: SetupOptions) {
       await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation),
   }
   const graphSession = createTestGraphSessionService()
-  const { autocompleteSuggestions } = createTestCoreServices({
+  const app = createTestCoreServices({
     graphSession,
     suggestions: {
       ...base.suggestions,
@@ -86,13 +86,6 @@ async function setup(options?: SetupOptions) {
     personNotes,
     settings,
     operations,
-  })
-  const app = createTestCoreServices({
-    graphSession,
-    autocompleteSuggestions,
-    operations,
-    settings,
-    contacts,
   })
   const { result } = await renderHookInApp(() => useEditorAutocomplete(), {
     app,
