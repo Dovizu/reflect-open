@@ -4,6 +4,7 @@ import { toAppError, type AppError } from '../errors.ts'
 
 /**
  * Tears down a subscription created by {@link IpcBridge.listen}.
+ * FIXME: move `type Unlisten` to a more general location. It's clear that `Unlisten` is not specific to IPC.
  */
 export type Unlisten = () => void
 
