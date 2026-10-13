@@ -20,7 +20,9 @@ import { createLiveIndex } from './live.ts'
 
 const NOW = 1_750_000_000_000
 
-/** Mirrors the default file listing: one arrival needing a read. */
+/**
+ * Mirrors the default file listing: one arrival needing a read.
+ */
 const DEFAULT_SCAN = {
   total: 1,
   candidates: [{ path: 'notes/a.md', modifiedMs: 5, storedMtime: null, storedHash: null }],
@@ -37,7 +39,9 @@ afterEach(() => {
   }
 })
 
-/** A row as an earlier pass stored it, with the facts the next pass compares. */
+/**
+ * A row as an earlier pass stored it, with the facts the next pass compares.
+ */
 interface StoredNote {
   path: string
   markdown: string
@@ -91,7 +95,9 @@ function setup(options?: {
     return await readFile(path, generation)
   })
   const appliedListeners = new Set<ChangesAppliedEmitter>()
-  /** Listen for the batches the indexer and the live index report as applied. */
+  /**
+   * Listen for the batches the indexer and the live index report as applied.
+   */
   function subscribeIndexApplied(listener: ChangesAppliedEmitter): () => void {
     appliedListeners.add(listener)
     return () => {
@@ -137,7 +143,9 @@ function setup(options?: {
   }
 }
 
-/** A listing of `paths`, each holding a heading of its own path. */
+/**
+ * A listing of `paths`, each holding a heading of its own path.
+ */
 function notes(...paths: string[]): Record<string, { contents: string; modifiedMs: number }> {
   return Object.fromEntries(
     paths.map((path, index) => [path, { contents: `# ${path}\n`, modifiedMs: index + 1 }]),

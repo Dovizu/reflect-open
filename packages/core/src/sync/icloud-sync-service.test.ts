@@ -37,7 +37,9 @@ let lifecycle: TestLifecycleService
 let logger: TestLoggerService
 let fileChanges: TestFileChangeService
 let icloud: TestICloudNativeService
-/** Scripted sweep outcomes; `'hang'` parks the sweep until {@link releaseScan}. */
+/**
+ * Scripted sweep outcomes; `'hang'` parks the sweep until {@link releaseScan}.
+ */
 let scanResults: Array<IcloudSweepOutcome | Error | 'hang'>
 let releaseScan: (() => void) | null
 let dirtyPaths: string[]
@@ -77,7 +79,9 @@ afterEach(() => {
   active = null
 })
 
-/** A desktop service by default; `watch: true` is the mobile shape. */
+/**
+ * A desktop service by default; `watch: true` is the mobile shape.
+ */
 function service(overrides: { watch?: boolean } = {}) {
   active = createICloudSyncServiceFactory({
     icloudNative: icloud,

@@ -15,11 +15,15 @@ import {
 } from './persistence-flush-service.ts'
 import type { CloseRequestedHandler, WindowService } from './window-service.ts'
 
-/** A flusher that records its calls and can hold or fail the next one. */
+/**
+ * A flusher that records its calls and can hold or fail the next one.
+ */
 interface Step {
   readonly fn: () => Promise<void>
   calls(): number
-  /** The next call stays pending until the returned function runs. */
+  /**
+   * The next call stays pending until the returned function runs.
+   */
   hold(): () => void
   failNext(message: string): void
 }
@@ -71,7 +75,9 @@ interface Setup {
   documents: Step
   settings: Step
   backup: Step
-  /** Run the close-requested handlers without awaiting them. */
+  /**
+   * Run the close-requested handlers without awaiting them.
+   */
   requestClose: () => CloseRequest
 }
 
@@ -165,7 +171,9 @@ function install(uninstall: Unlisten): void {
   disposers.push(uninstall)
 }
 
-/** Let every pending promise continuation run. */
+/**
+ * Let every pending promise continuation run.
+ */
 async function settle(): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, 0)

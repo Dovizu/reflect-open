@@ -21,7 +21,9 @@ import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createNotePreviewService, type NotePreviewServiceDeps } from './note-preview-service.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
 
-/** A test graph session with a graph of generation 7 open. */
+/**
+ * A test graph session with a graph of generation 7 open.
+ */
 function openGraph() {
   return createTestGraphSessionService({ graph: { generation: 7 } })
 }
@@ -30,7 +32,9 @@ function previewAssetUrl(generation: number, path: string): string {
   return `reflect-asset://localhost/${encodeURIComponent(`${generation}/${path}`)}?reflect-preview=raster`
 }
 
-/** The real service over a link resolver and note documents over `noteFile` (empty by default). */
+/**
+ * The real service over a link resolver and note documents over `noteFile` (empty by default).
+ */
 function notePreviewOver(
   options?: Partial<NotePreviewServiceDeps> & { noteFile?: NoteFileService },
 ) {
@@ -48,7 +52,9 @@ function notePreviewOver(
   })
 }
 
-/** A real `AttachmentService` whose catalog lists `listing()`. */
+/**
+ * A real `AttachmentService` whose catalog lists `listing()`.
+ */
 function attachmentsOver(listing: () => Promise<readonly { path: string; size: number }[]>) {
   const clock = createTestClockService()
   const noteFile: NoteFileService = Object.assign(createTestNoteFileService(), {

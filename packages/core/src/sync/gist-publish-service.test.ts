@@ -26,7 +26,9 @@ const PUBLISHED = { id: 'g1', htmlUrl: 'https://gist.github.com/alex/g1' }
 const BODY = '# A\n\nhello\n'
 const PATH = 'notes/a.md'
 
-/** A note already carrying a gist block (published as `Old.md`, hash stale). */
+/**
+ * A note already carrying a gist block (published as `Old.md`, hash stale).
+ */
 const REPUBLISH_SOURCE = upsertFrontmatter(BODY, {
   gist: {
     id: 'g0',
@@ -37,11 +39,17 @@ const REPUBLISH_SOURCE = upsertFrontmatter(BODY, {
 })
 
 interface SetupOptions {
-  /** The note on disk; `null` leaves the file missing. Defaults to {@link BODY}. */
+  /**
+   * The note on disk; `null` leaves the file missing. Defaults to {@link BODY}.
+   */
   source?: string | null
-  /** The stored GitHub token. Defaults to `'tok'`. */
+  /**
+   * The stored GitHub token. Defaults to `'tok'`.
+   */
   token?: string | null
-  /** An open session of the note. */
+  /**
+   * An open session of the note.
+   */
   session?: NoteSession
 }
 
@@ -101,15 +109,21 @@ function setup(options?: SetupOptions) {
     operations,
     clipboard,
     tokenReads,
-    /** Make the next disk write reject with `error`. */
+    /**
+     * Make the next disk write reject with `error`.
+     */
     failNextWrite: (error: Error): void => {
       writeFailure = error
     },
-    /** Answer every gist request of `method` with `reply`. */
+    /**
+     * Answer every gist request of `method` with `reply`.
+     */
     reply: (method: string, reply: TestHttpReply): void => {
       http.on(method, (url) => url.startsWith(GISTS_URL), reply)
     },
-    /** The gist requests sent with `method`, each with its JSON body. */
+    /**
+     * The gist requests sent with `method`, each with its JSON body.
+     */
     sent: (method: string) =>
       http
         .requests()

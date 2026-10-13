@@ -9,7 +9,9 @@ import type { AudioMemoIdentity } from './audio-memo-session.ts'
  * (`audio/audio-memo-service`).
  */
 
-/** `audio/mp4` ← `m4a` etc. — the inverse of the storage-naming map. */
+/**
+ * `audio/mp4` ← `m4a` etc. — the inverse of the storage-naming map.
+ */
 const MIME_BY_EXTENSION: Record<string, string> = Object.fromEntries(
   Object.entries(AUDIO_EXTENSION_BY_MIME).map(([mime, extension]) => [extension, mime]),
 )
@@ -49,7 +51,9 @@ function buildIdentity(
   }
 }
 
-/** The identity a fresh recording will be stored under (local time). */
+/**
+ * The identity a fresh recording will be stored under (local time).
+ */
 export function audioMemoIdentity(recordedAt: Date, mimeType: string): AudioMemoIdentity {
   const date = `${recordedAt.getFullYear()}-${pad(recordedAt.getMonth() + 1, 2)}-${pad(recordedAt.getDate(), 2)}`
   const hours = pad(recordedAt.getHours(), 2)
@@ -70,7 +74,9 @@ export function audioMemoFromPath(path: string): AudioMemoIdentity | null {
   return audioMemoPartFromPath(path)?.memo ?? null
 }
 
-/** A parsed segment path: which session, which position, end-marked or not. */
+/**
+ * A parsed segment path: which session, which position, end-marked or not.
+ */
 export interface ParsedAudioMemoPart {
   memo: AudioMemoIdentity
   part: number
@@ -116,7 +122,9 @@ export function audioMemoPartFromPath(path: string): ParsedAudioMemoPart | null 
   }
 }
 
-/** The stored path of one session segment, e.g. `….part-002-end.m4a`. */
+/**
+ * The stored path of one session segment, e.g. `….part-002-end.m4a`.
+ */
 export function audioMemoPartPath(memo: AudioMemoIdentity, part: number, end: boolean): string {
   const extension = memo.audioPath.slice(memo.audioPath.lastIndexOf('.') + 1)
   return audioMemoPath(`${memo.base}.part-${pad(part, 3)}${end ? '-end' : ''}.${extension}`)

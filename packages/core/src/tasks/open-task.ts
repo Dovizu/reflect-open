@@ -7,15 +7,21 @@ import { compareTaskPaths, type TaskRow } from '../markdown/index.ts'
 export interface OpenTask extends TaskRow {
   notePath: string
   noteTitle: string
-  /** ISO date for daily-note tasks; null for tasks in regular notes. */
+  /**
+   * ISO date for daily-note tasks; null for tasks in regular notes.
+   */
   dailyDate: string | null
-  /** Pin flag mapped to a real boolean at the read boundary. */
+  /**
+   * Pin flag mapped to a real boolean at the read boundary.
+   */
   isPinned: boolean
   pinnedOrder: number | null
   updatedAt: number
 }
 
-/** Note path first, then the task's place in that note. */
+/**
+ * Note path first, then the task's place in that note.
+ */
 export function compareTasksByNote(left: OpenTask, right: OpenTask): number {
   if (left.notePath !== right.notePath) {
     return left.notePath < right.notePath ? -1 : 1

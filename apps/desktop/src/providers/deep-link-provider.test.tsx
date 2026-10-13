@@ -33,15 +33,21 @@ function setup() {
     return <DeepLinkProvider>{null}</DeepLinkProvider>
   }
 
-  /** Render under the app's router with `GRAPH` open, as the workspace mounts the provider. */
+  /**
+   * Render under the app's router with `GRAPH` open, as the workspace mounts the provider.
+   */
   async function render(ui: ReactNode) {
     return await renderInApp(ui, { app, graph: GRAPH })
   }
 
-  /** The routes navigated to so far, in order. */
+  /**
+   * The routes navigated to so far, in order.
+   */
   const navigated = () => app.navigation.navigations().map((call) => call.route)
 
-  /** Dispatch a note link whose resolution stays pending until it is resolved. */
+  /**
+   * Dispatch a note link whose resolution stays pending until it is resolved.
+   */
   function dispatchPendingNote(target: string) {
     const pending = Promise.withResolvers<string | null>()
     resolveNoteTarget.mockReturnValueOnce(pending.promise)

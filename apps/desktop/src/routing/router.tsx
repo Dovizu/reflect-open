@@ -94,7 +94,9 @@ export function RouterProvider({
   // hook always updates synchronously, which would drop the transition and
   // flash the loading fallback of every lazily loaded screen.
   const [state, setState] = useState(() => navigation.getState())
-  /** The state on screen, readable from scroll handlers without re-rendering. */
+  /**
+   * The state on screen, readable from scroll handlers without re-rendering.
+   */
   const rendered = useRef(state)
   // Written during render, not in an effect: descendant scroll-restoration
   // effects read this (through saveScrollState/savedScroll) on the same

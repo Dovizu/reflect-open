@@ -31,7 +31,9 @@ let app: ReturnType<typeof createApp>
 let forget: MockInstance<GraphSessionService['forgetRecent']>
 let deleteGraph: MockInstance<GraphSessionService['deleteGraph']>
 
-/** Every settings document the app persisted, oldest first. */
+/**
+ * Every settings document the app persisted, oldest first.
+ */
 function saved(): Settings[] {
   return app.settings.saves()
 }

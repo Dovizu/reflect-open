@@ -41,7 +41,9 @@ const RECORDING: AudioRecorderFinalSegment = {
   durationMs: 4000,
 }
 
-/** The test clock starts at the epoch, so the session identity does too. */
+/**
+ * The test clock starts at the epoch, so the session identity does too.
+ */
 const FINAL_PATH = audioMemoPartPath(audioMemoIdentity(new Date(0), 'audio/mp4'), 1, true)
 
 async function setup(provider: AiProviderConfig = OPENAI) {

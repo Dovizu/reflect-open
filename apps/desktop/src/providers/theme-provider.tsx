@@ -36,7 +36,9 @@ export function ThemeEffect(): null {
   return null
 }
 
-/** The current theme and a setter. */
+/**
+ * The current theme and a setter.
+ */
 export function useTheme(): {
   theme: Theme
   resolvedTheme: ResolvedTheme

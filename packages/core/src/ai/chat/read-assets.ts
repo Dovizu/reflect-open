@@ -67,7 +67,9 @@ export const readAssetsInput = z.object({
     ),
 })
 
-/** The effects {@link buildReadOneAsset} needs. */
+/**
+ * The effects {@link buildReadOneAsset} needs.
+ */
 export interface ReadAssetDeps {
   readNote: (path: string) => Promise<string>
   assetReferences: Pick<AssetReferences, 'notePaths'>

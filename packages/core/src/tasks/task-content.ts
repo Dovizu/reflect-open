@@ -1,4 +1,6 @@
-/** What committing the inline editor should do with `current` vs the `initial` seed. */
+/**
+ * What committing the inline editor should do with `current` vs the `initial` seed.
+ */
 export type TaskDraftResolution =
   | { type: 'commit'; content: string }
   | { type: 'cancel' }

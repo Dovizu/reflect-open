@@ -43,7 +43,9 @@ beforeEach(() => {
   onClose = vi.fn<() => void>()
 })
 
-/** Answer each `connectExistingRepo` call with the next result; the last one repeats. */
+/**
+ * Answer each `connectExistingRepo` call with the next result; the last one repeats.
+ */
 function scriptExisting(...results: ConnectExistingResult[]): void {
   let call = 0
   backup.onConnectExistingRepo(async () => {
@@ -64,18 +66,24 @@ function createWizard(auth: GithubAuth = PAT): ConnectGithubWizardService {
   )
 }
 
-/** Let every promise chain that is already runnable settle. */
+/**
+ * Let every promise chain that is already runnable settle.
+ */
 async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-/** Move the clock by `ms`, running the timers that come due, then settle. */
+/**
+ * Move the clock by `ms`, running the timers that come due, then settle.
+ */
 async function advance(ms: number): Promise<void> {
   await clock.advance(ms)
   await flush()
 }
 
-/** Sign in as alex and let the connect attempt settle. */
+/**
+ * Sign in as alex and let the connect attempt settle.
+ */
 async function signIn(wizard: ConnectGithubWizardService): Promise<void> {
   wizard.continueFromRepo()
   wizard.onAuthed(ALEX)

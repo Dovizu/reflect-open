@@ -61,7 +61,9 @@ function storedAccess(overrides: Partial<ClassicAccess> = {}): ClassicAccess {
   }
 }
 
-/** The callback of a sign-in sheet that approves `url` and echoes its `state`. */
+/**
+ * The callback of a sign-in sheet that approves `url` and echoes its `state`.
+ */
 function approve(url: string): string {
   const state = new URL(url).searchParams.get('state') ?? ''
   return `reflect://oauth/callback?code=the-code&state=${state}`
@@ -83,7 +85,9 @@ beforeEach(() => {
   webAuth = createTestWebAuthService(null)
 })
 
-/** Answers each path under the Reflect Classic origin with its route. */
+/**
+ * Answers each path under the Reflect Classic origin with its route.
+ */
 function routes(byPath: Record<string, Route>): void {
   for (const [path, route] of Object.entries(byPath)) {
     http.on('*', `${ORIGIN}${path}`, route)

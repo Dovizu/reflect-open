@@ -24,7 +24,9 @@ interface UseAiProvidersValue {
   setDefaultModel: (id: string, model: string) => void
 }
 
-/** The configured-AI-providers surface (Plan 10), over the `AiProviderConfigService`. */
+/**
+ * The configured-AI-providers surface (Plan 10), over the `AiProviderConfigService`.
+ */
 export function useAiProviders(): UseAiProvidersValue {
   const { aiProviderConfig: service } = useAppServices()
   const providers = useServiceState(service, service.list)

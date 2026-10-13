@@ -71,7 +71,9 @@ function showOperationToast(operation: Operation, logger: LoggerService): void {
   }
 }
 
-/** Start mirroring `operations` into toasts; returns a detach. */
+/**
+ * Start mirroring `operations` into toasts; returns a detach.
+ */
 export function attachOperationToasts(ctx: Pick<AppServices, 'operations' | 'logger'>): () => void {
   const { operations, logger } = ctx
   let shownIds = new Set<number>()

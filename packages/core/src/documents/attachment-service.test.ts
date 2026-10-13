@@ -24,7 +24,9 @@ interface Listing {
   size: number
 }
 
-/** A note file service listing `listing()` once `gate` settles, counting calls. */
+/**
+ * A note file service listing `listing()` once `gate` settles, counting calls.
+ */
 function listingNoteFile(
   listing: () => readonly Listing[] | Promise<readonly Listing[]>,
 ): NoteFileService & { listings: () => number } {

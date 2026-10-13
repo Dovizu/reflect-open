@@ -34,7 +34,9 @@ function newClient(): QueryClient {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
 }
 
-/** Mount the hook for `path` over the fakes above; `client` carries the session cache across mounts. */
+/**
+ * Mount the hook for `path` over the fakes above; `client` carries the session cache across mounts.
+ */
 async function mount(path: string, client: QueryClient) {
   const embeddingRuntime = createTestEmbeddingRuntimeService({ status: embedStatus })
   // The runtime has reported before the mount, as on a second visit to a note.

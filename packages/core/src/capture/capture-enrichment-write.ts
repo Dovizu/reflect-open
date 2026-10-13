@@ -15,7 +15,9 @@ import { parseNote } from '../markdown/extract.ts'
 import { parseFrontmatter, splitFrontmatter, upsertFrontmatter } from '../markdown/frontmatter.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
 
-/** The services the capture note writes go through. */
+/**
+ * The services the capture note writes go through.
+ */
 export interface CaptureWriteContext {
   noteFile: Pick<NoteFileService, 'read' | 'write'>
   hash: HashService

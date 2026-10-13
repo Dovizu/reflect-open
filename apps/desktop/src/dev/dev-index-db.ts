@@ -35,7 +35,9 @@ export interface DevIndexDb {
   saveChatMessage: (conversation: DevChatConversation, message: DevChatMessageRow) => void
   /** Delete a conversation; its messages cascade (`chat_conversation_delete`). */
   deleteChatConversation: (id: string) => void
-  /** Release the database. */
+  /**
+   * Release the database.
+   */
   close: () => void
 }
 

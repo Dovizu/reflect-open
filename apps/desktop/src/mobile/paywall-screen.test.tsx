@@ -46,7 +46,9 @@ let logger: TestLoggerService
 let services: AppServices
 let queryClient: QueryClient
 
-/** Render the paywall over the services of the running test. */
+/**
+ * Render the paywall over the services of the running test.
+ */
 async function mount(): Promise<InAppRenderResult<AppServices>> {
   const view = await renderInApp(<PaywallScreen />, { app: services })
   queryClient = view.queryClient
@@ -319,7 +321,9 @@ describe('PaywallScreen Reflect Classic verification', () => {
     }
   }
 
-  /** Mirrors `signIn`: the sign-in sheet closes, then the subscription is read. */
+  /**
+   * Mirrors `signIn`: the sign-in sheet closes, then the subscription is read.
+   */
   function afterSheet(result: () => Promise<ClassicSignInResult>) {
     return async (options: ClassicSignInOptions): Promise<ClassicSignInResult> => {
       options.onSheetClosed?.()

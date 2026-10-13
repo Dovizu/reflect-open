@@ -18,7 +18,9 @@ const STORAGE: MobileStorageInfo = {
 
 let completeOnboarding: MockInstance<MobileOnboardingService['completeOnboarding']>
 
-/** Render the first-run screen on the mobile platform, with the choice observed by the spy. */
+/**
+ * Render the first-run screen on the mobile platform, with the choice observed by the spy.
+ */
 async function mount(options?: {
   storage?: MobileStorageInfo
   resolving?: boolean

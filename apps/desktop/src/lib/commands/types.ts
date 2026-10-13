@@ -10,7 +10,9 @@ import type { NavigateOptions } from '@/routing/router.tsx'
  */
 
 export interface CommandContext {
-  /** The app services, for the commands that call one directly. */
+  /**
+   * The app services, for the commands that call one directly.
+   */
   services: AppServices
   navigate: (route: Route, options?: NavigateOptions) => void
   /** The current route, read at run time. */
@@ -61,5 +63,7 @@ export interface CommandContext {
   enableSemanticSearch: () => void
 }
 
-/** A command of this app: it runs with a {@link CommandContext}. */
+/**
+ * A command of this app: it runs with a {@link CommandContext}.
+ */
 export type AppCommand = Command<CommandContext>

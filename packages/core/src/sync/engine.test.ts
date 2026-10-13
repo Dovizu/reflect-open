@@ -23,23 +23,31 @@ beforeEach(() => {
   activeGit = createTestGitRepositoryService()
 })
 
-/** An engine over the git fake of the last {@link fakeGit} call and the test clock. */
+/**
+ * An engine over the git fake of the last {@link fakeGit} call and the test clock.
+ */
 function createSyncEngine(options: SyncEngineOptions): SyncEngine {
   return createSyncEngineFactory({ git: activeGit, clock }).create(options)
 }
 
-/** Let every promise chain that is already runnable settle. */
+/**
+ * Let every promise chain that is already runnable settle.
+ */
 async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-/** Move the clock by `ms`, running the timers that come due, then settle. */
+/**
+ * Move the clock by `ms`, running the timers that come due, then settle.
+ */
 async function advance(ms: number): Promise<void> {
   await clock.advance(ms)
   await flush()
 }
 
-/** Run every scheduled timer, however far away, then settle. */
+/**
+ * Run every scheduled timer, however far away, then settle.
+ */
 async function runAllTimers(): Promise<void> {
   await flush()
   while (clock.pendingTimers() > 0) {
@@ -60,7 +68,9 @@ const NON_FAST_FORWARD: PushOutcome = {
 const MERGED: MergeOutcome = { kind: 'merged', conflictedPaths: [], changedFiles: [] }
 const DELTA = { ahead: 1, behind: 0 }
 
-/** A git fake that commits, reports a delta, merges and pushes; every call recorded. */
+/**
+ * A git fake that commits, reports a delta, merges and pushes; every call recorded.
+ */
 function fakeGit(): TestGitRepositoryService {
   const git = createTestGitRepositoryService()
   git.onCommitAll(() => COMMITTED)

@@ -9,7 +9,9 @@ import { useAppServices } from '@/services/services-provider.tsx'
 
 export { applyNoteRowOverlay, type NoteRowOverlay, type NoteRowOverlayPatch } from '@reflect/core'
 
-/** Subscribe a component to `path`'s overlay on the open graph; `null` when none. */
+/**
+ * Subscribe a component to `path`'s overlay on the open graph; `null` when none.
+ */
 export function useNoteRowOverlay(path: string): NoteRowOverlay | null {
   const { noteRows } = useAppServices()
   const subscribe = useCallback((listener: () => void) => noteRows.subscribe(listener), [noteRows])
@@ -17,7 +19,9 @@ export function useNoteRowOverlay(path: string): NoteRowOverlay | null {
   return useSyncExternalStore(subscribe, getSnapshot)
 }
 
-/** Subscribe a component to every overlay on the open graph, by path. */
+/**
+ * Subscribe a component to every overlay on the open graph, by path.
+ */
 export function useNoteRowOverlays(): ReadonlyMap<string, NoteRowOverlay> {
   const { noteRows } = useAppServices()
   const subscribe = useCallback((listener: () => void) => noteRows.subscribe(listener), [noteRows])

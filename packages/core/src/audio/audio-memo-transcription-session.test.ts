@@ -18,7 +18,9 @@ let session: AudioMemoTranscriptionSession | null = null
 async function open(options?: AudioMemoTestKitOptions): Promise<{
   kit: AudioMemoTestKit
   subject: AudioMemoTranscriptionSession
-  /** How many passes got past the config gate. */
+  /**
+   * How many passes got past the config gate.
+   */
   passes: () => number
 }> {
   const kit = await createAudioMemoTestKit(options)
@@ -28,7 +30,9 @@ async function open(options?: AudioMemoTestKitOptions): Promise<{
   return { kit, subject, passes: () => listDirMock.mock.calls.length }
 }
 
-/** Settle the microtask chain a resolved pass runs on. */
+/**
+ * Settle the microtask chain a resolved pass runs on.
+ */
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }

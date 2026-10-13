@@ -7,7 +7,9 @@ import { useDeviceFlowAuth } from './use-device-flow-auth.ts'
 const mockFlow = vi.fn<GithubAuthService['runDeviceFlow']>()
 const AUTH: GithubAuth = { kind: 'pat', token: 'ghp_abc' }
 
-/** Render the hook over an app whose GitHub device flow is `mockFlow`. */
+/**
+ * Render the hook over an app whose GitHub device flow is `mockFlow`.
+ */
 async function mount() {
   const app = createTestAppServices()
   app.githubAuth.onRunDeviceFlow(mockFlow)

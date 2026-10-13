@@ -17,7 +17,9 @@ let noteFile: TestNoteFileService
 let noteCreation: TestNoteCreationService
 let personNotes: PersonNoteService
 
-/** A `#person` note owning `emails`. */
+/**
+ * A `#person` note owning `emails`.
+ */
 function personNote(path: string, title: string, emails: readonly string[]) {
   return {
     path,

@@ -22,7 +22,9 @@ function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
   }
 }
 
-/** Render the hook for `notes/a.md` in the graph `/g`. */
+/**
+ * Render the hook for `notes/a.md` in the graph `/g`.
+ */
 async function mount() {
   return await renderHookInApp(() => useNoteRow('notes/a.md'), {
     app,

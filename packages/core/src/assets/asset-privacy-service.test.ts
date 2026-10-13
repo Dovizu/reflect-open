@@ -7,13 +7,19 @@ import { createAssetPrivacyService, type AssetPrivacyService } from './asset-pri
 
 const asset = `assets/x/url_sha256_${'a'.repeat(64)}.png`
 
-/** Every `XArchiveService.owners` call, as `[assetPath, generation]`. */
+/**
+ * Every `XArchiveService.owners` call, as `[assetPath, generation]`.
+ */
 let ownerCalls: Array<[string, number | undefined]>
-/** When set, the archive ownership read rejects with it. */
+/**
+ * When set, the archive ownership read rejects with it.
+ */
 let ownersError: Error | null
 let privacy: AssetPrivacyService
 
-/** The real gate over `deps`, with a fresh test double for each one left out. */
+/**
+ * The real gate over `deps`, with a fresh test double for each one left out.
+ */
 function createPrivacy(
   deps?: Partial<Parameters<typeof createAssetPrivacyService>[0]>,
 ): AssetPrivacyService {
@@ -135,17 +141,23 @@ it('pins archive ownership to the classification graph generation', async () => 
 describe('classifyAsset (privacy gate)', () => {
   const GENERATION = 7
 
-  /** A public note referencing `assetPath`. */
+  /**
+   * A public note referencing `assetPath`.
+   */
   function publicNote(assetPath: string): string {
     return `# Diagram\n\n![](${assetPath})\n`
   }
 
-  /** A private note referencing `assetPath`. */
+  /**
+   * A private note referencing `assetPath`.
+   */
   function privateNote(assetPath: string): string {
     return `---\nprivate: true\n---\n\n![](${assetPath})\n`
   }
 
-  /** The gate over a graph of `files`, with the index reporting `refs` for `assets/a.png`. */
+  /**
+   * The gate over a graph of `files`, with the index reporting `refs` for `assets/a.png`.
+   */
   function classify(files: Readonly<Record<string, string>>, refs: readonly string[]) {
     return createPrivacy({
       noteFile: createTestNoteFileService({ files }),

@@ -9,7 +9,9 @@ let oembedFetchMock: MockInstance<WebFetchService['fetchOembed']>
 let metaFetchMock: MockInstance<WebFetchService['fetchMeta']>
 let pageMeta: PageMetaService
 
-/** The tests stand in for a caller that already passed the privacy gate. */
+/**
+ * The tests stand in for a caller that already passed the privacy gate.
+ */
 function scrape(url: string) {
   return pageMeta.scrape(url as CloudSafe<string>)
 }

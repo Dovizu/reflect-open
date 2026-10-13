@@ -42,7 +42,9 @@ const GRAPH = { root: '/g', name: 'g', generation: 1 } satisfies TestOpenGraph
 // `newChat` of the chat session the open graph created; set by `shortcutsHook`.
 let newChat: MockInstance<ChatSession['newChat']>
 
-/** An editor handle that records the Find traversal and ignores the rest. */
+/**
+ * An editor handle that records the Find traversal and ignores the rest.
+ */
 function findHandle(findNext: () => void, findPrevious: () => void): NoteEditorHandle {
   return {
     getMarkdown: () => '',

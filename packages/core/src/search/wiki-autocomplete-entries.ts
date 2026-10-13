@@ -23,9 +23,13 @@ export type AutocompleteEntry<Suggestion extends WikiSuggestion = WikiSuggestion
 
 export interface ContactEntryCandidate {
   readonly contact: ContactMatch
-  /** Validated text inserted by a wikilink consumer, or the attendee name. */
+  /**
+   * Validated text inserted by a wikilink consumer, or the attendee name.
+   */
   readonly target: string
-  /** Existing owner path, or null for a Contact that would create a note. */
+  /**
+   * Existing owner path, or null for a Contact that would create a note.
+   */
   readonly ownerPath: string | null
 }
 
@@ -42,7 +46,9 @@ export interface EntryOptions {
    * the note row already covers it, exactly v1's dedup.
    */
   contacts?: readonly ContactEntryCandidate[]
-  /** Exact Contact names whose identity is blocked and must not offer Create. */
+  /**
+   * Exact Contact names whose identity is blocked and must not offer Create.
+   */
   blockedContactNames?: readonly string[]
   /**
    * Drop raw Create/contact text that cannot be embedded in `[[…]]` without

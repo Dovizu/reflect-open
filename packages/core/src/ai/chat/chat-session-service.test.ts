@@ -87,9 +87,13 @@ interface SetupOptions {
   conversations?: readonly TestChatConversation[]
   settings?: Partial<Settings>
   embedStatus?: EmbedStatus
-  /** Wraps the in-memory history, to gate or count its calls. */
+  /**
+   * Wraps the in-memory history, to gate or count its calls.
+   */
   history?: (history: ChatHistoryService) => ChatHistoryService
-  /** The index generation of the open graph; 7 by default. */
+  /**
+   * The index generation of the open graph; 7 by default.
+   */
   indexGeneration?: number | null
   apiKey?: string | null
 }
@@ -155,7 +159,9 @@ async function setup(options: SetupOptions = {}) {
   }
 }
 
-/** Let the started promise chains (a resume, a save) run to their end. */
+/**
+ * Let the started promise chains (a resume, a save) run to their end.
+ */
 async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }

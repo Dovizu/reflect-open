@@ -41,9 +41,13 @@ This note is pinned to the sidebar — unpin it (⌘O) when you're done.
 `
 
 export interface EnsureWelcomeNoteOptions {
-  /** File-write generation (`graph.generation`): pins the listing and write. */
+  /**
+   * File-write generation (`graph.generation`): pins the listing and write.
+   */
   fileGeneration: number
-  /** Index-session generation (`index_open`): pins the meta marker. */
+  /**
+   * Index-session generation (`index_open`): pins the meta marker.
+   */
   indexGeneration: number
 }
 

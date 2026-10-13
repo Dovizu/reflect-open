@@ -17,7 +17,9 @@ import { lazy, Suspense, useState, type ReactElement } from 'react'
  */
 
 interface TemplateCreateDialogProps {
-  /** The command capabilities (navigate). */
+  /**
+   * The command capabilities (navigate).
+   */
   context: CommandContext
 }
 

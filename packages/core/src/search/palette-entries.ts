@@ -21,21 +21,33 @@ export type PaletteHit = Pick<FilteredSearchHit, 'path' | 'title' | 'dailyDate' 
 export interface NoteEntry {
   path: string
   title: string
-  /** Set for daily notes (render the day label). */
+  /**
+   * Set for daily notes (render the day label).
+   */
   date: string | null
-  /** Body snippet with highlight markers (search hits only). */
+  /**
+   * Body snippet with highlight markers (search hits only).
+   */
   snippet: string | null
-  /** Human label for a generated date suggestion ("Next Friday"); null otherwise. */
+  /**
+   * Human label for a generated date suggestion ("Next Friday"); null otherwise.
+   */
   phrase: string | null
-  /** The alias a title suggestion matched through, when not the title itself; null otherwise. */
+  /**
+   * The alias a title suggestion matched through, when not the title itself; null otherwise.
+   */
   alias: string | null
 }
 
-/** What the palette reads off a command to match it against the query. */
+/**
+ * What the palette reads off a command to match it against the query.
+ */
 export type PaletteCommand = Pick<Command, 'title' | 'keywords'>
 
 export interface PaletteSections<AppCommand extends PaletteCommand = PaletteCommand> {
-  /** `>` prefix: the query (sans prefix) filters commands only. */
+  /**
+   * `>` prefix: the query (sans prefix) filters commands only.
+   */
   commandsOnly: boolean
   notes: NoteEntry[]
   commands: AppCommand[]
@@ -54,12 +66,18 @@ function matchesCommand(command: PaletteCommand, query: string): boolean {
 
 export function buildPaletteSections<AppCommand extends PaletteCommand>(options: {
   query: string
-  /** The query the data arrays actually answer (the deferred value). */
+  /**
+   * The query the data arrays actually answer (the deferred value).
+   */
   dataQuery: string
   suggestions: WikiSuggestion[]
-  /** The one search path's results (filters may be empty — Plan 08b). */
+  /**
+   * The one search path's results (filters may be empty — Plan 08b).
+   */
   hits: PaletteHit[]
-  /** True when the data query carried filter tokens (describes `hits`). */
+  /**
+   * True when the data query carried filter tokens (describes `hits`).
+   */
   filtered: boolean
   commands: AppCommand[]
 }): PaletteSections<AppCommand> {

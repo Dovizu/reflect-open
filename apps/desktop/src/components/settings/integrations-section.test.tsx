@@ -21,7 +21,9 @@ let platform: TestPlatformOptions
 let opener: TestOpenerService
 let settings: TestSettingsService
 
-/** Render the section over a settings document that starts as `stored`. */
+/**
+ * Render the section over a settings document that starts as `stored`.
+ */
 async function renderSection(stored: Partial<Settings> = {}): Promise<void> {
   const app = createTestAppServices({ contacts, platform: createTestPlatformService(platform) })
   ;({ opener, settings } = app)

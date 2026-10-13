@@ -94,7 +94,9 @@ function ReArrive(): ReactElement {
 let deleteNote: MockInstance<NoteFileService['delete']>
 
 interface RenderScreenOptions {
-  /** The indexed notes; defaults to the two regular notes and the tagged daily. */
+  /**
+   * The indexed notes; defaults to the two regular notes and the tagged daily.
+   */
   notes?: readonly SeedNote[]
   dateFormat?: Settings['dateFormat']
   queryClient?: QueryClient

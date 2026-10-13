@@ -6,7 +6,9 @@
 export interface SubscriptionTracker {
   /** Track an already-acquired dispose function. */
   track: (dispose: () => void) => void
-  /** Tear everything down; later `track`s dispose immediately. */
+  /**
+   * Tear everything down; later `track`s dispose immediately.
+   */
   disposeAll: () => void
 }
 

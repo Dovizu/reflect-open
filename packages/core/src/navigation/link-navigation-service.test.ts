@@ -97,7 +97,9 @@ function setup(options?: {
   }
 }
 
-/** A link host whose activations go stale as the service's probe says, or on `leave()`. */
+/**
+ * A link host whose activations go stale as the service's probe says, or on `leave()`.
+ */
 function createHost(linkNavigation: LinkNavigationService): LinkNavigationHost & {
   routes: () => readonly Route[]
   leave: () => void
@@ -119,7 +121,9 @@ function createHost(linkNavigation: LinkNavigationService): LinkNavigationHost &
   }
 }
 
-/** Lets settled promises of the in-memory doubles run their continuations. */
+/**
+ * Lets settled promises of the in-memory doubles run their continuations.
+ */
 async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }

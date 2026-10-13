@@ -29,7 +29,9 @@ let noteSource: string
 let operations: TestOperationsService
 let trash: MockInstance<NoteActionsService['trashOne']>
 
-/** The shelf as the sidebar reads it, as comma-joined titles. */
+/**
+ * The shelf as the sidebar reads it, as comma-joined titles.
+ */
 function PinnedTitles() {
   const titles = usePinnedNotes().map((note) => note.title)
   return <output data-testid="pinned" data-titles={titles.join(',')} />

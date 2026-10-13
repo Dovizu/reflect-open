@@ -14,33 +14,55 @@ import type { DateFormat } from '../settings/schema.ts'
  * one search path.
  */
 
-/** A note chosen in a link-filter picker. */
+/**
+ * A note chosen in a link-filter picker.
+ */
 export interface NoteFilterRef {
-  /** The picked note's exact path — what the link filter targets, so a duplicated title can never retarget it. */
+  /**
+   * The picked note's exact path — what the link filter targets, so a duplicated title can never retarget it.
+   */
   path: string
-  /** The note's title — the chip's label. */
+  /**
+   * The note's title — the chip's label.
+   */
   title: string
 }
 
-/** An updated-at constraint: resolved epoch-ms bounds plus the chip label. */
+/**
+ * An updated-at constraint: resolved epoch-ms bounds plus the chip label.
+ */
 export interface UpdatedFilter {
-  /** What the badge shows while active ("Last 7 days", "Since Jun 1"). */
+  /**
+   * What the badge shows while active ("Last 7 days", "Since Jun 1").
+   */
   label: string
-  /** Inclusive lower bound on `mtime`, epoch ms, or null. */
+  /**
+   * Inclusive lower bound on `mtime`, epoch ms, or null.
+   */
   afterMs: number | null
-  /** Exclusive upper bound on `mtime`, epoch ms, or null. */
+  /**
+   * Exclusive upper bound on `mtime`, epoch ms, or null.
+   */
   beforeMs: number | null
 }
 
-/** Every badge on the All tab's filter row. */
+/**
+ * Every badge on the All tab's filter row.
+ */
 export interface AllNotesFilters {
   pinned: boolean
   daily: boolean
-  /** Folded tag keys (multi-select; results carry every one). */
+  /**
+   * Folded tag keys (multi-select; results carry every one).
+   */
   tags: string[]
-  /** Results must link **to** this note. */
+  /**
+   * Results must link **to** this note.
+   */
   linkedTo: NoteFilterRef | null
-  /** Results must be linked **from** this note. */
+  /**
+   * Results must be linked **from** this note.
+   */
   linkedBy: NoteFilterRef | null
   updated: UpdatedFilter | null
 }
@@ -54,7 +76,9 @@ export const EMPTY_ALL_NOTES_FILTERS: AllNotesFilters = {
   updated: null,
 }
 
-/** True when any badge is active — shows the Reset control. */
+/**
+ * True when any badge is active — shows the Reset control.
+ */
 export function hasActiveFilters(filters: AllNotesFilters): boolean {
   return (
     filters.pinned ||
@@ -73,9 +97,13 @@ export function hasActiveFilters(filters: AllNotesFilters): boolean {
 const PENDING_TAG_RE = /(?:^|\s)#([\p{L}\p{N}/_-]*)$/u
 
 export interface PendingTag {
-  /** The query with the trailing `#…` token removed. */
+  /**
+   * The query with the trailing `#…` token removed.
+   */
   rest: string
-  /** What follows the `#` so far (may be empty — bare `#` lists every tag). */
+  /**
+   * What follows the `#` so far (may be empty — bare `#` lists every tag).
+   */
   partial: string
 }
 
@@ -92,7 +120,9 @@ export function pendingTagToken(query: string): PendingTag | null {
   return { rest: query.slice(0, match.index).trimEnd(), partial: match[1] ?? '' }
 }
 
-/** The later of two inclusive lower bounds (AND semantics), null-tolerant. */
+/**
+ * The later of two inclusive lower bounds (AND semantics), null-tolerant.
+ */
 function laterBound(first: number | null, second: number | null): number | null {
   if (first === null) {
     return second
@@ -100,7 +130,9 @@ function laterBound(first: number | null, second: number | null): number | null 
   return second === null ? first : Math.max(first, second)
 }
 
-/** The earlier of two exclusive upper bounds (AND semantics), null-tolerant. */
+/**
+ * The earlier of two exclusive upper bounds (AND semantics), null-tolerant.
+ */
 function earlierBound(first: number | null, second: number | null): number | null {
   if (first === null) {
     return second
@@ -153,7 +185,9 @@ export function buildAllNotesSearch(
   return merged
 }
 
-/** Free-text searches cap at the same row budget V1's list search used. */
+/**
+ * Free-text searches cap at the same row budget V1's list search used.
+ */
 const SEARCH_LIMIT = 50
 
 /**
@@ -168,7 +202,9 @@ export function searchPlanFor(parsed: ParsedSearchQuery): FilteredSearchOptions 
     : { limit: null, pinnedFirst: true, notesOnly: true }
 }
 
-/** The updated-at badge's relative presets. */
+/**
+ * The updated-at badge's relative presets.
+ */
 export type UpdatedPreset = 'today' | 'week' | 'month'
 
 export const UPDATED_PRESETS: readonly { preset: UpdatedPreset; label: string }[] = [
@@ -177,19 +213,25 @@ export const UPDATED_PRESETS: readonly { preset: UpdatedPreset; label: string }[
   { preset: 'month', label: 'Last 30 days' },
 ]
 
-/** Epoch ms of the local start of `now`'s day, shifted by `days`. */
+/**
+ * Epoch ms of the local start of `now`'s day, shifted by `days`.
+ */
 function localDayStartMs(now: Date, days: number): number {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days).getTime()
 }
 
-/** Resolve a relative preset against `now` (injectable for tests). */
+/**
+ * Resolve a relative preset against `now` (injectable for tests).
+ */
 export function updatedPresetFilter(preset: UpdatedPreset, now: Date = new Date()): UpdatedFilter {
   const days = preset === 'today' ? 0 : preset === 'week' ? -6 : -29
   const label = UPDATED_PRESETS.find((entry) => entry.preset === preset)!.label
   return { label, afterMs: localDayStartMs(now, days), beforeMs: null }
 }
 
-/** Epoch ms of the local start of an ISO `YYYY-MM-DD` day, shifted by `days`. */
+/**
+ * Epoch ms of the local start of an ISO `YYYY-MM-DD` day, shifted by `days`.
+ */
 function isoDayStartMs(date: string, days = 0): number {
   const [year, month, day] = date.split('-').map(Number)
   return new Date(year!, month! - 1, day! + days).getTime()

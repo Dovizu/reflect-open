@@ -46,7 +46,9 @@ type CompleteOnboarding = MobileOnboardingService['completeOnboarding']
 
 let completeOnboarding: MockInstance<CompleteOnboarding>
 
-/** Render the screen on the mobile platform, with the switch flow observed and answered by the spy. */
+/**
+ * Render the screen on the mobile platform, with the switch flow observed and answered by the spy.
+ */
 async function mount(storage: MobileStorageInfo = STORAGE): Promise<void> {
   const app = createTestAppServices({
     platform: createTestPlatformService(MOBILE_PLATFORM),

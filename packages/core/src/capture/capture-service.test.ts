@@ -99,9 +99,13 @@ function setup(options: { mobile?: boolean } = {}) {
     fileChanges,
     operations,
     logger,
-    /** One call per drain phase. */
+    /**
+     * One call per drain phase.
+     */
     drains: vi.spyOn(captureInbox, 'list'),
-    /** One call per enrichment phase. */
+    /**
+     * One call per enrichment phase.
+     */
     enrichments: vi.spyOn(noteFile, 'listNotes'),
     relays: vi.spyOn(captureInbox, 'relaySharedInbox'),
   }

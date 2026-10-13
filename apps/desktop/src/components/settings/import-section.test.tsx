@@ -18,7 +18,9 @@ beforeEach(() => {
   dialog = createTestDialogService({ files: ['/Users/alex/Downloads/reflect-v1.zip'] })
 })
 
-/** The section under the workspace's real V1 import, whose native import never finishes. */
+/**
+ * The section under the workspace's real V1 import, whose native import never finishes.
+ */
 async function renderSection(): Promise<TestAppServices> {
   const app = createTestAppServices({ dialog })
   app.ipc.onCommand(IMPORT_COMMAND, () => new Promise<never>(() => {}))

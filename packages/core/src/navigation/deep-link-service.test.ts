@@ -216,7 +216,9 @@ describe('DeepLinkService.handle', () => {
   })
 })
 
-/** A service over a source whose two calls are spies, so a case can count and fail them. */
+/**
+ * A service over a source whose two calls are spies, so a case can count and fail them.
+ */
 function setupIntake() {
   const live = createTestDeepLinkSource()
   const onOpenUrl = vi.fn<(listener: (urls: string[]) => void) => Promise<Unlisten>>((listener) =>
@@ -224,7 +226,9 @@ function setupIntake() {
   )
   const getCurrent = vi.fn<() => Promise<string[] | null>>(() => Promise.resolve(null))
   const service = createTestDeepLinkService({ source: { onOpenUrl, getCurrent } })
-  /** Deliver to the subscription made by the last `onOpenUrl` call. */
+  /**
+   * Deliver to the subscription made by the last `onOpenUrl` call.
+   */
   const pluginDeliver = (urls: string[]): void => {
     const callback = onOpenUrl.mock.calls.at(-1)?.[0]
     if (callback === undefined) {

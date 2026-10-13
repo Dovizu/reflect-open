@@ -24,9 +24,13 @@ function connected(status: Extract<BackupState, { phase: 'connected' }>['status'
 
 interface MountOptions {
   backup?: BackupState
-  /** Answers the index's conflicted-note read. */
+  /**
+   * Answers the index's conflicted-note read.
+   */
   conflictedNotes?: () => Promise<ConflictedNote[]>
-  /** The height of the software keyboard. */
+  /**
+   * The height of the software keyboard.
+   */
   keyboardInset?: number
 }
 

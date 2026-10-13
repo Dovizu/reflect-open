@@ -12,13 +12,17 @@ export type { PluginSubscription } from './ipc-service.ts'
  * an untyped payload.
  */
 
-/** A declared plugin command, invoked through the given {@link IpcBridgeService}. */
+/**
+ * A declared plugin command, invoked through the given {@link IpcBridgeService}.
+ */
 export type PluginCommand<Args extends Record<string, unknown>, Result> = (
   ipc: IpcBridgeService,
   args: Args,
 ) => Promise<Result>
 
-/** A declared plugin event, subscribed through the given {@link IpcBridgeService}. */
+/**
+ * A declared plugin event, subscribed through the given {@link IpcBridgeService}.
+ */
 export type PluginEvent<Payload> = (
   ipc: IpcBridgeService,
   handler: (payload: Payload) => void,

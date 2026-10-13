@@ -26,7 +26,9 @@ import {
   type SearchNotesOutput,
 } from './note-tools-service.ts'
 
-/** The effects one test scripts; the rest answer as an empty graph does. */
+/**
+ * The effects one test scripts; the rest answer as an empty graph does.
+ */
 interface ToolEffects {
   retrieveFn?: (query: string, options?: RetrieveOptions) => Promise<RetrievalHit[]>
   readNoteFn?: (path: string) => Promise<string>
@@ -37,7 +39,9 @@ interface ToolEffects {
   semanticSearchEnabled?: boolean
 }
 
-/** The tool set of a `NoteToolsService` over `effects`, with the real privacy gate. */
+/**
+ * The tool set of a `NoteToolsService` over `effects`, with the real privacy gate.
+ */
 function buildNoteTools(effects: ToolEffects = {}): NoteTools {
   const noteFile = {
     read: async (path: string): Promise<string> => {

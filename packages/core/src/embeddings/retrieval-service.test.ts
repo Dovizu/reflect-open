@@ -15,7 +15,9 @@ import { createRetrievalService } from './retrieval-service.ts'
 const MODEL = 'all-MiniLM-L6-v2'
 const DIMENSIONS = 384
 
-/** A unit vector at `degrees` in the plane of the first two axes. */
+/**
+ * A unit vector at `degrees` in the plane of the first two axes.
+ */
 function direction(degrees: number): number[] {
   const vector = Array.from({ length: DIMENSIONS }, () => 0)
   const radians = (degrees * Math.PI) / 180
@@ -50,7 +52,9 @@ const NOTES: readonly TestNote[] = [
   },
 ]
 
-/** A retrieval service over a graph of {@link NOTES}, embedded through the real pipeline. */
+/**
+ * A retrieval service over a graph of {@link NOTES}, embedded through the real pipeline.
+ */
 async function setup(options?: { status?: EmbedStatus; embedded?: boolean }) {
   const database = createTestDatabaseService()
   seedNotes(database, NOTES)

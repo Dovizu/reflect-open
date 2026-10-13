@@ -9,7 +9,9 @@ import {
 } from './app-store-environment-service.ts'
 
 let storage: TestStorageService
-/** What the install-channel probe answers, or how it fails to. */
+/**
+ * What the install-channel probe answers, or how it fails to.
+ */
 let probe: () => Promise<string>
 let probes: number
 

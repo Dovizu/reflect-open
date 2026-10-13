@@ -17,7 +17,9 @@ export interface TaskFilters {
   archived: boolean
 }
 
-/** Keep only the groups the active filters allow (V1's per-bucket toggles). */
+/**
+ * Keep only the groups the active filters allow (V1's per-bucket toggles).
+ */
 export function visibleGroups(groups: TaskGroup[], filters: TaskFilters): TaskGroup[] {
   return groups.filter((group) => {
     switch (group.kind) {
@@ -34,16 +36,26 @@ export function visibleGroups(groups: TaskGroup[], filters: TaskFilters): TaskGr
 }
 
 export interface TaskListSources {
-  /** The open-tasks query data (`undefined` while loading). */
+  /**
+   * The open-tasks query data (`undefined` while loading).
+   */
   readonly open: OpenTask[] | undefined
-  /** The completed-tasks query data — only read when `filters.archived` is on. */
+  /**
+   * The completed-tasks query data — only read when `filters.archived` is on.
+   */
   readonly completed: OpenTask[] | undefined
-  /** This session's completed tasks, still showing struck until archived. */
+  /**
+   * This session's completed tasks, still showing struck until archived.
+   */
   readonly recentlyCompleted: readonly OpenTask[]
   readonly filters: TaskFilters
-  /** The search text, already trimmed and lowercased (empty = no filter). */
+  /**
+   * The search text, already trimmed and lowercased (empty = no filter).
+   */
   readonly needle: string
-  /** Today's ISO `YYYY-MM-DD` date. */
+  /**
+   * Today's ISO `YYYY-MM-DD` date.
+   */
   readonly today: string
 }
 

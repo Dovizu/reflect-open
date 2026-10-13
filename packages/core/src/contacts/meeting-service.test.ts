@@ -48,7 +48,9 @@ function input(overrides: Partial<AddMeetingInput> = {}): AddMeetingInput {
   }
 }
 
-/** A `#person` note owning `emails`. */
+/**
+ * A `#person` note owning `emails`.
+ */
 function personNote(path: string, title: string, emails: readonly string[]): TestNote {
   return {
     path,
@@ -66,18 +68,24 @@ const JANE_CONTACT: ContactMatch = {
   phones: [],
 }
 
-/** The emails of the most recent person-owner query. */
+/**
+ * The emails of the most recent person-owner query.
+ */
 function lastResolvedEmails(): readonly unknown[] {
   const owners = database.getQueries().filter((query) => query.sql.includes('note_emails'))
   return owners.at(-1)?.params.slice(0, -2) ?? []
 }
 
-/** The writes that landed on the daily note; note creation is a write to another path. */
+/**
+ * The writes that landed on the daily note; note creation is a write to another path.
+ */
 function dailyWrites(): NoteFileWrite[] {
   return noteFile.writes().filter((write) => write.path === DAILY)
 }
 
-/** The meeting service over this test's doubles, with `overrides` in place of the matching ones. */
+/**
+ * The meeting service over this test's doubles, with `overrides` in place of the matching ones.
+ */
 function meetingService(
   overrides?: Partial<Parameters<typeof createMeetingService>[0]>,
 ): MeetingService {

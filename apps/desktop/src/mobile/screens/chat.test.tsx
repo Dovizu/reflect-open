@@ -72,7 +72,9 @@ function FocusChatProbe(): ReactElement {
   )
 }
 
-/** The screen over the graph's chat session, unmountable like a tab switch. */
+/**
+ * The screen over the graph's chat session, unmountable like a tab switch.
+ */
 function Harness(): ReactElement {
   const [showScreen, setShowScreen] = useState(true)
   return (

@@ -75,7 +75,9 @@ function createNoteTools(effects?: {
   })
 }
 
-/** The tool set over scripted retrieval and note reads; an empty graph by default. */
+/**
+ * The tool set over scripted retrieval and note reads; an empty graph by default.
+ */
 function tools(effects?: {
   retrieveFn?: () => Promise<RetrievalHit[]>
   readNoteFn?: (path: string) => Promise<string>

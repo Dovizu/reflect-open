@@ -11,19 +11,31 @@ import {
 } from '@reflect/core'
 import { createTestGraphSessionService } from '@reflect/core/testing'
 
-/** The boundaries of the resolver pipeline that `useLinkPreview` gets from `LinkPreviewService`. */
+/**
+ * The boundaries of the resolver pipeline that `useLinkPreview` gets from `LinkPreviewService`.
+ */
 interface LinkPreviewResolverDependencies {
-  /** Read the note's live full markdown through the open-document registry. */
+  /**
+   * Read the note's live full markdown through the open-document registry.
+   */
   readonly readSource: NoteDocumentService['readExisting']
-  /** Fetch bounded page HTML using a privacy-authorized URL. */
+  /**
+   * Fetch bounded page HTML using a privacy-authorized URL.
+   */
   readonly fetchHtml: WebFetchService['fetchLinkPreviewHtml']
-  /** Fetch a bounded raster favicon using a privacy-authorized URL. */
+  /**
+   * Fetch a bounded raster favicon using a privacy-authorized URL.
+   */
   readonly fetchIcon: WebFetchService['fetchLinkPreviewIcon']
-  /** Parse and validate bounded display metadata from the fetched page. */
+  /**
+   * Parse and validate bounded display metadata from the fetched page.
+   */
   readonly parseMetadata: typeof parseLinkPreviewMeta
 }
 
-/** One editor-session resolver of a `LinkPreviewService` over `dependencies`. */
+/**
+ * One editor-session resolver of a `LinkPreviewService` over `dependencies`.
+ */
 function createNoteLinkPreviewResolver(
   session: LinkPreviewSession,
   currentSession: () => LinkPreviewSession | null,

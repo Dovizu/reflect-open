@@ -22,7 +22,9 @@ import { scanInlineWikiLinks } from './scan.ts'
 import type { ParsedTask, TaskLocator, TaskSnapshot } from './task-model.ts'
 import { isSameTaskPath } from './task-path.ts'
 
-/** Where the task functions report a locator that names several identical tasks. */
+/**
+ * Where the task functions report a locator that names several identical tasks.
+ */
 export interface TaskLogContext {
   readonly logger: Pick<LoggerService, 'warn'>
 }

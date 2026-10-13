@@ -10,7 +10,9 @@ import type { InsertTaskTarget } from './task-insert-target.ts'
  * definition, no drift between the editing and not-editing paths.
  */
 
-/** Today's daily note as an insert target — V1's "add to Today" / Current bucket. */
+/**
+ * Today's daily note as an insert target — V1's "add to Today" / Current bucket.
+ */
 export function todaysDailyTarget(today: string): InsertTaskTarget {
   return {
     notePath: dailyPath(today),

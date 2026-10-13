@@ -37,9 +37,13 @@ async function setup(options: {
   storedRows: Array<{ content_hash: string; model_id: string }>
   path?: string
   descriptions?: Record<string, string>
-  /** Report the note itself as iCloud-evicted (bytes not local). */
+  /**
+   * Report the note itself as iCloud-evicted (bytes not local).
+   */
   evicted?: boolean
-  /** Sidecar paths (`<asset>.reflect.md`) to report as iCloud-evicted. */
+  /**
+   * Sidecar paths (`<asset>.reflect.md`) to report as iCloud-evicted.
+   */
   evictedSidecars?: string[]
 }) {
   const path = options.path ?? NOTE_PATH
@@ -288,12 +292,16 @@ const NOTES = [
   { path: 'templates/journal.md', markdown: '# Journal\n\nMood:\n' },
 ]
 
-/** An embedding index whose chunk writes land in a database indexed with {@link NOTES}. */
+/**
+ * An embedding index whose chunk writes land in a database indexed with {@link NOTES}.
+ */
 function setupGraph(options?: { unreadable?: string[] }) {
   const database = createTestDatabaseService()
   seedNotes(database, NOTES)
   const unreadable = options?.unreadable ?? []
-  /** Paths whose chunk writes reject. */
+  /**
+   * Paths whose chunk writes reject.
+   */
   const unwritable = new Set<string>()
   const logger = createTestLoggerService()
   const runtime = createTestEmbeddingRuntimeService({
@@ -329,7 +337,9 @@ function setupGraph(options?: { unreadable?: string[] }) {
   return { index, database, noteFile, indexLifecycle, logger, runtime, storedPaths, unwritable }
 }
 
-/** Long enough for every queued item of a follow to have run. */
+/**
+ * Long enough for every queued item of a follow to have run.
+ */
 async function queueDrained(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 20))
 }

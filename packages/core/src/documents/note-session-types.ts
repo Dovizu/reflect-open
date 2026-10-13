@@ -55,7 +55,9 @@ export interface NoteSessionOptions {
    * reopen of that graph carries over.
    */
   readOnly?: boolean
-  /** Round-trip fidelity check gating editability (meowdown's `checkRoundTrip`). */
+  /**
+   * Round-trip fidelity check gating editability (meowdown's `checkRoundTrip`).
+   */
   classify: (markdown: string) => RoundTripFidelity
   /** Receives every state change. Not called after `dispose()`. */
   onSnapshot: (snapshot: NoteSessionSnapshot) => void
@@ -99,7 +101,9 @@ export interface NoteSessionOptions {
   missingSeed?: string | undefined
   saveDebounceMs?: number
 }
-/** One open note's document lifecycle. Create via {@link NoteSessionService.create}. */
+/**
+ * One open note's document lifecycle. Create via {@link NoteSessionService.create}.
+ */
 export interface NoteSession {
   /** The graph-relative path this session is bound to (mutable via {@link NoteSession.retarget}). */
   readonly path: string
@@ -215,7 +219,9 @@ export interface NoteSession {
   discard: () => void
 }
 
-/** Creates the document session of each open note. */
+/**
+ * Creates the document session of each open note.
+ */
 export interface NoteSessionService {
   /**
    * The save pipeline + external-change reconciliation for one open note

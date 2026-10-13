@@ -28,7 +28,9 @@ export interface SettledRename {
   previousAutoAliases: readonly string[]
 }
 
-/** What {@link placeOldTitleAlias} reads and writes through. */
+/**
+ * What {@link placeOldTitleAlias} reads and writes through.
+ */
 export interface AliasPlacementDeps {
   noteFile: Pick<NoteFileService, 'read' | 'write'>
   openDocuments: Pick<OpenDocumentsService, 'sessionFor'>

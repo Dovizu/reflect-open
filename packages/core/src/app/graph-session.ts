@@ -1,23 +1,39 @@
 import { ReflectError } from '../errors.ts'
 
-/** The main window owns the graph; a note window adopts the main window's sessions. */
+/**
+ * The main window owns the graph; a note window adopts the main window's sessions.
+ */
 export type GraphRole = 'main' | 'note-window'
 
-/** One open graph: its identity, both session generations, and its lifetime. */
+/**
+ * One open graph: its identity, both session generations, and its lifetime.
+ */
 export interface GraphSession {
-  /** Absolute path of the graph root. */
+  /**
+   * Absolute path of the graph root.
+   */
   readonly root: string
-  /** Display name (the root folder name). */
+  /**
+   * Display name (the root folder name).
+   */
   readonly name: string
-  /** The file session generation from `graph_open`. */
+  /**
+   * The file session generation from `graph_open`.
+   */
   readonly generation: number
-  /** The index session generation from `index_open`; null when the index failed to open. */
+  /**
+   * The index session generation from `index_open`; null when the index failed to open.
+   */
   readonly indexGeneration: number | null
-  /** Aborts when the graph closes or another graph replaces it. */
+  /**
+   * Aborts when the graph closes or another graph replaces it.
+   */
   readonly signal: AbortSignal
 }
 
-/** A {@link GraphSession} over `fields`. Without `signal`, the session never aborts. */
+/**
+ * A {@link GraphSession} over `fields`. Without `signal`, the session never aborts.
+ */
 export function createGraphSession(
   fields: Omit<GraphSession, 'signal'>,
   signal?: AbortSignal,
@@ -31,12 +47,16 @@ export function createGraphSession(
   }
 }
 
-/** Where a service reads the open graph's {@link GraphSession} from (`GraphSessionService`). */
+/**
+ * Where a service reads the open graph's {@link GraphSession} from (`GraphSessionService`).
+ */
 export interface GraphSessionSource {
   getState: () => { readonly session: GraphSession | null }
 }
 
-/** The open graph's session; throws `No graph is open.` when none is open. */
+/**
+ * The open graph's session; throws `No graph is open.` when none is open.
+ */
 export function requireGraphSession(graphSession: GraphSessionSource): GraphSession {
   const { session } = graphSession.getState()
   if (session === null) {

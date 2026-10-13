@@ -49,14 +49,20 @@ interface Harness {
   writes: Array<{ path: string; contents: string }>
   applied: string[]
   contents: Array<{ content: string; origin: string }>
-  /** `null` deletes the file: subsequent reads reject with `notFound`. */
+  /**
+   * `null` deletes the file: subsequent reads reject with `notFound`.
+   */
   setDisk: (contents: string | null) => void
   /** While set, writes reject with this message (the save-failure seam). */
   failWrites: (message: string | null) => void
   session: NoteSession
-  /** The graph open when the session was created. */
+  /**
+   * The graph open when the session was created.
+   */
   graph: TestGraphSessionService<never>
-  /** The generation of every write, in order. */
+  /**
+   * The generation of every write, in order.
+   */
   generations: () => number[]
 }
 
@@ -66,7 +72,9 @@ function harness(options?: {
   beforeWrite?: () => Promise<void>
   write?: false
   classify?: (markdown: string) => RoundTripFidelity
-  /** `null` simulates a missing file: reads reject with `notFound`. */
+  /**
+   * `null` simulates a missing file: reads reject with `notFound`.
+   */
   disk?: string | null
   createIfMissing?: boolean
   missingSeed?: string

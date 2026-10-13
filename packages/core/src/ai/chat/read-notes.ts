@@ -47,7 +47,9 @@ export const readNotesInput = z.object({
     ),
 })
 
-/** The effects {@link buildReadOneNote} needs. */
+/**
+ * The effects {@link buildReadOneNote} needs.
+ */
 export interface ReadNoteDeps {
   readNote: (path: string) => Promise<string>
   privacy: Pick<PrivacyService, 'cloudSafeNoteContent'>

@@ -26,12 +26,16 @@ import { createOpenDocumentsService } from './open-documents-service.ts'
 
 const ULID_RE = /^[0-9a-hjkmnp-tv-z]{26}$/
 
-/** A test graph session with the graph at `/g` of generation 3 (index generation 8) open. */
+/**
+ * A test graph session with the graph at `/g` of generation 3 (index generation 8) open.
+ */
 function createTestGraph(): TestGraphSessionService {
   return createTestGraphSessionService({ graph: { root: '/g', generation: 3, indexGeneration: 8 } })
 }
 
-/** The real service; without `indexLifecycle`, an indexer that only records its calls. */
+/**
+ * The real service; without `indexLifecycle`, an indexer that only records its calls.
+ */
 function createNoteActions(deps: {
   noteFile: NoteFileService
   sessions: readonly NoteSession[]
@@ -75,12 +79,18 @@ function createNoteActions(deps: {
 function setup(options?: {
   files?: Readonly<Record<string, string>>
   session?: TestNoteSessionOptions
-  /** Wraps the in-memory files, e.g. to make a call fail. */
+  /**
+   * Wraps the in-memory files, e.g. to make a call fail.
+   */
   wrapNoteFile?: (files: NoteFileService) => NoteFileService
   indexNote?: () => Promise<void>
-  /** The pinned shelf the index lists. */
+  /**
+   * The pinned shelf the index lists.
+   */
   pinned?: readonly PinnedNote[] | (() => Promise<PinnedNote[]>)
-  /** Index rows by path, for the privacy the index reports. */
+  /**
+   * Index rows by path, for the privacy the index reports.
+   */
   rows?: Readonly<Record<string, NoteRow>>
 }) {
   const files = createTestNoteFileService(
@@ -537,7 +547,9 @@ describe('togglePrivate', () => {
   })
 })
 
-/** A session of a note with no file yet; `beforeWrite` runs before each write lands. */
+/**
+ * A session of a note with no file yet; `beforeWrite` runs before each write lands.
+ */
 function lazySession(
   files: NoteFileService,
   beforeWrite: () => Promise<void>,

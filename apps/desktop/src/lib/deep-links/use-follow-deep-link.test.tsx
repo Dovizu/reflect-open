@@ -10,7 +10,9 @@ import { isModEvent } from '@meowdown/core'
 const dispatchDeepLink = vi.fn<(url: string) => void>()
 const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 
-/** Render over a native shell whose note windows and deep-link intake are the spies above. */
+/**
+ * Render over a native shell whose note windows and deep-link intake are the spies above.
+ */
 async function render(ui: ReactNode) {
   const app = createTestAppServices({ window: createTestWindowService({ openNoteWindow }) })
   vi.spyOn(app.deepLink, 'dispatch').mockImplementation(dispatchDeepLink)

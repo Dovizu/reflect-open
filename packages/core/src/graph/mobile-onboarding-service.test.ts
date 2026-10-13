@@ -11,10 +11,14 @@ import { createTestSettingsService } from '../testing/settings.ts'
 import { createTestLifecycleService } from '../testing/shell.ts'
 import { createMobileOnboardingService } from './mobile-onboarding-service.ts'
 
-/** The fixed mobile roots the test storage reports. */
+/**
+ * The fixed mobile roots the test storage reports.
+ */
 const MOBILE_ROOT = '/Documents'
 const ICLOUD_ROOT = '/iCloud/Documents'
-/** Where a fresh iCloud graph is created when the container is empty. */
+/**
+ * Where a fresh iCloud graph is created when the container is empty.
+ */
 const ICLOUD_GRAPH = `${ICLOUD_ROOT}/Notes`
 
 const STORAGE: MobileStorageInfo = {
@@ -27,11 +31,15 @@ interface SetupOptions {
   settings?: Partial<Settings>
   storage?: MobileStorageInfo
   platform?: TestPlatformOptions
-  /** Replaces the storage resolve; receives the 1-based call number. */
+  /**
+   * Replaces the storage resolve; receives the 1-based call number.
+   */
   resolve?: (call: number) => Promise<MobileStorageInfo>
 }
 
-/** An onboarding service on an iOS graph session over fakes. */
+/**
+ * An onboarding service on an iOS graph session over fakes.
+ */
 function setup(options?: SetupOptions) {
   const failures = { open: false }
   const opened: string[] = []
@@ -95,7 +103,9 @@ function setup(options?: SetupOptions) {
   }
 }
 
-/** Boot the session and the onboarding, and wait for the onboarding screen. */
+/**
+ * Boot the session and the onboarding, and wait for the onboarding screen.
+ */
 async function bootFreshInstall(options?: SetupOptions) {
   const context = setup(options)
   context.graphSession.boot()

@@ -23,10 +23,14 @@ export type Route =
   // it as the settings screen (its switcher lives in the sidebar footer).
   | { kind: 'graphs' }
 
-/** A route that addresses one concrete note, including a dated daily note. */
+/**
+ * A route that addresses one concrete note, including a dated daily note.
+ */
 export type NoteRoute = Extract<Route, { kind: 'daily' | 'note' }>
 
-/** Structural route equality (used to avoid pushing no-op history entries). */
+/**
+ * Structural route equality (used to avoid pushing no-op history entries).
+ */
 export function routesEqual(a: Route, b: Route): boolean {
   if (a.kind !== b.kind) {
     return false

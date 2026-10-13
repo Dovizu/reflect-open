@@ -11,7 +11,9 @@ import { IndexProgressPill } from './index-progress-pill.tsx'
  * pill every single time even when everything skips read-free.
  */
 
-/** Render the pill over a running pass at `progress`, with the keyboard at `keyboardInset`. */
+/**
+ * Render the pill over a running pass at `progress`, with the keyboard at `keyboardInset`.
+ */
 async function mount(
   progress: IndexFileProgress,
   keyboardInset = 0,

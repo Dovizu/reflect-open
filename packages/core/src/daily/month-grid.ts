@@ -21,23 +21,39 @@ import { addDaysIso } from '@reflect/utils'
 const MONTH_FORMAT = 'yyyy-MM'
 const ISO_DATE_FORMAT = 'yyyy-MM-dd'
 
-/** One cell of the calendar grid. */
+/**
+ * One cell of the calendar grid.
+ */
 export interface MonthGridCell {
-  /** ISO date of the cell. */
+  /**
+   * ISO date of the cell.
+   */
   date: string
-  /** Whether the cell belongs to the grid's month (vs. leading/trailing fill). */
+  /**
+   * Whether the cell belongs to the grid's month (vs. leading/trailing fill).
+   */
   inMonth: boolean
 }
 
-/** A month rendered as full weeks, padded with adjacent-month days. */
+/**
+ * A month rendered as full weeks, padded with adjacent-month days.
+ */
 export interface MonthGrid {
-  /** The grid's month as `YYYY-MM`. */
+  /**
+   * The grid's month as `YYYY-MM`.
+   */
   month: string
-  /** Rows of seven cells, oldest week first. */
+  /**
+   * Rows of seven cells, oldest week first.
+   */
   weeks: MonthGridCell[][]
-  /** ISO date of the first cell (for range queries over the visible grid). */
+  /**
+   * ISO date of the first cell (for range queries over the visible grid).
+   */
   start: string
-  /** ISO date of the last cell (inclusive). */
+  /**
+   * ISO date of the last cell (inclusive).
+   */
   end: string
 }
 
@@ -49,22 +65,30 @@ function parseMonth(month: string): Date {
   return parsed
 }
 
-/** The `YYYY-MM` month containing the ISO `date`. */
+/**
+ * The `YYYY-MM` month containing the ISO `date`.
+ */
 export function monthOf(date: string): string {
   return date.slice(0, 7)
 }
 
-/** Human label for a `YYYY-MM` month, e.g. `June 2026`. */
+/**
+ * Human label for a `YYYY-MM` month, e.g. `June 2026`.
+ */
 export function monthLabel(month: string): string {
   return format(parseMonth(month), 'MMMM yyyy')
 }
 
-/** Short label for a `YYYY-MM` month, e.g. `Jun` — month-picker grid cells. */
+/**
+ * Short label for a `YYYY-MM` month, e.g. `Jun` — month-picker grid cells.
+ */
 export function monthShortLabel(month: string): string {
   return format(parseMonth(month), 'MMM')
 }
 
-/** The `YYYY-MM` month `delta` months after `month` (negative for before). */
+/**
+ * The `YYYY-MM` month `delta` months after `month` (negative for before).
+ */
 export function addMonths(month: string, delta: number): string {
   return format(addMonthsToDate(parseMonth(month), delta), MONTH_FORMAT)
 }

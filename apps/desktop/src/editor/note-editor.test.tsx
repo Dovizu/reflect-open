@@ -37,7 +37,9 @@ vi.mock('@/editor/use-x-post-resolver.ts', () => ({
   }),
 }))
 
-/** Render `ui` in the app, on a platform with the facts `platform`. */
+/**
+ * Render `ui` in the app, on a platform with the facts `platform`.
+ */
 async function render(ui: ReactNode, platform?: TestPlatformOptions) {
   return await renderInApp(ui, platform === undefined ? {} : { platform })
 }

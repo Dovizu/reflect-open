@@ -10,7 +10,9 @@ import {
   suggestRepoName,
 } from './github-repo-service.ts'
 
-/** A `GithubRepoService` whose every request gets `reply`. */
+/**
+ * A `GithubRepoService` whose every request gets `reply`.
+ */
 function repos(reply: TestHttpReply) {
   const http = createTestHttpService([{ method: '*', url: () => true, reply }])
   return { http, service: createGithubRepoService({ http }) }

@@ -30,9 +30,13 @@ import { createTitleRenameService, type RenameCoordinator } from './title-rename
  * index reads, move service and operations store on top of them.
  */
 
-/** A managed note that already sits on the slug of "New Title": renaming to it moves nothing. */
+/**
+ * A managed note that already sits on the slug of "New Title": renaming to it moves nothing.
+ */
 const PATH = 'notes/new-title.md'
-/** A managed note still on its placeholder name: a settled title moves it. */
+/**
+ * A managed note still on its placeholder name: a settled title moves it.
+ */
 const PLACEHOLDER = 'notes/01abc.md'
 const LINKER = 'notes/linker.md'
 const MANAGED_ID = '01hv3xq7c2dm8k4t9w5e6r1n98'
@@ -48,22 +52,38 @@ interface RecordedOperation {
 }
 
 interface SetupOptions {
-  /** The note the coordinator tracks. Defaults to {@link PATH}. */
+  /**
+   * The note the coordinator tracks. Defaults to {@link PATH}.
+   */
   path?: string
-  /** The files on disk, by graph-relative path. */
+  /**
+   * The files on disk, by graph-relative path.
+   */
   files?: Record<string, string>
-  /** What the index holds where it lags the disk; other files are indexed as they are. */
+  /**
+   * What the index holds where it lags the disk; other files are indexed as they are.
+   */
   indexed?: Record<string, string>
-  /** An open session for the tracked note, with this buffer. */
+  /**
+   * An open session for the tracked note, with this buffer.
+   */
   session?: { content: string; accepts?: boolean }
-  /** The graph open when the coordinator is created; defaults to generation 7, `null` for none. */
+  /**
+   * The graph open when the coordinator is created; defaults to generation 7, `null` for none.
+   */
   graph?: TestOpenGraph | null
   canFire?: () => boolean
-  /** Make every title resolution reject, so the link rewrite fails. */
+  /**
+   * Make every title resolution reject, so the link rewrite fails.
+   */
   resolveError?: Error
-  /** Make reading the tracked note from disk reject, so a disk alias placement fails. */
+  /**
+   * Make reading the tracked note from disk reject, so a disk alias placement fails.
+   */
   readError?: Error
-  /** Make the file move reject. */
+  /**
+   * Make the file move reject.
+   */
   moveError?: Error
 }
 
@@ -154,7 +174,9 @@ function setup(options?: SetupOptions) {
     canFire: options?.canFire ?? (() => true),
   })
 
-  /** The operations shown so far, each with its outcome once the minimum visible time has passed. */
+  /**
+   * The operations shown so far, each with its outcome once the minimum visible time has passed.
+   */
   async function operationOutcomes(): Promise<RecordedOperation[]> {
     const shown = operations.getAll()
     await clock.advance(MIN_VISIBLE_MS)
@@ -178,12 +200,16 @@ function setup(options?: SetupOptions) {
     openDocuments,
     session,
     operationOutcomes,
-    /** The labels of the operations started so far. */
+    /**
+     * The labels of the operations started so far.
+     */
     started: () => operations.getAll().map((operation) => operation.label),
   }
 }
 
-/** Drive one settled rename: baseline at `from`, save `to`, settle, await. */
+/**
+ * Drive one settled rename: baseline at `from`, save `to`, settle, await.
+ */
 async function renameOnce(coordinator: RenameCoordinator, from: string, to: string): Promise<void> {
   coordinator.content(managed(`# ${from}\n`), 'load')
   coordinator.content(managed(`# ${to}\n`), 'saved')

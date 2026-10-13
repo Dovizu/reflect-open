@@ -199,7 +199,9 @@ describe('createTestNoteFileService', () => {
   })
 })
 
-/** A note file service over a bridge answering `invoke` and a file-change fake with the given echo setting. */
+/**
+ * A note file service over a bridge answering `invoke` and a file-change fake with the given echo setting.
+ */
 function installEcho(echoOwnWrites: boolean, invoke: (command: string) => unknown = () => null) {
   const ipc = createTestIpcBridgeService()
   for (const command of ['note_write', 'note_delete']) {

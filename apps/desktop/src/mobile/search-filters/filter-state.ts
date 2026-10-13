@@ -1,4 +1,6 @@
-/** The All tab's badge-filter model lives in `@reflect/core`; this module re-exports it. */
+/**
+ * The All tab's badge-filter model lives in `@reflect/core`; this module re-exports it.
+ */
 export {
   EMPTY_ALL_NOTES_FILTERS,
   UPDATED_PRESETS,

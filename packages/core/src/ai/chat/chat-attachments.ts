@@ -23,7 +23,9 @@ const MAX_IMAGE_EDGE = 1568
 
 const JPEG_QUALITY = 0.85
 
-/** Formats every provider accepts as-is; anything else gets re-encoded. */
+/**
+ * Formats every provider accepts as-is; anything else gets re-encoded.
+ */
 const PROVIDER_SAFE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 /**
@@ -65,7 +67,9 @@ async function dataUrlOf(blob: Blob): Promise<string> {
   return `data:${blob.type};base64,${bytesToBase64(new Uint8Array(await blob.arrayBuffer()))}`
 }
 
-/** Read an image file into an attachment, bytes inlined as a `data:` URL. */
+/**
+ * Read an image file into an attachment, bytes inlined as a `data:` URL.
+ */
 export async function readChatAttachment(
   ctx: { imageCodec: Pick<ImageCodecService, 'decode'>; id: Pick<IdService, 'uuid'> },
   file: File,

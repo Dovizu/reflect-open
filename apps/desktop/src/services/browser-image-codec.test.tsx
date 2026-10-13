@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createBrowserImageCodec } from './browser-image-codec.ts'
 
-/** A decodable 4×2 PNG. */
+/**
+ * A decodable 4×2 PNG.
+ */
 async function pngFile(): Promise<File> {
   const canvas = document.createElement('canvas')
   canvas.width = 4

@@ -12,7 +12,9 @@ import {
 } from './note-session.ts'
 import { createOpenDocumentsService, type OpenDocumentsService } from './open-documents-service.ts'
 
-/** A session that logs the calls the registry makes. */
+/**
+ * A session that logs the calls the registry makes.
+ */
 function fakeSession(path: string, log: string[]): NoteSession {
   return {
     ...createTestNoteSession({ path }),

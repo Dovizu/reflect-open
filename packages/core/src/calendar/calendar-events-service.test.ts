@@ -36,7 +36,9 @@ function eventAt(day: number, hour: number, overrides: Partial<CalendarEvent> = 
   }
 }
 
-/** The service over `deps`, with a fresh test double for each one left out. */
+/**
+ * The service over `deps`, with a fresh test double for each one left out.
+ */
 function createService(deps?: Partial<Parameters<typeof createCalendarEventsService>[0]>) {
   return createCalendarEventsService({
     calendar: deps?.calendar ?? createTestCalendarService(),

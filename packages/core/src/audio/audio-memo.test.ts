@@ -6,7 +6,9 @@ import {
   audioMemoPartPath,
 } from './audio-memo.ts'
 
-/** 2026-06-11 15:30:22.845 local — every derived name is asserted from it. */
+/**
+ * 2026-06-11 15:30:22.845 local — every derived name is asserted from it.
+ */
 const RECORDED_AT = new Date(2026, 5, 11, 15, 30, 22, 845)
 const MEMO = audioMemoIdentity(RECORDED_AT, 'audio/webm;codecs=opus')
 

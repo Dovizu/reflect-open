@@ -22,7 +22,9 @@ const MODEL = 'all-MiniLM-L6-v2'
 const READY: EmbedStatus = { status: 'ready', model: MODEL }
 const GRAPH = { root: '/g', name: 'g', generation: 1 }
 
-/** A semantic search over fakes, with the graph `/g` open at index generation 7. */
+/**
+ * A semantic search over fakes, with the graph `/g` open at index generation 7.
+ */
 async function setup(options?: {
   enabled?: boolean
   status?: EmbedStatus
@@ -97,7 +99,9 @@ async function setup(options?: {
   }
 }
 
-/** One macrotask — long enough for a would-be reaction to have started. */
+/**
+ * One macrotask — long enough for a would-be reaction to have started.
+ */
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }

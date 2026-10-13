@@ -1,7 +1,11 @@
-/** The graph folder created for a fresh start: reads as `iCloud Drive -> Reflect -> Notes` in Files/Finder. */
+/**
+ * The graph folder created for a fresh start: reads as `iCloud Drive -> Reflect -> Notes` in Files/Finder.
+ */
 export const DEFAULT_GRAPH_NAME = 'Notes'
 
-/** `/.../Documents/My Notes` -> `My Notes`. */
+/**
+ * `/.../Documents/My Notes` -> `My Notes`.
+ */
 export function graphNameFromRoot(root: string, fallback = ''): string {
   return root.split('/').findLast(Boolean) ?? fallback
 }
@@ -21,12 +25,16 @@ export function cleanGraphName(raw: string): string | null {
   return trimmed
 }
 
-/** Case-insensitive graph-name collision check for macOS/iOS containers. */
+/**
+ * Case-insensitive graph-name collision check for macOS/iOS containers.
+ */
 export function isGraphNameTaken(cleanName: string, roots: readonly string[]): boolean {
   return roots.some((root) => graphNameFromRoot(root).toLowerCase() === cleanName.toLowerCase())
 }
 
-/** Absolute graph root for a cleaned folder name inside a container's Documents directory. */
+/**
+ * Absolute graph root for a cleaned folder name inside a container's Documents directory.
+ */
 export function graphRootForName(documentsRoot: string, cleanName: string): string {
   return `${documentsRoot}/${cleanName}`
 }

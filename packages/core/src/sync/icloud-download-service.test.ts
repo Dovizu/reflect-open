@@ -42,14 +42,18 @@ function start(native: TestICloudNativeService = icloud): ICloudDownloadService 
   return active
 }
 
-/** Note-scope download nudges: what an open or a resume requests first. */
+/**
+ * Note-scope download nudges: what an open or a resume requests first.
+ */
 function downloadCalls(): number {
   return icloud
     .calls()
     .filter((call) => call.method === 'downloadPending' && call.args[1] === 'notes').length
 }
 
-/** Full-scope (assets included) download requests — the deferred bulk. */
+/**
+ * Full-scope (assets included) download requests — the deferred bulk.
+ */
 function allScopeDownloadCalls(): number {
   return icloud
     .calls()
@@ -60,12 +64,16 @@ function countCalls(): number {
   return icloud.calls().filter((call) => call.method === 'pendingCount').length
 }
 
-/** Let the pending native call settle without moving time. */
+/**
+ * Let the pending native call settle without moving time.
+ */
 async function flush(): Promise<void> {
   await clock.advance(0)
 }
 
-/** WKWebView fires `visibilitychange` and `focus` together on resume. */
+/**
+ * WKWebView fires `visibilitychange` and `focus` together on resume.
+ */
 function resumeBurst(): void {
   lifecycle.emitVisible()
   lifecycle.emitFocus()

@@ -26,12 +26,16 @@ import { PROJECTION_VERSION_KEY } from './indexer.ts'
 
 const databases: { close(): void }[] = []
 
-/** A graph session at index generation `indexGeneration` that ends when `signal` aborts. */
+/**
+ * A graph session at index generation `indexGeneration` that ends when `signal` aborts.
+ */
 function sessionAt(indexGeneration: number, signal?: AbortSignal): GraphSession {
   return createGraphSession({ root: '/g', name: 'g', generation: 1, indexGeneration }, signal)
 }
 
-/** A graph session at index generation `indexGeneration` that already ended. */
+/**
+ * A graph session at index generation `indexGeneration` that already ended.
+ */
 function endedSessionAt(indexGeneration: number): GraphSession {
   return sessionAt(indexGeneration, AbortSignal.abort())
 }
@@ -166,14 +170,20 @@ function setup(options?: {
     fileProgress,
     stalePlaceholders,
     order,
-    /** How many sync passes reached their reconcile. */
+    /**
+     * How many sync passes reached their reconcile.
+     */
     passes: () => steps.filter((step) => step === 'scan').length,
-    /** Live subscriptions currently attached to the change stream. */
+    /**
+     * Live subscriptions currently attached to the change stream.
+     */
     subscriptions: () => fileChanges.listenerCount().changes,
   }
 }
 
-/** Sync passes that each stay in flight until their entry in `settles` is called. */
+/**
+ * Sync passes that each stay in flight until their entry in `settles` is called.
+ */
 function heldScans() {
   const settles: Array<() => void> = []
   return {
@@ -581,7 +591,9 @@ describe('createIndexLifecycleService', () => {
 })
 
 describe('file progress', () => {
-  /** 32 changed candidates: the reconcile reports at file 16 and at the end. */
+  /**
+   * 32 changed candidates: the reconcile reports at file 16 and at the end.
+   */
   function setupLargePass(onRead?: () => void) {
     const paths = Array.from({ length: 32 }, (_, position) => `notes/n${position}.md`)
     return setup({

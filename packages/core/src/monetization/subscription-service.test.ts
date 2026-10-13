@@ -18,7 +18,9 @@ let clock: TestClockService
 let storage: TestStorageService
 let logger: TestLoggerService
 let iap: TestIapService
-/** What StoreKit says about each product id. */
+/**
+ * What StoreKit says about each product id.
+ */
 let owned: (productId: string) => Promise<boolean>
 let lookups: string[]
 

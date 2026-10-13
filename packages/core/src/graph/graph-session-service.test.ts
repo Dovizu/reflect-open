@@ -29,19 +29,25 @@ const BOOT: WindowBootstrap = {
 
 interface SetupOptions {
   recents?: RecentGraph[]
-  /** Files of every graph the bridge opens. */
+  /**
+   * Files of every graph the bridge opens.
+   */
   files?: Record<string, string>
   meta?: Record<string, string>
   platform?: TestPlatformOptions
   windowLabel?: string
   bootstrap?: WindowBootstrap
   hidden?: boolean
-  /** Hold every `graph_open` until `resolveOpen(root)`. */
+  /**
+   * Hold every `graph_open` until `resolveOpen(root)`.
+   */
   holdOpens?: boolean
   indexOpenFails?: boolean
 }
 
-/** A session over fakes whose bridge keeps recents and counts graph generations. */
+/**
+ * A session over fakes whose bridge keeps recents and counts graph generations.
+ */
 function setup(options?: SetupOptions) {
   let recents = [...(options?.recents ?? [])]
   let generation = 0
@@ -188,12 +194,16 @@ function setup(options?: SetupOptions) {
       pendingOpens.get(root)?.()
       pendingOpens.delete(root)
     },
-    /** Calls of the index store by method name, in order. */
+    /**
+     * Calls of the index store by method name, in order.
+     */
     indexCalls: () => indexStore.calls().map((call) => call.method),
   }
 }
 
-/** Boot a desktop main window and wait until its boot path settled. */
+/**
+ * Boot a desktop main window and wait until its boot path settled.
+ */
 async function bootDesktop(options?: SetupOptions) {
   const context = setup(options)
   const stop = context.session.boot()
@@ -202,7 +212,9 @@ async function bootDesktop(options?: SetupOptions) {
   return { ...context, stop }
 }
 
-/** Wait until every pass the index lifecycle started has settled. */
+/**
+ * Wait until every pass the index lifecycle started has settled.
+ */
 async function settleIndex(context: { indexLifecycle: { settled: () => Promise<void> } }) {
   await Promise.resolve()
   await context.indexLifecycle.settled()

@@ -41,7 +41,9 @@ const PROVIDERS: AiProvidersState = {
   providers: [{ id: 'cfg-openai', provider: 'openai', model: 'gpt-5.1', keyHint: 'wxyz1' }],
   defaultProviderId: 'cfg-openai',
 }
-/** Configured, but with no model that can transcribe. */
+/**
+ * Configured, but with no model that can transcribe.
+ */
 const ANTHROPIC_ONLY: AiProvidersState = {
   providers: [{ id: 'claude', provider: 'anthropic', model: 'claude-fable-5', keyHint: 'wxyz1' }],
   defaultProviderId: 'claude',
@@ -174,13 +176,21 @@ async function setup(options?: SetupOptions) {
     logger,
     clock,
     service,
-    /** The staged files deleted so far, in order. */
+    /**
+     * The staged files deleted so far, in order.
+     */
     deleted,
-    /** How many times the recorder method ran. */
+    /**
+     * How many times the recorder method ran.
+     */
     count,
-    /** The graph paths captured so far, in order. */
+    /**
+     * The graph paths captured so far, in order.
+     */
     captured: () => assetStore.uploads().map((upload) => upload.path),
-    /** How many transcription passes got past the config gate. */
+    /**
+     * How many transcription passes got past the config gate.
+     */
     passes: () => listDirMock.mock.calls.filter(([dir]) => dir === AUDIO_MEMOS_DIR).length,
     async open() {
       const session = service.openSession()
@@ -190,7 +200,9 @@ async function setup(options?: SetupOptions) {
   }
 }
 
-/** Settle the promise chains a capture, a scan, or a pass runs on. */
+/**
+ * Settle the promise chains a capture, a scan, or a pass runs on.
+ */
 function flush(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }

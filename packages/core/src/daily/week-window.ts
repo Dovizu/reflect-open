@@ -12,13 +12,17 @@ import { monthOf } from './month-grid.ts'
  * uses the same module), so day-paging stays consistent across surfaces.
  */
 
-/** The first day of `date`'s week, honoring the week-start setting. */
+/**
+ * The first day of `date`'s week, honoring the week-start setting.
+ */
 export function weekStartOf(date: string, weekStart: WeekStartDay): string {
   const weekday = getDay(parseIsoDate(date)) // 0 = Sunday … 6 = Saturday
   return addDaysIso(date, -((weekday - weekStartDow(weekStart) + 7) % 7))
 }
 
-/** The seven ISO dates of `date`'s week, honoring the week-start setting. */
+/**
+ * The seven ISO dates of `date`'s week, honoring the week-start setting.
+ */
 export function weekOf(date: string, weekStart: WeekStartDay): string[] {
   const first = weekStartOf(date, weekStart)
   return Array.from({ length: 7 }, (_, index) => addDaysIso(first, index))
@@ -46,18 +50,28 @@ export function monthPickTarget(month: string, selected: string, today: string):
  * carousel's `day-window.ts`, in units of weeks.
  */
 export interface WeekWindow {
-  /** Week-start ISO date of index 0 (the oldest week in the window). */
+  /**
+   * Week-start ISO date of index 0 (the oldest week in the window).
+   */
   start: string
-  /** Total number of weeks (strip slides). */
+  /**
+   * Total number of weeks (strip slides).
+   */
   count: number
-  /** Index of the anchor week (the window was centered on it). */
+  /**
+   * Index of the anchor week (the window was centered on it).
+   */
   anchorIndex: number
 }
 
-/** Weeks either side of the strip's anchor (~half a year each way). */
+/**
+ * Weeks either side of the strip's anchor (~half a year each way).
+ */
 export const WEEK_WINDOW_RADIUS = 26
 
-/** Build the window centered on the week containing `date`. */
+/**
+ * Build the window centered on the week containing `date`.
+ */
 export function createWeekWindow(
   date: string,
   weekStart: WeekStartDay,
@@ -70,7 +84,9 @@ export function createWeekWindow(
   }
 }
 
-/** The week-start ISO date at `index` (0 = oldest). */
+/**
+ * The week-start ISO date at `index` (0 = oldest).
+ */
 export function weekAtIndex(window: WeekWindow, index: number): string {
   return addDaysIso(window.start, index * 7)
 }

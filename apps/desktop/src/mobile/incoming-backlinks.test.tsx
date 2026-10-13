@@ -12,7 +12,9 @@ import { IncomingBacklinks } from './incoming-backlinks.tsx'
 let app: TestAppServices
 let getBacklinksWithContext: MockInstance<BacklinkService['getBacklinksWithContext']>
 
-/** Answer the backlink read with `contexts` as its only page. */
+/**
+ * Answer the backlink read with `contexts` as its only page.
+ */
 function answerBacklinks(contexts: BacklinkContext[]): void {
   getBacklinksWithContext.mockResolvedValue({
     contexts,
@@ -30,7 +32,9 @@ function RouteProbe(): ReactNode {
   )
 }
 
-/** Render `ui` over the app of the running test, so a second render shares its session storage. */
+/**
+ * Render `ui` over the app of the running test, so a second render shares its session storage.
+ */
 function renderInGraph(ui: ReactNode) {
   return renderInApp(ui, { app, graph: { root: '/g', name: 'g', generation: 1 } })
 }

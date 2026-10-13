@@ -48,7 +48,9 @@ beforeEach(() => {
 
 const USER_URL = 'https://api.github.com/user'
 
-/** The graph generation every git command must be pinned to. */
+/**
+ * The graph generation every git command must be pinned to.
+ */
 const GENERATION = 3
 
 const AUTH = JSON.stringify({ kind: 'pat', token: 'ghp_abc' })
@@ -64,34 +66,62 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 interface FakeOptions {
   auth?: string | null
-  /** Hold the direct index write until `releaseIndexApply()` (the convergence barrier). */
+  /**
+   * Hold the direct index write until `releaseIndexApply()` (the convergence barrier).
+   */
   gateIndexApply?: boolean
-  /** Make every direct index write throw (the projection-failure path). */
+  /**
+   * Make every direct index write throw (the projection-failure path).
+   */
   failIndexApply?: boolean
-  /** Hold the first `status` until `releaseStatus()` (the teardown-race window). */
+  /**
+   * Hold the first `status` until `releaseStatus()` (the teardown-race window).
+   */
   gateStatus?: boolean
-  /** Hold the first `mergeRemote` until `releaseMerge()` (the mid-pull window). */
+  /**
+   * Hold the first `mergeRemote` until `releaseMerge()` (the mid-pull window).
+   */
   gateMerge?: boolean
-  /** Hold the second `commitAll` until `releaseCommit()` (a flush still in flight). */
+  /**
+   * Hold the second `commitAll` until `releaseCommit()` (a flush still in flight).
+   */
   gateSecondCommit?: boolean
-  /** Make the watcher subscription throw (the unusable-watcher path). */
+  /**
+   * Make the watcher subscription throw (the unusable-watcher path).
+   */
   failListen?: boolean
   failStatus?: boolean
-  /** Make the keychain read throw (locked keychain, stale ACL after re-signing). */
+  /**
+   * Make the keychain read throw (locked keychain, stale ACL after re-signing).
+   */
   failSecretGet?: boolean
-  /** Scripted `mergeRemote` outcome (defaults to up-to-date). */
+  /**
+   * Scripted `mergeRemote` outcome (defaults to up-to-date).
+   */
   mergeOutcome?: MergeOutcome
-  /** Per-call merge outcomes for retry/convergence tests. */
+  /**
+   * Per-call merge outcomes for retry/convergence tests.
+   */
   mergeOutcomes?: MergeOutcome[]
-  /** Per-call push outcomes for retry/convergence tests. */
+  /**
+   * Per-call push outcomes for retry/convergence tests.
+   */
   pushOutcomes?: PushOutcome[]
-  /** Make every `push` throw this error (transport-level failures). */
+  /**
+   * Make every `push` throw this error (transport-level failures).
+   */
   pushError?: unknown
-  /** The graph's origin (defaults to a GitHub HTTPS remote; null = none). */
+  /**
+   * The graph's origin (defaults to a GitHub HTTPS remote; null = none).
+   */
   remoteUrl?: string | null
-  /** Whether the graph already has a repository (defaults to true). */
+  /**
+   * Whether the graph already has a repository (defaults to true).
+   */
   initialized?: boolean
-  /** Run as the mobile app (defaults to the desktop native shell). */
+  /**
+   * Run as the mobile app (defaults to the desktop native shell).
+   */
   mobile?: boolean
 }
 
@@ -232,17 +262,23 @@ function fakeServices(options: FakeOptions = {}) {
   }
 }
 
-/** A backup service of the last {@link fakeServices} call, at graph generation 3. */
+/**
+ * A backup service of the last {@link fakeServices} call, at graph generation 3.
+ */
 function createBackup(options: { indexGeneration: number | null }): BackupService {
   return backups.create({ generation: GENERATION, indexGeneration: options.indexGeneration })
 }
 
-/** Let every promise chain that is already runnable settle. */
+/**
+ * Let every promise chain that is already runnable settle.
+ */
 async function flush(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-/** Move the clock by `ms`, running the timers that come due, then settle. */
+/**
+ * Move the clock by `ms`, running the timers that come due, then settle.
+ */
 async function advance(ms: number): Promise<void> {
   await clock.advance(ms)
   await flush()

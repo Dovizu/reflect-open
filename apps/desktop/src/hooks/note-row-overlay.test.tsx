@@ -23,7 +23,9 @@ const GEN = 1
 
 let app: TestAppServices
 
-/** Render the overlay hook for `path` over the shared `app`. */
+/**
+ * Render the overlay hook for `path` over the shared `app`.
+ */
 async function mount(path: string) {
   return await renderHookInApp(() => useNoteRowOverlay(path), { app })
 }

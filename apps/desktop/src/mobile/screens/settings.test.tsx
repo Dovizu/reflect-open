@@ -48,15 +48,23 @@ function connected(status: Extract<BackupState, { phase: 'connected' }>['status'
 }
 
 interface MountOptions {
-  /** The stored settings document; the rest is the defaults. */
+  /**
+   * The stored settings document; the rest is the defaults.
+   */
   settings?: Partial<Settings>
-  /** Where the open graph is stored. */
+  /**
+   * Where the open graph is stored.
+   */
   storageKind?: 'icloud' | 'local'
-  /** The backup state. `null` runs no backup. */
+  /**
+   * The backup state. `null` runs no backup.
+   */
   backup?: BackupState | null
 }
 
-/** The graph "Field Notes" with two indexed notes, on a backup that is connected and idle. */
+/**
+ * The graph "Field Notes" with two indexed notes, on a backup that is connected and idle.
+ */
 async function mount(options?: MountOptions) {
   const backups = createTestScriptedBackupServiceFactory({
     state: options?.backup ?? connected({ state: 'idle' }),
@@ -86,7 +94,9 @@ async function mount(options?: MountOptions) {
 
 type MountedSettings = Awaited<ReturnType<typeof mount>>
 
-/** Wait until the settings document holds `patch`. */
+/**
+ * Wait until the settings document holds `patch`.
+ */
 async function expectSettings(view: MountedSettings, patch: Partial<Settings>): Promise<void> {
   await vi.waitFor(() => expect(view.app.settings.get()).toMatchObject(patch))
 }

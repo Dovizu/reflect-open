@@ -50,7 +50,9 @@ const NOW = Date.parse('2026-06-16T00:00:00.000Z')
 const realHashService = createTestHashService()
 let hashing = 0
 
-/** The test hash service, counting digests in flight so {@link flush} can wait for them. */
+/**
+ * The test hash service, counting digests in flight so {@link flush} can wait for them.
+ */
 const hashService: HashService = {
   async sha256Hex(text) {
     hashing += 1
@@ -62,12 +64,16 @@ const hashService: HashService = {
   },
 }
 
-/** A public note referencing `assetPath`. */
+/**
+ * A public note referencing `assetPath`.
+ */
 function publicNote(assetPath: string): string {
   return `# Diagram\n\n![](${assetPath})\n`
 }
 
-/** A private note referencing `assetPath`. */
+/**
+ * A private note referencing `assetPath`.
+ */
 function privateNote(assetPath: string): string {
   return `---\nprivate: true\n---\n\n![](${assetPath})\n`
 }
@@ -109,15 +115,23 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     xArchive: createTestXArchiveService(),
     assetReferences: refs,
   })
-  /** Every asset the privacy gate classified, in order: one per asset a pass reached. */
+  /**
+   * Every asset the privacy gate classified, in order: one per asset a pass reached.
+   */
   const classified: string[] = []
-  /** Every asset whose bytes were read, in order. */
+  /**
+   * Every asset whose bytes were read, in order.
+   */
   const assetReads: string[] = []
   const appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
-  /** Every `reindexNotesReferencing` call, as `[assetPaths, generation]`. */
+  /**
+   * Every `reindexNotesReferencing` call, as `[assetPaths, generation]`.
+   */
   const reindexed: Array<[readonly string[], number]> = []
   const index = {
-    /** When set, the next re-index rejects with it. */
+    /**
+     * When set, the next re-index rejects with it.
+     */
     reindexError: null as unknown,
     listenerCount: () => appliedListeners.size,
     emit(changes: FileChange[], generation: number = INDEX_GENERATION): void {
@@ -178,7 +192,9 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
   service.onDescriptionsIndexed(() => {
     indexedEvents += 1
   })
-  /** Put an asset into the graph: its bytes in the asset store and its file in the listing. */
+  /**
+   * Put an asset into the graph: its bytes in the asset store and its file in the listing.
+   */
   async function addAsset(path: string, base64: string): Promise<void> {
     await assetStore.writeBase64(path, base64, GENERATION)
     files.set(path, atob(base64), { modifiedMs: 1 }) // far before any ISO `generatedAt`
@@ -523,7 +539,9 @@ describe('AssetDescriptionService.reconcile', () => {
 })
 
 describe('AssetDescriptionService.openSession', () => {
-  /** A graph where `assets/a.png` and `assets/b.pdf` are public and describable. */
+  /**
+   * A graph where `assets/a.png` and `assets/b.pdf` are public and describable.
+   */
   async function describable(options?: Parameters<typeof setup>[0]) {
     const context = setup(options)
     await context.addAsset('assets/a.png', 'aGVsbG8=')

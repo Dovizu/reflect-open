@@ -33,7 +33,9 @@ const { WorkspaceContent } = await import('./workspace-content.tsx')
 
 const GRAPH: GraphInfo = { root: '/notes', name: 'Notes', generation: 1 }
 
-/** Stands in for the "Toggle sidebar" command, which lives in the mocked shortcuts. */
+/**
+ * Stands in for the "Toggle sidebar" command, which lives in the mocked shortcuts.
+ */
 function SidebarToggle(): ReactElement {
   const { toggleSidebar } = useSidebar()
   return (

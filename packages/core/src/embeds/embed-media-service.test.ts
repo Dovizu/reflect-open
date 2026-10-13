@@ -10,7 +10,9 @@ import {
 } from '../testing/index.ts'
 import type { ResolvedArchivedPost, XArchiveService } from '../x-archive.ts'
 
-/** The real embed media service over `deps`; each one left out is a fresh test double. */
+/**
+ * The real embed media service over `deps`; each one left out is a fresh test double.
+ */
 function createTestEmbedMedia(deps: Partial<Parameters<typeof createEmbedMediaService>[0]>) {
   return createEmbedMediaService({
     xArchive: deps.xArchive ?? createTestXArchiveService(),
@@ -205,7 +207,9 @@ describe('EmbedMediaService.resolveYouTubeVideo', () => {
   const REQUEST_URL =
     'https://www.youtube.com/oembed?url=' + encodeURIComponent(URL) + '&format=json'
 
-  /** A service whose oEmbed endpoint gives each of `answers` in turn; an `Error` or a plain object rejects. */
+  /**
+   * A service whose oEmbed endpoint gives each of `answers` in turn; an `Error` or a plain object rejects.
+   */
   function setup(...answers: unknown[]) {
     const requests: string[] = []
     const logger = createTestLoggerService()

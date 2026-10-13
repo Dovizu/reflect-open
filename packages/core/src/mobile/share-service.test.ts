@@ -4,7 +4,9 @@ import { createOpenDocumentsService } from '../documents/open-documents-service.
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createShareService, noteShareContent } from './share-service.ts'
 
-/** A share service with one open note whose live buffer is `liveContent`. */
+/**
+ * A share service with one open note whose live buffer is `liveContent`.
+ */
 function setup(liveContent: string | null, path = 'notes/meeting-notes.md') {
   const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   // A stand-in implements only what the service calls.

@@ -17,7 +17,9 @@ function context(sourcePath: string, snippet: string, posFrom: number): Backlink
   }
 }
 
-/** Render the hook for `notes/target.md` in the graph `/g`. */
+/**
+ * Render the hook for `notes/target.md` in the graph `/g`.
+ */
 async function mount() {
   return await renderHookInApp(() => useBacklinkSources('notes/target.md'), {
     app,

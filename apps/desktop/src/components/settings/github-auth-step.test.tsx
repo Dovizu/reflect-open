@@ -43,7 +43,9 @@ beforeEach(() => {
   mockFlow.mockReset()
 })
 
-/** Render the step in an app over the test's keychain, HTTP, clipboard and opener. */
+/**
+ * Render the step in an app over the test's keychain, HTTP, clipboard and opener.
+ */
 async function renderStep(step: ReactNode): Promise<void> {
   const app = createTestAppServices({
     http,
@@ -74,7 +76,9 @@ async function renderCodeView(): Promise<void> {
   await expect.element(page.getByText('ABCD-1234')).toBeVisible()
 }
 
-/** The in-memory keychain of the app under test, holding `initial`. */
+/**
+ * The in-memory keychain of the app under test, holding `initial`.
+ */
 function fakeKeychain(initial: Record<string, string> = {}): TestSecretStoreService {
   keychain = createTestSecretStoreService(initial)
   return keychain

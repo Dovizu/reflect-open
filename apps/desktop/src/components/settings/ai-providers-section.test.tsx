@@ -41,7 +41,9 @@ async function renderSection(): Promise<void> {
   await renderInApp(<AiProvidersSection />, { app, servicesOnly: true })
 }
 
-/** The documents the settings service persisted, oldest first. */
+/**
+ * The documents the settings service persisted, oldest first.
+ */
 function saved(): Settings[] {
   return settings.saves()
 }

@@ -11,7 +11,9 @@ interface UseAiPromptsValue {
   removePrompt: (id: string) => void
 }
 
-/** The saved-AI-prompts surface (the editor AI menu's user library), over the `AiPromptService`. */
+/**
+ * The saved-AI-prompts surface (the editor AI menu's user library), over the `AiPromptService`.
+ */
 export function useAiPrompts(): UseAiPromptsValue {
   const { aiPrompts: service } = useAppServices()
   const prompts = useServiceState(service, service.list)

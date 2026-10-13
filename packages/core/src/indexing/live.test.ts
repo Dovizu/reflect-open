@@ -44,7 +44,9 @@ function setup(options?: {
     return await readFile(path, generation)
   })
   const appliedListeners = new Set<ChangesAppliedEmitter>()
-  /** Listen for the batches the live index reports as applied. */
+  /**
+   * Listen for the batches the live index reports as applied.
+   */
   function subscribeIndexApplied(listener: ChangesAppliedEmitter): () => void {
     appliedListeners.add(listener)
     return () => {
@@ -67,7 +69,9 @@ function setup(options?: {
     clock: createTestClockService({ now: 1_750_000_000_000 }),
     logger,
   })
-  /** The index writes so far, as `apply:<path>` / `remove:<path>` in call order. */
+  /**
+   * The index writes so far, as `apply:<path>` / `remove:<path>` in call order.
+   */
   function writes(): string[] {
     const log: string[] = []
     for (const call of store.calls()) {
@@ -292,7 +296,9 @@ describe('LiveIndex.apply move healing (Plan 17)', () => {
   const NEW = 'notes/meeting-notes.md'
   const CONTENT = '---\nid: 01abcdefghjkmnpqrstvwxyz00\n---\n# Meeting Notes\n'
 
-  /** OLD is indexed (with the id, unless `rowContent` says otherwise) and NEW exists on disk. */
+  /**
+   * OLD is indexed (with the id, unless `rowContent` says otherwise) and NEW exists on disk.
+   */
   function setupRename(options?: { rowContent?: string }) {
     return setup({
       files: { [NEW]: CONTENT },

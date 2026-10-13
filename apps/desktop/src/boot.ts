@@ -16,7 +16,9 @@ const facts = detectPlatformFacts(isTauri())
  */
 export const pendingDevIpc = facts.isNativeShell ? null : createDeferredIpcTransport()
 
-/** The app-scoped services of this webview. */
+/**
+ * The app-scoped services of this webview.
+ */
 export const appServices = createAppServices(
   createDesktopAdapters(facts, pendingDevIpc?.transport ?? createTauriIpcTransport()),
 )

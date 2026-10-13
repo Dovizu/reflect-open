@@ -12,13 +12,21 @@ import {
 import { createNoteLinkResolverService } from './note-link-resolver-service.ts'
 
 interface Graph {
-  /** Notes projected into the index. */
+  /**
+   * Notes projected into the index.
+   */
   readonly indexed?: readonly TestNote[]
-  /** Files on disk. */
+  /**
+   * Files on disk.
+   */
   readonly files?: Record<string, string>
-  /** On-disk paths listed as iCloud placeholders. */
+  /**
+   * On-disk paths listed as iCloud placeholders.
+   */
   readonly placeholders?: readonly string[]
-  /** Listed paths whose reads fail with an `io` error. */
+  /**
+   * Listed paths whose reads fail with an `io` error.
+   */
   readonly readErrors?: readonly string[]
 }
 
@@ -60,7 +68,9 @@ function setup({ indexed = [], files = {}, placeholders = [], readErrors = [] }:
     create,
     createFile,
     creation,
-    /** How many `note_claims` lookups ran. */
+    /**
+     * How many `note_claims` lookups ran.
+     */
     claimLookups: () =>
       database.getQueries().filter((query) => query.sql.includes('note_claims')).length,
   }

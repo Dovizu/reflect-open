@@ -6,7 +6,9 @@ import {
   type BackgroundReconcilerOptions,
 } from './background-reconciler.ts'
 
-/** Let the loop's awaits settle. */
+/**
+ * Let the loop's awaits settle.
+ */
 async function tick(): Promise<void> {
   for (let turn = 0; turn < 10; turn++) {
     await Promise.resolve()

@@ -31,7 +31,9 @@ export function project(path: string, source: string, mtime: number): IndexedNot
   })
 }
 
-/** The index read services and the note services over one test database. */
+/**
+ * The index read services and the note services over one test database.
+ */
 export type FlowIndex = IndexReadServices & NoteServices
 
 export function connectIndex(database: TestDatabaseService): FlowIndex {

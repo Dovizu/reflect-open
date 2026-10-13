@@ -10,7 +10,9 @@ const DEVICE_CODE_URL = 'https://github.com/login/device/code'
 const TOKEN_URL = 'https://github.com/login/oauth/access_token'
 const USER_URL = 'https://api.github.com/user'
 
-/** A `GithubAuthService` over an in-memory keychain, an HTTP fake and a test clock. */
+/**
+ * A `GithubAuthService` over an in-memory keychain, an HTTP fake and a test clock.
+ */
 function setup(options: { secrets?: Record<string, string>; now?: number } = {}) {
   const secretStore = createTestSecretStoreService(options.secrets)
   const http = createTestHttpService()
@@ -395,14 +397,18 @@ describe('GithubAuthService.runDeviceFlow', () => {
     interval: 5,
   }
 
-  /** Scripted GitHub: the flow start answers once, each poll pops the next response. */
+  /**
+   * Scripted GitHub: the flow start answers once, each poll pops the next response.
+   */
   function scripted(polls: unknown[]) {
     const context = setup()
     context.http.on('POST', DEVICE_CODE_URL, jsonResponse(START_RESPONSE))
     context.http.on('POST', TOKEN_URL, () =>
       jsonResponse(polls.shift() ?? { error: 'authorization_pending' }),
     )
-    /** Resolves once the flow waits for its next poll. */
+    /**
+     * Resolves once the flow waits for its next poll.
+     */
     const sleeping = async (): Promise<void> => {
       await vi.waitFor(() => {
         expect(context.clock.pendingTimers()).toBe(1)

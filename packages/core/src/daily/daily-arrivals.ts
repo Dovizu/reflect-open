@@ -1,19 +1,29 @@
-/** One router arrival as the daily surface sees it. */
+/**
+ * One router arrival as the daily surface sees it.
+ */
 export interface DailyArrival {
-  /** The router's navigation counter, bumped on every `navigate`. */
+  /**
+   * The router's navigation counter, bumped on every `navigate`.
+   */
   seq: number
-  /** The daily route's shown day (ISO date). */
+  /**
+   * The daily route's shown day (ISO date).
+   */
   date: string
 }
 
-/** What the daily surface does about an arrival. */
+/**
+ * What the daily surface does about an arrival.
+ */
 export interface DailyArrivalIntent {
   /**
    * `request` focuses the arrival's day with the caret at its end, `clear`
    * drops a pending focus request, and `keep` leaves it as it is.
    */
   focus: 'request' | 'clear' | 'keep'
-  /** True when the selected slide re-anchors to the top and the strip re-centers. */
+  /**
+   * True when the selected slide re-anchors to the top and the strip re-centers.
+   */
   reanchor: boolean
 }
 

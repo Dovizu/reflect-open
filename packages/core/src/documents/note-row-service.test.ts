@@ -24,7 +24,9 @@ function noteRow(overrides: Partial<NoteRow> = {}): NoteRow {
 const URL = 'https://gist.github.com/alex/g1'
 const GEN = 1
 
-/** A row service over a test graph session with graph generation {@link GEN} open. */
+/**
+ * A row service over a test graph session with graph generation {@link GEN} open.
+ */
 function createRows() {
   const graph = createTestGraphSessionService({ graph: { generation: GEN } })
   return { noteRows: createNoteRowService({ graphSession: graph }), graph }

@@ -17,12 +17,18 @@ import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 import type { NoteEditorHandle } from './note-editor.tsx'
 import { useNoteDocument } from './use-note-document.ts'
 
-/** Runs the save debounce and the rename quiet period. */
+/**
+ * Runs the save debounce and the rename quiet period.
+ */
 let clock: TestClockService
 let logger: TestLoggerService
-/** The files of the graph, with a log of every write. */
+/**
+ * The files of the graph, with a log of every write.
+ */
 let noteFile: TestNoteFileService
-/** What a note write does; a test replaces it to hold or fail a write. */
+/**
+ * What a note write does; a test replaces it to hold or fail a write.
+ */
 let writeNote: NoteFileService['write']
 /**
  * The unspied `write` of `noteFile`, which the app reaches through `writeNote`.
@@ -30,7 +36,9 @@ let writeNote: NoteFileService['write']
 let realWrite: NoteFileService['write']
 let app: ReturnType<typeof createApp>
 
-/** Run every pending timer, and the timers those arm. */
+/**
+ * Run every pending timer, and the timers those arm.
+ */
 async function runAllTimers(): Promise<void> {
   await clock.advance(60_000)
 }
@@ -63,7 +71,9 @@ function fakeEditor(): NoteEditorHandle & { applied: string[] } {
   }
 }
 
-/** The app of one test: the real document services over `noteFile`, `clock` and `logger`. */
+/**
+ * The app of one test: the real document services over `noteFile`, `clock` and `logger`.
+ */
 function createApp(database: TestDatabaseService) {
   const indexStore = createTestIndexStoreService()
   const moveIndexed = indexStore.moveIndexed.bind(indexStore)
@@ -97,7 +107,9 @@ beforeEach(async () => {
   app = createApp(await createWasmTestDatabaseService())
 })
 
-/** Render `hook` in the app of the running test, whose graph is open on generation 1. */
+/**
+ * Render `hook` in the app of the running test, whose graph is open on generation 1.
+ */
 function mount<Result, Props = undefined>(
   hook: (props?: Props) => Result,
   options?: { initialProps: Props },
@@ -105,17 +117,23 @@ function mount<Result, Props = undefined>(
   return renderHookInApp(hook, { app, ...options })
 }
 
-/** The contents of every note write so far, in order. */
+/**
+ * The contents of every note write so far, in order.
+ */
 function writes(): string[] {
   return noteFile.writes().map((write) => write.contents)
 }
 
-/** The current contents of `path`, or `undefined` when no such file exists. */
+/**
+ * The current contents of `path`, or `undefined` when no such file exists.
+ */
 function file(path: string): string | undefined {
   return noteFile.files().get(path)
 }
 
-/** Deliver watcher changes to the open documents, and let the reads they start settle. */
+/**
+ * Deliver watcher changes to the open documents, and let the reads they start settle.
+ */
 async function emitChange(changes: FileChange[]): Promise<void> {
   app.fileChanges.emit({ changes, source: 'external' })
   // The test doubles answer in microtasks, so one task later nothing is pending.
@@ -128,7 +146,9 @@ async function readyHook() {
   return hook
 }
 
-/** Replace the files of the graph with `files`, and index the notes in `indexed`. */
+/**
+ * Replace the files of the graph with `files`, and index the notes in `indexed`.
+ */
 function seedGraph(files: Record<string, string>, indexed: readonly string[] = []): void {
   for (const path of noteFile.files().keys()) {
     void noteFile.delete(path, 1)

@@ -23,7 +23,9 @@ afterEach(() => {
   closeDatabase()
 })
 
-/** Boot a session of `windowService` over test doubles; `deepLinks` collects what the intake hands on. */
+/**
+ * Boot a session of `windowService` over test doubles; `deepLinks` collects what the intake hands on.
+ */
 function boot(windowService: TestWindowService, recents: readonly RecentGraph[] = []) {
   const session = createTestGraphSessionService({ window: windowService, recents })
   const app = createTestAppServices({ window: windowService, graphSession: session })
@@ -36,7 +38,9 @@ function boot(windowService: TestWindowService, recents: readonly RecentGraph[] 
   return { app, windowService, session, deepLinks, stop }
 }
 
-/** Boot a session in a note window whose bootstrap answers `bootstrap`, or fails without one. */
+/**
+ * Boot a session in a note window whose bootstrap answers `bootstrap`, or fails without one.
+ */
 function bootNoteWindow(bootstrap?: WindowBootstrap) {
   return boot(
     createTestWindowService({

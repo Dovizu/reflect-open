@@ -6,13 +6,21 @@ import { createTestNoteFileService } from '../testing/graph.ts'
 import { createNoteLinkResolverService } from './note-link-resolver-service.ts'
 
 interface Graph {
-  /** Notes projected into the index. */
+  /**
+   * Notes projected into the index.
+   */
   readonly indexed?: readonly TestNote[]
-  /** Files on disk. */
+  /**
+   * Files on disk.
+   */
   readonly files?: Record<string, string>
-  /** On-disk paths listed as iCloud placeholders; reading them reports `notFound`. */
+  /**
+   * On-disk paths listed as iCloud placeholders; reading them reports `notFound`.
+   */
   readonly placeholders?: readonly string[]
-  /** Listed paths whose reads fail with an `io` error. */
+  /**
+   * Listed paths whose reads fail with an `io` error.
+   */
   readonly readErrors?: readonly string[]
 }
 
@@ -44,7 +52,9 @@ function setup({ indexed = [], files = {}, placeholders = [], readErrors = [] }:
     read,
     listNotes,
     resolver,
-    /** How many `note_claims` lookups the resolver ran. */
+    /**
+     * How many `note_claims` lookups the resolver ran.
+     */
     claimLookups: () =>
       database.getQueries().filter((query) => query.sql.includes('note_claims')).length,
     expectNoWrites: () => {

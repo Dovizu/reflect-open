@@ -41,7 +41,9 @@ async function renderAction() {
   })
 }
 
-/** Both reads behind the action have answered: what renders now is final. */
+/**
+ * Both reads behind the action have answered: what renders now is final.
+ */
 async function waitForReads(queryClient: QueryClient): Promise<void> {
   await vi.waitFor(() => {
     expect(app.githubAuth.getState().connected).toBe(connected)

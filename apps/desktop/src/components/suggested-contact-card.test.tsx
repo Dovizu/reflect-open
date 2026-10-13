@@ -24,7 +24,9 @@ const ADA = {
 let noteFile: TestNoteFileService
 let contacts: TestContactsService
 
-/** Render the card with the contacts integration switched on or off. */
+/**
+ * Render the card with the contacts integration switched on or off.
+ */
 async function renderCard(contactsEnabled = true): Promise<void> {
   await renderInApp(<SuggestedContactCard path={PATH} />, {
     app: createTestAppServices({ noteFile, contacts }),

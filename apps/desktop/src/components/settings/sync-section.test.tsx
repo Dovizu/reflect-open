@@ -35,7 +35,9 @@ const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 let icloud: {
   status: IcloudStatus
   pendingNotes: number
-  /** The native copy of a graph move rejects, though iCloud reports available. */
+  /**
+   * The native copy of a graph move rejects, though iCloud reports available.
+   */
   copyFails: boolean
 }
 let conflictedNotes: ConflictedNote[]
@@ -204,7 +206,9 @@ describe('SyncSection', () => {
 describe('moving a graph to iCloud', () => {
   const NEW_ROOT = `${ICLOUD_DOCUMENTS}/Notes`
 
-  /** Confirm the move dialog; `copyFails` makes the native copy reject. */
+  /**
+   * Confirm the move dialog; `copyFails` makes the native copy reject.
+   */
   async function confirmMove(options?: { copyFails?: boolean }): Promise<Locator> {
     icloud.copyFails = options?.copyFails === true
     await renderSection()

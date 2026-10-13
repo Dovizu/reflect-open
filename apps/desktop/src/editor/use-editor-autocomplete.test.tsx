@@ -28,7 +28,9 @@ interface SetupOptions {
   authorization?: ContactsAuthorization
   wikiLinks?: WikiLinkSuggestionResult
   createOutcome?: ResolveOrCreateNoteResult
-  /** `null` renders the hook with no open graph. */
+  /**
+   * `null` renders the hook with no open graph.
+   */
   graph?: null
 }
 

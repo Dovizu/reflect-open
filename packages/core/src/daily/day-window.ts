@@ -17,24 +17,38 @@ import { parseIsoDate } from '../lib/dates.ts'
  * can re-anchor around the far date).
  */
 
-/** The desktop stream's default reach: ~5 years back, ~1 year forward. */
+/**
+ * The desktop stream's default reach: ~5 years back, ~1 year forward.
+ */
 export const PAST_DAYS = 5 * 365
 export const FUTURE_DAYS = 365
 
-/** How far the window reaches either side of its anchor day. */
+/**
+ * How far the window reaches either side of its anchor day.
+ */
 export interface DayWindowRadius {
-  /** Days before the anchor — index 0 is `anchor - past`. */
+  /**
+   * Days before the anchor — index 0 is `anchor - past`.
+   */
   past: number
-  /** Days after the anchor — the last index is `anchor + future`. */
+  /**
+   * Days after the anchor — the last index is `anchor + future`.
+   */
   future: number
 }
 
 export interface DayWindow {
-  /** ISO date of index 0 (the oldest day in the window). */
+  /**
+   * ISO date of index 0 (the oldest day in the window).
+   */
   start: string
-  /** Total number of days (virtual rows/slides). */
+  /**
+   * Total number of days (virtual rows/slides).
+   */
   count: number
-  /** Index of the anchor day (the date the window was built around). */
+  /**
+   * Index of the anchor day (the date the window was built around).
+   */
   anchorIndex: number
 }
 
@@ -54,12 +68,16 @@ export function createDayWindow(
   }
 }
 
-/** The ISO date at `index` (0 = oldest). */
+/**
+ * The ISO date at `index` (0 = oldest).
+ */
 export function dateAtIndex(window: DayWindow, index: number): string {
   return addDaysIso(window.start, index)
 }
 
-/** Signed offset of `date` from the window's first day (may fall out of range). */
+/**
+ * Signed offset of `date` from the window's first day (may fall out of range).
+ */
 function offsetOfDate(window: DayWindow, date: string): number {
   return differenceInCalendarDays(parseIsoDate(date), parseIsoDate(window.start))
 }

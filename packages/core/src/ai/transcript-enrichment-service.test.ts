@@ -178,7 +178,9 @@ describe('TranscriptEnrichmentService.enrich', () => {
   const FALLBACK_TITLE = 'Audio memo 2026-06-11 15:30:22'
   const CREDENTIALS = { config: CONFIG, apiKey: 'sk-live-key' }
 
-  /** Install a model answering `output` as JSON; returns the captured call options. */
+  /**
+   * Install a model answering `output` as JSON; returns the captured call options.
+   */
   function modelAnsweringObject(output: Record<string, string>): LanguageModelV3CallOptions[] {
     const calls: LanguageModelV3CallOptions[] = []
     languageModelService.setModel(

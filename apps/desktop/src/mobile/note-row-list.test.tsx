@@ -17,7 +17,9 @@ import { SwipeableNoteRow, type NoteRowModel } from './swipeable-note-row.tsx'
 
 const commitNoteFrontmatter = vi.fn<NoteDocumentService['commitFrontmatter']>()
 
-/** Render `ui` in the graph `/g` with reduced motion, so a swipe settles at once. */
+/**
+ * Render `ui` in the graph `/g` with reduced motion, so a swipe settles at once.
+ */
 function mount(ui: ReactNode): Promise<InAppRenderResult<AppServices>> {
   const readSource = async (): Promise<string> => '# A\n'
   const app = createTestAppServices({

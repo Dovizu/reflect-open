@@ -43,7 +43,9 @@ function sentenceSpans(text: string, base: number): Array<{ from: number; to: nu
   return spans
 }
 
-/** The service the chunkers hash chunk text with. */
+/**
+ * The service the chunkers hash chunk text with.
+ */
 export interface ChunkContext {
   readonly hash: Pick<HashService, 'sha256Hex'>
 }

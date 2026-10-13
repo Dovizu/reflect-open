@@ -5,7 +5,9 @@ import { renderHookInApp, renderInApp } from '@/test-utils/render-in-app.tsx'
 import type { Route } from './route.ts'
 import { RouterFreeze, useRouter } from './router.tsx'
 
-/** `useRouter()` under the app's `RouterProvider`, mounted on `initialRoute`. */
+/**
+ * `useRouter()` under the app's `RouterProvider`, mounted on `initialRoute`.
+ */
 function routerHook(initialRoute?: Route, app: TestAppServices = createTestAppServices()) {
   return renderHookInApp(() => useRouter(), {
     app,

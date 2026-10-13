@@ -25,7 +25,9 @@ function summary(overrides: Partial<GraphImportSummary> = {}): GraphImportSummar
   }
 }
 
-/** A service whose native import stays pending until `pendingImport` settles. */
+/**
+ * A service whose native import stays pending until `pendingImport` settles.
+ */
 function setup(options?: { graph?: GraphInfo | null }) {
   const pendingImport = Promise.withResolvers<GraphImportSummary>()
   const ipc = createTestIpcBridgeService({
@@ -79,7 +81,9 @@ function setup(options?: { graph?: GraphInfo | null }) {
   }
 }
 
-/** Let the import's settle handlers and the listener registration run. */
+/**
+ * Let the import's settle handlers and the listener registration run.
+ */
 async function settle(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
 }

@@ -30,7 +30,9 @@ import { makeOpenTask } from '../testing/tasks.ts'
 import { getTaskKey } from './task-identity.ts'
 import { createTaskService, type TaskRef, type TaskService } from './task-service.ts'
 
-/** The `index`th task of `source` as the index would hand it to the Tasks view. */
+/**
+ * The `index`th task of `source` as the index would hand it to the Tasks view.
+ */
 function ref(source: string, index = 0, notePath = 'notes/a.md'): TaskRef {
   const task = projectTasks(source)[index]
   if (task === undefined) {
@@ -39,7 +41,9 @@ function ref(source: string, index = 0, notePath = 'notes/a.md'): TaskRef {
   return { notePath, astPath: task.astPath, markdown: task.markdown, checked: task.checked }
 }
 
-/** Where the write left the task that was at `astPath` before it. */
+/**
+ * Where the write left the task that was at `astPath` before it.
+ */
 function movedFrom(
   result: Pick<TaskEditResult, 'moved'>,
   astPath: readonly number[],
@@ -51,7 +55,9 @@ function movedFrom(
   return move.to
 }
 
-/** An open session of `notes/a.md` holding `source`. */
+/**
+ * An open session of `notes/a.md` holding `source`.
+ */
 function sessionOver(source: string, applied = true): TestNoteSession {
   return createTestNoteSession({ path: 'notes/a.md', content: source, accepts: applied })
 }

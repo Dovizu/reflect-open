@@ -16,11 +16,17 @@ const PATH = 'notes/subject.md'
 const RENAME = { from: 'Old Title', to: 'New Title', previousAutoAliases: [] }
 
 function setup(options?: {
-  /** The file at `PATH`; `null` leaves it missing. Defaults to `# Old Title` with a body. */
+  /**
+   * The file at `PATH`; `null` leaves it missing. Defaults to `# Old Title` with a body.
+   */
   disk?: string | null
-  /** The open session's buffer; without it no session is open. */
+  /**
+   * The open session's buffer; without it no session is open.
+   */
   session?: string
-  /** False makes the session refuse the patch. Defaults to true. */
+  /**
+   * False makes the session refuse the patch. Defaults to true.
+   */
   takesPatch?: boolean
 }) {
   const disk = options?.disk === undefined ? '# Old Title\n\nbody\n' : options.disk

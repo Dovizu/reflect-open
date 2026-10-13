@@ -25,7 +25,9 @@ const post: XPost = {
 
 let services: TestAppServices | null = null
 
-/** Install over `app`, which the test ends with. */
+/**
+ * Install over `app`, which the test ends with.
+ */
 function installApp(app: TestAppServices) {
   services = app
   const stop = installQueryInvalidation(app)

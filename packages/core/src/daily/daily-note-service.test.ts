@@ -92,7 +92,9 @@ describe('listDailyNotes', () => {
 })
 
 describe('subscribeWakeOnNewDay', () => {
-  /** 2026-06-12, late evening. */
+  /**
+   * 2026-06-12, late evening.
+   */
   const evening = new Date(2026, 5, 12, 22, 0, 0).getTime()
 
   function setup() {

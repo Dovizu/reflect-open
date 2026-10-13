@@ -47,7 +47,9 @@ beforeEach(() => {
   }
 })
 
-/** Render the hook over app services built on the fakes above. */
+/**
+ * Render the hook over app services built on the fakes above.
+ */
 async function mount(overrides?: { noteFile?: TestNoteFileService; graph?: null }) {
   const app = createTestAppServices({
     noteFile: overrides?.noteFile ?? noteFile,

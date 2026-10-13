@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
-/** The `contacts` capability's shapes and the permission policy. */
+/**
+ * The `contacts` capability's shapes and the permission policy.
+ */
 
 /**
  * The Contacts permission state. `unavailable` is the answer on platforms
@@ -33,7 +35,9 @@ export const contactMatchSchema = z.object({
 
 export type ContactMatch = z.infer<typeof contactMatchSchema>
 
-/** Can lookups be issued right now? `limited` (iOS 18+) still reads the shared subset. */
+/**
+ * Can lookups be issued right now? `limited` (iOS 18+) still reads the shared subset.
+ */
 export function isContactsReadable(status: ContactsAuthorization): boolean {
   return status === 'authorized' || status === 'limited'
 }

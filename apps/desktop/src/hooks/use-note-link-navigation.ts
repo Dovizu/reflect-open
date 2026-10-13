@@ -3,7 +3,9 @@ import { useLinkNavigationHost } from '@/hooks/use-link-navigation-host.ts'
 import { useAppServices } from '@/services/services-provider.tsx'
 import type { NoteRoute } from '@/routing/route.ts'
 
-/** The modifier fields meowdown's `isModEvent` reads off a link-like control's click. */
+/**
+ * The modifier fields meowdown's `isModEvent` reads off a link-like control's click.
+ */
 export interface ModClickEvent {
   metaKey: boolean
   ctrlKey: boolean

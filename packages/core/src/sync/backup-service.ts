@@ -365,7 +365,9 @@ class BackupServiceImpl implements BackupService {
     }
   }
 
-  /** The single teardown path — every exit (failure, dispose, restart) takes it. */
+  /**
+   * The single teardown path — every exit (failure, dispose, restart) takes it.
+   */
   #teardown(): void {
     this.#remoteIndexEpoch += 1
     this.#engine?.stop()

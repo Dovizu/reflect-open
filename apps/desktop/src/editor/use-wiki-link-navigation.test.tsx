@@ -38,7 +38,9 @@ function RouteProbe(): ReactNode {
   )
 }
 
-/** Render `ui` in an app whose link navigation runs on the scripted resolvers above. */
+/**
+ * Render `ui` in an app whose link navigation runs on the scripted resolvers above.
+ */
 function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
   const base = createTestAppServices()
   const graphSession = createTestGraphSessionService()
