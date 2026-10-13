@@ -22,19 +22,29 @@ const CALLBACK_SCHEME = 'reflect'
 const REDIRECT_URI = `${CALLBACK_SCHEME}://oauth/callback`
 const DAY_MS = 24 * 60 * 60 * 1000
 const RECHECK_INTERVAL_MS = DAY_MS
-/** How long Reflect Open stays usable after the last paid Classic period. */
+/**
+ * How long Reflect Open stays usable after the last paid Classic period.
+ */
 const ACCESS_AFTER_PAYMENT_MS = 365 * DAY_MS
 
-/** The keychain entry holding this device's Reflect Classic access. */
+/**
+ * The keychain entry holding this device's Reflect Classic access.
+ */
 export const CLASSIC_ACCESS_SECRET = 'reflect-classic-access'
 
 export const classicAccessSchema = z.object({
-  /** The Reflect Classic OAuth access token; null once Classic rejects it. */
+  /**
+   * The Reflect Classic OAuth access token; null once Classic rejects it.
+   */
   token: z.string().nullable(),
   email: z.string().nullable(),
-  /** Epoch ms. */
+  /**
+   * Epoch ms.
+   */
   expiresAt: z.number(),
-  /** Epoch ms of the last successful check with Reflect Classic. */
+  /**
+   * Epoch ms of the last successful check with Reflect Classic.
+   */
   checkedAt: z.number(),
 })
 export type ClassicAccess = z.infer<typeof classicAccessSchema>
@@ -45,26 +55,51 @@ export type ClassicSignInResult =
   | { kind: 'signed-in'; access: ClassicAccess }
 
 export interface ClassicSignInOptions {
-  /** Asks for a private web session that shares no cookies with the system browser. */
+  /**
+   * Asks for a private web session that shares no cookies with the system browser.
+   */
   ephemeral: boolean
-  /** Called once the sign-in sheet closes with a callback, before the account is read. */
+  /**
+   * Called once the sign-in sheet closes with a callback, before the account is read.
+   */
   onSheetClosed?: () => void
 }
 
-/** The stored access as last published by `read`, `load`, or `signOut`. */
+/**
+ * The stored access as last published by `read`, `load`, or `signOut`.
+ */
 export interface ClassicAccessState {
   readonly access: ClassicAccess | null
-  /** Whether `access` unlocked Reflect Open when the state last changed. */
+  /**
+   * Whether `access` unlocked Reflect Open when the state last changed.
+   */
   readonly active: boolean
-  /** True until the first keychain read settles. */
+  /**
+   * True until the first keychain read settles.
+   */
   readonly isLoading: boolean
 }
 
-/** Reflect Open access through a paid Reflect Classic account. */
+export interface ClassicAccessServiceDeps {
+  readonly secretStore: SecretStoreService
+  readonly http: HttpService
+  readonly webAuth: WebAuthService
+  readonly clock: ClockService
+  readonly id: IdService
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly platform: Pick<PlatformFacts, 'appPlatform'>
+  readonly logger: LoggerService
+}
+
+/**
+ * Reflect Open access through a paid Reflect Classic account.
+ */
 export interface ClassicAccessService {
   getState: () => ClassicAccessState
   subscribe: (listener: () => void) => Unlisten
-  /** This device's stored access, without contacting Reflect Classic. */
+  /**
+   * This device's stored access, without contacting Reflect Classic.
+   */
   read: () => Promise<ClassicAccess | null>
   /**
    * This device's stored access, rechecked with Reflect Classic when the last
@@ -78,7 +113,9 @@ export interface ClassicAccessService {
    * before the paywall lifts.
    */
   signIn: (options: ClassicSignInOptions) => Promise<ClassicSignInResult>
-  /** Forgets this device's access. */
+  /**
+   * Forgets this device's access.
+   */
   signOut: () => Promise<void>
   /**
    * On iOS, reads the stored access now and, while it holds a token, rechecks
@@ -136,34 +173,122 @@ export function classicAccessUntil(
   return paidThrough === null ? null : paidThrough + ACCESS_AFTER_PAYMENT_MS
 }
 
-export function createClassicAccessService(deps: {
-  secretStore: SecretStoreService
-  http: HttpService
-  webAuth: WebAuthService
-  clock: ClockService
-  id: IdService
-  lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
-  platform: Pick<PlatformFacts, 'appPlatform'>
-  logger: LoggerService
-}): ClassicAccessService {
-  const { secretStore, http, webAuth, clock, id, lifecycle, platform, logger } = deps
-  const listeners = new Set<() => void>()
-  let state: ClassicAccessState = { access: null, active: false, isLoading: true }
+class ClassicAccessServiceImpl implements ClassicAccessService {
+  readonly #deps: ClassicAccessServiceDeps
+  readonly #listeners = new Set<() => void>()
+  #state: ClassicAccessState = { access: null, active: false, isLoading: true }
+  #pendingLoad: Promise<ClassicAccess | null> | null = null
 
-  function publish(access: ClassicAccess | null): void {
-    state = {
+  constructor(deps: ClassicAccessServiceDeps) {
+    this.#deps = deps
+  }
+
+  readonly getState = (): ClassicAccessState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly read = (): Promise<ClassicAccess | null> => this.#settle(this.#readStored())
+
+  readonly load = (): Promise<ClassicAccess | null> => {
+    if (this.#pendingLoad === null) {
+      const next = this.#settle(this.#recheck())
+      this.#pendingLoad = next
+      const clear = (): void => {
+        if (this.#pendingLoad === next) this.#pendingLoad = null
+      }
+      void next.then(clear, clear)
+    }
+    return this.#pendingLoad
+  }
+
+  readonly signIn = async (options: ClassicSignInOptions): Promise<ClassicSignInResult> => {
+    const { webAuth, clock, id } = this.#deps
+    const { code_verifier: verifier, code_challenge: challenge } = await id.pkceChallenge()
+    const oauthState = id.uuid()
+    const params = new URLSearchParams({
+      client_id: CLASSIC_OAUTH_CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      state: oauthState,
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    })
+    const callback = await webAuth.start({
+      url: `${CLASSIC_ORIGIN}/oauth?${params.toString()}`,
+      callbackScheme: CALLBACK_SCHEME,
+      ephemeral: options.ephemeral,
+    })
+    if (callback === null) return { kind: 'cancelled' }
+    options.onSheetClosed?.()
+
+    const result = new URL(callback).searchParams
+    const code = result.get('code')
+    if (result.get('state') !== oauthState || code === null) {
+      throw new ReflectError('auth', 'Reflect Classic returned an invalid sign-in callback')
+    }
+    const token = await this.#exchangeCode(code, verifier)
+    const now = clock.now()
+    const { email, expiresAt } = await this.#checkClassicAccount(token, now)
+    if (expiresAt === null) return { kind: 'not-eligible', email }
+
+    const access = { token, email, expiresAt, checkedAt: now }
+    await this.#saveAccess(access)
+    return { kind: 'signed-in', access }
+  }
+
+  readonly signOut = async (): Promise<void> => {
+    await this.#deps.secretStore.delete(CLASSIC_ACCESS_SECRET)
+    this.#publish(null)
+  }
+
+  readonly start = (): Unlisten => {
+    const { lifecycle, platform, logger } = this.#deps
+    if (platform.appPlatform !== 'ios') return () => {}
+    this.read().catch((error: unknown) => {
+      logger.error('Reading the Reflect Classic access failed', error)
+    })
+    let stopRechecks: Unlisten | null = null
+    const followToken = (): void => {
+      const hasToken = this.#state.access?.token != null
+      if (hasToken && stopRechecks === null) {
+        const recheckNow = (): void => {
+          this.load().catch((error: unknown) => {
+            logger.error('Reading the Reflect Classic access failed', error)
+          })
+        }
+        recheckNow()
+        stopRechecks = lifecycle.subscribeVisible(recheckNow)
+      } else if (!hasToken && stopRechecks !== null) {
+        stopRechecks()
+        stopRechecks = null
+      }
+    }
+    followToken()
+    const unsubscribe = this.subscribe(followToken)
+    return () => {
+      unsubscribe()
+      stopRechecks?.()
+    }
+  }
+
+  #publish(access: ClassicAccess | null): void {
+    this.#state = {
       access,
-      active: access !== null && isClassicAccessActive(access, clock.now()),
+      active: access !== null && isClassicAccessActive(access, this.#deps.clock.now()),
       isLoading: false,
     }
-    for (const listener of listeners) {
+    for (const listener of this.#listeners) {
       listener()
     }
   }
 
-  async function send(path: string, init: RequestInit): Promise<Response> {
+  async #send(path: string, init: RequestInit): Promise<Response> {
     try {
-      return await http.fetch(`${CLASSIC_ORIGIN}${path}`, init)
+      return await this.#deps.http.fetch(`${CLASSIC_ORIGIN}${path}`, init)
     } catch (error) {
       throw new ReflectError('network', `Could not reach Reflect Classic (${path})`, {
         cause: error,
@@ -176,12 +301,13 @@ export function createClassicAccessService(deps: {
    * body that is not JSON or does not match `schema` throws `parse`. Each case
    * logs its own warning.
    */
-  async function readResponse<T>(
+  async #readResponse<T>(
     response: Response,
     path: string,
     schema: z.ZodType<T>,
     failure: 'auth' | 'network',
   ): Promise<T> {
+    const { logger } = this.#deps
     if (!response.ok) {
       logger.warn(`Reflect Classic answered ${response.status} (${path})`)
       throw new ReflectError(failure, `Reflect Classic answered ${response.status} (${path})`)
@@ -209,74 +335,77 @@ export function createClassicAccessService(deps: {
     return body.data
   }
 
-  async function exchangeCode(code: string, verifier: string): Promise<string> {
-    const response = await send('/api/oauth/token', {
+  async #exchangeCode(code: string, verifier: string): Promise<string> {
+    const response = await this.#send('/api/oauth/token', {
       method: 'POST',
       headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_id: CLASSIC_OAUTH_CLIENT_ID, code, code_verifier: verifier }),
     })
-    const body = await readResponse(response, '/api/oauth/token', tokenSchema, 'auth')
+    const body = await this.#readResponse(response, '/api/oauth/token', tokenSchema, 'auth')
     return body.access_token
   }
 
-  async function getWithToken<T>(token: string, path: string, schema: z.ZodType<T>): Promise<T> {
-    const response = await send(path, {
+  async #getWithToken<T>(token: string, path: string, schema: z.ZodType<T>): Promise<T> {
+    const response = await this.#send(path, {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     })
     if (response.status === 401) {
       throw new ReflectError('auth', `Reflect Classic rejected the stored token (${path})`)
     }
-    return await readResponse(response, path, schema, 'network')
+    return await this.#readResponse(response, path, schema, 'network')
   }
 
-  /** Reads the account and works out until when it unlocks Reflect Open. */
-  async function checkClassicAccount(
+  /**
+   * Reads the account and works out until when it unlocks Reflect Open.
+   */
+  async #checkClassicAccount(
     token: string,
     now: number,
   ): Promise<{ email: string | null; expiresAt: number | null }> {
-    const me = await getWithToken(token, '/api/users/me', meSchema)
+    const me = await this.#getWithToken(token, '/api/users/me', meSchema)
     const invoices = me.subscription.paid
       ? []
-      : (await getWithToken(token, '/api/users/me/invoices', invoicesSchema)).invoices
+      : (await this.#getWithToken(token, '/api/users/me/invoices', invoicesSchema)).invoices
     return { email: me.email, expiresAt: classicAccessUntil(me.subscription.paid, invoices, now) }
   }
 
-  async function saveAccess(access: ClassicAccess): Promise<void> {
-    await secretStore.set(CLASSIC_ACCESS_SECRET, JSON.stringify(access))
+  async #saveAccess(access: ClassicAccess): Promise<void> {
+    await this.#deps.secretStore.set(CLASSIC_ACCESS_SECRET, JSON.stringify(access))
   }
 
-  async function readStored(): Promise<ClassicAccess | null> {
-    const raw = await secretStore.get(CLASSIC_ACCESS_SECRET)
+  async #readStored(): Promise<ClassicAccess | null> {
+    const raw = await this.#deps.secretStore.get(CLASSIC_ACCESS_SECRET)
     if (raw === null) return null
     try {
       return classicAccessSchema.parse(JSON.parse(raw))
     } catch (error) {
-      logger.error('Ignoring an unreadable Reflect Classic access record', error)
+      this.#deps.logger.error('Ignoring an unreadable Reflect Classic access record', error)
       return null
     }
   }
 
-  async function recheck(): Promise<ClassicAccess | null> {
-    const stored = await readStored()
+  async #recheck(): Promise<ClassicAccess | null> {
+    const { clock, logger } = this.#deps
+    const stored = await this.#readStored()
     if (stored === null || stored.token === null) return stored
     if (clock.now() - stored.checkedAt < RECHECK_INTERVAL_MS) return stored
 
     try {
       const now = clock.now()
-      const account = await checkClassicAccount(stored.token, now)
+      const account = await this.#checkClassicAccount(stored.token, now)
       const next = {
         ...stored,
         email: account.email,
         expiresAt: account.expiresAt ?? stored.expiresAt,
         checkedAt: now,
       }
-      await saveAccess(next)
+      await this.#saveAccess(next)
       return next
     } catch (error: unknown) {
       if (error instanceof ReflectError && error.kind === 'auth') {
         logger.warn('Reflect Classic rejected the stored token; keeping the current expiry', error)
         const next = { ...stored, token: null }
-        await saveAccess(next)
+        await this.#saveAccess(next)
         return next
       }
       logger.warn('Checking the Reflect Classic subscription failed; will retry later', error)
@@ -284,113 +413,23 @@ export function createClassicAccessService(deps: {
     }
   }
 
-  async function settle(lookup: Promise<ClassicAccess | null>): Promise<ClassicAccess | null> {
+  async #settle(lookup: Promise<ClassicAccess | null>): Promise<ClassicAccess | null> {
     try {
       const access = await lookup
-      publish(access)
+      this.#publish(access)
       return access
     } catch (error) {
-      if (state.isLoading) {
-        state = { ...state, isLoading: false }
-        for (const listener of listeners) {
+      if (this.#state.isLoading) {
+        this.#state = { ...this.#state, isLoading: false }
+        for (const listener of this.#listeners) {
           listener()
         }
       }
       throw error
     }
   }
+}
 
-  let pendingLoad: Promise<ClassicAccess | null> | null = null
-
-  function subscribe(listener: () => void): Unlisten {
-    listeners.add(listener)
-    return () => {
-      listeners.delete(listener)
-    }
-  }
-
-  const read = (): Promise<ClassicAccess | null> => settle(readStored())
-
-  function load(): Promise<ClassicAccess | null> {
-    if (pendingLoad === null) {
-      const next = settle(recheck())
-      pendingLoad = next
-      const clear = (): void => {
-        if (pendingLoad === next) pendingLoad = null
-      }
-      void next.then(clear, clear)
-    }
-    return pendingLoad
-  }
-
-  return {
-    getState: () => state,
-    subscribe,
-    read,
-    load,
-    async signIn(options) {
-      const { code_verifier: verifier, code_challenge: challenge } = await id.pkceChallenge()
-      const oauthState = id.uuid()
-      const params = new URLSearchParams({
-        client_id: CLASSIC_OAUTH_CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
-        state: oauthState,
-        code_challenge: challenge,
-        code_challenge_method: 'S256',
-      })
-      const callback = await webAuth.start({
-        url: `${CLASSIC_ORIGIN}/oauth?${params.toString()}`,
-        callbackScheme: CALLBACK_SCHEME,
-        ephemeral: options.ephemeral,
-      })
-      if (callback === null) return { kind: 'cancelled' }
-      options.onSheetClosed?.()
-
-      const result = new URL(callback).searchParams
-      const code = result.get('code')
-      if (result.get('state') !== oauthState || code === null) {
-        throw new ReflectError('auth', 'Reflect Classic returned an invalid sign-in callback')
-      }
-      const token = await exchangeCode(code, verifier)
-      const now = clock.now()
-      const { email, expiresAt } = await checkClassicAccount(token, now)
-      if (expiresAt === null) return { kind: 'not-eligible', email }
-
-      const access = { token, email, expiresAt, checkedAt: now }
-      await saveAccess(access)
-      return { kind: 'signed-in', access }
-    },
-    async signOut() {
-      await secretStore.delete(CLASSIC_ACCESS_SECRET)
-      publish(null)
-    },
-    start() {
-      if (platform.appPlatform !== 'ios') return () => {}
-      read().catch((error: unknown) => {
-        logger.error('Reading the Reflect Classic access failed', error)
-      })
-      let stopRechecks: Unlisten | null = null
-      const followToken = (): void => {
-        const hasToken = state.access?.token != null
-        if (hasToken && stopRechecks === null) {
-          const recheckNow = (): void => {
-            load().catch((error: unknown) => {
-              logger.error('Reading the Reflect Classic access failed', error)
-            })
-          }
-          recheckNow()
-          stopRechecks = lifecycle.subscribeVisible(recheckNow)
-        } else if (!hasToken && stopRechecks !== null) {
-          stopRechecks()
-          stopRechecks = null
-        }
-      }
-      followToken()
-      const unsubscribe = subscribe(followToken)
-      return () => {
-        unsubscribe()
-        stopRechecks?.()
-      }
-    },
-  }
+export function createClassicAccessService(deps: ClassicAccessServiceDeps): ClassicAccessService {
+  return new ClassicAccessServiceImpl(deps)
 }

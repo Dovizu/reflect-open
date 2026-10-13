@@ -5,25 +5,43 @@ import type { DatabaseService } from '../indexing/database-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { localIsoDate } from '../lib/dates.ts'
 
-/** One daily-note row of a date-ranged listing (the AI chat's daily tool). */
+/**
+ * One daily-note row of a date-ranged listing (the AI chat's daily tool).
+ */
 export interface DailyNoteRow {
   path: string
   title: string
   dailyDate: string
-  /** The indexed row preview (`buildIndexedNote`; may be empty). */
+  /**
+   * The indexed row preview (`buildIndexedNote`; may be empty).
+   */
   preview: string
-  /** File modification time (epoch ms). */
+  /**
+   * File modification time (epoch ms).
+   */
   mtime: number
   isPrivate: boolean
 }
 
 export interface DailyNotesRange {
-  /** First day, inclusive (ISO `YYYY-MM-DD`). */
+  /**
+   * First day, inclusive (ISO `YYYY-MM-DD`).
+   */
   start: string
-  /** Last day, inclusive (ISO `YYYY-MM-DD`). */
+  /**
+   * Last day, inclusive (ISO `YYYY-MM-DD`).
+   */
   end: string
-  /** Row cap — the most recent days in range win. */
+  /**
+   * Row cap — the most recent days in range win.
+   */
   limit: number
+}
+
+export interface DailyNoteServiceDeps {
+  readonly database: DatabaseService
+  readonly clock: ClockService
+  readonly lifecycle: AppLifecycleService
 }
 
 /**
@@ -33,7 +51,9 @@ export interface DailyNotesRange {
  * `week-window.ts`, `month-grid.ts`, `daily-arrivals.ts`).
  */
 export interface DailyNoteService {
-  /** Today's local calendar date as `YYYY-MM-DD` (the clock's live date). */
+  /**
+   * Today's local calendar date as `YYYY-MM-DD` (the clock's live date).
+   */
   today(): string
   /**
    * ISO dates within `[start, end]` (inclusive) whose daily note has content,
@@ -61,68 +81,74 @@ export interface DailyNoteService {
   subscribeWakeOnNewDay(listener: (today: string) => void): Unlisten
 }
 
-export function createDailyNoteService(deps: {
-  database: DatabaseService
-  clock: ClockService
-  lifecycle: AppLifecycleService
-}): DailyNoteService {
-  const { clock, lifecycle } = deps
-  const { db } = deps.database
+class DailyNoteServiceImpl implements DailyNoteService {
+  readonly #deps: DailyNoteServiceDeps
 
-  const wallDate = (): string => localIsoDate(new Date(clock.now()))
-
-  return {
-    today: () => clock.today(),
-
-    async dailyDatesInRange(start, end) {
-      const rows = await db
-        .selectFrom('notes')
-        .where('dailyDate', 'is not', null)
-        .where('dailyDate', '>=', start)
-        .where('dailyDate', '<=', end)
-        .where('hasContent', '=', 1)
-        .select('dailyDate')
-        .orderBy('dailyDate')
-        .execute()
-      return rows.map((row) => row.dailyDate).filter(isNotNullish)
-    },
-
-    async listDailyNotes(range) {
-      const rows = await db
-        .selectFrom('notes')
-        .where('dailyDate', 'is not', null)
-        .where('dailyDate', '>=', range.start)
-        .where('dailyDate', '<=', range.end)
-        .where('isPrivate', '=', 0)
-        .select(['path', 'title', 'dailyDate', 'preview', 'mtime', 'isPrivate'])
-        .orderBy('dailyDate', 'desc')
-        .limit(range.limit)
-        .execute()
-      return rows
-        .flatMap((row) => {
-          return row.dailyDate === null
-            ? null
-            : { ...row, dailyDate: row.dailyDate, isPrivate: row.isPrivate !== 0 }
-        })
-        .filter(isNotNullish)
-    },
-
-    subscribeWakeOnNewDay(listener) {
-      let lastSeen = wallDate()
-      const removeHidden = lifecycle.subscribeHidden(() => {
-        lastSeen = wallDate()
-      })
-      const removeVisible = lifecycle.subscribeVisible(() => {
-        const now = wallDate()
-        if (now !== lastSeen) {
-          lastSeen = now
-          listener(now)
-        }
-      })
-      return () => {
-        removeHidden()
-        removeVisible()
-      }
-    },
+  constructor(deps: DailyNoteServiceDeps) {
+    this.#deps = deps
   }
+
+  today(): string {
+    return this.#deps.clock.today()
+  }
+
+  async dailyDatesInRange(start: string, end: string): Promise<string[]> {
+    const rows = await this.#deps.database.db
+      .selectFrom('notes')
+      .where('dailyDate', 'is not', null)
+      .where('dailyDate', '>=', start)
+      .where('dailyDate', '<=', end)
+      .where('hasContent', '=', 1)
+      .select('dailyDate')
+      .orderBy('dailyDate')
+      .execute()
+    return rows.map((row) => row.dailyDate).filter(isNotNullish)
+  }
+
+  async listDailyNotes(range: DailyNotesRange): Promise<DailyNoteRow[]> {
+    const rows = await this.#deps.database.db
+      .selectFrom('notes')
+      .where('dailyDate', 'is not', null)
+      .where('dailyDate', '>=', range.start)
+      .where('dailyDate', '<=', range.end)
+      .where('isPrivate', '=', 0)
+      .select(['path', 'title', 'dailyDate', 'preview', 'mtime', 'isPrivate'])
+      .orderBy('dailyDate', 'desc')
+      .limit(range.limit)
+      .execute()
+    return rows
+      .flatMap((row) => {
+        return row.dailyDate === null
+          ? null
+          : { ...row, dailyDate: row.dailyDate, isPrivate: row.isPrivate !== 0 }
+      })
+      .filter(isNotNullish)
+  }
+
+  subscribeWakeOnNewDay(listener: (today: string) => void): Unlisten {
+    const { lifecycle } = this.#deps
+    let lastSeen = this.#wallDate()
+    const removeHidden = lifecycle.subscribeHidden(() => {
+      lastSeen = this.#wallDate()
+    })
+    const removeVisible = lifecycle.subscribeVisible(() => {
+      const now = this.#wallDate()
+      if (now !== lastSeen) {
+        lastSeen = now
+        listener(now)
+      }
+    })
+    return () => {
+      removeHidden()
+      removeVisible()
+    }
+  }
+
+  #wallDate(): string {
+    return localIsoDate(new Date(this.#deps.clock.now()))
+  }
+}
+
+export function createDailyNoteService(deps: DailyNoteServiceDeps): DailyNoteService {
+  return new DailyNoteServiceImpl(deps)
 }
