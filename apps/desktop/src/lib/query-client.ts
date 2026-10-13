@@ -61,12 +61,6 @@ export const queryKeys = {
     noteConflictLabels(root: GraphRoot, path: string) {
       return [...this.graph(root), 'note-conflict-labels', path] as const
     },
-    openTasks(root: GraphRoot) {
-      return [...this.graph(root), 'tasks'] as const
-    },
-    completedTasks(root: GraphRoot) {
-      return [...this.graph(root), 'tasks-completed'] as const
-    },
     backlinks(root: GraphRoot, path: string) {
       return [...this.graph(root), 'backlinks', path] as const
     },
@@ -151,33 +145,6 @@ export const mutationKeys = {
     all: ['tasks'] as const,
     graph(root: GraphRoot) {
       return [...this.all, root] as const
-    },
-    complete(root: GraphRoot) {
-      return [...this.graph(root), 'complete'] as const
-    },
-    reopen(root: GraphRoot) {
-      return [...this.graph(root), 'reopen'] as const
-    },
-    delete(root: GraphRoot) {
-      return [...this.graph(root), 'delete'] as const
-    },
-    edit(root: GraphRoot) {
-      return [...this.graph(root), 'edit'] as const
-    },
-    schedule(root: GraphRoot) {
-      return [...this.graph(root), 'schedule'] as const
-    },
-    convert(root: GraphRoot) {
-      return [...this.graph(root), 'convert'] as const
-    },
-    editAndConvert(root: GraphRoot) {
-      return [...this.graph(root), 'edit-and-convert'] as const
-    },
-    insert(root: GraphRoot) {
-      return [...this.graph(root), 'insert'] as const
-    },
-    editAndToggle(root: GraphRoot) {
-      return [...this.graph(root), 'edit-and-toggle'] as const
     },
     snippetToggle(root: GraphRoot) {
       return [...this.graph(root), 'snippet-toggle'] as const
