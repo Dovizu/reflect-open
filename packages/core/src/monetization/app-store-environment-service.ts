@@ -45,7 +45,7 @@ export interface AppStoreEnvironmentService {
    * This launch's channel, probed unless this launch already answered. A
    * failed probe keeps the remembered channel and shows in `getState().isError`.
    */
-  environment: () => Promise<AppStoreEnvironment>
+  environment(): Promise<AppStoreEnvironment>
   /**
    * Forgets this launch's answer, and probes again while anyone is subscribed.
    */
@@ -95,7 +95,7 @@ class AppStoreEnvironmentServiceImpl implements AppStoreEnvironmentService {
     }
   }
 
-  readonly environment = (): Promise<AppStoreEnvironment> => {
+  environment(): Promise<AppStoreEnvironment> {
     if (!this.#enabled) {
       return Promise.resolve(null)
     }

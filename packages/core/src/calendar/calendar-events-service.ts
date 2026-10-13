@@ -38,7 +38,7 @@ export interface CalendarEventsService {
    * the calendar reports a change, until the returned function runs. The
    * state changes behind Reflect's back in System Settings. Never prompts.
    */
-  watchAuthorization: () => Unlisten
+  watchAuthorization(): Unlisten
   /**
    * Whether calendar reads can run at all: the macOS desktop shell only.
    */
@@ -150,7 +150,7 @@ class CalendarEventsServiceImpl implements CalendarEventsService {
     }
   }
 
-  readonly watchAuthorization = (): Unlisten => {
+  watchAuthorization(): Unlisten {
     const { calendar, lifecycle } = this.#deps
     void this.#refreshAuthorization()
     const stopVisible = lifecycle.subscribeVisible(() => {

@@ -38,7 +38,7 @@ export interface ThemeService {
   /**
    * Resolves once the settings load has ended, successfully or not.
    */
-  whenSettled: () => Promise<void>
+  whenSettled(): Promise<void>
 }
 
 export interface ThemeServiceDeps {
@@ -88,7 +88,7 @@ class ThemeServiceImpl implements ThemeService {
     }
   }
 
-  readonly whenSettled = async (): Promise<void> => {
+  async whenSettled(): Promise<void> {
     this.#start()
     await this.#deps.settings.whenLoaded()
   }

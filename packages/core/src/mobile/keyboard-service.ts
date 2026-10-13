@@ -22,7 +22,7 @@ export interface KeyboardService {
   /**
    * Record the keyboard overlap height. A height equal to the current one notifies nobody.
    */
-  publish: (height: number) => void
+  publish(height: number): void
 }
 
 class KeyboardServiceImpl implements KeyboardService {
@@ -40,7 +40,7 @@ class KeyboardServiceImpl implements KeyboardService {
     }
   }
 
-  readonly publish = (height: number): void => {
+  publish(height: number): void {
     if (height === this.#currentHeight) {
       return
     }

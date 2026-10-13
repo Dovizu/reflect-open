@@ -55,7 +55,7 @@ class WebAuthServiceImpl implements WebAuthService {
     this.#deps = deps
   }
 
-  readonly start = async (options: WebAuthOptions): Promise<string | null> => {
+  async start(options: WebAuthOptions): Promise<string | null> {
     const payload: WebAuthOptions = {
       url: options.url,
       callbackScheme: options.callbackScheme,

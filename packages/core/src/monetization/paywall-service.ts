@@ -41,19 +41,19 @@ export interface PaywallService {
   /**
    * The store's offers for the yearly and monthly plans.
    */
-  products: () => Promise<IapProduct[]>
+  products(): Promise<IapProduct[]>
   /**
    * Runs the purchase sheet for `productId`, then looks the subscription up again.
    */
-  purchase: (productId: string) => Promise<void>
+  purchase(productId: string): Promise<void>
   /**
    * Syncs with the App Store, then resolves the subscription StoreKit now reports.
    */
-  restore: () => Promise<ActiveSubscription>
+  restore(): Promise<ActiveSubscription>
   /**
    * Presents the offer-code sheet, then looks the subscription up again.
    */
-  redeemCode: () => Promise<void>
+  redeemCode(): Promise<void>
 }
 
 /**
@@ -127,20 +127,21 @@ class PaywallServiceImpl implements PaywallService {
     this.#deps.storage.session.set(PAYWALL_REQUESTED_STORAGE_KEY, next ? 'true' : 'false')
   }
 
-  readonly products = (): Promise<IapProduct[]> =>
-    this.#deps.iap.getProducts([IAP_PRODUCT_IDS.yearly, IAP_PRODUCT_IDS.monthly])
+  products(): Promise<IapProduct[]> {
+    return this.#deps.iap.getProducts([IAP_PRODUCT_IDS.yearly, IAP_PRODUCT_IDS.monthly])
+  }
 
-  readonly purchase = async (productId: string): Promise<void> => {
+  async purchase(productId: string): Promise<void> {
     await this.#deps.iap.purchase(productId)
     this.#deps.subscription.invalidate()
   }
 
-  readonly restore = async (): Promise<ActiveSubscription> => {
+  async restore(): Promise<ActiveSubscription> {
     await this.#deps.appStore.sync()
     return await this.#deps.subscription.refetch()
   }
 
-  readonly redeemCode = async (): Promise<void> => {
+  async redeemCode(): Promise<void> {
     await this.#deps.appStore.presentOfferCodeRedeemSheet()
     // A redeemed code normally arrives as a purchaseUpdated event; the
     // refetch here covers a sheet that closed without emitting one.
