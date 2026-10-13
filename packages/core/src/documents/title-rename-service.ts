@@ -283,7 +283,9 @@ class RenameCoordinatorImpl implements RenameCoordinator {
               },
               resolve: (target) => wikiResolver.resolveWikiTarget(target),
             },
-            onProgress: operation.progress,
+            onProgress: (done, total) => {
+              operation.progress(done, total)
+            },
           })
           collision = result.collision
         } catch (cause) {

@@ -52,10 +52,10 @@ export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): Re
     () => ({
       state,
       supported: update.supported,
-      checkNow: update.checkNow,
-      install: update.install,
-      restart: update.restart,
-      retryAction: update.retryAction,
+      checkNow: () => update.checkNow(),
+      install: () => update.install(),
+      restart: () => update.restart(),
+      retryAction: () => update.retryAction(),
     }),
     [update, state],
   )

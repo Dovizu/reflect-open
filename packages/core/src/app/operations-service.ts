@@ -31,23 +31,23 @@ export interface OperationOptions {
 }
 
 export interface OperationHandle {
-  progress: (done: number, total: number) => void
+  progress(done: number, total: number): void
   /**
    * The operation completed; its entry disappears.
    */
-  done: () => void
+  done(): void
   /**
    * The operation completed with caveats; its warning lingers briefly.
    */
-  warn: (message: string) => void
+  warn(message: string): void
   /**
    * The operation failed; the entry lingers briefly so the error is seen.
    */
-  fail: (message: string) => void
+  fail(message: string): void
   /**
    * Remove the operation immediately.
    */
-  dismiss: () => void
+  dismiss(): void
 }
 
 /**
@@ -106,25 +106,25 @@ class OperationHandleImpl implements OperationHandle {
     this.#persistent = persistent
   }
 
-  readonly progress = (done: number, total: number): void => {
+  progress(done: number, total: number): void {
     this.#service.patch(this.#id, { progress: { done, total } })
   }
 
-  readonly done = (): void => {
+  done(): void {
     this.#removeAfterMinimum(0)
   }
 
-  readonly warn = (message: string): void => {
+  warn(message: string): void {
     this.#service.patch(this.#id, { status: 'warning', message })
     this.#removeAfterMinimum(LINGER_MS)
   }
 
-  readonly fail = (message: string): void => {
+  fail(message: string): void {
     this.#service.patch(this.#id, { status: 'failed', message })
     this.#removeAfterMinimum(LINGER_MS)
   }
 
-  readonly dismiss = (): void => {
+  dismiss(): void {
     this.#service.dismiss(this.#id)
   }
 

@@ -213,28 +213,28 @@ class TestUpdateServiceImpl implements TestUpdateService {
     }
   }
 
-  readonly start = (): void => {
+  start(): void {
     this.calls.push('start')
   }
 
-  readonly checkNow = async (): Promise<void> => {
+  async checkNow(): Promise<void> {
     this.calls.push('checkNow')
   }
 
-  readonly install = async (): Promise<void> => {
+  async install(): Promise<void> {
     this.calls.push('install')
   }
 
-  readonly restart = async (): Promise<void> => {
+  async restart(): Promise<void> {
     this.calls.push('restart')
   }
 
-  readonly retryAction = (): Promise<void> => {
+  retryAction(): Promise<void> {
     this.calls.push('retryAction')
     return retryUpdate(this)
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     this.calls.push('dispose')
   }
 

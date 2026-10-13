@@ -187,7 +187,11 @@ class CaptureSessionImpl implements CaptureSession {
     if (this.#mobile) {
       // Mobile resume: `focus` alone is unreliable in the iOS webview (the
       // iCloud refresh hook listens to both for the same reason).
-      loop.onDispose(lifecycle.subscribeVisible(loop.schedule))
+      loop.onDispose(
+        lifecycle.subscribeVisible(() => {
+          loop.schedule()
+        }),
+      )
     }
     loop.onDispose(
       fileChanges.subscribe(({ changes }) => {

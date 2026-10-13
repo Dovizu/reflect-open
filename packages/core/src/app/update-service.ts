@@ -53,7 +53,7 @@ export interface UpdaterAdapter {
 }
 
 /**
- * Members are function properties so surfaces can pass them around unbound.
+ * `getState` and `subscribe` are function properties so React can read them unbound.
  */
 export interface UpdateService {
   /**
@@ -66,27 +66,27 @@ export interface UpdateService {
   /**
    * Begin auto-checking in the main window: once now, then every six hours.
    */
-  start: () => void
+  start(): void
   /**
    * User-initiated check: surfaces "up to date" and failures, unlike auto.
    */
-  checkNow: () => Promise<void>
+  checkNow(): Promise<void>
   /**
    * Download and install the found update; progress lands in the state.
    */
-  install: () => Promise<void>
+  install(): Promise<void>
   /**
    * Relaunch into the installed update.
    */
-  restart: () => Promise<void>
+  restart(): Promise<void>
   /**
    * Retry what failed: an install after a failed install, otherwise a check.
    */
-  retryAction: () => Promise<void>
+  retryAction(): Promise<void>
   /**
    * Stop auto-checking.
    */
-  dispose: () => void
+  dispose(): void
 }
 
 export interface UpdateServiceDeps {
@@ -157,7 +157,7 @@ class UpdateServiceImpl implements UpdateService {
     }
   }
 
-  readonly start = (): void => {
+  start(): void {
     if (!this.supported || !this.#mainWindow || this.#timer !== null) {
       return
     }
@@ -168,9 +168,11 @@ class UpdateServiceImpl implements UpdateService {
     )
   }
 
-  readonly checkNow = (): Promise<void> => this.#runCheck(false)
+  checkNow(): Promise<void> {
+    return this.#runCheck(false)
+  }
 
-  readonly install = async (): Promise<void> => {
+  async install(): Promise<void> {
     const update = this.#pendingUpdate
     if (!update || this.#state.phase === 'downloading' || this.#state.phase === 'ready') {
       return
@@ -203,11 +205,15 @@ class UpdateServiceImpl implements UpdateService {
     }
   }
 
-  readonly restart = (): Promise<void> => this.#deps.updater.relaunch()
+  restart(): Promise<void> {
+    return this.#deps.updater.relaunch()
+  }
 
-  readonly retryAction = (): Promise<void> => retryUpdate(this)
+  retryAction(): Promise<void> {
+    return retryUpdate(this)
+  }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     if (this.#timer !== null) {
       this.#deps.clock.clearInterval(this.#timer)
       this.#timer = null
@@ -275,17 +281,17 @@ class UnsupportedUpdateService implements UpdateService {
 
   readonly subscribe = (): Unlisten => () => {}
 
-  readonly start = (): void => {}
+  start(): void {}
 
-  readonly checkNow = async (): Promise<void> => {}
+  async checkNow(): Promise<void> {}
 
-  readonly install = async (): Promise<void> => {}
+  async install(): Promise<void> {}
 
-  readonly restart = async (): Promise<void> => {}
+  async restart(): Promise<void> {}
 
-  readonly retryAction = async (): Promise<void> => {}
+  async retryAction(): Promise<void> {}
 
-  readonly dispose = (): void => {}
+  dispose(): void {}
 }
 
 export function createUpdateService(deps: UpdateServiceDeps): UpdateService {

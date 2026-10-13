@@ -17,11 +17,11 @@ export interface IpcBridge {
   /**
    * Invoke a native command, resolving with its raw (untyped) response.
    */
-  invoke: (command: string, args: Record<string, unknown>) => Promise<unknown>
+  invoke(command: string, args: Record<string, unknown>): Promise<unknown>
   /**
    * Subscribe to a native event stream, resolving with an unlisten function.
    */
-  listen: (event: string, handler: (payload: unknown) => void) => Promise<Unlisten>
+  listen(event: string, handler: (payload: unknown) => void): Promise<Unlisten>
   /**
    * Invoke a native command with a **raw binary body** instead of JSON args —
    * asset bytes cross the IPC without base64 inflation. Since a raw body
@@ -204,7 +204,9 @@ class IpcBridgeServiceImpl implements IpcBridgeService {
       const fanOut = createFanOut<Payload>()
       entry = {
         fanOut,
-        ready: this.#registerSharedListener(key, plugin, event, schema, fanOut.emit),
+        ready: this.#registerSharedListener(key, plugin, event, schema, (value) => {
+          fanOut.emit(value)
+        }),
       }
       // A missing `listenPlugin` rejects before this line, so that
       // rejection stays cached: the transport will never gain plugin events.
@@ -282,7 +284,7 @@ export interface FanOut<T> {
   /**
    * Deliver `value` to every current handler.
    */
-  emit: (value: T) => void
+  emit(value: T): void
 }
 
 class FanOutImpl<T> implements FanOut<T> {
@@ -301,7 +303,9 @@ class FanOutImpl<T> implements FanOut<T> {
     }
     this.#handlers.add(deliver)
     if (this.#stop === null && this.#start !== undefined) {
-      this.#stop = this.#start(this.emit)
+      this.#stop = this.#start((value) => {
+        this.emit(value)
+      })
     }
     return () => {
       if (!this.#handlers.delete(deliver) || this.#handlers.size > 0 || this.#stop === null) {
@@ -313,7 +317,7 @@ class FanOutImpl<T> implements FanOut<T> {
     }
   }
 
-  readonly emit = (value: T): void => {
+  emit(value: T): void {
     for (const handler of this.#handlers) {
       handler(value)
     }

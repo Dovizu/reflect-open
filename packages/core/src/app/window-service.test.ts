@@ -133,7 +133,8 @@ describe('createWindowService', () => {
   it('delivers index writes to a listener registered before the bridge answers', async () => {
     const listen = Promise.withResolvers<void>()
     const ipc = createTestIpcBridgeService()
-    const transportListen = ipc.transport.listen
+    const transport = ipc.transport
+    const transportListen = transport.listen.bind(transport)
     ipc.transport.listen = async (event, handler) => {
       await listen.promise
       return await transportListen(event, handler)

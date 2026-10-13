@@ -34,7 +34,7 @@ export interface BackgroundReconciler {
   /**
    * Request a pass; if one is running, queue exactly one follow-up after it.
    */
-  schedule: () => void
+  schedule(): void
   /**
    * True once {@link dispose} has run: the `pass` body's `isStale` gate.
    */
@@ -52,7 +52,7 @@ export interface BackgroundReconciler {
   /**
    * Stop the loop (its next gate aborts the in-flight pass) and run teardowns.
    */
-  dispose: () => void
+  dispose(): void
 }
 
 /**
@@ -87,7 +87,7 @@ class BackgroundReconcilerImpl implements BackgroundReconciler {
     this.#options = options
   }
 
-  readonly schedule = (): void => {
+  schedule(): void {
     if (!this.#disposed) {
       void this.#run()
     }
@@ -98,7 +98,11 @@ class BackgroundReconcilerImpl implements BackgroundReconciler {
   }
 
   retryOnWake(): void {
-    this.#disposers.push(this.#lifecycle.subscribeWake(this.schedule))
+    this.#disposers.push(
+      this.#lifecycle.subscribeWake(() => {
+        this.schedule()
+      }),
+    )
   }
 
   onDispose(teardown: () => void): void {
@@ -109,7 +113,7 @@ class BackgroundReconcilerImpl implements BackgroundReconciler {
     this.#disposers.push(teardown)
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     this.#disposed = true
     for (const teardown of this.#disposers.splice(0)) {
       teardown()
