@@ -100,7 +100,7 @@ export function createGraphServices<App>(
   const mobile = isMobilePlatform(platform.appPlatform) || platform.surface.mobileApp
   const disposers: Array<() => void> = []
 
-  const chat = chatSessions.create({ graph: { root, name: session.name } })
+  const chat = chatSessions.create({ session })
   disposers.push(chat.attach())
   disposers.push(attachments.watchCatalog(generation))
 

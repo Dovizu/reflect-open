@@ -74,6 +74,7 @@ function setup(options?: {
   const logger = createTestLoggerService()
   const clock = createTestClockService()
   const operations = createTestOperationsService(clock)
+  const graph: { session: GraphSession | null } = { session: sessionAt(7) }
   const index = createIndexLifecycleService({
     indexStore: {
       ...store,
@@ -120,6 +121,7 @@ function setup(options?: {
     clock,
     logger,
     operations,
+    graphSession: { getState: () => graph },
   })
   const progress: IndexLifecycleProgress[] = []
   const applied: IndexAppliedEvent[] = []
@@ -150,6 +152,7 @@ function setup(options?: {
   })
   return {
     index,
+    graph,
     store,
     files,
     fileChanges,
@@ -678,10 +681,10 @@ describe('rebuildVisibly', () => {
     return steps.filter((step) => step === 'clear').length
   }
 
-  it('rebuilds at the generation and reports as an operation', async () => {
+  it('rebuilds at the open index generation and reports as an operation', async () => {
     const { index, store, operations, reconciled } = setup({ files: { 'notes/a.md': '# A' } })
 
-    await index.rebuildVisibly(7)
+    await index.rebuildVisibly()
 
     expect(store.calls().map((call) => call.method)).toEqual(['clear', 'applyBatch', 'setMeta'])
     expect(store.calls()[0]).toEqual({ method: 'clear', generation: 7 })
@@ -693,8 +696,8 @@ describe('rebuildVisibly', () => {
     const held = heldClears()
     const { index, steps } = setup({ onClear: held.onClear })
 
-    const first = index.rebuildVisibly(7)
-    const second = index.rebuildVisibly(7)
+    const first = index.rebuildVisibly()
+    const second = index.rebuildVisibly()
 
     expect(second).toBe(first)
     expect(clears(steps)).toBe(1)
@@ -703,19 +706,37 @@ describe('rebuildVisibly', () => {
     await first
 
     // Once settled, the guard is released and the next request rebuilds again.
-    const third = index.rebuildVisibly(7)
+    const third = index.rebuildVisibly()
     await vi.waitFor(() => expect(held.settles).toHaveLength(2))
     held.settles[1]!()
     await third
     expect(clears(steps)).toBe(2)
   })
 
+  it('does nothing without an open index', async () => {
+    const { index, graph, store, operations } = setup()
+
+    graph.session = null
+    await index.rebuildVisibly()
+    graph.session = createGraphSession({
+      root: '/g',
+      name: 'g',
+      generation: 1,
+      indexGeneration: null,
+    })
+    await index.rebuildVisibly()
+
+    expect(store.calls()).toEqual([])
+    expect(operations.snapshot()).toEqual([])
+  })
+
   it('starts a fresh pass for a different generation', async () => {
     const held = heldClears()
-    const { index, store, steps } = setup({ onClear: held.onClear })
+    const { index, graph, store, steps } = setup({ onClear: held.onClear })
 
-    const first = index.rebuildVisibly(7)
-    const second = index.rebuildVisibly(8)
+    const first = index.rebuildVisibly()
+    graph.session = sessionAt(8)
+    const second = index.rebuildVisibly()
     expect(second).not.toBe(first)
     await vi.waitFor(() => expect(held.settles).toHaveLength(2))
 
@@ -737,12 +758,12 @@ describe('rebuildVisibly', () => {
       }
     })
 
-    const first = index.rebuildVisibly(7)
+    const first = index.rebuildVisibly()
     await vi.waitFor(() => expect(steps).toContain('clear'))
     await new Promise((resolve) => setTimeout(resolve, 0))
     // The wipe and the re-index are done, the follower (a re-embed) is not:
     // a second request still joins the same pass.
-    expect(index.rebuildVisibly(7)).toBe(first)
+    expect(index.rebuildVisibly()).toBe(first)
 
     follower.resolve()
     await first
@@ -758,7 +779,7 @@ describe('rebuildVisibly', () => {
           : undefined,
     })
 
-    await expect(index.rebuildVisibly(7)).resolves.toBeUndefined()
+    await expect(index.rebuildVisibly()).resolves.toBeUndefined()
 
     expect(logger.getWarnings().map((entry) => entry.message)).toEqual([
       'Index rebuild skipped notes/bad.md: unexpected end of hex escape',
@@ -780,19 +801,22 @@ describe('rebuildVisibly', () => {
         fail && call.method === 'clear' ? new Error('index on fire') : undefined,
     })
 
-    await expect(index.rebuildVisibly(7)).resolves.toBeUndefined()
+    await expect(index.rebuildVisibly()).resolves.toBeUndefined()
     expect(operations.snapshot()).toMatchObject([{ status: 'failed', message: 'index on fire' }])
     expect(reconciled).toEqual([])
 
     fail = false
-    await index.rebuildVisibly(7)
+    await index.rebuildVisibly()
     expect(clears(steps)).toBe(2)
     expect(reconciled).toEqual([{ generation: 7, source: 'rebuild' }])
   })
 
   it('a test lifecycle records the requested generations', async () => {
-    const index = createTestIndexLifecycleService()
-    await index.rebuildVisibly(7)
+    const session = sessionAt(7)
+    const index = createTestIndexLifecycleService({
+      graphSession: { getState: () => ({ session }) },
+    })
+    await index.rebuildVisibly()
     expect(index.rebuilds()).toEqual([7])
   })
 })

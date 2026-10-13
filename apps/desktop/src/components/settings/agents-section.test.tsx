@@ -17,8 +17,8 @@ const GRAPH = { root: '/graphs/Personal', name: 'Personal', generation: 7 }
 type InstallState = 'missing' | 'current' | 'stale' | 'conflict'
 
 let installState: InstallState
-let installGenerations: number[]
-let uninstallGenerations: number[]
+let installs: number
+let uninstalls: number
 let installResult: () => Promise<AgentSkillStatus>
 let uninstallResult: () => Promise<AgentSkillStatus>
 
@@ -33,12 +33,12 @@ function statusPayload(): AgentSkillStatus {
 
 const agentSkill: AgentSkillService = {
   status: async () => statusPayload(),
-  install: async (generation) => {
-    installGenerations.push(generation)
+  install: async () => {
+    installs += 1
     return await installResult()
   },
-  uninstall: async (generation) => {
-    uninstallGenerations.push(generation)
+  uninstall: async () => {
+    uninstalls += 1
     return await uninstallResult()
   },
 }
@@ -56,8 +56,8 @@ async function renderSection(platform?: TestPlatformOptions): Promise<SectionVie
 
 beforeEach(() => {
   installState = 'missing'
-  installGenerations = []
-  uninstallGenerations = []
+  installs = 0
+  uninstalls = 0
   installResult = async () => {
     installState = 'current'
     return statusPayload()
@@ -69,33 +69,33 @@ beforeEach(() => {
 })
 
 describe('AgentsSection', () => {
-  it('installs the skill with the graph generation pinned', async () => {
+  it('installs the skill', async () => {
     await renderSection()
     await page.getByRole('button', { name: 'Install skill' }).click()
 
     await expect.element(page.getByText('Installed')).toBeInTheDocument()
-    expect(installGenerations).toEqual([GRAPH.generation])
+    expect(installs).toBe(1)
     await expect
       .element(page.getByText('/Users/me/.agents/skills/reflect-personal/SKILL.md'))
       .toBeInTheDocument()
   })
 
-  it('updates a stale install with the graph generation pinned', async () => {
+  it('updates a stale install', async () => {
     installState = 'stale'
     await renderSection()
 
     await page.getByRole('button', { name: 'Update skill' }).click()
     await expect.element(page.getByText('Installed')).toBeInTheDocument()
-    expect(installGenerations).toEqual([GRAPH.generation])
+    expect(installs).toBe(1)
   })
 
-  it('removes any managed install with the graph generation pinned', async () => {
+  it('removes any managed install', async () => {
     installState = 'stale'
     await renderSection()
 
     await page.getByRole('button', { name: 'Remove' }).click()
     await expect.element(page.getByRole('button', { name: 'Install skill' })).toBeInTheDocument()
-    expect(uninstallGenerations).toEqual([GRAPH.generation])
+    expect(uninstalls).toBe(1)
   })
 
   it('disables all actions while one mutation is pending', async () => {

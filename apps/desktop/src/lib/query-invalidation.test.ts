@@ -3,6 +3,7 @@ import {
   createTestAppServices,
   createTestAssetDescriptionService,
   createTestCaptureService,
+  createTestGraphSessionService,
   createTestIndexLifecycleService,
   createTestIndexStoreService,
   createTestWindowService,
@@ -89,12 +90,13 @@ describe('installQueryInvalidation for the index and the graph', () => {
   it('invalidates the index queries once a pass commits and after a rebuild', async () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries')
     const { app, stop } = installApp(createTestAppServices())
+    app.graphSession.setGraph({ indexGeneration: 5 })
 
     app.indexLifecycle.emitApplied(null, 5)
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.index.all })
     invalidate.mockClear()
 
-    await app.indexLifecycle.rebuildVisibly(5)
+    await app.indexLifecycle.rebuildVisibly()
     expect(invalidate).toHaveBeenCalledWith({ queryKey: queryKeys.index.all })
     stop()
   })
@@ -105,10 +107,11 @@ describe('installQueryInvalidation for the index and the graph', () => {
       indexStore: createTestIndexStoreService({
         fail: (call) => (call.method === 'clear' ? new Error('index on fire') : undefined),
       }),
+      graphSession: createTestGraphSessionService({ graph: { indexGeneration: 5 } }),
     })
     const { stop } = installApp(createTestAppServices({ indexLifecycle }))
 
-    await indexLifecycle.rebuildVisibly(5)
+    await indexLifecycle.rebuildVisibly()
 
     expect(invalidate).not.toHaveBeenCalled()
     stop()

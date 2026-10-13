@@ -81,7 +81,6 @@ export function AudioMemoProvider({ graph, children }: AudioMemoProviderProps): 
   const [session, setSession] = useState<AudioMemoSession | null>(null)
   useLayoutEffect(() => {
     const next = audioMemo.openSession({
-      generation: graph.generation,
       surfaceHidden: collapsedRef.current,
       surface: {
         reveal: () => {

@@ -1,10 +1,9 @@
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import { errorMessage } from '../errors.ts'
 import type { ICloudNativeService } from '../ipc/icloud-native-service.ts'
 
 /** One move of the open graph into iCloud Drive. */
 export interface MoveGraphToICloudOptions {
-  /** The open graph's generation — the copy is pinned to it. */
-  generation: number
   /**
    * `BackupService.disconnectGraph` of the open graph when its backup is
    * connected, else `null`.
@@ -25,6 +24,7 @@ export interface MoveGraphToICloudOptions {
 /** The services an {@link ICloudMigrationService} runs on. */
 export interface ICloudMigrationServiceDeps {
   icloudNative: Pick<ICloudNativeService, 'adoptGraph'>
+  graphSession: GraphSessionSource
 }
 
 /**
@@ -37,8 +37,9 @@ export interface ICloudMigrationServiceDeps {
  */
 export interface ICloudMigrationService {
   /**
-   * Run the move. Never rejects: resolves with the text of what went wrong
-   * for the user, or `null` when every step worked.
+   * Run the move of the open graph, pinned to its generation. Never rejects:
+   * resolves with the text of what went wrong for the user, or `null` when
+   * every step worked.
    */
   moveGraph: (options: MoveGraphToICloudOptions) => Promise<string | null>
 }
@@ -46,15 +47,19 @@ export interface ICloudMigrationService {
 export function createICloudMigrationService(
   deps: ICloudMigrationServiceDeps,
 ): ICloudMigrationService {
-  const { icloudNative } = deps
+  const { icloudNative, graphSession } = deps
 
   return {
-    moveGraph: async ({ generation, disconnectBackup, openGraph, onCopied }) => {
+    moveGraph: async ({ disconnectBackup, openGraph, onCopied }) => {
+      const { session } = graphSession.getState()
+      if (session === null) {
+        return 'No graph is open.'
+      }
       let failure: string | null = null
       try {
         // Copy first: if it fails, nothing changed — the backup is still
         // connected and the graph untouched.
-        const newRoot = await icloudNative.adoptGraph(generation)
+        const newRoot = await icloudNative.adoptGraph(session.generation)
         if (disconnectBackup !== null) {
           try {
             await disconnectBackup()

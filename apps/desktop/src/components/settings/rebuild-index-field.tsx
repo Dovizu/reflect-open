@@ -18,12 +18,12 @@ export function RebuildIndexField(): ReactElement {
   const [rebuilding, setRebuilding] = useState(false)
 
   const rebuild = async (): Promise<void> => {
-    if (indexGeneration === null || rebuilding) {
+    if (rebuilding) {
       return
     }
     setRebuilding(true)
     try {
-      await indexLifecycle.rebuildVisibly(indexGeneration)
+      await indexLifecycle.rebuildVisibly()
     } finally {
       setRebuilding(false)
     }

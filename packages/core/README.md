@@ -90,7 +90,7 @@ Every native call goes through one seam:
     stale. Then it subscribes to live changes and starts the Rust file watcher,
     in that order. The live subscription is the *sole* incremental path (our
     own saves flow file → watcher → index like any external edit).
-  - **`rebuildVisibly(generation)`** — wipe and re-index everything. For
+  - **`rebuildVisibly()`** — wipe and re-index the open graph. For
     explicit repair, not the hot path.
   - It reports through events (`onApplied`,
     `onReconciled`, `onMoved`, ...); the app maps them to cache invalidation,

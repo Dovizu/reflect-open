@@ -1,4 +1,5 @@
 import type { ClockService } from '../app/clock-service.ts'
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
@@ -38,12 +39,14 @@ export interface TestIndexLifecycleServiceOptions {
   clock?: ClockService
   logger?: LoggerService
   operations?: OperationsService
+  /** Where `rebuildVisibly` reads the open graph from; defaults to no graph open. */
+  graphSession?: GraphSessionSource
 }
 
 export interface TestIndexLifecycleService extends IndexLifecycleService {
   /** Publish file progress as a running pass would; `null` clears it. */
   setFileProgress: (progress: IndexFileProgress | null) => void
-  /** The generation of every `rebuildVisibly` request, in order. */
+  /** The index generation of every `rebuildVisibly` request with an open index, in order. */
   rebuilds: () => readonly number[]
   /**
    * Report `changes` as applied at `generation` to this lifecycle's
@@ -59,6 +62,9 @@ export function createTestIndexLifecycleService(
 ): TestIndexLifecycleService {
   const database = options?.database ?? createTestDatabaseService()
   const clock = options?.clock ?? createTestClockService()
+  const graphSession: GraphSessionSource = options?.graphSession ?? {
+    getState: () => ({ session: null }),
+  }
   const service = createIndexLifecycleService({
     indexStore: options?.indexStore ?? createTestIndexStoreService(),
     noteFile: options?.noteFile ?? createTestNoteFileService(),
@@ -70,6 +76,7 @@ export function createTestIndexLifecycleService(
     clock,
     logger: options?.logger ?? createTestLoggerService(),
     operations: options?.operations ?? createTestOperationsService(),
+    graphSession,
   })
   const rebuildLog: number[] = []
   const seededListeners = new Set<() => void>()
@@ -89,9 +96,12 @@ export function createTestIndexLifecycleService(
         seededListeners.delete(listener)
       }
     },
-    rebuildVisibly: (generation) => {
-      rebuildLog.push(generation)
-      return service.rebuildVisibly(generation)
+    rebuildVisibly: () => {
+      const generation = graphSession.getState().session?.indexGeneration ?? null
+      if (generation !== null) {
+        rebuildLog.push(generation)
+      }
+      return service.rebuildVisibly()
     },
     setFileProgress: (progress) => {
       seeded = { progress }

@@ -17,11 +17,6 @@ import type { NativeActionService } from './native-action-service.ts'
 
 const MIC_DENIED_REASON = 'Microphone access was denied. Allow it for Reflect in the Settings app.'
 
-export interface MobileAudioMemoSessionOptions {
-  /** The open graph's generation — pins captures and transcription to it. */
-  generation: number
-}
-
 /** What a {@link MobileAudioMemoSession} shows of itself. */
 export interface MobileAudioMemoSessionState {
   readonly phase: AudioMemoPhase
@@ -93,8 +88,8 @@ export interface MobileAudioMemoSession {
 
 /** Native recording sessions end to end: start, stop-and-save, discard, and exactly-once ingest. */
 export interface MobileAudioMemoService {
-  /** Open the mobile recording surface of one graph session. */
-  openSession(options: MobileAudioMemoSessionOptions): MobileAudioMemoSession
+  /** Open the mobile recording surface of the open graph's session; throws when no graph is open. */
+  openSession(): MobileAudioMemoSession
 }
 
 /** One finished segment of a recording session, staged and ready to ingest. */
@@ -144,7 +139,7 @@ function isMicDeniedError(cause: unknown): boolean {
 }
 
 export function createMobileAudioMemoService(deps: {
-  audioMemo: Pick<AudioMemoService, 'openPipeline' | 'listSegments' | 'deleteSegment'>
+  audioMemo: Pick<AudioMemoService, 'openPipeline'>
   audioRecorder: AudioRecorderService
   nativeAction: NativeActionService
   lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
@@ -158,8 +153,7 @@ export function createMobileAudioMemoService(deps: {
     void haptics.impactLight().catch(() => {})
   }
 
-  function openSession(options: MobileAudioMemoSessionOptions): MobileAudioMemoSession {
-    const { generation } = options
+  function openSession(): MobileAudioMemoSession {
     const listeners = new Set<() => void>()
     let drawerOpen = false
     /** True from the stop tap until the recorder hands over the file. */
@@ -182,7 +176,6 @@ export function createMobileAudioMemoService(deps: {
 
     // The pump consults the drawer the instant a capture fails.
     const pipeline = audioMemo.openPipeline({
-      generation,
       isErrorSurfaceVisible: () => drawerOpen,
     })
     const available = platform.isNativeShell
@@ -280,7 +273,7 @@ export function createMobileAudioMemoService(deps: {
           // A cancel that swept the directory before this segment's copy
           // landed has to be honored here instead.
           if (owner?.cancelled === true) {
-            await audioMemo.deleteSegment(path, generation).catch(() => {})
+            await pipeline.deleteSegment(path).catch(() => {})
           }
           await release()
         },
@@ -361,8 +354,8 @@ export function createMobileAudioMemoService(deps: {
         cancelledSessions.add(session.recordedAt.getTime())
         const memo = audioMemoIdentity(session.recordedAt, NATIVE_RECORDING_MIME)
         void (async () => {
-          for (const path of await audioMemo.listSegments(memo, generation)) {
-            await audioMemo.deleteSegment(path, generation).catch(() => {})
+          for (const path of await pipeline.listSegments(memo)) {
+            await pipeline.deleteSegment(path).catch(() => {})
           }
         })().catch((cause: unknown) => {
           logger.error('discarding the recorded segments failed:', cause)
