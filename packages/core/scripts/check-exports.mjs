@@ -5,6 +5,12 @@
 //    non-test file (`.field`, a `useAppServices()` destructuring, or a
 //    `Pick<AppServices, ...>`).
 // Exits 1 and lists the offenders when either check fails.
+//
+//
+//
+// FIXME: you have two options:
+// 1. if it's easy to implement, move it to eslint.config.ts as a eslint rule
+// 2. if it's hard to implement, just make it a temp script during your current development. do not add it to the git.
 
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
