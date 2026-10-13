@@ -597,6 +597,7 @@ export const appServiceFactories = {
     platform: PlatformFacts
     build: () => MobileServices
   }): MobileServices | null =>
+    // FIXME: do not use this pattern. I want `appServiceFactories` to be simpler and avoid branching logic. Just use `mobile: createMobileServices` here and put this logic in, for example, inside `const createMobileServices = (): MobileServices|null => { ... }`
     isMobilePlatform(deps.platform.appPlatform) || deps.platform.surface.mobileApp
       ? deps.build()
       : null,
