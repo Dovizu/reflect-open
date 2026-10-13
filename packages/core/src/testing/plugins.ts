@@ -176,7 +176,7 @@ class TestWebAuthServiceImpl implements TestWebAuthService {
     this.#callback = callbackUrl
   }
 
-  readonly start = (options: WebAuthOptions): Promise<string | null> => {
+  start(options: WebAuthOptions): Promise<string | null> {
     this.#log.push({ ...options })
     return Promise.resolve(this.#callback)
   }

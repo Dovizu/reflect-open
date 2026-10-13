@@ -29,7 +29,7 @@ class Listeners {
     }
   }
 
-  readonly notify = (): void => {
+  notify(): void {
     for (const listener of this.#listeners) {
       listener()
     }
@@ -74,29 +74,29 @@ class TestClassicAccessServiceImpl implements TestClassicAccessService {
 
   readonly subscribe = this.#listeners.subscribe
 
-  readonly read = (): Promise<ClassicAccess | null> => {
+  read(): Promise<ClassicAccess | null> {
     this.#log.push('read')
     return Promise.resolve(this.#current.access)
   }
 
-  readonly load = (): Promise<ClassicAccess | null> => {
+  load(): Promise<ClassicAccess | null> {
     this.#log.push('load')
     return Promise.resolve(this.#current.access)
   }
 
-  readonly signIn = async (options: ClassicSignInOptions): Promise<ClassicSignInResult> => {
+  async signIn(options: ClassicSignInOptions): Promise<ClassicSignInResult> {
     this.#log.push('signIn')
     this.#signInLog.push(options)
     return await this.#signIn(options)
   }
 
-  readonly signOut = (): Promise<void> => {
+  signOut(): Promise<void> {
     this.#log.push('signOut')
     this.setState({ access: null, active: false })
     return Promise.resolve()
   }
 
-  readonly start = (): Unlisten => {
+  start(): Unlisten {
     this.#log.push('start')
     return () => {}
   }
@@ -156,7 +156,7 @@ class TestSubscriptionServiceImpl implements TestSubscriptionService {
 
   readonly subscribe = this.#listeners.subscribe
 
-  readonly activeSubscription = (): Promise<ActiveSubscription> => {
+  activeSubscription(): Promise<ActiveSubscription> {
     this.#log.push('activeSubscription')
     return Promise.resolve(this.#current.value)
   }
@@ -215,7 +215,7 @@ class TestAppStoreEnvironmentServiceImpl implements TestAppStoreEnvironmentServi
 
   readonly subscribe = this.#listeners.subscribe
 
-  readonly environment = (): Promise<AppStoreEnvironment> => {
+  environment(): Promise<AppStoreEnvironment> {
     this.#log.push('environment')
     return Promise.resolve(this.#current.value)
   }
@@ -282,22 +282,22 @@ class TestPaywallServiceImpl implements TestPaywallService {
     this.#listeners.notify()
   }
 
-  readonly products = (): Promise<IapProduct[]> => {
+  products(): Promise<IapProduct[]> {
     this.#log.push({ kind: 'products' })
     return Promise.resolve([])
   }
 
-  readonly purchase = (productId: string): Promise<void> => {
+  purchase(productId: string): Promise<void> {
     this.#log.push({ kind: 'purchase', productId })
     return Promise.resolve()
   }
 
-  readonly restore = (): Promise<ActiveSubscription> => {
+  restore(): Promise<ActiveSubscription> {
     this.#log.push({ kind: 'restore' })
     return Promise.resolve(null)
   }
 
-  readonly redeemCode = (): Promise<void> => {
+  redeemCode(): Promise<void> {
     this.#log.push({ kind: 'redeemCode' })
     return Promise.resolve()
   }

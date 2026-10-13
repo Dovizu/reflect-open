@@ -42,7 +42,7 @@ export interface ShareService {
    * ready (authoritative even when empty), or `null` while it's still
    * loading: then the content is empty rather than an async disk read.
    */
-  noteContent: (path: string) => NoteShareContent
+  noteContent(path: string): NoteShareContent
 }
 
 export interface ShareServiceDeps {
@@ -56,8 +56,9 @@ class ShareServiceImpl implements ShareService {
     this.#deps = deps
   }
 
-  readonly noteContent = (path: string): NoteShareContent =>
-    noteShareContent(this.#deps.openDocuments.sessionFor(path)?.liveContent() ?? '', path)
+  noteContent(path: string): NoteShareContent {
+    return noteShareContent(this.#deps.openDocuments.sessionFor(path)?.liveContent() ?? '', path)
+  }
 }
 
 export function createShareService(deps: ShareServiceDeps): ShareService {

@@ -6,11 +6,11 @@ export interface TestThemeService extends ThemeService {
   /**
    * Makes `resolved()` return `value`: changes the system scheme, or moves a pinned preference to `value`.
    */
-  setResolved: (value: ResolvedTheme) => void
+  setResolved(value: ResolvedTheme): void
   /**
    * Every preference passed to `setPreference`, oldest first.
    */
-  writes: () => ThemePreference[]
+  writes(): ThemePreference[]
 }
 
 class TestThemeServiceImpl implements TestThemeService {
@@ -43,9 +43,9 @@ class TestThemeServiceImpl implements TestThemeService {
     }
   }
 
-  readonly whenSettled = async (): Promise<void> => {}
+  async whenSettled(): Promise<void> {}
 
-  readonly setResolved = (value: ResolvedTheme): void => {
+  setResolved(value: ResolvedTheme): void {
     this.#update(() => {
       if (this.#current === 'system') {
         this.#system = value
@@ -55,7 +55,9 @@ class TestThemeServiceImpl implements TestThemeService {
     })
   }
 
-  readonly writes = (): ThemePreference[] => [...this.#written]
+  writes(): ThemePreference[] {
+    return [...this.#written]
+  }
 
   #resolve(): ResolvedTheme {
     return this.#current === 'system' ? this.#system : this.#current

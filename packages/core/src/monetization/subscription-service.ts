@@ -58,7 +58,7 @@ export interface SubscriptionService {
    * a minute old. A failed lookup resolves the current value and shows in
    * `getState().isError`.
    */
-  activeSubscription: () => Promise<ActiveSubscription>
+  activeSubscription(): Promise<ActiveSubscription>
   /**
    * Looks the subscription up in StoreKit now and resolves the current value.
    */
@@ -164,7 +164,7 @@ class SubscriptionServiceImpl implements SubscriptionService {
     }
   }
 
-  readonly activeSubscription = (): Promise<ActiveSubscription> => {
+  activeSubscription(): Promise<ActiveSubscription> {
     if (this.#answeredAt !== null && this.#deps.clock.now() - this.#answeredAt < FRESH_MS) {
       return Promise.resolve(this.#value)
     }

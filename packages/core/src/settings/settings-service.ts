@@ -37,12 +37,12 @@ export interface SettingsService {
    * After a failed load, load the stored document again; on success it
    * replaces the session-only settings. Otherwise answers {@link whenLoaded}.
    */
-  reload: () => Promise<SettingsLoadOutcome>
+  reload(): Promise<SettingsLoadOutcome>
   /**
    * Drains pending saves and resubmits a document that no save has confirmed. Never rejects.
    */
-  flush: () => Promise<void>
-  status: () => SettingsStatus
+  flush(): Promise<void>
+  status(): SettingsStatus
 }
 
 const voidSchema = z.null()
@@ -113,7 +113,7 @@ class SettingsServiceImpl implements SettingsService {
     return this.#loaded
   }
 
-  readonly reload = (): Promise<SettingsLoadOutcome> => {
+  reload(): Promise<SettingsLoadOutcome> {
     const { ipc, operations } = this.#deps
     if (this.#state !== 'failed') {
       this.#start()
@@ -140,7 +140,7 @@ class SettingsServiceImpl implements SettingsService {
     return this.#reloading
   }
 
-  readonly flush = async (): Promise<void> => {
+  async flush(): Promise<void> {
     await this.#drain()
     if (this.#dirty && this.#state === 'loaded') {
       this.#submit(this.#current)
@@ -148,7 +148,9 @@ class SettingsServiceImpl implements SettingsService {
     }
   }
 
-  readonly status = (): SettingsStatus => this.#state
+  status(): SettingsStatus {
+    return this.#state
+  }
 
   #emit(): void {
     for (const listener of this.#listeners) {
