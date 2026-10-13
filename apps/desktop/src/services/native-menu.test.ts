@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NativeSubmenu } from '@reflect/core'
+import type { NativeSubmenu } from '@reflect/app'
 
 interface SubmenuOptionsForTest {
   readonly text: string

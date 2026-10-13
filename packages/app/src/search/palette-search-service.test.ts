@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import type { Command } from '../commands/command-service.ts'
-import type { RetrieveOptions } from '../embeddings/retrieval-service.ts'
-import type { ParsedSearchQuery } from '../indexing/filter-query.ts'
-import type { FilteredSearchHit } from '../indexing/search-service.ts'
+import {
+  createSearchService,
+  createSuggestionService,
+  createWikiResolverService,
+  type FilteredSearchHit,
+  type ParsedSearchQuery,
+  type RetrieveOptions,
+} from '@reflect/core'
+import {
+  createTestClockService,
+  createTestDatabaseService,
+  createTestLoggerService,
+  createTestPlatformService,
+  createTestRetrievalService,
+  seedNotes,
+} from '@reflect/core/testing'
 import { createCommandService } from '../commands/command-service.ts'
-import { createSearchService } from '../indexing/search-service.ts'
-import { createSuggestionService } from '../indexing/suggestion-service.ts'
-import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
-import { createTestClockService } from '../testing/clock.ts'
-import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
-import { createTestRetrievalService } from '../testing/embeddings.ts'
-import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestPlatformService } from '../testing/platform.ts'
 import { createPaletteSearchService } from './palette-search-service.ts'
 
 const NOON_JUNE_9 = new Date(2026, 5, 9, 12).getTime()

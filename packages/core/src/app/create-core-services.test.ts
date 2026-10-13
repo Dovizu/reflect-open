@@ -91,9 +91,6 @@ const SERVICE_KEYS = [
   'keyboard',
   'share',
   'aiPrompts',
-  'keymap',
-  'commands',
-  'nativeMenu',
   'aiProviderConfig',
   'selectionTransform',
   'semanticSearch',
@@ -101,7 +98,8 @@ const SERVICE_KEYS = [
   'capture',
   'assetDescription',
   'autocompleteSuggestions',
-  'paletteSearch',
+  'suggestions',
+  'retrieval',
   'mobile',
 ] as const satisfies readonly (keyof CoreServices)[]
 

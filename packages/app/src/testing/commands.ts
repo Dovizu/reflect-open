@@ -1,6 +1,16 @@
-import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformFacts } from '../app/platform-service.ts'
-import type { WindowService } from '../app/window-service.ts'
+import type {
+  IpcBridgeService,
+  LoggerService,
+  PlatformFacts,
+  Unlisten,
+  WindowService,
+} from '@reflect/core'
+import {
+  createTestIpcBridgeService,
+  createTestLoggerService,
+  createTestPlatformService,
+  createTestWindowService,
+} from '@reflect/core/testing'
 import { type CommandService, createCommandService } from '../commands/command-service.ts'
 import {
   createNativeMenuService,
@@ -14,12 +24,6 @@ import {
   type NativeMenuService,
   type NativeSubmenu,
 } from '../commands/native-menu-service.ts'
-import type { IpcBridgeService } from '../ipc/ipc-service.ts'
-import type { Unlisten } from '../unlisten.ts'
-import { createTestIpcBridgeService } from './ipc.ts'
-import { createTestLoggerService } from './logger.ts'
-import { createTestPlatformService } from './platform.ts'
-import { createTestWindowService } from './shell.ts'
 
 export type TestNativeMenuHostCall = 'buildAppMenu' | 'setAsAppMenu' | 'assignNsAppRoles' | 'popup'
 

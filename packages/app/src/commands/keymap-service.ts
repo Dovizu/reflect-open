@@ -1,4 +1,4 @@
-import type { PlatformFacts } from '../app/platform-service.ts'
+import type { PlatformFacts } from '@reflect/core'
 import { formatBinding, normalizeBinding } from './keybindings.ts'
 
 export type KeymapScope = 'editor' | 'app'

@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
+import {
+  createTestIpcBridgeService,
+  createTestLoggerService,
+  createTestPlatformService,
+  createTestWindowService,
+  type TestPlatformOptions,
+} from '@reflect/core/testing'
 import { createTestNativeMenuService } from '../testing/commands.ts'
 import { createCommandService } from './command-service.ts'
-import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestPlatformService } from '../testing/platform.ts'
-import { createTestWindowService } from '../testing/shell.ts'
-import type { TestPlatformOptions } from '../testing/platform.ts'
 import type { AppSubmenuLayout, NativeMenuItem } from './native-menu-service.ts'
 
 const LAYOUT: AppSubmenuLayout[] = [

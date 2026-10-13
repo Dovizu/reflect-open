@@ -1,4 +1,5 @@
-import { createAppServices } from '@reflect/app'
+import { formatBinding } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, type ReactNode } from 'react'
@@ -11,7 +12,6 @@ import {
   createTestWindowService,
 } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
-import { formatBinding } from '@reflect/core'
 import { useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -109,9 +109,10 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
     noteFile: createTestNoteFileService({ files }),
     window: createTestWindowService({ openNoteWindow }),
   })
+  const appLayer = createTestAppServices(app)
   const fullContext: CommandContext = {
     services: app,
-    app: createAppServices(app, {}),
+    app: appLayer,
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,
@@ -143,6 +144,7 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
     </PaletteProvider>,
     {
       app,
+      appLayer,
       graph: { root: '/g', name: 'g', generation: 1 },
       settings: { semanticSearchEnabled: semanticEnabled, dateFormat: 'mdy' },
     },

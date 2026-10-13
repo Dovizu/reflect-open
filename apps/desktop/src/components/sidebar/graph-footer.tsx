@@ -153,7 +153,7 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
           ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => void context.services.commands.run('settings.open', context)}
+            onClick={() => void context.app.commands.run('settings.open', context)}
             className={MENU_ITEM_CLASS}
           >
             <Settings aria-hidden strokeWidth={1.75} className="size-3.5 shrink-0" />
@@ -185,7 +185,7 @@ export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement 
               size="icon-sm"
               aria-label="Open settings"
               aria-current={settingsActive ? 'page' : undefined}
-              onClick={() => void context.services.commands.run('settings.open', context)}
+              onClick={() => void context.app.commands.run('settings.open', context)}
               className={cn(
                 'size-7 shrink-0 text-text-muted transition-colors duration-100 hover:bg-surface-hover hover:text-text-secondary',
                 settingsActive

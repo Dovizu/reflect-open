@@ -3,7 +3,7 @@ import type {
   AppSubmenuLayout,
   NativeMenuPredefinedItem,
   NativeMenuService,
-} from '@reflect/core'
+} from '@reflect/app'
 
 /**
  * The native macOS application menu (the V1 Electron menu, ported). Command

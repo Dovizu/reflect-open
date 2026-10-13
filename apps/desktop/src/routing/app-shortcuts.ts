@@ -51,7 +51,8 @@ export function useAppShortcuts(): CommandContext {
   const services = useCoreServices()
   const appServices = useAppServices()
   const { route, navigate, back, forward, clearScrollState } = useRouter()
-  const { commands, nativeMenu, platform, semanticSearch } = useCoreServices()
+  const { platform, semanticSearch } = services
+  const { commands, nativeMenu } = appServices
   const focusedDailyDate = useFocusedDailyDate()
   const { resolvedTheme, setTheme } = useTheme()
   const { graph, recents, openRecent } = useGraph()

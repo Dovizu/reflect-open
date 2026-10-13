@@ -307,6 +307,9 @@ importers:
       '@reflect/utils':
         specifier: workspace:*
         version: link:../utils
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       '@ocavue/tsconfig':
         specifier: ^0.7.1

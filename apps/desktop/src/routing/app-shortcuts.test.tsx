@@ -3,9 +3,10 @@ import {
   type ChatSession,
   type GraphSessionService,
   type LinkNavigationService,
-  type NativeMenuService,
   type NoteDocumentService,
 } from '@reflect/core'
+import type { AppServices, NativeMenuService } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestPlatformService,
@@ -70,6 +71,7 @@ const commitNoteFrontmatter = vi.fn<NoteDocumentService['commitFrontmatter']>()
 let platform: TestPlatformOptions
 // The services of the rendered app; set by `shortcutsHook`.
 let app: TestCoreServices
+let appLayer: AppServices
 let openRecent: MockInstance<GraphSessionService['openRecent']>
 let openRouteInNewWindow: MockInstance<LinkNavigationService['openRouteInNewWindow']>
 let isNativeMenuInstalled: MockInstance<NativeMenuService['isInstalled']>
@@ -98,11 +100,12 @@ async function shortcutsHook() {
     },
   })
   app = services
+  appLayer = createTestAppServices(services)
   openRecent = vi.spyOn(services.graphSession, 'openRecent').mockResolvedValue(true)
   openRouteInNewWindow = vi
     .spyOn(services.linkNavigation, 'openRouteInNewWindow')
     .mockResolvedValue(true)
-  isNativeMenuInstalled = vi.spyOn(services.nativeMenu, 'isInstalled').mockReturnValue(false)
+  isNativeMenuInstalled = vi.spyOn(appLayer.nativeMenu, 'isInstalled').mockReturnValue(false)
   const createChatSession = services.chatSessions.create.bind(services.chatSessions)
   vi.spyOn(services.chatSessions, 'create').mockImplementation((options) => {
     const session = createChatSession(options)
@@ -124,6 +127,7 @@ async function shortcutsHook() {
     },
     {
       app: services,
+      appLayer,
       graph: GRAPH,
       graphState: {
         recents: [
@@ -230,7 +234,7 @@ describe('app shortcuts', () => {
   })
 
   it('registers the command keybindings in the central keymap registry', () => {
-    const { keymap } = createTestCoreServices()
+    const { keymap } = createTestAppServices()
     registerAppKeymaps(keymap)
     const bindings = keymap.list()
     for (const key of [
@@ -570,7 +574,7 @@ describe('app shortcuts on macOS', () => {
     expect(event.defaultPrevented).toBe(false)
     expect(result.current.sidebar.collapsed).toBe(false)
 
-    await act(() => app.nativeMenu.dispatchCommand('sidebar.toggle'))
+    await act(() => appLayer.nativeMenu.dispatchCommand('sidebar.toggle'))
     expect(result.current.sidebar.collapsed).toBe(true)
   })
 })

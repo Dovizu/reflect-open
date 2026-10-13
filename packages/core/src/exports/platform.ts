@@ -1,4 +1,8 @@
-export { createIpcBridgeService, type IpcBridge } from '../ipc/ipc-service.ts'
+export {
+  createIpcBridgeService,
+  type IpcBridge,
+  type IpcBridgeService,
+} from '../ipc/ipc-service.ts'
 export type { Unlisten } from '../unlisten.ts'
 
 export { type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
@@ -25,7 +29,7 @@ export {
 export { type GistPublishService } from '../sync/gist-publish-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
 export { createSystemClock, type ClockService } from '../app/clock-service.ts'
-export { parseIsoDate, todayIso } from '../lib/dates.ts'
+export { localIsoDate, parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
   createPlatformService,
@@ -42,6 +46,7 @@ export {
   MAIN_WINDOW_LABEL,
   createSingleWindowHost,
   type WindowHost,
+  type WindowService,
 } from '../app/window-service.ts'
 export { type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
@@ -102,13 +107,6 @@ export {
   type EntryOptions,
 } from '../search/wiki-autocomplete-entries.ts'
 export { type AutocompleteSuggestionService } from '../search/autocomplete-suggestion-service.ts'
-export {
-  buildPaletteSections,
-  type NoteEntry,
-  type PaletteHit,
-  type PaletteSections,
-} from '../search/palette-entries.ts'
-export { type PaletteSearchService } from '../search/palette-search-service.ts'
 export {
   EMPTY_ALL_NOTES_FILTERS,
   UPDATED_PRESETS,
@@ -230,7 +228,11 @@ export {
   type NewAiProvider,
 } from '../ai/ai-provider-config-service.ts'
 export { type EmbedStatus, type EmbedProgress } from '../embeddings/embedding-runtime-service.ts'
-export { type RetrievalHit, type RetrievalService } from '../embeddings/retrieval-service.ts'
+export {
+  type RetrievalHit,
+  type RetrievalService,
+  type RetrieveOptions,
+} from '../embeddings/retrieval-service.ts'
 export { type SemanticSearchService } from '../embeddings/semantic-search-service.ts'
 export { errorMessage, toAppError, ReflectError } from '../errors.ts'
 export {
@@ -344,17 +346,3 @@ export {
   type IapService,
 } from '../ipc/iap-plugin.ts'
 export { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
-export { type Command, type CommandService } from '../commands/command-service.ts'
-export { formatBinding } from '../commands/keybindings.ts'
-export { type KeymapService } from '../commands/keymap-service.ts'
-export {
-  type AppMenuEntry,
-  type AppSubmenuLayout,
-  type FocusedNoteMenuCommand,
-  type NativeContextMenuOptions,
-  type NativeMenuHost,
-  type NativeMenuItem,
-  type NativeMenuPredefinedItem,
-  type NativeMenuService,
-  type NativeSubmenu,
-} from '../commands/native-menu-service.ts'

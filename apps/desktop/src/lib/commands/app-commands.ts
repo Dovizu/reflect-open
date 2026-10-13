@@ -1,4 +1,5 @@
-import type { CoreServices, CommandService } from '@reflect/core'
+import type { CoreServices } from '@reflect/core'
+import type { CommandService } from '@reflect/app'
 import { attachFilesToNote } from '@/lib/attach-files.ts'
 import { routeForPath, type Route } from '@/routing/route.ts'
 import type { AppCommand, CommandContext } from './types.ts'

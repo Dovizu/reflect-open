@@ -2,7 +2,8 @@ import type { ReactElement, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { onTestFinished } from 'vitest'
 import { render, renderHook, type RenderHookResult, type RenderResult } from 'vitest-browser-react'
-import { createAppServices } from '@reflect/app'
+import type { AppServices } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import type {
   CoreServices,
   BackupState,
@@ -85,10 +86,18 @@ export interface RenderInAppOptions {
    * Not with `graph`, `graphState`, `route` or `sync`.
    */
   servicesOnly?: boolean
+  /**
+   * The app layer over `app`. Defaults to `createTestAppServices(app)`.
+   */
+  appLayer?: AppServices
 }
 
 interface InAppHandles<App extends CoreServices> {
   readonly app: App
+  /**
+   * The app layer over `app`.
+   */
+  readonly appLayer: AppServices
   readonly queryClient: QueryClient
   /**
    * The scripted backup when `sync` was a `BackupState`, else `null`.
@@ -167,10 +176,10 @@ async function prepare(options: AnyOptions | undefined): Promise<
 
   const queryClient =
     options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  registerAppCommands(app.commands)
+  const appLayer = options?.appLayer ?? createTestAppServices(app)
+  registerAppCommands(appLayer.commands)
 
   const route = options?.route
-  const appLayer = createAppServices(app, {})
   const wrap = (children: ReactNode): ReactElement => {
     const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
     if (servicesOnly) {
@@ -204,6 +213,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   }
   return {
     app,
+    appLayer,
     queryClient,
     backup,
     wrap,

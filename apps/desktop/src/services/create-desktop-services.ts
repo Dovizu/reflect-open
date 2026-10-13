@@ -9,6 +9,7 @@ import {
   type IpcBridge,
   type PlatformFacts,
 } from '@reflect/core'
+import type { AppHost } from '@reflect/app'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import {
   buildExceptionTelemetryDsn,
@@ -62,7 +63,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
       updater: createTauriUpdaterAdapter(),
-      nativeMenu: createTauriNativeMenuHost(),
       deepLink: createTauriDeepLinkSource(),
       convertFileSrc,
     }
@@ -75,4 +75,15 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
     path: createPosixPathTransport('/'),
     window: createSingleWindowHost(),
   }
+}
+
+/**
+ * The desktop app's host adapters for the app layer: the Tauri ones inside the
+ * native shell, none in plain-browser dev.
+ */
+export function createDesktopHost(facts: PlatformFacts): AppHost {
+  if (facts.isNativeShell) {
+    return { nativeMenu: createTauriNativeMenuHost() }
+  }
+  return {}
 }

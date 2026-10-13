@@ -1,9 +1,12 @@
 import { z } from 'zod'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformFacts } from '../app/platform-service.ts'
-import { MAIN_WINDOW_LABEL, type WindowService } from '../app/window-service.ts'
-import type { IpcBridgeService } from '../ipc/ipc-service.ts'
-import type { Unlisten } from '../unlisten.ts'
+import {
+  MAIN_WINDOW_LABEL,
+  type IpcBridgeService,
+  type LoggerService,
+  type PlatformFacts,
+  type Unlisten,
+  type WindowService,
+} from '@reflect/core'
 import { bindingToAccelerator } from './accelerator.ts'
 import type { CommandService } from './command-service.ts'
 
