@@ -1,6 +1,6 @@
 import { isNotNullish } from '@ocavue/utils'
 import type { ClockService } from '../app/clock-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import { localIsoDate } from '../lib/dates.ts'
@@ -41,7 +41,7 @@ export interface DailyNotesRange {
 export interface DailyNoteServiceDeps {
   readonly database: DatabaseService
   readonly clock: ClockService
-  readonly lifecycle: AppLifecycleService
+  readonly activity: ActivityPort
 }
 
 /**
@@ -124,12 +124,12 @@ class DailyNoteServiceImpl implements DailyNoteService {
   }
 
   subscribeWakeOnNewDay(listener: (today: string) => void): Unlisten {
-    const { lifecycle } = this.#deps
+    const { activity } = this.#deps
     let lastSeen = this.#wallDate()
-    const removeHidden = lifecycle.subscribeHidden(() => {
+    const removeHidden = activity.subscribeHidden(() => {
       lastSeen = this.#wallDate()
     })
-    const removeVisible = lifecycle.subscribeVisible(() => {
+    const removeVisible = activity.subscribeVisible(() => {
       const now = this.#wallDate()
       if (now !== lastSeen) {
         lastSeen = now

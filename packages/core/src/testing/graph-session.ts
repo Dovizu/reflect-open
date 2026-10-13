@@ -25,7 +25,7 @@ import { createTestPlatformService } from './platform.ts'
 import { createTestICloudNativeService } from './sync.ts'
 import {
   createTestDialogService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestWindowService,
 } from './shell.ts'
 import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
@@ -283,7 +283,7 @@ export function createTestGraphSessionService<Services = never>(
     dialog: options?.dialog ?? createTestDialogService(),
     path: options?.path ?? createPathService({ transport: createPosixPathTransport('/home/test') }),
     platform: options?.platform ?? createTestPlatformService(),
-    lifecycle: options?.lifecycle ?? createTestLifecycleService(),
+    activity: options?.activity ?? createTestActivityPort(),
     mobileStorage: options?.mobileStorage ?? createTestMobileStorageService(),
     noteRows:
       options?.noteRows ??

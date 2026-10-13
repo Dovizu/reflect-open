@@ -18,7 +18,7 @@ import {
 } from '@reflect/core'
 import {
   createTestClockService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestLoggerService,
 } from '@reflect/core/testing'
 import { createDevIndexDb, type DevIndexDb } from '@/dev/dev-index-db.ts'
@@ -131,7 +131,7 @@ function connectIndex(db: DevIndexDb, captured: CapturedQuery[] = []): IndexServ
     dailyNotes: createDailyNoteService({
       database,
       clock: createTestClockService(),
-      lifecycle: createTestLifecycleService(),
+      activity: createTestActivityPort(),
     }),
     wikiResolver,
     suggestions: createSuggestionService({ database }),

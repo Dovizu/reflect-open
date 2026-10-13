@@ -3,7 +3,6 @@ import {
   githubAppInstallUrl,
   newRepoUrl,
   parseRepoInput,
-  type AppLifecycleService,
   type BackupService,
   type ClockService,
   type GithubRepoRef,
@@ -13,6 +12,7 @@ import {
   type TimerHandle,
   type Unlisten,
 } from '@reflect/core'
+import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 
 export type ConnectWizardStep = 'repo' | 'auth' | 'finish'
 

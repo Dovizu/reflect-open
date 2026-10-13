@@ -36,17 +36,13 @@ class TestPersistenceFlushServiceImpl implements TestPersistenceFlushService {
     }
   }
 
-  installDesktopQuitPolicy(): Unlisten {
-    return () => undefined
-  }
-
-  installMobileBackgroundPolicy(): Unlisten {
-    return () => undefined
+  startFlushAll(): void {
+    void this.flushAll()
   }
 }
 
 /**
- * An in-memory {@link PersistenceFlushService}. Its policies listen to nothing.
+ * An in-memory {@link PersistenceFlushService}.
  */
 export function createTestPersistenceFlushService(deps?: {
   openDocuments?: Pick<OpenDocumentsService, 'flushAll'>

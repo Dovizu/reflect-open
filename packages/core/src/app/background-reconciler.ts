@@ -1,4 +1,4 @@
-import type { AppLifecycleService } from './lifecycle-service.ts'
+import type { ActivityPort } from './ports.ts'
 
 /**
  * A generation-pinned, single-flight background reconcile loop driven by
@@ -68,11 +68,11 @@ export interface BackgroundReconcilerFactory {
 }
 
 export interface BackgroundReconcilerFactoryDeps {
-  readonly lifecycle: AppLifecycleService
+  readonly activity: ActivityPort
 }
 
 class BackgroundReconcilerImpl implements BackgroundReconciler {
-  readonly #lifecycle: AppLifecycleService
+  readonly #activity: ActivityPort
   readonly #options: BackgroundReconcilerOptions
   #disposed = false
   #running = false
@@ -82,8 +82,8 @@ class BackgroundReconcilerImpl implements BackgroundReconciler {
   #queued = false
   readonly #disposers: Array<() => void> = []
 
-  constructor(lifecycle: AppLifecycleService, options: BackgroundReconcilerOptions) {
-    this.#lifecycle = lifecycle
+  constructor(activity: ActivityPort, options: BackgroundReconcilerOptions) {
+    this.#activity = activity
     this.#options = options
   }
 
@@ -99,7 +99,7 @@ class BackgroundReconcilerImpl implements BackgroundReconciler {
 
   retryOnWake(): void {
     this.#disposers.push(
-      this.#lifecycle.subscribeWake(() => {
+      this.#activity.subscribeWake(() => {
         this.schedule()
       }),
     )
@@ -148,7 +148,7 @@ class BackgroundReconcilerFactoryImpl implements BackgroundReconcilerFactory {
   }
 
   create(options: BackgroundReconcilerOptions): BackgroundReconciler {
-    return new BackgroundReconcilerImpl(this.#deps.lifecycle, options)
+    return new BackgroundReconcilerImpl(this.#deps.activity, options)
   }
 }
 

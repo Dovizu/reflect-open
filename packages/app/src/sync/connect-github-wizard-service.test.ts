@@ -4,13 +4,12 @@ import {
   createTestBackupService,
   createTestClockService,
   createTestGithubAuthService,
-  createTestLifecycleService,
   createTestOpenerService,
   type TestBackupService,
   type TestClockService,
-  type TestLifecycleService,
   type TestOpenerService,
 } from '@reflect/core/testing'
+import { createTestLifecycleService, type TestLifecycleService } from '../testing/lifecycle.ts'
 import {
   createConnectGithubWizardService,
   type ConnectGithubWizardService,

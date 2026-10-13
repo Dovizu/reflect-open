@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createAppServices } from '@reflect/app'
+import { createTestLifecycleService } from '@reflect/app/testing'
 import { buildIndexedNote, parseNote } from '@reflect/core'
 import {
   createTestCoreServices,
@@ -51,7 +52,9 @@ function fakeContext(overrides?: Partial<CommandContext>) {
   const route: () => Route = overrides?.route ?? (() => ({ kind: 'today' }))
   const context: CommandContext = {
     services: app,
-    app: createAppServices(app, {}),
+    app: createAppServices(app, {
+      lifecycle: createTestLifecycleService({ activity: app.activity }),
+    }),
     navigate: (target, options) => {
       navigated.push(target)
       navigateOptions.push(options)

@@ -127,7 +127,7 @@ The ones used most:
 | `createTestSettingsService(document)` | `seed(patch)`, `failLoad()`, `failNextSave()` | `saves()` |
 | `createTestGraphSessionService()` | `setGraph(graph)`, `setState(patch)` | |
 | `createTestNavigationService()` (`@reflect/app/testing`) | | `navigations()` |
-| `createTestLifecycleService()` | `emitHidden()`, `emitVisible()`, `emitWake()`, `emitQuitRequested()` | `backgroundTasks()` |
+| `createTestActivityPort()`; `createTestLifecycleService()` (`@reflect/app/testing`) adds `emitQuitRequested()` | `emitHidden()`, `emitVisible()`, `emitWake()` | `backgroundTasks()` |
 | `createTestClipboardService()`, `createTestOpenerService()` | `failWith(error)` | `writes()`, `openedUrls()` |
 
 The test clock starts at epoch 0. `createTestDatabaseService()` is a real

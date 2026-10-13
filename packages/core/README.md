@@ -60,7 +60,7 @@ Every native call goes through one seam:
 
 | Module | What it owns |
 |---|---|
-| `app/` | The composition root (`create-core-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformService`, `StorageService`, `HttpService`, `OperationsService`, `AppLifecycleService`, `WindowService`, `PersistenceFlushService`. |
+| `app/` | The composition root (`create-core-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformService`, `StorageService`, `HttpService`, `OperationsService`, `ActivityPort` (`ports.ts`), `WindowService`, `PersistenceFlushService`. |
 | `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, the typed file services (`NoteFileService`, `AssetStoreService`), note creation and link resolution (`NoteCreationService`, `NoteLinkResolverService`), and the open graph (`GraphSessionService`, `MobileOnboardingService`). |
 | `documents/` | Open notes: the `NoteSession` state machine (`NoteSessionService`), the registry of live sessions (`OpenDocumentsService`), session-aware reads and writes (`NoteDocumentService`), moves and title renames (`NoteMoveService`, `TitleRenameService`), note actions (`NoteActionsService`), attachments and templates. |
 | `markdown/` | The document model (Plan 03): frontmatter parsing, the canonical Lezer grammar with the `[[wiki link]]` extension, extraction (`parseNote`), source-level edits, and pure wiki-link resolution policy. |

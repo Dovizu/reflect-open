@@ -20,7 +20,7 @@ import {
   createTestHapticsService,
   createTestIdService,
   createTestLanguageModelService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestLoggerService,
   createTestNoteCreationService,
   createTestNoteFileService,
@@ -103,7 +103,7 @@ async function setup(options?: SetupOptions) {
   })
   const recorder = createTestAudioRecorderService({ sessionStartedMs: SESSION_STARTED_MS })
   recorder.setStopResult(RECORDING)
-  const lifecycle = createTestLifecycleService()
+  const activity = createTestActivityPort()
   const haptics = createTestHapticsService()
   const operations = createTestOperationsService()
   const logger = createTestLoggerService()
@@ -133,8 +133,8 @@ async function setup(options?: SetupOptions) {
     }),
     aiCredentials,
     audioRecorder: recorder,
-    reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
-    lifecycle,
+    reconcilers: createBackgroundReconcilerFactory({ activity }),
+    activity,
     fileChanges: createTestFileChangeService(),
     settings,
     operations,
@@ -153,7 +153,7 @@ async function setup(options?: SetupOptions) {
       platform,
       logger,
     }),
-    lifecycle,
+    activity,
     haptics,
     platform,
     logger,
@@ -170,7 +170,7 @@ async function setup(options?: SetupOptions) {
     noteFile,
     assetStore,
     recorder,
-    lifecycle,
+    activity,
     haptics,
     operations,
     logger,
@@ -536,7 +536,7 @@ describe('MobileAudioMemoService.openSession', () => {
     await kit.open()
     expect(kit.count('listStaged')).toBe(1)
 
-    kit.lifecycle.emitVisible()
+    kit.activity.emitVisible()
     await flush()
 
     expect(kit.count('listStaged')).toBe(2)
@@ -630,7 +630,7 @@ describe('MobileAudioMemoService.openSession', () => {
 
     session.dispose()
     kit.recorder.emitStopped({ segment: RECORDING, reason: 'interruption' })
-    kit.lifecycle.emitVisible()
+    kit.activity.emitVisible()
     await flush()
 
     expect(kit.count('cancel')).toBe(0)

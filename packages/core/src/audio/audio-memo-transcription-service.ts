@@ -26,7 +26,7 @@ import {
 import type { TranscriptionService } from '../ai/transcription-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
@@ -106,7 +106,7 @@ export interface AudioMemoTranscriptionServiceDeps {
   readonly aiCredentials: Pick<AiCredentialService, 'read' | 'createPassReader'>
   readonly settings: Pick<SettingsService, 'get'>
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
   readonly operations: Pick<OperationsService, 'start'>
   readonly clock: Pick<ClockService, 'now'>
@@ -278,7 +278,7 @@ interface AudioMemoTranscriptionSessionDeps {
   readonly aiProviderConfig: Pick<AiProviderConfigService, 'transcriptionConfig'>
   readonly settings: Pick<SettingsService, 'get'>
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
   readonly operations: Pick<OperationsService, 'start'>
   readonly reconcile: (input: ReconcileAudioMemosInput) => Promise<ReconcileAudioMemosOutcome>
@@ -310,7 +310,7 @@ class AudioMemoTranscriptionSessionImpl implements AudioMemoTranscriptionSession
   }
 
   start(): void {
-    const { lifecycle, fileChanges } = this.#deps
+    const { activity, fileChanges } = this.#deps
     const loop = this.#loop
     if (loop.isStale()) {
       return
@@ -325,7 +325,7 @@ class AudioMemoTranscriptionSessionImpl implements AudioMemoTranscriptionSession
     // transcription failed offline) while backgrounded gets its retry when
     // the app comes back.
     loop.onDispose(
-      lifecycle.subscribeVisible(() => {
+      activity.subscribeVisible(() => {
         loop.schedule()
       }),
     )
@@ -617,14 +617,14 @@ class AudioMemoTranscriptionServiceImpl implements AudioMemoTranscriptionService
   }
 
   openSession(options: AudioMemoTranscriptionSessionOptions): AudioMemoTranscriptionSession {
-    const { aiProviderConfig, settings, reconcilers, lifecycle, fileChanges, operations } =
+    const { aiProviderConfig, settings, reconcilers, activity, fileChanges, operations } =
       this.#deps
     return new AudioMemoTranscriptionSessionImpl(
       {
         aiProviderConfig,
         settings,
         reconcilers,
-        lifecycle,
+        activity,
         fileChanges,
         operations,
         reconcile: (input) => this.reconcile(input),

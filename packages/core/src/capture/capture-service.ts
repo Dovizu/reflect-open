@@ -7,7 +7,7 @@ import type { PageDescriberService } from '../ai/page-describer-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HashService } from '../app/hash-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
@@ -81,7 +81,7 @@ export interface CaptureServiceDeps {
   readonly hash: HashService
   readonly clock: Pick<ClockService, 'now'>
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
   readonly operations: Pick<OperationsService, 'start'>
   readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
@@ -116,7 +116,7 @@ interface CaptureSessionDeps {
   readonly drain: CaptureDrainService
   readonly enrichment: CaptureEnrichmentService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
   readonly operations: Pick<OperationsService, 'start'>
   readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
@@ -177,7 +177,7 @@ class CaptureSessionImpl implements CaptureSession {
   }
 
   #launch(): void {
-    const { lifecycle, fileChanges } = this.#deps
+    const { activity, fileChanges } = this.#deps
     const loop = this.#loop
     if (loop.isStale()) {
       return
@@ -188,7 +188,7 @@ class CaptureSessionImpl implements CaptureSession {
       // Mobile resume: `focus` alone is unreliable in the iOS webview (the
       // iCloud refresh hook listens to both for the same reason).
       loop.onDispose(
-        lifecycle.subscribeVisible(() => {
+        activity.subscribeVisible(() => {
           loop.schedule()
         }),
       )
@@ -295,7 +295,7 @@ class CaptureServiceImpl implements CaptureService {
   }
 
   openSession(options: CaptureSessionOptions): CaptureSession {
-    const { captureInbox, reconcilers, lifecycle, fileChanges, operations, platform, logger } =
+    const { captureInbox, reconcilers, activity, fileChanges, operations, platform, logger } =
       this.#deps
     return new CaptureSessionImpl(
       {
@@ -303,7 +303,7 @@ class CaptureServiceImpl implements CaptureService {
         drain: this.#drain,
         enrichment: this.#enrichment,
         reconcilers,
-        lifecycle,
+        activity,
         fileChanges,
         operations,
         platform,

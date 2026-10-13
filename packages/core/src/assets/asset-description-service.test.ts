@@ -15,7 +15,7 @@ import {
   createTestClockService,
   createTestGraphSessionService,
   createTestHashService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestLoggerService,
   createTestNoteFileService,
   createTestOperationsService,
@@ -106,7 +106,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
   const assetStore = createTestAssetStoreService()
   const refs = createTestAssetReferences()
   const describer = createTestAssetDescriberService('A flow diagram.')
-  const lifecycle = createTestLifecycleService()
+  const activity = createTestActivityPort()
   const clock = createTestClockService({ now: NOW })
   const operations = createTestOperationsService(clock)
   const logger = createTestLoggerService()
@@ -167,7 +167,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     }),
     hash: hashService,
     clock,
-    reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
+    reconcilers: createBackgroundReconcilerFactory({ activity }),
     indexLifecycle: {
       onApplied: (listener) => {
         appliedListeners.add(listener)
@@ -205,7 +205,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     files,
     refs,
     describer,
-    lifecycle,
+    activity,
     operations,
     logger,
     classified,
@@ -658,7 +658,7 @@ describe('AssetDescriptionService.openSession', () => {
   })
 
   it('keeps an asset dirty after a transient stop and retries it on wake', async () => {
-    const { session, index, describer, lifecycle, logger, files } = await describable()
+    const { session, index, describer, activity, logger, files } = await describable()
     describer.setResult(() => {
       throw new ReflectError('network', 'offline')
     })
@@ -670,7 +670,7 @@ describe('AssetDescriptionService.openSession', () => {
     expect(logger.getWarnings()).toEqual([]) // a network stop heals itself: never logged
 
     describer.setResult('A flow diagram.')
-    lifecycle.emitWake() // back online → retry the leftover
+    activity.emitWake() // back online → retry the leftover
     await flush()
 
     expect(describer.calls()).toHaveLength(2)
@@ -678,7 +678,7 @@ describe('AssetDescriptionService.openSession', () => {
   })
 
   it('logs an unexpected stop once, not on every retry', async () => {
-    const { session, index, describer, lifecycle, logger } = await describable()
+    const { session, index, describer, activity, logger } = await describable()
     describer.setResult(() => {
       throw new ReflectError('io', 'index not ready')
     })
@@ -686,7 +686,7 @@ describe('AssetDescriptionService.openSession', () => {
 
     index.emit([upsert('assets/a.png')])
     await flush()
-    lifecycle.emitWake()
+    activity.emitWake()
     await flush()
 
     expect(describer.calls()).toHaveLength(2)
@@ -696,12 +696,12 @@ describe('AssetDescriptionService.openSession', () => {
   })
 
   it('does not retry an asset a clean pass already handled', async () => {
-    const { session, index, lifecycle, classified } = await describable()
+    const { session, index, activity, classified } = await describable()
     session.start()
 
     index.emit([upsert('assets/a.png')])
     await flush()
-    lifecycle.emitWake()
+    activity.emitWake()
     await flush()
 
     expect(classified).toEqual(['assets/a.png'])

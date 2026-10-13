@@ -1,4 +1,5 @@
 import { createAppServices } from '@reflect/app'
+import { createTestLifecycleService } from '@reflect/app/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import {
@@ -23,7 +24,9 @@ afterEach(() => {
 function contextFor(notePath: string | null): CommandContext {
   return {
     services: app,
-    app: createAppServices(app, {}),
+    app: createAppServices(app, {
+      lifecycle: createTestLifecycleService({ activity: app.activity }),
+    }),
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => notePath,

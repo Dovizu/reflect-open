@@ -1,9 +1,10 @@
 import type { CoreServices } from '@reflect/core'
-import { createTestCoreServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestActivityPort } from '@reflect/core/testing'
 import { createAppServices, type AppServices } from '../create-app-services.ts'
 import { createTestNativeMenuHost } from './commands.ts'
 import { createLinkNavigationService } from '../navigation/link-navigation-service.ts'
 import { createTestExceptionTelemetry } from './exception-telemetry.ts'
+import { createTestLifecycleService, type TestLifecycleService } from './lifecycle.ts'
 import {
   createTestDeepLinkService,
   createTestDeepLinkSource,
@@ -16,9 +17,10 @@ import { createTestUpdaterAdapter } from './update.ts'
 /**
  * {@link AppServices} where each service with a test double is that double.
  */
-export type TestAppServices = Omit<AppServices, 'navigation' | 'deepLink'> & {
+export type TestAppServices = Omit<AppServices, 'navigation' | 'deepLink' | 'lifecycle'> & {
   readonly navigation: TestNavigationService
   readonly deepLink: TestDeepLinkService
+  readonly lifecycle: TestLifecycleService
 }
 
 /**
@@ -31,6 +33,11 @@ export function createTestAppServices(
   overrides: Partial<AppServices> = {},
 ): TestAppServices {
   const navigation = overrides.navigation ?? createTestNavigationService()
+  // Over the core's test activity port, so one emit reaches both layers.
+  const activity = (core as { activity?: TestActivityPort }).activity
+  const lifecycle =
+    overrides.lifecycle ??
+    createTestLifecycleService(activity === undefined ? undefined : { activity })
   const deepLink =
     overrides.deepLink ??
     createTestDeepLinkService({
@@ -61,6 +68,7 @@ export function createTestAppServices(
     })
   return {
     ...createAppServices(core, {
+      lifecycle,
       exceptionTelemetry: createTestExceptionTelemetry(),
       updater: createTestUpdaterAdapter(),
       nativeMenu: createTestNativeMenuHost(),

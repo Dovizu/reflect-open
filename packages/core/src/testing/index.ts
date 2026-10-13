@@ -19,13 +19,14 @@ export {
 export {
   createTestClipboardService,
   createTestDialogService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestOpenerService,
   createTestWindowService,
   type DialogCall,
   type TestClipboardService,
   type TestDialogService,
-  type TestLifecycleService,
+  type TestActivityPort,
+  type TestActivityPortOptions,
   type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'

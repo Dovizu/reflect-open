@@ -1,5 +1,6 @@
 export {
   createIpcBridgeService,
+  listenNow,
   type IpcBridge,
   type IpcBridgeService,
 } from '../ipc/ipc-service.ts'
@@ -43,7 +44,11 @@ export {
   type WindowHost,
   type WindowService,
 } from '../app/window-service.ts'
-export { type AppLifecycleService, type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
+export { type ActivityPort, type BackgroundTaskToken } from '../app/ports.ts'
+export {
+  createPersistenceFlushService,
+  type PersistenceFlushService,
+} from '../app/persistence-flush-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export { type DecodedImage, type ImageCodecService } from '../app/image-codec-service.ts'
 export { createBrowserHttpService, type HttpService } from '../app/http-service.ts'

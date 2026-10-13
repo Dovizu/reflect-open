@@ -18,7 +18,7 @@ import {
   createTestFileChangeService,
   createTestHashService,
   createTestIdService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestLoggerService,
   createTestNoteFileService,
   createTestNoteSession,
@@ -61,7 +61,7 @@ function setup(options: { mobile?: boolean } = {}) {
   const noteFile = createTestNoteFileService()
   const captureInbox = createTestCaptureInboxService()
   const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
-  const lifecycle = createTestLifecycleService()
+  const activity = createTestActivityPort()
   const fileChanges = createTestFileChangeService()
   const operations = createTestOperationsService()
   const logger = createTestLoggerService()
@@ -87,8 +87,8 @@ function setup(options: { mobile?: boolean } = {}) {
     }),
     hash: createTestHashService(),
     clock: createTestClockService(),
-    reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
-    lifecycle,
+    reconcilers: createBackgroundReconcilerFactory({ activity }),
+    activity,
     fileChanges,
     operations,
     platform: createTestPlatformService({ surface: { mobileApp: options.mobile ?? false } }),
@@ -99,7 +99,7 @@ function setup(options: { mobile?: boolean } = {}) {
     noteFile,
     captureInbox,
     openDocuments,
-    lifecycle,
+    activity,
     fileChanges,
     operations,
     logger,
@@ -254,7 +254,7 @@ describe('CaptureService (shared-inbox relay)', () => {
     await flush()
     expect(kit.drains).toHaveBeenCalledTimes(1)
 
-    kit.lifecycle.emitVisible()
+    kit.activity.emitVisible()
     await flush()
 
     expect(kit.drains).toHaveBeenCalledTimes(2)
@@ -268,7 +268,7 @@ describe('CaptureService (shared-inbox relay)', () => {
     await flush()
     expect(kit.drains).toHaveBeenCalledTimes(1)
 
-    kit.lifecycle.emitVisible()
+    kit.activity.emitVisible()
     await flush()
 
     expect(kit.drains).toHaveBeenCalledTimes(1)
@@ -282,7 +282,7 @@ describe('CaptureService (shared-inbox relay)', () => {
     await flush()
     session.dispose()
 
-    kit.lifecycle.emitVisible()
+    kit.activity.emitVisible()
     await flush()
 
     expect(kit.drains).toHaveBeenCalledTimes(1)
@@ -325,7 +325,7 @@ describe('CaptureService (triggers)', () => {
     session.start()
     await flush()
 
-    kit.lifecycle.emitWake()
+    kit.activity.emitWake()
     await flush()
 
     expect(kit.drains).toHaveBeenCalledTimes(2)

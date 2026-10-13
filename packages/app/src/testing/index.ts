@@ -12,6 +12,11 @@ export {
 } from './commands.ts'
 export { createTestAppServices, type TestAppServices } from './services.ts'
 export {
+  createTestLifecycleService,
+  type TestLifecycleService,
+  type TestLifecycleServiceOptions,
+} from './lifecycle.ts'
+export {
   createTestExceptionTelemetry,
   type ExceptionReport,
   type ExceptionReportSource,

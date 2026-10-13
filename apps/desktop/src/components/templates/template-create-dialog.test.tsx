@@ -1,4 +1,5 @@
 import { createAppServices } from '@reflect/app'
+import { createTestLifecycleService } from '@reflect/app/testing'
 import type { ReactElement } from 'react'
 import { page } from 'vitest/browser'
 import { expect, it, vi } from 'vitest'
@@ -22,7 +23,9 @@ async function renderDialog(): Promise<{ context: CommandContext; app: TestCoreS
   app.graphSession.setGraph({ generation: 1 })
   const context: CommandContext = {
     services: app,
-    app: createAppServices(app, {}),
+    app: createAppServices(app, {
+      lifecycle: createTestLifecycleService({ activity: app.activity }),
+    }),
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => null,

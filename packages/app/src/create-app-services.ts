@@ -43,12 +43,18 @@ import {
   type LinkNavigationService,
 } from './navigation/link-navigation-service.ts'
 import { createNavigationService, type NavigationService } from './navigation/navigation-service.ts'
+import type { AppLifecycleService } from './app/lifecycle-service.ts'
+import { createQuitPolicyService, type QuitPolicyService } from './app/quit-policy-service.ts'
 
 /**
  * What the host supplies to the app layer: the window, lifecycle, storage,
  * updater, menu and deep-link primitives of one webview.
  */
 export interface AppHost {
+  /**
+   * The lifecycle service the host built before the core services, which follow it as their activity port.
+   */
+  readonly lifecycle: AppLifecycleService
   /**
    * Defaults to telemetry that reports nothing.
    */
@@ -131,6 +137,14 @@ export interface AppServices {
    * Turns an activated link into a navigation, a new window, or a refusal.
    */
   readonly linkNavigation: LinkNavigationService
+  /**
+   * Application lifecycle signals and the shell's quit and background-task handshakes.
+   */
+  readonly lifecycle: AppLifecycleService
+  /**
+   * When the app lands its dirty state: on quit and window close, or on moving to the background.
+   */
+  readonly quitPolicy: QuitPolicyService
 }
 
 /**
@@ -216,11 +230,18 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       calendar: core.calendar,
       settings: core.settings,
       platform: core.platform,
-      lifecycle: core.lifecycle,
+      lifecycle: host.lifecycle,
       logger: core.logger,
     }),
     navigation,
     deepLink,
     linkNavigation,
+    lifecycle: host.lifecycle,
+    quitPolicy: createQuitPolicyService({
+      lifecycle: host.lifecycle,
+      window: core.window,
+      platform: core.platform,
+      persistenceFlush: core.persistenceFlush,
+    }),
   }
 }

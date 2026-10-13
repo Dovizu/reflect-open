@@ -14,7 +14,7 @@ import {
   createTestAssetStoreService,
   createTestClockService,
   createTestFileChangeService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestNoteFileService,
   createTestOperationsService,
   createTestSecretStoreService,
@@ -23,7 +23,7 @@ import {
   type TestAssetStoreService,
   type TestClockService,
   type TestFileChangeService,
-  type TestLifecycleService,
+  type TestActivityPort,
   type TestNoteFileService,
   type TestOperationsService,
   type TestSecretStoreService,
@@ -90,7 +90,7 @@ export interface AudioMemoTestKit {
   settings: TestSettingsService
   transcription: TestTranscriptionService
   operations: TestOperationsService
-  lifecycle: TestLifecycleService
+  activity: TestActivityPort
   fileChanges: TestFileChangeService
   clock: TestClockService
   getSecretMock: MockInstance<SecretStoreService['get']>
@@ -139,7 +139,7 @@ export async function createAudioMemoTestKit(
     .mockResolvedValue('Audio memos')
   const clock = createTestClockService({ now: Date.now() })
   const operations = createTestOperationsService()
-  const lifecycle = createTestLifecycleService()
+  const activity = createTestActivityPort()
   const fileChanges = createTestFileChangeService()
   const readBytesMock = vi
     .spyOn(assetStore, 'readBytes')
@@ -159,8 +159,8 @@ export async function createAudioMemoTestKit(
     }),
     aiCredentials,
     settings,
-    reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
-    lifecycle,
+    reconcilers: createBackgroundReconcilerFactory({ activity }),
+    activity,
     fileChanges,
     operations,
     clock,
@@ -173,7 +173,7 @@ export async function createAudioMemoTestKit(
     settings,
     transcription,
     operations,
-    lifecycle,
+    activity,
     fileChanges,
     clock,
     getSecretMock,

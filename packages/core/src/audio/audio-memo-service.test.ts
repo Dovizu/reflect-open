@@ -16,7 +16,7 @@ import {
   createTestGraphSessionService,
   createTestIdService,
   createTestLanguageModelService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestLoggerService,
   createTestNoteCreationService,
   createTestNoteFileService,
@@ -91,7 +91,7 @@ async function setup(options?: SetupOptions) {
   const logger = createTestLoggerService()
   const listDirMock = vi.spyOn(noteFile, 'listDir')
   const aiCredentials = createAiCredentialService({ secretStore: createTestSecretStoreService() })
-  const lifecycle = createTestLifecycleService()
+  const activity = createTestActivityPort()
   const graphSession = createTestGraphSessionService({ graph: { generation: 3 } })
   const service = createAudioMemoService({
     assetStore,
@@ -112,8 +112,8 @@ async function setup(options?: SetupOptions) {
     }),
     aiCredentials,
     audioRecorder: recorder,
-    reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
-    lifecycle,
+    reconcilers: createBackgroundReconcilerFactory({ activity }),
+    activity,
     fileChanges: createTestFileChangeService(),
     settings,
     operations,

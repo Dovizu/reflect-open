@@ -12,6 +12,12 @@ export {
   type ExceptionTelemetryService,
 } from './app/exception-telemetry-service.ts'
 export {
+  createLifecycleService,
+  type AppLifecycleService,
+  type LifecycleDomAdapter,
+} from './app/lifecycle-service.ts'
+export { type QuitPolicyService } from './app/quit-policy-service.ts'
+export {
   createUpdateService,
   type UpdaterAdapter,
   type UpdateService,

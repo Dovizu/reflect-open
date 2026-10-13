@@ -1,4 +1,4 @@
-import type { AppHost } from '@reflect/app'
+import { createLifecycleService, type AppHost } from '@reflect/app'
 import {
   createConsoleLogger,
   createBrowserHttpService,
@@ -6,8 +6,10 @@ import {
   createSingleWindowHost,
   isMobilePlatform,
   reachWebStorage,
+  type ClockService,
   type CoreAdapters,
-  type IpcBridge,
+  type IpcBridgeService,
+  type LoggerService,
   type PlatformFacts,
 } from '@reflect/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -31,21 +33,31 @@ import { createTauriUpdaterAdapter } from '@/services/tauri-updater.ts'
 import { createTauriWindowHost } from '@/services/tauri-window.ts'
 
 /**
- * The desktop app's adapters over `ipc`: the Tauri ones inside the native
- * shell (`facts.isNativeShell`), the browser ones in plain-browser dev.
+ * The host primitives that `boot.ts` builds once and shares between the layers.
  */
-export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): CoreAdapters {
-  const logger = createConsoleLogger()
+export interface DesktopPrimitives {
+  readonly ipc: IpcBridgeService
+  readonly clock: ClockService
+  readonly logger: LoggerService
+}
+
+/**
+ * The desktop app's core adapters: the Tauri ones inside the native shell
+ * (`facts.isNativeShell`), the browser ones in plain-browser dev.
+ */
+export function createDesktopAdapters(
+  facts: PlatformFacts,
+  { logger, clock }: Omit<DesktopPrimitives, 'ipc'>,
+): Omit<CoreAdapters, 'ipc' | 'activity'> {
   const common = {
-    ipc,
     platform: facts,
     logger,
+    clock,
     storage: {
       local: reachWebStorage(logger, 'localStorage'),
       session: reachWebStorage(logger, 'sessionStorage'),
     },
     clipboard: createNavigatorClipboardService(),
-    lifecycle: createDomLifecycleAdapter(),
     imageCodec: createBrowserImageCodec(),
   }
   if (facts.isNativeShell) {
@@ -70,11 +82,15 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
 }
 
 /**
- * The desktop app's host for the app layer: the Tauri updater and deep-link
- * source inside the native shell, and Sentry exception telemetry everywhere.
+ * The desktop app's host for the app layer: the lifecycle service over the
+ * page, the Tauri updater and deep-link source inside the native shell, and
+ * Sentry exception telemetry everywhere.
  */
-export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost {
-  void ipc
+export function createDesktopHost(
+  facts: PlatformFacts,
+  { ipc, clock, logger }: DesktopPrimitives,
+): AppHost {
+  const lifecycle = createLifecycleService({ ipc, dom: createDomLifecycleAdapter(), clock, logger })
   const exceptionTelemetry = createExceptionTelemetry({
     dsn: buildExceptionTelemetryDsn(),
     release: `reflect@${facts.appVersion}`,
@@ -83,11 +99,12 @@ export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost
   })
   if (facts.isNativeShell) {
     return {
+      lifecycle,
       exceptionTelemetry,
       updater: createTauriUpdaterAdapter(),
       nativeMenu: createTauriNativeMenuHost(),
       deepLink: createTauriDeepLinkSource(),
     }
   }
-  return { exceptionTelemetry }
+  return { lifecycle, exceptionTelemetry }
 }

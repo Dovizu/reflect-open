@@ -1,4 +1,5 @@
-import type { LifecycleDomAdapter, Unlisten } from '@reflect/core'
+import type { LifecycleDomAdapter } from '@reflect/app'
+import type { Unlisten } from '@reflect/core'
 
 export interface DomLifecycleAdapterDeps {
   readonly window: Window

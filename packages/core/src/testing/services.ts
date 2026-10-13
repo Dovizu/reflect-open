@@ -10,7 +10,6 @@ import {
   type ServiceFactories,
 } from '../app/create-core-services.ts'
 import { createGraphServices } from '../app/create-graph-services.ts'
-import { createDetachedLifecycleDom } from '../app/lifecycle-service.ts'
 import { createPosixPathTransport } from '../app/path-service.ts'
 import { createSingleWindowHost } from '../app/window-service.ts'
 import { createPrivacyService } from '../privacy/privacy-service.ts'
@@ -18,6 +17,7 @@ import type { IdService } from '../app/id-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import type { BackupService } from '../sync/backup-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import {
   createTestAiKeyValidationService,
   createTestAssetDescriberService,
@@ -86,9 +86,9 @@ import {
 import { createTestAppInfoService, createTestSecretStoreService } from './secrets.ts'
 import { createTestSettingsService } from './settings.ts'
 import {
+  createTestActivityPort,
   createTestClipboardService,
   createTestDialogService,
-  createTestLifecycleService,
   createTestOpenerService,
   createTestWindowService,
 } from './shell.ts'
@@ -107,6 +107,10 @@ export type TestCoreServiceOverrides = Partial<CoreServices & CoreInternalServic
    * The backup service of every main-window graph session.
    */
   readonly backup?: BackupService
+  /**
+   * The activity signals the services follow.
+   */
+  readonly activity?: ActivityPort
 }
 
 /**
@@ -122,6 +126,7 @@ function createTestEdgeServices() {
     dialog: createTestDialogService(),
     clipboard: createTestClipboardService(),
     imageCodec: createTestImageCodec(),
+    activity: createTestActivityPort(),
   }
 }
 
@@ -148,7 +153,7 @@ function createTestNoteServices(deps: {
  * The services whose test double is not the real service: in-memory, scripted, or recording.
  */
 function createTestServiceFactories(
-  shared: { ipc: TestIpcBridgeService; platform: TestPlatformService; clock: TestClockService },
+  shared: { platform: TestPlatformService; clock: TestClockService },
   overrides: TestCoreServiceOverrides | undefined,
 ) {
   /**
@@ -167,14 +172,12 @@ function createTestServiceFactories(
 
   const backup = overrides?.backup
   return {
-    ipc: () => shared.ipc,
     database: () => createTestDatabaseService(),
     platform: () => shared.platform,
     window: () => createTestWindowService(),
     operations: () => createTestOperationsService(shared.clock),
     settings: ({ operations }) => createTestSettingsService({}, { operations }),
     storage: () => createTestStorageService(),
-    lifecycle: () => createTestLifecycleService(),
     fileChanges: () => createTestFileChangeService(),
     secretStore: () => createTestSecretStoreService(),
     webAuth: () => createTestWebAuthService(null),
@@ -272,7 +275,7 @@ export type TestCoreServices = Override<
   CoreServices & CoreInternalServices,
   Omit<Built<TestServiceFactories>, MobileKey | 'mobile' | 'indexReads' | 'noteServices'> &
     Built<TestServiceFactories>['noteServices'] &
-    TestEdgeServices & { readonly mobile: TestMobileServices }
+    TestEdgeServices & { readonly ipc: TestIpcBridgeService; readonly mobile: TestMobileServices }
 >
 
 /**
@@ -286,10 +289,9 @@ export function createTestCoreServices<
 ): Omit<TestCoreServices, keyof Overrides> & Omit<Overrides, 'backup'> {
   const defaults = createTestEdgeServices()
   const edge = { ...defaults, ...overrides }
-  const ipc = createTestIpcBridgeService({ logger: edge.logger })
   const platform = createTestPlatformService()
   const adapters: CoreAdapters = {
-    ipc: ipc.transport,
+    ipc: edge.ipc ?? createTestIpcBridgeService({ logger: edge.logger }),
     platform: edge.platform ?? platform,
     http: edge.http,
     storage: { local: null, session: null },
@@ -298,7 +300,7 @@ export function createTestCoreServices<
     opener: { openUrl: async () => {}, revealItemInDir: async () => {} },
     path: createPosixPathTransport('/home/test'),
     window: createSingleWindowHost(),
-    lifecycle: createDetachedLifecycleDom(),
+    activity: edge.activity,
     logger: edge.logger,
     clock: edge.clock,
     id: edge.id,
@@ -312,9 +314,12 @@ export function createTestCoreServices<
     }
   }
   const { services, internal } = composeCoreServices(adapters, {
-    ...createTestServiceFactories({ ipc, platform, clock: defaults.clock }, overrides),
+    ...createTestServiceFactories({ platform, clock: defaults.clock }, overrides),
     ...(fixed as Partial<ServiceFactories>),
   })
-  return { ...services, ...internal } as Omit<TestCoreServices, keyof Overrides> &
+  return { ...services, ...internal, activity: adapters.activity } as Omit<
+    TestCoreServices,
+    keyof Overrides
+  > &
     Omit<Overrides, 'backup'>
 }

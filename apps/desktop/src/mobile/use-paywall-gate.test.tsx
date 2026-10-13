@@ -82,7 +82,7 @@ describe('usePaywallGate', () => {
         webAuth: base.webAuth,
         clock: base.clock,
         id: base.id,
-        lifecycle: base.lifecycle,
+        activity: base.activity,
         platform: base.platform,
         logger: base.logger,
       })

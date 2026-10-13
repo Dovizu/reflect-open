@@ -4,7 +4,7 @@ import type { IcloudScanOptions, IcloudSweepOutcome } from '../ipc/icloud-native
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
-import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
+import { createTestActivityPort, type TestActivityPort } from '../testing/shell.ts'
 import { createTestICloudNativeService, type TestICloudNativeService } from '../testing/sync.ts'
 import {
   createICloudSyncService,
@@ -33,7 +33,7 @@ const EMPTY_OUTCOME: IcloudSweepOutcome = {
 }
 
 let clock: TestClockService
-let lifecycle: TestLifecycleService
+let activity: TestActivityPort
 let logger: TestLoggerService
 let fileChanges: TestFileChangeService
 let icloud: TestICloudNativeService
@@ -48,7 +48,7 @@ let active: ICloudSyncService | null = null
 
 beforeEach(() => {
   clock = createTestClockService({ now: Date.UTC(2026, 6, 4) })
-  lifecycle = createTestLifecycleService()
+  activity = createTestActivityPort()
   logger = createTestLoggerService()
   fileChanges = createTestFileChangeService()
   icloud = createTestICloudNativeService()
@@ -98,7 +98,7 @@ function service(overrides: { watch?: boolean } = {}) {
         },
       },
       openDocuments: { dirtyPaths: () => dirtyPaths },
-      lifecycle,
+      activity,
       clock,
       logger,
     },
@@ -179,7 +179,7 @@ describe('createICloudSyncService', () => {
     const sync = service()
     await sync.start()
     await settleScan()
-    lifecycle.emitResume()
+    activity.emitResume()
     await settleScan()
     sync.dispose()
     active = null
@@ -263,7 +263,7 @@ describe('createICloudSyncService', () => {
     }
     // The app hides while the sweep is in flight, so its result lands hidden.
     icloud.onConflictsScan(() => {
-      lifecycle.setHidden(true)
+      activity.setHidden(true)
       return changed
     })
 
@@ -273,7 +273,7 @@ describe('createICloudSyncService', () => {
     expect(indexApplies.map((apply) => apply.canApply)).toEqual([false])
     mobile.dispose()
 
-    lifecycle.setHidden(false)
+    activity.setHidden(false)
     indexApplies = []
     const desktop = service()
     await desktop.start()
@@ -282,7 +282,7 @@ describe('createICloudSyncService', () => {
   })
 
   it('defers mobile baseline, conflict, and ingest scans until foreground', async () => {
-    lifecycle.setHidden(true)
+    activity.setHidden(true)
     const sync = service({ watch: true })
     await sync.start()
     await settleScan()
@@ -293,8 +293,8 @@ describe('createICloudSyncService', () => {
     await settleScan(INGEST_SETTLE_MS)
     expect(scanCalls()).toHaveLength(0)
 
-    lifecycle.emitVisible()
-    lifecycle.emitResume()
+    activity.emitVisible()
+    activity.emitResume()
     await settleScan()
 
     expect(scanCalls()).toHaveLength(1)
@@ -313,7 +313,7 @@ describe('createICloudSyncService', () => {
     await settleScan()
     const before = icloud.calls().length
 
-    lifecycle.emitResume()
+    activity.emitResume()
     await settleScan()
 
     const after = icloud.calls().slice(before)
@@ -367,7 +367,7 @@ describe('createICloudSyncService', () => {
   })
 
   it('preserves desktop baseline scanning while the document is hidden', async () => {
-    lifecycle.setHidden(true)
+    activity.setHidden(true)
     const sync = service({ watch: false })
     await sync.start()
     await settleScan()
@@ -390,7 +390,7 @@ describe('createICloudSyncService', () => {
     await settleScan(INGEST_SETTLE_MS)
     expect(scanCalls()[2]?.scope).toBe('candidates') // bulk-sync arrival sweeps stay cheap
 
-    lifecycle.emitResume()
+    activity.emitResume()
     await settleScan()
     expect(scanCalls()[3]?.scope).toBe('full') // resume re-checks everything
   })
@@ -418,7 +418,7 @@ describe('createICloudSyncService', () => {
     await settleScan(INGEST_SETTLE_MS)
     expect(scanCalls()).toHaveLength(2)
 
-    lifecycle.emitResume()
+    activity.emitResume()
     await settleScan()
     expect(scanCalls()[2]?.scope).toBe('full') // resume re-checks everything
   })
@@ -532,7 +532,7 @@ describe('createICloudSyncService', () => {
     // A resume (full) and a conflict signal (candidates) both land mid-sweep:
     // full is sticky through the merge, whatever the arrival order.
     icloud.emitConflicts(['notes/a.md'])
-    lifecycle.emitResume()
+    activity.emitResume()
     releaseScan?.()
     await settleScan()
     expect(scanCalls()).toHaveLength(2)
@@ -571,7 +571,7 @@ describe('createICloudSyncService', () => {
     sync.dispose()
     active = null
 
-    lifecycle.emitResume()
+    activity.emitResume()
     emitExternal({ path: 'notes/external.md' })
     await settleScan(INGEST_SETTLE_MS)
 
