@@ -3,11 +3,18 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { AiPrompt, AiPromptMode } from '../settings/schema.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 
-/** What the prompt editor collects; `id` is minted on add. */
+/**
+ * What the prompt editor collects; `id` is minted on add.
+ */
 export interface AiPromptDraft {
   label: string
   body: string
   mode: AiPromptMode
+}
+
+export interface AiPromptServiceDeps {
+  readonly settings: Pick<SettingsService, 'get' | 'subscribe' | 'updateWith'>
+  readonly id: Pick<IdService, 'uuid'>
 }
 
 /**
@@ -18,38 +25,49 @@ export interface AiPromptDraft {
  * each other.
  */
 export interface AiPromptService {
-  /** The saved prompts, in display order. Stable until the list changes. */
+  /**
+   * The saved prompts, in display order. Stable until the list changes.
+   */
   list: () => AiPrompt[]
-  /** Calls `listener` after any settings change. */
+  /**
+   * Calls `listener` after any settings change.
+   */
   subscribe: (listener: () => void) => Unlisten
   add: (draft: AiPromptDraft) => void
   update: (id: string, draft: AiPromptDraft) => void
   remove: (id: string) => void
 }
 
-export function createAiPromptService(deps: {
-  settings: Pick<SettingsService, 'get' | 'subscribe' | 'updateWith'>
-  id: Pick<IdService, 'uuid'>
-}): AiPromptService {
-  const { settings, id: idService } = deps
-  return {
-    list: () => settings.get().aiPrompts,
-    subscribe: (listener) => settings.subscribe(listener),
-    add: (draft) => {
-      const prompt: AiPrompt = { id: idService.uuid(), ...draft }
-      settings.updateWith((current) => ({ aiPrompts: [...current.aiPrompts, prompt] }))
-    },
-    update: (id, draft) => {
-      settings.updateWith((current) => ({
-        aiPrompts: current.aiPrompts.map((prompt) =>
-          prompt.id === id ? { id, ...draft } : prompt,
-        ),
-      }))
-    },
-    remove: (id) => {
-      settings.updateWith((current) => ({
-        aiPrompts: current.aiPrompts.filter((prompt) => prompt.id !== id),
-      }))
-    },
+class AiPromptServiceImpl implements AiPromptService {
+  readonly #deps: AiPromptServiceDeps
+
+  constructor(deps: AiPromptServiceDeps) {
+    this.#deps = deps
   }
+
+  readonly list = (): AiPrompt[] => this.#deps.settings.get().aiPrompts
+
+  readonly subscribe = (listener: () => void): Unlisten => this.#deps.settings.subscribe(listener)
+
+  readonly add = (draft: AiPromptDraft): void => {
+    const { settings, id: idService } = this.#deps
+    const prompt: AiPrompt = { id: idService.uuid(), ...draft }
+    settings.updateWith((current) => ({ aiPrompts: [...current.aiPrompts, prompt] }))
+  }
+
+  readonly update = (id: string, draft: AiPromptDraft): void => {
+    this.#deps.settings.updateWith((current) => ({
+      aiPrompts: current.aiPrompts.map((prompt) => (prompt.id === id ? { id, ...draft } : prompt)),
+    }))
+  }
+
+  readonly remove = (id: string): void => {
+    this.#deps.settings.updateWith((current) => ({
+      aiPrompts: current.aiPrompts.filter((prompt) => prompt.id !== id),
+    }))
+  }
+}
+
+export function createAiPromptService(deps: AiPromptServiceDeps): AiPromptService {
+  return new AiPromptServiceImpl(deps)
 }

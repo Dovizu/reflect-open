@@ -16,43 +16,69 @@ import { clipAtWordBoundary } from './text.ts'
 
 const DESCRIBE_TIMEOUT_MS = 60_000
 
-/** Caps the prompt's selection excerpt; the model needs gist, not the article. */
+/**
+ * Caps the prompt's selection excerpt; the model needs gist, not the article.
+ */
 const MAX_SELECTION_CHARS = 1_000
 const MAX_CONTENT_TEXT_CHARS = 6_000
 
-/** Caps the returned title — it renders as an H1 and a wiki-link display text. */
+/**
+ * Caps the returned title — it renders as an H1 and a wiki-link display text.
+ */
 const MAX_TITLE_CHARS = 100
 
 export interface DescribePageRequest {
-  /** The provider entry to call (the app default). */
+  /**
+   * The provider entry to call (the app default).
+   */
   config: AiProviderConfig
-  /** The BYOK API key, or an empty string for no-key compatible endpoints. */
+  /**
+   * The BYOK API key, or an empty string for no-key compatible endpoints.
+   */
   apiKey: string
-  /** The captured page. */
+  /**
+   * The captured page.
+   */
   url: string
   title: string
-  /** Scraped `og:title`, when the scrape produced one. */
+  /**
+   * Scraped `og:title`, when the scrape produced one.
+   */
   metaTitle?: string | undefined
-  /** Scraped `og:site_name` — lets the model strip site suffixes from the title. */
+  /**
+   * Scraped `og:site_name` — lets the model strip site suffixes from the title.
+   */
   siteName?: string | undefined
-  /** Text the user had selected, if any. */
+  /**
+   * Text the user had selected, if any.
+   */
   selection?: string | undefined
-  /** Extracted full-page text, capped before it enters the provider prompt. */
+  /**
+   * Extracted full-page text, capped before it enters the provider prompt.
+   */
   contentText?: string | undefined
-  /** Scraped meta description, if the scrape produced one. */
+  /**
+   * Scraped meta description, if the scrape produced one.
+   */
   metaDescription?: string | undefined
-  /** Downscaled JPEG screenshot, base64 (no data-URL prefix), if captured. */
+  /**
+   * Downscaled JPEG screenshot, base64 (no data-URL prefix), if captured.
+   */
   screenshotBase64?: string | undefined
 }
 
-/** What one enrichment call produces for a captured page. */
+/**
+ * What one enrichment call produces for a captured page.
+ */
 export interface PageEnrichment {
   /**
    * The cleaned-up display title, wiki-link safe and capped, or `null` when
    * the model produced nothing usable — the caller keeps the captured title.
    */
   title: string | null
-  /** One-to-two plain sentences describing the page. */
+  /**
+   * One-to-two plain sentences describing the page.
+   */
   description: string
 }
 
@@ -74,7 +100,9 @@ export class DescriptionRejectedError extends Error {
   }
 }
 
-/** Type guard for the provider-refusal path. */
+/**
+ * Type guard for the provider-refusal path.
+ */
 export function isDescriptionRejected(value: unknown): value is DescriptionRejectedError {
   return value instanceof DescriptionRejectedError
 }
@@ -143,7 +171,13 @@ export function normalizedPageTitle(candidate: string): string | null {
   return safe === '' ? null : safe
 }
 
-/** One multimodal call that cleans a captured page's title and describes the page. */
+export interface PageDescriberServiceDeps {
+  readonly languageModel: LanguageModelService
+}
+
+/**
+ * One multimodal call that cleans a captured page's title and describes the page.
+ */
 export interface PageDescriberService {
   /**
    * Generate the title and description. Throws {@link ReflectError} (`auth`,
@@ -154,38 +188,43 @@ export interface PageDescriberService {
   describe: (request: DescribePageRequest) => Promise<PageEnrichment>
 }
 
-export function createPageDescriberService(deps: {
-  languageModel: LanguageModelService
-}): PageDescriberService {
-  const { languageModel } = deps
-  return {
-    describe: async (request) => {
-      const sdk = await import('@reflect/modules/ai')
-      const content: UserContent = [{ type: 'text', text: describePrompt(request) }]
-      if (request.screenshotBase64) {
-        content.push({
-          type: 'file',
-          data: request.screenshotBase64,
-          mediaType: 'image/jpeg',
-        })
-      }
-      try {
-        const result = await sdk.generateObject({
-          model: await languageModel.create(request.config, request.apiKey),
-          schema: pageDescriptionSchema,
-          messages: [{ role: 'user', content }],
-          abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),
-          // The enrichment pass is the retry layer (next trigger re-runs pending
-          // captures); the SDK's own backoff would only delay that.
-          maxRetries: 0,
-        })
-        return {
-          title: result.object.title === null ? null : normalizedPageTitle(result.object.title),
-          description: result.object.description.trim(),
-        }
-      } catch (cause) {
-        throw classify(cause, sdk)
-      }
-    },
+class PageDescriberServiceImpl implements PageDescriberService {
+  readonly #deps: PageDescriberServiceDeps
+
+  constructor(deps: PageDescriberServiceDeps) {
+    this.#deps = deps
   }
+
+  readonly describe = async (request: DescribePageRequest): Promise<PageEnrichment> => {
+    const sdk = await import('@reflect/modules/ai')
+    const content: UserContent = [{ type: 'text', text: describePrompt(request) }]
+    if (request.screenshotBase64) {
+      content.push({
+        type: 'file',
+        data: request.screenshotBase64,
+        mediaType: 'image/jpeg',
+      })
+    }
+    try {
+      const result = await sdk.generateObject({
+        model: await this.#deps.languageModel.create(request.config, request.apiKey),
+        schema: pageDescriptionSchema,
+        messages: [{ role: 'user', content }],
+        abortSignal: AbortSignal.timeout(DESCRIBE_TIMEOUT_MS),
+        // The enrichment pass is the retry layer (next trigger re-runs pending
+        // captures); the SDK's own backoff would only delay that.
+        maxRetries: 0,
+      })
+      return {
+        title: result.object.title === null ? null : normalizedPageTitle(result.object.title),
+        description: result.object.description.trim(),
+      }
+    } catch (cause) {
+      throw classify(cause, sdk)
+    }
+  }
+}
+
+export function createPageDescriberService(deps: PageDescriberServiceDeps): PageDescriberService {
+  return new PageDescriberServiceImpl(deps)
 }
