@@ -45,6 +45,7 @@ import {
 import { createTestClockService } from './clock.ts'
 import { createTestContactsService } from './contacts.ts'
 import { createTestDatabaseService } from './database.ts'
+import { createTestDeepLinkIntakeService } from './deep-link.ts'
 import { createTestNoteMoveService } from './documents.ts'
 import {
   createTestEmbeddingIndexService,
@@ -87,10 +88,8 @@ import {
 import { createTestAppInfoService, createTestSecretStoreService } from './secrets.ts'
 import { createTestSettingsService } from './settings.ts'
 import {
-  createTestClipboardService,
   createTestDialogService,
   createTestLifecycleService,
-  createTestOpenerService,
   createTestWindowService,
 } from './shell.ts'
 import { createTestStorageService } from './storage.ts'
@@ -125,7 +124,6 @@ function createTestEdgeServices() {
     hash: createTestHashService(),
     http: createTestHttpService(),
     dialog: createTestDialogService(),
-    clipboard: createTestClipboardService(),
     imageCodec: createTestImageCodec(),
     progress: createTestProgressPort(),
   }
@@ -205,6 +203,7 @@ function createTestServiceFactories(
     mobileStorage: () => createTestMobileStorageService(),
     noteMove: (deps) => createTestNoteMoveService(deps),
     captureInbox: () => createTestCaptureInboxService(),
+    deepLinkIntake: (deps) => createTestDeepLinkIntakeService(deps),
     webFetch: () => createTestWebFetchService(),
     pageDescriber: () => createTestPageDescriberService(),
     assetDescriber: () => createTestAssetDescriberService(),
@@ -214,7 +213,6 @@ function createTestServiceFactories(
       createTestGraphSessionService(
         overrides?.ipc === undefined ? deps : { ...deps, ipc: overrides.ipc },
       ),
-    opener: ({ logger }) => createTestOpenerService({ logger }),
     attachments: ({ graphSession }) => createTestAttachmentService({ graphSession }),
     persistenceFlush: ({ openDocuments }) => createTestPersistenceFlushService({ openDocuments }),
     gitRepository: () => createTestGitRepositoryService(),
@@ -300,8 +298,6 @@ export function createTestCoreServices<
     http: edge.http,
     storage: { local: null, session: null },
     dialog: edge.dialog,
-    clipboard: edge.clipboard,
-    opener: { openUrl: async () => {}, revealItemInDir: async () => {} },
     path: createPosixPathTransport('/home/test'),
     window: createSingleWindowHost(),
     lifecycle: createDetachedLifecycleDom(),

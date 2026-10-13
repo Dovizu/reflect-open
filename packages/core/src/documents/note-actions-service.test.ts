@@ -15,7 +15,6 @@ import { parseNote } from '../markdown/extract.ts'
 import { createTestNoteFileService, overrideNoteFileService } from '../testing/graph.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestProgressPort } from '../testing/ports.ts'
-import { createTestClipboardService } from '../testing/shell.ts'
 import { canTrashNote, createNoteActionsService } from './note-actions-service.ts'
 import { createNoteDocumentService } from './note-document-service.ts'
 import { createNoteRowService, type NoteRowService } from './note-row-service.ts'
@@ -39,7 +38,6 @@ function createNoteActions(deps: {
   noteFile: NoteFileService
   sessions: readonly NoteSession[]
   progress?: ReturnType<typeof createTestProgressPort>
-  clipboard?: ReturnType<typeof createTestClipboardService>
   indexLifecycle?: Pick<IndexLifecycleService, 'indexNote'>
   indexQuery?: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
   noteRows?: NoteRowService
@@ -71,7 +69,6 @@ function createNoteActions(deps: {
     },
     noteRows: deps.noteRows ?? createNoteRowService({ graphSession: graph }),
     progress: deps.progress ?? createTestProgressPort(),
-    clipboard: deps.clipboard ?? createTestClipboardService(),
     path: createPathService({ transport: createPosixPathTransport('/home/test') }),
     id: createTestIdService(),
     graphSession: graph,
@@ -101,7 +98,6 @@ function setup(options?: {
   )
   const session = options?.session === undefined ? null : createTestNoteSession(options.session)
   const progress = createTestProgressPort()
-  const clipboard = createTestClipboardService()
   const graph = createTestGraph()
   const noteRows = createNoteRowService({ graphSession: graph })
   const pinned = options?.pinned ?? []
@@ -109,7 +105,6 @@ function setup(options?: {
     noteFile: options?.wrapNoteFile?.(files) ?? files,
     sessions: session === null ? [] : [session],
     progress,
-    clipboard,
     noteRows,
     graph,
     indexQuery: {
@@ -120,7 +115,7 @@ function setup(options?: {
       ? {}
       : { indexLifecycle: { indexNote: options.indexNote } }),
   })
-  return { actions, files, session, openDocuments, progress, clipboard, noteRows, graph }
+  return { actions, files, session, openDocuments, progress, noteRows, graph }
 }
 
 function shelfNote(path: string, pinnedOrder: number | null): PinnedNote {
@@ -890,73 +885,18 @@ describe('deepLinkFor', () => {
   })
 })
 
-describe('copyDeepLink', () => {
-  it('copies the link and confirms through operations', async () => {
-    const { actions, clipboard, progress } = setup()
+describe('absolutePathFor', () => {
+  it('joins the graph root and the path in the host syntax', async () => {
+    const { actions } = setup()
 
-    await actions.copyDeepLink('daily/2026-07-01.md')
-
-    expect(clipboard.writes()).toEqual(['reflect://daily/2026-07-01'])
-    expect(progress.started()).toMatchObject([{ label: 'Deep link copied', ended: true }])
+    await expect(actions.absolutePathFor('notes/a.md')).resolves.toBe('/g/notes/a.md')
   })
 
-  it('reports a failure to build the link', async () => {
-    const { actions, clipboard, progress } = setup({
-      files: { 'notes/a.md': '# A\n' },
-      wrapNoteFile: failing('write', new Error('disk full')),
-    })
-
-    await actions.copyDeepLink('notes/a.md')
-
-    expect(clipboard.writes()).toEqual([])
-    expect(progress.snapshot()).toMatchObject([
-      { label: 'Copying deep link', status: 'failed', message: 'disk full' },
-    ])
-  })
-
-  it('reports a clipboard failure', async () => {
-    const { actions, clipboard, progress } = setup()
-    clipboard.failWith(new Error('denied'))
-
-    await actions.copyDeepLink('daily/2026-07-01.md')
-
-    expect(progress.snapshot()).toMatchObject([
-      { label: 'Copying deep link', status: 'failed', message: 'denied' },
-    ])
-  })
-})
-
-describe('copyPath', () => {
-  it('copies the OS-joined absolute path and completes the operation', async () => {
-    const { actions, clipboard, progress } = setup()
-
-    await actions.copyPath('notes/a.md')
-
-    expect(clipboard.writes()).toEqual(['/g/notes/a.md'])
-    expect(progress.started()).toMatchObject([{ label: 'Note path copied', ended: true }])
-    expect(progress.getAll()).toEqual([])
-  })
-
-  it('fails loudly when no graph is open', async () => {
-    const { actions, progress, graph } = setup()
+  it('rejects when no graph is open', async () => {
+    const { actions, graph } = setup()
     graph.setGraph(null)
 
-    await actions.copyPath('notes/a.md')
-
-    expect(progress.snapshot()).toMatchObject([
-      { label: 'Copying note path', status: 'failed', message: 'No graph is open' },
-    ])
-  })
-
-  it('reports a clipboard failure through the operation', async () => {
-    const { actions, clipboard, progress } = setup()
-    clipboard.failWith(new Error('denied'))
-
-    await actions.copyPath('notes/a.md')
-
-    expect(progress.snapshot()).toMatchObject([
-      { label: 'Copying note path', status: 'failed', message: 'denied' },
-    ])
+    await expect(actions.absolutePathFor('notes/a.md')).rejects.toThrow('No graph is open.')
   })
 })
 
@@ -971,7 +911,6 @@ describe('with no graph open', () => {
     await expect(
       actions.reorderPinned([{ path: 'notes/a.md', pinnedOrder: 1024 }]),
     ).resolves.toEqual([])
-    await actions.copyDeepLink('notes/a.md')
 
     expect(files.writes()).toEqual([])
     expect(progress.getAll()).toEqual([])

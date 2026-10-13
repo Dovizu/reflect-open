@@ -29,6 +29,13 @@ export {
   type ResolvedTheme,
   type ThemeService,
 } from './settings/theme-service.ts'
+export { type ClipboardService } from './app/clipboard-service.ts'
+export {
+  createOpenerService,
+  type OpenerService,
+  type OpenerTransport,
+  type SystemSettingsPane,
+} from './app/opener-service.ts'
 export { type KeyboardService } from './mobile/keyboard-service.ts'
 export { type ShareService } from './mobile/share-service.ts'
 export { type MobileSyncStatus, type SyncStatusService } from './sync/sync-status-service.ts'
@@ -123,12 +130,8 @@ export {
 } from './search/palette-entries.ts'
 export { type PaletteSearchService } from './search/palette-search-service.ts'
 export { deepLinkForRoute } from './navigation/deep-link-format.ts'
-export {
-  initialRouteForDeepLink,
-  isDeepLinkUrl,
-  parseDeepLink,
-} from './navigation/deep-link-parse.ts'
-export { type DeepLinkService, type DeepLinkSource } from './navigation/deep-link-service.ts'
+export { initialRouteForDeepLink } from './navigation/deep-link-route.ts'
+export { type DeepLinkRouter } from './navigation/deep-link-router.ts'
 export {
   routeForTag,
   type LinkNavigationHost,

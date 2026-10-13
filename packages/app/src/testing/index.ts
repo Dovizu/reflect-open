@@ -10,12 +10,14 @@ export {
   type TestNativeMenuService,
   type TestNativeMenuServiceOptions,
 } from './commands.ts'
+export { createTestClipboardService, type TestClipboardService } from './clipboard.ts'
 export {
   createTestOperationsService,
   type OperationSnapshot,
   type TestOperationsService,
 } from './operations.ts'
-export { createTestAppServices, type TestAppServices } from './services.ts'
+export { createTestOpenerService, type TestOpenerService } from './opener.ts'
+export { createTestAppHost, createTestAppServices, type TestAppServices } from './services.ts'
 export {
   createTestExceptionTelemetry,
   type ExceptionReport,
@@ -33,12 +35,7 @@ export {
   type TestUpdateService,
 } from './update.ts'
 export {
-  createTestDeepLinkService,
-  createTestDeepLinkSource,
   createTestNavigationService,
-  type TestDeepLinkService,
-  type TestDeepLinkServiceOptions,
-  type TestDeepLinkSource,
   type TestNavigateCall,
   type TestNavigationService,
   type TestNavigationServiceOptions,

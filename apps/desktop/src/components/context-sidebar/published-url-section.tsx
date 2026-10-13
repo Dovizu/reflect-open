@@ -4,6 +4,7 @@ import { errorMessage } from '@reflect/core'
 import { Button } from '@/components/ui/button.tsx'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx'
 import { useNoteRow } from '@/hooks/use-note-row.ts'
+import { publishGistAndCopyLink } from '@/lib/clipboard-actions.ts'
 import { cn } from '@/lib/utils.ts'
 import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 import { SidebarSection } from './sidebar-section.tsx'
@@ -22,8 +23,8 @@ const COPY_RESET_MS = 1400
  * plus a compact copy affordance for sharing it again.
  */
 export function PublishedUrlSection({ path }: PublishedUrlSectionProps): ReactElement | null {
-  const { clipboard, gistPublish, opener } = useCoreServices()
-  const { operations } = useAppServices()
+  const { gistPublish } = useCoreServices()
+  const { clipboard, opener, operations } = useAppServices()
   const row = useNoteRow(path)
   const url = row?.gistUrl ?? null
   const [copyState, setCopyState] = useState<CopyState>('idle')
@@ -68,7 +69,7 @@ export function PublishedUrlSection({ path }: PublishedUrlSectionProps): ReactEl
   const updateGist = async (): Promise<void> => {
     setIsUpdating(true)
     try {
-      await gistPublish.publish(path)
+      await publishGistAndCopyLink({ gistPublish }, { clipboard, operations }, path)
     } finally {
       setIsUpdating(false)
     }

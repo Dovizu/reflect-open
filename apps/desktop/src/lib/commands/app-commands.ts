@@ -1,6 +1,7 @@
 import type { CoreServices } from '@reflect/core'
 import type { CommandService } from '@reflect/app'
 import { attachFilesToNote } from '@/lib/attach-files.ts'
+import { copyNoteDeepLink, copyNotePath, publishGistAndCopyLink } from '@/lib/clipboard-actions.ts'
 import { routeForPath, type Route } from '@/routing/route.ts'
 import type { AppCommand, CommandContext } from './types.ts'
 
@@ -182,14 +183,14 @@ const APP_COMMANDS: AppCommand[] = [
     // Publishes the body of the note the current route edits to a secret
     // GitHub gist (republishing to the same gist thereafter) and copies the
     // link. No default keybinding: the palette keeps it keyboard-reachable
-    // without spending a shortcut. `GistPublishService.publish` owns all feedback — the
-    // progress line, the failure surface, and the "link copied" confirmation.
+    // without spending a shortcut. `GistPublishService.publish` owns the progress line
+    // and the failure surface; `publishGistAndCopyLink` owns the "link copied" confirmation.
     run: async (context) => {
       const path = context.notePath()
       if (path === null) {
         return
       }
-      await context.services.gistPublish.publish(path)
+      await publishGistAndCopyLink(context.services, context.app, path)
     },
   },
   {
@@ -208,7 +209,7 @@ const APP_COMMANDS: AppCommand[] = [
     keywords: ['url', 'share', 'clipboard', 'reflect://', 'address'],
     // The original app's copy-link shortcut. Copies a `reflect://` address for
     // the note the current route edits — id-shaped so it survives renames,
-    // minting the frontmatter id on first copy. `NoteActionsService.copyDeepLink` owns all
+    // minting the frontmatter id on first copy. `copyNoteDeepLink` owns all
     // feedback (the "Deep link copied" status line and failure surfaces).
     keybinding: 'Alt-Mod-l',
     run: async (context) => {
@@ -216,7 +217,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await context.services.noteActions.copyDeepLink(path)
+      await copyNoteDeepLink(context.services, context.app, path)
     },
   },
   {
@@ -225,7 +226,7 @@ const APP_COMMANDS: AppCommand[] = [
     keywords: ['file', 'absolute', 'filesystem', 'clipboard', 'location'],
     // The OS-path sibling of "Copy deep link": copies the note's absolute
     // file path (Finder's Copy-as-Pathname chord) for use outside Reflect,
-    // where a reflect:// address cannot resolve. `NoteActionsService.copyPath` owns all
+    // where a reflect:// address cannot resolve. `copyNotePath` owns all
     // feedback (the "Note path copied" status line and failure surfaces).
     keybinding: 'Alt-Mod-c',
     run: async (context) => {
@@ -233,7 +234,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await context.services.noteActions.copyPath(path)
+      await copyNotePath(context.services, context.app, path)
     },
   },
   {

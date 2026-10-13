@@ -75,6 +75,12 @@ import {
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
 import {
+  createDeepLinkIntakeService,
+  createNoDeepLinkSource,
+  type DeepLinkIntakeService,
+  type DeepLinkSource,
+} from '../navigation/deep-link-intake-service.ts'
+import {
   createICloudNativeService,
   type ICloudNativeService,
 } from '../ipc/icloud-native-service.ts'
@@ -225,7 +231,6 @@ import { createSettingsService, type SettingsService } from '../settings/setting
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
-import type { ClipboardService } from './clipboard-service.ts'
 import { createSystemClock, type ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
 import { createWebCryptoHashService, type HashService } from './hash-service.ts'
@@ -241,7 +246,6 @@ import {
 } from './lifecycle-service.ts'
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
 import { createTaskService, type TaskService } from '../tasks/task-service.ts'
-import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
 import {
   createPersistenceFlushService,
@@ -294,14 +298,6 @@ export interface CoreServices {
    * Native open panels.
    */
   readonly dialog: DialogService
-  /**
-   * The system clipboard.
-   */
-  readonly clipboard: ClipboardService
-  /**
-   * Hands URLs and paths to the operating system.
-   */
-  readonly opener: OpenerService
   /**
    * Host filesystem path building, in the host platform's path syntax.
    */
@@ -373,6 +369,10 @@ export interface CoreServices {
    * The capture inbox of envelopes that the browser extension, the iOS share extension, and deep links spool.
    */
   readonly captureInbox: CaptureInboxService
+  /**
+   * The `reflect://` intake of this webview: buffers incoming URLs and resolves them.
+   */
+  readonly deepLinkIntake: DeepLinkIntakeService
   /**
    * Wiki-target resolution over the index's claims and keys.
    */
@@ -659,14 +659,6 @@ export interface CoreAdapters {
    */
   readonly dialog: DialogService
   /**
-   * The system clipboard.
-   */
-  readonly clipboard: ClipboardService
-  /**
-   * The native operations behind the opener service.
-   */
-  readonly opener: OpenerTransport
-  /**
    * The native operations behind the path service.
    */
   readonly path: PathTransport
@@ -702,6 +694,10 @@ export interface CoreAdapters {
    * Defaults to the URL shape of Apple webviews.
    */
   readonly convertFileSrc?: FileSrcConverter
+  /**
+   * The system's `reflect://` delivery; without one, no URL arrives.
+   */
+  readonly deepLink?: DeepLinkSource
 }
 
 /**
@@ -759,6 +755,7 @@ export const coreServiceFactories = {
   noteDocuments: createNoteDocumentService,
   noteMove: createNoteMoveService,
   captureInbox: createCaptureInboxService,
+  deepLinkIntake: createDeepLinkIntakeService,
   webFetch: createWebFetchService,
   pageDescriber: createPageDescriberService,
   reconcilers: createBackgroundReconcilerFactory,
@@ -768,7 +765,6 @@ export const coreServiceFactories = {
   indexLifecycle: createIndexLifecycleService,
   graphSession: createGraphSessionService<GraphServices>,
   graphServices: createGraphServices,
-  opener: createOpenerService,
   attachments: createAttachmentService,
   persistenceFlush: createPersistenceFlushService,
   gitRepository: createGitRepositoryService,
@@ -1147,12 +1143,10 @@ export function composeCoreServices(
         platform,
       }),
   })
-  const opener = create.opener({ transport: adapters.opener, logger })
   const attachments = create.attachments({
     assetStore,
     noteFile,
     fileChanges,
-    dialog: adapters.dialog,
     progress,
     clock,
     platform,
@@ -1268,8 +1262,6 @@ export function composeCoreServices(
     platform,
     storage,
     dialog: adapters.dialog,
-    clipboard: adapters.clipboard,
-    opener,
     path,
     window: windowService,
     lifecycle,
@@ -1303,6 +1295,15 @@ export function composeCoreServices(
     embeddingRuntime,
     chatHistory,
     captureInbox,
+    deepLinkIntake: create.deepLinkIntake({
+      source: adapters.deepLink ?? createNoDeepLinkSource(),
+      indexQuery: indexReads.indexQuery,
+      captureInbox,
+      progress,
+      id,
+      clock,
+      graphSession,
+    }),
     wikiResolver: indexReads.wikiResolver,
     noteLinkResolver: noteServices.noteLinkResolver,
     githubAuth,
@@ -1313,7 +1314,6 @@ export function composeCoreServices(
       noteRows,
       privacy: noteServices.privacy,
       progress,
-      clipboard: adapters.clipboard,
       graphSession,
     }),
     icloudNative,
@@ -1375,7 +1375,6 @@ export function composeCoreServices(
       indexQuery: indexReads.indexQuery,
       noteRows,
       progress,
-      clipboard: adapters.clipboard,
       path,
       id,
       graphSession,

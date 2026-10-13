@@ -1,14 +1,12 @@
 import { StrictMode, type ReactElement, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  createTestAppServices,
-  createTestDeepLinkService,
-  createTestOperationsService,
-} from '@reflect/app/testing'
+import { createTestAppServices } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestCaptureInboxService,
+  createTestDeepLinkIntakeService,
   createTestGraphSessionService,
+  createTestProgressPort,
 } from '@reflect/core/testing'
 import { act } from '@/test-utils/act.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -22,16 +20,21 @@ const GRAPH = { root: '/g', name: 'g', generation: 7 }
 function setup() {
   const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
   const captureInbox = createTestCaptureInboxService()
-  const operations = createTestOperationsService()
+  const operations = createTestProgressPort()
   const graphSession = createTestGraphSessionService()
-  const deepLink = createTestDeepLinkService({
+  const deepLinkIntake = createTestDeepLinkIntakeService({
     indexQuery: { resolveNoteTarget },
     captureInbox,
-    operations,
+    progress: operations,
     graphSession,
   })
-  const app = createTestCoreServices({ captureInbox, progress: operations, graphSession })
-  const appServices = createTestAppServices(app, { deepLink })
+  const app = createTestCoreServices({
+    captureInbox,
+    progress: operations,
+    graphSession,
+    deepLinkIntake,
+  })
+  const appServices = createTestAppServices(app)
 
   function tree(): ReactElement {
     return <DeepLinkProvider>{null}</DeepLinkProvider>
@@ -55,7 +58,7 @@ function setup() {
   function dispatchPendingNote(target: string) {
     const pending = Promise.withResolvers<string | null>()
     resolveNoteTarget.mockReturnValueOnce(pending.promise)
-    deepLink.dispatch(`reflect://note/${target}`)
+    deepLinkIntake.dispatch(`reflect://note/${target}`)
     return {
       resolve: async () => {
         pending.resolve(`notes/${target}.md`)
@@ -68,7 +71,7 @@ function setup() {
   return {
     app,
     appServices,
-    deepLink,
+    deepLinkIntake,
     captureInbox,
     resolveNoteTarget,
     tree,
@@ -80,24 +83,24 @@ function setup() {
 
 describe('DeepLinkProvider', () => {
   it('serves the intake on mount and stops on unmount', async () => {
-    const { deepLink, tree, navigated, render } = setup()
-    deepLink.dispatch('reflect://tasks')
+    const { deepLinkIntake, tree, navigated, render } = setup()
+    deepLinkIntake.dispatch('reflect://tasks')
     expect(navigated()).toEqual([])
 
     const view = await render(tree())
     expect(navigated()).toEqual([{ kind: 'tasks' }])
 
     await view.unmount()
-    deepLink.dispatch('reflect://today')
+    deepLinkIntake.dispatch('reflect://today')
     expect(navigated()).toEqual([{ kind: 'tasks' }])
   })
 
   it('routes URLs into the service with the router and the open graph session', async () => {
-    const { deepLink, captureInbox, tree, navigated, render } = setup()
+    const { deepLinkIntake, captureInbox, tree, navigated, render } = setup()
     await render(tree())
 
-    deepLink.dispatch('reflect://today')
-    deepLink.dispatch('reflect://append?text=x')
+    deepLinkIntake.dispatch('reflect://today')
+    deepLinkIntake.dispatch('reflect://append?text=x')
 
     expect(navigated()).toEqual([{ kind: 'today' }])
     await vi.waitFor(() => expect(captureInbox.spooled()).toHaveLength(1))
@@ -116,11 +119,11 @@ describe('DeepLinkProvider', () => {
   })
 
   it('serves the next graph session once the graph changes', async () => {
-    const { app, deepLink, captureInbox, tree, render } = setup()
+    const { app, deepLinkIntake, captureInbox, tree, render } = setup()
     await render(tree())
 
     act(() => app.graphSession.setGraph({ ...GRAPH, generation: 8 }))
-    deepLink.dispatch('reflect://append?text=x')
+    deepLinkIntake.dispatch('reflect://append?text=x')
 
     await vi.waitFor(() => expect(captureInbox.spooled()).toHaveLength(1))
     expect(captureInbox.spooled()[0]?.generation).toBe(8)
@@ -153,22 +156,22 @@ describe('DeepLinkProvider', () => {
     'reflect://task?text=captured',
     'reflect://edit-notes?content=invalid',
   ])('does not stale a pending note resolve for non-navigation URL %s', async (url) => {
-    const { deepLink, tree, navigated, dispatchPendingNote, render } = setup()
+    const { deepLinkIntake, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
-    deepLink.dispatch(url)
+    deepLinkIntake.dispatch(url)
     await pending.resolve()
 
     expect(navigated()).toEqual([{ kind: 'note', path: 'notes/x.md' }])
   })
 
   it('stales a pending note resolve for a newer navigation URL', async () => {
-    const { deepLink, tree, navigated, dispatchPendingNote, render } = setup()
+    const { deepLinkIntake, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
-    deepLink.dispatch('reflect://today')
+    deepLinkIntake.dispatch('reflect://today')
     await pending.resolve()
 
     expect(navigated()).toEqual([{ kind: 'today' }])

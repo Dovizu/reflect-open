@@ -131,7 +131,7 @@ new sync or indexing paths exist.
 
 ### Deep-link intake scoping
 
-The intake (`DeepLinkService` in `packages/app/src/navigation/deep-link-service.ts`) is per-webview state.
+The intake (`DeepLinkIntakeService` in `packages/core/src/navigation/deep-link-intake-service.ts`) is per-webview state.
 Every window attaches a handler (in-note `reflect://` clicks must work
 everywhere), but only the main window starts the **OS** listener — the
 plugin's event stream reaches every webview, and N windows must not all

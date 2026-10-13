@@ -1,4 +1,4 @@
-import type { OpenerTransport } from '@reflect/core'
+import type { OpenerTransport } from '@reflect/app'
 
 /**
  * Plain-browser dev opens URLs in a new tab and has no file manager.

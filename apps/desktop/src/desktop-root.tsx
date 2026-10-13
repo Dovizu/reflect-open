@@ -16,8 +16,8 @@ import { useAppServices, useCoreServices } from '@/services/services-provider.ts
  * chooser/workspace app — none of which exist on mobile.
  */
 export function DesktopRoot(): ReactElement {
-  const { noteMove, platform, logger } = useCoreServices()
-  const { deepLink, operations } = useAppServices()
+  const { noteMove, platform, logger, deepLinkIntake } = useCoreServices()
+  const { operations } = useAppServices()
   // Deep-link intake starts with the surface, not the workspace: a
   // `reflect://` URL that launched the app (or arrived on the graph chooser)
   // buffers in `intake.ts` until a graph opens. Browser dev has no plugin.
@@ -29,10 +29,10 @@ export function DesktopRoot(): ReactElement {
     if (!platform.isNativeShell) {
       return
     }
-    deepLink.startListener().catch((cause: unknown) => {
+    deepLinkIntake.startListener().catch((cause: unknown) => {
       logger.error('deep link listener failed to start:', cause)
     })
-  }, [deepLink, platform, logger])
+  }, [deepLinkIntake, platform, logger])
 
   // Renames commit in whichever window drove them (a title edit works in
   // note windows too) and broadcast on `note:moved` — EVERY window follows,

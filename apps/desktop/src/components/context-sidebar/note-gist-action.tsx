@@ -5,7 +5,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useNoteRowOverlay } from '@/hooks/note-row-overlay.ts'
 import { useGithubConnected } from '@/hooks/use-github-connected.ts'
 import { useNoteRow } from '@/hooks/use-note-row.ts'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { publishGistAndCopyLink } from '@/lib/clipboard-actions.ts'
+import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 
 interface NoteGistActionProps {
   /** Graph-relative path of the note the action operates on. */
@@ -27,6 +28,7 @@ export function NoteGistAction({
   keybinding = null,
 }: NoteGistActionProps): ReactElement | null {
   const { gistPublish } = useCoreServices()
+  const { clipboard, operations } = useAppServices()
   const connected = useGithubConnected()
   const row = useNoteRow(path)
   // `row` already reflects a just-published or just-unpublished URL (the
@@ -45,7 +47,7 @@ export function NoteGistAction({
   const onPublish = async (): Promise<void> => {
     setIsPublishing(true)
     try {
-      await gistPublish.publish(path)
+      await publishGistAndCopyLink({ gistPublish }, { clipboard, operations }, path)
     } finally {
       setIsPublishing(false)
     }

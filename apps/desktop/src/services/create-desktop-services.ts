@@ -1,6 +1,8 @@
 import { createOperationsService, type AppHost } from '@reflect/app'
 import {
+  MAIN_WINDOW_LABEL,
   createBrowserHttpService,
+  createNoDeepLinkSource,
   createPosixPathTransport,
   createSingleWindowHost,
   isMobilePlatform,
@@ -58,26 +60,30 @@ export function createDesktopAdapters(
       local: reachWebStorage(logger, 'localStorage'),
       session: reachWebStorage(logger, 'sessionStorage'),
     },
-    clipboard: createNavigatorClipboardService(),
     lifecycle: createDomLifecycleAdapter(),
     imageCodec: createBrowserImageCodec(),
   }
   if (facts.isNativeShell) {
+    const window = createTauriWindowHost({
+      multiWindow: !isMobilePlatform(facts.appPlatform),
+      logger,
+    })
     return {
       ...common,
       http: createTauriHttpService(),
       dialog: createTauriDialogService(),
-      opener: createTauriOpenerTransport(),
       path: createTauriPathTransport(),
-      window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
+      window,
       convertFileSrc,
+      // The OS delivers deep links to every webview; only the main window takes them.
+      deepLink:
+        window.label === MAIN_WINDOW_LABEL ? createTauriDeepLinkSource() : createNoDeepLinkSource(),
     }
   }
   return {
     ...common,
     http: createBrowserHttpService(),
     dialog: createBrowserDialogService(),
-    opener: createBrowserOpenerTransport(),
     path: createPosixPathTransport('/'),
     window: createSingleWindowHost(),
   }
@@ -85,7 +91,7 @@ export function createDesktopAdapters(
 
 /**
  * The desktop app's host for the app layer: the operations list, the Tauri
- * updater and deep-link source inside the native shell, and Sentry exception
+ * updater and native menus inside the native shell, and Sentry exception
  * telemetry everywhere.
  */
 export function createDesktopHost(
@@ -94,7 +100,10 @@ export function createDesktopHost(
   primitives: DesktopPrimitives,
 ): AppHost {
   void ipc
-  const operations = createOperationsService({ clock: primitives.clock })
+  const common = {
+    operations: createOperationsService({ clock: primitives.clock }),
+    clipboard: createNavigatorClipboardService(),
+  }
   const exceptionTelemetry = createExceptionTelemetry({
     dsn: buildExceptionTelemetryDsn(),
     release: `reflect@${facts.appVersion}`,
@@ -103,12 +112,12 @@ export function createDesktopHost(
   })
   if (facts.isNativeShell) {
     return {
-      operations,
+      ...common,
+      opener: createTauriOpenerTransport(),
       exceptionTelemetry,
       updater: createTauriUpdaterAdapter(),
       nativeMenu: createTauriNativeMenuHost(),
-      deepLink: createTauriDeepLinkSource(),
     }
   }
-  return { operations, exceptionTelemetry }
+  return { ...common, opener: createBrowserOpenerTransport(), exceptionTelemetry }
 }

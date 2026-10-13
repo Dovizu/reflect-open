@@ -1,4 +1,4 @@
-import { createAppServices } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import {
@@ -23,7 +23,7 @@ afterEach(() => {
 function contextFor(notePath: string | null): CommandContext {
   return {
     services: app,
-    app: createAppServices(app, { operations: app.progress }),
+    app: createTestAppServices(app),
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => notePath,
@@ -67,24 +67,37 @@ function editorHandle(): NoteEditorHandle {
 }
 
 describe('attachFilesToNote', () => {
-  it("attaches into the routed note's editor, looked up on every call", async () => {
-    await attachFilesToNote(contextFor('notes/plan.md'))
-
-    const [request] = app.attachments.attachRequests()
-    expect(request?.findEditor()).toBeNull()
-
+  it("attaches the picked files into the routed note's editor, looked up on every call", async () => {
     const handle = editorHandle()
     registerNoteEditorHandle('notes/plan.md', handle)
+    app.dialog.setFiles(['/tmp/a.pdf'])
+
+    await attachFilesToNote(contextFor('notes/plan.md'))
+
+    expect(app.dialog.calls()).toEqual([
+      { kind: 'files', options: { multiple: true, title: 'Attach files' } },
+    ])
+    const [request] = app.attachments.attachRequests()
+    expect(request?.sources).toEqual(['/tmp/a.pdf'])
     expect(request?.findEditor()).toBe(handle)
     unregisterNoteEditorHandle('notes/plan.md', handle)
     expect(request?.findEditor()).toBeNull()
   })
 
-  it('does nothing without a routed note or a graph session', async () => {
+  it('does nothing without a routed note, an editor, a graph session or a pick', async () => {
+    app.dialog.setFiles(['/tmp/a.pdf'])
     await attachFilesToNote(contextFor(null))
+    await attachFilesToNote(contextFor('notes/plan.md'))
+    const handle = editorHandle()
+    registerNoteEditorHandle('notes/plan.md', handle)
     app.graphSession.setGraph(null)
     await attachFilesToNote(contextFor('notes/plan.md'))
+    app.graphSession.setGraph({ generation: 4 })
+    app.dialog.setFiles(null)
+    await attachFilesToNote(contextFor('notes/plan.md'))
+    unregisterNoteEditorHandle('notes/plan.md', handle)
 
     expect(app.attachments.attachRequests()).toEqual([])
+    expect(app.dialog.calls()).toHaveLength(1)
   })
 })

@@ -13,13 +13,13 @@ import type { NativeContextMenuOptions } from '@reflect/app'
 import {
   createTestAppServices,
   createTestOperationsService,
+  type TestOpenerService,
   type TestOperationsService,
 } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestBackupService,
   createTestWindowService,
-  type TestOpenerService,
 } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import type { Route } from '@/routing/route.ts'
@@ -134,7 +134,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
   pickAndOpen = vi.spyOn(app.graphSession, 'pickAndOpen').mockResolvedValue()
   chooseGraph = vi.spyOn(app.graphSession, 'chooseGraph').mockResolvedValue()
   updateSettingsWith = vi.spyOn(app.settings, 'updateWith')
-  opener = app.opener
+  opener = appLayer.opener
   // The app constrains the sidebar to its rail width; without it the graph
   // menu's anchor spans the viewport and popper pushes the submenu off-screen.
   const view = await renderInApp(<Sidebar graph={GRAPH} context={context} />, {

@@ -17,16 +17,12 @@ export {
   type TestIpcBridgeServiceOptions,
 } from './ipc.ts'
 export {
-  createTestClipboardService,
   createTestDialogService,
   createTestLifecycleService,
-  createTestOpenerService,
   createTestWindowService,
   type DialogCall,
-  type TestClipboardService,
   type TestDialogService,
   type TestLifecycleService,
-  type TestOpenerService,
   type TestWindowService,
 } from './shell.ts'
 export {
@@ -131,6 +127,13 @@ export {
   type TestXArchiveService,
   type WebFetchKind,
 } from './capture.ts'
+export {
+  createTestDeepLinkIntakeService,
+  createTestDeepLinkSource,
+  type TestDeepLinkIntakeService,
+  type TestDeepLinkIntakeServiceOptions,
+  type TestDeepLinkSource,
+} from './deep-link.ts'
 export {
   createTestBackupService,
   createTestGitRepositoryService,

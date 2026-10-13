@@ -128,7 +128,7 @@ describe('MobileSettings', () => {
     await user.click(page.getByRole('button', { name: 'Privacy Policy' }))
 
     await vi.waitFor(() =>
-      expect(view.app.opener.openedUrls()).toEqual(['https://reflect.app/privacy']),
+      expect(view.appServices.opener.openedUrls()).toEqual(['https://reflect.app/privacy']),
     )
   })
 

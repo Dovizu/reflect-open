@@ -27,11 +27,11 @@ interface GraphWorkspaceProps {
  */
 export function GraphWorkspace({ graph }: GraphWorkspaceProps): ReactElement {
   const { window: appWindow } = useCoreServices()
-  const { deepLink } = useAppServices()
+  const { deepLinkRouter } = useAppServices()
   // A note window's first route is its ⌘-clicked target (seeded by the boot
   // hook) — starting on the default today route would flash the daily note
   // until the deep link navigated.
-  const initialRoute = appWindow.isMainWindow() ? null : deepLink.getInitialWindowRoute()
+  const initialRoute = appWindow.isMainWindow() ? null : deepLinkRouter.getInitialWindowRoute()
   return (
     <RouterProvider key={graph.root} {...(initialRoute !== null ? { initialRoute } : {})}>
       <PaletteProvider>

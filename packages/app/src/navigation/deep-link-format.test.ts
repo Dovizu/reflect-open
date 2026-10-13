@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Route } from './route.ts'
-import { dailyDeepLink, noteDeepLink } from '@reflect/core'
+import { dailyDeepLink, noteDeepLink, parseDeepLink } from '@reflect/core'
 import { deepLinkForRoute } from './deep-link-format.ts'
-import { parseDeepLink } from './deep-link-parse.ts'
 
 describe('deepLinkForRoute', () => {
   it('round-trips every addressable route through the parser', () => {
@@ -15,7 +14,7 @@ describe('deepLinkForRoute', () => {
     for (const route of routes) {
       const url = deepLinkForRoute(route)
       expect(url).not.toBeNull()
-      expect(parseDeepLink(url ?? '')).toEqual({ kind: 'navigate', route })
+      expect(parseDeepLink(url ?? '')).toEqual({ kind: 'navigate', place: route })
     }
   })
 
@@ -47,7 +46,7 @@ describe('dailyDeepLink', () => {
   it('addresses the daily route', () => {
     expect(parseDeepLink(dailyDeepLink('2026-01-31'))).toEqual({
       kind: 'navigate',
-      route: { kind: 'daily', date: '2026-01-31' },
+      place: { kind: 'daily', date: '2026-01-31' },
     })
   })
 })
