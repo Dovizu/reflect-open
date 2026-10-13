@@ -264,11 +264,9 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     platform,
     graphBoot: createGraphBootService({
       graphSession: core.graphSession,
-      indexLifecycle: core.indexLifecycle,
       window: host.window,
       dialog: host.dialog,
       path: core.path,
-      lifecycle: host.lifecycle,
       platform: core.platform,
       deepLinkRouter,
       logger: core.logger,

@@ -92,4 +92,8 @@ export interface ProgressPort {
    * Begins a visible background operation.
    */
   start(label: string, options?: OperationOptions): OperationHandle
+  /**
+   * Reports a failure at once, without a handle to update later.
+   */
+  fail(label: string, message: string, options?: OperationOptions): void
 }

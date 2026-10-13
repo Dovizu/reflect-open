@@ -90,7 +90,10 @@ function setup(options?: SetupOptions) {
     noteFile,
     fileChanges,
     logger,
-    graphSession: { getState: () => session.getState() },
+    graphSession: {
+      getState: () => session.getState(),
+      subscribe: (listener) => session.subscribe(listener),
+    },
   })
   const mobileStorage = createTestMobileStorageService()
   const noteRows = createNoteRowService({

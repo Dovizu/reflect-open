@@ -1,6 +1,7 @@
 import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
+import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
+import type { AppPlatform } from '../app/platform.ts'
 import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
@@ -13,7 +14,9 @@ import {
   type TestIndexStoreServiceOptions,
 } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
+import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestProgressPort } from '../testing/ports.ts'
+import { createTestActivityPort } from '../testing/shell.ts'
 import {
   createIndexLifecycleService,
   type IndexAppliedEvent,
@@ -63,6 +66,9 @@ function setup(options?: {
   onSubscribe?: () => void
   onWatchStart?: () => void
   onRead?: () => void
+  appPlatform?: AppPlatform
+  role?: GraphRole
+  hidden?: boolean
 }) {
   const database = createTestDatabaseService()
   databases.push(database)
@@ -79,6 +85,8 @@ function setup(options?: {
   const clock = createTestClockService()
   const operations = createTestProgressPort()
   const graph: { session: GraphSession | null } = { session: sessionAt(7) }
+  const graphListeners = new Set<() => void>()
+  const activity = createTestActivityPort({ hidden: options?.hidden ?? false })
   const reconcileScan = store.reconcileScan.bind(store)
   vi.spyOn(store, 'reconcileScan').mockImplementation(async (generation) => {
     steps.push('scan')
@@ -125,7 +133,18 @@ function setup(options?: {
     clock,
     logger,
     progress: operations,
-    graphSession: { getState: () => graph },
+    graphSession: {
+      getState: () => graph,
+      subscribe: (listener) => {
+        graphListeners.add(listener)
+        return () => {
+          graphListeners.delete(listener)
+        }
+      },
+    },
+    activity,
+    platform: createTestPlatformService({ appPlatform: options?.appPlatform ?? 'desktop' }),
+    role: options?.role ?? 'main',
   })
   const progress: IndexLifecycleProgress[] = []
   const applied: IndexAppliedEvent[] = []
@@ -157,6 +176,16 @@ function setup(options?: {
   return {
     index,
     graph,
+    activity,
+    /**
+     * Publish `session` as the open graph's session, as a graph open does.
+     */
+    openSession: (session: GraphSession | null) => {
+      graph.session = session
+      for (const listener of graphListeners) {
+        listener()
+      }
+    },
     store,
     files,
     fileChanges,
@@ -826,7 +855,7 @@ describe('rebuildVisibly', () => {
   it('a test lifecycle records the requested generations', async () => {
     const session = sessionAt(7)
     const index = createTestIndexLifecycleService({
-      graphSession: { getState: () => ({ session }) },
+      graphSession: { getState: () => ({ session }), subscribe: () => () => {} },
     })
     await index.rebuildVisibly()
     expect(index.rebuilds()).toEqual([7])
@@ -874,5 +903,88 @@ describe('applyChanges', () => {
     expect(mutations).toBe(0)
     expect(store.applied()).toEqual([])
     expect(applied).toEqual([])
+  })
+})
+
+describe('followActivity', () => {
+  /**
+   * Wait until every pass the lifecycle started has settled.
+   */
+  async function settle(index: { settled: () => Promise<void> }): Promise<void> {
+    await Promise.resolve()
+    await index.settled()
+  }
+
+  it('defers the first index pass while hidden and replays it on foreground', async () => {
+    const context = setup({ appPlatform: 'ios', hidden: true })
+    context.openSession(null)
+    context.index.followActivity()
+
+    const session = sessionAt(7)
+    context.openSession(session)
+    context.index.sync(session)
+    await settle(context.index)
+    expect(context.passes()).toBe(0)
+
+    // Resume performs a full sync, which catches files and local events the
+    // intentionally absent live subscription could not observe while hidden.
+    context.activity.emitVisible()
+    await expect.poll(() => context.passes()).toBe(1)
+  })
+
+  it('clears suspension when the app foregrounds before its index session opens', async () => {
+    const context = setup({ appPlatform: 'ios', hidden: true })
+    context.openSession(null)
+    context.index.followActivity()
+
+    // The app foregrounds while onboarding still has no graph/index. This
+    // must clear the sticky suspension even though there is nothing to sync.
+    context.activity.emitVisible()
+    await settle(context.index)
+    expect(context.passes()).toBe(0)
+
+    const session = sessionAt(7)
+    context.openSession(session)
+    context.index.sync(session)
+    await expect.poll(() => context.passes()).toBe(1)
+  })
+
+  it('suspends the live index when the app hides', async () => {
+    const context = setup({ appPlatform: 'ios' })
+    context.index.followActivity()
+    const session = sessionAt(7)
+    context.index.sync(session)
+    await expect.poll(() => context.subscriptions()).toBe(1)
+
+    context.activity.emitHidden()
+
+    expect(context.subscriptions()).toBe(0)
+    context.index.refresh(session)
+    await settle(context.index)
+    expect(context.passes()).toBe(1)
+  })
+
+  it.each([
+    { appPlatform: 'desktop', role: 'main' },
+    { appPlatform: 'ios', role: 'note-window' },
+  ] as const)('never suspends on $appPlatform in the $role window', async (options) => {
+    const context = setup({ ...options, hidden: true })
+    context.index.followActivity()
+    context.index.sync(sessionAt(7))
+    await expect.poll(() => context.passes()).toBe(1)
+    context.activity.emitHidden()
+    await settle(context.index)
+    expect(context.subscriptions()).toBe(1)
+  })
+
+  it('removes the suspend guard once stopped', async () => {
+    const context = setup({ appPlatform: 'ios' })
+    const stop = context.index.followActivity()
+    stop()
+    context.activity.setHidden(true)
+
+    context.index.sync(sessionAt(7))
+    await settle(context.index)
+    expect(context.passes()).toBe(1)
   })
 })

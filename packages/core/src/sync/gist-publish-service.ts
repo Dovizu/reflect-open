@@ -122,9 +122,10 @@ class GistPublishServiceImpl implements GistPublishService {
 
   #claim(path: string): boolean {
     if (this.#active.has(path)) {
-      this.#deps.progress
-        .start('Gist operation already running')
-        .fail('Wait for the current gist operation to finish')
+      this.#deps.progress.fail(
+        'Gist operation already running',
+        'Wait for the current gist operation to finish',
+      )
       return false
     }
     this.#active.add(path)

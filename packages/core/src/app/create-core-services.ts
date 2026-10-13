@@ -1,5 +1,4 @@
 import type { GraphRole, GraphSession } from './graph-session.ts'
-import type { Unlisten } from '../unlisten.ts'
 import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
 import {
   createAiKeyValidationService,
@@ -548,10 +547,6 @@ export interface CoreAdapters {
    */
   readonly role: GraphRole
   /**
-   * Listen for index writes that another webview committed.
-   */
-  readonly peerIndexWrites: (listener: () => void) => Unlisten
-  /**
    * Where business code reports visible background work.
    */
   readonly progress: ProgressPort
@@ -997,7 +992,13 @@ export function composeCoreServices(
     logger,
     progress,
     // Read at call time: the graph session is built on this lifecycle.
-    graphSession: { getState: () => graphSession.getState() },
+    graphSession: {
+      getState: () => graphSession.getState(),
+      subscribe: (listener) => graphSession.subscribe(listener),
+    },
+    activity,
+    platform,
+    role: adapters.role,
   })
   const noteRows = create.noteRows({
     // Read at call time: the graph session is built on these rows.
@@ -1258,7 +1259,7 @@ export function composeCoreServices(
       graphSession,
       indexLifecycle,
       role: adapters.role,
-      peerIndexWrites: adapters.peerIndexWrites,
+      ipc,
     }),
     noteActions: create.noteActions({
       noteDocuments,

@@ -11,6 +11,7 @@ import { NoteBusyError, type NoteDocumentService } from '../documents/note-docum
 import { errorMessage, ReflectError } from '../errors.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
+import { INDEX_WRITTEN_EVENT, listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
 import { decodeTaskBreadcrumbs } from '../indexing/indexed-note.ts'
 import type { SnippetTask } from '../indexing/snippet-tasks.ts'
 import type { Unlisten } from '../unlisten.ts'
@@ -46,13 +47,10 @@ export interface TaskServiceDeps {
   readonly graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
   readonly indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'onReconciled'>
   /**
-   * Which window this webview is; only a note window follows {@link peerIndexWrites}.
+   * Which window this webview is; only a note window follows {@link INDEX_WRITTEN_EVENT}.
    */
   readonly role: GraphRole
-  /**
-   * Listen for index writes that another webview committed.
-   */
-  readonly peerIndexWrites: (listener: () => void) => Unlisten
+  readonly ipc: IpcBridgeService
 }
 
 /**
@@ -189,21 +187,6 @@ export interface TaskService {
    */
   includeCompleted(): Unlisten
   /**
-   * Apply Tasks-view edits to one note and persist them through
-   * `NoteDocumentService.commitSourceEdit`: the live session when the note is
-   * open (a session that can't persist now surfaces as `NoteBusyError`), else
-   * disk, serialized per note. Every locator in `edits` describes the note as
-   * the index last saw it; one whose task is gone surfaces as `TaskStaleError`
-   * from the core edit rather than a silent wrong write. The result reports
-   * where every task of the note ended up, so callers can re-address cached
-   * rows before the reindex.
-   */
-  writeTaskEdits(
-    notePath: string,
-    edits: readonly TaskEdit[],
-    options?: WriteTaskEditsOptions,
-  ): Promise<TaskWriteResult>
-  /**
    * Apply `actions` to one task in one write: toggle its checkbox, replace its
    * Markdown (the first paragraph without the marker), remove it (nested items
    * move up), or demote it to a plain bullet so it leaves the Tasks projection
@@ -212,18 +195,6 @@ export interface TaskService {
    * addresses the task as the index knew it.
    */
   writeTask(task: TaskRef, actions: readonly TaskAction[]): Promise<TaskWriteResult>
-  /**
-   * Write `tasks` one at a time through {@link TaskService.writeTask}. Tasks
-   * can share a note, and a removal moves the items below it, so after each
-   * write `onWritten` runs and the rest of the batch is re-addressed from the
-   * write's `moved` map before its own write. Rejects at the first failed
-   * write; the earlier ones have landed.
-   */
-  writeTasks(
-    tasks: readonly OpenTask[],
-    actionsFor: (task: OpenTask) => readonly TaskAction[],
-    onWritten?: (task: OpenTask, result: TaskWriteResult) => void,
-  ): Promise<void>
   /**
    * Continue entry from a grouped task: resolve the current draft and add a new
    * empty task at the end of the same parent item, or of the task's own list
@@ -547,45 +518,12 @@ class TaskServiceImpl implements TaskService {
     }
   }
 
-  async writeTaskEdits(
-    notePath: string,
-    edits: readonly TaskEdit[],
-    options: WriteTaskEditsOptions = {},
-  ): Promise<TaskWriteResult> {
-    return await this.#writeEdits(
-      requireGraphSession(this.#deps.graphSession).generation,
-      notePath,
-      edits,
-      options,
-    )
-  }
-
   async writeTask(task: TaskRef, actions: readonly TaskAction[]): Promise<TaskWriteResult> {
     return await this.#writeOne(
       requireGraphSession(this.#deps.graphSession).generation,
       task,
       actions,
     )
-  }
-
-  async writeTasks(
-    tasks: readonly OpenTask[],
-    actionsFor: (task: OpenTask) => readonly TaskAction[],
-    onWritten?: (task: OpenTask, result: TaskWriteResult) => void,
-  ): Promise<void> {
-    const { signal } = requireGraphSession(this.#deps.graphSession)
-    let pending: readonly OpenTask[] = tasks
-    for (let task = pending[0]; task !== undefined; task = pending[0]) {
-      // After the batch's graph closes or switches, a write would land in the next graph.
-      if (signal.aborted) {
-        throw new ReflectError('noGraph', 'No graph is open.')
-      }
-      const result = await this.writeTask(task, actionsFor(task))
-      onWritten?.(task, result)
-      const rest: readonly OpenTask[] = pending.slice(1)
-      pending =
-        withRelocatedTasks({ logger: this.#deps.logger }, rest, task.notePath, result.moved) ?? []
-    }
   }
 
   async continueTaskInContext(task: TaskRef, content: string | null): Promise<InsertedTask> {
@@ -791,9 +729,7 @@ class TaskServiceImpl implements TaskService {
   resolveSnippetTask(tasks: readonly SnippetTask[], click: SnippetTaskClick): SnippetTask | null {
     const anchor = tasks[click.index]
     if (anchor === undefined || anchor.checked !== click.checked || anchor.text !== click.text) {
-      this.#deps.progress
-        .start('Updating task')
-        .fail('The note has changed — try again in a moment.')
+      this.#deps.progress.fail('Updating task', 'The note has changed — try again in a moment.')
       return null
     }
     return anchor
@@ -809,9 +745,10 @@ class TaskServiceImpl implements TaskService {
     try {
       await this.writeTask({ notePath, ...task.locator }, [{ kind: 'toggle' }])
     } catch (cause) {
-      this.#deps.progress
-        .start(task.checked ? 'Reopening task' : 'Completing task')
-        .fail(errorMessage(cause))
+      this.#deps.progress.fail(
+        task.checked ? 'Reopening task' : 'Completing task',
+        errorMessage(cause),
+      )
       throw cause
     }
   }
@@ -950,7 +887,7 @@ class TaskServiceImpl implements TaskService {
       return
     }
     this.#attached = true
-    const { graphSession, indexLifecycle, role, peerIndexWrites } = this.#deps
+    const { graphSession, indexLifecycle, role, ipc, logger } = this.#deps
     graphSession.subscribe(() => {
       if (this.#adoptSession()) {
         this.#publish()
@@ -966,7 +903,12 @@ class TaskServiceImpl implements TaskService {
     })
     if (role !== 'main') {
       // A note window runs no indexer; the main window's committed writes reach it here.
-      peerIndexWrites(() => this.#throttledInvalidate())
+      listenNow(
+        () => ipc.listen(INDEX_WRITTEN_EVENT, () => this.#throttledInvalidate()),
+        (cause) => {
+          logger.error(`${INDEX_WRITTEN_EVENT} listener failed:`, cause)
+        },
+      )
     }
   }
 
@@ -1146,14 +1088,24 @@ class TaskServiceImpl implements TaskService {
   /**
    * Write `tasks` one at a time, re-keying the rows from each write before the next.
    */
-  #writeEach(
+  async #writeEach(
     root: string,
     tasks: readonly OpenTask[],
     actionsFor: (task: OpenTask) => readonly TaskAction[],
   ): Promise<void> {
-    return this.writeTasks(tasks, actionsFor, (task, result) => {
+    const { signal } = requireGraphSession(this.#deps.graphSession)
+    let pending: readonly OpenTask[] = tasks
+    for (let task = pending[0]; task !== undefined; task = pending[0]) {
+      // After the batch's graph closes or switches, a write would land in the next graph.
+      if (signal.aborted) {
+        throw new ReflectError('noGraph', 'No graph is open.')
+      }
+      const result = await this.writeTask(task, actionsFor(task))
       this.#relocate(root, task.notePath, result.moved)
-    })
+      const rest: readonly OpenTask[] = pending.slice(1)
+      pending =
+        withRelocatedTasks({ logger: this.#deps.logger }, rest, task.notePath, result.moved) ?? []
+    }
   }
 
   /**

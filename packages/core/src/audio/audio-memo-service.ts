@@ -331,12 +331,6 @@ export interface AudioMemoServiceDeps {
  */
 export interface AudioMemoService {
   /**
-   * Persist one session segment at its exact part path into the open graph —
-   * the durable step, no network. Rotation calls this as each segment
-   * finishes, so a crash loses at most the segment still being recorded.
-   */
-  capturePart(input: CaptureAudioMemoPartInput): Promise<CaptureAudioMemoOutcome>
-  /**
    * Open the capture queue and, in the main window, the transcription
    * lifecycle of the open graph's session; throws when no graph is open.
    * Everything the pipeline writes is pinned to that session. Two lifecycles
@@ -600,7 +594,7 @@ class AudioMemoPipelineImpl implements AudioMemoPipeline {
           if (!this.#isErrorSurfaceVisible()) {
             // The error UI is off screen, the failure must still surface
             // somewhere.
-            progress.start('Saving audio memo').fail(outcome.message)
+            progress.fail('Saving audio memo', outcome.message)
           }
         }
       }
@@ -948,14 +942,6 @@ class AudioMemoServiceImpl implements AudioMemoService {
       progress: deps.progress,
       clock: deps.clock,
     })
-  }
-
-  async capturePart(input: CaptureAudioMemoPartInput): Promise<CaptureAudioMemoOutcome> {
-    const { session } = this.#deps.graphSession.getState()
-    if (session === null) {
-      return { ok: false, message: 'No graph is open.' }
-    }
-    return await this.#capturePartAt(input, session.generation)
   }
 
   openPipeline(options: AudioMemoPipelineOptions): AudioMemoPipeline {

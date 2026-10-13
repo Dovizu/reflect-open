@@ -147,7 +147,9 @@ describe('createAppGraphServices', () => {
         mobileOnboarding: context.mobileOnboarding,
       },
     )
-    expect(sessions().every((session) => session.disposed)).toBe(true)
+    const closed = sessions()
+    expect(closed.length).toBeGreaterThan(0)
+    expect(closed.every((session) => session.disposed)).toBe(true)
     expect(core.attachments.watchers()).toBe(0)
   })
 })

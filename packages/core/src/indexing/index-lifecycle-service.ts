@@ -1,5 +1,7 @@
-import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
-import type { ProgressPort } from '../app/ports.ts'
+import type { GraphRole, GraphSession, GraphSessionSource } from '../app/graph-session.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
+import { isMobilePlatform } from '../app/platform.ts'
+import type { ActivityPort, ProgressPort } from '../app/ports.ts'
 import { errorMessage } from '../errors.ts'
 import { isNotePath } from '../graph/paths.ts'
 import type { Unlisten } from '../unlisten.ts'
@@ -151,6 +153,11 @@ export interface IndexLifecycleService {
    */
   setSuspendGuard(shouldSuspend: (() => boolean) | null): void
   /**
+   * Mobile main window: keep index writes off while the app is hidden, and
+   * recover what was missed on the way back. The returned function stops it.
+   */
+  followActivity(): Unlisten
+  /**
    * Listen as the sync pass progresses. Bailed (superseded) passes emit
    * nothing further: the newer open's pass owns the indicator.
    */
@@ -257,7 +264,10 @@ export interface IndexLifecycleService {
 export interface IndexLifecycleDeps extends IndexingDeps {
   readonly fileChanges: FileChangeService
   readonly progress: ProgressPort
-  readonly graphSession: GraphSessionSource
+  readonly graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
+  readonly activity: ActivityPort
+  readonly platform: PlatformFacts
+  readonly role: GraphRole
 }
 
 class IndexLifecycleServiceImpl implements IndexLifecycleService {
@@ -473,6 +483,49 @@ class IndexLifecycleServiceImpl implements IndexLifecycleService {
 
   setSuspendGuard(shouldSuspend: (() => boolean) | null): void {
     this.#suspendGuard = shouldSuspend
+  }
+
+  followActivity(): Unlisten {
+    const { graphSession, activity, platform, role } = this.#deps
+    if (!isMobilePlatform(platform.appPlatform) || role !== 'main') {
+      return () => {}
+    }
+    // The lifecycle events perform the active teardown; this dynamic guard
+    // also closes the launch race where the first sync is scheduled after iOS
+    // has already hidden the webview.
+    this.setSuspendGuard(() => activity.isHidden())
+    if (activity.isHidden()) {
+      this.suspend()
+    }
+    // A session that opens while hidden starts suspended.
+    let indexGeneration = graphSession.getState().session?.indexGeneration ?? null
+    const stopSession = graphSession.subscribe(() => {
+      const next = graphSession.getState().session?.indexGeneration ?? null
+      if (next !== indexGeneration) {
+        indexGeneration = next
+        if (activity.isHidden()) {
+          this.suspend()
+        }
+      }
+    })
+    // Synchronous teardown prevents a locally emitted or metadata-watcher
+    // batch from entering the index queue after iOS begins suspension.
+    const stopHidden = activity.subscribeHidden(() => {
+      this.suspend()
+    })
+    const stopVisible = activity.subscribeVisible(() => {
+      // A null session still clears suspension: mobile can foreground
+      // before onboarding/open has produced an index session. With a session,
+      // the full pass recovers every event missed while hidden; stacked
+      // resume/iCloud triggers fold into the lifecycle's queued rerun.
+      this.resume(graphSession.getState().session)
+    })
+    return () => {
+      stopSession()
+      stopHidden()
+      stopVisible()
+      this.setSuspendGuard(null)
+    }
   }
 
   onProgress(listener: (progress: IndexLifecycleProgress) => void): Unlisten {

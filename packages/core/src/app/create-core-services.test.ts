@@ -25,7 +25,6 @@ function requiredAdapters(): CoreAdapters {
     ipc,
     platform: createTestPlatformService(),
     role: 'main',
-    peerIndexWrites: () => () => {},
     progress: createTestProgressPort(),
     http: createTestHttpService(),
     storage: { local: null, session: null },
