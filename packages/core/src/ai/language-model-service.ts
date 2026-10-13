@@ -39,7 +39,10 @@ export interface LanguageModelService {
   create(config: AiProviderConfig, apiKey: string): Promise<LanguageModel>
 }
 
+
+
 export function createLanguageModelService(deps: {
+  // FIXME: I notice that, unlike what you said in docs/contributing/services.md, in most cases, you did NOT define a type call `interface LanguageModelServiceDeps`. Address this issue for all services. You should define LanguageModelServiceDeps
   http: HttpService
   sdk: AiSdkLoader
 }): LanguageModelService {
