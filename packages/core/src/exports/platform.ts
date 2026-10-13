@@ -100,7 +100,7 @@ export {
   type ContactEntryCandidate,
   type EntryOptions,
 } from '../search/wiki-autocomplete-entries.ts'
-export { type WikiLinkSuggestionService } from '../search/wiki-link-suggestion-service.ts'
+export { type AutocompleteSuggestionService } from '../search/autocomplete-suggestion-service.ts'
 export {
   buildPaletteSections,
   type NoteEntry,

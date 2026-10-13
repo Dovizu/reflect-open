@@ -51,9 +51,9 @@ export interface TagMenuItem {
  * note pane and the Tasks view's inline editor). The menu UI hands over the
  * raw text typed after `[[` (case preserved, spaces and slashes intact — only
  * `[`, `]`, and newlines close the menu); ranking stays the index's job, so
- * neither menu re-sorts the rows. // FIXME: since this service is for both `[[backlink` and `#tag`, let's do not call it "wiki". "Wiki" looks like "Wikilink". "Wikilink" is just another name for "backlink". Find all "wiki" in the codebase, if the code is  not only related to backlink, rename it to something more general. For example, in this file, we could rename it to "autocomplete-suggestion-service", or "menu-suggestion-service", or "suggestion-service".
+ * neither menu re-sorts the rows.
  */
-export interface WikiLinkSuggestionService {
+export interface AutocompleteSuggestionService {
   /**
    * The `[[` menu rows for `query`: ranked note suggestions, Contact rows, and
    * a trailing `Create "<query>"` row when nothing matches the typed text.
@@ -67,7 +67,7 @@ export interface WikiLinkSuggestionService {
   suggestTags(query: string): Promise<TagMenuItem[]>
 }
 
-export interface WikiLinkSuggestionServiceDeps {
+export interface AutocompleteSuggestionServiceDeps {
   readonly suggestions: Pick<SuggestionService, 'suggestWikiLinkTargets' | 'suggestTags'>
   readonly noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
   readonly contacts: Pick<ContactsService, 'canLookup' | 'lookupPeople'>
@@ -79,10 +79,10 @@ export interface WikiLinkSuggestionServiceDeps {
   readonly graphSession: Pick<GraphSessionService, 'getState'>
 }
 
-class WikiLinkSuggestionServiceImpl implements WikiLinkSuggestionService {
-  readonly #deps: WikiLinkSuggestionServiceDeps
+class AutocompleteSuggestionServiceImpl implements AutocompleteSuggestionService {
+  readonly #deps: AutocompleteSuggestionServiceDeps
 
-  constructor(deps: WikiLinkSuggestionServiceDeps) {
+  constructor(deps: AutocompleteSuggestionServiceDeps) {
     this.#deps = deps
   }
 
@@ -265,8 +265,8 @@ class WikiLinkSuggestionServiceImpl implements WikiLinkSuggestionService {
   }
 }
 
-export function createWikiLinkSuggestionService(
-  deps: WikiLinkSuggestionServiceDeps,
-): WikiLinkSuggestionService {
-  return new WikiLinkSuggestionServiceImpl(deps)
+export function createAutocompleteSuggestionService(
+  deps: AutocompleteSuggestionServiceDeps,
+): AutocompleteSuggestionService {
+  return new AutocompleteSuggestionServiceImpl(deps)
 }
