@@ -9,7 +9,7 @@ export default defineProject({
     include: ['src/**/*.test.tsx'],
     setupFiles: ['./vitest.setup.ts'],
     restoreMocks: true,
-    sequence: { groupOrder: 100 },
+    sequence: { groupOrder: 110 },
     retry: process.env.CI ? 3 : 0,
     browser: {
       enabled: true,
