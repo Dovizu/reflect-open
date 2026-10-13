@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { ImageUrlResolver, WikiEmbedResolver } from '@meowdown/core'
-import type { AttachmentService, GraphInfo } from '@reflect/core'
+import type { AttachmentService, GraphInfo, GraphSessionService } from '@reflect/core'
 import { useMaybeGraph } from '@/providers/graph-provider.tsx'
 import { useCoreServices } from '@/services/services-provider.tsx'
 
@@ -28,17 +28,22 @@ export interface NoteAttachments {
 
 /**
  * Attachment resolution for rendering `notePath` in the open `graph`; only a
- * remote image resolves while no graph is open.
+ * remote image resolves while no graph is open, and nothing local resolves
+ * once another graph session replaced `graph`.
  */
 export function createNoteAttachments(
   graph: GraphInfo | null,
   notePath: string,
   attachments: AttachmentService,
+  graphSession: GraphSessionService,
 ): NoteAttachments {
+  const isCurrent = (): boolean =>
+    graph !== null && graphSession.getState().session?.generation === graph.generation
   return {
     resolveAttachmentPath: (destination) =>
-      graph === null ? null : attachments.resolveAttachmentPath(notePath, destination),
-    resolveImageUrl: (source) => attachments.resolveImageUrl(notePath, source),
+      isCurrent() ? attachments.resolveAttachmentPath(notePath, destination) : null,
+    resolveImageUrl: (source) =>
+      graph === null || isCurrent() ? attachments.resolveImageUrl(notePath, source) : undefined,
     resolveWikiEmbed: ({ target }) => attachments.resolveWikiEmbed(target),
   }
 }
@@ -50,14 +55,14 @@ export function createNoteAttachments(
  */
 export function useNoteAttachments(notePath: string): NoteAttachments {
   const graph = useMaybeGraph()?.graph ?? null
-  const { attachments } = useCoreServices()
+  const { attachments, graphSession } = useCoreServices()
   const subscribeCatalog = useCallback(
     (listener: () => void) => attachments.onCatalogChanged(listener),
     [attachments],
   )
   useSyncExternalStore(subscribeCatalog, () => attachments.peekCatalog())
   return useMemo(
-    () => createNoteAttachments(graph, notePath, attachments),
-    [attachments, graph, notePath],
+    () => createNoteAttachments(graph, notePath, attachments, graphSession),
+    [attachments, graph, graphSession, notePath],
   )
 }

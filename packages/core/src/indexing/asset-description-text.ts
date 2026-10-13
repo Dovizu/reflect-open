@@ -69,11 +69,13 @@ export interface AssetDescriptionText {
    * on-demand download mid-pass); a repeated asset contributes once.
    * Accumulation stops once the combined length reaches
    * {@link MAX_ASSET_TEXT_CHARS} (the body that crosses the cap is kept
-   * whole; consumers apply their own final cap). Reads are unpinned,
-   * matching the indexer's own note reads (the *write* is generation-pinned,
-   * so a graph switch drops the stale row regardless).
+   * whole; consumers apply their own final cap). Reads carry the file
+   * generation `fileGeneration`, as the indexer's own note reads do.
    */
-  gatherBodies(assetPaths: readonly string[], generation: number): Promise<AssetDescriptionGather>
+  gatherBodies(
+    assetPaths: readonly string[],
+    fileGeneration: number,
+  ): Promise<AssetDescriptionGather>
   /**
    * The combined body text of a note's assets' description files, for
    * folding into its search index: {@link gatherBodies} joined and capped at
@@ -82,7 +84,7 @@ export interface AssetDescriptionText {
    * changes, so the fold catches up once the sidecar is local again. Unlike
    * the embedding pipeline, nothing previously stored is destroyed.
    */
-  gatherText(assetPaths: readonly string[], generation: number): Promise<string>
+  gatherText(assetPaths: readonly string[], fileGeneration: number): Promise<string>
 }
 
 class AssetDescriptionTextImpl implements AssetDescriptionText {
@@ -94,7 +96,7 @@ class AssetDescriptionTextImpl implements AssetDescriptionText {
 
   async gatherBodies(
     assetPaths: readonly string[],
-    generation: number,
+    fileGeneration: number,
   ): Promise<AssetDescriptionGather> {
     const { noteFile } = this.#deps
     const bodies: AssetDescriptionBody[] = []
@@ -111,7 +113,7 @@ class AssetDescriptionTextImpl implements AssetDescriptionText {
       seen.add(assetPath)
       let read: LocalNoteRead
       try {
-        read = await noteFile.readLocal(descriptionPathFor(assetPath), generation)
+        read = await noteFile.readLocal(descriptionPathFor(assetPath), fileGeneration)
       } catch (cause) {
         if (isAppError(cause) && cause.kind === 'notFound') {
           continue // no description for this asset (not generated yet, or none)
@@ -135,8 +137,8 @@ class AssetDescriptionTextImpl implements AssetDescriptionText {
     return { bodies, evicted }
   }
 
-  async gatherText(assetPaths: readonly string[], generation: number): Promise<string> {
-    const { bodies } = await this.gatherBodies(assetPaths, generation)
+  async gatherText(assetPaths: readonly string[], fileGeneration: number): Promise<string> {
+    const { bodies } = await this.gatherBodies(assetPaths, fileGeneration)
     return bodies
       .map((entry) => entry.body)
       .join('\n\n')

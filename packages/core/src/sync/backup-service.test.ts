@@ -233,7 +233,7 @@ function fakeServices(options: FakeOptions = {}) {
 
   const indexLifecycle = createTestIndexLifecycleService()
   vi.spyOn(indexLifecycle, 'applyChanges').mockImplementation(
-    async (changes, generation, canApply) => {
+    async (changes, generation, _fileGeneration, canApply) => {
       if (canApply?.() === false) {
         return 0
       }

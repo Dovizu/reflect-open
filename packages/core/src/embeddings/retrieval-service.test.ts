@@ -70,7 +70,9 @@ async function setup(options?: { status?: EmbedStatus; embedded?: boolean }) {
       embeddingRuntime: createTestEmbeddingRuntimeService({ vectors: embed }),
       storeChunks: true,
     })
-    await expect(index.backfill({ generation: 1, modelId: MODEL })).resolves.toBe('completed')
+    await expect(
+      index.backfill({ generation: 1, fileGeneration: 1, modelId: MODEL }),
+    ).resolves.toBe('completed')
   }
   const runtime = createTestEmbeddingRuntimeService({
     vectors: embed,

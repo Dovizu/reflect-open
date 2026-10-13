@@ -20,6 +20,11 @@ afterEach(() => {
 })
 
 /**
+ * The file generation of the test graph; the note file double rejects reads at any other.
+ */
+const FILE_GENERATION = 5
+
+/**
  * A live index over test doubles. `read` stands in front of the note files:
  * it runs before each read and may delay or reject it.
  */
@@ -32,7 +37,10 @@ function setup(options?: {
   databases.push(database)
   seedNotes(database, options?.indexed ?? [])
   const store = createTestIndexStoreService()
-  const files = createTestNoteFileService({ files: options?.files ?? {} })
+  const files = createTestNoteFileService({
+    files: options?.files ?? {},
+    generation: FILE_GENERATION,
+  })
   const fileChanges = createTestFileChangeService()
   const logger = createTestLoggerService()
   const reads: string[] = []
@@ -105,6 +113,7 @@ describe('LiveIndex.apply', () => {
         { path: 'notes/good.md', kind: 'upsert' },
       ],
       3,
+      FILE_GENERATION,
       (_error, change) => {
         failures.push({ change })
       },
@@ -117,7 +126,7 @@ describe('LiveIndex.apply', () => {
   it('logs a failing change when no error handler is given', async () => {
     const { liveIndex, logger } = setup()
 
-    await liveIndex.apply([{ path: 'notes/missing.md', kind: 'upsert' }], 3)
+    await liveIndex.apply([{ path: 'notes/missing.md', kind: 'upsert' }], 3, FILE_GENERATION)
 
     expect(logger.getErrors().map((entry) => entry.message)).toEqual([
       'failed to index change for notes/missing.md:',
@@ -127,7 +136,7 @@ describe('LiveIndex.apply', () => {
   it('routes removes to the index store at the given generation', async () => {
     const { liveIndex, store } = setup()
 
-    await liveIndex.apply([{ path: 'notes/gone.md', kind: 'remove' }], 9)
+    await liveIndex.apply([{ path: 'notes/gone.md', kind: 'remove' }], 9, FILE_GENERATION)
 
     expect(store.calls()).toEqual([{ method: 'remove', path: 'notes/gone.md', generation: 9 }])
   })
@@ -141,6 +150,7 @@ describe('LiveIndex.apply', () => {
         { path: 'notes/x.md', kind: 'remove' },
       ],
       9,
+      FILE_GENERATION,
     )
 
     // The batched upsert must flush before the remove — a remove overtaken by
@@ -157,6 +167,7 @@ describe('LiveIndex.apply', () => {
         { path: 'audio-memos/audio-memo-2026-06-12-090000-000.m4a', kind: 'remove' },
       ],
       3,
+      FILE_GENERATION,
     )
 
     expect(store.calls()).toEqual([])
@@ -176,7 +187,7 @@ describe('LiveIndex.subscribe', () => {
       },
     })
 
-    liveIndex.subscribe(1)
+    liveIndex.subscribe(1, FILE_GENERATION)
     emit([{ path: 'notes/slow.md', kind: 'upsert' }])
     emit([{ path: 'notes/fast.md', kind: 'upsert' }])
     await vi.waitFor(() => {
@@ -205,7 +216,7 @@ describe('LiveIndex.subscribe', () => {
       },
     })
 
-    liveIndex.subscribe(1, undefined, () => canApply)
+    liveIndex.subscribe(1, FILE_GENERATION, undefined, () => canApply)
     emit([{ path: 'notes/started-visible.md', kind: 'upsert' }])
     emit([{ path: 'notes/queued.md', kind: 'upsert' }])
     await vi.waitFor(() => expect(reads).toContain('notes/started-visible.md'))
@@ -233,7 +244,7 @@ describe('LiveIndex.subscribe', () => {
       )
     })
 
-    liveIndex.subscribe(1)
+    liveIndex.subscribe(1, FILE_GENERATION)
     // A note batch, then an asset-only batch: the asset emit must follow the
     // note's apply, so a gate reading the index off the asset emit sees the note.
     emit([{ path: 'notes/a.md', kind: 'upsert' }])
@@ -256,7 +267,7 @@ describe('LiveIndex.subscribe', () => {
       seen.push(changes.map((change) => change.path).join(','))
     })
 
-    liveIndex.subscribe(1)
+    liveIndex.subscribe(1, FILE_GENERATION)
     emit([{ path: 'audio-memos/audio-memo-2026-06-12-090000-000.m4a', kind: 'upsert' }])
     emit([{ path: 'assets/y.png', kind: 'upsert' }]) // something to wait on
     await vi.waitFor(() => {
@@ -270,7 +281,7 @@ describe('LiveIndex.subscribe', () => {
   it('stamps the indexed row with the modifiedMs carried by the event', async () => {
     const { liveIndex, store, emit } = setup({ files: { 'notes/a.md': '# content' } })
 
-    liveIndex.subscribe(1)
+    liveIndex.subscribe(1, FILE_GENERATION)
     emit([{ path: 'notes/a.md', kind: 'upsert', modifiedMs: 1234 }])
     await vi.waitFor(() => {
       expect(store.applied().map((note) => note.mtime)).toEqual([1234])
@@ -280,7 +291,7 @@ describe('LiveIndex.subscribe', () => {
   it('stops applying once unsubscribed', async () => {
     const { liveIndex, store, reads, emit } = setup({ files: { 'notes/a.md': '# content' } })
 
-    liveIndex.subscribe(1)()
+    liveIndex.subscribe(1, FILE_GENERATION)()
     emit([{ path: 'notes/a.md', kind: 'upsert' }])
     await new Promise((resolve) => setTimeout(resolve, 0))
 
@@ -313,6 +324,7 @@ describe('LiveIndex.apply move healing (Plan 17)', () => {
         { path: NEW, kind: 'upsert', modifiedMs: 42 },
       ],
       7,
+      FILE_GENERATION,
     )
 
     expect(store.calls().filter((call) => call.method === 'move')).toEqual([
@@ -338,6 +350,7 @@ describe('LiveIndex.apply move healing (Plan 17)', () => {
         { path: NEW, kind: 'upsert' },
       ],
       7,
+      FILE_GENERATION,
       undefined,
       (from, to) => {
         moves.push([from, to])
@@ -358,6 +371,7 @@ describe('LiveIndex.apply move healing (Plan 17)', () => {
         { path: NEW, kind: 'upsert' },
       ],
       7,
+      FILE_GENERATION,
     )
 
     expect(store.moved()).toEqual([])
@@ -374,6 +388,7 @@ describe('LiveIndex.apply move healing (Plan 17)', () => {
         { path: NEW, kind: 'upsert' },
       ],
       7,
+      FILE_GENERATION,
     )
 
     expect(store.moved()).toEqual([])

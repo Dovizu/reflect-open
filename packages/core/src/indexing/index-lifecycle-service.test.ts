@@ -29,10 +29,18 @@ import { PROJECTION_VERSION_KEY } from './indexer.ts'
 const databases: { close(): void }[] = []
 
 /**
+ * The file generation of every test session; the note file double rejects reads at any other.
+ */
+const FILE_GENERATION = 1
+
+/**
  * A graph session at index generation `indexGeneration` that ends when `signal` aborts.
  */
 function sessionAt(indexGeneration: number, signal?: AbortSignal): GraphSession {
-  return createGraphSession({ root: '/g', name: 'g', generation: 1, indexGeneration }, signal)
+  return createGraphSession(
+    { root: '/g', name: 'g', generation: FILE_GENERATION, indexGeneration },
+    signal,
+  )
 }
 
 /**
@@ -78,7 +86,10 @@ function setup(options?: {
     ...options?.store,
     ...(options?.failStore ? { fail: options.failStore } : {}),
   })
-  const files = createTestNoteFileService({ files: options?.files ?? {} })
+  const files = createTestNoteFileService({
+    files: options?.files ?? {},
+    generation: FILE_GENERATION,
+  })
   const fileChanges = createTestFileChangeService()
   const logger = createTestLoggerService()
   const clock = createTestClockService()
@@ -297,7 +308,10 @@ describe('createIndexLifecycleService', () => {
       otherBatches.push(event)
     })
 
-    await index.reindexNotesReferencing(['assets/pic.png'], 7)
+    await index.reindexNotesReferencing(['assets/pic.png'], {
+      generation: 7,
+      fileGeneration: FILE_GENERATION,
+    })
 
     expect(batches).toEqual([{ generation: 7, changes: [{ path: 'notes/a.md', kind: 'upsert' }] }])
     expect(otherBatches).toEqual([]) // the signal is per lifecycle, not process-wide
@@ -331,7 +345,7 @@ describe('createIndexLifecycleService', () => {
     index.sync(sessionAt(5))
     await index.settled() // settle without aborting: `stop()` would suppress it
     expect(order).toEqual(['applied', 'reconciled'])
-    expect(reconciled).toEqual([{ generation: 5, source: 'sync' }])
+    expect(reconciled).toEqual([{ generation: 5, fileGeneration: FILE_GENERATION, source: 'sync' }])
   })
 
   it('logs a completed pass with its read counters', async () => {
@@ -728,7 +742,9 @@ describe('rebuildVisibly', () => {
     expect(store.calls().map((call) => call.method)).toEqual(['clear', 'applyBatch', 'setMeta'])
     expect(store.calls()[0]).toEqual({ method: 'clear', generation: 7 })
     expect(operations.started()).toMatchObject([{ label: 'Rebuilding search index', ended: true }])
-    expect(reconciled).toEqual([{ generation: 7, source: 'rebuild' }])
+    expect(reconciled).toEqual([
+      { generation: 7, fileGeneration: FILE_GENERATION, source: 'rebuild' },
+    ])
   })
 
   it('coalesces concurrent requests at the same generation onto one pass', async () => {
@@ -830,7 +846,9 @@ describe('rebuildVisibly', () => {
         message: 'Rebuilt with 1 skipped note(s): notes/bad.md: unexpected end of hex escape',
       },
     ])
-    expect(reconciled).toEqual([{ generation: 7, source: 'rebuild' }])
+    expect(reconciled).toEqual([
+      { generation: 7, fileGeneration: FILE_GENERATION, source: 'rebuild' },
+    ])
   })
 
   it('absorbs a failed rebuild, reports nothing, and releases the in-flight guard', async () => {
@@ -847,7 +865,9 @@ describe('rebuildVisibly', () => {
     fail = false
     await index.rebuildVisibly()
     expect(clears(steps)).toBe(2)
-    expect(reconciled).toEqual([{ generation: 7, source: 'rebuild' }])
+    expect(reconciled).toEqual([
+      { generation: 7, fileGeneration: FILE_GENERATION, source: 'rebuild' },
+    ])
   })
 
   it('a test lifecycle records the requested generations', async () => {
@@ -872,6 +892,7 @@ describe('applyChanges', () => {
         { path: 'audio-memos/memo.m4a', kind: 'upsert', modifiedMs: 6 },
       ],
       4,
+      FILE_GENERATION,
     )
 
     expect(mutations).toBe(1)
@@ -885,7 +906,9 @@ describe('applyChanges', () => {
   it('reports nothing when no index row changed', async () => {
     const { index, applied } = setup()
 
-    expect(await index.applyChanges([{ path: 'assets/a.png', kind: 'upsert' }], 4)).toBe(0)
+    expect(
+      await index.applyChanges([{ path: 'assets/a.png', kind: 'upsert' }], 4, FILE_GENERATION),
+    ).toBe(0)
     expect(applied).toEqual([])
   })
 
@@ -895,6 +918,7 @@ describe('applyChanges', () => {
     const mutations = await index.applyChanges(
       [{ path: 'notes/pulled.md', kind: 'upsert', modifiedMs: 5 }],
       4,
+      FILE_GENERATION,
       () => false,
     )
 

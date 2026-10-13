@@ -214,6 +214,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
 
   #setState(patch: Partial<GraphSessionState<Services>>): void {
     const next = { ...this.#state, ...patch }
+    // FIXME: just use the deepCompare (or isEqual ? I forget the name) function from @ocavue/utils
     const keys = Object.keys(next) as (keyof GraphSessionState<Services>)[]
     if (keys.every((key) => next[key] === this.#state[key])) {
       return

@@ -47,7 +47,7 @@ const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
  */
 export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps): ReactElement {
   const { settings } = useSettings()
-  const { contacts, meetings, logger } = useCoreServices()
+  const { contacts, meetings, logger, graphSession } = useCoreServices()
   const [name, setName] = useState(event.title)
   const [attendees, setAttendees] = useState<MeetingAttendee[]>(() => defaultAttendees(event))
   const [createNote, setCreateNote] = useState(event.recurring)
@@ -88,6 +88,10 @@ export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps
   const canSubmit = name.trim() !== '' && !submitting
 
   const submit = async (): Promise<void> => {
+    const { session } = graphSession.getState()
+    if (session === null) {
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -95,6 +99,10 @@ export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps
       // may be stale after a System Settings trip, and a quick submit must
       // not skip the pre-fill.
       await contacts.refresh()
+      if (graphSession.getState().session !== session) {
+        onClose()
+        return
+      }
       const lookupContacts = meetings.canLookupContacts()
       await meetings.addMeetingToDaily({
         date,

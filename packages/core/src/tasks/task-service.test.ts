@@ -930,13 +930,13 @@ describe('task list state', () => {
     const { getOpenTasks } = await subscribed()
 
     for (const listener of reconciledListeners) {
-      void listener({ generation: 1, source: 'sync' })
+      void listener({ generation: 1, fileGeneration: 1, source: 'sync' })
     }
     await flushMicrotasks()
     expect(getOpenTasks).toHaveBeenCalledTimes(1)
 
     for (const listener of reconciledListeners) {
-      void listener({ generation: 1, source: 'rebuild' })
+      void listener({ generation: 1, fileGeneration: 1, source: 'rebuild' })
     }
     await flushMicrotasks()
     expect(getOpenTasks).toHaveBeenCalledTimes(2)

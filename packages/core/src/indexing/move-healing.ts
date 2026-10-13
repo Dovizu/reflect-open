@@ -48,12 +48,13 @@ export interface MoveHealing {
    * Pair orphaned index rows with arrived files by frontmatter id. An
    * unreadable arrival simply can't pair (the caller's plain path retries the
    * read); an ambiguous id never pairs (see {@link pairMovesById}). An abort
-   * mid-scan returns no moves: the caller is about to bail anyway.
+   * mid-scan returns no moves: the caller is about to bail anyway. Arrivals
+   * are read at the file generation `fileGeneration`.
    */
   detectExternalMoves(
     orphanPaths: string[],
     arrivalPaths: string[],
-    generation: number,
+    fileGeneration: number,
     options?: { signal?: AbortSignal | undefined },
   ): Promise<ExternalMoveScan>
 }
@@ -68,7 +69,7 @@ class MoveHealingImpl implements MoveHealing {
   async detectExternalMoves(
     orphanPaths: string[],
     arrivalPaths: string[],
-    generation: number,
+    fileGeneration: number,
     options?: { signal?: AbortSignal | undefined },
   ): Promise<ExternalMoveScan> {
     const { noteFile, indexQuery } = this.#deps
@@ -83,7 +84,7 @@ class MoveHealingImpl implements MoveHealing {
         return { moves: [], content }
       }
       try {
-        const source = await noteFile.read(path, generation)
+        const source = await noteFile.read(path, fileGeneration)
         content.set(path, source)
         const parsed = parseNote({ path, source })
         arrivalIds.set(path, parsed.frontmatter.id ?? null)

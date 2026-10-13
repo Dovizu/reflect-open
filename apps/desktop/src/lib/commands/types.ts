@@ -12,7 +12,7 @@ import type { NavigateOptions } from '@/routing/router.tsx'
 
 export interface CommandContext {
   /**
-   * The app services, for the commands that call one directly.
+   * The core services, for the commands that call one directly.
    */
   services: CoreServices
   app: AppServices

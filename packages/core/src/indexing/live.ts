@@ -11,8 +11,9 @@ import { INDEX_PASS_YIELD_EVERY, yieldToEventLoop } from './pacing.ts'
 /**
  * Live re-indexing from the Rust watcher (Plan 04b). Batches of
  * {@link FileChange} arrive on `index:changed`; each is re-indexed or removed
- * at the subscription's `generation`. Late events from a previous graph carry
- * that graph's (now-stale) generation, so Rust drops their writes — the watcher
+ * at the subscription's `generation`, reading files at its `fileGeneration`.
+ * Late events from a previous graph carry that graph's (now-stale)
+ * generations, so Rust drops their reads and writes — the watcher
  * is the sole incremental-reindex path and can't corrupt a newly-opened index.
  *
  * Batches can be large — the iCloud metadata query's initial gather reports
@@ -44,7 +45,8 @@ export interface LiveIndexDeps extends NoteIndexerDeps {
  */
 export interface LiveIndex {
   /**
-   * Apply a batch of watcher changes to the index at `generation`. Same-batch
+   * Apply a batch of watcher changes to the index at `generation`, reading the
+   * changed files at the file generation `fileGeneration`. Same-batch
    * rename pairs heal as moves first; the rest apply in order. A failing
    * change is reported (default: logged as an error) and skipped, so one
    * unreadable file can't stall the rest of the batch.
@@ -60,14 +62,15 @@ export interface LiveIndex {
   apply(
     changes: FileChange[],
     generation: number,
+    fileGeneration: number,
     onError?: ApplyErrorHandler,
     onMoved?: MovedHandler,
     canApply?: () => boolean,
   ): Promise<number>
   /**
-   * Subscribe to the file-change stream and apply each batch at `generation`.
-   * Returns an unlisten function; call it (and resubscribe with the new
-   * generation) when the active graph changes.
+   * Subscribe to the file-change stream and apply each batch at `generation`,
+   * reading files at `fileGeneration`. Returns an unlisten function; call it
+   * (and resubscribe with the new generations) when the active graph changes.
    *
    * After a batch's note rows have been written to the index,
    * `emitChangesApplied` broadcasts the **full** batch (notes *and*
@@ -83,7 +86,12 @@ export interface LiveIndex {
    * queue. Events dropped after suspension are intentionally recovered by the
    * lifecycle's foreground reconcile.
    */
-  subscribe(generation: number, onMoved?: MovedHandler, canApply?: () => boolean): Unlisten
+  subscribe(
+    generation: number,
+    fileGeneration: number,
+    onMoved?: MovedHandler,
+    canApply?: () => boolean,
+  ): Unlisten
 }
 
 class LiveIndexImpl implements LiveIndex {
@@ -100,6 +108,7 @@ class LiveIndexImpl implements LiveIndex {
   async apply(
     changes: FileChange[],
     generation: number,
+    fileGeneration: number,
     onError: ApplyErrorHandler = (error, change) => this.#logApplyError(error, change),
     onMoved?: MovedHandler,
     canApply: () => boolean = () => true,
@@ -117,7 +126,14 @@ class LiveIndexImpl implements LiveIndex {
     let handled: Set<string>
     let mutations = 0
     try {
-      const outcome = await this.#healBatchMoves(notes, generation, onError, onMoved, canApply)
+      const outcome = await this.#healBatchMoves(
+        notes,
+        generation,
+        fileGeneration,
+        onError,
+        onMoved,
+        canApply,
+      )
       handled = outcome.handled
       mutations += outcome.healed
     } catch (error) {
@@ -178,7 +194,7 @@ class LiveIndexImpl implements LiveIndex {
         if (matchesTrustedMtime(facts?.mtime, change.modifiedMs, now)) {
           continue // already indexed at this mtime — e.g. the watch's initial gather
         }
-        const content = await noteFile.read(change.path, generation)
+        const content = await noteFile.read(change.path, fileGeneration)
         const fileHash = await sha256Hex(content)
         if (!canApply()) {
           return mutations
@@ -198,7 +214,7 @@ class LiveIndexImpl implements LiveIndex {
         const projection = await this.#indexer.buildNoteProjection(change.path, content, {
           fileHash,
           mtime: change.modifiedMs ?? clock.now(),
-          generation,
+          fileGeneration,
         })
         if (!canApply()) {
           return mutations
@@ -223,6 +239,7 @@ class LiveIndexImpl implements LiveIndex {
 
   subscribe(
     generation: number,
+    fileGeneration: number,
     onMoved?: MovedHandler,
     canApply: () => boolean = () => true,
   ): Unlisten {
@@ -244,7 +261,9 @@ class LiveIndexImpl implements LiveIndex {
           if (!canApply()) {
             return 0
           }
-          return notes.length > 0 ? this.apply(notes, generation, undefined, onMoved, canApply) : 0
+          return notes.length > 0
+            ? this.apply(notes, generation, fileGeneration, undefined, onMoved, canApply)
+            : 0
         })
         .then(() => {
           if (!canApply()) {
@@ -282,6 +301,7 @@ class LiveIndexImpl implements LiveIndex {
   async #healBatchMoves(
     changes: FileChange[],
     generation: number,
+    fileGeneration: number,
     onError: ApplyErrorHandler,
     onMoved: MovedHandler | undefined,
     canApply: () => boolean,
@@ -302,7 +322,7 @@ class LiveIndexImpl implements LiveIndex {
     const { moves, content } = await this.#moveHealing.detectExternalMoves(
       removes.map((change) => change.path),
       arrivals.map((change) => change.path),
-      generation,
+      fileGeneration,
     )
     const mtimeByPath = new Map(arrivals.map((change) => [change.path, change.modifiedMs]))
     for (const move of moves) {
@@ -323,6 +343,7 @@ class LiveIndexImpl implements LiveIndex {
         }
         await this.#indexer.indexNote(move.to, {
           generation,
+          fileGeneration,
           content: content.get(move.to),
           mtime: mtimeByPath.get(move.to),
         })
