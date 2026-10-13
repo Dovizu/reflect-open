@@ -449,13 +449,14 @@ export interface IndexReadServices {
 export function createIndexReadServices(deps: {
   database: DatabaseService
   noteFile: NoteFileService
+  graphSession: GraphSessionSource
 }): IndexReadServices {
-  const { database, noteFile } = deps
+  const { database, noteFile, graphSession } = deps
   const wikiResolver = createWikiResolverService({ database })
   return {
     indexQuery: createIndexQueryService({ database }),
     wikiResolver,
-    backlinks: createBacklinkService({ database, noteFile }),
+    backlinks: createBacklinkService({ database, noteFile, graphSession }),
     search: createSearchService({ database, wikiResolver }),
     suggestions: createSuggestionService({ database }),
     noteList: createNoteListService({ database }),
@@ -811,7 +812,12 @@ export function composeAppServices(
   const noteFile = create.noteFile({ ipc, clock, fileChanges })
   const assetStore = create.assetStore({ ipc, clock, fileChanges })
   const openDocuments = create.openDocuments({ fileChanges })
-  const indexReads = create.indexReads({ database, noteFile })
+  const indexReads = create.indexReads({
+    database,
+    noteFile,
+    // Read at call time: the graph session is built later.
+    graphSession: { getState: () => graphSession.getState() },
+  })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = create.indexStore({ ipc, database })
   const xArchive = create.xArchive({ ipc })

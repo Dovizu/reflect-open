@@ -158,6 +158,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
     const parsed = parseNote({ path, source: content })
     const gathered = await this.#assetDescriptionText.gatherBodies(
       parsed.assets.map((asset) => asset.path),
+      generation,
     )
     if (gathered.evicted.length > 0) {
       // A referenced sidecar is iCloud-evicted. `embed_apply` replaces the

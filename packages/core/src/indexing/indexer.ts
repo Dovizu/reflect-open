@@ -141,7 +141,7 @@ export interface NoteIndexer {
   buildNoteProjection(
     path: string,
     content: string,
-    facts: { fileHash: string; mtime: number },
+    facts: { fileHash: string; mtime: number; generation: number },
   ): Promise<IndexedNote>
   /**
    * Re-index every note referencing any of `assetPaths` (Plan 20 search
@@ -218,10 +218,13 @@ class NoteIndexerImpl implements NoteIndexer {
   async buildNoteProjection(
     path: string,
     content: string,
-    facts: { fileHash: string; mtime: number },
+    facts: { fileHash: string; mtime: number; generation: number },
   ): Promise<IndexedNote> {
     const parsed = parseNote({ path, source: content })
-    const text = await this.#assetText.gatherText(parsed.assets.map((asset) => asset.path))
+    const text = await this.#assetText.gatherText(
+      parsed.assets.map((asset) => asset.path),
+      facts.generation,
+    )
     return buildIndexedNote(parsed, {
       fileHash: facts.fileHash,
       mtime: facts.mtime,
@@ -240,6 +243,7 @@ class NoteIndexerImpl implements NoteIndexer {
     const note = await this.buildNoteProjection(path, content, {
       fileHash,
       mtime: options.mtime ?? clock.now(),
+      generation: options.generation,
     })
     await store.apply(note, options.generation)
   }
@@ -319,6 +323,7 @@ class NoteIndexerImpl implements NoteIndexer {
       const projection = await this.buildNoteProjection(file.path, content, {
         fileHash,
         mtime: file.modifiedMs,
+        generation,
       })
       if (options.signal?.aborted) {
         return
@@ -477,6 +482,7 @@ class NoteIndexerImpl implements NoteIndexer {
       const projection = await this.buildNoteProjection(candidate.path, content, {
         fileHash,
         mtime: candidate.modifiedMs,
+        generation,
       })
       if (signal?.aborted) {
         return

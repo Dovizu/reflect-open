@@ -1,5 +1,6 @@
 import type { Database } from '@reflect/db'
 import { sql, type Selectable } from 'kysely'
+import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import {
   blockContextLinesAt,
@@ -109,6 +110,7 @@ function throughSource(cursor: BacklinkSourceCursor) {
 export interface BacklinkServiceDeps {
   readonly database: DatabaseService
   readonly noteFile: NoteFileService
+  readonly graphSession: GraphSessionSource
 }
 
 /**
@@ -157,7 +159,8 @@ class BacklinkServiceImpl implements BacklinkService {
     path: string,
     options: BacklinkContextPageOptions,
   ): Promise<BacklinkContextPage> {
-    const { noteFile } = this.#deps
+    const { noteFile, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
     const { db } = this.#deps.database
     if (!Number.isSafeInteger(options.limit) || options.limit <= 0) {
       throw new RangeError('backlink page limit must be a positive safe integer')
@@ -256,7 +259,7 @@ class BacklinkServiceImpl implements BacklinkService {
     await Promise.all(
       pageSources.map(async ({ sourcePath }) => {
         try {
-          const source = prepareBlockContext(await noteFile.read(sourcePath))
+          const source = prepareBlockContext(await noteFile.read(sourcePath, generation))
           sources.set(sourcePath, source)
           locators.set(sourcePath, createSourceTaskLocator(source))
         } catch {

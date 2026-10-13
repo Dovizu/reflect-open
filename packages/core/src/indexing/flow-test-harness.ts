@@ -51,7 +51,11 @@ export function connectIndex(database: TestDatabaseService): FlowIndex {
     clock: createTestClockService(),
     fileChanges: createTestFileChangeService(),
   })
-  const indexReads = createIndexReadServices({ database, noteFile })
+  const indexReads = createIndexReadServices({
+    database,
+    noteFile,
+    graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+  })
   return {
     ...indexReads,
     ...createNoteServices({

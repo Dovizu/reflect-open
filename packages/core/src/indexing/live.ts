@@ -197,6 +197,7 @@ class LiveIndexImpl implements LiveIndex {
         const projection = await this.#indexer.buildNoteProjection(change.path, content, {
           fileHash,
           mtime: change.modifiedMs ?? clock.now(),
+          generation,
         })
         if (!canApply()) {
           return mutations
