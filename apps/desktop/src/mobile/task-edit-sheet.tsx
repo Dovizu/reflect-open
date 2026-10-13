@@ -19,7 +19,6 @@ import { useMobileAppServices } from '@/mobile/mobile-services.ts'
 import { withDraftDueDate } from '@/mobile/task-draft.ts'
 import { TaskScheduleGrid } from '@/mobile/task-schedule-grid.tsx'
 import { useTaskSheetFinalizer } from '@/mobile/use-task-sheet-finalizer.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
 
 interface MobileTaskEditSheetProps {
@@ -65,11 +64,9 @@ export function MobileTaskEditSheet({
   autoFocusEditor = false,
 }: MobileTaskEditSheetProps): ReactElement {
   const { haptics } = useMobileAppServices()
-  const { graph } = useGraph()
   const { settings } = useSettings()
-  const generation = graph?.generation ?? null
-  const navigateWikiLink = useWikiLinkNavigation(generation)
-  const onLinkClick = useMarkdownLinkClick(generation, null)
+  const navigateWikiLink = useWikiLinkNavigation()
+  const onLinkClick = useMarkdownLinkClick(null)
   const navigateTag = useTagNavigation()
   const { onWikilinkSearch, onTagSearch } = useEditorAutocomplete()
   const [showCalendar, setShowCalendar] = useState(false)

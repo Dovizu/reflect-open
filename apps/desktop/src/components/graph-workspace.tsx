@@ -41,7 +41,7 @@ export function GraphWorkspace({ graph }: GraphWorkspaceProps): ReactElement {
                   mic button) unmounting on collapse. */}
               <AudioMemoProvider graph={graph}>
                 {/* Inside the router: deep links navigate. */}
-                <DeepLinkProvider graph={graph}>
+                <DeepLinkProvider>
                   {/* Tracks the focused day in the daily stream so the right
                       sidebar describes it, not just the routed day. */}
                   <FocusedDailyProvider>

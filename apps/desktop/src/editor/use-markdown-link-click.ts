@@ -10,21 +10,15 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * note link resolved from `sourcePath`. A `null` `sourcePath` means the
  * Markdown belongs to no note, so attachment and note links do nothing.
  */
-export function useMarkdownLinkClick(
-  generation: number | null,
-  sourcePath: string | null,
-): LinkClickHandler {
+export function useMarkdownLinkClick(sourcePath: string | null): LinkClickHandler {
   const { linkNavigation } = useAppServices()
   const host = useLinkNavigationHost()
 
   return useCallback<LinkClickHandler>(
     ({ href, event, mod }) => {
       event.preventDefault()
-      linkNavigation.followMarkdownLink(
-        { href, sourcePath, openInNewWindow: mod, generation },
-        host,
-      )
+      linkNavigation.followMarkdownLink({ href, sourcePath, openInNewWindow: mod }, host)
     },
-    [generation, host, linkNavigation, sourcePath],
+    [host, linkNavigation, sourcePath],
   )
 }

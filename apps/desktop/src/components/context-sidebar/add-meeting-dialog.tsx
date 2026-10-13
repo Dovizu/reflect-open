@@ -21,7 +21,6 @@ import {
 } from '@/components/ui/dialog.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import { formatTimeOfDay } from '@/lib/dates.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 import { AttendeeCombobox } from './attendee-combobox.tsx'
@@ -48,7 +47,6 @@ const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
  */
 export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps): ReactElement {
   const { settings } = useSettings()
-  const { graph } = useGraph()
   const { contacts, meetings, logger } = useAppServices()
   const [name, setName] = useState(event.title)
   const [attendees, setAttendees] = useState<MeetingAttendee[]>(() => defaultAttendees(event))
@@ -87,12 +85,9 @@ export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps
     setAttendees((current) => current.filter((existing) => existing.name !== attendeeName))
   }
 
-  const canSubmit = graph !== null && name.trim() !== '' && !submitting
+  const canSubmit = name.trim() !== '' && !submitting
 
   const submit = async (): Promise<void> => {
-    if (graph === null) {
-      return
-    }
     setSubmitting(true)
     setError(null)
     try {
@@ -108,7 +103,6 @@ export function AddMeetingDialog({ date, event, onClose }: AddMeetingDialogProps
         backlinkMeeting: createNote,
         lookupContacts,
         startTime: formatTimeOfDay(new Date(event.startsAt), settings.timeFormat),
-        generation: graph.generation,
       })
       onClose()
     } catch (cause) {

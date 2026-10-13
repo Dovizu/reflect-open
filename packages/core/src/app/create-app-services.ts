@@ -864,6 +864,7 @@ export function composeAppServices(
     id,
     clock,
     logger,
+    graphSession,
   })
   const attachments = create.attachments({
     assetStore,
@@ -1004,6 +1005,7 @@ export function composeAppServices(
       openDocuments,
       noteFile,
       settings,
+      graphSession,
     }),
     meetings: create.meetings({
       noteFile,
@@ -1014,6 +1016,7 @@ export function composeAppServices(
       contacts,
       settings,
       logger,
+      graphSession,
     }),
     agentSkill: create.agentSkill({ ipc }),
     mobileStorage,
@@ -1039,6 +1042,7 @@ export function composeAppServices(
       attachments,
       operations,
       logger,
+      graphSession,
     }),
     update: create.update({
       updater: adapters.updater,
@@ -1061,12 +1065,13 @@ export function composeAppServices(
     icloudMigration: create.icloudMigration({ icloudNative }),
     conflictResolution: create.conflictResolution({ noteFile, indexLifecycle, fileChanges }),
     syncStatus: create.syncStatus(),
-    embedMedia: create.embedMedia({ xArchive, webFetch, platform, clock, logger }),
+    embedMedia: create.embedMedia({ xArchive, webFetch, platform, clock, logger, graphSession }),
     linkPreview: create.linkPreview({
       noteDocuments,
       privacy: noteServices.privacy,
       webFetch,
       parseMetadata: parseLinkPreviewMeta,
+      graphSession,
     }),
     classicAccess,
     fileChanges,
@@ -1221,6 +1226,7 @@ export function composeAppServices(
       clock,
       operations,
       logger,
+      graphSession,
     }),
     paletteSearch: create.paletteSearch({
       suggestions: indexReads.suggestions,

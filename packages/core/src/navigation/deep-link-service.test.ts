@@ -4,6 +4,7 @@ import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { createTestCaptureInboxService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestDeepLinkService, createTestDeepLinkSource } from '../testing/navigation.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
@@ -16,15 +17,26 @@ function setup(overrides?: Partial<DeepLinkServiceDeps>) {
   const logger = createTestLoggerService()
   const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
   const navigate = vi.fn<(route: Route) => void>()
+  const graphSession = createTestGraphSessionService({ graph: { generation: 3 } })
   const service = createTestDeepLinkService({
     operations,
     captureInbox,
     logger,
     indexQuery: { resolveNoteTarget },
+    graphSession,
     ...overrides,
   })
-  const handle = (url: string) => service.handle(url, { navigate, generation: 3 })
-  return { service, operations, captureInbox, logger, resolveNoteTarget, navigate, handle }
+  const handle = (url: string) => service.handle(url, { navigate })
+  return {
+    service,
+    operations,
+    captureInbox,
+    logger,
+    resolveNoteTarget,
+    navigate,
+    graphSession,
+    handle,
+  }
 }
 
 describe('DeepLinkService.handle', () => {
@@ -88,7 +100,6 @@ describe('DeepLinkService.handle', () => {
     let stale = false
     const pending = service.handle('reflect://note/Project%20X', {
       navigate,
-      generation: 3,
       isStale: () => stale,
     })
 
@@ -108,7 +119,6 @@ describe('DeepLinkService.handle', () => {
 
     const pending = service.handle('reflect://note/Project%20X', {
       navigate,
-      generation: 3,
       isStale: () => stale,
     })
     stale = true
@@ -181,6 +191,18 @@ describe('DeepLinkService.handle', () => {
     ])
     await operations.clock.advance(MIN_VISIBLE_MS)
     expect(operations.getAll()).toEqual([])
+  })
+
+  it('surfaces a capture with no graph open instead of spooling it', async () => {
+    const { handle, graphSession, captureInbox, operations } = setup()
+    graphSession.setGraph(null)
+
+    await handle('reflect://append?text=milk')
+
+    expect(captureInbox.spooled()).toEqual([])
+    expect(operations.snapshot()).toMatchObject([
+      { label: 'Saving capture', status: 'failed', message: 'No graph is open.' },
+    ])
   })
 
   it('surfaces a spool failure instead of claiming success', async () => {
@@ -359,10 +381,10 @@ describe('DeepLinkService intake', () => {
 describe('DeepLinkService.serve', () => {
   function serveSession(overrides?: Partial<DeepLinkServiceDeps>) {
     const context = setup(overrides)
+    context.graphSession.setGraph({ generation: 7 })
     const probes: { stale: boolean }[] = []
     const session: DeepLinkSession = {
       navigate: context.navigate,
-      generation: 7,
       beginNavigationIntent: () => {
         const probe = { stale: false }
         probes.push(probe)
@@ -394,15 +416,15 @@ describe('DeepLinkService.serve', () => {
 
     context.service.serve({
       navigate: context.navigate,
-      generation: 7,
       beginNavigationIntent: () => () => false,
     })
 
     expect(context.navigate).toHaveBeenCalledWith({ kind: 'tasks' })
   })
 
-  it('pins a capture to the generation of the session', async () => {
-    const { service, captureInbox } = serveSession()
+  it('pins a capture to the graph session open when serving started', async () => {
+    const { service, graphSession, captureInbox } = serveSession()
+    graphSession.setGraph({ generation: 8 })
 
     service.dispatch('reflect://append?text=milk')
 
@@ -418,6 +440,21 @@ describe('DeepLinkService.serve', () => {
     service.dispatch('reflect://note/x')
     expect(probes).toHaveLength(1)
     probes[0]!.stale = true
+    pendingResolve.resolve('notes/x.md')
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(navigate).not.toHaveBeenCalled()
+    expect(operations.getAll()).toEqual([])
+  })
+
+  it('drops a note resolution that finished after the graph session ended', async () => {
+    const { service, navigate, resolveNoteTarget, graphSession, operations } = serveSession()
+    const pendingResolve = Promise.withResolvers<string>()
+    resolveNoteTarget.mockReturnValue(pendingResolve.promise)
+
+    service.dispatch('reflect://note/x')
+    graphSession.setGraph({ generation: 8 })
     pendingResolve.resolve('notes/x.md')
     await Promise.resolve()
     await Promise.resolve()

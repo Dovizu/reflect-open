@@ -7,6 +7,7 @@ import type {
 import {
   createTestAppServices,
   createTestContactsService,
+  createTestGraphSessionService,
   createTestOperationsService,
   createTestSettingsService,
 } from '@reflect/core/testing'
@@ -66,7 +67,9 @@ async function setup(options?: SetupOptions) {
     ensurePersonNote: async (input) =>
       await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation),
   }
+  const graphSession = createTestGraphSessionService()
   const { wikiLinkSuggestions } = createTestAppServices({
+    graphSession,
     suggestions: {
       ...base.suggestions,
       suggestWikiLinkTargets: async () =>
@@ -83,6 +86,7 @@ async function setup(options?: SetupOptions) {
     operations,
   })
   const app = createTestAppServices({
+    graphSession,
     wikiLinkSuggestions,
     operations,
     settings,

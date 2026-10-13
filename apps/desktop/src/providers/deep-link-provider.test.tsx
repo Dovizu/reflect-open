@@ -1,38 +1,41 @@
 import { StrictMode, type ReactElement, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import type { GraphInfo } from '@reflect/core'
 import {
   createTestAppServices,
   createTestCaptureInboxService,
   createTestDeepLinkService,
+  createTestGraphSessionService,
   createTestOperationsService,
 } from '@reflect/core/testing'
+import { act } from '@/test-utils/act.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { DeepLinkProvider } from './deep-link-provider.tsx'
 
 // The handler itself is covered in `@reflect/core`; these cover how the
 // provider ties it to the router and to the graph session.
 
-const GRAPH: GraphInfo = { root: '/g', name: 'g', generation: 7 }
+const GRAPH = { root: '/g', name: 'g', generation: 7 }
 
 function setup() {
   const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
   const captureInbox = createTestCaptureInboxService()
   const operations = createTestOperationsService()
+  const graphSession = createTestGraphSessionService()
   const deepLink = createTestDeepLinkService({
     indexQuery: { resolveNoteTarget },
     captureInbox,
     operations,
+    graphSession,
   })
-  const app = createTestAppServices({ deepLink, captureInbox, operations })
+  const app = createTestAppServices({ deepLink, captureInbox, operations, graphSession })
 
-  function tree(graph: GraphInfo = GRAPH): ReactElement {
-    return <DeepLinkProvider graph={graph}>{null}</DeepLinkProvider>
+  function tree(): ReactElement {
+    return <DeepLinkProvider>{null}</DeepLinkProvider>
   }
 
-  /** Render under the app's router, as the workspace mounts the provider. */
+  /** Render under the app's router with `GRAPH` open, as the workspace mounts the provider. */
   async function render(ui: ReactNode) {
-    return await renderInApp(ui, { app })
+    return await renderInApp(ui, { app, graph: GRAPH })
   }
 
   /** The routes navigated to so far, in order. */
@@ -78,7 +81,7 @@ describe('DeepLinkProvider', () => {
     expect(navigated()).toEqual([{ kind: 'tasks' }])
   })
 
-  it('routes URLs into the service with the router and the session generation', async () => {
+  it('routes URLs into the service with the router and the open graph session', async () => {
     const { deepLink, captureInbox, tree, navigated, render } = setup()
     await render(tree())
 
@@ -91,14 +94,25 @@ describe('DeepLinkProvider', () => {
   })
 
   it('drops an in-flight resolve when the graph session changes', async () => {
-    const { tree, navigated, dispatchPendingNote, render } = setup()
-    const view = await render(tree())
+    const { app, tree, navigated, dispatchPendingNote, render } = setup()
+    await render(tree())
     const pending = dispatchPendingNote('x')
 
-    await view.rerender(tree({ ...GRAPH, generation: 8 }))
+    act(() => app.graphSession.setGraph({ ...GRAPH, generation: 8 }))
     await pending.resolve()
 
     expect(navigated()).toEqual([])
+  })
+
+  it('serves the next graph session once the graph changes', async () => {
+    const { app, deepLink, captureInbox, tree, render } = setup()
+    await render(tree())
+
+    act(() => app.graphSession.setGraph({ ...GRAPH, generation: 8 }))
+    deepLink.dispatch('reflect://append?text=x')
+
+    await vi.waitFor(() => expect(captureInbox.spooled()).toHaveLength(1))
+    expect(captureInbox.spooled()[0]?.generation).toBe(8)
   })
 
   it('drops a note resolve when navigation changes meanwhile', async () => {

@@ -5,6 +5,7 @@ import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformService } from '../app/platform-service.ts'
 import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import { createArchivedPost, type XArchiveService } from '../x-archive.ts'
 
@@ -14,14 +15,14 @@ const YOUTUBE_VIDEO_DROP_MS = 30 * 60 * 1000
 /** The embedded media of the editor's cards: X posts and YouTube videos. */
 export interface EmbedMediaService {
   /**
-   * The archived X post `postId` of the graph `generation`, with each media
-   * URL that has a local copy mapped to its `reflect-asset:` URL, or `null`
-   * when there is none. A post with no archive is fetched from X, archived
+   * The archived X post `postId` of the open graph, with each media URL that
+   * has a local copy mapped to its `reflect-asset:` URL, or `null` when there
+   * is none or no graph is open. A post with no archive is fetched from X, archived
    * and read again. X is asked once per post for the service's lifetime; a
    * failed request runs again. Every call reads the archive: the caller
    * caches the answer.
    */
-  loadXPost(generation: number, postId: string): Promise<XPost | null>
+  loadXPost(postId: string): Promise<XPost | null>
   /**
    * The card snapshot of a YouTube video URL: at once when it was fetched
    * before, otherwise once the oEmbed endpoint answers. A URL that is not a
@@ -37,8 +38,9 @@ export function createEmbedMediaService(deps: {
   platform: Pick<PlatformService, 'convertFileSrc'>
   clock: Pick<ClockService, 'now' | 'setTimeout' | 'clearTimeout'>
   logger: Pick<LoggerService, 'error'>
+  graphSession: Pick<GraphSessionService, 'getState'>
 }): EmbedMediaService {
-  const { xArchive, webFetch, platform, clock, logger } = deps
+  const { xArchive, webFetch, platform, clock, logger, graphSession } = deps
   // What X answered for each post id; a failed request leaves no entry.
   const syndication = new Map<string, Promise<XPost | null>>()
   const videos = new Map<string, YouTubeVideo>()
@@ -125,7 +127,10 @@ export function createEmbedMediaService(deps: {
   }
 
   return {
-    async loadXPost(generation, postId) {
+    async loadXPost(postId) {
+      const session = graphSession.getState().session
+      if (session === null) return null
+      const { generation } = session
       const result =
         (await xArchive.resolve(generation, postId)) ??
         (await fetchAndArchiveXPost(generation, postId))

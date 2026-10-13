@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   createTestContactsService,
   createTestFileChangeService,
+  createTestGraphSessionService,
   createTestNoteFileService,
   createTestNoteSession,
   createTestSettingsService,
@@ -24,6 +25,7 @@ import {
   type ContactSuggestionService,
 } from './contact-suggestion-service.ts'
 import { withContactsLookups, type ContactsService } from './contacts-service.ts'
+import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 
@@ -50,6 +52,7 @@ function contactSuggestionsOver(deps?: {
   openDocuments?: OpenDocumentsService
   noteFile?: NoteFileService
   settings?: SettingsService
+  graphSession?: GraphSessionService
 }): ContactSuggestionService {
   const openDocuments =
     deps?.openDocuments ??
@@ -61,6 +64,7 @@ function contactSuggestionsOver(deps?: {
     openDocuments,
     noteFile,
     settings: deps?.settings ?? createTestSettingsService(),
+    graphSession: deps?.graphSession ?? createTestGraphSessionService({ graph: { generation: 3 } }),
   })
 }
 
@@ -154,7 +158,7 @@ describe('addToNote', () => {
   it('appends the details block through the live session — a single write', async () => {
     const session = openNote('# Ada Lovelace\n')
 
-    await service.addToNote(PATH, ADA, 3)
+    await service.addToNote(PATH, ADA)
 
     expect(session.getCalls('commitBodyAppend')).toEqual([[ADA_BLOCK]])
     // No frontmatter mark: the appended details suppress the card by content.
@@ -165,14 +169,14 @@ describe('addToNote', () => {
   it('refuses rather than clobber when the open session cannot take the append', async () => {
     openNote('# Ada Lovelace\n', { accepts: false })
 
-    await expect(service.addToNote(PATH, ADA, 3)).rejects.toThrow(/can’t be updated right now/)
+    await expect(service.addToNote(PATH, ADA)).rejects.toThrow(/can’t be updated right now/)
     expect(noteFile.writes()).toEqual([])
   })
 
   it('patches a closed note on disk in one write', async () => {
     noteFile.set(PATH, '# Ada Lovelace\n')
 
-    await service.addToNote(PATH, ADA, 3)
+    await service.addToNote(PATH, ADA)
 
     expect(noteFile.writes()).toEqual([
       {
@@ -186,7 +190,7 @@ describe('addToNote', () => {
   it('refuses when the title no longer matches the contact (stale card)', async () => {
     const session = openNote('# Grace Hopper\n')
 
-    await expect(service.addToNote(PATH, ADA, 3)).rejects.toThrow(/no longer matches/)
+    await expect(service.addToNote(PATH, ADA)).rejects.toThrow(/no longer matches/)
     expect(session.getCalls('commitBodyAppend')).toEqual([])
     expect(noteFile.writes()).toEqual([])
   })
@@ -194,7 +198,7 @@ describe('addToNote', () => {
   it('appends only the details to an already-typed person note (meeting flow, link menu)', async () => {
     const session = openNote('# Ada Lovelace\n\n- Type: #person\n')
 
-    await service.addToNote(PATH, ADA, 3)
+    await service.addToNote(PATH, ADA)
 
     expect(session.getCalls('commitBodyAppend')).toEqual([
       ['- Email: ada@example.com\n- Phone: +1 555 0100'],
@@ -204,7 +208,7 @@ describe('addToNote', () => {
   it('is retry-idempotent: a body already carrying the block writes nothing', async () => {
     noteFile.set(PATH, `# Ada Lovelace\n\n${ADA_BLOCK}\n`)
 
-    await service.addToNote(PATH, ADA, 3)
+    await service.addToNote(PATH, ADA)
 
     expect(noteFile.writes()).toEqual([])
   })
@@ -214,7 +218,7 @@ describe('addToNote', () => {
     // apply the same content gate rather than stack a second block.
     const session = openNote('# Ada Lovelace\n\nWork mail ada@work.com\n')
 
-    await service.addToNote(PATH, ADA, 3)
+    await service.addToNote(PATH, ADA)
 
     expect(session.getCalls('commitBodyAppend')).toEqual([])
     expect(noteFile.writes()).toEqual([])
@@ -224,8 +228,23 @@ describe('addToNote', () => {
     const bare: ContactMatch = { ...ADA, emails: [], phones: [] }
     noteFile.set(PATH, '# Ada Lovelace\n')
 
-    await service.addToNote(PATH, bare, 3)
+    await service.addToNote(PATH, bare)
 
+    expect(noteFile.writes()).toEqual([])
+  })
+})
+
+describe('addToNote and ignore with no graph open', () => {
+  it('throw without writing', async () => {
+    noteFile = createTestNoteFileService()
+    noteFile.set(PATH, '# Ada Lovelace\n')
+    const closed = contactSuggestionsOver({
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: null }),
+    })
+
+    await expect(closed.addToNote(PATH, ADA)).rejects.toThrow('No graph is open.')
+    await expect(closed.ignore(PATH, ADA)).rejects.toThrow('No graph is open.')
     expect(noteFile.writes()).toEqual([])
   })
 })
@@ -234,7 +253,7 @@ describe('ignore', () => {
   it('records the contact name in ignoredContacts through the live session', async () => {
     const session = openNote('# Ada Lovelace\n')
 
-    await service.ignore(PATH, ADA, 3)
+    await service.ignore(PATH, ADA)
 
     expect(session.getCalls('commitFrontmatter')).toEqual([[{ ignoredContacts: ['Ada Lovelace'] }]])
     expect(session.getCalls('commitBodyAppend')).toEqual([])
@@ -244,7 +263,7 @@ describe('ignore', () => {
   it('appends to an existing dismissal list on disk', async () => {
     noteFile.set(PATH, '---\nignoredContacts:\n  - Grace Hopper\n---\n# Ada Lovelace\n')
 
-    await service.ignore(PATH, ADA, 3)
+    await service.ignore(PATH, ADA)
 
     expect(noteFile.writes()).toEqual([
       {
@@ -259,7 +278,7 @@ describe('ignore', () => {
   it('is idempotent: an already-dismissed contact writes nothing', async () => {
     noteFile.set(PATH, '---\nignoredContacts:\n  - ada lovelace\n---\n# Ada Lovelace\n')
 
-    await service.ignore(PATH, ADA, 3)
+    await service.ignore(PATH, ADA)
 
     expect(noteFile.writes()).toEqual([])
   })
@@ -269,7 +288,7 @@ describe('ignore', () => {
     // for its own suggestion, so nothing is written.
     const session = openNote('# Grace Hopper\n')
 
-    await service.ignore(PATH, ADA, 3)
+    await service.ignore(PATH, ADA)
 
     expect(session.getCalls('commitFrontmatter')).toEqual([])
     expect(noteFile.writes()).toEqual([])

@@ -6,6 +6,7 @@ import type { LinkClickHandler } from '@meowdown/core'
 import {
   createTestAppServices,
   createTestAttachmentService,
+  createTestGraphSessionService,
   createTestOpenerService,
   createTestWindowService,
   type TestAttachmentService,
@@ -29,11 +30,14 @@ const route = page.getByTestId('route')
 
 let onLinkClick: LinkClickHandler
 
-async function mount(generation: number | null, sourcePath: string | null): Promise<void> {
+async function mount(sourcePath: string | null): Promise<void> {
+  const graphSession = createTestGraphSessionService()
   const app = createTestAppServices({
     opener,
     attachments,
+    graphSession,
     linkNavigation: createTestAppServices({
+      graphSession,
       deepLink: { ...createTestAppServices().deepLink, dispatch: dispatchDeepLink },
       noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
       window: createTestWindowService({ openNoteWindow }),
@@ -41,8 +45,9 @@ async function mount(generation: number | null, sourcePath: string | null): Prom
       attachments,
     }).linkNavigation,
   })
-  const { result } = await renderHookInApp(() => useMarkdownLinkClick(generation, sourcePath), {
+  const { result } = await renderHookInApp(() => useMarkdownLinkClick(sourcePath), {
     app,
+    graph: { generation: 7 },
     wrapper: (children) => (
       <>
         {children}
@@ -68,7 +73,7 @@ beforeEach(async () => {
   attachments = createTestAttachmentService()
   openNoteWindow.mockResolvedValue(true)
   resolveMarkdownHref.mockResolvedValue({ kind: 'missing' })
-  await mount(7, 'projects/TASKS.md')
+  await mount('projects/TASKS.md')
 })
 
 describe('useMarkdownLinkClick', () => {
@@ -140,7 +145,7 @@ describe('useMarkdownLinkClick', () => {
   })
 
   it('drops attachment and note links when the Markdown belongs to no note', async () => {
-    await mount(7, null)
+    await mount(null)
 
     const asset = click('assets/cat.png')
     const note = click('notes/foo.md')

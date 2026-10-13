@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createEmbedMediaService } from './embed-media-service.ts'
 import {
   createTestClockService,
+  createTestGraphSessionService,
   createTestLoggerService,
   createTestPlatformService,
   createTestWebFetchService,
@@ -17,6 +18,7 @@ function createTestEmbedMedia(deps: Partial<Parameters<typeof createEmbedMediaSe
     platform: deps.platform ?? createTestPlatformService(),
     clock: deps.clock ?? createTestClockService(),
     logger: deps.logger ?? createTestLoggerService(),
+    graphSession: deps.graphSession ?? createTestGraphSessionService({ graph: { generation: 7 } }),
   })
 }
 
@@ -46,8 +48,9 @@ describe('EmbedMediaService.loadXPost', () => {
     const xArchive = createTestXArchiveService()
     const platform = createTestPlatformService()
     const clock = createTestClockService()
-    const embedMedia = createTestEmbedMedia({ xArchive, platform, clock })
-    return { xArchive, platform, clock, embedMedia }
+    const graphSession = createTestGraphSessionService({ graph: { generation: 7 } })
+    const embedMedia = createTestEmbedMedia({ xArchive, platform, clock, graphSession })
+    return { xArchive, platform, clock, graphSession, embedMedia }
   }
 
   it('rewrites media URLs while retaining URLs without a local mapping', async () => {
@@ -58,7 +61,7 @@ describe('EmbedMediaService.loadXPost', () => {
     ]
     xArchive.setPost('123', result)
 
-    const post = await embedMedia.loadXPost(7, '123')
+    const post = await embedMedia.loadXPost('123')
 
     expect(post?.author.avatar).toBe(
       platform.convertFileSrc(`7/x-media/123/${'a'.repeat(64)}`, 'reflect-asset'),
@@ -71,12 +74,13 @@ describe('EmbedMediaService.loadXPost', () => {
     })
   })
 
-  it('reads the archive on every call', async () => {
-    const { xArchive, embedMedia } = setup()
-    expect(await embedMedia.loadXPost(7, '123')).toBeNull()
+  it('reads the archive of the open graph on every call', async () => {
+    const { xArchive, graphSession, embedMedia } = setup()
+    expect(await embedMedia.loadXPost('123')).toBeNull()
     xArchive.setPost('123', archivedPost())
-    expect((await embedMedia.loadXPost(7, '123'))?.id).toBe('123')
-    expect((await embedMedia.loadXPost(8, '123'))?.id).toBe('123')
+    expect((await embedMedia.loadXPost('123'))?.id).toBe('123')
+    graphSession.setGraph({ generation: 8 })
+    expect((await embedMedia.loadXPost('123'))?.id).toBe('123')
     expect(xArchive.resolves()).toEqual([
       { generation: 7, postId: '123' },
       // The first miss reads again after X had no post to archive.
@@ -90,13 +94,13 @@ describe('EmbedMediaService.loadXPost', () => {
     xArchive.setSyndication('123', archivedPost().archive.data)
     clock.setNow(Date.parse('2026-10-13T08:00:00Z'))
 
-    const post = await embedMedia.loadXPost(1, '123')
+    const post = await embedMedia.loadXPost('123')
 
     expect(post).toMatchObject({ id: '123' })
     expect(xArchive.syndicationRequests()).toEqual(['123'])
     expect(xArchive.writes()).toEqual([
       {
-        generation: 1,
+        generation: 7,
         post: expect.objectContaining({
           kind: 'x-post',
           capturedAt: '2026-10-13T08:00:00.000Z',
@@ -108,8 +112,8 @@ describe('EmbedMediaService.loadXPost', () => {
 
   it('asks X once for a post that does not exist', async () => {
     const { xArchive, embedMedia } = setup()
-    await expect(embedMedia.loadXPost(1, '123')).resolves.toBeNull()
-    await expect(embedMedia.loadXPost(1, '123')).resolves.toBeNull()
+    await expect(embedMedia.loadXPost('123')).resolves.toBeNull()
+    await expect(embedMedia.loadXPost('123')).resolves.toBeNull()
     expect(xArchive.syndicationRequests()).toHaveLength(1)
     expect(xArchive.resolves()).toHaveLength(2)
     expect(xArchive.writes()).toEqual([])
@@ -118,7 +122,7 @@ describe('EmbedMediaService.loadXPost', () => {
   it('asks X once for concurrent reads of one post', async () => {
     const { xArchive, embedMedia } = setup()
     xArchive.setSyndication('123', archivedPost().archive.data)
-    await Promise.all([embedMedia.loadXPost(1, '123'), embedMedia.loadXPost(2, '123')])
+    await Promise.all([embedMedia.loadXPost('123'), embedMedia.loadXPost('123')])
     expect(xArchive.syndicationRequests()).toEqual(['123'])
   })
 
@@ -140,15 +144,27 @@ describe('EmbedMediaService.loadXPost', () => {
     }
     const embedMedia = createTestEmbedMedia({ xArchive })
 
-    await expect(embedMedia.loadXPost(1, '123')).rejects.toMatchObject({ kind: 'network' })
-    await expect(embedMedia.loadXPost(1, '123')).resolves.toMatchObject({ id: '123' })
+    await expect(embedMedia.loadXPost('123')).rejects.toMatchObject({ kind: 'network' })
+    await expect(embedMedia.loadXPost('123')).resolves.toMatchObject({ id: '123' })
     expect(requests).toBe(2)
+  })
+
+  it('answers null with no graph open, without reading the archive', async () => {
+    const xArchive = createTestXArchiveService()
+    xArchive.setPost('123', archivedPost())
+    const embedMedia = createTestEmbedMedia({
+      xArchive,
+      graphSession: createTestGraphSessionService({ graph: null }),
+    })
+
+    await expect(embedMedia.loadXPost('123')).resolves.toBeNull()
+    expect(xArchive.resolves()).toEqual([])
   })
 
   it('does not ask X for a post that has an archive', async () => {
     const { xArchive, embedMedia } = setup()
     xArchive.setPost('123', archivedPost())
-    await embedMedia.loadXPost(1, '123')
+    await embedMedia.loadXPost('123')
     expect(xArchive.syndicationRequests()).toEqual([])
   })
 })

@@ -1,6 +1,7 @@
 import type { WebFetchService } from '../app/web-fetch-service.ts'
 import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import { isAppError } from '../errors.ts'
+import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import type { PrivacyService } from '../privacy/privacy-service.ts'
 import type { parseLinkPreviewMeta } from './metadata.ts'
@@ -9,8 +10,6 @@ import type { parseLinkPreviewMeta } from './metadata.ts'
 export interface LinkPreviewSession {
   /** Graph-relative note path whose live source supplies the privacy flag. */
   readonly path: string
-  /** Open-graph generation that pins source reads against graph switches. */
-  readonly generation: number
   /** Stable graph-root identity used to reject results from another graph. */
   readonly graphKey: string
   /** Open-document epoch used to reject results from a replaced editor session. */
@@ -32,7 +31,8 @@ export interface LinkPreviewService {
   /**
    * Build the resolver of one editor session. `currentSession` reports the
    * session the editor shows now; a lookup of a replaced session resolves
-   * `undefined`. The returned promise cache includes successful and permanent
+   * `undefined`. Source reads go to the graph open when the resolver is
+   * built; with none, every lookup resolves `undefined`. The returned promise cache includes successful and permanent
    * failed lookups, deduplicates concurrent calls, and leaves transient
    * network failures eligible for retry.
    */
@@ -62,7 +62,6 @@ const FAILED_RESOLUTION: LinkPreviewResolution = {
 function sameSession(left: LinkPreviewSession | null, right: LinkPreviewSession): boolean {
   return (
     left?.path === right.path &&
-    left.generation === right.generation &&
     left.graphKey === right.graphKey &&
     left.sessionEpoch === right.sessionEpoch
   )
@@ -80,19 +79,21 @@ export function createLinkPreviewService(deps: {
   webFetch: Pick<WebFetchService, 'fetchLinkPreviewHtml' | 'fetchLinkPreviewIcon'>
   /** Parses and validates bounded display metadata from the fetched page. Needs a `DOMParser`. */
   parseMetadata: typeof parseLinkPreviewMeta
+  graphSession: Pick<GraphSessionService, 'getState'>
 }): LinkPreviewService {
-  const { noteDocuments, privacy, webFetch, parseMetadata } = deps
+  const { noteDocuments, privacy, webFetch, parseMetadata, graphSession } = deps
 
   return {
     createResolver(session, currentSession) {
+      const graph = graphSession.getState().session
       const cache = new Map<string, Promise<LinkPreviewResolution>>()
 
       async function authorizeOutboundUrls(
         urls: readonly string[],
       ): Promise<readonly CloudSafe<string>[] | null> {
-        if (!sameSession(currentSession(), session)) return null
+        if (graph === null || !sameSession(currentSession(), session)) return null
         try {
-          const source = await noteDocuments.readExisting(session.path, session.generation)
+          const source = await noteDocuments.readExisting(session.path, graph.generation)
           if (!sameSession(currentSession(), session)) return null
           const note = { path: session.path, isPrivate: privacy.notePrivate(source) }
           return urls.map((url) => privacy.cloudSafeLinkHref(note, url))

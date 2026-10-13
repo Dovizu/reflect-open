@@ -2,6 +2,7 @@ import type { AppServices, Unlisten } from '@reflect/core'
 import {
   dropIcloudStatusQuery,
   dropSimilarNotesQueries,
+  dropXPostQueries,
   invalidateChatQueries,
   invalidateIndexQueries,
   invalidateXPostQueries,
@@ -45,6 +46,7 @@ export function installQueryInvalidation(
         dropSimilarNotesQueries()
       }
     }),
+    app.graphSession.onGraphReleased(dropXPostQueries),
     // The delete trashed a directory the chooser may list: drop the cached
     // iCloud listing so the chooser refetches it rather than showing the
     // deleted graph.

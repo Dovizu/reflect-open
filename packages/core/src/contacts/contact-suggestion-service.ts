@@ -1,5 +1,7 @@
+import { requireGraphSession } from '../app/graph-session.ts'
 import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
+import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { isDaily } from '../graph/paths.ts'
 import { parseNote } from '../markdown/extract.ts'
@@ -48,17 +50,17 @@ export interface ContactSuggestionService {
    * when the session can't take it (loading, protected, or a parked conflict).
    * A closed note is patched on disk. Retry-safe: a body that already carries
    * the details is left alone. Throws when the title no longer matches
-   * `contact`.
+   * `contact`, or when no graph is open.
    */
-  addToNote(path: string, contact: ContactMatch, generation: number): Promise<void>
+  addToNote(path: string, contact: ContactMatch): Promise<void>
   /**
    * Dismiss the suggestion for this note: record `contact`'s name in the
    * `ignoredContacts` frontmatter list, write nothing else. A stale card (the
    * title no longer matches `contact`) skips the write silently — the user
    * wanted the card gone, and the new title must stay eligible for its own
-   * suggestion.
+   * suggestion. Throws when no graph is open.
    */
-  ignore(path: string, contact: ContactMatch, generation: number): Promise<void>
+  ignore(path: string, contact: ContactMatch): Promise<void>
   /** Switch the integration on or off. Never prompts. */
   setEnabled(enabled: boolean): void
   /**
@@ -116,8 +118,9 @@ export function createContactSuggestionService(deps: {
   openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
   noteFile: Pick<NoteFileService, 'write'>
   settings: SettingsService
+  graphSession: Pick<GraphSessionService, 'getState'>
 }): ContactSuggestionService {
-  const { contacts, noteDocuments, openDocuments, noteFile, settings } = deps
+  const { contacts, noteDocuments, openDocuments, noteFile, settings, graphSession } = deps
 
   /**
    * Action-time revalidation: the card's suggestion is a cached answer, but the
@@ -169,7 +172,8 @@ export function createContactSuggestionService(deps: {
       return dismissed ? null : match
     },
 
-    async addToNote(path, contact, generation) {
+    async addToNote(path, contact) {
+      const { generation } = requireGraphSession(graphSession)
       const source = await sourceIfStillMatching(path, contact)
       if (source === null) {
         throw new Error('The note title no longer matches this contact.')
@@ -196,7 +200,8 @@ export function createContactSuggestionService(deps: {
       await noteFile.write(path, appendContactDetails(source, contact), generation)
     },
 
-    async ignore(path, contact, generation) {
+    async ignore(path, contact) {
+      const { generation } = requireGraphSession(graphSession)
       const source = await sourceIfStillMatching(path, contact)
       if (source === null) {
         return

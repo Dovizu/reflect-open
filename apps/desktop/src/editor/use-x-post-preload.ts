@@ -17,16 +17,16 @@ const PRELOAD_BUDGET_MS = 300
  */
 export function useXPostPreload(markdown: string | null): boolean {
   const { embedMedia } = useAppServices()
-  const generation = useGraph({ optional: true })?.graph?.generation ?? null
+  const root = useGraph({ optional: true })?.graph?.root ?? null
   const queries = useMemo(() => {
-    if (markdown === null || generation === null) return []
+    if (markdown === null || root === null) return []
     const ids = new Set<string>()
     for (const url of collectImages(markdown)) {
       const id = parseXPostId(url)
       if (id) ids.add(id)
     }
-    return [...ids].map((id) => xPostQueryOptions({ embedMedia }, generation, id))
-  }, [embedMedia, markdown, generation])
+    return [...ids].map((id) => xPostQueryOptions({ embedMedia }, root, id))
+  }, [embedMedia, markdown, root])
   // The resolver reads the shared client, so the preload must fill that one.
   const loaded = useQueries(
     {

@@ -29,16 +29,10 @@ export interface EditorAutocomplete {
 export function useEditorAutocomplete(): EditorAutocomplete {
   const { graph } = useGraph()
   const { wikiLinkSuggestions } = useAppServices()
-  const generation = graph?.generation ?? null
 
   const onWikilinkSearch = useCallback(
-    async (query: string): Promise<WikilinkItem[]> => {
-      if (generation === null) {
-        return []
-      }
-      return await wikiLinkSuggestions.suggestLinks(query, { generation })
-    },
-    [generation, wikiLinkSuggestions],
+    (query: string): Promise<WikilinkItem[]> => wikiLinkSuggestions.suggestLinks(query),
+    [wikiLinkSuggestions],
   )
 
   const onTagSearch = useCallback(

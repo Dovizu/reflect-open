@@ -7,8 +7,8 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * ordinary resolution precedence, then open their lazy daily route on a miss.
  * Every other writable title goes through the ambiguity-preserving index +
  * disk resolver before it opens or creates, so an indexed duplicate cannot
- * bypass the same guard used for an index miss. With no graph generation
- * available, existing titles still use the read-only index resolver and
+ * bypass the same guard used for an index miss. With `readOnly`, or with no
+ * graph open, existing titles still use the read-only index resolver and
  * unresolved titles are a no-op.
  *
  * An `openInNewWindow` request (a ⌘-click or a spare-`mod` keyboard follow,
@@ -22,21 +22,19 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * they've already left, so every navigation is gated on the shared link
  * intent (`useLinkIntentGuard`).
  *
- * @param generation the open graph's write generation (`GraphInfo.generation`),
- *   or `null` when no graph is writable.
- * @returns a stable-per-`generation` click handler for the editor's wiki-link
- *   extension.
+ * @returns a stable click handler for the editor's wiki-link extension.
  */
-export function useWikiLinkNavigation(
-  generation: number | null,
-): (options: { target: string; openInNewWindow: boolean }) => void {
+export function useWikiLinkNavigation(options?: {
+  readOnly?: boolean
+}): (options: { target: string; openInNewWindow: boolean }) => void {
   const { linkNavigation } = useAppServices()
   const host = useLinkNavigationHost()
+  const readOnly = options?.readOnly ?? false
 
   return useCallback(
     ({ target, openInNewWindow }: { target: string; openInNewWindow: boolean }) => {
-      linkNavigation.followWikiLink({ target, openInNewWindow, generation }, host)
+      linkNavigation.followWikiLink({ target, openInNewWindow, readOnly }, host)
     },
-    [generation, host, linkNavigation],
+    [host, linkNavigation, readOnly],
   )
 }

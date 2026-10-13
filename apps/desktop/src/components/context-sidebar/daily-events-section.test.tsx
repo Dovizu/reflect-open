@@ -50,7 +50,7 @@ let contacts: TestContactsService
 let database: TestDatabaseService
 let app: TestAppServices
 
-// The add-meeting dialog reads the write generation from the open graph.
+// The meeting service writes into the open graph.
 async function renderSection(): Promise<HTMLElement> {
   const { container } = await renderInApp(<DailyEventsSection date={DATE} />, {
     app,
@@ -153,7 +153,6 @@ describe('DailyEventsSection', () => {
         backlinkMeeting: false,
         lookupContacts: false,
         startTime: '9:00am',
-        generation: 3,
       }),
     )
     await expectLocatorToHaveCount(page.getByLabelText('Meeting name'), 0)

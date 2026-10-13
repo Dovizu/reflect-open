@@ -21,6 +21,7 @@ import type { Settings } from '../settings/schema.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestContactsService } from '../testing/contacts.ts'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import { createTestNoteCreationService } from '../testing/graph.ts'
@@ -65,6 +66,7 @@ async function setup(options?: SetupOptions) {
   const tagQueries: string[] = []
   const created: { title: string; generation: number; body?: string }[] = []
   const ensured: EnsurePersonNoteInput[] = []
+  const graphSession = createTestGraphSessionService({ graph: { generation: 7 } })
   const service = createWikiLinkSuggestionService({
     suggestions: {
       suggestWikiLinkTargets: async (query, limit, dateGen) => {
@@ -116,13 +118,15 @@ async function setup(options?: SetupOptions) {
     clock,
     operations,
     logger,
+    graphSession,
   })
   const suggest = (query: string, next: ContactsAuthorization | null = null) => {
     authorization = next
-    return service.suggestLinks(query, { generation: 7 })
+    return service.suggestLinks(query)
   }
   return {
     service,
+    graphSession,
     suggest,
     operations,
     logger,
@@ -154,6 +158,25 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
         dateGen: { today: '2026-06-09', dateFormat: 'dmy', weekStartDay: 'sunday' },
       },
     ])
+  })
+
+  it('answers no rows with no graph open', async () => {
+    const { suggest, graphSession, linkQueries } = await setup()
+    graphSession.setGraph(null)
+
+    await expect(suggest('road')).resolves.toEqual([])
+    expect(linkQueries).toEqual([])
+  })
+
+  it('creates behind the Create row in the graph open when the rows were asked for', async () => {
+    const { suggest, graphSession, created } = await setup()
+    const items = await suggest('Business ideas')
+    graphSession.setGraph({ generation: 8 })
+
+    items[0]!.onSelect?.()
+    await settle()
+
+    expect(created).toEqual([{ title: 'Business ideas', generation: 7 }])
   })
 
   it('does not offer create when the exact query has an unaddressable claim', async () => {
@@ -534,9 +557,10 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
       clock: createTestClockService(),
       operations: createTestOperationsService(),
       logger: createTestLoggerService(),
+      graphSession: createTestGraphSessionService({ graph: {} }),
     })
 
-    const items = await service.suggestLinks('road', { generation: 1 })
+    const items = await service.suggestLinks('road')
     expect(items.map((item) => item.label)).toEqual(['Road trip', 'Roadmap', 'Create “road”'])
     database.close()
   })
