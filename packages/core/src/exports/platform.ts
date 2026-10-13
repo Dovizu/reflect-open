@@ -1,5 +1,6 @@
 export {
   createIpcBridgeService,
+  INDEX_WRITTEN_EVENT,
   listenNow,
   type IpcBridge,
   type IpcBridgeService,

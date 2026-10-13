@@ -11,6 +11,7 @@ import { NoteBusyError, type NoteDocumentService } from '../documents/note-docum
 import { errorMessage, ReflectError } from '../errors.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
+import { INDEX_WRITTEN_EVENT, listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
 import { decodeTaskBreadcrumbs } from '../indexing/indexed-note.ts'
 import type { SnippetTask } from '../indexing/snippet-tasks.ts'
 import type { Unlisten } from '../unlisten.ts'
@@ -46,13 +47,10 @@ export interface TaskServiceDeps {
   readonly graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
   readonly indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'onReconciled'>
   /**
-   * Which window this webview is; only a note window follows {@link peerIndexWrites}.
+   * Which window this webview is; only a note window follows {@link INDEX_WRITTEN_EVENT}.
    */
   readonly role: GraphRole
-  /**
-   * Listen for index writes that another webview committed.
-   */
-  readonly peerIndexWrites: (listener: () => void) => Unlisten
+  readonly ipc: IpcBridgeService
 }
 
 /**
@@ -791,9 +789,7 @@ class TaskServiceImpl implements TaskService {
   resolveSnippetTask(tasks: readonly SnippetTask[], click: SnippetTaskClick): SnippetTask | null {
     const anchor = tasks[click.index]
     if (anchor === undefined || anchor.checked !== click.checked || anchor.text !== click.text) {
-      this.#deps.progress
-        .start('Updating task')
-        .fail('The note has changed — try again in a moment.')
+      this.#deps.progress.fail('Updating task', 'The note has changed — try again in a moment.')
       return null
     }
     return anchor
@@ -809,9 +805,10 @@ class TaskServiceImpl implements TaskService {
     try {
       await this.writeTask({ notePath, ...task.locator }, [{ kind: 'toggle' }])
     } catch (cause) {
-      this.#deps.progress
-        .start(task.checked ? 'Reopening task' : 'Completing task')
-        .fail(errorMessage(cause))
+      this.#deps.progress.fail(
+        task.checked ? 'Reopening task' : 'Completing task',
+        errorMessage(cause),
+      )
       throw cause
     }
   }
@@ -950,7 +947,7 @@ class TaskServiceImpl implements TaskService {
       return
     }
     this.#attached = true
-    const { graphSession, indexLifecycle, role, peerIndexWrites } = this.#deps
+    const { graphSession, indexLifecycle, role, ipc, logger } = this.#deps
     graphSession.subscribe(() => {
       if (this.#adoptSession()) {
         this.#publish()
@@ -966,7 +963,12 @@ class TaskServiceImpl implements TaskService {
     })
     if (role !== 'main') {
       // A note window runs no indexer; the main window's committed writes reach it here.
-      peerIndexWrites(() => this.#throttledInvalidate())
+      listenNow(
+        () => ipc.listen(INDEX_WRITTEN_EVENT, () => this.#throttledInvalidate()),
+        (cause) => {
+          logger.error(`${INDEX_WRITTEN_EVENT} listener failed:`, cause)
+        },
+      )
     }
   }
 
