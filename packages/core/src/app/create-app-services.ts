@@ -363,7 +363,6 @@ export interface AppServices {
   readonly embedMedia: EmbedMediaService
   readonly linkPreview: LinkPreviewService
   readonly classicAccess: ClassicAccessService
-  readonly noteFile: NoteFileService
   readonly attachments: AttachmentService
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
@@ -700,6 +699,7 @@ export interface InternalServices {
   readonly audioRecorder: AudioRecorderService
   readonly webAuth: WebAuthService
   readonly assetStore: AssetStoreService
+  readonly noteFile: NoteFileService
   readonly wikiResolver: WikiResolverService
   readonly suggestions: SuggestionService
   readonly graphStats: GraphStatsService
@@ -1154,7 +1154,6 @@ export function composeAppServices(
     }),
     classicAccess,
     fileChanges,
-    noteFile,
     attachments,
     noteSessions: create.noteSessions({ noteFile, clock, logger, graphSession }),
     openDocuments,
@@ -1338,6 +1337,7 @@ export function composeAppServices(
     audioRecorder,
     webAuth,
     assetStore,
+    noteFile,
     wikiResolver: indexReads.wikiResolver,
     suggestions: indexReads.suggestions,
     graphStats: indexReads.graphStats,

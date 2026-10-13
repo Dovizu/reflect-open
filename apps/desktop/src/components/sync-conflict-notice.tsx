@@ -43,7 +43,7 @@ export function SyncConflictNotice({
 }: SyncConflictNoticeProps): ReactElement | null {
   const { graph } = useGraph()
   const { busy, error, resolve } = useConflictResolution(path)
-  const { indexQuery, noteFile, platform } = useAppServices()
+  const { indexQuery, noteDocuments, platform } = useAppServices()
   const { data } = useQuery({
     queryKey: queryKeys.index.noteConflict(graph?.root, path),
     queryFn: async () => (await indexQuery.getNote(path)) ?? null,
@@ -58,7 +58,7 @@ export function SyncConflictNotice({
   const { data: markerInfo } = useQuery({
     queryKey: queryKeys.index.noteConflictLabels(graph?.root, path),
     queryFn: async () => {
-      const source = await noteFile.read(path)
+      const source = await noteDocuments.readSource(path)
       return {
         labels: conflictMarkerLabels(source),
         blocks: conflictMarkerBlockCount(source),

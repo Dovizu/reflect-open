@@ -12,7 +12,12 @@ import { createTestAppServices } from '../testing/services.ts'
 import { createTestClipboardService, createTestDialogService } from '../testing/shell.ts'
 import { createTestUpdaterAdapter } from '../testing/update.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
-import { createAppServices, type AppAdapters, type AppServices } from './create-app-services.ts'
+import {
+  composeAppServices,
+  createAppServices,
+  type AppAdapters,
+  type AppServices,
+} from './create-app-services.ts'
 import { createDetachedLifecycleDom } from './lifecycle-service.ts'
 import { createPosixPathTransport } from './path-service.ts'
 import { createSingleWindowHost } from './window-service.ts'
@@ -65,7 +70,6 @@ const SERVICE_KEYS = [
   'linkPreview',
   'audioMemo',
   'classicAccess',
-  'noteFile',
   'attachments',
   'noteSessions',
   'openDocuments',
@@ -204,7 +208,7 @@ describe('createAppServices', () => {
     const ipc = createTestIpcBridgeService({
       commands: { note_write: () => null },
     })
-    const services = createAppServices({
+    const { services, internal } = composeAppServices({
       ...requiredAdapters(),
       ipc: ipc.transport,
       logger: createTestLoggerService(),
@@ -214,7 +218,7 @@ describe('createAppServices', () => {
     services.fileChanges.subscribeOwnWrites((paths) => {
       written.push(...paths)
     })
-    await expect(services.noteFile.write('notes/a.md', 'a', 1)).resolves.toBe(5)
+    await expect(internal.noteFile.write('notes/a.md', 'a', 1)).resolves.toBe(5)
     expect(written).toEqual(['notes/a.md'])
   })
 
@@ -234,14 +238,14 @@ describe('createAppServices', () => {
   it('builds each replaced service with its factory over the same dependencies', () => {
     const noteFile = createTestNoteFileService()
     const received: unknown[] = []
-    const services = createAppServices(requiredAdapters(), {
+    const { internal } = composeAppServices(requiredAdapters(), {
       noteFile: () => noteFile,
       noteDocuments: (deps) => {
         received.push(deps.noteFile)
         return createNoteDocumentService(deps)
       },
     })
-    expect(services.noteFile).toBe(noteFile)
+    expect(internal.noteFile).toBe(noteFile)
     expect(received).toEqual([noteFile])
   })
 })

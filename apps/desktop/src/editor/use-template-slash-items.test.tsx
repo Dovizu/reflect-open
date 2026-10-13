@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   createTestAppServices,
+  createTestGraphSessionService,
   createTestNoteFileService,
   createTestOperationsService,
 } from '@reflect/core/testing'
@@ -12,6 +13,7 @@ function setup() {
   const operations = createTestOperationsService()
   const base = createTestAppServices()
   const { templates } = createTestAppServices({
+    graphSession: createTestGraphSessionService({ graph: {} }),
     noteFile: createTestNoteFileService({
       files: {
         'templates/journal.md': '# Journal\n\nMood:\n',
