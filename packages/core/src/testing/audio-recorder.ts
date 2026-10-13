@@ -199,7 +199,7 @@ class TestAudioRecorderServiceImpl implements TestAudioRecorderService {
     return this.#claimed.has(path)
   }
 
-  actionsReady(): Promise<void> {
+  actionsReady(_options?: { signal?: AbortSignal }): Promise<void> {
     this.#log.push({ method: 'actionsReady' })
     return Promise.resolve()
   }

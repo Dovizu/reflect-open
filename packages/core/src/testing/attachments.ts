@@ -1,4 +1,8 @@
-import { createGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
+import {
+  createGraphSession,
+  requireGraphSession,
+  type GraphSessionSource,
+} from '../app/graph-session.ts'
 import { appleFileSrc } from '../app/platform-service.ts'
 import {
   createAttachmentSaveScope,
@@ -113,6 +117,7 @@ class TestAttachmentServiceImpl implements TestAttachmentService {
   }
 
   async loadCatalog(): Promise<AttachmentCatalog> {
+    requireGraphSession(this.#graphSession)
     return this.#catalog
   }
 

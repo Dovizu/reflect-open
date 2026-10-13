@@ -47,8 +47,10 @@ commit message and, for `feat`/`fix`, the user-facing changelog entry.
 ## Where code goes
 
 - **Business logic → `packages/core`.** No file/DB/AI logic in React
-  components, hooks, or Tauri command handlers. Components call
-  `@reflect/core` services, read with `useAppServices()`; Rust commands are
+  components, hooks, or Tauri command handlers. Desktop components call
+  `@reflect/core` and `@reflect/app` services, read with `useCoreServices()`,
+  `useAppServices()` or `useGraphServices()`
+  (`apps/desktop/src/services/services-provider.tsx`); Rust commands are
   thin wrappers over native primitives.
 - **Rust owns capabilities, TypeScript owns policy.** A Rust command never
   encodes a product rule beyond the primitive it exposes (e.g. the watcher

@@ -88,6 +88,33 @@ describe('NativeActionService.open', () => {
     expect(methods()).toContain('actionsReady')
   })
 
+  it('disposing while the reconcile is pending skips the handshake', async () => {
+    const { recorder, clock, service, handler, methods } = setup()
+    const status = Promise.withResolvers<{ recording: boolean; elapsedMs: number }>()
+    vi.spyOn(recorder, 'status').mockReturnValue(status.promise)
+
+    const close = service.open(handler)
+    await clock.advance(0)
+    close()
+    status.resolve({ recording: false, elapsedMs: 0 })
+    await clock.advance(0)
+
+    expect(methods()).not.toContain('actionsReady')
+  })
+
+  it('disposing during the handshake aborts its signal', async () => {
+    const { recorder, clock, service, handler } = setup()
+    const handshake = vi.spyOn(recorder, 'actionsReady').mockReturnValue(new Promise(() => {}))
+
+    const close = service.open(handler)
+    await clock.advance(0)
+    const signal = handshake.mock.calls[0]?.[0]?.signal
+    expect(signal?.aborted).toBe(false)
+    close()
+
+    expect(signal?.aborted).toBe(true)
+  })
+
   it('recordAudio starts a memo, then confirms once the UI survived its window', async () => {
     const { recorder, clock, service, handler, methods } = setup()
     service.open(handler)

@@ -466,6 +466,9 @@ class BackupServiceImpl implements BackupService {
       if (!initialized) {
         await git.setup(null, null, this.#generation)
       }
+      if (this.#disposed) {
+        return
+      }
       const next = syncEngines.create({
         generation: this.#generation,
         localOnly: true,

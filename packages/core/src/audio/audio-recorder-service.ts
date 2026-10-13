@@ -134,9 +134,10 @@ export interface AudioRecorderService {
   releaseStaged(path: string): void
   isStagedClaimed(path: string): boolean
   /**
-   * The action surface is mounted: deliver any queued native action.
+   * The action surface is mounted: deliver any queued native action. An
+   * aborted `signal` skips the handshake.
    */
-  actionsReady(): Promise<void>
+  actionsReady(options?: { signal?: AbortSignal }): Promise<void>
   /**
    * Retire the delivered native action so it does not fire again on the next launch.
    */

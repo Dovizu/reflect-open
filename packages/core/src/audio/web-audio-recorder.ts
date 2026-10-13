@@ -315,7 +315,7 @@ class WebAudioRecorderImpl implements AudioRecorderService {
     return this.#claimed.has(path)
   }
 
-  async actionsReady(): Promise<void> {}
+  async actionsReady(_options?: { signal?: AbortSignal }): Promise<void> {}
 
   async actionPerformed(): Promise<void> {}
 

@@ -562,6 +562,7 @@ class TaskServiceImpl implements TaskService {
 
   async completeTasks(tasks: readonly OpenTask[]): Promise<void> {
     const { root } = this.#begin()
+    this.#snapshot()
     this.#patch(
       (rows) => withoutTasks(rows, tasks),
       (rows) => asCompleted(rows, tasks),
@@ -579,6 +580,7 @@ class TaskServiceImpl implements TaskService {
 
   async reopenTasks(tasks: readonly OpenTask[]): Promise<void> {
     const { root } = this.#begin()
+    this.#snapshot()
     this.#patch(
       (rows) => asOpen(rows, tasks),
       (rows) => withoutTasks(rows, tasks),
@@ -611,6 +613,7 @@ class TaskServiceImpl implements TaskService {
 
   async scheduleTasks(tasks: readonly OpenTask[], isoDate: string | null): Promise<void> {
     const { root } = this.#begin()
+    this.#snapshot()
     // The row keeps its bucket until the reindex re-derives the due date.
     const patch: TaskListPatch = (rows) =>
       tasks.reduce(
@@ -1113,6 +1116,7 @@ class TaskServiceImpl implements TaskService {
    */
   async #removeEach(tasks: readonly OpenTask[], kind: 'remove' | 'toBullet'): Promise<void> {
     const { root } = this.#begin()
+    this.#snapshot()
     this.#patch(
       (rows) => withoutTasks(rows, tasks),
       (rows) => withoutTasks(rows, tasks),

@@ -300,6 +300,17 @@ describe('createNativeAudioRecorder', () => {
     ])
   })
 
+  it('actionsReady skips the handshake once its signal is aborted', async () => {
+    const { ipc, recorder } = setup()
+    ipc.onCommand('plugin:recording|actions_ready', () => null)
+    const stopped = new AbortController()
+    stopped.abort()
+
+    await recorder.actionsReady({ signal: stopped.signal })
+
+    expect(commands(ipc)).toEqual([])
+  })
+
   it('logs plugin events the bridge cannot deliver', async () => {
     const { logger, recorder } = setup({ pluginEvents: false })
     recorder.subscribeLevel(() => {})

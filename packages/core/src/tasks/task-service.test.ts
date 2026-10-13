@@ -781,6 +781,21 @@ describe('task list state', () => {
     expect(tasks.getState().open).toEqual([two])
   })
 
+  it('drops a read in flight when a bulk action patches the rows', async () => {
+    const { getOpenTasks } = await subscribed()
+    const read = Promise.withResolvers<OpenTask[]>()
+    getOpenTasks.mockReturnValue(read.promise)
+    vi.spyOn(tasks, 'writeTask').mockResolvedValue(written)
+
+    const refreshing = tasks.refresh()
+    await tasks.completeTasks([one])
+    read.resolve([one, two])
+    await refreshing
+    await flushMicrotasks()
+
+    expect(tasks.getState().open).toEqual([two])
+  })
+
   it('restores the rows and rethrows when a single write fails', async () => {
     await subscribed()
     vi.spyOn(tasks, 'writeTask').mockRejectedValue(new Error('disk full'))
