@@ -54,7 +54,7 @@ Reflect has no server. The boundary runs between **TypeScript business logic** a
 | AI/provider calls, context assembly, patchsets | Commands, keymap, native menus, palette search | Local embedding runtime (model download + `embed`) |
 | Privacy/capability guards (`private: true`) | The operations list, update, theme, exception telemetry | Git operations (libgit2), keychain get/set/delete |
 | Sync conflict normalization + resolution policy | The graph boot flows (`GraphBootService`, mobile onboarding) | Native menus, global shortcuts, dialogs |
-| The markdown parse/serialize layer (Plan 03) | — | — |
+| The markdown parse/serialize layer (Plan 03) | (none) | — |
 
 Rust owns *capabilities*; TypeScript owns *policy and composition*. A Rust command never
 encodes product rules beyond the primitive it exposes (e.g. the watcher emits events; it

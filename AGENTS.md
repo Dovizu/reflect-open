@@ -152,8 +152,8 @@ reflect-open/
 │   ├── core/               # @reflect/core — ALL TS business logic as services (app/,
 │   │                       #   graph/, documents/, indexing/, markdown/, embeddings/,
 │   │                       #   ai/, sync/, settings/, ipc/, testing/)
-│   ├── app/                # @reflect/app — the app layer: windows, routes, commands,
-│   │                       #   menus, update, theme, boot flows (no React, no Tauri)
+│   ├── app/                # @reflect/app: the app layer (windows, routes, commands,
+│   │                       #   menus, update, theme, boot flows); no React, no Tauri
 │   └── db/                 # @reflect/db — generated Kysely schema + the IPC dialect
 ├── crates/
 │   └── index-schema/       # Shared SQLite migrations for <graph>/.reflect/index.sqlite
