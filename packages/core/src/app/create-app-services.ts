@@ -316,6 +316,19 @@ import {
 import { createGraphServices, type GraphServices } from './create-graph-services.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 
+// FIXME: for all new functions / interfaces etc.added in this pull request.use the following pattern for jsdoc.
+//
+// BAD:
+// /** The app-scoped services: one instance each for the lifetime of the webview. */
+// export interface AppServices { ... }
+//
+// GOOD:
+// /**
+//  * The app-scoped services: one instance each for the lifetime of the webview.
+//  */
+// export interface AppServices { ... }
+//
+
 /** The app-scoped services: one instance each for the lifetime of the webview. */
 export interface AppServices {
   readonly ipc: IpcBridgeService
