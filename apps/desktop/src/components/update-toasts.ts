@@ -29,7 +29,7 @@ function showUpdateToast(state: UpdateState, update: UpdateService, logger: Logg
         ...NON_DISMISSIBLE_UPDATE_OPTIONS,
         actionProps: {
           children: 'Install',
-          onClick: () => runToastAction(update.install, logger),
+          onClick: () => runToastAction(() => update.install(), logger),
         },
       })
       break
@@ -56,7 +56,7 @@ function showUpdateToast(state: UpdateState, update: UpdateService, logger: Logg
         ...NON_DISMISSIBLE_UPDATE_OPTIONS,
         actionProps: {
           children: 'Restart',
-          onClick: () => runToastAction(update.restart, logger),
+          onClick: () => runToastAction(() => update.restart(), logger),
         },
       })
       break
@@ -70,7 +70,7 @@ function showUpdateToast(state: UpdateState, update: UpdateService, logger: Logg
           ...NON_DISMISSIBLE_UPDATE_OPTIONS,
           actionProps: {
             children: 'Retry install',
-            onClick: () => runToastAction(update.retryAction, logger),
+            onClick: () => runToastAction(() => update.retryAction(), logger),
           },
         })
       } else {

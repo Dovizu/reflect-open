@@ -78,7 +78,7 @@ class TestIpcTransport implements IpcBridge {
     }
   }
 
-  readonly invoke = async (command: string, args: Record<string, unknown>): Promise<unknown> => {
+  async invoke(command: string, args: Record<string, unknown>): Promise<unknown> {
     this.#log.push({ command, args })
     const handler = this.#commands.get(command)
     if (handler === undefined) {
@@ -87,8 +87,9 @@ class TestIpcTransport implements IpcBridge {
     return await handler(args)
   }
 
-  readonly listen = async (event: string, handler: (payload: unknown) => void): Promise<Unlisten> =>
-    this.#addHandler(this.#eventHandlers, event, handler)
+  async listen(event: string, handler: (payload: unknown) => void): Promise<Unlisten> {
+    return this.#addHandler(this.#eventHandlers, event, handler)
+  }
 
   onCommand(command: string, handler: CommandHandler): void {
     this.#commands.set(command, handler)

@@ -324,7 +324,11 @@ class AudioMemoTranscriptionSessionImpl implements AudioMemoTranscriptionSession
     // webview, becoming visible does. A memo captured (or its
     // transcription failed offline) while backgrounded gets its retry when
     // the app comes back.
-    loop.onDispose(lifecycle.subscribeVisible(loop.schedule))
+    loop.onDispose(
+      lifecycle.subscribeVisible(() => {
+        loop.schedule()
+      }),
+    )
     loop.onDispose(
       fileChanges.subscribe(({ changes }) => {
         const hasNewRecording = changes.some(
