@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { makeOpenTask } from '@/lib/tasks/open-task-fixture.ts'
+import { makeOpenTask } from '@reflect/core/testing'
 import { MarkdownPreview } from '@/editor/markdown-preview.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { TaskText } from './task-text.tsx'
