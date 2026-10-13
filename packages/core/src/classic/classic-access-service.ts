@@ -100,28 +100,28 @@ export interface ClassicAccessService {
   /**
    * This device's stored access, without contacting Reflect Classic.
    */
-  read: () => Promise<ClassicAccess | null>
+  read(): Promise<ClassicAccess | null>
   /**
    * This device's stored access, rechecked with Reflect Classic when the last
    * successful check is more than a day old. A failed recheck keeps the stored
    * answer, so being offline never locks the app early.
    */
-  load: () => Promise<ClassicAccess | null>
+  load(): Promise<ClassicAccess | null>
   /**
    * Signs in to Reflect Classic and stores the access it grants. The state
    * changes on the next `read` or `load`, so a caller can show the result
    * before the paywall lifts.
    */
-  signIn: (options: ClassicSignInOptions) => Promise<ClassicSignInResult>
+  signIn(options: ClassicSignInOptions): Promise<ClassicSignInResult>
   /**
    * Forgets this device's access.
    */
-  signOut: () => Promise<void>
+  signOut(): Promise<void>
   /**
    * On iOS, reads the stored access now and, while it holds a token, rechecks
    * it now and whenever the page turns visible. Elsewhere it does nothing.
    */
-  start: () => Unlisten
+  start(): Unlisten
 }
 
 const meSchema = z.object({
@@ -192,9 +192,11 @@ class ClassicAccessServiceImpl implements ClassicAccessService {
     }
   }
 
-  readonly read = (): Promise<ClassicAccess | null> => this.#settle(this.#readStored())
+  read(): Promise<ClassicAccess | null> {
+    return this.#settle(this.#readStored())
+  }
 
-  readonly load = (): Promise<ClassicAccess | null> => {
+  load(): Promise<ClassicAccess | null> {
     if (this.#pendingLoad === null) {
       const next = this.#settle(this.#recheck())
       this.#pendingLoad = next
@@ -206,7 +208,7 @@ class ClassicAccessServiceImpl implements ClassicAccessService {
     return this.#pendingLoad
   }
 
-  readonly signIn = async (options: ClassicSignInOptions): Promise<ClassicSignInResult> => {
+  async signIn(options: ClassicSignInOptions): Promise<ClassicSignInResult> {
     const { webAuth, clock, id } = this.#deps
     const { code_verifier: verifier, code_challenge: challenge } = await id.pkceChallenge()
     const oauthState = id.uuid()
@@ -240,12 +242,12 @@ class ClassicAccessServiceImpl implements ClassicAccessService {
     return { kind: 'signed-in', access }
   }
 
-  readonly signOut = async (): Promise<void> => {
+  async signOut(): Promise<void> {
     await this.#deps.secretStore.delete(CLASSIC_ACCESS_SECRET)
     this.#publish(null)
   }
 
-  readonly start = (): Unlisten => {
+  start(): Unlisten {
     const { lifecycle, platform, logger } = this.#deps
     if (platform.appPlatform !== 'ios') return () => {}
     this.read().catch((error: unknown) => {
