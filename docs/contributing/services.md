@@ -65,10 +65,10 @@ and is not exported:
 
 ```ts
 export interface NoteMoveServiceDeps {
-  readonly ipc: Pick<IpcBridgeService, 'listen'>
-  readonly indexStore: Pick<IndexStoreService, 'moveIndexed'>
-  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
-  readonly logger: Pick<LoggerService, 'error' | 'warn'>
+  readonly ipc: IpcBridgeService
+  readonly indexStore: IndexStoreService
+  readonly openDocuments: OpenDocumentsService
+  readonly logger: LoggerService
 }
 
 export interface NoteMoveService {
@@ -135,8 +135,8 @@ parameter for what identifies the session (§10).
 - Put in it every collaborator: `ipc` for native commands, `logger` instead of
   `console.*`, `clock` instead of `Date.now()` and `setTimeout`, `id` instead
   of `crypto.randomUUID()`, `http` instead of `fetch`. A test controls them.
-- Declare each dependency as `Pick<XxxService, 'method'>` of the methods the
-  service calls. A test double then implements only those methods.
+- Declare each dependency as the full service type (`LoggerService`, not
+  `Pick<LoggerService, 'error'>`). List only the services the class uses.
 - Do not import another service's instance, and do not read a global.
 - If two services need each other, one takes a narrow function in `deps`, or
   the shared part becomes a third service.
@@ -275,9 +275,9 @@ useEffect(
   `apps/desktop/src/lib/query-options.ts`.
 
 **Non-React modules** in `apps/desktop/src/lib/` take the services as
-parameters, typed as the `Pick` they use. A module that needs both layers
-takes two (`installQueryInvalidation(core, app)` in
-`lib/query-invalidation.ts`).
+parameters: the services they use, or the container when they use three or
+more. A module that needs both layers takes two
+(`installQueryInvalidation(core, app)` in `lib/query-invalidation.ts`).
 
 **Commands** read `context.services` (core) and `context.app` (app)
 (`CommandContext` in `apps/desktop/src/lib/commands/types.ts`). Never import
@@ -339,7 +339,7 @@ switch (`chatSessions.create({ session })`), or one instance per note pane
 - [ ] `<name>-service.ts`: `XxxServiceDeps`, a documented `XxxService`, an
       unexported `XxxServiceImpl` (`#` fields, plain methods), and
       `createXxxService(deps)`
-- [ ] Every collaborator comes through `deps`, narrowed with `Pick<>`
+- [ ] Every collaborator comes through `deps`, typed as the full service
 - [ ] Core: in `coreServiceFactories`, built in `composeCoreServices`, on
       `CoreServices` (key in `SERVICE_KEYS`) or `CoreInternalServices`. App: on
       `AppServices`, built in `createAppServices`
