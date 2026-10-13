@@ -1,5 +1,5 @@
 import { defineESLintConfig } from '@ocavue/eslint-config'
-import { architectureConfigs } from './eslint.architecture.js'
+import { architectureConfigs } from './eslint.architecture.js' // FIXME: just move all code in eslint.architecture.js directly here, no need to have a separate file for that
 
 export default defineESLintConfig(
   {
