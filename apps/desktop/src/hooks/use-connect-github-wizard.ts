@@ -26,24 +26,40 @@ export interface ConnectGithubWizard {
   setRepoName: (name: string) => void
   existingRepo: string
   setExistingRepo: (value: string) => void
-  /** The verified sign-in shown on the finish step; null before auth. */
+  /**
+   * The verified sign-in shown on the finish step; null before auth.
+   */
   user: GithubUser | null
   authKind: ConnectAuthKind
-  /** The finish step's current view — shells render it, never re-derive it. */
+  /**
+   * The finish step's current view — shells render it, never re-derive it.
+   */
   finishView: ConnectFinishView
   pending: boolean
   error: string | null
-  /** Validate the repo step and advance to sign-in. */
+  /**
+   * Validate the repo step and advance to sign-in.
+   */
   continueFromRepo: () => void
-  /** Wire to {@link GithubAuthStep}'s `onAuthed` — advances and connects. */
+  /**
+   * Wire to {@link GithubAuthStep}'s `onAuthed` — advances and connects.
+   */
   onAuthed: (user: GithubUser) => void
-  /** The public-repo consent button: retry the connect with consent given. */
+  /**
+   * The public-repo consent button: retry the connect with consent given.
+   */
   confirmPublic: () => void
-  /** Back to the repo step — every finish-step dead end must offer this. */
+  /**
+   * Back to the repo step — every finish-step dead end must offer this.
+   */
   backToRepo: () => void
-  /** Open the prefilled github.com/new page for the chosen name. */
+  /**
+   * Open the prefilled github.com/new page for the chosen name.
+   */
   openCreatePage: () => void
-  /** Open the GitHub App installation page (grant repository access). */
+  /**
+   * Open the GitHub App installation page (grant repository access).
+   */
   openInstallPage: () => void
 }
 
@@ -90,7 +106,7 @@ export function useConnectGithubWizard({
   // The repo-existence poll only runs while the surface is mounted.
   useEffect(() => wizard.attach(), [wizard])
 
-  const state = useServiceState(wizard)
+  const state = useServiceState(wizard, wizard.getState)
 
   return {
     step: state.step,

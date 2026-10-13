@@ -5,19 +5,17 @@ import {
   ANTHROPIC_DIRECT_BROWSER_ACCESS_HEADER,
   ANTHROPIC_DIRECT_BROWSER_ACCESS_VALUE,
 } from './anthropic-headers.ts'
-import { createTestLanguageModelService } from '../testing/index.ts'
-import { APP_REVIEW_STUB_KEY, createDemoModel, DEMO_REPLY_TEXT } from './app-review-demo.ts'
-import {
-  createLanguageModelService,
-  createLazyAiSdkLoader,
-  withAppReviewDemo,
-} from './language-model-service.ts'
+import { APP_REVIEW_STUB_KEY, DEMO_REPLY_TEXT } from './app-review-demo.ts'
+import { createLanguageModelService, createLazyAiSdkLoader } from './language-model-service.ts'
 
-/** The model of the composed service (provider factories under the App Review demo) over `fetchFn`. */
+/**
+ * The model of the real service over `fetchFn`.
+ */
 async function languageModel(config: AiProviderConfig, apiKey: string, fetchFn: typeof fetch) {
-  const service = withAppReviewDemo(
-    createLanguageModelService({ http: { fetch: fetchFn }, sdk: createLazyAiSdkLoader() }),
-  )
+  const service = createLanguageModelService({
+    http: { fetch: fetchFn },
+    sdk: createLazyAiSdkLoader(),
+  })
   return await service.create(config, apiKey)
 }
 
@@ -265,21 +263,21 @@ describe('LanguageModelService', () => {
   })
 })
 
-describe('withAppReviewDemo', () => {
-  it('answers the demo key with the demo model and never reaches the inner service', async () => {
-    const inner = createTestLanguageModelService()
-    const model = await withAppReviewDemo(inner).create(ANTHROPIC_CONFIG, APP_REVIEW_STUB_KEY)
+describe('create with the App Review demo key', () => {
+  it('answers the demo key with the demo model and never loads a provider SDK', async () => {
+    const unexpected = () => Promise.reject(new Error('unexpected SDK load'))
+    const service = createLanguageModelService({
+      http: { fetch: () => Promise.reject(new Error('unexpected fetch')) },
+      sdk: {
+        openai: unexpected,
+        anthropic: unexpected,
+        google: unexpected,
+        openaiCompatible: unexpected,
+      },
+    })
+
+    const model = await service.create(ANTHROPIC_CONFIG, APP_REVIEW_STUB_KEY)
 
     expect(model).toMatchObject({ specificationVersion: 'v3', provider: 'reflect-demo' })
-    expect(inner.calls()).toEqual([])
-  })
-
-  it('passes every other key to the inner service', async () => {
-    const innerModel = createDemoModel()
-    const inner = createTestLanguageModelService(innerModel)
-    const model = await withAppReviewDemo(inner).create(ANTHROPIC_CONFIG, 'sk-live')
-
-    expect(model).toBe(innerModel)
-    expect(inner.calls()).toEqual([{ config: ANTHROPIC_CONFIG, apiKey: 'sk-live' }])
   })
 })

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act } from '@/test-utils/act.ts'
+import { actAsync } from '@/test-utils/act.ts'
 import {
   createThemeService,
   THEME_PREFERENCE_CACHE_KEY,
@@ -48,15 +48,15 @@ function install(stored: Partial<Settings>, options: { gateLoad?: boolean } = {}
   app = createTestAppServices({ settings, storage, platform, theme })
 }
 
-let current: ReturnType<typeof useTheme>
-
-function Probe(): null {
-  current = useTheme()
-  return null
-}
-
-/** Mount the effect over the services of the last `install`, without awaiting the settings load. */
+/**
+ * Mount the effect over the services of the last `install`, without awaiting the settings load.
+ */
 async function renderTheme() {
+  const result = {} as { current: ReturnType<typeof useTheme> }
+  function Probe(): null {
+    result.current = useTheme()
+    return null
+  }
   await renderInApp(
     <>
       <ThemeEffect />
@@ -65,13 +65,9 @@ async function renderTheme() {
     { app, servicesOnly: true },
   )
   return {
-    result: {
-      get current() {
-        return current
-      },
-    },
+    result,
     act: async (callback: () => unknown): Promise<void> => {
-      await act(async () => {
+      await actAsync(async () => {
         await callback()
       })
     },
@@ -80,14 +76,18 @@ async function renderTheme() {
 
 type Act = (callback: () => unknown) => Promise<void>
 
-/** Runs the settings load to completion inside `act`, so its updates land attached. */
+/**
+ * Runs the settings load to completion inside `act`, so its updates land attached.
+ */
 async function settleLoad(act: Act): Promise<void> {
   await act(async () => {
     await theme.whenSettled()
   })
 }
 
-/** What `theme-init.js` would have applied for a dark first paint. */
+/**
+ * What `theme-init.js` would have applied for a dark first paint.
+ */
 function paintDarkFirstFrame(): void {
   document.documentElement.classList.add('dark')
   document.documentElement.style.colorScheme = 'dark'

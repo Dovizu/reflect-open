@@ -2,25 +2,43 @@ import type { AppPlatform } from './platform.ts'
 
 export type ColorScheme = 'light' | 'dark'
 
-/** How the running surface differs from stock desktop. */
+/**
+ * How the running surface differs from stock desktop.
+ */
 export interface PlatformSurface {
-  /** Editors apply touch text-input hygiene (the mobile app). */
+  /**
+   * Editors apply touch text-input hygiene (the mobile app).
+   */
   readonly touchEditor: boolean
-  /** Shared components render their mobile variants (the mobile app). */
+  /**
+   * Shared components render their mobile variants (the mobile app).
+   */
   readonly mobileApp: boolean
 }
 
-/** What the host is and can do, decided once by the app at startup. */
+/**
+ * What the host is and can do, decided once by the app at startup.
+ */
 export interface PlatformFacts {
-  /** Which UI family the app runs. */
+  /**
+   * Which UI family the app runs.
+   */
   readonly appPlatform: AppPlatform
-  /** A real native shell (plugins, OS windows) exists; false in browser dev. */
+  /**
+   * A real native shell (plugins, OS windows) exists; false in browser dev.
+   */
   readonly isNativeShell: boolean
-  /** The macOS desktop shell (not iPadOS, not browser dev). */
+  /**
+   * The macOS desktop shell (not iPadOS, not browser dev).
+   */
   readonly isMacosDesktop: boolean
-  /** Mod renders as ⌘ rather than Ctrl. */
+  /**
+   * Mod renders as ⌘ rather than Ctrl.
+   */
   readonly isApplePlatform: boolean
-  /** The window draws content under a transparent macOS title bar. */
+  /**
+   * The window draws content under a transparent macOS title bar.
+   */
   readonly hasMacosTitleBarOverlay: boolean
   readonly surface: PlatformSurface
   readonly isDev: boolean
@@ -43,10 +61,14 @@ export interface PlatformMedia {
   readonly matchMedia?: (query: string) => MediaQueryList
 }
 
-/** Maps a file path to the webview URL serving it through a custom URI scheme. */
+/**
+ * Maps a file path to the webview URL serving it through a custom URI scheme.
+ */
 export type FileSrcConverter = (filePath: string, protocol: string) => string
 
-/** The custom-scheme URL shape Tauri uses on macOS and iOS. */
+/**
+ * The custom-scheme URL shape Tauri uses on macOS and iOS.
+ */
 export function appleFileSrc(filePath: string, protocol: string): string {
   return `${protocol}://localhost/${encodeURIComponent(filePath)}`
 }
@@ -54,11 +76,14 @@ export function appleFileSrc(filePath: string, protocol: string): string {
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
-export function createPlatformService(
-  facts: PlatformFacts,
-  media?: PlatformMedia,
-  fileSrc?: FileSrcConverter,
-): PlatformService {
+export interface PlatformServiceDeps {
+  readonly facts: PlatformFacts
+  readonly media?: PlatformMedia | undefined
+  readonly fileSrc?: FileSrcConverter | undefined
+}
+
+export function createPlatformService(deps: PlatformServiceDeps): PlatformService {
+  const { facts, media, fileSrc } = deps
   const toFileSrc = fileSrc ?? appleFileSrc
   // Resolved per call: the global `matchMedia` may be replaced after construction.
   function resolveMatchMedia(): ((query: string) => MediaQueryList) | undefined {

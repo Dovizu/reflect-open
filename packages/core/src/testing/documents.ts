@@ -1,5 +1,7 @@
+import type { Unlisten } from '../ipc/ipc-service.ts'
 import {
   createNoteMoveService,
+  type NoteMovedListener,
   type NoteMoveService,
   type NoteMoveServiceDeps,
 } from '../documents/note-move-service.ts'
@@ -13,15 +15,25 @@ import { createOpenDocumentsService } from '../documents/open-documents-service.
 import { createTestFileChangeService } from './file-change.ts'
 
 export interface TestNoteSessionOptions {
-  /** Graph-relative path of the note. */
+  /**
+   * Graph-relative path of the note.
+   */
   path: string
-  /** The full document (frontmatter + body). Defaults to empty. */
+  /**
+   * The full document (frontmatter + body). Defaults to empty.
+   */
   content?: string
-  /** False reports a session that is still loading: `liveContent()` is `null`. Defaults to true. */
+  /**
+   * False reports a session that is still loading: `liveContent()` is `null`. Defaults to true.
+   */
   loaded?: boolean
-  /** Defaults to false. */
+  /**
+   * Defaults to false.
+   */
   dirty?: boolean
-  /** Defaults to false. */
+  /**
+   * Defaults to false.
+   */
   unpersisted?: boolean
   /**
    * False makes `updateFrontmatter`, `commitFrontmatter`, `commitSourceEdit`
@@ -36,9 +48,13 @@ export interface NoteSessionCall {
 }
 
 export interface TestNoteSession extends NoteSession {
-  /** Every method call, in order. */
+  /**
+   * Every method call, in order.
+   */
   calls(): readonly NoteSessionCall[]
-  /** The arguments of every call of `method`, in order. */
+  /**
+   * The arguments of every call of `method`, in order.
+   */
   getCalls(method: keyof NoteSession): ReadonlyArray<readonly unknown[]>
 }
 
@@ -47,7 +63,6 @@ export interface TestNoteSession extends NoteSession {
  * edit `content` at once, and nothing loads, saves or reconciles.
  */
 export function createTestNoteSession(options: TestNoteSessionOptions): TestNoteSession {
-  let path = options.path
   let content = options.content ?? ''
   const loaded = options.loaded ?? true
   const accepts = options.accepts ?? true
@@ -57,13 +72,11 @@ export function createTestNoteSession(options: TestNoteSessionOptions): TestNote
     callLog.push({ method, args })
   }
 
-  return {
-    get path() {
-      return path
-    },
+  const session: { path: string } & Omit<TestNoteSession, 'path'> = {
+    path: options.path,
     retarget: (to) => {
       record('retarget', to)
-      path = to
+      session.path = to
     },
     load: () => {
       record('load')
@@ -135,11 +148,47 @@ export function createTestNoteSession(options: TestNoteSessionOptions): TestNote
     calls: () => [...callLog],
     getCalls: (method) => callLog.filter((call) => call.method === method).map((call) => call.args),
   }
+  return session
 }
 
 export interface TestNoteMoveService extends NoteMoveService {
-  /** Every move announced to the subscribers, in order. */
+  /**
+   * Every move announced to the subscribers, in order.
+   */
   moved(): ReadonlyArray<readonly [from: string, to: string]>
+}
+
+/**
+ * Forwards every member to the real service and records each landed move.
+ */
+class TestNoteMoveServiceImpl implements TestNoteMoveService {
+  readonly #inner: NoteMoveService
+  readonly #moves: Array<readonly [string, string]> = []
+
+  constructor(inner: NoteMoveService) {
+    this.#inner = inner
+    inner.onMoved((from, to) => {
+      this.#moves.push([from, to])
+    })
+  }
+
+  moveNote(from: string, to: string, generation: number): Promise<void> {
+    return this.#inner.moveNote(from, to, generation)
+  }
+
+  readonly followHealedMove = (from: string, to: string): void => {
+    this.#inner.followHealedMove(from, to)
+  }
+
+  readonly onMoved = (listener: NoteMovedListener): Unlisten => this.#inner.onMoved(listener)
+
+  followNativeMoves(): Unlisten {
+    return this.#inner.followNativeMoves()
+  }
+
+  moved(): ReadonlyArray<readonly [from: string, to: string]> {
+    return [...this.#moves]
+  }
 }
 
 /**
@@ -149,20 +198,14 @@ export interface TestNoteMoveService extends NoteMoveService {
 export function createTestNoteMoveService(
   options?: Partial<NoteMoveServiceDeps>,
 ): TestNoteMoveService {
-  const service = createNoteMoveService({
-    ipc: options?.ipc ?? createTestIpcBridgeService(),
-    indexStore: options?.indexStore ?? createTestIndexStoreService(),
-    openDocuments:
-      options?.openDocuments ??
-      createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
-    logger: options?.logger ?? createTestLoggerService(),
-  })
-  const moves: Array<readonly [string, string]> = []
-  service.onMoved((from, to) => {
-    moves.push([from, to])
-  })
-  return {
-    ...service,
-    moved: () => [...moves],
-  }
+  return new TestNoteMoveServiceImpl(
+    createNoteMoveService({
+      ipc: options?.ipc ?? createTestIpcBridgeService(),
+      indexStore: options?.indexStore ?? createTestIndexStoreService(),
+      openDocuments:
+        options?.openDocuments ??
+        createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
+      logger: options?.logger ?? createTestLoggerService(),
+    }),
+  )
 }

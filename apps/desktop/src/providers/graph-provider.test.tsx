@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react'
-import { act } from '@/test-utils/act.ts'
+import { actAsync } from '@/test-utils/act.ts'
 import { describe, expect, it, vi } from 'vitest'
 import type { AppPlatform, AppServices, RecentGraph } from '@reflect/core'
 import {
@@ -19,7 +19,9 @@ import { GraphProvider, useGraph } from './graph-provider.tsx'
  * `renderInApp` reports a graph over the session, which hides the opens.
  */
 
-/** The fixed mobile roots the test storage reports. */
+/**
+ * The fixed mobile roots the test storage reports.
+ */
 const MOBILE_ROOT = '/Documents'
 const ICLOUD_ROOT = '/iCloud/Documents'
 
@@ -27,24 +29,19 @@ function tree(children: ReactNode, platform?: AppPlatform): ReactElement {
   return <GraphProvider {...(platform === undefined ? {} : { platform })}>{children}</GraphProvider>
 }
 
-/** Mount the provider over `app` and read its context. */
+/**
+ * Mount the provider over `app` and read its context.
+ */
 async function renderGraph<App extends AppServices>(app: App, platform?: AppPlatform) {
-  let current: ReturnType<typeof useGraph> | null = null
+  const result = {} as { current: ReturnType<typeof useGraph> }
   function Probe(): null {
-    current = useGraph()
+    result.current = useGraph()
     return null
   }
   await renderInApp(tree(<Probe />, platform), { app, servicesOnly: true })
   return {
     app,
-    result: {
-      get current(): ReturnType<typeof useGraph> {
-        if (current === null) {
-          throw new Error('the graph context has not rendered')
-        }
-        return current
-      },
-    },
+    result,
   }
 }
 
@@ -67,7 +64,7 @@ describe('GraphProvider', () => {
     await vi.waitFor(() => expect(result.current.status).toBe('ready'))
     expect(result.current.graph?.root).toBe('/known')
 
-    await act(async () => {
+    await actAsync(async () => {
       await result.current.chooseGraph()
     })
 
@@ -83,7 +80,7 @@ describe('GraphProvider', () => {
     app.dialog.setFolder('/fresh')
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
-    await act(async () => {
+    await actAsync(async () => {
       await result.current.pickAndOpen()
     })
 
@@ -98,7 +95,7 @@ describe('GraphProvider', () => {
     const { app, result } = await renderGraph(createTestAppServices())
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
-    await act(async () => {
+    await actAsync(async () => {
       await result.current.openRecent('/a')
     })
 
@@ -175,7 +172,7 @@ describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
     await vi.waitFor(() => expect(result.current.needsOnboarding).toBe(true))
     await vi.waitFor(() => expect(result.current.mobileStorageResolving).toBe(false))
 
-    await act(async () => {
+    await actAsync(async () => {
       await result.current.completeOnboarding('local')
     })
 

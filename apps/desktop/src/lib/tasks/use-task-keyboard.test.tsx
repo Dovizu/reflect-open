@@ -1,4 +1,4 @@
-import { act } from '@/test-utils/act.ts'
+import { act, actAsync } from '@/test-utils/act.ts'
 import { cleanup, renderHook } from 'vitest-browser-react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { OpenTask } from '@reflect/core'
@@ -99,9 +99,11 @@ async function mount(options: {
   }
 }
 
-/** Let the `void insert(...).then(...)` microtask settle before asserting. */
+/**
+ * Let the `void insert(...).then(...)` microtask settle before asserting.
+ */
 async function flush(): Promise<void> {
-  await act(async () => {
+  await actAsync(async () => {
     await Promise.resolve()
   })
 }

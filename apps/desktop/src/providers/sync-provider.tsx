@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ReflectError, type BackupService, type BackupState } from '@reflect/core'
-import { useGraphServices } from '@/services/services-provider.tsx'
+import { useMaybeGraphServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
 export type { BackupState, ConnectExistingResult } from '@reflect/core'
@@ -12,7 +12,9 @@ type SyncContextValue = { backup: BackupState } & Pick<
 
 const LOADING: BackupState = { phase: 'loading' }
 
-/** What the surface reads where the graph runs no backup service. */
+/**
+ * What the surface reads where the graph runs no backup service.
+ */
 const NO_BACKUP = {
   subscribe: () => () => {},
   getState: (): BackupState => LOADING,
@@ -23,8 +25,9 @@ const NO_BACKUP = {
  * runs none: its state stays 'loading' (the note window edits, main syncs).
  */
 export function useSync(): SyncContextValue {
-  const controller = useGraphServices({ optional: true })?.backup ?? null
-  const backup = useServiceState(controller ?? NO_BACKUP)
+  const controller = useMaybeGraphServices()?.backup ?? null
+  const store = controller ?? NO_BACKUP
+  const backup = useServiceState(store, store.getState)
 
   return useMemo<SyncContextValue>(() => {
     const require = (): BackupService => {
@@ -51,6 +54,6 @@ export function useSync(): SyncContextValue {
  */
 export function useSyncContext(): SyncContextValue | null {
   const sync = useSync()
-  const backup = useGraphServices({ optional: true })?.backup ?? null
+  const backup = useMaybeGraphServices()?.backup ?? null
   return backup === null ? null : sync
 }

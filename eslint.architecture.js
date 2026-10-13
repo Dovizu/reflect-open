@@ -207,7 +207,7 @@ const MODULE_LET_SELECTORS = [
     selector:
       ':matches(Program > VariableDeclaration[kind="let"], Program > ExportNamedDeclaration > VariableDeclaration[kind="let"])',
     message:
-      'No module-level mutable state in `@reflect/core`: state lives in the closure of `createXxxService(deps)`, so each `createAppServices()` (and each test) gets its own.',
+      'No module-level mutable state in `@reflect/core`: state lives in the `#` fields of the service that `createXxxService(deps)` builds, so each `createAppServices()` (and each test) gets its own.',
   },
 ]
 
@@ -216,6 +216,27 @@ const CORE_DYNAMIC_IMPORT_SELECTORS = [
     String.raw`^(?:@tauri-apps\/|@tanstack\/|react(?:-dom)?(?:\/|$))`,
     CORE_IMPORT_MESSAGE,
   ),
+]
+
+// ---------------------------------------------------------------------------
+// Code shape: no overloads, no accessors, `#` for private members
+// ---------------------------------------------------------------------------
+
+const ACCESSOR_MESSAGE = 'No accessors. Write getX() / setX().'
+const ACCESSIBILITY_MESSAGE = 'Use # for private members; no accessibility modifiers.'
+
+const CODE_SHAPE_SELECTORS = [
+  {
+    selector: 'TSDeclareFunction',
+    message: 'No function overloads. Write one function per signature.',
+  },
+  { selector: "MethodDefinition[kind='get']", message: ACCESSOR_MESSAGE },
+  { selector: "MethodDefinition[kind='set']", message: ACCESSOR_MESSAGE },
+  { selector: "Property[kind='get']", message: ACCESSOR_MESSAGE },
+  { selector: "Property[kind='set']", message: ACCESSOR_MESSAGE },
+  { selector: 'PropertyDefinition[accessibility]', message: ACCESSIBILITY_MESSAGE },
+  { selector: 'MethodDefinition[accessibility]', message: ACCESSIBILITY_MESSAGE },
+  { selector: 'TSParameterProperty', message: ACCESSIBILITY_MESSAGE },
 ]
 
 // ---------------------------------------------------------------------------
@@ -264,13 +285,13 @@ export const architectureConfigs = [
           ],
         },
       ],
-      'no-restricted-syntax': ['error', ...CORE_DYNAMIC_IMPORT_SELECTORS],
+      'no-restricted-syntax': ['error', ...CORE_DYNAMIC_IMPORT_SELECTORS, ...CODE_SHAPE_SELECTORS],
     },
   },
 
   // Rule: no default instances and no module-level state in core. Every
   // service is built by `createAppServices(adapters)` and holds its state in
-  // its closure.
+  // its own `#` fields.
   {
     files: [`packages/core/src/**/*.${SOURCE_EXTENSIONS}`],
     ignores: [`**/*.test.${SOURCE_EXTENSIONS}`],
@@ -280,6 +301,7 @@ export const architectureConfigs = [
         ...CORE_DYNAMIC_IMPORT_SELECTORS,
         ...DEFAULT_INSTANCE_SELECTORS,
         ...MODULE_LET_SELECTORS,
+        ...CODE_SHAPE_SELECTORS,
       ],
     },
   },
@@ -293,6 +315,7 @@ export const architectureConfigs = [
         'error',
         ...CORE_DYNAMIC_IMPORT_SELECTORS,
         ...DEFAULT_INSTANCE_SELECTORS,
+        ...CODE_SHAPE_SELECTORS,
       ],
     },
   },
@@ -312,6 +335,7 @@ export const architectureConfigs = [
         'error',
         REACT_ACT_SELECTOR,
         dynamicImportSelector(String.raw`^@tauri-apps\/`, TAURI_IMPORT_MESSAGE),
+        ...CODE_SHAPE_SELECTORS,
       ],
     },
   },
@@ -327,8 +351,18 @@ export const architectureConfigs = [
     ],
     rules: {
       'no-restricted-imports': 'off',
-      'no-restricted-syntax': ['error', REACT_ACT_SELECTOR],
+      'no-restricted-syntax': ['error', REACT_ACT_SELECTOR, ...CODE_SHAPE_SELECTORS],
     },
+  },
+
+  // Rule: a method passed without its object is a function property, so it
+  // never depends on `this`.
+  {
+    files: [
+      `packages/core/src/**/*.${SOURCE_EXTENSIONS}`,
+      `apps/desktop/src/**/*.${SOURCE_EXTENSIONS}`,
+    ],
+    rules: { '@typescript-eslint/unbound-method': 'error' },
   },
 
   // Rule: all diagnostics go through `LoggerService`, in the app and in tests.

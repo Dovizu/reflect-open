@@ -56,7 +56,9 @@ const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 // The services of the rendered app; set by `renderSidebar`.
 let opener: TestOpenerService
 let operations: TestOperationsService
-/** A fresh untitled placeholder path, as the new-note route has it. */
+/**
+ * A fresh untitled placeholder path, as the new-note route has it.
+ */
 function untitledNotePath(): string {
   return createTestAppServices().noteCreation.untitledNotePath()
 }
@@ -81,10 +83,20 @@ beforeEach(() => {
 async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?: Route) {
   const navigate = vi.fn()
   const openPalette = vi.fn()
-  const context: CommandContext = {
-    get services() {
-      return app
+  const readSource = async (): Promise<string> => '# Rust\n'
+  const app = createTestAppServices({
+    noteDocuments: {
+      readSource,
+      readExisting: readSource,
+      commitFrontmatter: commitNoteFrontmatter,
+      commitSourceEdit: () => Promise.reject(new Error('commitSourceEdit is not stubbed')),
+      isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
     },
+    window: createTestWindowService({ openNoteWindow }),
+    backups: createTestScriptedBackupServiceFactory({ state: { phase: 'disconnected' } }),
+  })
+  const context: CommandContext = {
+    services: app,
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,
@@ -108,18 +120,6 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
     enableSemanticSearch: vi.fn(),
     ...overrides,
   }
-  const readSource = async (): Promise<string> => '# Rust\n'
-  const app = createTestAppServices({
-    noteDocuments: {
-      readSource,
-      readExisting: readSource,
-      commitFrontmatter: commitNoteFrontmatter,
-      commitSourceEdit: () => Promise.reject(new Error('commitSourceEdit is not stubbed')),
-      isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
-    },
-    window: createTestWindowService({ openNoteWindow }),
-    backups: createTestScriptedBackupServiceFactory({ state: { phase: 'disconnected' } }),
-  })
   vi.spyOn(app.indexQuery, 'getPinnedNotes').mockImplementation(getPinnedNotes)
   vi.spyOn(app.nativeMenu, 'openContextMenu').mockImplementation(openNativeContextMenu)
   openRecent = vi.spyOn(app.graphSession, 'openRecent').mockResolvedValue(true)

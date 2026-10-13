@@ -26,14 +26,11 @@ import {
 } from '../ai/transcript-enrichment-service.ts'
 import {
   createTranscriptionService,
-  withAppReviewDemoTranscription,
   type TranscriptionService,
 } from '../ai/transcription-service.ts'
 import {
   createLanguageModelService,
   createLazyAiSdkLoader,
-  withAppReviewDemo,
-  type AiSdkLoader,
   type LanguageModelService,
 } from '../ai/language-model-service.ts'
 import { createChatEngineService, type ChatEngineService } from '../ai/chat/chat-engine-service.ts'
@@ -150,7 +147,6 @@ import { createNoteFileService, type NoteFileService } from '../graph/note-file-
 import {
   createGraphSessionService,
   type GraphSessionService,
-  type GraphSessionServiceDeps,
 } from '../graph/graph-session-service.ts'
 import {
   createMobileOnboardingService,
@@ -289,13 +285,7 @@ import {
   type PlatformService,
 } from './platform-service.ts'
 import { createWebStorageService, type StorageService } from './storage-service.ts'
-import {
-  createUnsupportedUpdateService,
-  createUpdateService,
-  type UpdaterAdapter,
-  type UpdateService,
-  type UpdateServiceDeps,
-} from './update-service.ts'
+import { createUpdateService, type UpdaterAdapter, type UpdateService } from './update-service.ts'
 import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
 import { createCommandService, type CommandService } from '../commands/command-service.ts'
 import { createKeymapService, type KeymapService } from '../commands/keymap-service.ts'
@@ -316,20 +306,9 @@ import {
 import { createGraphServices, type GraphServices } from './create-graph-services.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 
-// FIXME: for all new functions / interfaces etc.added in this pull request.use the following pattern for jsdoc.
-//
-// BAD:
-// /** The app-scoped services: one instance each for the lifetime of the webview. */
-// export interface AppServices { ... }
-//
-// GOOD:
-// /**
-//  * The app-scoped services: one instance each for the lifetime of the webview.
-//  */
-// export interface AppServices { ... }
-//
-
-/** The app-scoped services: one instance each for the lifetime of the webview. */
+/**
+ * The app-scoped services: one instance each for the lifetime of the webview.
+ */
 export interface AppServices {
   readonly ipc: IpcBridgeService
   readonly logger: LoggerService
@@ -362,9 +341,13 @@ export interface AppServices {
   readonly embeddingRuntime: EmbeddingRuntimeService
   readonly chatHistory: ChatHistoryService
   readonly update: UpdateService
-  /** The webview's navigation history; a note window has its own webview, hence its own. */
+  /**
+   * The webview's navigation history; a note window has its own webview, hence its own.
+   */
   readonly navigation: NavigationService
-  /** The `reflect://` intake of this webview and the handler behind it. */
+  /**
+   * The `reflect://` intake of this webview and the handler behind it.
+   */
   readonly deepLink: DeepLinkService
   /** Turns an activated link into a navigation, a new window, or a refusal. */ // FIXME: just like this line. in interface AppServices and other XXXServices, for each services, add a one line description of what the service does
   readonly linkNavigation: LinkNavigationService
@@ -397,33 +380,47 @@ export interface AppServices {
   readonly notePath: NotePathService
   readonly noteCreation: NoteCreationService
   readonly indexLifecycle: IndexLifecycleService
-  /** The active graph; its state carries the graph-scoped services of the open session. */
-  readonly graphSession: GraphSessionService<GraphServices<AppServices>>
+  /**
+   * The active graph; its state carries the graph-scoped services of the open session.
+   */
+  readonly graphSession: GraphSessionService<GraphServices>
   readonly semanticSearch: SemanticSearchService
   readonly mobileOnboarding: MobileOnboardingService
   readonly keyboard: KeyboardService
   readonly share: ShareService
   readonly aiPrompts: AiPromptService
   readonly keymap: KeymapService
-  /** The command registry. The app decides the context type that its commands run with. */
+  /**
+   * The command registry. The app decides the context type that its commands run with.
+   */
   readonly commands: CommandService
   readonly nativeMenu: NativeMenuService
   readonly aiProviderConfig: AiProviderConfigService
   readonly selectionTransform: SelectionTransformService
-  /** Creates the chat session of an open graph; the workspace owns the session. */
+  /**
+   * Creates the chat session of an open graph; the workspace owns the session.
+   */
   readonly chatSessions: ChatSessionService
   readonly capture: CaptureService
   readonly audioMemo: AudioMemoService
   readonly assetDescription: AssetDescriptionService
-  /** The editor's `[[` and `#` menus. */
+  /**
+   * The editor's `[[` and `#` menus.
+   */
   readonly wikiLinkSuggestions: WikiLinkSuggestionService
-  /** The command palette's data layer. */
+  /**
+   * The command palette's data layer.
+   */
   readonly paletteSearch: PaletteSearchService
-  /** The services that only a mobile platform builds; `null` elsewhere. */
+  /**
+   * The services that only a mobile platform builds; `null` elsewhere.
+   */
   readonly mobile: MobileServices | null
 }
 
-/** The mobile-only services that the app reads. */
+/**
+ * The mobile-only services that the app reads.
+ */
 export interface MobileServices {
   readonly haptics: HapticsService
   readonly subscription: SubscriptionService
@@ -432,7 +429,9 @@ export interface MobileServices {
   readonly mobileAudioMemo: MobileAudioMemoService
 }
 
-/** The read-only services over the index. */
+/**
+ * The read-only services over the index.
+ */
 export interface IndexReadServices {
   readonly indexQuery: IndexQueryService
   readonly wikiResolver: WikiResolverService
@@ -462,7 +461,9 @@ export function createIndexReadServices(deps: {
   }
 }
 
-/** The link resolution, note creation and privacy services. */
+/**
+ * The link resolution, note creation and privacy services.
+ */
 export interface NoteServices {
   readonly noteLinkResolver: NoteLinkResolverService
   readonly noteCreation: NoteCreationService
@@ -483,12 +484,16 @@ export function createNoteServices(deps: {
   }
 }
 
-/** The host primitives that {@link createAppServices} builds the services on. */
+/**
+ * The host primitives that {@link createAppServices} builds the services on.
+ */
 export interface AppAdapters {
   readonly ipc: IpcBridge
   readonly platform: PlatformFacts
   readonly http: HttpService
-  /** The Web storage areas; `null` keeps an area in memory. */
+  /**
+   * The Web storage areas; `null` keeps an area in memory.
+   */
   readonly storage: { readonly local: Storage | null; readonly session: Storage | null }
   readonly dialog: DialogService
   readonly clipboard: ClipboardService
@@ -496,29 +501,63 @@ export interface AppAdapters {
   readonly path: PathTransport
   readonly window: WindowHost
   readonly lifecycle: LifecycleDomAdapter
-  /** Defaults to the console. */
+  /**
+   * Defaults to the console.
+   */
   readonly logger?: LoggerService
-  /** Defaults to the system clock. */
+  /**
+   * Defaults to the system clock.
+   */
   readonly clock?: ClockService
-  /** Defaults to the system `IdService`. */
+  /**
+   * Defaults to the system `IdService`.
+   */
   readonly id?: IdService
-  /** Defaults to Web Crypto. */
+  /**
+   * Defaults to Web Crypto.
+   */
   readonly hash?: HashService
-  /** Defaults to a codec that cannot decode. */
+  /**
+   * Defaults to a codec that cannot decode.
+   */
   readonly imageCodec?: ImageCodecService
-  /** Defaults to telemetry that reports nothing. */
+  /**
+   * Defaults to telemetry that reports nothing.
+   */
   readonly exceptionTelemetry?: ExceptionTelemetryService
-  /** The native updater; without one, updates are unsupported. */
+  /**
+   * The native updater; without one, updates are unsupported.
+   */
   readonly updater?: UpdaterAdapter
-  /** The native menus; without a host, every menu operation rejects. */
+  /**
+   * The native menus; without a host, every menu operation rejects.
+   */
   readonly nativeMenu?: NativeMenuHost
-  /** Defaults to the URL shape of Apple webviews. */
+  /**
+   * Defaults to the URL shape of Apple webviews.
+   */
   readonly convertFileSrc?: FileSrcConverter
-  /** The system's `reflect://` delivery; without one, no URL arrives. */
+  /**
+   * The system's `reflect://` delivery; without one, no URL arrives.
+   */
   readonly deepLink?: DeepLinkSource
 }
 
-/** The factory of every service {@link createAppServices} builds, by key. */
+/**
+ * Builds the mobile services on a mobile platform only.
+ */
+function createMobileServices(deps: {
+  platform: PlatformFacts
+  build: () => MobileServices
+}): MobileServices | null {
+  return isMobilePlatform(deps.platform.appPlatform) || deps.platform.surface.mobileApp
+    ? deps.build()
+    : null
+}
+
+/**
+ * The factory of every service {@link createAppServices} builds, by key.
+ */
 export const appServiceFactories = {
   ipc: createIpcBridgeService,
   database: createDatabaseService,
@@ -550,8 +589,7 @@ export const appServiceFactories = {
   commands: createCommandService,
   aiCredentials: createAiCredentialService,
   aiKeyValidation: createAiKeyValidationService,
-  languageModel: (deps: { http: HttpService; sdk: AiSdkLoader }): LanguageModelService =>
-    withAppReviewDemo(createLanguageModelService(deps)),
+  languageModel: createLanguageModelService,
   aiProviderConfig: createAiProviderConfigService,
   noteServices: createNoteServices,
   calendar: createCalendarService,
@@ -569,9 +607,7 @@ export const appServiceFactories = {
   assetDescriber: createAssetDescriberService,
   backlinkTarget: createBacklinkTargetService,
   indexLifecycle: createIndexLifecycleService,
-  graphSession: (
-    deps: GraphSessionServiceDeps<GraphServices<AppServices>>,
-  ): GraphSessionService<GraphServices<AppServices>> => createGraphSessionService(deps),
+  graphSession: createGraphSessionService<GraphServices>,
   graphServices: createGraphServices,
   opener: createOpenerService,
   navigation: createNavigationService,
@@ -588,19 +624,10 @@ export const appServiceFactories = {
   embeddingRuntime: createEmbeddingRuntimeService,
   retrieval: createRetrievalService,
   embeddingIndex: createEmbeddingIndexService,
-  transcription: (deps: { http: HttpService }): TranscriptionService =>
-    withAppReviewDemoTranscription(createTranscriptionService(deps)),
+  transcription: createTranscriptionService,
   transcriptEnrichment: createTranscriptEnrichmentService,
   audioMemo: createAudioMemoService,
-  /** Builds the mobile services on a mobile platform only. */
-  mobile: (deps: {
-    platform: PlatformFacts
-    build: () => MobileServices
-  }): MobileServices | null =>
-    // FIXME: do not use this pattern. I want `appServiceFactories` to be simpler and avoid branching logic. Just use `mobile: createMobileServices` here and put this logic in, for example, inside `const createMobileServices = (): MobileServices|null => { ... }`
-    isMobilePlatform(deps.platform.appPlatform) || deps.platform.surface.mobileApp
-      ? deps.build()
-      : null,
+  mobile: createMobileServices,
   chatHistory: createChatHistoryService,
   dailyNotes: createDailyNoteService,
   noteTools: createNoteToolsService,
@@ -613,19 +640,7 @@ export const appServiceFactories = {
   agentSkill: createAgentSkillService,
   theme: createThemeService,
   linkNavigation: createLinkNavigationService,
-  /** Without an updater, updates are unsupported. */
-  update: (
-    deps: Omit<UpdateServiceDeps, 'updater'> & { updater: UpdaterAdapter | undefined },
-  ): UpdateService =>
-    deps.updater
-      ? // FIXME:
-        // instead of using a lambda function here. let's do this:
-        // export interface UpdateService { ... }
-        // class UpdateServiceImpl implements UpdateService { ... }
-        // class UnsupportedUpdateService implements UpdateService { ... }
-        // export function createUpdateService(deps): UpdateService { if (deps.updater) { return new UpdateServiceImpl(deps) } else { return new UnsupportedUpdateService() } }
-        createUpdateService({ ...deps, updater: deps.updater })
-      : createUnsupportedUpdateService(),
+  update: createUpdateService,
   backups: createBackupServiceFactory,
   gistPublish: createGistPublishService,
   icloudSyncs: createICloudSyncServiceFactory,
@@ -656,10 +671,14 @@ export const appServiceFactories = {
   paletteSearch: createPaletteSearchService,
 }
 
-/** The factory of each service key; a replacement gets the same dependencies. */
+/**
+ * The factory of each service key; a replacement gets the same dependencies.
+ */
 export type ServiceFactories = typeof appServiceFactories
 
-/** The services that {@link createAppServices} builds but keeps out of {@link AppServices}. */
+/**
+ * The services that {@link createAppServices} builds but keeps out of {@link AppServices}.
+ */
 export interface InternalServices {
   readonly http: HttpService
   readonly secretStore: SecretStoreService
@@ -707,7 +726,9 @@ export function createAppServices(
   return composeAppServices(adapters, factories).services
 }
 
-/** {@link createAppServices}, plus the services it keeps internal. */
+/**
+ * {@link createAppServices}, plus the services it keeps internal.
+ */
 export function composeAppServices(
   adapters: AppAdapters,
   factories?: Partial<ServiceFactories>,
@@ -715,9 +736,9 @@ export function composeAppServices(
   const create: ServiceFactories = { ...appServiceFactories, ...factories }
   const logger = adapters.logger ?? createConsoleLogger()
   const clock = adapters.clock ?? createSystemClock()
-  const ipc = create.ipc(adapters.ipc, { logger })
+  const ipc = create.ipc({ transport: adapters.ipc, logger })
   const database = create.database({ ipc })
-  const platform = create.platform(adapters.platform, undefined, adapters.convertFileSrc)
+  const platform = create.platform({ facts: adapters.platform, fileSrc: adapters.convertFileSrc })
   const windowService = create.window({ ipc, host: adapters.window, logger })
   const operations = create.operations({ clock })
   const settings = create.settings({ ipc, operations })
@@ -727,10 +748,11 @@ export function composeAppServices(
     sessionStorage: adapters.storage.session,
   })
   const lifecycle = create.lifecycle({ ipc, dom: adapters.lifecycle, clock, logger })
-  const fileChanges = create.fileChanges(
-    { ipc, logger },
-    { echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform) },
-  )
+  const fileChanges = create.fileChanges({
+    ipc,
+    logger,
+    echoOwnWrites: isMobilePlatform(adapters.platform.appPlatform),
+  })
   const id = adapters.id ?? createSystemIdService()
   const secretStore = create.secretStore({ ipc })
   // The desktop shell's web-auth plugin answers every sign-in as cancelled.
@@ -751,7 +773,7 @@ export function composeAppServices(
     clock,
     logger,
   })
-  const createMobileServices = (): MobileServices => {
+  const buildMobileServices = (): MobileServices => {
     const iap = create.iap({ ipc, logger })
     const appStore = create.appStore({ ipc })
     const subscription = create.subscription({ iap, storage, clock, platform, logger })
@@ -866,7 +888,7 @@ export function composeAppServices(
     icloudNative,
     logger,
     createServices: (session, role) =>
-      create.graphServices(services, session, role, {
+      create.graphServices(session, role, {
         backups,
         icloudSyncs,
         icloudDownloads,
@@ -957,7 +979,7 @@ export function composeAppServices(
   })
   const mobileServices = create.mobile({
     platform: adapters.platform,
-    build: createMobileServices,
+    build: buildMobileServices,
   })
   const chatHistory = create.chatHistory({ ipc, database, logger })
   const dailyNotes = create.dailyNotes({ database, clock, lifecycle })

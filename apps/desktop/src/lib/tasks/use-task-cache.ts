@@ -6,19 +6,27 @@ import { isSameTask } from '@/lib/tasks/task-identity.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
-/** Updates a cached task list in place; returning the same `undefined` is a no-op. */
+/**
+ * Updates a cached task list in place; returning the same `undefined` is a no-op.
+ */
 type TaskListPatch = (rows: OpenTask[] | undefined) => OpenTask[] | undefined
 
-/** The open + completed task lists captured before an optimistic write, for rollback. */
+/**
+ * The open + completed task lists captured before an optimistic write, for rollback.
+ */
 export interface TaskCacheSnapshot {
   open: OpenTask[] | undefined
   completed: OpenTask[] | undefined
 }
 
 export interface TaskCacheWriter {
-  /** Cancel in-flight refetches and capture both lists so a failed write can roll back. */
+  /**
+   * Cancel in-flight refetches and capture both lists so a failed write can roll back.
+   */
   snapshot: () => Promise<TaskCacheSnapshot>
-  /** Optimistically rewrite the open and completed lists at once. */
+  /**
+   * Optimistically rewrite the open and completed lists at once.
+   */
   patch: (open: TaskListPatch, completed: TaskListPatch) => void
   /**
    * Upsert one optimistic open row (Return-to-add) and remove the same identity
@@ -26,9 +34,13 @@ export interface TaskCacheWriter {
    * new address cannot collide with an existing cache identity.
    */
   addOpen: (task: OpenTask) => void
-  /** Re-key existing rows a note write moved, in both task caches. */
+  /**
+   * Re-key existing rows a note write moved, in both task caches.
+   */
   relocate: (notePath: string, moved: TaskMoves) => void
-  /** Restore both lists from a snapshot and surface the failure once (single-write undo). */
+  /**
+   * Restore both lists from a snapshot and surface the failure once (single-write undo).
+   */
   rollback: (captured: TaskCacheSnapshot | undefined, label: string, cause: unknown) => void
   /**
    * Refetch both lists from the index and surface the failure once. For a **batch**
@@ -81,10 +93,10 @@ export function useTaskCacheWriter(): TaskCacheWriter {
   }
 
   const relocate = (notePath: string, moved: TaskMoves): void => {
-    patch(
-      (rows) => withRelocatedTasks({ logger }, rows, notePath, moved),
-      (rows) => withRelocatedTasks({ logger }, rows, notePath, moved),
-    )
+    // The result is `rows` itself or a fresh array, so it stays mutable.
+    const relocateRows: TaskListPatch = (rows) =>
+      withRelocatedTasks({ logger }, rows, notePath, moved) as OpenTask[] | undefined
+    patch(relocateRows, relocateRows)
   }
 
   const rollback = (

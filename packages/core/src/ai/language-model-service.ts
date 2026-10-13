@@ -6,20 +6,19 @@ import { APP_REVIEW_STUB_KEY, createDemoModel } from './app-review-demo.ts'
 import { OPENAI_COMPATIBLE_PROVIDER_ID } from './openai-compatible.ts'
 import { OPENROUTER_BASE_URL, openRouterAttributionHeaders } from './openrouter.ts'
 
-/** Loads each provider SDK on first use, so no SDK is in the startup bundle. */
+/**
+ * Loads each provider SDK on first use, so no SDK is in the startup bundle.
+ */
 export interface AiSdkLoader {
-  // FIXME: I don't think you need "Pick" here;
-  openai: () => Promise<Pick<typeof import('@reflect/modules/ai-sdk/openai'), 'createOpenAI'>>
-  anthropic: () => Promise<
-    Pick<typeof import('@reflect/modules/ai-sdk/anthropic'), 'createAnthropic'>
-  >
-  google: () => Promise<Pick<typeof import('@reflect/modules/ai-sdk/google'), 'createGoogle'>>
-  openaiCompatible: () => Promise<
-    Pick<typeof import('@reflect/modules/ai-sdk/openai-compatible'), 'createOpenAICompatible'>
-  >
+  openai: () => Promise<typeof import('@reflect/modules/ai-sdk/openai')>
+  anthropic: () => Promise<typeof import('@reflect/modules/ai-sdk/anthropic')>
+  google: () => Promise<typeof import('@reflect/modules/ai-sdk/google')>
+  openaiCompatible: () => Promise<typeof import('@reflect/modules/ai-sdk/openai-compatible')>
 }
 
-/** An {@link AiSdkLoader} over dynamic imports. */
+/**
+ * An {@link AiSdkLoader} over dynamic imports.
+ */
 export function createLazyAiSdkLoader(): AiSdkLoader {
   return {
     openai: () => import('@reflect/modules/ai-sdk/openai'),
@@ -29,26 +28,34 @@ export function createLazyAiSdkLoader(): AiSdkLoader {
   }
 }
 
-/** Turns a configured BYOK entry and its key into a callable language model. */
+/**
+ * Turns a configured BYOK entry and its key into a callable language model.
+ */
 export interface LanguageModelService {
   /**
    * Build the AI SDK model instance for a configured BYOK entry: the one place
    * provider ids map to SDK factories. Shared by the chat engine
    * (`chat/stream-chat`) and one-shot calls like the link-capture page
-   * description (`describe-page`).
+   * description (`describe-page`). The App Review demo key gets the local
+   * demo model regardless of the configured provider, since the reviewer may
+   * have picked any of them.
    */
   create(config: AiProviderConfig, apiKey: string): Promise<LanguageModel>
 }
 
-export function createLanguageModelService(deps: {
-  // FIXME: I notice that, unlike what you said in docs/contributing/services.md, in most cases, you did NOT define a type call `interface LanguageModelServiceDeps`. Address this issue for all services. You should define LanguageModelServiceDeps
-  http: HttpService
-  sdk: AiSdkLoader
-}): LanguageModelService {
+export interface LanguageModelServiceDeps {
+  readonly http: HttpService
+  readonly sdk: AiSdkLoader
+}
+
+export function createLanguageModelService(deps: LanguageModelServiceDeps): LanguageModelService {
   const { http, sdk } = deps
   const fetchFn: typeof fetch = (input, init) => http.fetch(input, init)
   return {
     async create(config, apiKey) {
+      if (apiKey === APP_REVIEW_STUB_KEY) {
+        return createDemoModel()
+      }
       switch (config.provider) {
         case 'openai': {
           const { createOpenAI } = await sdk.openai()
@@ -87,23 +94,6 @@ export function createLanguageModelService(deps: {
           }).chatModel(config.model)
         }
       }
-    },
-  }
-}
-
-/**
- * App Review demo mode for `service`: the demo key gets the local demo model
- * regardless of the configured provider, since the reviewer may have picked
- * any of them. Every other key goes to `service`.
- */
-export function withAppReviewDemo(service: LanguageModelService): LanguageModelService {
-  // FIXME: I don't understand why do we need a seprate withAppReviewDemo function. createLanguageModelService never get called directly. It always get called through withAppReviewDemo. So why not just put the APP_REVIEW_STUB_KEY check inside createLanguageModelService? Same comment applied to other similar functions like withAppReviewDemoTranscription
-  return {
-    async create(config, apiKey) {
-      if (apiKey === APP_REVIEW_STUB_KEY) {
-        return createDemoModel()
-      }
-      return await service.create(config, apiKey)
     },
   }
 }

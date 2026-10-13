@@ -12,7 +12,9 @@ type CommandHandler = (args: Record<string, unknown>) => unknown
 type BinaryCommandHandler = (body: Uint8Array, headers: Record<string, string>) => unknown
 
 export interface TestIpcBridgeService extends IpcBridgeService {
-  /** The in-memory transport the service wraps. */
+  /**
+   * The in-memory transport the service wraps.
+   */
   readonly transport: IpcBridge
   onCommand(command: string, handler: (args: Record<string, unknown>) => unknown): void
   onBinaryCommand(
@@ -26,9 +28,13 @@ export interface TestIpcBridgeService extends IpcBridgeService {
 
 export interface TestIpcBridgeServiceOptions {
   commands?: Record<string, CommandHandler> | undefined
-  /** Give the transport a binary path. Defaults to `true`. */
+  /**
+   * Give the transport a binary path. Defaults to `true`.
+   */
   binary?: boolean | undefined
-  /** Give the transport plugin events. Defaults to `true`. */
+  /**
+   * Give the transport plugin events. Defaults to `true`.
+   */
   pluginEvents?: boolean | undefined
   logger?: LoggerService | undefined
 }
@@ -103,7 +109,8 @@ export function createTestIpcBridgeService(
     }
   }
 
-  const service = createIpcBridgeService(transport, {
+  const service = createIpcBridgeService({
+    transport,
     logger: options?.logger ?? createTestLoggerService(),
   })
 

@@ -66,8 +66,8 @@ jobs:
           # collect garbage after each file, but only when the temp disk has
           # less free space than this threshold; an unreachable threshold makes
           # it collect every time (about 60 ms per file).
+          # Vitest reads this variable: https://github.com/vitest-dev/vitest/blob/33cadea62e8763c455c7fca38d9ab1dda87c5f75/packages/vitest/src/node/pools/browser.ts#L510-L516
           VITEST_CHROMIUM_GC_DISK_THRESHOLD_GB: '100000'
-          # FIXME: is VITEST_CHROMIUM_GC_DISK_THRESHOLD_GB still needed? I don't see any code that uses it. If it's still used, add a github permalink in the comment
 
   # Not part of `all-green`: a WebKit failure does not block merging.
   # Disabled on the `service` branch while the service refactor is in progress;

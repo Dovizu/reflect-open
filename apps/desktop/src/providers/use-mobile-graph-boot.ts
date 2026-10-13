@@ -3,7 +3,9 @@ import type { MobileStorageInfo, MobileStorageKind } from '@reflect/core'
 import { useAppServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
 
-/** The mobile-only slice of the graph context, read from `MobileOnboardingService`. */
+/**
+ * The mobile-only slice of the graph context, read from `MobileOnboardingService`.
+ */
 export interface MobileGraphBoot {
   /**
    * The user hasn't yet chosen where their notes live (Plan 19, step 6), so
@@ -52,7 +54,7 @@ export interface MobileGraphBoot {
  */
 export function useMobileGraphBoot(): MobileGraphBoot {
   const { mobileOnboarding: service } = useAppServices()
-  const state = useServiceState(service)
+  const state = useServiceState(service, service.getState)
 
   useEffect(() => service.boot(), [service])
 

@@ -17,7 +17,7 @@ const fireAndForget = definePluginCommand<Record<string, never>, unknown>(
 )
 
 function serviceOver(transport: IpcBridge) {
-  return createIpcBridgeService(transport, { logger: createTestLoggerService() })
+  return createIpcBridgeService({ transport, logger: createTestLoggerService() })
 }
 
 describe('definePluginCommand', () => {

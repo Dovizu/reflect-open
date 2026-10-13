@@ -27,7 +27,9 @@ export {
   type NoteSessionStatus,
 } from './note-session-types.ts'
 
-/** File access of one session, with the graph generation bound to its writes. */
+/**
+ * File access of one session, with the graph generation bound to its writes.
+ */
 interface NoteSessionIo {
   read: (path: string) => Promise<string>
   write:
@@ -50,7 +52,9 @@ export function createNoteSessionService(deps: NoteSessionDeps): NoteSessionServ
   }
 }
 
-/** Create the document session for one note. See note-session-types.ts for semantics. */
+/**
+ * Create the document session for one note. See note-session-types.ts for semantics.
+ */
 function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): NoteSession {
   const { noteFile, clock, logger, graphSession } = deps
   const { classify, onSnapshot, applyContent, onContent, reconcilePendingEditorInput } = options
@@ -65,7 +69,9 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
             await noteFile.write(forPath, contents, generation, expectedContents)
           },
   }
-  /** Mutable: a rename retargets the session in place (Plan 17). */
+  /**
+   * Mutable: a rename retargets the session in place (Plan 17).
+   */
   let path = options.path
   const createIfMissing = options.createIfMissing ?? false
   const missingSeed = options.missingSeed
@@ -81,16 +87,26 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
   let error: string | null = null
 
   // Pipeline state (never surfaces).
-  /** The **body** as of the last editor change (the editor never sees frontmatter). */
+  /**
+   * The **body** as of the last editor change (the editor never sees frontmatter).
+   */
   let buffer = ''
-  /** The exact frontmatter bytes (with delimiters), `''` when none. */
+  /**
+   * The exact frontmatter bytes (with delimiters), `''` when none.
+   */
   let header = ''
-  /** The full content most recently read from or written to disk. */
+  /**
+   * The full content most recently read from or written to disk.
+   */
   let disk = ''
   let saveTimer: TimerHandle | null = null
-  /** Serializes writes so a flush can't interleave with a debounced save. */
+  /**
+   * Serializes writes so a flush can't interleave with a debounced save.
+   */
   let saveChain: Promise<void> = Promise.resolve()
-  /** Settles when the current initial load has committed its state. */
+  /**
+   * Settles when the current initial load has committed its state.
+   */
   let loadPromise: Promise<void> = Promise.resolve()
   /**
    * Content of the write currently in flight (set when dispatched, before the
@@ -99,14 +115,22 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
    * conflict when the user kept typing during the save.
    */
   let inFlightWrite: string | null = null
-  /** True while we push external content into the editor via `applyContent`. */
+  /**
+   * True while we push external content into the editor via `applyContent`.
+   */
   let applyingContent = false
-  /** True while the initial `load()` read is in flight. */
+  /**
+   * True while the initial `load()` read is in flight.
+   */
   let loading = false
-  /** A watcher event arrived during the load; replay reconciliation after it. */
+  /**
+   * A watcher event arrived during the load; replay reconciliation after it.
+   */
   let missedChange = false
   let disposed = false
-  /** True while deletion has paused this session's persistence pipeline. */
+  /**
+   * True while deletion has paused this session's persistence pipeline.
+   */
   let deleting = false
   // Set by `discard` — tells `dispose` to skip its flush (the file is being
   // deleted, so rewriting it would recreate it).
@@ -241,7 +265,9 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
     }
   }
 
-  /** Apply external content to the live editor without entering the save path. */
+  /**
+   * Apply external content to the live editor without entering the save path.
+   */
   function applyToEditor(content: string): void {
     applyingContent = true
     try {
@@ -253,7 +279,9 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
     }
   }
 
-  /** Adopt `content` as the new clean document state, re-gating protection. */
+  /**
+   * Adopt `content` as the new clean document state, re-gating protection.
+   */
   function adoptCleanContent(content: string): void {
     const doc = splitDoc(content)
     header = doc.header
@@ -318,7 +346,9 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
     adoptCleanContent(content)
   }
 
-  /** The initial read; with `createIfMissing`, a missing file is an empty note. */
+  /**
+   * The initial read; with `createIfMissing`, a missing file is an empty note.
+   */
   async function readInitial(): Promise<{ content: string; fileMissing: boolean }> {
     try {
       return { content: await io.read(path), fileMissing: false }
@@ -581,12 +611,11 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
     }
   }
 
-  return {
-    get path() {
-      return path
-    },
+  const session = {
+    path,
     retarget: (to: string) => {
       path = to
+      session.path = to
     },
     load,
     editorChanged,
@@ -607,4 +636,5 @@ function createNoteSession(deps: NoteSessionDeps, options: NoteSessionOptions): 
     dispose,
     discard,
   }
+  return session
 }

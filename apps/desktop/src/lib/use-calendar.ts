@@ -18,7 +18,9 @@ import { useServiceState } from '@/services/use-service-state.ts'
  * nothing is cached beyond the query layer, and nothing is indexed.
  */
 
-/** Whether calendar queries can run at all in this environment. */
+/**
+ * Whether calendar queries can run at all in this environment.
+ */
 function useCalendarAvailable(): boolean {
   const { calendarEvents } = useAppServices()
   return calendarEvents.isAvailable()
@@ -34,7 +36,7 @@ export function useCalendarAuthorization(
 ): CalendarAuthorizationStatus | undefined {
   const { calendarEvents } = useAppServices()
   const available = useCalendarAvailable()
-  const { authorization } = useServiceState(calendarEvents)
+  const { authorization } = useServiceState(calendarEvents, calendarEvents.getState)
   useEffect(() => {
     if (!enabled || !available) {
       return
@@ -53,7 +55,9 @@ export interface CalendarsResult {
   isLoaded: boolean
 }
 
-/** Every calendar on the Mac, for the Settings section's checkbox list. */
+/**
+ * Every calendar on the Mac, for the Settings section's checkbox list.
+ */
 export function useCalendars(enabled: boolean): CalendarsResult {
   const { calendarEvents } = useAppServices()
   const available = useCalendarAvailable()

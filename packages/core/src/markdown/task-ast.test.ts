@@ -19,18 +19,16 @@ import type { TaskLocator, TaskSnapshot } from './task-model.ts'
 import { isSameTaskPath } from './task-path.ts'
 
 let logger: TestLoggerService = createTestLoggerService()
-/** Reads `logger` at call time, so each test sees its own. */
-const ctx: TaskLogContext = {
-  get logger() {
-    return logger
-  },
-}
+let ctx: TaskLogContext = { logger }
 
 beforeEach(() => {
   logger = createTestLoggerService()
+  ctx = { logger }
 })
 
-/** The locator of the `index`th task in `source`, as the index would store it. */
+/**
+ * The locator of the `index`th task in `source`, as the index would store it.
+ */
 function locate(source: string, index = 0): TaskLocator {
   const task = projectTasks(splitFrontmatter(source).body)[index]
   if (task === undefined) {
@@ -39,7 +37,9 @@ function locate(source: string, index = 0): TaskLocator {
   return { astPath: task.astPath, markdown: task.markdown, checked: task.checked }
 }
 
-/** Where the write left the task that was at `astPath` before it. */
+/**
+ * Where the write left the task that was at `astPath` before it.
+ */
 function movedFrom(result: TaskEditResult, astPath: readonly number[]): TaskSnapshot | null {
   const move = result.moved.find((candidate) => isSameTaskPath(candidate.from.astPath, astPath))
   if (move === undefined) {

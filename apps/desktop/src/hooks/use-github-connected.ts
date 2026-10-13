@@ -10,7 +10,7 @@ import { useServiceState } from '@/services/use-service-state.ts'
  */
 export function useGithubConnected(): boolean {
   const { githubAuth, logger } = useAppServices()
-  const { connected } = useServiceState(githubAuth)
+  const { connected } = useServiceState(githubAuth, githubAuth.getState)
 
   useEffect(() => {
     if (githubAuth.getState().connected !== null) {

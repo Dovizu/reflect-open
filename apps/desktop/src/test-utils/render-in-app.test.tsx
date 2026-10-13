@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import { createTestAppServices } from '@reflect/core/testing'
-import { useGraph } from '@/providers/graph-provider.tsx'
+import { useGraph, useMaybeGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { useSyncContext } from '@/providers/sync-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
@@ -116,7 +116,7 @@ describe('renderInApp', () => {
   })
 
   it('mounts only the services with `servicesOnly`, and registers the app commands', async () => {
-    const { result, app } = await renderHookInApp(() => useGraph({ optional: true }), {
+    const { result, app } = await renderHookInApp(() => useMaybeGraph(), {
       servicesOnly: true,
     })
 

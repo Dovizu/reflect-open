@@ -7,7 +7,9 @@ import {
   type Unlisten,
 } from '../ipc/ipc-service.ts'
 
-/** Event name the Rust watcher emits tracked-file changes on. */
+/**
+ * Event name the Rust watcher emits tracked-file changes on.
+ */
 export const FILE_CHANGES_EVENT = 'index:changed'
 
 /**
@@ -29,7 +31,9 @@ const fileChangeSchema = z.object({
 const fileChangesSchema = z.array(fileChangeSchema)
 const voidSchema = z.null()
 
-/** A single tracked change. */
+/**
+ * A single tracked change.
+ */
 export type FileChange = z.infer<typeof fileChangeSchema>
 
 /**
@@ -47,7 +51,9 @@ export type FileChange = z.infer<typeof fileChangeSchema>
  */
 export type FileChangeSource = 'external' | 'own-write' | 'pull' | 'icloud-sweep'
 
-/** One delivery on the file-change stream. */
+/**
+ * One delivery on the file-change stream.
+ */
 export interface FileChangeBatch {
   changes: FileChange[]
   source: FileChangeSource
@@ -90,24 +96,29 @@ export interface FileChangeService {
    * batch (tagged `own-write`) only when `echoOwnWrites` is on.
    */
   reportOwnWrite(changes: readonly FileChange[]): void
-  /** Start (or restart) the native watcher for the active graph. */
+  /**
+   * Start (or restart) the native watcher for the active graph.
+   */
   startWatcher(): Promise<void>
-  /** Stop the native watcher. */
+  /**
+   * Stop the native watcher.
+   */
   stopWatcher(): Promise<void>
 }
 
-export function createFileChangeService(
-  deps: { ipc: IpcBridgeService; logger: LoggerService },
-  options: {
-    /**
-     * Echo own writes onto the change stream. Hosts without a file watcher
-     * (mobile) turn it on, so the derived layer sees local writes the way the
-     * desktop watcher reports them.
-     */
-    echoOwnWrites: boolean
-  },
-): FileChangeService {
-  const { ipc, logger } = deps
+export interface FileChangeServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly logger: LoggerService
+  /**
+   * Echo own writes onto the change stream. Hosts without a file watcher
+   * (mobile) turn it on, so the derived layer sees local writes the way the
+   * desktop watcher reports them.
+   */
+  readonly echoOwnWrites: boolean
+}
+
+export function createFileChangeService(deps: FileChangeServiceDeps): FileChangeService {
+  const { ipc, logger, echoOwnWrites } = deps
   const ownWriteListeners = new Set<(paths: readonly string[]) => void>()
 
   function listenNative(event: string, handler: (payload: unknown) => void): Unlisten {
@@ -166,7 +177,7 @@ export function createFileChangeService(
           logger.error('own-write observer failed:', error)
         }
       }
-      if (options.echoOwnWrites) {
+      if (echoOwnWrites) {
         batches.emit({ changes: [...changes], source: 'own-write' })
       }
     },

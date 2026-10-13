@@ -4,13 +4,24 @@ import type { IndexStoreService } from '../indexing/index-store-service.ts'
 import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
 import type { OpenDocumentsService } from './open-documents-service.ts'
 
-/** Event name the Rust move commands emit after their rows commit. */
+/**
+ * Event name the Rust move commands emit after their rows commit.
+ */
 export const NOTE_MOVED_EVENT = 'note:moved'
 
 const noteMovedSchema = z.object({ from: z.string(), to: z.string() })
 
-/** Hears a landed note move (graph-relative `from` → `to` paths). */
+/**
+ * Hears a landed note move (graph-relative `from` → `to` paths).
+ */
 export type NoteMovedListener = (from: string, to: string) => void
+
+export interface NoteMoveServiceDeps {
+  readonly ipc: Pick<IpcBridgeService, 'listen'>
+  readonly indexStore: Pick<IndexStoreService, 'moveIndexed'>
+  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
+  readonly logger: Pick<LoggerService, 'error' | 'warn'>
+}
 
 /**
  * Note file moves (`docs/readable-filenames.md`): the move itself, and the
@@ -55,9 +66,11 @@ export interface NoteMoveService {
    * move already happened; this only updates what points at it — and without
    * it, an open pane's next save would resurrect the dead path.
    */
-  followHealedMove(this: void, from: string, to: string): void
-  /** Subscribe to landed note moves; returns the unsubscribe. */
-  onMoved(listener: NoteMovedListener): Unlisten
+  followHealedMove: (from: string, to: string) => void
+  /**
+   * Subscribe to landed note moves; returns the unsubscribe.
+   */
+  onMoved: (listener: NoteMovedListener) => Unlisten
   /**
    * Follow the Rust-side "note rows moved" broadcast (`note:moved`), emitted
    * after a rename lands (`note_move_indexed`) or an external move is healed
@@ -70,16 +83,70 @@ export interface NoteMoveService {
   followNativeMoves(): Unlisten
 }
 
-export interface NoteMoveServiceDeps {
-  ipc: Pick<IpcBridgeService, 'listen'>
-  indexStore: Pick<IndexStoreService, 'moveIndexed'>
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
-  logger: Pick<LoggerService, 'error' | 'warn'>
-}
+class NoteMoveServiceImpl implements NoteMoveService {
+  readonly #deps: NoteMoveServiceDeps
+  readonly #listeners = new Set<NoteMovedListener>()
 
-export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveService {
-  const { ipc, indexStore, openDocuments, logger } = deps
-  const listeners = new Set<NoteMovedListener>()
+  constructor(deps: NoteMoveServiceDeps) {
+    this.#deps = deps
+  }
+
+  async moveNote(from: string, to: string, generation: number): Promise<void> {
+    const { indexStore, openDocuments } = this.#deps
+    const owner = openDocuments.sessionFor(from)
+    if (owner !== null) {
+      await owner.flush()
+      owner.retarget(to)
+      openDocuments.retarget(from, to, owner)
+    }
+    try {
+      await indexStore.moveIndexed(from, to, generation)
+    } catch (cause) {
+      if (owner !== null) {
+        owner.retarget(from)
+        openDocuments.retarget(to, from, owner)
+      }
+      throw cause
+    }
+    this.#emitMoved(from, to)
+  }
+
+  readonly followHealedMove = (from: string, to: string): void => {
+    const { openDocuments } = this.#deps
+    const owner = openDocuments.sessionFor(from)
+    if (owner !== null) {
+      owner.retarget(to)
+      openDocuments.retarget(from, to, owner)
+    }
+    this.#emitMoved(from, to)
+  }
+
+  readonly onMoved = (listener: NoteMovedListener): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  followNativeMoves(): Unlisten {
+    const { ipc, logger } = this.#deps
+    return listenNow(
+      () =>
+        ipc.listen(NOTE_MOVED_EVENT, (payload) => {
+          const parsed = noteMovedSchema.safeParse(payload)
+          if (parsed.success) {
+            this.followHealedMove(parsed.data.from, parsed.data.to)
+          } else {
+            // Contract drift between Rust and TS must be loud — a silently dropped
+            // move leaves an open editor writing to a dead path.
+            logger.error('invalid note:moved payload:', parsed.error)
+          }
+        }),
+      (cause) => {
+        logger.warn(`failed to listen for "${NOTE_MOVED_EVENT}"`, cause)
+      },
+    )
+  }
 
   /**
    * Announce a landed move to every subscriber. Listeners are isolated: the
@@ -87,68 +154,17 @@ export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveServic
    * subscriber must not get reported as a failed move (the move already
    * landed).
    */
-  function emitMoved(from: string, to: string): void {
-    for (const listener of listeners) {
+  #emitMoved(from: string, to: string): void {
+    for (const listener of this.#listeners) {
       try {
         listener(from, to)
       } catch (cause) {
-        logger.error('note-moved listener failed:', cause)
+        this.#deps.logger.error('note-moved listener failed:', cause)
       }
     }
   }
+}
 
-  function followHealedMove(from: string, to: string): void {
-    const owner = openDocuments.sessionFor(from)
-    if (owner !== null) {
-      owner.retarget(to)
-      openDocuments.retarget(from, to, owner)
-    }
-    emitMoved(from, to)
-  }
-
-  return {
-    async moveNote(from, to, generation) {
-      const owner = openDocuments.sessionFor(from)
-      if (owner !== null) {
-        await owner.flush()
-        owner.retarget(to)
-        openDocuments.retarget(from, to, owner)
-      }
-      try {
-        await indexStore.moveIndexed(from, to, generation)
-      } catch (cause) {
-        if (owner !== null) {
-          owner.retarget(from)
-          openDocuments.retarget(to, from, owner)
-        }
-        throw cause
-      }
-      emitMoved(from, to)
-    },
-    followHealedMove,
-    onMoved(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    followNativeMoves() {
-      return listenNow(
-        () =>
-          ipc.listen(NOTE_MOVED_EVENT, (payload) => {
-            const parsed = noteMovedSchema.safeParse(payload)
-            if (parsed.success) {
-              followHealedMove(parsed.data.from, parsed.data.to)
-            } else {
-              // Contract drift between Rust and TS must be loud — a silently dropped
-              // move leaves an open editor writing to a dead path.
-              logger.error('invalid note:moved payload:', parsed.error)
-            }
-          }),
-        (cause) => {
-          logger.warn(`failed to listen for "${NOTE_MOVED_EVENT}"`, cause)
-        },
-      )
-    },
-  }
+export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveService {
+  return new NoteMoveServiceImpl(deps)
 }

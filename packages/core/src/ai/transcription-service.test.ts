@@ -5,7 +5,6 @@ import {
   OPENAI_TRANSCRIPTION_FALLBACK_MODEL,
   OPENAI_TRANSCRIPTION_MODEL,
   createTranscriptionService,
-  withAppReviewDemoTranscription,
   type TranscriptionRequest,
 } from './transcription-service.ts'
 import { APP_REVIEW_STUB_KEY } from './app-review-demo.ts'
@@ -47,7 +46,9 @@ function request(overrides: Partial<TranscriptionRequest> = {}): TranscriptionRe
   }
 }
 
-/** Transcribes `request` with a service whose HTTP requests go to `fetchFn`. */
+/**
+ * Transcribes `request` with a service whose HTTP requests go to `fetchFn`.
+ */
 function transcribe(fetchFn: typeof fetch, request: TranscriptionRequest): Promise<string> {
   return createTranscriptionService({ http: { fetch: fetchFn } }).transcribe(request)
 }
@@ -339,30 +340,25 @@ describe('bytesToBase64', () => {
   })
 })
 
-describe('withAppReviewDemoTranscription', () => {
+describe('App Review demo key', () => {
   it('answers the demo key with a canned transcript and no provider call', async () => {
     const calls: RecordedCall[] = []
-    const service = withAppReviewDemoTranscription(
-      createTranscriptionService({
-        http: { fetch: recordingFetch(calls, () => jsonResponse(200, { text: 'never reached' })) },
-      }),
-    )
+    const service = createTranscriptionService({
+      http: { fetch: recordingFetch(calls, () => jsonResponse(200, { text: 'never reached' })) },
+    })
 
     const text = await service.transcribe(request({ apiKey: APP_REVIEW_STUB_KEY }))
 
     expect(text).toContain('demo transcription')
+    expect(service.sessionTranscript(APP_REVIEW_STUB_KEY)).toContain('demo transcription')
     expect(calls).toHaveLength(0)
   })
 
-  it('sends every other key to the provider', async () => {
-    const calls: RecordedCall[] = []
-    const service = withAppReviewDemoTranscription(
-      createTranscriptionService({
-        http: { fetch: recordingFetch(calls, () => jsonResponse(200, { text: 'Hello world.' })) },
-      }),
-    )
+  it('gives no session transcript for every other key', () => {
+    const service = createTranscriptionService({
+      http: { fetch: recordingFetch([], () => jsonResponse(200, { text: 'never reached' })) },
+    })
 
-    expect(await service.transcribe(request())).toBe('Hello world.')
-    expect(calls).toHaveLength(1)
+    expect(service.sessionTranscript('sk-live')).toBeNull()
   })
 })

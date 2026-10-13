@@ -5,7 +5,6 @@ import { APP_REVIEW_STUB_KEY } from './app-review-demo.ts'
 import {
   createLanguageModelService,
   createLazyAiSdkLoader,
-  withAppReviewDemo,
   type AiSdkLoader,
 } from './language-model-service.ts'
 
@@ -31,7 +30,7 @@ it('loads no SDK for demo mode, then only each selected implementation', async (
     },
   }
   const http = createTestHttpService()
-  const languageModel = withAppReviewDemo(createLanguageModelService({ http, sdk }))
+  const languageModel = createLanguageModelService({ http, sdk })
   const config: AiProviderConfig = {
     id: 'cfg',
     provider: 'openai',

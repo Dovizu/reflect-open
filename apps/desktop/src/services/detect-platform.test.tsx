@@ -68,7 +68,7 @@ describe('detectPlatformFacts', () => {
   it('gives the app platform its mobile surface at boot, so the mobile root sets nothing', () => {
     vi.stubEnv('TAURI_ENV_PLATFORM', 'ios')
     // What `boot.ts` builds `appServices.platform` from, before any root loads.
-    const platform = createPlatformService(detectPlatformFacts(true))
+    const platform = createPlatformService({ facts: detectPlatformFacts(true) })
     expect(platform.surface).toEqual(MOBILE_SURFACE)
   })
 })

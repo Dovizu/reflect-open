@@ -1,7 +1,6 @@
 import { createContext, use, useEffect, useMemo, type ReactNode } from 'react'
 import type {
   AppPlatform,
-  AppServices,
   GraphServices,
   GraphSessionService,
   GraphSessionState,
@@ -17,15 +16,19 @@ export type { GraphStatus } from '@reflect/core'
  * The graph context surface: the session state and its actions, the
  * mobile-only slice documented on {@link MobileGraphBoot}, and the platform.
  */
-type GraphContextValue = GraphSessionState<GraphServices<AppServices>> &
+type GraphContextValue = GraphSessionState<GraphServices> &
   Pick<
     GraphSessionService,
     'pickAndOpen' | 'chooseGraph' | 'openRecent' | 'deleteGraph' | 'refreshIndex'
   > &
   MobileGraphBoot & {
-    /** `GraphSessionService.createGraphAt`. */
+    /**
+     * `GraphSessionService.createGraphAt`.
+     */
     createAt: GraphSessionService['createGraphAt']
-    /** `GraphSessionService.forgetRecent`. */
+    /**
+     * `GraphSessionService.forgetRecent`.
+     */
     forget: GraphSessionService['forgetRecent']
     /**
      * Which UI family the shell was built for (Plan 19's root gate), fixed at
@@ -59,7 +62,7 @@ export function GraphProvider({
 }) {
   const app = useAppServices()
   const session = app.graphSession
-  const state = useServiceState(session)
+  const state = useServiceState(session, session.getState)
 
   // Desktop main-window boot reopens the most recent graph or shows the
   // chooser; a secondary note window adopts the main window's graph. Mobile
@@ -89,13 +92,20 @@ export function GraphProvider({
   )
 }
 
-/** Access the active graph + open/choose actions. Use within a GraphProvider. */
-export function useGraph(options: { optional: true }): GraphContextValue | null
-export function useGraph(): GraphContextValue
-export function useGraph(options?: { optional: true }): GraphContextValue | null {
-  const context = use(GraphContext)
-  if (!context && !options?.optional) {
+/**
+ * Access the active graph + open/choose actions. Use within a GraphProvider.
+ */
+export function useGraph(): GraphContextValue {
+  const context = useMaybeGraph()
+  if (!context) {
     throw new Error('useGraph must be used within a GraphProvider')
   }
   return context
+}
+
+/**
+ * The active graph + open/choose actions, or `null` outside a GraphProvider.
+ */
+export function useMaybeGraph(): GraphContextValue | null {
+  return use(GraphContext)
 }

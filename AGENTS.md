@@ -188,7 +188,8 @@ and [docs/contributing/services.md](docs/contributing/services.md) before adding
 The short version:
 
 - Business logic lives in `@reflect/core` as services: `createXxxService(deps)` in
-  `packages/core/src/<domain>/<name>-service.ts` returns an object literal. A service
+  `packages/core/src/<domain>/<name>-service.ts` returns an instance of an unexported
+  class that implements the `XxxService` interface. A service
   gets other services only through `deps`. Core has no process-wide instances, no
   module-level mutable state, and never imports `@tauri-apps/*`.
 - `createAppServices(adapters)` (`packages/core/src/app/create-app-services.ts`) builds
@@ -291,7 +292,8 @@ document behavior, and the existing local patterns over new abstractions.
 - Prefer function declarations for named functions and arrow functions for
   callbacks.
 - Prefer async/await over Promise chains.
-- Prefer functional patterns over classes.
+- A service is a class behind an interface and a factory; everything else prefers
+  functions over classes.
 
 ## Data Boundaries
 

@@ -11,11 +11,13 @@ import {
 function setup(echoOwnWrites = false) {
   const ipc = createTestIpcBridgeService()
   const logger = createTestLoggerService()
-  const fileChanges = createFileChangeService({ ipc, logger }, { echoOwnWrites })
+  const fileChanges = createFileChangeService({ ipc, logger, echoOwnWrites })
   return { ipc, logger, fileChanges }
 }
 
-/** Let `listenNow` finish registering. */
+/**
+ * Let `listenNow` finish registering.
+ */
 async function settle(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
@@ -71,16 +73,16 @@ describe('createFileChangeService', () => {
 
   it('keeps no listener and does not throw when the transport cannot listen', async () => {
     const logger = createTestLoggerService()
-    const ipc = createIpcBridgeService(
-      {
+    const ipc = createIpcBridgeService({
+      transport: {
         invoke: async () => null,
         listen: async () => {
           throw new Error('no transport')
         },
       },
-      { logger },
-    )
-    const fileChanges = createFileChangeService({ ipc, logger }, { echoOwnWrites: false })
+      logger,
+    })
+    const fileChanges = createFileChangeService({ ipc, logger, echoOwnWrites: false })
     const listener = vi.fn()
     const reconcile = vi.fn()
 

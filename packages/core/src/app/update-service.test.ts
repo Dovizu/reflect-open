@@ -9,11 +9,7 @@ import {
   type TestUpdaterAdapter,
   type TestUpdaterOptions,
 } from '../testing/update.ts'
-import {
-  createUnsupportedUpdateService,
-  createUpdateService,
-  type UpdateService,
-} from './update-service.ts'
+import { createUpdateService, type UpdateService } from './update-service.ts'
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000
 
@@ -260,9 +256,15 @@ describe('createUpdateService', () => {
   })
 })
 
-describe('createUnsupportedUpdateService', () => {
+describe('createUpdateService without an updater', () => {
   it('is unsupported and idle', async () => {
-    const service = createUnsupportedUpdateService()
+    const service = createUpdateService({
+      updater: undefined,
+      clock: createTestClockService(),
+      logger: createTestLoggerService(),
+      platform: createTestPlatformService({ isNativeShell: true }),
+      window: createTestWindowService(),
+    })
     service.start()
     await service.checkNow()
     expect(service.supported).toBe(false)

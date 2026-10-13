@@ -4,7 +4,9 @@ import type { OperationsService } from '../app/operations-service.ts'
 import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
 import { DEFAULT_SETTINGS, settingsSchema, type Settings } from './schema.ts'
 
-/** How the initial settings load ended; `failed` means session-only updates. */
+/**
+ * How the initial settings load ended; `failed` means session-only updates.
+ */
 export type SettingsLoadOutcome = 'loaded' | 'failed'
 
 export type SettingsStatus = 'loading' | SettingsLoadOutcome
@@ -17,12 +19,18 @@ type SettingsUpdater = (current: Settings) => Partial<Settings>
  * session-only so a defaults-built save never overwrites the stored document.
  */
 export interface SettingsService {
-  /** The current settings, merged over `DEFAULT_SETTINGS`. Stable until the next change. */
+  /**
+   * The current settings, merged over `DEFAULT_SETTINGS`. Stable until the next change.
+   */
   get: () => Settings
   subscribe: (listener: () => void) => Unlisten
-  /** Merges `patch` now and persists the full document in the background. */
+  /**
+   * Merges `patch` now and persists the full document in the background.
+   */
   update: (patch: Partial<Settings>) => void
-  /** Computes a patch from the latest settings; calls made before the load replay over the loaded document. */
+  /**
+   * Computes a patch from the latest settings; calls made before the load replay over the loaded document.
+   */
   updateWith: (updater: SettingsUpdater) => void
   whenLoaded: () => Promise<SettingsLoadOutcome>
   /**
@@ -30,7 +38,9 @@ export interface SettingsService {
    * replaces the session-only settings. Otherwise answers {@link whenLoaded}.
    */
   reload: () => Promise<SettingsLoadOutcome>
-  /** Drains pending saves and resubmits a document that no save has confirmed. Never rejects. */
+  /**
+   * Drains pending saves and resubmits a document that no save has confirmed. Never rejects.
+   */
   flush: () => Promise<void>
   status: () => SettingsStatus
 }
@@ -222,9 +232,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null
 }
 
-/** Returns `next`, reusing every part of `previous` that is deeply equal to it. */
-function replaceEqualDeep<T>(previous: T, next: T): T
-function replaceEqualDeep(previous: unknown, next: unknown): unknown {
+/**
+ * Returns `next`, reusing every part of `previous` that is deeply equal to it.
+ */
+function replaceEqualDeep<T>(previous: T, next: T): T {
   if (previous === next) {
     return previous
   }
@@ -239,7 +250,7 @@ function replaceEqualDeep(previous: unknown, next: unknown): unknown {
       }
       return shared
     })
-    return equal ? before : copy
+    return equal ? previous : (copy as T)
   }
   if (isPlainObject(previous) && isPlainObject(next)) {
     const keys = Object.keys(next)
@@ -252,7 +263,7 @@ function replaceEqualDeep(previous: unknown, next: unknown): unknown {
       }
       copy[key] = shared
     }
-    return equal ? previous : copy
+    return equal ? previous : (copy as T)
   }
   return next
 }

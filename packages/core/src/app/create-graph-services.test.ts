@@ -22,7 +22,9 @@ interface SetupOptions {
   platform?: TestPlatformOptions
 }
 
-/** One graph session's services over recording doubles. */
+/**
+ * One graph session's services over recording doubles.
+ */
 function setup(options?: SetupOptions) {
   const app = createTestAppServices({ platform: createTestPlatformService(options?.platform) })
   const controller = new AbortController()
@@ -39,7 +41,7 @@ function setup(options?: SetupOptions) {
   const chats: { attached: number; detached: number }[] = []
   const icloudSyncs: { options: ICloudSyncServiceOptions; service: TestICloudSyncService }[] = []
   const downloads: { options: ICloudDownloadServiceOptions; calls: string[] }[] = []
-  const graph = createGraphServices(app, session, options?.role ?? 'main', {
+  const graph = createGraphServices(session, options?.role ?? 'main', {
     backups,
     icloudSyncs: {
       create: (syncOptions) => {
@@ -90,9 +92,9 @@ function setup(options?: SetupOptions) {
 }
 
 describe('createGraphServices', () => {
-  it('holds the app services, the session, and the role', () => {
-    const { app, session, graph } = setup({ role: 'note-window' })
-    expect(graph).toMatchObject({ app, session, role: 'note-window' })
+  it('holds the session and the role', () => {
+    const { session, graph } = setup({ role: 'note-window' })
+    expect(graph).toMatchObject({ session, role: 'note-window' })
   })
 
   it('starts every lifecycle of the main window over the session generations', async () => {
@@ -213,7 +215,7 @@ describe('createGraphServices', () => {
       controller.signal,
     )
     const backups = createTestScriptedBackupServiceFactory()
-    createGraphServices(app, session, 'main', {
+    createGraphServices(session, 'main', {
       backups,
       icloudSyncs: app.icloudSyncs,
       icloudDownloads: app.icloudDownloads,

@@ -1,4 +1,4 @@
-import { act } from '@/test-utils/act.ts'
+import { act, actAsync } from '@/test-utils/act.ts'
 import { page } from 'vitest/browser'
 import { describe, expect, it } from 'vitest'
 import { LINGER_MS, MIN_VISIBLE_MS, type OperationHandle } from '@reflect/core'
@@ -16,7 +16,9 @@ import { MobileStatusLayer } from './status-layer.tsx'
 // it stays quiet and these tests only see operation pills (its own behavior
 // is covered in sync-status-pill.test.tsx).
 
-/** Start an operation inside act so the store emit lands in a React batch. */
+/**
+ * Start an operation inside act so the store emit lands in a React batch.
+ */
 function operate(run: () => OperationHandle): OperationHandle {
   let handle: OperationHandle | undefined
   act(() => {
@@ -67,7 +69,7 @@ describe('MobileOperationsPills', () => {
     const handle = operate(() => app.operations.start('Completing task'))
     act(() => handle.fail('The note is busy.'))
 
-    await act(() => app.operations.clock.advance(LINGER_MS + MIN_VISIBLE_MS))
+    await actAsync(() => app.operations.clock.advance(LINGER_MS + MIN_VISIBLE_MS))
 
     expect(page.getByRole('alert').query()).toBeNull()
   })

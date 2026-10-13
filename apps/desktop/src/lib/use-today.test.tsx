@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { act } from '@/test-utils/act.ts'
+import { act, actAsync } from '@/test-utils/act.ts'
 import { createTestAppServices, createTestClockService } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useToday } from './use-today.ts'
@@ -29,7 +29,7 @@ describe('useToday', () => {
     const { result, unmount } = await renderHookInApp(() => useToday(), { app })
     expect(result.current).toBe('2026-06-09')
 
-    await act(async () => {
+    await actAsync(async () => {
       await clock.advance(2 * 60 * 1000)
     })
     expect(result.current).toBe('2026-06-10')

@@ -9,7 +9,9 @@ import type {
 import { wikiNoteReference } from './note-reference.ts'
 import { isDaily, isTemplatePath, notePath } from './paths.ts'
 
-/** The outcome of resolving an existing wiki target or safely creating it. */
+/**
+ * The outcome of resolving an existing wiki target or safely creating it.
+ */
 export type ResolveOrCreateNoteResult =
   | { readonly kind: 'resolved'; readonly path: string }
   | { readonly kind: 'created'; readonly path: string }
@@ -23,7 +25,9 @@ export type ResolveOrCreateNoteResult =
  * follow title changes.
  */
 export interface NoteCreationService {
-  /** A fresh frontmatter `id` (lowercase ULID, matching the filename convention). */
+  /**
+   * A fresh frontmatter `id` (lowercase ULID, matching the filename convention).
+   */
   newNoteId(): string
   /**
    * The buffer seed for a Cmd-N note (created lazily on the first keystroke):
@@ -56,7 +60,9 @@ export interface NoteCreationService {
   ): Promise<ResolveOrCreateNoteResult>
 }
 
-/** `notes/<26-char Crockford-base32 ULID>.md`, the shape of `untitledNotePath()`. */
+/**
+ * `notes/<26-char Crockford-base32 ULID>.md`, the shape of `untitledNotePath()`.
+ */
 const ULID_NOTE_PATH_RE = /^notes\/[0-7][0-9a-hjkmnp-tv-z]{25}\.md$/
 
 /**
@@ -67,13 +73,21 @@ export function isUntitledNotePath(path: string): boolean {
   return ULID_NOTE_PATH_RE.test(path)
 }
 
-/** How a note pane may treat a path that is not on disk yet. */
+/**
+ * How a note pane may treat a path that is not on disk yet.
+ */
 export interface DeferredCreationPolicy {
-  /** The note may be created on its first edit when the pane asks for lazy creation. */
+  /**
+   * The note may be created on its first edit when the pane asks for lazy creation.
+   */
   readonly lazyCreatable: boolean
-  /** A lazily created note starts from the untitled seed. */
+  /**
+   * A lazily created note starts from the untitled seed.
+   */
   readonly seedsUntitled: boolean
-  /** The note maintains title-addressed links when its title changes. */
+  /**
+   * The note maintains title-addressed links when its title changes.
+   */
   readonly trackRenames: boolean
 }
 
@@ -95,7 +109,9 @@ export function deferredCreationPolicy(path: string): DeferredCreationPolicy {
   }
 }
 
-/** Far beyond any real graph's same-slug population; fail loud instead of spinning. */
+/**
+ * Far beyond any real graph's same-slug population; fail loud instead of spinning.
+ */
 const MAX_CREATE_ATTEMPTS = 1000
 
 type ExistingTitleResolution = Exclude<ExistingWikiTargetResolution, { kind: 'missing' }>
@@ -122,30 +138,19 @@ export function createNoteCreationService(deps: {
    * runs after each lost claim; a non-null result short-circuits instead of
    * trying the next suffix.
    */
-  async function claimNotePathForSlug(
+  async function claimNotePathForSlug<Resolution>(
     slug: string,
     source: string,
     generation: number,
-  ): Promise<{ kind: 'created'; path: string }>
-  async function claimNotePathForSlug(
-    slug: string,
-    source: string,
-    generation: number,
-    onCollision: () => Promise<ExistingTitleResolution | null>,
-  ): Promise<ResolveOrCreateNoteResult>
-  async function claimNotePathForSlug(
-    slug: string,
-    source: string,
-    generation: number,
-    onCollision?: () => Promise<ExistingTitleResolution | null>,
-  ): Promise<ResolveOrCreateNoteResult> {
+    onCollision: () => Promise<Resolution | null>,
+  ): Promise<{ kind: 'created'; path: string } | Resolution> {
     for (let ordinal = 1; ordinal <= MAX_CREATE_ATTEMPTS; ordinal += 1) {
       const path = notePath(ordinal === 1 ? slug : `${slug}-${ordinal}`)
       const outcome = await noteFile.create(path, source, generation)
       if (outcome.kind === 'created') {
         return { kind: 'created', path }
       }
-      const resolution = (await onCollision?.()) ?? null
+      const resolution = await onCollision()
       if (resolution !== null) {
         return resolution
       }
@@ -161,10 +166,11 @@ export function createNoteCreationService(deps: {
     untitledNotePath: () => notePath(id.noteId()),
 
     async createNoteWithTitle(title, generation, body) {
-      const claimed = await claimNotePathForSlug(
+      const claimed = await claimNotePathForSlug<never>(
         slugForTitle(title),
         newNoteSource(title, body),
         generation,
+        async () => null,
       )
       return claimed.path
     },
@@ -190,7 +196,7 @@ export function createNoteCreationService(deps: {
 
       // On a lost claim, re-resolve both projections before considering a
       // suffix: the winner may be the note this link meant.
-      return await claimNotePathForSlug(
+      return await claimNotePathForSlug<ExistingTitleResolution>(
         slugForTitle(title),
         newNoteSource(title, body),
         generation,
