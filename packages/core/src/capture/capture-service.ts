@@ -216,7 +216,7 @@ class CaptureSessionImpl implements CaptureSession {
       return
     }
     this.#surfacedStops.set(label, stopped.message)
-    this.#deps.progress.start(label).fail(stopped.message)
+    this.#deps.progress.fail(label, stopped.message)
   }
 
   /**

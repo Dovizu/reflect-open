@@ -117,14 +117,14 @@ class TemplateServiceImpl implements TemplateService {
   async insertTemplate(path: string, editor: TemplateInsertTarget | null): Promise<void> {
     const { progress } = this.#deps
     if (editor === null) {
-      progress.start('Inserting template').fail('No open note to insert into')
+      progress.fail('Inserting template', 'No open note to insert into')
       return
     }
     try {
       editor.insertMarkdown(await this.templateBody(path))
       editor.focus()
     } catch (cause) {
-      progress.start('Inserting template').fail(errorMessage(cause))
+      progress.fail('Inserting template', errorMessage(cause))
     }
   }
 

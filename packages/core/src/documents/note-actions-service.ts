@@ -283,7 +283,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
     try {
       session = requireGraphSession(graphSession)
     } catch (cause) {
-      progress.start('Trashing notes').fail(errorMessage(cause))
+      progress.fail('Trashing notes', errorMessage(cause))
       return { succeeded, failed: paths.map((path) => ({ path, cause })) }
     }
     const operation = progress.start('Trashing notes')
@@ -419,7 +419,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
       if (written !== null) {
         noteRows.dropOverlay(path, generation, written)
       }
-      progress.start('Updating pin').fail(errorMessage(cause))
+      progress.fail('Updating pin', errorMessage(cause))
       return { status: 'failed' }
     }
   }
@@ -446,7 +446,7 @@ class NoteActionsServiceImpl implements NoteActionsService {
       if (written !== null) {
         noteRows.dropOverlay(path, generation, written)
       }
-      progress.start('Updating privacy').fail(errorMessage(cause))
+      progress.fail('Updating privacy', errorMessage(cause))
       return { status: 'failed' }
     }
   }

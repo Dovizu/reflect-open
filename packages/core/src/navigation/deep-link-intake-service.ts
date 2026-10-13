@@ -200,7 +200,7 @@ class DeepLinkIntakeServiceImpl implements DeepLinkIntakeService {
       options?.session === undefined ? graphSession.getState().session : options.session
     const link = parseDeepLink(url)
     if (link === null) {
-      progress.start('Opening link').fail(`Unrecognized link: ${truncate(url)}`)
+      progress.fail('Opening link', `Unrecognized link: ${truncate(url)}`)
       return NONE
     }
     switch (link.kind) {
@@ -214,14 +214,14 @@ class DeepLinkIntakeServiceImpl implements DeepLinkIntakeService {
           if (isStale?.() === true) {
             return NONE
           }
-          progress.start('Opening link').fail(errorMessage(cause))
+          progress.fail('Opening link', errorMessage(cause))
           return NONE
         }
         if (isStale?.() === true) {
           return NONE // the graph switched mid-resolve; the result answers the wrong graph
         }
         if (path === null) {
-          progress.start('Opening link').fail(`Note not found: ${truncate(link.target)}`)
+          progress.fail('Opening link', `Note not found: ${truncate(link.target)}`)
           return NONE
         }
         return { kind: 'note', path }
@@ -234,7 +234,7 @@ class DeepLinkIntakeServiceImpl implements DeepLinkIntakeService {
               ? 'Checkbox added to today'
               : 'Added to today'
         if (session === null) {
-          progress.start('Saving capture').fail('No graph is open.')
+          progress.fail('Saving capture', 'No graph is open.')
           return NONE
         }
         try {
@@ -255,7 +255,7 @@ class DeepLinkIntakeServiceImpl implements DeepLinkIntakeService {
             session.generation,
           )
         } catch (cause) {
-          progress.start('Saving capture').fail(errorMessage(cause))
+          progress.fail('Saving capture', errorMessage(cause))
           return NONE
         }
         progress.start(label).done()

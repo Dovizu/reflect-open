@@ -105,6 +105,10 @@ class OperationsServiceImpl implements OperationsService {
     this.#deps = deps
   }
 
+  fail(label: string, message: string, options?: OperationOptions): void {
+    this.start(label, options).fail(message)
+  }
+
   start(label: string, options?: OperationOptions): OperationHandle {
     const { clock } = this.#deps
     const id = this.#nextId++
