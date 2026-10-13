@@ -5,12 +5,12 @@ import {
   createTestAppServices,
   createTestOperationsService,
   createTestPlatformService,
+  makeOpenTask as task,
   type TestAppServices,
   type TestHapticsService,
   type TestStorageService,
 } from '@reflect/core/testing'
 import type { OpenTask, TaskAction, TaskService, TaskWriteResult } from '@reflect/core'
-import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
 import { useRouter } from '@/routing/router.tsx'
 import '@/test-utils/locator.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -114,7 +114,9 @@ let getCompletedTasks: MockInstance<TaskService['getCompletedTasks']>
 let writeTask: MockInstance<TaskService['writeTask']>
 let insertTask: MockInstance<TaskService['insertTask']>
 
-/** The result of a write that changed nothing the cache needs to re-address. */
+/**
+ * The result of a write that changed nothing the cache needs to re-address.
+ */
 const WRITTEN: TaskWriteResult = { source: '', moved: [], inserted: [], tasks: [], updatedAt: 0 }
 
 type TaskActionKind = TaskAction['kind']
@@ -123,7 +125,9 @@ function isWrite(actions: readonly TaskAction[], kinds: readonly TaskActionKind[
   return actions.length === kinds.length && actions.every((action, i) => action.kind === kinds[i])
 }
 
-/** The `writeTask` calls whose actions are exactly `kinds`, e.g. `('setMarkdown', 'toggle')`. */
+/**
+ * The `writeTask` calls whose actions are exactly `kinds`, e.g. `('setMarkdown', 'toggle')`.
+ */
 function writesOf(...kinds: TaskActionKind[]): unknown[][] {
   return writeTask.mock.calls.filter((call) => isWrite(call[1], kinds))
 }
@@ -153,7 +157,9 @@ vi.mock('@/components/ui/drawer.tsx', () => ({
   DrawerTitle: ({ children }: { children?: ReactNode }) => <h2>{children}</h2>,
 }))
 
-/** Narrow a queried element to the editor stub's textarea so `.value` typechecks. */
+/**
+ * Narrow a queried element to the editor stub's textarea so `.value` typechecks.
+ */
 function asTextArea(element: Element): HTMLTextAreaElement {
   if (!(element instanceof HTMLTextAreaElement)) {
     throw new TypeError('expected a textarea')
@@ -207,7 +213,9 @@ function renderScreen() {
 
 const waitFor = vi.waitFor
 
-/** Swipe a row far enough left that its release settles open, and return its moving surface. */
+/**
+ * Swipe a row far enough left that its release settles open, and return its moving surface.
+ */
 async function revealSwipeActions(
   view: Awaited<ReturnType<typeof renderScreen>>,
   label: string,
