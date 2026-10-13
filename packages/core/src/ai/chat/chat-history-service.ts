@@ -17,13 +17,19 @@ import type { AssistantPart, ChatTurn } from './transcript.ts'
  * history. Reads ride the ordinary read-only Kysely `db_query` bridge.
  */
 
-/** Chat write commands return `()` from Rust, which serializes to `null`. */
+/**
+ * Chat write commands return `()` from Rust, which serializes to `null`.
+ */
 const voidSchema = z.null()
 
-/** One conversation's metadata row. */
+/**
+ * One conversation's metadata row.
+ */
 export interface ChatConversation {
   id: string
-  /** First user message, truncated; fixed at creation. */
+  /**
+   * First user message, truncated; fixed at creation.
+   */
   title: string
   createdMs: number
   updatedMs: number
@@ -31,7 +37,9 @@ export interface ChatConversation {
 
 const hitSummarySchema = z.object({ path: z.string(), title: z.string() })
 
-/** One note's outcome in a persisted read_notes chip. */
+/**
+ * One note's outcome in a persisted read_notes chip.
+ */
 const readNoteSummarySchema = z.object({
   path: z.string(),
   title: z.string().nullable(),
@@ -155,7 +163,9 @@ const responseMessagesSchema = z.array(
   }),
 )
 
-/** One turn to persist, with the conversation row it upserts. */
+/**
+ * One turn to persist, with the conversation row it upserts.
+ */
 export interface SaveChatTurnInput {
   conversation: ChatConversation
   turn: ChatTurn
@@ -163,7 +173,15 @@ export interface SaveChatTurnInput {
   generation: number
 }
 
-/** The graph's persisted chat conversations. */
+export interface ChatHistoryServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly database: DatabaseService
+  readonly logger: LoggerService
+}
+
+/**
+ * The graph's persisted chat conversations.
+ */
 export interface ChatHistoryService {
   /**
    * Save one turn (and upsert its conversation row) for `generation`. The
@@ -173,9 +191,13 @@ export interface ChatHistoryService {
    * from it could collide with a row it never saw.
    */
   saveTurn(input: SaveChatTurnInput): Promise<void>
-  /** Delete a conversation and its messages (for `generation`). */
+  /**
+   * Delete a conversation and its messages (for `generation`).
+   */
   deleteConversation(id: string, generation: number): Promise<void>
-  /** The most recently active conversations, newest first. Defaults to 50. */
+  /**
+   * The most recently active conversations, newest first. Defaults to 50.
+   */
   listRecent(limit?: number): Promise<ChatConversation[]>
   /**
    * Load a conversation's turns in order. Restored turns are always `done`:
@@ -185,60 +207,67 @@ export interface ChatHistoryService {
   loadConversation(conversationId: string): Promise<ChatTurn[]>
 }
 
-export function createChatHistoryService(deps: {
-  ipc: IpcBridgeService
-  database: DatabaseService
-  logger: LoggerService
-}): ChatHistoryService {
-  const { ipc, database, logger } = deps
-  return {
-    async saveTurn(input) {
-      await ipc.call(
-        'chat_message_save',
-        {
-          conversation: input.conversation,
-          message: {
-            id: input.turn.id,
-            conversationId: input.conversation.id,
-            userText: input.turn.userText,
-            attachments: JSON.stringify(input.turn.attachments),
-            parts: JSON.stringify(input.turn.parts),
-            responseMessages: JSON.stringify(input.turn.responseMessages),
-            createdMs: input.createdMs,
-          },
-          generation: input.generation,
-        },
-        voidSchema,
-      )
-    },
-    async deleteConversation(id, generation) {
-      await ipc.call('chat_conversation_delete', { id, generation }, voidSchema)
-    },
-    async listRecent(limit = 50) {
-      return await database.db
-        .selectFrom('chatConversations')
-        .select(['id', 'title', 'createdMs', 'updatedMs'])
-        .orderBy('updatedMs', 'desc')
-        .limit(limit)
-        .execute()
-    },
-    async loadConversation(conversationId) {
-      const rows = await database.db
-        .selectFrom('chatMessages')
-        .select(['id', 'userText', 'attachments', 'parts', 'responseMessages'])
-        .where('conversationId', '=', conversationId)
-        .orderBy('seq', 'asc')
-        .execute()
-      return rows.flatMap((row) => {
-        const turn = parseTurn(row)
-        if (turn === null) {
-          logger.error(`dropping unreadable chat message ${row.id} in ${conversationId}`)
-          return []
-        }
-        return [turn]
-      })
-    },
+class ChatHistoryServiceImpl implements ChatHistoryService {
+  readonly #deps: ChatHistoryServiceDeps
+
+  constructor(deps: ChatHistoryServiceDeps) {
+    this.#deps = deps
   }
+
+  async saveTurn(input: SaveChatTurnInput): Promise<void> {
+    await this.#deps.ipc.call(
+      'chat_message_save',
+      {
+        conversation: input.conversation,
+        message: {
+          id: input.turn.id,
+          conversationId: input.conversation.id,
+          userText: input.turn.userText,
+          attachments: JSON.stringify(input.turn.attachments),
+          parts: JSON.stringify(input.turn.parts),
+          responseMessages: JSON.stringify(input.turn.responseMessages),
+          createdMs: input.createdMs,
+        },
+        generation: input.generation,
+      },
+      voidSchema,
+    )
+  }
+
+  async deleteConversation(id: string, generation: number): Promise<void> {
+    await this.#deps.ipc.call('chat_conversation_delete', { id, generation }, voidSchema)
+  }
+
+  async listRecent(limit = 50): Promise<ChatConversation[]> {
+    return await this.#deps.database.db
+      .selectFrom('chatConversations')
+      .select(['id', 'title', 'createdMs', 'updatedMs'])
+      .orderBy('updatedMs', 'desc')
+      .limit(limit)
+      .execute()
+  }
+
+  async loadConversation(conversationId: string): Promise<ChatTurn[]> {
+    const { database, logger } = this.#deps
+    const rows = await database.db
+      .selectFrom('chatMessages')
+      .select(['id', 'userText', 'attachments', 'parts', 'responseMessages'])
+      .where('conversationId', '=', conversationId)
+      .orderBy('seq', 'asc')
+      .execute()
+    return rows.flatMap((row) => {
+      const turn = parseTurn(row)
+      if (turn === null) {
+        logger.error(`dropping unreadable chat message ${row.id} in ${conversationId}`)
+        return []
+      }
+      return [turn]
+    })
+  }
+}
+
+export function createChatHistoryService(deps: ChatHistoryServiceDeps): ChatHistoryService {
+  return new ChatHistoryServiceImpl(deps)
 }
 
 interface StoredMessageRow {
