@@ -29,7 +29,7 @@ window; note windows normally get content-addressed `note-<hash(deep link)>`
 labels, with a numeric suffix when opening the target requires a distinct
 destination. An app-wide registry remembers the preferred window for each
 target. The frontend reads the role via `WindowService.isMainWindow()`
-(`packages/core/src/app/window-service.ts`, `useCoreServices().window`).
+(`packages/app/src/app/window-service.ts`, `useAppServices().window`).
 Environments without native windows — browser dev, tests, the `?platform=ios`
 harness — get the single-window host (`createSingleWindowHost`), whose label is
 `main`: they are all single-window.

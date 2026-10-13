@@ -19,7 +19,7 @@ package has no process-wide instances and no module-level mutable state.
   returns them as one **`CoreServices`** object. The host calls it once per
   webview.
 - **`CoreAdapters`** is what the host supplies: the IPC transport, the platform
-  facts, and the HTTP, storage, dialog, clipboard, opener, path, window and
+  facts, the window `role`, and the HTTP, storage, clipboard, opener, path and
   lifecycle primitives. The desktop app's adapters are in
   `apps/desktop/src/services/`, and it reads services in React with
   `useCoreServices()`.
@@ -60,8 +60,8 @@ Every native call goes through one seam:
 
 | Module | What it owns |
 |---|---|
-| `app/` | The composition root (`create-core-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformService`, `StorageService`, `HttpService`, `ProgressPort` and `ActivityPort` (`ports.ts`), `WindowService`, `PersistenceFlushService`. |
-| `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, the typed file services (`NoteFileService`, `AssetStoreService`), note creation and link resolution (`NoteCreationService`, `NoteLinkResolverService`), and the open graph (`GraphSessionService`, `MobileOnboardingService`). |
+| `app/` | The composition root (`create-core-services.ts`), the `GraphSession` type, and the app-wide primitives: `LoggerService`, `ClockService`, `IdService`, `HashService`, `PlatformFacts`, `StorageService`, `HttpService`, `ProgressPort` and `ActivityPort` (`ports.ts`), `PersistenceFlushService`. |
+| `graph/` | Graph file storage (Plan 02): path helpers (`dailyPath`, `notePath`), zod schemas, the typed file services (`NoteFileService`, `AssetStoreService`), note creation and link resolution (`NoteCreationService`, `NoteLinkResolverService`), and the open graph (`GraphSessionService`). |
 | `documents/` | Open notes: the `NoteSession` state machine (`NoteSessionService`), the registry of live sessions (`OpenDocumentsService`), session-aware reads and writes (`NoteDocumentService`), moves and title renames (`NoteMoveService`, `TitleRenameService`), note actions (`NoteActionsService`), attachments and templates. |
 | `markdown/` | The document model (Plan 03): frontmatter parsing, the canonical Lezer grammar with the `[[wiki link]]` extension, extraction (`parseNote`), source-level edits, and pure wiki-link resolution policy. |
 | `indexing/` | The SQLite projection (Plan 04): `IndexLifecycleService` (open, sync, rebuild, the live watcher subscription), `IndexStoreService` (writes), `FileChangeService`, and the eight read services over `DatabaseService` (`IndexQueryService`, `WikiResolverService`, `BacklinkService`, `SearchService`, `SuggestionService`, `NoteListService`, `GraphStatsService`, `NotePathService`). |
@@ -146,9 +146,7 @@ The App Review demo key writes one canned note per session. That rule lives in
 
 **`GraphSessionService`** (`CoreServices.graphSession`) owns the active graph of
 a webview: its status, the graph and index generations, the recents list, and
-the open, create, switch, forget and delete flows. `boot()` runs the window's
-boot path: the desktop main window reopens the most recent graph, a note
-window adopts the main window's sessions. Read it with `getState()` /
+the open, create, close, forget and delete flows. The window's boot path is the app layer's `GraphBootService` (`packages/app/src/graph/graph-boot-service.ts`). Read it with `getState()` /
 `subscribe()`. `getState().session` is the open graph as one `GraphSession`
 object; its `signal` aborts when the graph closes or another open is requested.
 
@@ -163,7 +161,7 @@ released. Ordinary services stay app-scoped. Rust-boundary wrappers
 (`NoteActionsService`) read the session once at method entry through
 `graphSession.getState()` or `requireGraphSession`.
 
-**`MobileOnboardingService`** (`CoreServices.mobileOnboarding`) is the mobile
+**`MobileOnboardingService`** (`AppServices.mobileOnboarding`, `packages/app/src/graph/`) is the mobile
 boot path over that session: `boot()` parks a fresh install on onboarding or
 opens the graph of the persisted storage kind, and `completeOnboarding()`
 opens and persists a storage choice. Storage roots are resolved fresh every
