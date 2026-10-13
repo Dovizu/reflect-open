@@ -132,6 +132,13 @@ export {
   type WebFetchKind,
 } from './capture.ts'
 export {
+  createTestDeepLinkIntakeService,
+  createTestDeepLinkSource,
+  type TestDeepLinkIntakeService,
+  type TestDeepLinkIntakeServiceOptions,
+  type TestDeepLinkSource,
+} from './deep-link.ts'
+export {
   createTestBackupService,
   createTestGitRepositoryService,
   createTestGithubAuthService,

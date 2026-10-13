@@ -52,7 +52,20 @@ export { type NoteFileService } from '../graph/note-file-service.ts'
 export { type NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 export { type NoteCreationService } from '../graph/note-creation-service.ts'
 export { dailyDeepLink, noteDeepLink } from '../navigation/deep-link-format.ts'
-export { DEEP_LINK_SCHEME, DEEP_LINK_TEXT_MAX_LENGTH } from '../navigation/deep-link.ts'
+export {
+  DEEP_LINK_SCHEME,
+  DEEP_LINK_TEXT_MAX_LENGTH,
+  type DeepLink,
+  type DeepLinkPlace,
+} from '../navigation/deep-link.ts'
+export { isDeepLinkUrl, parseDeepLink } from '../navigation/deep-link-parse.ts'
+export {
+  createNoDeepLinkSource,
+  type DeepLinkIntakeService,
+  type DeepLinkResolveOptions,
+  type DeepLinkSource,
+  type DeepLinkTarget,
+} from '../navigation/deep-link-intake-service.ts'
 export { type CaptureInboxService } from '../graph/capture-inbox-service.ts'
 export { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
 export { normalizeWikiTarget } from '../markdown/resolve.ts'

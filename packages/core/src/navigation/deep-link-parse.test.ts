@@ -1,27 +1,27 @@
 import { describe, expect, it } from 'vitest'
-import { DEEP_LINK_TEXT_MAX_LENGTH } from '@reflect/core'
-import { initialRouteForDeepLink, isDeepLinkUrl, parseDeepLink } from './deep-link-parse.ts'
+import { DEEP_LINK_TEXT_MAX_LENGTH } from './deep-link.ts'
+import { isDeepLinkUrl, parseDeepLink } from './deep-link-parse.ts'
 
 describe('parseDeepLink', () => {
   it('parses the bare navigation verbs', () => {
     expect(parseDeepLink('reflect://today')).toEqual({
       kind: 'navigate',
-      route: { kind: 'today' },
+      place: { kind: 'today' },
     })
     expect(parseDeepLink('reflect://tasks')).toEqual({
       kind: 'navigate',
-      route: { kind: 'tasks' },
+      place: { kind: 'tasks' },
     })
   })
 
   it('tolerates a trailing slash and the host lower-casing of the parser', () => {
     expect(parseDeepLink('reflect://today/')).toEqual({
       kind: 'navigate',
-      route: { kind: 'today' },
+      place: { kind: 'today' },
     })
     expect(parseDeepLink('reflect://Today')).toEqual({
       kind: 'navigate',
-      route: { kind: 'today' },
+      place: { kind: 'today' },
     })
   })
 
@@ -33,7 +33,7 @@ describe('parseDeepLink', () => {
   it('parses calendar-valid daily dates and rejects impossible ones', () => {
     expect(parseDeepLink('reflect://daily/2026-07-01')).toEqual({
       kind: 'navigate',
-      route: { kind: 'daily', date: '2026-07-01' },
+      place: { kind: 'daily', date: '2026-07-01' },
     })
     expect(parseDeepLink('reflect://daily/2026-02-31')).toBeNull()
     expect(parseDeepLink('reflect://daily/not-a-date')).toBeNull()
@@ -43,11 +43,11 @@ describe('parseDeepLink', () => {
   it('parses search queries, including an empty one', () => {
     expect(parseDeepLink('reflect://search?q=meeting%20notes')).toEqual({
       kind: 'navigate',
-      route: { kind: 'search', query: 'meeting notes' },
+      place: { kind: 'search', query: 'meeting notes' },
     })
     expect(parseDeepLink('reflect://search?q=')).toEqual({
       kind: 'navigate',
-      route: { kind: 'search', query: '' },
+      place: { kind: 'search', query: '' },
     })
     expect(parseDeepLink('reflect://search')).toBeNull()
   })
@@ -141,39 +141,5 @@ describe('isDeepLinkUrl', () => {
     expect(isDeepLinkUrl('assets/cat.png')).toBe(false)
     expect(isDeepLinkUrl('not a url')).toBe(false)
     expect(isDeepLinkUrl('')).toBe(false)
-  })
-})
-
-describe('initialRouteForDeepLink', () => {
-  it('derives navigate links directly', () => {
-    expect(initialRouteForDeepLink('reflect://daily/2026-07-05')).toEqual({
-      kind: 'daily',
-      date: '2026-07-05',
-    })
-    expect(initialRouteForDeepLink('reflect://today')).toEqual({ kind: 'today' })
-  })
-
-  it('derives path-shaped note targets without the index', () => {
-    // ⌘-click builds these via deepLinkForRoute, so the target IS the path.
-    expect(initialRouteForDeepLink('reflect://note/notes%2Ffoo.md')).toEqual({
-      kind: 'note',
-      path: 'notes/foo.md',
-    })
-    // A daily path routes to the daily view, same as routeForPath everywhere.
-    expect(initialRouteForDeepLink('reflect://note/daily%2F2026-07-04.md')).toEqual({
-      kind: 'daily',
-      date: '2026-07-04',
-    })
-  })
-
-  it('declines targets only the index can answer', () => {
-    expect(initialRouteForDeepLink('reflect://note/Meeting%20Notes')).toBeNull()
-    expect(initialRouteForDeepLink('reflect://note/01hzx4abc')).toBeNull()
-  })
-
-  it('declines capture links, garbage, and absence', () => {
-    expect(initialRouteForDeepLink('reflect://append?text=hi')).toBeNull()
-    expect(initialRouteForDeepLink('not a url')).toBeNull()
-    expect(initialRouteForDeepLink(null)).toBeNull()
   })
 })

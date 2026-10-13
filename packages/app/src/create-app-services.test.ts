@@ -11,7 +11,7 @@ describe('createAppServices', () => {
       'autocompleteSuggestions',
       'calendarEvents',
       'commands',
-      'deepLink',
+      'deepLinkRouter',
       'exceptionTelemetry',
       'keyboard',
       'keymap',

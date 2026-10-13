@@ -44,6 +44,7 @@ import {
 import { createTestClockService, type TestClockService } from './clock.ts'
 import { createTestContactsService } from './contacts.ts'
 import { createTestDatabaseService } from './database.ts'
+import { createTestDeepLinkIntakeService } from './deep-link.ts'
 import { createTestNoteMoveService } from './documents.ts'
 import {
   createTestEmbeddingIndexService,
@@ -200,6 +201,7 @@ function createTestServiceFactories(
     mobileStorage: () => createTestMobileStorageService(),
     noteMove: (deps) => createTestNoteMoveService(deps),
     captureInbox: () => createTestCaptureInboxService(),
+    deepLinkIntake: (deps) => createTestDeepLinkIntakeService(deps),
     webFetch: () => createTestWebFetchService(),
     pageDescriber: () => createTestPageDescriberService(),
     assetDescriber: () => createTestAssetDescriberService(),

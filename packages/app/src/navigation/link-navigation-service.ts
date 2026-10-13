@@ -12,10 +12,11 @@ import {
   ambiguousNoteTitleMessage,
   type WikiResolverService,
   normalizeWikiTarget,
+  isDeepLinkUrl,
+  parseDeepLink,
 } from '@reflect/core'
 import { deepLinkForRoute } from './deep-link-format.ts'
-import { isDeepLinkUrl, parseDeepLink } from './deep-link-parse.ts'
-import type { DeepLinkService } from './deep-link-service.ts'
+import type { DeepLinkRouter } from './deep-link-router.ts'
 import type { NavigationService } from './navigation-service.ts'
 import { routeForPath, type NoteRoute, type Route } from './route.ts'
 
@@ -186,7 +187,7 @@ export interface LinkNavigationServiceDeps {
   readonly window: Pick<WindowService, 'openNoteWindow'>
   readonly platform: Pick<PlatformService, 'isNativeShell' | 'surface'>
   readonly opener: Pick<OpenerService, 'openUrlSync'>
-  readonly deepLink: Pick<DeepLinkService, 'dispatch'>
+  readonly deepLinkRouter: Pick<DeepLinkRouter, 'dispatch'>
   readonly navigation: Pick<NavigationService, 'navigationRevision'>
   readonly attachments: Pick<AttachmentService, 'resolveAssetOpenPath' | 'openOrReveal'>
   readonly operations: Pick<OperationsService, 'start'>
@@ -378,18 +379,18 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
     host: Pick<LinkNavigationHost, 'beginIntent'>,
   ): void {
     const { href, openInNewWindow } = options
-    const { deepLink } = this.#deps
+    const { deepLinkRouter } = this.#deps
     const link = parseDeepLink(href)
     // A capture or rejected URL still dispatches so the graph-scoped handler
     // can write it or surface the error, but it cannot supersede navigation.
     if (link === null || link.kind === 'capture') {
-      deepLink.dispatch(href)
+      deepLinkRouter.dispatch(href)
       return
     }
 
     const isStale = host.beginIntent()
     if (!openInNewWindow) {
-      deepLink.dispatch(href)
+      deepLinkRouter.dispatch(href)
       return
     }
 
@@ -403,7 +404,7 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
       if (opened || isStale()) {
         return
       }
-      deepLink.dispatch(href)
+      deepLinkRouter.dispatch(href)
     })()
   }
 

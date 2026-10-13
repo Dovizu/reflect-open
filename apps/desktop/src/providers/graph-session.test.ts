@@ -33,7 +33,7 @@ function boot(windowService: TestWindowService, recents: readonly RecentGraph[] 
   const app = createTestAppServices(core)
   closeDatabase = () => core.database.close()
   const deepLinks: string[] = []
-  app.deepLink.setHandler((url) => {
+  core.deepLinkIntake.onUrl((url) => {
     deepLinks.push(url)
   })
   const stop = bootGraphSession(core, app)
@@ -60,7 +60,7 @@ describe('bootGraphSession in a note window', () => {
     expect(session.getState().indexGeneration).toBe(5)
     // ⌘-click links resolve synchronously: the route slot is seeded and the
     // intake is bypassed, so the window never flashes today's daily note.
-    expect(app.deepLink.getInitialWindowRoute()).toEqual({
+    expect(app.deepLinkRouter.getInitialWindowRoute()).toEqual({
       kind: 'note',
       path: 'notes/foo.md',
     })
@@ -78,21 +78,21 @@ describe('bootGraphSession in a note window', () => {
       initialDeepLink: 'reflect://note/Meeting%20Notes',
     })
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
-    expect(app.deepLink.getInitialWindowRoute()).toBeNull()
+    expect(app.deepLinkRouter.getInitialWindowRoute()).toBeNull()
     expect(deepLinks).toEqual(['reflect://note/Meeting%20Notes'])
   })
 
   it('skips the deep-link dispatch when none is pending (a reload)', async () => {
     const { session, app, deepLinks } = bootNoteWindow({ ...BOOT, initialDeepLink: null })
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
-    expect(app.deepLink.getInitialWindowRoute()).toBeNull()
+    expect(app.deepLinkRouter.getInitialWindowRoute()).toBeNull()
     expect(deepLinks).toEqual([])
   })
 
   it('acts on the drained deep link even when the boot was stopped meanwhile', async () => {
     const { session, stop, app } = bootNoteWindow(BOOT)
     stop()
-    await vi.waitFor(() => expect(app.deepLink.getInitialWindowRoute()).not.toBeNull())
+    await vi.waitFor(() => expect(app.deepLinkRouter.getInitialWindowRoute()).not.toBeNull())
     expect(session.getState().status).toBe('loading')
   })
 
@@ -119,6 +119,6 @@ describe('bootGraphSession in the main window', () => {
     ])
     await vi.waitFor(() => expect(session.getState().status).toBe('ready'))
     expect(session.getState().graph?.root).toBe('/known')
-    expect(app.deepLink.getInitialWindowRoute()).toBeNull()
+    expect(app.deepLinkRouter.getInitialWindowRoute()).toBeNull()
   })
 })

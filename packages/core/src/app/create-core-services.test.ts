@@ -53,6 +53,7 @@ const SERVICE_KEYS = [
   'embeddingRuntime',
   'chatHistory',
   'captureInbox',
+  'deepLinkIntake',
   'wikiResolver',
   'noteLinkResolver',
   'githubAuth',

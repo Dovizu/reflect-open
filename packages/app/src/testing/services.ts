@@ -4,21 +4,15 @@ import { createAppServices, type AppServices } from '../create-app-services.ts'
 import { createTestNativeMenuHost } from './commands.ts'
 import { createLinkNavigationService } from '../navigation/link-navigation-service.ts'
 import { createTestExceptionTelemetry } from './exception-telemetry.ts'
-import {
-  createTestDeepLinkService,
-  createTestDeepLinkSource,
-  createTestNavigationService,
-  type TestDeepLinkService,
-  type TestNavigationService,
-} from './navigation.ts'
+import { createDeepLinkRouter } from '../navigation/deep-link-router.ts'
+import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
 import { createTestUpdaterAdapter } from './update.ts'
 
 /**
  * {@link AppServices} where each service with a test double is that double.
  */
-export type TestAppServices = Omit<AppServices, 'navigation' | 'deepLink'> & {
+export type TestAppServices = Omit<AppServices, 'navigation'> & {
   readonly navigation: TestNavigationService
-  readonly deepLink: TestDeepLinkService
 }
 
 /**
@@ -31,15 +25,10 @@ export function createTestAppServices(
   overrides: Partial<AppServices> = {},
 ): TestAppServices {
   const navigation = overrides.navigation ?? createTestNavigationService()
-  const deepLink =
-    overrides.deepLink ??
-    createTestDeepLinkService({
-      source: createTestDeepLinkSource(),
-      indexQuery: core.indexQuery,
-      captureInbox: core.captureInbox,
-      operations: core.operations,
-      id: core.id,
-      clock: core.clock,
+  const deepLinkRouter =
+    overrides.deepLinkRouter ??
+    createDeepLinkRouter({
+      intake: core.deepLinkIntake,
       logger: core.logger,
       graphSession: core.graphSession,
     })
@@ -52,7 +41,7 @@ export function createTestAppServices(
       window: core.window,
       platform: core.platform,
       opener: core.opener,
-      deepLink,
+      deepLinkRouter,
       navigation,
       attachments: core.attachments,
       operations: core.operations,
@@ -67,7 +56,7 @@ export function createTestAppServices(
     }),
     ...overrides,
     navigation,
-    deepLink,
+    deepLinkRouter,
     linkNavigation,
   } as TestAppServices
 }

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createTestAppServices, createTestDeepLinkService } from '@reflect/app/testing'
+import { createTestAppServices } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestCaptureInboxService,
+  createTestDeepLinkIntakeService,
   createTestGraphSessionService,
 } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -16,20 +17,22 @@ describe('DeepLinkProvider navigation intent integration', () => {
     )
     const captureInbox = createTestCaptureInboxService()
     const graphSession = createTestGraphSessionService()
-    const app = createTestCoreServices({ captureInbox, graphSession })
-    const appServices = createTestAppServices(app, {
-      deepLink: createTestDeepLinkService({
+    const app = createTestCoreServices({
+      captureInbox,
+      graphSession,
+      deepLinkIntake: createTestDeepLinkIntakeService({
         indexQuery: { resolveNoteTarget },
         captureInbox,
         graphSession,
       }),
     })
+    const appServices = createTestAppServices(app)
     await renderInApp(<DeepLinkProvider>{null}</DeepLinkProvider>, { app, appServices })
 
-    appServices.deepLink.dispatch('reflect://note/Project%20X')
+    appServices.deepLinkRouter.dispatch('reflect://note/Project%20X')
     expect(resolveNoteTarget).toHaveBeenCalledWith('Project X')
 
-    appServices.deepLink.dispatch('reflect://append?text=captured%20while%20resolving')
+    appServices.deepLinkRouter.dispatch('reflect://append?text=captured%20while%20resolving')
     await vi.waitFor(() => expect(app.captureInbox.spooled()).toHaveLength(1))
 
     pendingResolution.resolve('notes/project-x.md')

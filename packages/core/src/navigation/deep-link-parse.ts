@@ -1,8 +1,6 @@
 import { isIsoDate } from '@reflect/utils'
-import type { TextCaptureKind } from '@reflect/core/capture-envelope'
-import { DEEP_LINK_SCHEME, DEEP_LINK_TEXT_MAX_LENGTH, isDaily, isNotePath } from '@reflect/core'
-import type { DeepLink } from './deep-link.ts'
-import { routeForPath, type Route } from './route.ts'
+import type { TextCaptureKind } from '../capture/capture-envelope.ts'
+import { DEEP_LINK_SCHEME, DEEP_LINK_TEXT_MAX_LENGTH, type DeepLink } from './deep-link.ts'
 
 /**
  * Parse a `reflect://` URL into a {@link DeepLink}, or null for anything the
@@ -25,17 +23,17 @@ export function parseDeepLink(raw: string): DeepLink | null {
   }
   switch (url.host.toLowerCase()) {
     case 'today':
-      return argument === '' ? { kind: 'navigate', route: { kind: 'today' } } : null
+      return argument === '' ? { kind: 'navigate', place: { kind: 'today' } } : null
     case 'tasks':
-      return argument === '' ? { kind: 'navigate', route: { kind: 'tasks' } } : null
+      return argument === '' ? { kind: 'navigate', place: { kind: 'tasks' } } : null
     case 'daily':
       return isIsoDate(argument)
-        ? { kind: 'navigate', route: { kind: 'daily', date: argument } }
+        ? { kind: 'navigate', place: { kind: 'daily', date: argument } }
         : null
     case 'search': {
       const query = url.searchParams.get('q')
       return query !== null && argument === ''
-        ? { kind: 'navigate', route: { kind: 'search', query } }
+        ? { kind: 'navigate', place: { kind: 'search', query } }
         : null
     }
     case 'note':
@@ -62,30 +60,6 @@ export function parseDeepLink(raw: string): DeepLink | null {
  */
 export function isDeepLinkUrl(href: string): boolean {
   return tryParseUrl(href)?.protocol === `${DEEP_LINK_SCHEME}:`
-}
-
-/**
- * Derive a route from a `reflect://` link synchronously, or null when only
- * the index can answer. ⌘-click builds links with `deepLinkForRoute`, so its
- * note targets are path-shaped and resolve right here; id/title-shaped
- * targets (hand-written links) fall back to the intake's async resolution —
- * those windows briefly show today, the price of an index round-trip.
- */
-export function initialRouteForDeepLink(link: string | null): Route | null {
-  if (link === null) {
-    return null
-  }
-  const parsed = parseDeepLink(link)
-  if (parsed === null) {
-    return null
-  }
-  if (parsed.kind === 'navigate') {
-    return parsed.route
-  }
-  if (parsed.kind === 'openNote' && (isNotePath(parsed.target) || isDaily(parsed.target))) {
-    return routeForPath(parsed.target)
-  }
-  return null
 }
 
 function tryParseUrl(raw: string): URL | null {

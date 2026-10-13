@@ -19,8 +19,10 @@ import {
   createTestWindowService,
   type TestOpenGraph,
   type TestPlatformOptions,
+  createTestDeepLinkIntakeService,
 } from '@reflect/core/testing'
-import { createTestDeepLinkService, createTestNavigationService } from '../testing/navigation.ts'
+import { createTestNavigationService } from '../testing/navigation.ts'
+import { createDeepLinkRouter } from './deep-link-router.ts'
 import {
   createLinkNavigationService,
   isOpenableExternalUrl,
@@ -58,11 +60,14 @@ function setup(options?: {
     options?.openNoteWindow === undefined ? {} : { openNoteWindow: options.openNoteWindow },
   )
   const opener = createTestOpenerService()
-  const deepLink = createTestDeepLinkService()
+  const deepLinkIntake = createTestDeepLinkIntakeService()
   const attachments = createTestAttachmentService()
   const operations = createTestOperationsService()
   const logger = createTestLoggerService()
   const navigation = createTestNavigationService()
+  const graphSession = createTestGraphSessionService({
+    graph: options?.graph === undefined ? { generation: 7 } : options.graph,
+  })
   const linkNavigation = createLinkNavigationService({
     noteLinkResolver: options?.noteLinkResolver ?? noteLinkResolver,
     noteCreation: options?.noteCreation ?? noteCreation,
@@ -71,14 +76,12 @@ function setup(options?: {
     window,
     platform: createTestPlatformService(options?.platform),
     opener,
-    deepLink,
+    deepLinkRouter: createDeepLinkRouter({ intake: deepLinkIntake, logger, graphSession }),
     navigation,
     attachments,
     operations,
     logger,
-    graphSession: createTestGraphSessionService({
-      graph: options?.graph === undefined ? { generation: 7 } : options.graph,
-    }),
+    graphSession,
   })
   return {
     linkNavigation,
@@ -89,7 +92,7 @@ function setup(options?: {
     noteCreation,
     window,
     opener,
-    deepLink,
+    deepLinkIntake,
     attachments,
     operations,
     logger,
@@ -704,50 +707,52 @@ describe('followMarkdownNoteLink', () => {
 
 describe('followDeepLink', () => {
   it('dispatches a plain activation in this window', () => {
-    const { linkNavigation, host, deepLink, window } = setup()
+    const { linkNavigation, host, deepLinkIntake, window } = setup()
     linkNavigation.followDeepLink({ href: 'reflect://note/abc', openInNewWindow: false }, host)
-    expect(deepLink.dispatched()).toEqual(['reflect://note/abc'])
+    expect(deepLinkIntake.dispatched()).toEqual(['reflect://note/abc'])
     expect(window.openedNoteWindows()).toEqual([])
   })
 
   it('opens a new-window request in a secondary window without dispatching', async () => {
-    const { linkNavigation, host, deepLink, window } = setup()
+    const { linkNavigation, host, deepLinkIntake, window } = setup()
     linkNavigation.followDeepLink({ href: 'reflect://note/abc', openInNewWindow: true }, host)
     await settle()
     expect(window.openedNoteWindows()).toEqual(['reflect://note/abc'])
-    expect(deepLink.dispatched()).toEqual([])
+    expect(deepLinkIntake.dispatched()).toEqual([])
   })
 
   it('falls back to in-window dispatch when the window open is declined', async () => {
-    const { linkNavigation, host, deepLink } = setup({ openNoteWindow: () => false })
+    const { linkNavigation, host, deepLinkIntake } = setup({ openNoteWindow: () => false })
     linkNavigation.followDeepLink({ href: 'reflect://note/older', openInNewWindow: true }, host)
     await settle()
-    expect(deepLink.dispatched()).toEqual(['reflect://note/older'])
+    expect(deepLinkIntake.dispatched()).toEqual(['reflect://note/older'])
   })
 
   it('falls back to in-window dispatch when the window open rejects', async () => {
-    const { linkNavigation, host, deepLink } = setup({
+    const { linkNavigation, host, deepLinkIntake } = setup({
       openNoteWindow: () => Promise.reject(new Error('window creation failed')),
     })
     linkNavigation.followDeepLink({ href: 'reflect://note/older', openInNewWindow: true }, host)
     await settle()
-    expect(deepLink.dispatched()).toEqual(['reflect://note/older'])
+    expect(deepLinkIntake.dispatched()).toEqual(['reflect://note/older'])
   })
 
   it('drops a failed fallback after the host went stale', async () => {
     const pendingOpen = Promise.withResolvers<boolean>()
-    const { linkNavigation, host, deepLink } = setup({ openNoteWindow: () => pendingOpen.promise })
+    const { linkNavigation, host, deepLinkIntake } = setup({
+      openNoteWindow: () => pendingOpen.promise,
+    })
     linkNavigation.followDeepLink({ href: 'reflect://note/older', openInNewWindow: true }, host)
     host.leave()
     pendingOpen.resolve(false)
     await settle()
-    expect(deepLink.dispatched()).toEqual([])
+    expect(deepLinkIntake.dispatched()).toEqual([])
   })
 
   it('drops a failed fallback after a newer note-link intent', async () => {
     const pendingOpen = Promise.withResolvers<boolean>()
     let opens = 0
-    const { linkNavigation, host, deepLink } = setup({
+    const { linkNavigation, host, deepLinkIntake } = setup({
       openNoteWindow: () => {
         opens += 1
         return opens === 1 ? pendingOpen.promise : true
@@ -760,7 +765,7 @@ describe('followDeepLink', () => {
     )
     pendingOpen.resolve(false)
     await settle()
-    expect(deepLink.dispatched()).toEqual([])
+    expect(deepLinkIntake.dispatched()).toEqual([])
   })
 
   it.each([
@@ -769,7 +774,7 @@ describe('followDeepLink', () => {
     'reflect://edit-notes?content=invalid',
   ])('does not cancel a pending failed fallback for non-address URL %s', async (url) => {
     const pendingOpen = Promise.withResolvers<boolean>()
-    const { linkNavigation, host, deepLink, window } = setup({
+    const { linkNavigation, host, deepLinkIntake, window } = setup({
       openNoteWindow: () => pendingOpen.promise,
     })
     linkNavigation.followDeepLink({ href: 'reflect://note/older', openInNewWindow: true }, host)
@@ -777,21 +782,21 @@ describe('followDeepLink', () => {
     pendingOpen.resolve(false)
     await settle()
     expect(window.openedNoteWindows()).toEqual(['reflect://note/older'])
-    expect(deepLink.dispatched()).toEqual([url, 'reflect://note/older'])
+    expect(deepLinkIntake.dispatched()).toEqual([url, 'reflect://note/older'])
   })
 
   it.each(['reflect://today', 'reflect://note/newer'])(
     'cancels a pending failed fallback for newer address URL %s',
     async (url) => {
       const pendingOpen = Promise.withResolvers<boolean>()
-      const { linkNavigation, host, deepLink } = setup({
+      const { linkNavigation, host, deepLinkIntake } = setup({
         openNoteWindow: () => pendingOpen.promise,
       })
       linkNavigation.followDeepLink({ href: 'reflect://note/older', openInNewWindow: true }, host)
       linkNavigation.followDeepLink({ href: url, openInNewWindow: false }, host)
       pendingOpen.resolve(false)
       await settle()
-      expect(deepLink.dispatched()).toEqual([url])
+      expect(deepLinkIntake.dispatched()).toEqual([url])
     },
   )
 })
@@ -809,24 +814,24 @@ describe('followMarkdownLink', () => {
   })
 
   it('routes a reflect:// link through the deep-link intake, not the URL opener', () => {
-    const { linkNavigation, host, opener, deepLink } = setup()
+    const { linkNavigation, host, opener, deepLinkIntake } = setup()
     linkNavigation.followMarkdownLink(
       { href: 'reflect://note/abc123', openInNewWindow: false, ...source },
       host,
     )
-    expect(deepLink.dispatched()).toEqual(['reflect://note/abc123'])
+    expect(deepLinkIntake.dispatched()).toEqual(['reflect://note/abc123'])
     expect(opener.openedUrls()).toEqual([])
   })
 
   it('opens a reflect:// link in a secondary window on request', async () => {
-    const { linkNavigation, host, window, deepLink } = setup()
+    const { linkNavigation, host, window, deepLinkIntake } = setup()
     linkNavigation.followMarkdownLink(
       { href: 'reflect://note/abc123', openInNewWindow: true, ...source },
       host,
     )
     await settle()
     expect(window.openedNoteWindows()).toEqual(['reflect://note/abc123'])
-    expect(deepLink.dispatched()).toEqual([])
+    expect(deepLinkIntake.dispatched()).toEqual([])
   })
 
   it('opens a custom app scheme in its OS default app', () => {
@@ -843,11 +848,11 @@ describe('followMarkdownLink', () => {
     ['file:///etc/passwd'],
     ['blob:https://example.com/uuid'],
   ])('drops the unsafe scheme %s without opening anything', async (href) => {
-    const { linkNavigation, host, opener, deepLink } = setup()
+    const { linkNavigation, host, opener, deepLinkIntake } = setup()
     linkNavigation.followMarkdownLink({ href, openInNewWindow: false, ...source }, host)
     await settle()
     expect(opener.openedUrls()).toEqual([])
-    expect(deepLink.dispatched()).toEqual([])
+    expect(deepLinkIntake.dispatched()).toEqual([])
     expect(host.routes()).toEqual([])
   })
 
@@ -877,7 +882,7 @@ describe('followMarkdownLink', () => {
   })
 
   it('drops attachment and note links when the Markdown belongs to no note', async () => {
-    const { linkNavigation, host, opener, attachments, noteLinkResolver, deepLink } = setup({
+    const { linkNavigation, host, opener, attachments, noteLinkResolver, deepLinkIntake } = setup({
       files: { 'notes/foo.md': '# Foo' },
     })
     for (const href of ['assets/cat.png', 'notes/foo.md']) {
@@ -887,7 +892,7 @@ describe('followMarkdownLink', () => {
     expect(attachments.opened()).toEqual([])
     expect(noteLinkResolver.calls()).toEqual([])
     expect(opener.openedUrls()).toEqual([])
-    expect(deepLink.dispatched()).toEqual([])
+    expect(deepLinkIntake.dispatched()).toEqual([])
     expect(host.routes()).toEqual([])
   })
 })
