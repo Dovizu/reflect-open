@@ -527,26 +527,18 @@ describe('write results', () => {
   })
 })
 
-describe('writeTasks', () => {
+describe('batch writes', () => {
   it('writes in order and re-addresses the rest of the batch after each write', async () => {
     const source = '+ [ ] one\n+ [ ] two\n+ [ ] three\n'
     noteFile.set('notes/a.md', source)
     const rows = projectTasks(source).map((row) =>
       makeOpenTask({ notePath: 'notes/a.md', astPath: [...row.astPath], markdown: row.markdown }),
     )
-    const written: string[] = []
 
-    await tasks.writeTasks(
-      [rows[0]!, rows[2]!],
-      () => [{ kind: 'remove' }],
-      (row, result) => {
-        written.push(`${row.markdown}@${JSON.stringify(row.astPath)}:${result.source}`)
-      },
-    )
+    await tasks.deleteTasks([rows[0]!, rows[2]!])
 
     // Removing "one" moved "three" up; its write addresses the new place.
-    expect(written).toEqual(['one@[0]:+ [ ] two\n+ [ ] three\n', 'three@[1]:+ [ ] two\n'])
-    expect(noteFile.getWrites('notes/a.md').at(-1)).toBe('+ [ ] two\n')
+    expect(noteFile.getWrites('notes/a.md')).toEqual(['+ [ ] two\n+ [ ] three\n', '+ [ ] two\n'])
   })
 
   it('stops at the first failed write, leaving the earlier ones landed', async () => {
@@ -554,9 +546,7 @@ describe('writeTasks', () => {
     const one = makeOpenTask({ notePath: 'notes/a.md', astPath: [0], markdown: 'one' })
     const gone = makeOpenTask({ notePath: 'notes/a.md', astPath: [5], markdown: 'gone' })
 
-    await expect(tasks.writeTasks([one, gone], () => [{ kind: 'toggle' }])).rejects.toBeInstanceOf(
-      TaskStaleError,
-    )
+    await expect(tasks.completeTasks([one, gone])).rejects.toBeInstanceOf(TaskStaleError)
     expect(noteFile.getWrites('notes/a.md')).toEqual(['+ [x] one\n'])
   })
 })
@@ -638,17 +628,15 @@ describe('no graph open', () => {
     const switching = createTasks(sessionSource(() => session))
     const one = makeOpenTask({ notePath: 'notes/a.md', astPath: [0], markdown: 'one' })
     const two = makeOpenTask({ notePath: 'notes/a.md', astPath: [1], markdown: 'two' })
+    const writeTask = switching.writeTask.bind(switching)
+    vi.spyOn(switching, 'writeTask').mockImplementation(async (task, actions) => {
+      const result = await writeTask(task, actions)
+      controller.abort()
+      session = createGraphSession({ root: '/h', name: 'h', generation: 8, indexGeneration: 1 })
+      return result
+    })
 
-    await expect(
-      switching.writeTasks(
-        [one, two],
-        () => [{ kind: 'toggle' }],
-        () => {
-          controller.abort()
-          session = createGraphSession({ root: '/h', name: 'h', generation: 8, indexGeneration: 1 })
-        },
-      ),
-    ).rejects.toThrow('No graph is open.')
+    await expect(switching.completeTasks([one, two])).rejects.toThrow('No graph is open.')
     expect(noteFile.getWrites('notes/a.md')).toEqual(['+ [x] one\n+ [ ] two\n'])
   })
 })
