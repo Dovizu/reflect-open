@@ -1,13 +1,17 @@
 import { act } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it } from 'vitest'
-import type { OpenTask, TaskService, TaskSnapshot } from '@reflect/core'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import { getTaskKey, type OpenTask, type TaskService, type TaskSnapshot } from '@reflect/core'
+import {
+  createTestAppServices,
+  makeOpenTask as task,
+  type TestAppServices,
+} from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
-import { makeOpenTask as task } from './open-task-fixture.ts'
-import { getTaskKey } from './task-identity.ts'
 import { useRecentlyCompleted } from './recently-completed.ts'
 
-/** A struck task as the note holds it: checked, unless a case says otherwise. */
+/**
+ * A struck task as the note holds it: checked, unless a case says otherwise.
+ */
 function snapshot(astPath: number[], markdown: string, checked = true): TaskSnapshot {
   return { astPath, markdown, breadcrumbs: [], checked }
 }
