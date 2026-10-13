@@ -106,7 +106,6 @@ export interface IpcBridgeService {
   readonly hasBinaryTransport: boolean
 }
 
-
 // FIXME: for all new functions / interfaces etc.added in this pull request.use the following pattern for jsdoc.
 //
 // BAD:

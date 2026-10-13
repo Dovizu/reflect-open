@@ -48,7 +48,6 @@ export function useGraphServices(options?: { optional: true }): GraphServices<Ap
   return services
 }
 
-
 /*
 FIXME 1: use function overrides is anti-pattern. Fix all functions in reflect-open and avoid function overrides. See example below
 

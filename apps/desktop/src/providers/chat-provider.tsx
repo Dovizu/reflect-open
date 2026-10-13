@@ -22,7 +22,8 @@ const NO_CHAT = {
 /** The chat session of the open graph; `optional` allows none (no graph is open). */
 export function useChatSession(options: { optional: true }): ChatContextValue | null
 export function useChatSession(): ChatContextValue
-export function useChatSession(options?: { optional: true }): ChatContextValue | null { // FIXME: let I said in earlier, function overriding is anti-pattern. Just create two functions.
+export function useChatSession(options?: { optional: true }): ChatContextValue | null {
+  // FIXME: let I said in earlier, function overriding is anti-pattern. Just create two functions.
   const session = useGraphServices({ optional: true })?.chat ?? null
   const state = useServiceState<ChatSessionState | null>(session ?? NO_CHAT)
   const value = useMemo(
