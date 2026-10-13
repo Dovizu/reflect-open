@@ -35,17 +35,13 @@ function setup(options?: { read?: () => void; lookup?: () => void }) {
     options?.read?.()
     return await readFile(path, generation)
   })
-  const healing = createMoveHealing({
-    noteFile: files,
-    indexQuery: {
-      ...indexQuery,
-      getNoteIdsByPath: async (paths) => {
-        calls.push('lookup')
-        options?.lookup?.()
-        return await indexQuery.getNoteIdsByPath(paths)
-      },
-    },
+  const getNoteIdsByPath = indexQuery.getNoteIdsByPath.bind(indexQuery)
+  vi.spyOn(indexQuery, 'getNoteIdsByPath').mockImplementation(async (paths) => {
+    calls.push('lookup')
+    options?.lookup?.()
+    return await getNoteIdsByPath(paths)
   })
+  const healing = createMoveHealing({ noteFile: files, indexQuery })
   return { healing, calls }
 }
 

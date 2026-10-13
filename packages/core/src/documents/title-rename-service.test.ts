@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
 import { createBacklinkService } from '../indexing/backlink-service.ts'
 import { createNotePathService } from '../indexing/note-path-service.ts'
@@ -78,6 +78,10 @@ interface SetupOptions {
    */
   resolveError?: Error
   /**
+   * Make every inbound path link query reject, so the path link pass after a move fails.
+   */
+  pathLinkError?: Error
+  /**
    * Make reading the tracked note from disk reject, so a disk alias placement fails.
    */
   readError?: Error
@@ -134,7 +138,12 @@ function setup(options?: SetupOptions) {
     logger,
   })
   const wikiResolver = createWikiResolverService({ database })
-  const resolveError = options?.resolveError
+  if (options?.resolveError !== undefined) {
+    vi.spyOn(wikiResolver, 'resolveWikiTarget').mockRejectedValue(options.resolveError)
+  }
+  if (options?.pathLinkError !== undefined) {
+    vi.spyOn(wikiResolver, 'getPathLinkSources').mockRejectedValue(options.pathLinkError)
+  }
   const readError = options?.readError
   const graph = createTestGraphSessionService(
     options?.graph === null ? {} : { graph: options?.graph ?? { generation: 7 } },
@@ -151,15 +160,7 @@ function setup(options?: SetupOptions) {
               return await noteFile.read(forPath, generation)
             },
           }),
-    wikiResolver:
-      resolveError === undefined
-        ? wikiResolver
-        : {
-            ...wikiResolver,
-            resolveWikiTarget: async () => {
-              throw resolveError
-            },
-          },
+    wikiResolver,
     backlinks: createBacklinkService({
       database,
       noteFile,
@@ -471,6 +472,20 @@ describe('rename coordinator', () => {
     expect(openDocuments.sessionFor('notes/new-title.md')).toBe(session)
     expect(openDocuments.sessionFor(PLACEHOLDER)).toBeNull()
     expect(noteMove.moved()).toEqual([[PLACEHOLDER, 'notes/new-title.md']])
+    expect((await operationOutcomes())[0]!.outcome).toBe('done')
+  })
+
+  it('a failed path link pass after the move is logged and the rename still completes', async () => {
+    const failure = new Error('index unavailable')
+    const { coordinator, logger, indexStore, operationOutcomes } = setup({
+      path: PLACEHOLDER,
+      files: { [PLACEHOLDER]: managed('# New Title\n'), [LINKER]: 'see [[notes/01abc]]\n' },
+      pathLinkError: failure,
+    })
+    await renameOnce(coordinator, 'Old Title', 'New Title')
+
+    expect(indexStore.moved()).toEqual([{ from: PLACEHOLDER, to: 'notes/new-title.md' }])
+    expect(logger.getErrors()).toEqual([{ message: 'path link rewrite failed:', cause: failure }])
     expect((await operationOutcomes())[0]!.outcome).toBe('done')
   })
 

@@ -1,5 +1,4 @@
-import { describe, expect, it } from 'vitest'
-import type { ChatSession } from '../ai/chat/chat-session-service.ts'
+import { describe, expect, it, vi } from 'vitest'
 import type { ICloudDownloadServiceOptions } from '../sync/icloud-download-service.ts'
 import type { ICloudSyncServiceOptions } from '../sync/icloud-sync-service.ts'
 import type { TestPlatformOptions } from '../testing/platform.ts'
@@ -86,15 +85,13 @@ function setup(options?: SetupOptions) {
         const chat = app.chatSessions.create(chatOptions)
         const record = { attached: 0, detached: 0 }
         chats.push(record)
-        return {
-          ...chat,
-          attach: () => {
-            record.attached += 1
-            return () => {
-              record.detached += 1
-            }
-          },
-        } satisfies ChatSession
+        vi.spyOn(chat, 'attach').mockImplementation(() => {
+          record.attached += 1
+          return () => {
+            record.detached += 1
+          }
+        })
+        return chat
       },
     },
     attachments: app.attachments,
