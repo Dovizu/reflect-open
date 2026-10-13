@@ -94,7 +94,7 @@ export interface DeepLinkService {
    * torn down, so a re-render or StrictMode double-mount can't re-deliver the
    * launch URL.
    */
-  startListener: () => Promise<void>
+  startListener(): Promise<void>
   /**
    * Feed one `reflect://` URL into the intake as if the OS had delivered it —
    * the entry point for deep links clicked *inside* the app (a link in a note
@@ -103,12 +103,12 @@ export interface DeepLinkService {
    * URL to a different installed flavor). Buffers like any OS delivery when no
    * graph is open.
    */
-  dispatch: (url: string) => void
+  dispatch(url: string): void
   /**
    * Attach the workspace's handler (or detach with null on unmount). Attaching
    * drains any URLs that arrived while no graph was open, in arrival order.
    */
-  setHandler: (handler: ((url: string) => void) | null) => void
+  setHandler(handler: ((url: string) => void) | null): void
   /**
    * Act on one incoming `reflect://` URL: navigation links navigate (a note
    * target resolving through the index first), capture links spool an envelope
@@ -117,7 +117,7 @@ export interface DeepLinkService {
    * line — an outside-world input must never crash or silently vanish. A
    * capture spools into the graph open when the call starts.
    */
-  handle: (url: string, io: DeepLinkIo) => Promise<void>
+  handle(url: string, io: DeepLinkIo): Promise<void>
   /**
    * Route incoming URLs into `session` until the returned function is called:
    * attaches a handler that runs {@link DeepLinkService.handle} for each URL
@@ -125,20 +125,20 @@ export interface DeepLinkService {
    * navigation intent. The graph open when `serve` is called is the one every
    * URL acts on; a note resolution that outlives it is dropped.
    */
-  serve: (session: DeepLinkSession) => Unlisten
+  serve(session: DeepLinkSession): Unlisten
   /**
    * Record a note window's first route, derived from its initial deep link
    * BEFORE the router mounts — so the window's first workspace render is
    * already the ⌘-clicked note instead of flashing today's daily note while
    * the link rides the async intake.
    */
-  setInitialWindowRoute: (route: Route) => void
+  setInitialWindowRoute(route: Route): void
   /**
    * The derived first route, or null (main window, reload, unresolvable
    * link). Plain slot, not consume-once: a webview boots once, and idempotent
    * reads survive StrictMode's double-invoked initializers.
    */
-  getInitialWindowRoute: () => Route | null
+  getInitialWindowRoute(): Route | null
 }
 
 export interface DeepLinkServiceDeps {
@@ -163,7 +163,7 @@ class DeepLinkServiceImpl implements DeepLinkService {
     this.#deps = deps
   }
 
-  readonly startListener = async (): Promise<void> => {
+  async startListener(): Promise<void> {
     if (this.#started) {
       return
     }
@@ -195,7 +195,7 @@ class DeepLinkServiceImpl implements DeepLinkService {
     }
   }
 
-  readonly dispatch = (url: string): void => {
+  dispatch(url: string): void {
     if (this.#activeHandler !== null) {
       this.#activeHandler(url)
     } else {
@@ -203,7 +203,7 @@ class DeepLinkServiceImpl implements DeepLinkService {
     }
   }
 
-  readonly setHandler = (handler: ((url: string) => void) | null): void => {
+  setHandler(handler: ((url: string) => void) | null): void {
     this.#activeHandler = handler
     if (handler !== null && this.#pendingUrls.length > 0) {
       const queued = this.#pendingUrls
@@ -214,10 +214,11 @@ class DeepLinkServiceImpl implements DeepLinkService {
     }
   }
 
-  readonly handle = (url: string, io: DeepLinkIo): Promise<void> =>
-    this.#handleIn(url, io, this.#deps.graphSession.getState().session)
+  handle(url: string, io: DeepLinkIo): Promise<void> {
+    return this.#handleIn(url, io, this.#deps.graphSession.getState().session)
+  }
 
-  readonly serve = (session: DeepLinkSession): Unlisten => {
+  serve(session: DeepLinkSession): Unlisten {
     const { logger, graphSession } = this.#deps
     const { navigate } = session
     const graph = graphSession.getState().session
@@ -239,11 +240,13 @@ class DeepLinkServiceImpl implements DeepLinkService {
     }
   }
 
-  readonly setInitialWindowRoute = (route: Route): void => {
+  setInitialWindowRoute(route: Route): void {
     this.#initialRoute = route
   }
 
-  readonly getInitialWindowRoute = (): Route | null => this.#initialRoute
+  getInitialWindowRoute(): Route | null {
+    return this.#initialRoute
+  }
 
   async #handleIn(url: string, io: DeepLinkIo, session: GraphSession | null): Promise<void> {
     const { indexQuery, captureInbox, operations, id, clock } = this.#deps

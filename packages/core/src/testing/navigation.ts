@@ -54,40 +54,48 @@ class TestNavigationServiceImpl implements TestNavigationService {
     this.#inner = inner
   }
 
-  readonly getState = (): NavigationState => this.#inner.getState()
+  getState(): NavigationState {
+    return this.#inner.getState()
+  }
 
-  readonly subscribe = (listener: () => void): Unlisten => this.#inner.subscribe(listener)
+  subscribe(listener: () => void): Unlisten {
+    return this.#inner.subscribe(listener)
+  }
 
-  readonly navigate = (route: Route, navigateOptions?: NavigateOptions): void => {
+  navigate(route: Route, navigateOptions?: NavigateOptions): void {
     this.#calls.push({ route, options: navigateOptions })
     this.#inner.navigate(route, navigateOptions)
   }
 
-  readonly back = (): void => {
+  back(): void {
     this.#inner.back()
   }
 
-  readonly forward = (): void => {
+  forward(): void {
     this.#inner.forward()
   }
 
-  readonly navigationRevision = (): number => this.#inner.navigationRevision()
+  navigationRevision(): number {
+    return this.#inner.navigationRevision()
+  }
 
-  readonly saveScrollState = (offset: number, at?: NavigationPosition): void => {
+  saveScrollState(offset: number, at?: NavigationPosition): void {
     this.#inner.saveScrollState(offset, at)
   }
 
-  readonly clearScrollState = (at?: NavigationPosition): void => {
+  clearScrollState(at?: NavigationPosition): void {
     this.#inner.clearScrollState(at)
   }
 
-  readonly savedScroll = (at?: NavigationPosition): number | null => this.#inner.savedScroll(at)
+  savedScroll(at?: NavigationPosition): number | null {
+    return this.#inner.savedScroll(at)
+  }
 
-  readonly noteMoved = (from: string, to: string): void => {
+  noteMoved(from: string, to: string): void {
     this.#inner.noteMoved(from, to)
   }
 
-  readonly reset = (initialRoute?: Route): void => {
+  reset(initialRoute?: Route): void {
     this.#inner.reset(initialRoute)
   }
 
@@ -193,26 +201,34 @@ class TestDeepLinkServiceImpl implements TestDeepLinkService {
     this.#inner = inner
   }
 
-  readonly startListener = (): Promise<void> => this.#inner.startListener()
+  startListener(): Promise<void> {
+    return this.#inner.startListener()
+  }
 
-  readonly dispatch = (url: string): void => {
+  dispatch(url: string): void {
     this.#calls.push(url)
     this.#inner.dispatch(url)
   }
 
-  readonly setHandler = (handler: ((url: string) => void) | null): void => {
+  setHandler(handler: ((url: string) => void) | null): void {
     this.#inner.setHandler(handler)
   }
 
-  readonly handle = (url: string, io: DeepLinkIo): Promise<void> => this.#inner.handle(url, io)
+  handle(url: string, io: DeepLinkIo): Promise<void> {
+    return this.#inner.handle(url, io)
+  }
 
-  readonly serve = (session: DeepLinkSession): Unlisten => this.#inner.serve(session)
+  serve(session: DeepLinkSession): Unlisten {
+    return this.#inner.serve(session)
+  }
 
-  readonly setInitialWindowRoute = (route: Route): void => {
+  setInitialWindowRoute(route: Route): void {
     this.#inner.setInitialWindowRoute(route)
   }
 
-  readonly getInitialWindowRoute = (): Route | null => this.#inner.getInitialWindowRoute()
+  getInitialWindowRoute(): Route | null {
+    return this.#inner.getInitialWindowRoute()
+  }
 
   dispatched(): readonly string[] {
     return [...this.#calls]
