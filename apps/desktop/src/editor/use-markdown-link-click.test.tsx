@@ -38,7 +38,7 @@ async function mount(sourcePath: string | null): Promise<void> {
     graphSession,
     linkNavigation: createTestAppServices({
       graphSession,
-      deepLink: { ...createTestAppServices().deepLink, dispatch: dispatchDeepLink },
+      deepLink: Object.assign(createTestAppServices().deepLink, { dispatch: dispatchDeepLink }),
       noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
       window: createTestWindowService({ openNoteWindow }),
       opener,

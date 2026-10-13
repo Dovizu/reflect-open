@@ -43,7 +43,13 @@ export interface GraphServicesDeps {
  * lifecycles that no surface reads run inside and have no field.
  */
 export interface GraphServices {
+  /**
+   * The open graph: its identity, both session generations, and its lifetime.
+   */
   readonly session: GraphSession
+  /**
+   * Whether this window owns the graph or adopts the main window's sessions.
+   */
   readonly role: GraphRole
   /**
    * The chat session of this graph.

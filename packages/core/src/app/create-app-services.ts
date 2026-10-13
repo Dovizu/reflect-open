@@ -310,36 +310,129 @@ import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
  * The app-scoped services: one instance each for the lifetime of the webview.
  */
 export interface AppServices {
+  /**
+   * The typed IPC boundary that turns an untyped native response into a validated domain value.
+   */
   readonly ipc: IpcBridgeService
+  /**
+   * Diagnostic logging.
+   */
   readonly logger: LoggerService
+  /**
+   * Wall time, monotonic time, the local date, and timers.
+   */
   readonly clock: ClockService
+  /**
+   * Fresh random identifiers.
+   */
   readonly id: IdService
+  /**
+   * Content hashing.
+   */
   readonly hash: HashService
+  /**
+   * What the host is and can do, plus its reduced-motion and color-scheme signals.
+   */
   readonly platform: PlatformService
+  /**
+   * Key-value storage that outlives a page (`local`) or a session (`session`).
+   */
   readonly storage: StorageService
+  /**
+   * Native open panels.
+   */
   readonly dialog: DialogService
+  /**
+   * The system clipboard.
+   */
   readonly clipboard: ClipboardService
+  /**
+   * Hands URLs and paths to the operating system.
+   */
   readonly opener: OpenerService
+  /**
+   * Host filesystem path building, in the host platform's path syntax.
+   */
   readonly path: PathService
+  /**
+   * Facts about this webview's window and the actions that span windows.
+   */
   readonly window: WindowService
+  /**
+   * Application lifecycle signals and the shell's quit and background-task handshakes.
+   */
   readonly lifecycle: AppLifecycleService
+  /**
+   * Facts about the running application build.
+   */
   readonly appInfo: AppInfoService
+  /**
+   * Live reads of the OS calendar database.
+   */
   readonly calendar: CalendarService
+  /**
+   * The calendar events behind the daily note's events panel, fetched live.
+   */
   readonly calendarEvents: CalendarEventsService
+  /**
+   * Live reads of the OS address book, and the permission state as a store.
+   */
   readonly contacts: ContactsService
+  /**
+   * Offers the Apple Contact whose name matches a note's title as a suggested-contact card.
+   */
   readonly contactSuggestions: ContactSuggestionService
+  /**
+   * Adds a calendar event to its daily note, with the attendee resolution around it.
+   */
   readonly meetings: MeetingService
+  /**
+   * Manages the open graph's agent skill file under `~/.agents/skills/`.
+   */
   readonly agentSkill: AgentSkillService
+  /**
+   * The native side of mobile graph storage.
+   */
   readonly mobileStorage: MobileStorageService
+  /**
+   * Decodes and re-encodes image files.
+   */
   readonly imageCodec: ImageCodecService
+  /**
+   * Exception-only crash reporting.
+   */
   readonly exceptionTelemetry: ExceptionTelemetryService
+  /**
+   * The app-wide list of visible background operations.
+   */
   readonly operations: OperationsService
+  /**
+   * The global settings document: loaded once, patched in memory, and saved one write at a time.
+   */
   readonly settings: SettingsService
+  /**
+   * The app theme: the `theme` setting resolved against the system color scheme.
+   */
   readonly theme: ThemeService
+  /**
+   * Lands dirty state before the app exits or the OS suspends it.
+   */
   readonly persistenceFlush: PersistenceFlushService
+  /**
+   * One stream of "files changed" for the open graph, merging native watcher events with in-process batches.
+   */
   readonly fileChanges: FileChangeService
+  /**
+   * The local embedding model: download, load, status, and text vectors.
+   */
   readonly embeddingRuntime: EmbeddingRuntimeService
+  /**
+   * The graph's persisted chat conversations.
+   */
   readonly chatHistory: ChatHistoryService
+  /**
+   * Checks for, downloads, and installs app updates.
+   */
   readonly update: UpdateService
   /**
    * The webview's navigation history; a note window has its own webview, hence its own.
@@ -351,60 +444,183 @@ export interface AppServices {
   readonly deepLink: DeepLinkService
   /**
    * Turns an activated link into a navigation, a new window, or a refusal.
-   */ // FIXME: just like this line. in interface AppServices and other XXXServices, for each services, add a one line description of what the service does
+   */
   readonly linkNavigation: LinkNavigationService
+  /**
+   * The one GitHub sign-in of this machine, kept in the keychain.
+   */
   readonly githubAuth: GithubAuthService
+  /**
+   * Publishes a note as a secret GitHub gist, and takes it down again.
+   */
   readonly gistPublish: GistPublishService
+  /**
+   * The native side of the iCloud Drive container.
+   */
   readonly icloudNative: ICloudNativeService
+  /**
+   * Moves a local graph into the iCloud Drive container.
+   */
   readonly icloudMigration: ICloudMigrationService
+  /**
+   * Resolves the sync conflict markers of one note as raw-text surgery.
+   */
   readonly conflictResolution: ConflictResolutionService
+  /**
+   * Derives the mobile sync status that the settings sheet and the status pill show.
+   */
   readonly syncStatus: SyncStatusService
+  /**
+   * The embedded media of the editor's cards: X posts and YouTube videos.
+   */
   readonly embedMedia: EmbedMediaService
+  /**
+   * The privacy-gated expansion of the HTTP(S) links in a note.
+   */
   readonly linkPreview: LinkPreviewService
+  /**
+   * Reflect Open access through a paid Reflect Classic account.
+   */
   readonly classicAccess: ClassicAccessService
+  /**
+   * Reads and writes Markdown notes by graph-relative path.
+   */
   readonly noteFile: NoteFileService
+  /**
+   * Resolves, displays, opens, and saves note attachments.
+   */
   readonly attachments: AttachmentService
+  /**
+   * Creates the document session of each open note.
+   */
   readonly noteSessions: NoteSessionService
+  /**
+   * The open note documents, as one app-global registry.
+   */
   readonly openDocuments: OpenDocumentsService
+  /**
+   * Moves note files, and tells the rest of the app that a note now lives somewhere else.
+   */
   readonly noteMove: NoteMoveService
+  /**
+   * Keeps inbound links, aliases and filenames following each note's settled title.
+   */
   readonly titleRename: TitleRenameService
+  /**
+   * Reads and writes a note from an in-app action through the open session when there is one, otherwise the disk.
+   */
   readonly noteDocuments: NoteDocumentService
+  /**
+   * Read-only previews of the note that a link points at.
+   */
   readonly notePreview: NotePreviewService
+  /**
+   * Reads, edits and adds round-checkbox tasks across notes.
+   */
   readonly tasks: TaskService
+  /**
+   * The user's actions on one note that are not edits: pin, private, trash, copy deep link, copy path.
+   */
   readonly noteActions: NoteActionsService
+  /**
+   * The optimistic read overlay for note index rows.
+   */
   readonly noteRows: NoteRowService
+  /**
+   * The date questions about notes: today, which days have a daily note, and the wake onto a new day.
+   */
   readonly dailyNotes: DailyNoteService
+  /**
+   * Note templates: read, insert, create, and manage the Markdown files under `templates/`.
+   */
   readonly templates: TemplateService
+  /**
+   * Row lookups over the index's `notes` and `aliases` tables.
+   */
   readonly indexQuery: IndexQueryService
+  /**
+   * Incoming links of a note, raw or with their rendered block context.
+   */
   readonly backlinks: BacklinkService
+  /**
+   * The palette's full-text search with filters.
+   */
   readonly search: SearchService
+  /**
+   * The All Notes list, the recent-notes listing and the tag facets.
+   */
   readonly noteList: NoteListService
+  /**
+   * Readable, collision-free paths for note and template titles.
+   */
   readonly notePath: NotePathService
+  /**
+   * Creates notes with a title-derived filename and a ULID frontmatter `id`.
+   */
   readonly noteCreation: NoteCreationService
+  /**
+   * The active graph's index lifecycle: open, reconcile, watch, suspend, resume, and rebuild.
+   */
   readonly indexLifecycle: IndexLifecycleService
   /**
    * The active graph; its state carries the graph-scoped services of the open session.
    */
   readonly graphSession: GraphSessionService<GraphServices>
+  /**
+   * The opt-in local semantic search: model download, load, and re-embedding after an index rebuild.
+   */
   readonly semanticSearch: SemanticSearchService
+  /**
+   * The mobile graph bootstrap into one of two fixed roots, the iCloud Drive container or the app sandbox.
+   */
   readonly mobileOnboarding: MobileOnboardingService
+  /**
+   * The software keyboard's overlap height, as the UI last measured it.
+   */
   readonly keyboard: KeyboardService
+  /**
+   * Shares a note through the OS share sheet.
+   */
   readonly share: ShareService
+  /**
+   * The saved AI prompts of the editor AI menu's user library.
+   */
   readonly aiPrompts: AiPromptService
+  /**
+   * The central keymap registry that rejects duplicate shortcut bindings.
+   */
   readonly keymap: KeymapService
   /**
    * The command registry. The app decides the context type that its commands run with.
    */
   readonly commands: CommandService
+  /**
+   * The native macOS application menu and native context menus.
+   */
   readonly nativeMenu: NativeMenuService
+  /**
+   * The configured AI provider entries, and which entry each AI feature uses.
+   */
   readonly aiProviderConfig: AiProviderConfigService
+  /**
+   * Runs a prompt on an editor selection and streams the replacement text.
+   */
   readonly selectionTransform: SelectionTransformService
   /**
    * Creates the chat session of an open graph; the workspace owns the session.
    */
   readonly chatSessions: ChatSessionService
+  /**
+   * Lands the link captures spooled by the browser extension, the iOS share extension, Shortcuts and deep links in the daily note.
+   */
   readonly capture: CaptureService
+  /**
+   * Segmented audio memos: saved raw, transcribed in the background, and linked from the daily note.
+   */
   readonly audioMemo: AudioMemoService
+  /**
+   * Generates managed Markdown descriptions of eligible image and PDF assets, and folds them into search.
+   */
   readonly assetDescription: AssetDescriptionService
   /**
    * The editor's `[[` and `#` menus.
@@ -424,10 +640,25 @@ export interface AppServices {
  * The mobile-only services that the app reads.
  */
 export interface MobileServices {
+  /**
+   * The haptic engine.
+   */
   readonly haptics: HapticsService
+  /**
+   * The current App Store subscription, seeded from the last launch.
+   */
   readonly subscription: SubscriptionService
+  /**
+   * The App Store install channel, probed once per launch.
+   */
   readonly appStoreEnvironment: AppStoreEnvironmentService
+  /**
+   * Whether the paywall replaces the app, and the actions that lift it.
+   */
   readonly paywall: PaywallService
+  /**
+   * Native recording sessions end to end: start, stop and save, discard, and exactly-once ingest.
+   */
   readonly mobileAudioMemo: MobileAudioMemoService
 }
 
@@ -490,18 +721,45 @@ export function createNoteServices(deps: {
  * The host primitives that {@link createAppServices} builds the services on.
  */
 export interface AppAdapters {
+  /**
+   * The raw IPC transport that the host implements.
+   */
   readonly ipc: IpcBridge
+  /**
+   * What the host is and can do, decided once at startup.
+   */
   readonly platform: PlatformFacts
+  /**
+   * Outbound HTTP, in the shape of the global `fetch`.
+   */
   readonly http: HttpService
   /**
    * The Web storage areas; `null` keeps an area in memory.
    */
   readonly storage: { readonly local: Storage | null; readonly session: Storage | null }
+  /**
+   * Native open panels.
+   */
   readonly dialog: DialogService
+  /**
+   * The system clipboard.
+   */
   readonly clipboard: ClipboardService
+  /**
+   * The native operations behind the opener service.
+   */
   readonly opener: OpenerTransport
+  /**
+   * The native operations behind the path service.
+   */
   readonly path: PathTransport
+  /**
+   * The native window operations behind the window service.
+   */
   readonly window: WindowHost
+  /**
+   * The DOM behind the lifecycle service.
+   */
   readonly lifecycle: LifecycleDomAdapter
   /**
    * Defaults to the console.
@@ -682,39 +940,141 @@ export type ServiceFactories = typeof appServiceFactories
  * The services that {@link createAppServices} builds but keeps out of {@link AppServices}.
  */
 export interface InternalServices {
+  /**
+   * Outbound HTTP, in the shape of the global `fetch`.
+   */
   readonly http: HttpService
+  /**
+   * The OS keychain behind every credential.
+   */
   readonly secretStore: SecretStoreService
+  /**
+   * The mapping from email identities to `#person` notes.
+   */
   readonly personNotes: PersonNoteService
+  /**
+   * Typed read-only queries over the active graph's SQLite index.
+   */
   readonly database: DatabaseService
+  /**
+   * The SQLite projection of the active graph, written through the native `index_*` commands.
+   */
   readonly indexStore: IndexStoreService
+  /**
+   * The Rust git primitives for the open graph's repository.
+   */
   readonly gitRepository: GitRepositoryService
+  /**
+   * The backup repository on GitHub, over its REST API.
+   */
   readonly githubRepos: GithubRepoService
+  /**
+   * The GitHub Gists REST surface behind "Publish to gist".
+   */
   readonly gists: GistService
+  /**
+   * Builds the sync engine of one graph session.
+   */
   readonly syncEngines: SyncEngineFactory
+  /**
+   * The capture inbox of envelopes that the browser extension, the iOS share extension, and deep links spool.
+   */
   readonly captureInbox: CaptureInboxService
+  /**
+   * Bounded outbound web fetches that the native side performs.
+   */
   readonly webFetch: WebFetchService
+  /**
+   * X (Twitter) posts and their media archived under `assets/x/`.
+   */
   readonly xArchive: XArchiveService
+  /**
+   * The microphone recorder behind audio memos.
+   */
   readonly audioRecorder: AudioRecorderService
+  /**
+   * The system web sign-in session.
+   */
   readonly webAuth: WebAuthService
+  /**
+   * Binary files in the graph: attachments, audio memos, and the transcript cache.
+   */
   readonly assetStore: AssetStoreService
+  /**
+   * Wiki-target resolution over the index's claims and keys.
+   */
   readonly wikiResolver: WikiResolverService
+  /**
+   * Autocomplete candidates for `#` tags and `[[` wiki targets.
+   */
   readonly suggestions: SuggestionService
+  /**
+   * Graph-level aggregates over the non-private notes.
+   */
   readonly graphStats: GraphStatsService
+  /**
+   * Decides which existing note a `[[wiki link]]` or Markdown href points at.
+   */
   readonly noteLinkResolver: NoteLinkResolverService
+  /**
+   * The `private: true` gate that every outbound payload passes through.
+   */
   readonly privacy: PrivacyService
+  /**
+   * The one retrieval contract that search and AI share.
+   */
   readonly retrieval: RetrievalService
+  /**
+   * Keeps each note's chunk vectors current.
+   */
   readonly embeddingIndex: EmbeddingIndexService
+  /**
+   * The BYOK API key of each configured AI provider entry.
+   */
   readonly aiCredentials: AiCredentialService
+  /**
+   * Checks a BYOK key with one cheap authenticated probe before it is saved.
+   */
   readonly aiKeyValidation: AiKeyValidationService
+  /**
+   * Turns a configured BYOK entry and its key into a callable language model.
+   */
   readonly languageModel: LanguageModelService
+  /**
+   * One multimodal call that cleans a captured page's title and describes the page.
+   */
   readonly pageDescriber: PageDescriberService
+  /**
+   * One multimodal call that describes an image, PDF or SVG and transcribes its text.
+   */
   readonly assetDescriber: AssetDescriberService
+  /**
+   * Speech to text for one recording.
+   */
   readonly transcription: TranscriptionService
+  /**
+   * Best-effort formatting and titling of a transcript after transcription.
+   */
   readonly transcriptEnrichment: TranscriptEnrichmentService
+  /**
+   * The read-only tools that the chat model can call, with the privacy gate inside.
+   */
   readonly noteTools: NoteToolsService
+  /**
+   * Runs tool-grounded chat turns against the user's provider.
+   */
   readonly chatEngine: ChatEngineService
+  /**
+   * Loads the graph overview that a chat turn's system prompt carries.
+   */
   readonly chatGraphContext: ChatGraphContextService
+  /**
+   * The category notes that automatic backlinks point at.
+   */
   readonly backlinkTarget: BacklinkTargetService
+  /**
+   * The verdict on whether an asset's bytes may be sent to a provider.
+   */
   readonly assetPrivacy: AssetPrivacyService
   readonly backups: BackupServiceFactory
   readonly icloudSyncs: ICloudSyncServiceFactory
