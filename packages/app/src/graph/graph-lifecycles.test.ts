@@ -144,7 +144,9 @@ describe('createAppGraphServices', () => {
         mobileOnboarding: context.mobileOnboarding,
       },
     )
-    expect(core.assetDescription.sessions().every((session) => session.disposed)).toBe(true)
+    const sessions = core.assetDescription.sessions()
+    expect(sessions.length).toBeGreaterThan(0)
+    expect(sessions.every((session) => session.disposed)).toBe(true)
     expect(core.attachments.watchers()).toBe(0)
   })
 })

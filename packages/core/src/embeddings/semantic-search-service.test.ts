@@ -49,7 +49,7 @@ async function setup(options?: {
   const indexLifecycle = createTestIndexLifecycleService({
     logger,
     progress,
-    graphSession: { getState: () => ({ session }) },
+    graphSession: { getState: () => ({ session }), subscribe: () => () => {} },
     indexStore: createTestIndexStoreService({
       fail: (call) =>
         options?.failClear === true && call.method === 'clear'

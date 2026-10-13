@@ -70,9 +70,9 @@ export interface GraphSessionService<Services = unknown> {
   getState: () => GraphSessionState<Services>
   subscribe: (listener: () => void) => Unlisten
   /**
-   * Follow the index lifecycle: the indexing flag, reconcile demands, and the
-   * reloads, moves and downloads that its passes call for. The returned
-   * function stops the following.
+   * Follow the index lifecycle: the indexing flag, reconcile demands, the
+   * reloads, moves and downloads that its passes call for, and the app
+   * activity that suspends it. The returned function stops the following.
    */
   attach(): Unlisten
   /**
@@ -536,6 +536,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
           this.#deps.logger.error('iCloud download request failed:', errorMessage(err))
         })
       }),
+      this.#deps.indexLifecycle.followActivity(),
     ]
     return () => {
       for (const unlisten of unlisteners) {
