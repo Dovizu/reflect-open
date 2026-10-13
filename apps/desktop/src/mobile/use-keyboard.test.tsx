@@ -1,5 +1,6 @@
 import { act } from '@/test-utils/act.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createTestAppServices } from '@reflect/app/testing'
 import { createTestCoreServices } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useKeyboardHeightVar, useKeyboardVisible } from './use-keyboard.ts'
@@ -13,7 +14,7 @@ import { useKeyboardHeightVar, useKeyboardVisible } from './use-keyboard.ts'
  */
 describe('keyboard height', () => {
   it('starts closed and reflects the last published height', async () => {
-    const { keyboard } = createTestCoreServices()
+    const { keyboard } = createTestAppServices()
     expect(keyboard.getHeight()).toBe(0)
     keyboard.publish(316)
     expect(keyboard.getHeight()).toBe(316)
@@ -23,7 +24,7 @@ describe('keyboard height', () => {
 
   it('exposes visibility as reactive state', async () => {
     const view = await renderHookInApp(() => useKeyboardVisible())
-    const { keyboard } = view.app
+    const { keyboard } = view.appServices
     expect(view.result.current).toBe(false)
 
     act(() => keyboard.publish(316))
@@ -36,9 +37,10 @@ describe('keyboard height', () => {
 
   it('keeps notifying after an unrelated subscriber unmounts', async () => {
     const app = createTestCoreServices()
-    const { keyboard } = app
-    const first = await renderHookInApp(() => useKeyboardVisible(), { app })
-    const second = await renderHookInApp(() => useKeyboardVisible(), { app })
+    const appServices = createTestAppServices(app)
+    const { keyboard } = appServices
+    const first = await renderHookInApp(() => useKeyboardVisible(), { app, appServices })
+    const second = await renderHookInApp(() => useKeyboardVisible(), { app, appServices })
     await first.unmount()
     act(() => keyboard.publish(280))
     expect(second.result.current).toBe(true)
@@ -77,7 +79,7 @@ describe('useKeyboardHeightVar', () => {
   it('mirrors the viewport shortfall into the service and the CSS variable', async () => {
     const viewport = installViewport()
     const view = await renderHookInApp(() => useKeyboardHeightVar())
-    const { keyboard } = view.app
+    const { keyboard } = view.appServices
 
     viewport.height = 464
     act(() => {
@@ -97,7 +99,7 @@ describe('useKeyboardHeightVar', () => {
   it('ignores a shrink at or under the keyboard threshold', async () => {
     const viewport = installViewport()
     const view = await renderHookInApp(() => useKeyboardHeightVar())
-    const { keyboard } = view.app
+    const { keyboard } = view.appServices
 
     viewport.height = 745
     act(() => {
@@ -110,7 +112,7 @@ describe('useKeyboardHeightVar', () => {
   it('clears a stale overlap once focus has left every editable element', async () => {
     const viewport = installViewport()
     const view = await renderHookInApp(() => useKeyboardHeightVar())
-    const { keyboard } = view.app
+    const { keyboard } = view.appServices
 
     viewport.height = 464
     act(() => {

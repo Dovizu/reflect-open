@@ -1,5 +1,6 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it } from 'vitest'
+import { createTestAppServices } from '@reflect/app/testing'
 import type { BackupState, ConflictedNote } from '@reflect/core'
 import { createTestCoreServices, createTestBackupService } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -42,11 +43,13 @@ async function mount(options?: MountOptions): Promise<void> {
       state: options?.backup ?? connected({ state: 'idle' }),
     }),
   })
+  const appServices = createTestAppServices(app)
   if (options?.keyboardInset !== undefined) {
-    app.keyboard.publish(options.keyboardInset)
+    appServices.keyboard.publish(options.keyboardInset)
   }
   await renderInApp(<SyncStatusPill />, {
     app,
+    appServices,
     graph: { root: '/g', name: 'G', generation: 3 },
   })
 }

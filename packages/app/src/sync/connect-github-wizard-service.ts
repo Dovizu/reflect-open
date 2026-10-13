@@ -1,15 +1,18 @@
-import type { ClockService, TimerHandle } from '../app/clock-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
-import type { OpenerService } from '../app/opener-service.ts'
-import { errorMessage } from '../errors.ts'
-import type { Unlisten } from '../unlisten.ts'
-import type { BackupService } from './backup-service.ts'
 import {
+  errorMessage,
   githubAppInstallUrl,
+  newRepoUrl,
+  parseRepoInput,
+  type AppLifecycleService,
+  type BackupService,
+  type ClockService,
+  type GithubRepoRef,
   type GithubAuthService,
   type GithubUser,
-} from './github-auth-service.ts'
-import { newRepoUrl, parseRepoInput, type GithubRepoRef } from './github-repo-service.ts'
+  type OpenerService,
+  type TimerHandle,
+  type Unlisten,
+} from '@reflect/core'
 
 export type ConnectWizardStep = 'repo' | 'auth' | 'finish'
 

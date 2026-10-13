@@ -1,4 +1,4 @@
-import type { Unlisten } from '../unlisten.ts'
+import type { Unlisten } from '@reflect/core'
 
 /**
  * The software keyboard's overlap height, as the UI last measured it.

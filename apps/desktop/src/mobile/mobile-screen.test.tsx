@@ -3,6 +3,8 @@ import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { StrictMode, type ReactElement } from 'react'
 import { act } from '@/test-utils/act.ts'
+import type { AppServices } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import type { DailyNoteService } from '@reflect/core'
 import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
 import {
@@ -122,11 +124,13 @@ vi.mock('@/mobile/audio-memo-provider.tsx', () => ({
 
 // The services of the running test: the graph's files live in `app.noteFile`.
 let app: TestCoreServices
+let appServices: AppServices
 let dailyDatesInRange: MockInstance<DailyNoteService['dailyDatesInRange']>
 
 beforeEach(async () => {
   await page.viewport(375, 700)
   app = createTestCoreServices()
+  appServices = createTestAppServices(app)
   // The tests compute dates from the real clock.
   app.clock.setNow(Date.now())
   // The browser context prefers reduced motion; the test platform says the same.
@@ -147,6 +151,7 @@ function mount(initialRoute: Route, probeRoute?: Route, options?: { strict?: boo
   // against impure updaters (dev double-invocation caught a double-pop once).
   return renderInApp(options?.strict ? <StrictMode>{tree}</StrictMode> : tree, {
     app,
+    appServices,
     graph: { root: '/g', name: 'g', generation: 1 },
     route: initialRoute,
     settings: { editorMarkdownSyntax: 'hide', dateFormat: 'mdy', weekStartDay: 'monday' },
@@ -609,10 +614,10 @@ describe('MobileShell', () => {
     const view = await mount({ kind: 'today' })
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()
 
-    act(() => app.keyboard.publish(316))
+    act(() => appServices.keyboard.publish(316))
     expect(view.getByRole('navigation', { name: 'Sections' }).query()).toBeNull()
 
-    act(() => app.keyboard.publish(0))
+    act(() => appServices.keyboard.publish(0))
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()
   })
 
@@ -622,7 +627,7 @@ describe('MobileShell', () => {
 
     // Keyboard up with no focused editor (the All-tab search field): neither
     // the tab bar nor a dead-button toolbar.
-    act(() => app.keyboard.publish(316))
+    act(() => appServices.keyboard.publish(316))
     expect(view.getByRole('toolbar', { name: 'Formatting' }).query()).toBeNull()
 
     act(() =>
@@ -653,7 +658,7 @@ describe('MobileShell', () => {
 
     act(() => {
       clearFormattingToolbar(owner)
-      app.keyboard.publish(0)
+      appServices.keyboard.publish(0)
     })
     expect(view.getByRole('toolbar', { name: 'Formatting' }).query()).toBeNull()
     await expect.element(view.getByRole('navigation', { name: 'Sections' })).toBeVisible()

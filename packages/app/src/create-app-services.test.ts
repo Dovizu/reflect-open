@@ -6,7 +6,7 @@ describe('createAppServices', () => {
   it('builds the app layer over the core services', () => {
     const core = createTestCoreServices()
     const app = createAppServices(core, {})
-    expect(app).toEqual({})
+    expect(Object.keys(app).toSorted()).toEqual(['keyboard', 'share', 'syncStatus'])
     core.database.close()
   })
 })

@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { onTestFinished } from 'vitest'
 import { render, renderHook, type RenderHookResult, type RenderResult } from 'vitest-browser-react'
-import { createAppServices } from '@reflect/app'
+import { createAppServices, type AppServices } from '@reflect/app'
 import type {
   CoreServices,
   BackupState,
@@ -79,6 +79,10 @@ export interface RenderInAppOptions {
    */
   wrapper?: (children: ReactNode) => ReactNode
   /**
+   * The app layer to mount, built over `app`. Defaults to a fresh one.
+   */
+  appServices?: AppServices
+  /**
    * Mount only `CoreServicesProvider` and the query client, for a test of a
    * provider this helper otherwise mounts, or of one that needs no graph.
    * `app` keeps its own graph session, and the settings load is not awaited.
@@ -89,6 +93,10 @@ export interface RenderInAppOptions {
 
 interface InAppHandles<App extends CoreServices> {
   readonly app: App
+  /**
+   * The app layer built over `app`.
+   */
+  readonly appServices: AppServices
   readonly queryClient: QueryClient
   /**
    * The scripted backup when `sync` was a `BackupState`, else `null`.
@@ -170,7 +178,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   registerAppCommands(app.commands)
 
   const route = options?.route
-  const appLayer = createAppServices(app, {})
+  const appLayer = options?.appServices ?? createAppServices(app, {})
   const wrap = (children: ReactNode): ReactElement => {
     const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
     if (servicesOnly) {
@@ -204,6 +212,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   }
   return {
     app,
+    appServices: appLayer,
     queryClient,
     backup,
     wrap,
