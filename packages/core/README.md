@@ -30,10 +30,11 @@ package has no process-wide instances and no module-level mutable state.
 - **Events.** A service reports changes through `onXxx(listener)` /
   `subscribe(listener)`, which return an unsubscribe function synchronously.
   This package never touches a UI cache; the app maps events to invalidation.
-- **`@reflect/core/testing`** (`testing/`) holds a test double for each service
-  (`createTestXxxService()`) and `createTestAppServices()`, the whole
-  `AppServices` object over them. Tests construct the service under test over
-  these doubles.
+- **`@reflect/core/testing`** (`testing/`) holds the test doubles
+  (`createTestXxxService()`) of the services that cannot run in a test or that
+  tests script or observe, and `createTestAppServices()`, the whole
+  `AppServices` object built by the production composition root over them.
+  Tests construct the service under test over these doubles.
 
 The conventions are in
 [architecture-conventions](../../docs/plans/architecture-conventions.md) §3. To

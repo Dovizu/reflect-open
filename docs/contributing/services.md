@@ -13,7 +13,7 @@ packages/core/src/documents/note-move-service.ts       interface + factory
 packages/core/src/documents/note-move-service.test.ts  the test, over test doubles
 packages/core/src/testing/documents.ts                 createTestNoteMoveService
 packages/core/src/app/create-app-services.ts           AppServices.noteMove
-packages/core/src/testing/services.ts                  createTestAppServices
+packages/core/src/testing/services.ts                  createTestAppServices, the test factory table
 apps/desktop/src/routing/router.tsx                    useAppServices().noteMove
 ```
 
@@ -144,15 +144,17 @@ invalidates queries on `indexLifecycle.onApplied`.
 In `packages/core/src/app/create-app-services.ts`:
 
 1. Add the field to `AppServices`: `readonly noteMove: NoteMoveService`.
-2. Build it in `createAppServices`, after the services it depends on, and
-   return it:
+2. Add the factory to `appServiceFactories`, the table of every service key
+   and the factory that builds it: `noteMove: createNoteMoveService`.
+3. Build it in `composeAppServices`, after the services it depends on, through
+   the table, and return it:
 
    ```ts
-   const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
+   const noteMove = create.noteMove({ ipc, indexStore, openDocuments, logger })
    ```
 
-3. Add the key to `SERVICE_KEYS` in `create-app-services.test.ts`.
-4. Export the names the app imports from a barrel in `packages/core/src/exports/`
+4. Add the key to `SERVICE_KEYS` in `create-app-services.test.ts`.
+5. Export the names the app imports from a barrel in `packages/core/src/exports/`
    (`NoteMoveService` is in `platform.ts`). The apps import only from the package
    root. The factory and its `XxxServiceDeps` stay out of the barrel: only
    `createAppServices` builds services. `pnpm lint` runs
@@ -160,24 +162,38 @@ In `packages/core/src/app/create-app-services.ts`:
    no app file references and on an `AppServices` field that no desktop
    non-test file reads.
 
+`composeAppServices(adapters, factories)` is the one composition root. It
+builds every service in a fixed order and passes each factory the same
+dependencies. `createAppServices(adapters)` calls it with the production table
+and returns `AppServices`; `createTestAppServices()` calls it with test
+adapters and a table that replaces some factories. A replacement factory gets
+the same dependencies as the production one and may ignore them.
+
 `AppServices` holds only the services that the app reads. A service that only
-other services use stays a local in `createAppServices`; list it in
-`InternalServices` (`testing/services.ts`) instead, so tests still reach its
-double through `TestAppServices`.
+other services use stays a local in `composeAppServices`; list it in
+`InternalServices` (same file) instead, so tests still reach it through
+`TestAppServices`.
 
 A service that only a mobile platform needs goes in `MobileServices`, which
-`AppServices.mobile` holds (`null` off mobile). `createAppServices` builds it in
-`createMobileServices()`, which runs only on a mobile platform. The mobile tree
-reads it with `useMobileAppServices()`.
+`AppServices.mobile` holds (`null` off mobile). `composeAppServices` builds it
+in `createMobileServices()`, which the `mobile` factory runs only on a mobile
+platform. The mobile tree reads it with `useMobileAppServices()`.
 
 ## 6. The test double
 
-Every service on `AppServices` has a test double in
-`packages/core/src/testing/<domain>.ts`, exported from `testing/index.ts`
-(the `@reflect/core/testing` entry).
+`createTestAppServices()` builds the app through the same composition root.
+By default a service in a test is the **real service** over the test doubles
+of its dependencies, so the real logic runs in every consumer's test. Add a
+test double only when the real service cannot run in a test, or a test must
+script or observe it:
 
-Prefer **the real service over lower test doubles** to a hand-written fake. The
-real logic then runs in every consumer's test:
+- **In-memory fake** for a service at the edge, where the real one would need
+  a native capability: files (`createTestNoteFileService`), IPC, HTTP, the
+  clock, the database, the keychain.
+- **Scripted fake** for a service whose real answer comes from outside: the
+  language model, transcription, retrieval.
+- **Recording wrapper** around the real service, when tests read what it did
+  (`moved()`, `calls()`) or seed its state (`setGraph()`, `setState()`).
 
 ```ts
 // packages/core/src/testing/documents.ts
@@ -192,7 +208,9 @@ export function createTestNoteMoveService(
   const service = createNoteMoveService({
     ipc: options?.ipc ?? createTestIpcBridgeService(),
     indexStore: options?.indexStore ?? createTestIndexStoreService(),
-    openDocuments: options?.openDocuments ?? createTestOpenDocumentsService(),
+    openDocuments:
+      options?.openDocuments ??
+      createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
     logger: options?.logger ?? createTestLoggerService(),
   })
   const moves: Array<readonly [string, string]> = []
@@ -205,17 +223,15 @@ export function createTestNoteMoveService(
 
 Rules:
 
+- Do not write a `createTestXxxService` that only calls `createXxxService`
+  over default doubles. A test builds the real service over the doubles it
+  needs, or takes it from `createTestAppServices()`.
 - `TestXxxService extends XxxService`. The extra members only **observe**
   (`moved()`, `calls()`, `getWrites()`) or **seed and drive** (`set()`,
   `emit()`, `setState()`). They never change what the real methods mean.
-- Write an in-memory fake only for a service at the edge, where the real one
-  would need a native capability: files (`createTestNoteFileService`), IPC,
-  HTTP, the clock.
-- Add the double to `createTestAppServices` in `testing/services.ts`. Build it
-  over the same shared doubles as the rest, honoring `overrides`
-  (`overrides?.indexStore ?? indexStore`), so a test that overrides a lower
-  service sees it everywhere. If the double has extra members, add the field to
-  `TestAppServices` so tests get the test type from `app.noteMove`.
+- Add the double to the test factory table in `testing/services.ts`
+  (`noteMove: (deps) => createTestNoteMoveService(deps)`). `TestAppServices`
+  takes the member type from the table, so tests get `app.noteMove.moved()`.
 
 ## 7. The test
 
@@ -229,7 +245,10 @@ function setup(options?: { sessions?: readonly NoteSession[]; moveError?: Error 
   const indexStore = createTestIndexStoreService({
     fail: (call) => (call.method === 'moveIndexed' ? options?.moveError : undefined),
   })
-  const openDocuments = createTestOpenDocumentsService({ sessions: options?.sessions ?? [] })
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  for (const session of options?.sessions ?? []) {
+    openDocuments.register({ session })
+  }
   const logger = createTestLoggerService()
   const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
   const moves: Array<[string, string]> = []
@@ -363,11 +382,13 @@ service stays app-scoped and takes `generation` per call.
       `console.*`, `Date.now()`, `setTimeout`, `fetch` or `@tauri-apps/*`
 - [ ] State inside the factory; changes reported through `onXxx(listener)` /
       `subscribe(listener)`
-- [ ] Built in `createAppServices`; on `AppServices` (key in `SERVICE_KEYS`)
-      only when the app reads it, else in `InternalServices`; the names the
-      app imports exported from `packages/core/src/exports/`
-- [ ] `createTestXxxService` in `packages/core/src/testing/`, exported from
-      `testing/index.ts`, wired into `createTestAppServices`
+- [ ] In `appServiceFactories` and built in `composeAppServices`; on
+      `AppServices` (key in `SERVICE_KEYS`) only when the app reads it, else in
+      `InternalServices`; the names the app imports exported from
+      `packages/core/src/exports/`
+- [ ] A `createTestXxxService` in `packages/core/src/testing/` and an entry in
+      the test factory table of `testing/services.ts`, only for a fake or a
+      recording wrapper (see §6)
 - [ ] `<name>-service.test.ts` constructing the service over test doubles
 - [ ] App code reads it with `useAppServices()`, `ctx`, or
       `CommandContext.services`
