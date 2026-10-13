@@ -103,12 +103,12 @@ export { type ResolvedArchivedPost } from '../x-archive.ts'
 export { marketingVersion } from '../app/app-info-service.ts'
 export { reachWebStorage, type StorageService } from '../app/storage-service.ts'
 export {
-  LINGER_MS,
-  MIN_VISIBLE_MS,
   type Operation,
+  type OperationAction,
   type OperationHandle,
-  type OperationsService,
-} from '../app/operations-service.ts'
+  type OperationOptions,
+  type ProgressPort,
+} from '../app/ports.ts'
 export { type GraphSession } from '../app/graph-session.ts'
 export {
   createCoreServices,

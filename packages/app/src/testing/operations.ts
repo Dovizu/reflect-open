@@ -1,12 +1,6 @@
-import {
-  createOperationsService,
-  type Operation,
-  type OperationHandle,
-  type OperationOptions,
-  type OperationsService,
-} from '../app/operations-service.ts'
-import type { Unlisten } from '../unlisten.ts'
-import { createTestClockService, type TestClockService } from './clock.ts'
+import type { Operation, OperationHandle, OperationOptions, Unlisten } from '@reflect/core'
+import { createTestClockService, type TestClockService } from '@reflect/core/testing'
+import { createOperationsService, type OperationsService } from '../app/operations-service.ts'
 
 /**
  * The real {@link OperationsService} over a test clock, plus lookup helpers.

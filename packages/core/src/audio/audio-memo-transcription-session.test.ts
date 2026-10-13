@@ -195,7 +195,7 @@ describe('AudioMemoTranscriptionService.openSession', () => {
     )
     subject.start()
     await flush()
-    expect(kit.operations.findByLabel('Transcribing audio memo')).toMatchObject({
+    expect(kit.progress.findByLabel('Transcribing audio memo')).toMatchObject({
       status: 'failed',
       message: 'openai rejected the API key (401)',
     })
@@ -203,7 +203,7 @@ describe('AudioMemoTranscriptionService.openSession', () => {
     kit.lifecycle.emitWake()
     await flush()
     expect(kit.transcription.calls()).toHaveLength(2)
-    expect(kit.operations.getAll()).toHaveLength(1)
+    expect(kit.progress.getAll()).toHaveLength(1)
   })
 
   it('keeps expected stops silent — offline heals on the next trigger', async () => {
@@ -214,7 +214,7 @@ describe('AudioMemoTranscriptionService.openSession', () => {
     await flush()
 
     expect(kit.transcription.calls()).toHaveLength(1)
-    expect(kit.operations.getAll()).toEqual([])
+    expect(kit.progress.getAll()).toEqual([])
   })
 
   it('dispose detaches every trigger and flips the pass abort gate', async () => {

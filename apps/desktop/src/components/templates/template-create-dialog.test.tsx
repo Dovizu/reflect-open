@@ -22,7 +22,7 @@ async function renderDialog(): Promise<{ context: CommandContext; app: TestCoreS
   app.graphSession.setGraph({ generation: 1 })
   const context: CommandContext = {
     services: app,
-    app: createAppServices(app, {}),
+    app: createAppServices(app, { operations: app.progress }),
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => null,

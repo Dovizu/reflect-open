@@ -20,6 +20,7 @@ import {
   type UpdaterAdapter,
   type UpdateService,
 } from './app/update-service.ts'
+import type { OperationsService } from './app/operations-service.ts'
 import { createThemeService, type ThemeService } from './settings/theme-service.ts'
 import { createKeyboardService, type KeyboardService } from './mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from './mobile/share-service.ts'
@@ -49,6 +50,10 @@ import { createNavigationService, type NavigationService } from './navigation/na
  * updater, menu and deep-link primitives of one webview.
  */
 export interface AppHost {
+  /**
+   * The app-wide list of visible background operations.
+   */
+  readonly operations: OperationsService
   /**
    * Defaults to telemetry that reports nothing.
    */
@@ -99,6 +104,10 @@ export interface AppServices {
    * Checks for, downloads, and installs app updates.
    */
   readonly update: UpdateService
+  /**
+   * The app-wide list of visible background operations.
+   */
+  readonly operations: OperationsService
   /**
    * Derives the mobile sync status that the settings sheet and the status pill show.
    */
@@ -160,7 +169,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     source: (core.window.isMainWindow() ? host.deepLink : undefined) ?? createNoDeepLinkSource(),
     indexQuery: core.indexQuery,
     captureInbox: core.captureInbox,
-    operations: core.operations,
+    operations: host.operations,
     id: core.id,
     clock: core.clock,
     logger: core.logger,
@@ -176,7 +185,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     deepLink,
     navigation,
     attachments: core.attachments,
-    operations: core.operations,
+    operations: host.operations,
     logger: core.logger,
     graphSession: core.graphSession,
   })
@@ -198,6 +207,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       platform: core.platform,
       window: core.window,
     }),
+    operations: host.operations,
     syncStatus: createSyncStatusService(),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments: core.openDocuments }),
@@ -208,7 +218,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       personNotes: core.personNotes,
       settings: core.settings,
       clock: core.clock,
-      operations: core.operations,
+      operations: host.operations,
       logger: core.logger,
       graphSession: core.graphSession,
     }),

@@ -1,7 +1,8 @@
 import { act, actAsync } from '@/test-utils/act.ts'
 import { page } from 'vitest/browser'
 import { describe, expect, it } from 'vitest'
-import { LINGER_MS, MIN_VISIBLE_MS, type OperationHandle } from '@reflect/core'
+import { LINGER_MS, MIN_VISIBLE_MS } from '@reflect/app'
+import type { OperationHandle } from '@reflect/core'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { MobileOperationsPills } from './operations-pill.tsx'
 import { MobileStatusLayer } from './status-layer.tsx'
@@ -29,16 +30,16 @@ function operate(run: () => OperationHandle): OperationHandle {
 
 describe('MobileOperationsPills', () => {
   it('renders nothing while operations are merely running', async () => {
-    const { app } = await renderInApp(<MobileOperationsPills />)
-    operate(() => app.operations.start('Completing task'))
+    const { appServices } = await renderInApp(<MobileOperationsPills />)
+    operate(() => appServices.operations.start('Completing task'))
 
     expect(page.getByRole('status').query()).toBeNull()
     expect(page.getByRole('alert').query()).toBeNull()
   })
 
   it('shows a failed operation with its label and message', async () => {
-    const { app } = await renderInApp(<MobileOperationsPills />)
-    const handle = operate(() => app.operations.start('Completing task'))
+    const { appServices } = await renderInApp(<MobileOperationsPills />)
+    const handle = operate(() => appServices.operations.start('Completing task'))
     act(() => handle.fail('The note is busy.'))
 
     const pill = page.getByRole('alert')
@@ -47,16 +48,16 @@ describe('MobileOperationsPills', () => {
   })
 
   it('shows a warning as a status pill', async () => {
-    const { app } = await renderInApp(<MobileOperationsPills />)
-    const handle = operate(() => app.operations.start('Importing notes'))
+    const { appServices } = await renderInApp(<MobileOperationsPills />)
+    const handle = operate(() => appServices.operations.start('Importing notes'))
     act(() => handle.warn('2 files skipped.'))
 
     await expect.element(page.getByRole('status')).toMatchTextContent('2 files skipped.')
   })
 
   it('dismisses a pill on tap', async () => {
-    const { app } = await renderInApp(<MobileOperationsPills />)
-    const handle = operate(() => app.operations.start('Completing task'))
+    const { appServices } = await renderInApp(<MobileOperationsPills />)
+    const handle = operate(() => appServices.operations.start('Completing task'))
     act(() => handle.fail('The note is busy.'))
 
     await page.getByRole('alert').click()
@@ -65,11 +66,11 @@ describe('MobileOperationsPills', () => {
   })
 
   it('expires with the store’s linger window', async () => {
-    const { app } = await renderInApp(<MobileOperationsPills />)
-    const handle = operate(() => app.operations.start('Completing task'))
+    const { app, appServices } = await renderInApp(<MobileOperationsPills />)
+    const handle = operate(() => appServices.operations.start('Completing task'))
     act(() => handle.fail('The note is busy.'))
 
-    await actAsync(() => app.operations.clock.advance(LINGER_MS + MIN_VISIBLE_MS))
+    await actAsync(() => app.clock.advance(LINGER_MS + MIN_VISIBLE_MS))
 
     expect(page.getByRole('alert').query()).toBeNull()
   })
@@ -77,8 +78,8 @@ describe('MobileOperationsPills', () => {
 
 describe('MobileStatusLayer', () => {
   it('yields to the software keyboard', async () => {
-    const { app, appServices } = await renderInApp(<MobileStatusLayer />)
-    const handle = operate(() => app.operations.start('Completing task'))
+    const { appServices } = await renderInApp(<MobileStatusLayer />)
+    const handle = operate(() => appServices.operations.start('Completing task'))
     act(() => handle.fail('The note is busy.'))
     await expect.element(page.getByRole('alert')).toBeVisible()
 

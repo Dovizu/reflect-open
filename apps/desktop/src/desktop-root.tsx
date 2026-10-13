@@ -16,8 +16,8 @@ import { useAppServices, useCoreServices } from '@/services/services-provider.ts
  * chooser/workspace app — none of which exist on mobile.
  */
 export function DesktopRoot(): ReactElement {
-  const { noteMove, operations, platform, logger } = useCoreServices()
-  const { deepLink } = useAppServices()
+  const { noteMove, platform, logger } = useCoreServices()
+  const { deepLink, operations } = useAppServices()
   // Deep-link intake starts with the surface, not the workspace: a
   // `reflect://` URL that launched the app (or arrived on the graph chooser)
   // buffers in `intake.ts` until a graph opens. Browser dev has no plugin.

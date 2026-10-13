@@ -232,6 +232,7 @@ import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
 import { isMobilePlatform } from './platform.ts'
+import type { ProgressPort } from './ports.ts'
 import { createUnavailableImageCodec, type ImageCodecService } from './image-codec-service.ts'
 import {
   createLifecycleService,
@@ -239,7 +240,6 @@ import {
   type LifecycleDomAdapter,
 } from './lifecycle-service.ts'
 import { createConsoleLogger, type LoggerService } from './logger-service.ts'
-import { createOperationsService, type OperationsService } from './operations-service.ts'
 import { createTaskService, type TaskService } from '../tasks/task-service.ts'
 import { createOpenerService, type OpenerService, type OpenerTransport } from './opener-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
@@ -349,10 +349,6 @@ export interface CoreServices {
    * Decodes and re-encodes image files.
    */
   readonly imageCodec: ImageCodecService
-  /**
-   * The app-wide list of visible background operations.
-   */
-  readonly operations: OperationsService
   /**
    * The global settings document: loaded once, patched in memory, and saved one write at a time.
    */
@@ -647,6 +643,10 @@ export interface CoreAdapters {
    */
   readonly platform: PlatformFacts
   /**
+   * Where business code reports visible background work.
+   */
+  readonly progress: ProgressPort
+  /**
    * Outbound HTTP, in the shape of the global `fetch`.
    */
   readonly http: HttpService
@@ -724,7 +724,6 @@ export const coreServiceFactories = {
   database: createDatabaseService,
   platform: createPlatformService,
   window: createWindowService,
-  operations: createOperationsService,
   settings: createSettingsService,
   storage: createWebStorageService,
   lifecycle: createLifecycleService,
@@ -971,8 +970,8 @@ export function composeCoreServices(
   const database = create.database({ ipc })
   const platform = create.platform({ facts: adapters.platform, fileSrc: adapters.convertFileSrc })
   const windowService = create.window({ ipc, host: adapters.window, logger })
-  const operations = create.operations({ clock })
-  const settings = create.settings({ ipc, operations })
+  const progress = adapters.progress
+  const settings = create.settings({ ipc, progress })
   const storage = create.storage({
     logger,
     localStorage: adapters.storage.local,
@@ -1103,7 +1102,7 @@ export function composeCoreServices(
     hash,
     clock,
     logger,
-    operations,
+    progress,
     // Read at call time: the graph session is built on this lifecycle.
     graphSession: { getState: () => graphSession.getState() },
   })
@@ -1154,7 +1153,7 @@ export function composeCoreServices(
     noteFile,
     fileChanges,
     dialog: adapters.dialog,
-    operations,
+    progress,
     clock,
     platform,
     graphSession,
@@ -1203,7 +1202,7 @@ export function composeCoreServices(
     lifecycle,
     fileChanges,
     settings,
-    operations,
+    progress,
     clock,
     platform,
     window: windowService,
@@ -1244,7 +1243,7 @@ export function composeCoreServices(
     githubRepos,
     fileChanges,
     indexLifecycle,
-    operations,
+    progress,
     lifecycle,
     platform,
     persistenceFlush,
@@ -1299,7 +1298,6 @@ export function composeCoreServices(
     agentSkill: create.agentSkill({ ipc, graphSession }),
     mobileStorage,
     imageCodec,
-    operations,
     settings,
     persistenceFlush,
     embeddingRuntime,
@@ -1314,7 +1312,7 @@ export function composeCoreServices(
       noteDocuments,
       noteRows,
       privacy: noteServices.privacy,
-      operations,
+      progress,
       clipboard: adapters.clipboard,
       graphSession,
     }),
@@ -1347,7 +1345,7 @@ export function composeCoreServices(
       notePath: indexReads.notePath,
       noteMove,
       openDocuments,
-      operations,
+      progress,
       clock,
       logger,
       graphSession,
@@ -1362,7 +1360,7 @@ export function composeCoreServices(
     tasks: create.tasks({
       database,
       noteDocuments,
-      operations,
+      progress,
       clock,
       logger,
       graphSession,
@@ -1376,7 +1374,7 @@ export function composeCoreServices(
       indexLifecycle,
       indexQuery: indexReads.indexQuery,
       noteRows,
-      operations,
+      progress,
       clipboard: adapters.clipboard,
       path,
       id,
@@ -1390,7 +1388,7 @@ export function composeCoreServices(
       notePath: indexReads.notePath,
       noteMove,
       openDocuments,
-      operations,
+      progress,
       graphSession,
     }),
     indexQuery: indexReads.indexQuery,
@@ -1460,7 +1458,7 @@ export function composeCoreServices(
       reconcilers,
       lifecycle,
       fileChanges,
-      operations,
+      progress,
       platform,
       logger,
     }),
@@ -1476,7 +1474,7 @@ export function composeCoreServices(
       clock,
       reconcilers,
       indexLifecycle,
-      operations,
+      progress,
       graphSession,
       logger,
     }),

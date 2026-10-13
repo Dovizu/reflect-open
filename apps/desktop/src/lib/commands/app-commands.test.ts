@@ -51,7 +51,7 @@ function fakeContext(overrides?: Partial<CommandContext>) {
   const route: () => Route = overrides?.route ?? (() => ({ kind: 'today' }))
   const context: CommandContext = {
     services: app,
-    app: createAppServices(app, {}),
+    app: createAppServices(app, { operations: app.progress }),
     navigate: (target, options) => {
       navigated.push(target)
       navigateOptions.push(options)
@@ -334,7 +334,9 @@ describe('app commands', () => {
     const { context } = fakeContext()
     await command('index.rebuild').run(context)
     expect(app.indexLifecycle.rebuilds()).toEqual([7])
-    expect(app.operations.findByLabel('Rebuilding search index')?.status).toBe('running')
+    expect(app.progress.started()).toMatchObject([
+      { label: 'Rebuilding search index', ended: true },
+    ])
 
     // No graph open → no rebuild.
     app.graphSession.setGraph(null)

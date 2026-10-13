@@ -20,7 +20,7 @@ import {
   createTestLoggerService,
   createTestNoteCreationService,
   createTestNoteFileService,
-  createTestOperationsService,
+  createTestProgressPort,
   createTestPlatformService,
   createTestSecretStoreService,
   createTestSettingsService,
@@ -87,7 +87,7 @@ async function setup(options?: SetupOptions) {
     options?.supported === undefined ? {} : { supported: options.supported },
   )
   recorder.setStopResult(RECORDING)
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const logger = createTestLoggerService()
   const listDirMock = vi.spyOn(noteFile, 'listDir')
   const aiCredentials = createAiCredentialService({ secretStore: createTestSecretStoreService() })
@@ -116,7 +116,7 @@ async function setup(options?: SetupOptions) {
     lifecycle,
     fileChanges: createTestFileChangeService(),
     settings,
-    operations,
+    progress,
     clock: createTestClockService({ now: RECORDED_AT.getTime() }),
     platform: createTestPlatformService({ isMacosDesktop: options?.isMacosDesktop ?? true }),
     window: createTestWindowService(
@@ -131,7 +131,7 @@ async function setup(options?: SetupOptions) {
     noteFile,
     assetStore,
     recorder,
-    operations,
+    progress,
     logger,
     service,
     /**
@@ -741,7 +741,7 @@ describe('AudioMemoService.openSession', () => {
   })
 
   it('a capture failure while the recording UI is hidden surfaces through operations', async () => {
-    const { session, assetStore, operations } = await openSession()
+    const { session, assetStore, progress } = await openSession()
     vi.spyOn(assetStore, 'uploadToPath').mockRejectedValue({ kind: 'io', message: 'disk full' })
 
     session.toggle()
@@ -749,14 +749,14 @@ describe('AudioMemoService.openSession', () => {
     session.setSurfaceHidden(true)
     await flush()
 
-    expect(operations.findByLabel('Saving audio memo')).toMatchObject({
+    expect(progress.findByLabel('Saving audio memo')).toMatchObject({
       status: 'failed',
       message: 'disk full',
     })
   })
 
   it('a capture failure while the recording UI is visible stays off the operations list', async () => {
-    const { session, phase, assetStore, operations } = await openSession()
+    const { session, phase, assetStore, progress } = await openSession()
     vi.spyOn(assetStore, 'uploadToPath').mockRejectedValue({ kind: 'io', message: 'disk full' })
 
     session.toggle()
@@ -765,7 +765,7 @@ describe('AudioMemoService.openSession', () => {
     await flush()
 
     expect(phase()).toBe('error')
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('a parked error never invisibly blocks recording: toggle surfaces, then clears it', async () => {

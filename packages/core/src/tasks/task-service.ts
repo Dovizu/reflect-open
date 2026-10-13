@@ -5,7 +5,7 @@ import {
   type GraphSessionSource,
 } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { WindowService } from '../app/window-service.ts'
 import { NoteBusyError, type NoteDocumentService } from '../documents/note-document-service.ts'
 import { errorMessage, ReflectError } from '../errors.ts'
@@ -40,7 +40,7 @@ import { getScheduledMarkdown } from './task-schedule-content.ts'
 export interface TaskServiceDeps {
   readonly database: DatabaseService
   readonly noteDocuments: Pick<NoteDocumentService, 'commitSourceEdit'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly clock: Pick<ClockService, 'now' | 'monotonicNow' | 'setTimeout'>
   readonly logger: Pick<LoggerService, 'error' | 'warn'>
   readonly graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
@@ -784,7 +784,7 @@ class TaskServiceImpl implements TaskService {
   resolveSnippetTask(tasks: readonly SnippetTask[], click: SnippetTaskClick): SnippetTask | null {
     const anchor = tasks[click.index]
     if (anchor === undefined || anchor.checked !== click.checked || anchor.text !== click.text) {
-      this.#deps.operations
+      this.#deps.progress
         .start('Updating task')
         .fail('The note has changed — try again in a moment.')
       return null
@@ -802,7 +802,7 @@ class TaskServiceImpl implements TaskService {
     try {
       await this.writeTask({ notePath, ...task.locator }, [{ kind: 'toggle' }])
     } catch (cause) {
-      this.#deps.operations
+      this.#deps.progress
         .start(task.checked ? 'Reopening task' : 'Completing task')
         .fail(errorMessage(cause))
       throw cause

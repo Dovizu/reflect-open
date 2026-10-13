@@ -13,7 +13,7 @@ import {
   type TestIndexStoreServiceOptions,
 } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
+import { createTestProgressPort } from '../testing/ports.ts'
 import {
   createIndexLifecycleService,
   type IndexAppliedEvent,
@@ -77,7 +77,7 @@ function setup(options?: {
   const fileChanges = createTestFileChangeService()
   const logger = createTestLoggerService()
   const clock = createTestClockService()
-  const operations = createTestOperationsService(clock)
+  const operations = createTestProgressPort()
   const graph: { session: GraphSession | null } = { session: sessionAt(7) }
   const reconcileScan = store.reconcileScan.bind(store)
   vi.spyOn(store, 'reconcileScan').mockImplementation(async (generation) => {
@@ -124,7 +124,7 @@ function setup(options?: {
     hash: createTestHashService(),
     clock,
     logger,
-    operations,
+    progress: operations,
     graphSession: { getState: () => graph },
   })
   const progress: IndexLifecycleProgress[] = []
@@ -700,7 +700,7 @@ describe('rebuildVisibly', () => {
 
     expect(store.calls().map((call) => call.method)).toEqual(['clear', 'applyBatch', 'setMeta'])
     expect(store.calls()[0]).toEqual({ method: 'clear', generation: 7 })
-    expect(operations.findByLabel('Rebuilding search index')?.status).toBe('running')
+    expect(operations.started()).toMatchObject([{ label: 'Rebuilding search index', ended: true }])
     expect(reconciled).toEqual([{ generation: 7, source: 'rebuild' }])
   })
 

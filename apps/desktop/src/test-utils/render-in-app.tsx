@@ -3,7 +3,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { onTestFinished } from 'vitest'
 import { render, renderHook, type RenderHookResult, type RenderResult } from 'vitest-browser-react'
 import type { AppServices } from '@reflect/app'
-import { createTestAppServices, type TestAppServices } from '@reflect/app/testing'
+import {
+  createTestAppServices,
+  createTestOperationsService,
+  type TestAppServices,
+} from '@reflect/app/testing'
 import type {
   CoreServices,
   BackupState,
@@ -13,6 +17,7 @@ import type {
   Settings,
 } from '@reflect/core'
 import {
+  createTestClockService,
   createTestCoreServices,
   createTestPlatformService,
   createTestBackupService,
@@ -130,7 +135,11 @@ async function prepare(options: AnyOptions | undefined): Promise<
       'renderInApp: with your own `app`, give it the platform and the backup service yourself',
     )
   }
+  const clock = createTestClockService()
   const overrides: TestCoreServiceOverrides = {
+    clock,
+    // The app layer's operations list is the port the core services report to.
+    progress: createTestOperationsService(clock),
     ...(options?.platform === undefined
       ? {}
       : { platform: createTestPlatformService(options.platform) }),
@@ -230,7 +239,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
  * the graph services) and `RouterProvider`. All of them read `app`, which defaults to test doubles. Tests drive and observe
  * the app through the returned `app`: `app.graphSession.setGraph()`,
  * `app.settings.get()`, `appServices.navigation.navigations()`,
- * `app.operations.getAll()`.
+ * `app.progress.getAll()`.
  *
  * Pass your own `app` to replace or spy on a service before the first render.
  */

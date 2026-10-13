@@ -34,7 +34,7 @@ function anchors(): SnippetTask[] {
   ]
 }
 
-let operations: TestCoreServices['operations']
+let operations: TestCoreServices['progress']
 let writeTask: MockInstance<TaskService['writeTask']>
 
 async function renderSnippet(
@@ -43,7 +43,7 @@ async function renderSnippet(
   onWikilinkClick: () => void = () => {},
 ) {
   const app = createTestCoreServices()
-  operations = app.operations
+  operations = app.progress
   writeTask = vi
     .spyOn(app.tasks, 'writeTask')
     .mockResolvedValue({ source: '', moved: [], inserted: [], tasks: [], updatedAt: 0 })

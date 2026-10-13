@@ -27,7 +27,7 @@ import type { TranscriptionService } from '../ai/transcription-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
@@ -108,7 +108,7 @@ export interface AudioMemoTranscriptionServiceDeps {
   readonly reconcilers: BackgroundReconcilerFactory
   readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly clock: Pick<ClockService, 'now'>
 }
 
@@ -280,7 +280,7 @@ interface AudioMemoTranscriptionSessionDeps {
   readonly reconcilers: BackgroundReconcilerFactory
   readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly reconcile: (input: ReconcileAudioMemosInput) => Promise<ReconcileAudioMemosOutcome>
 }
 
@@ -385,7 +385,7 @@ class AudioMemoTranscriptionSessionImpl implements AudioMemoTranscriptionSession
       return
     }
     this.#surfacedStop = stopped.message
-    this.#deps.operations.start('Transcribing audio memo').fail(stopped.message)
+    this.#deps.progress.start('Transcribing audio memo').fail(stopped.message)
   }
 
   /**
@@ -617,8 +617,7 @@ class AudioMemoTranscriptionServiceImpl implements AudioMemoTranscriptionService
   }
 
   openSession(options: AudioMemoTranscriptionSessionOptions): AudioMemoTranscriptionSession {
-    const { aiProviderConfig, settings, reconcilers, lifecycle, fileChanges, operations } =
-      this.#deps
+    const { aiProviderConfig, settings, reconcilers, lifecycle, fileChanges, progress } = this.#deps
     return new AudioMemoTranscriptionSessionImpl(
       {
         aiProviderConfig,
@@ -626,7 +625,7 @@ class AudioMemoTranscriptionServiceImpl implements AudioMemoTranscriptionService
         reconcilers,
         lifecycle,
         fileChanges,
-        operations,
+        progress,
         reconcile: (input) => this.reconcile(input),
       },
       options,

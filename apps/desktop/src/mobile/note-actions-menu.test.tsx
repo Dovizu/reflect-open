@@ -232,7 +232,7 @@ describe('NoteActionsMenu', () => {
     await view.getByRole('button', { name: 'Lock note' }).click()
 
     await vi.waitFor(() =>
-      expect(app.operations.findByLabel('Updating privacy')).toMatchObject({
+      expect(app.progress.findByLabel('Updating privacy')).toMatchObject({
         status: 'failed',
         message: 'disk on fire',
       }),

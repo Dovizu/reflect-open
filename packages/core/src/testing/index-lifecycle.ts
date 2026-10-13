@@ -2,7 +2,7 @@ import type { ClockService } from '../app/clock-service.ts'
 import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
 import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
@@ -26,7 +26,7 @@ import { createTestNoteFileService } from './graph.ts'
 import { createTestHashService } from './id.ts'
 import { createTestIndexStoreService } from './index-store.ts'
 import { createTestLoggerService } from './logger.ts'
-import { createTestOperationsService } from './operations.ts'
+import { createTestProgressPort } from './ports.ts'
 
 /**
  * The services a test lifecycle runs on; each defaults to a fresh test double.
@@ -47,7 +47,7 @@ export interface TestIndexLifecycleServiceOptions {
   hash?: HashService
   clock?: ClockService
   logger?: LoggerService
-  operations?: OperationsService
+  progress?: ProgressPort
   /**
    * Where `rebuildVisibly` reads the open graph from; defaults to no graph open.
    */
@@ -230,7 +230,7 @@ export function createTestIndexLifecycleService(
     hash: options?.hash ?? createTestHashService(),
     clock,
     logger: options?.logger ?? createTestLoggerService(),
-    operations: options?.operations ?? createTestOperationsService(),
+    progress: options?.progress ?? createTestProgressPort(),
     graphSession,
   })
   return new TestIndexLifecycleServiceImpl(inner, graphSession)

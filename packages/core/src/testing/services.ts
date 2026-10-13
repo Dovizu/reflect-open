@@ -15,6 +15,7 @@ import { createPosixPathTransport } from '../app/path-service.ts'
 import { createSingleWindowHost } from '../app/window-service.ts'
 import { createPrivacyService } from '../privacy/privacy-service.ts'
 import type { IdService } from '../app/id-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import type { BackupService } from '../sync/backup-service.ts'
@@ -41,7 +42,7 @@ import {
   createTestChatGraphContextService,
   createTestChatHistoryService,
 } from './chat.ts'
-import { createTestClockService, type TestClockService } from './clock.ts'
+import { createTestClockService } from './clock.ts'
 import { createTestContactsService } from './contacts.ts'
 import { createTestDatabaseService } from './database.ts'
 import { createTestNoteMoveService } from './documents.ts'
@@ -74,9 +75,9 @@ import {
   createTestPaywallService,
   createTestSubscriptionService,
 } from './monetization.ts'
-import { createTestOperationsService } from './operations.ts'
 import { createTestPersistenceFlushService } from './persistence-flush.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
+import { createTestProgressPort } from './ports.ts'
 import {
   createTestAppStoreService,
   createTestHapticsService,
@@ -107,6 +108,10 @@ export type TestCoreServiceOverrides = Partial<CoreServices & CoreInternalServic
    * The backup service of every main-window graph session.
    */
   readonly backup?: BackupService
+  /**
+   * The progress port the services report to.
+   */
+  readonly progress?: ProgressPort
 }
 
 /**
@@ -122,6 +127,7 @@ function createTestEdgeServices() {
     dialog: createTestDialogService(),
     clipboard: createTestClipboardService(),
     imageCodec: createTestImageCodec(),
+    progress: createTestProgressPort(),
   }
 }
 
@@ -148,7 +154,7 @@ function createTestNoteServices(deps: {
  * The services whose test double is not the real service: in-memory, scripted, or recording.
  */
 function createTestServiceFactories(
-  shared: { ipc: TestIpcBridgeService; platform: TestPlatformService; clock: TestClockService },
+  shared: { ipc: TestIpcBridgeService; platform: TestPlatformService },
   overrides: TestCoreServiceOverrides | undefined,
 ) {
   /**
@@ -171,8 +177,7 @@ function createTestServiceFactories(
     database: () => createTestDatabaseService(),
     platform: () => shared.platform,
     window: () => createTestWindowService(),
-    operations: () => createTestOperationsService(shared.clock),
-    settings: ({ operations }) => createTestSettingsService({}, { operations }),
+    settings: ({ progress }) => createTestSettingsService({}, { progress }),
     storage: () => createTestStorageService(),
     lifecycle: () => createTestLifecycleService(),
     fileChanges: () => createTestFileChangeService(),
@@ -291,6 +296,7 @@ export function createTestCoreServices<
   const adapters: CoreAdapters = {
     ipc: ipc.transport,
     platform: edge.platform ?? platform,
+    progress: edge.progress,
     http: edge.http,
     storage: { local: null, session: null },
     dialog: edge.dialog,
@@ -307,14 +313,17 @@ export function createTestCoreServices<
   }
   const fixed: Record<string, () => unknown> = {}
   for (const [key, service] of Object.entries(overrides ?? {})) {
-    if (key !== 'backup') {
+    if (key !== 'backup' && key !== 'progress') {
       fixed[key] = () => service
     }
   }
   const { services, internal } = composeCoreServices(adapters, {
-    ...createTestServiceFactories({ ipc, platform, clock: defaults.clock }, overrides),
+    ...createTestServiceFactories({ ipc, platform }, overrides),
     ...(fixed as Partial<ServiceFactories>),
   })
-  return { ...services, ...internal } as Omit<TestCoreServices, keyof Overrides> &
+  return { ...services, ...internal, progress: edge.progress } as Omit<
+    TestCoreServices,
+    keyof Overrides
+  > &
     Omit<Overrides, 'backup'>
 }

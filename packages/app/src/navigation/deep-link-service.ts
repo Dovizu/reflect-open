@@ -3,7 +3,6 @@ import {
   type ClockService,
   type IdService,
   type LoggerService,
-  type OperationsService,
   type GraphSession,
   errorMessage,
   type CaptureInboxService,
@@ -11,6 +10,7 @@ import {
   type IndexQueryService,
   type Unlisten,
 } from '@reflect/core'
+import type { OperationsService } from '../app/operations-service.ts'
 import { parseDeepLink } from './deep-link-parse.ts'
 import { routeForPath, type Route } from './route.ts'
 

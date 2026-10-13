@@ -1,5 +1,5 @@
 import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { IndexQueryService } from '../indexing/index-query-service.ts'
@@ -97,7 +97,7 @@ export interface TemplateServiceDeps {
   readonly notePath: Pick<NotePathService, 'availableTemplatePath' | 'templateSlugPathForTitle'>
   readonly noteMove: Pick<NoteMoveService, 'moveNote'>
   readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly graphSession: GraphSessionSource
 }
 
@@ -115,16 +115,16 @@ class TemplateServiceImpl implements TemplateService {
   }
 
   async insertTemplate(path: string, editor: TemplateInsertTarget | null): Promise<void> {
-    const { operations } = this.#deps
+    const { progress } = this.#deps
     if (editor === null) {
-      operations.start('Inserting template').fail('No open note to insert into')
+      progress.start('Inserting template').fail('No open note to insert into')
       return
     }
     try {
       editor.insertMarkdown(await this.templateBody(path))
       editor.focus()
     } catch (cause) {
-      operations.start('Inserting template').fail(errorMessage(cause))
+      progress.start('Inserting template').fail(errorMessage(cause))
     }
   }
 

@@ -12,7 +12,7 @@ import {
   createTestNoteFileService,
   createTestNoteLinkResolverService,
   createTestNoteSession,
-  createTestOperationsService,
+  createTestProgressPort,
   createTestPlatformService,
 } from '../testing/index.ts'
 import { createAttachmentService } from './attachment-service.ts'
@@ -68,7 +68,7 @@ function attachmentsOver(listing: () => Promise<readonly { path: string; size: n
     noteFile,
     fileChanges: createTestFileChangeService(),
     dialog: createTestDialogService(),
-    operations: createTestOperationsService(clock),
+    progress: createTestProgressPort(),
     clock,
     platform: createTestPlatformService(),
     graphSession: openGraph(),

@@ -1,63 +1,16 @@
-import type { Unlisten } from '../unlisten.ts'
-import type { ClockService } from './clock-service.ts'
-
-/**
- * A background operation as product status: a label, optional progress, and
- * a lingering warning or failure so errors from backgrounded work are seen.
- */
-export interface Operation {
-  id: number
-  label: string
-  description: string | null
-  progress: { done: number; total: number } | null
-  status: 'running' | 'warning' | 'failed'
-  persistent: boolean
-  action: OperationAction | null
-  /**
-   * The lingering line under the label when the operation needs attention.
-   */
-  message: string | null
-}
-
-export interface OperationAction {
-  label: string
-  run: () => void | Promise<void>
-}
-
-export interface OperationOptions {
-  description?: string | undefined
-  persistent?: boolean | undefined
-  action?: OperationAction | undefined
-}
-
-export interface OperationHandle {
-  progress(done: number, total: number): void
-  /**
-   * The operation completed; its entry disappears.
-   */
-  done(): void
-  /**
-   * The operation completed with caveats; its warning lingers briefly.
-   */
-  warn(message: string): void
-  /**
-   * The operation failed; the entry lingers briefly so the error is seen.
-   */
-  fail(message: string): void
-  /**
-   * Remove the operation immediately.
-   */
-  dismiss(): void
-}
+import type {
+  ClockService,
+  Operation,
+  OperationHandle,
+  OperationOptions,
+  ProgressPort,
+  Unlisten,
+} from '@reflect/core'
 
 /**
  * The app-wide list of visible background operations.
  */
-export interface OperationsService {
-  /**
-   * Begins a visible background operation.
-   */
-  start(label: string, options?: OperationOptions): OperationHandle
+export interface OperationsService extends ProgressPort {
   /**
    * Removes an operation by id.
    */

@@ -37,7 +37,7 @@ function sessionDeps(
       githubRepos: app.githubRepos,
       fileChanges,
       indexLifecycle,
-      operations: app.operations,
+      progress: app.progress,
       lifecycle,
       platform: app.platform,
       persistenceFlush: app.persistenceFlush,

@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
@@ -15,7 +14,7 @@ import { createTestIdService } from '../testing/id.ts'
 import { parseNote } from '../markdown/extract.ts'
 import { createTestNoteFileService, overrideNoteFileService } from '../testing/graph.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
+import { createTestProgressPort } from '../testing/ports.ts'
 import { createTestClipboardService } from '../testing/shell.ts'
 import { canTrashNote, createNoteActionsService } from './note-actions-service.ts'
 import { createNoteDocumentService } from './note-document-service.ts'
@@ -39,7 +38,7 @@ function createTestGraph(): TestGraphSessionService {
 function createNoteActions(deps: {
   noteFile: NoteFileService
   sessions: readonly NoteSession[]
-  operations?: ReturnType<typeof createTestOperationsService>
+  progress?: ReturnType<typeof createTestProgressPort>
   clipboard?: ReturnType<typeof createTestClipboardService>
   indexLifecycle?: Pick<IndexLifecycleService, 'indexNote'>
   indexQuery?: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
@@ -71,7 +70,7 @@ function createNoteActions(deps: {
       getNote: async () => undefined,
     },
     noteRows: deps.noteRows ?? createNoteRowService({ graphSession: graph }),
-    operations: deps.operations ?? createTestOperationsService(),
+    progress: deps.progress ?? createTestProgressPort(),
     clipboard: deps.clipboard ?? createTestClipboardService(),
     path: createPathService({ transport: createPosixPathTransport('/home/test') }),
     id: createTestIdService(),
@@ -101,7 +100,7 @@ function setup(options?: {
     options?.files === undefined ? {} : { files: options.files },
   )
   const session = options?.session === undefined ? null : createTestNoteSession(options.session)
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const clipboard = createTestClipboardService()
   const graph = createTestGraph()
   const noteRows = createNoteRowService({ graphSession: graph })
@@ -109,7 +108,7 @@ function setup(options?: {
   const { actions, openDocuments } = createNoteActions({
     noteFile: options?.wrapNoteFile?.(files) ?? files,
     sessions: session === null ? [] : [session],
-    operations,
+    progress,
     clipboard,
     noteRows,
     graph,
@@ -121,7 +120,7 @@ function setup(options?: {
       ? {}
       : { indexLifecycle: { indexNote: options.indexNote } }),
   })
-  return { actions, files, session, openDocuments, operations, clipboard, noteRows, graph }
+  return { actions, files, session, openDocuments, progress, clipboard, noteRows, graph }
 }
 
 function shelfNote(path: string, pinnedOrder: number | null): PinnedNote {
@@ -305,9 +304,9 @@ describe('togglePinned', () => {
     await first
   })
 
-  it('reports a failure through operations, drops its overlay, and accepts a retry', async () => {
+  it('reports a failure through progress, drops its overlay, and accepts a retry', async () => {
     let fail = true
-    const { actions, files, operations, noteRows } = setup({
+    const { actions, files, progress, noteRows } = setup({
       files: { 'notes/a.md': '# A\n' },
       wrapNoteFile: (inner) =>
         overrideNoteFileService(inner, {
@@ -323,7 +322,7 @@ describe('togglePinned', () => {
     await expect(actions.togglePinned('notes/a.md')).resolves.toEqual({ status: 'failed' })
     expect(files.writes()).toEqual([])
     expect(noteRows.getOverlay('notes/a.md')).toBeNull()
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Updating pin', status: 'failed', message: 'disk on fire' },
     ])
 
@@ -536,15 +535,15 @@ describe('togglePrivate', () => {
     await pin
   })
 
-  it('reports a failure through operations, drops its overlay, and accepts a retry', async () => {
-    const { actions, operations, noteRows } = setup({
+  it('reports a failure through progress, drops its overlay, and accepts a retry', async () => {
+    const { actions, progress, noteRows } = setup({
       files: { 'notes/a.md': '# A\n' },
       wrapNoteFile: failing('write', new Error('disk full')),
     })
 
     await expect(actions.togglePrivate('notes/a.md')).resolves.toEqual({ status: 'failed' })
     expect(noteRows.getOverlay('notes/a.md')).toBeNull()
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Updating privacy', status: 'failed', message: 'disk full' },
     ])
     await expect(actions.togglePrivate('notes/a.md')).resolves.toEqual({ status: 'failed' })
@@ -738,15 +737,15 @@ function setupWith(files: NoteFileService, session: NoteSession) {
 
 describe('trashMany', () => {
   it('is a no-op for no paths', async () => {
-    const { actions, operations } = setup()
+    const { actions, progress } = setup()
 
     await expect(actions.trashMany([])).resolves.toEqual({ succeeded: [], failed: [] })
 
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('trashes every note in order under one operation', async () => {
-    const { actions, files, operations, noteRows } = setup({
+    const { actions, files, progress, noteRows } = setup({
       files: { 'notes/a.md': '# A\n', 'notes/b.md': '# B\n' },
     })
 
@@ -757,13 +756,12 @@ describe('trashMany', () => {
 
     expect(files.trashed()).toEqual(['notes/a.md', 'notes/b.md'])
     expect([...noteRows.getOverlays().keys()]).toEqual(['notes/a.md', 'notes/b.md'])
-    expect(operations.snapshot()).toMatchObject([{ label: 'Trashing notes', status: 'running' }])
-    await operations.clock.advance(MIN_VISIBLE_MS)
-    expect(operations.getAll()).toEqual([])
+    expect(progress.started()).toMatchObject([{ label: 'Trashing notes', ended: true }])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('keeps going past a failure and fails the operation with the last error', async () => {
-    const { actions, files, operations, noteRows } = setup({
+    const { actions, files, progress, noteRows } = setup({
       files: { 'notes/a.md': '# A\n', 'notes/b.md': '# B\n', 'notes/c.md': '# C\n' },
       wrapNoteFile: (inner) =>
         overrideNoteFileService(inner, {
@@ -790,7 +788,7 @@ describe('trashMany', () => {
     expect(files.trashed()).toEqual(['notes/a.md', 'notes/c.md'])
     // A note that failed stays listed.
     expect([...noteRows.getOverlays().keys()]).toEqual(['notes/a.md', 'notes/c.md'])
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Trashing notes', status: 'failed', message: 'Daily notes cannot be deleted' },
     ])
   })
@@ -894,16 +892,16 @@ describe('deepLinkFor', () => {
 
 describe('copyDeepLink', () => {
   it('copies the link and confirms through operations', async () => {
-    const { actions, clipboard, operations } = setup()
+    const { actions, clipboard, progress } = setup()
 
     await actions.copyDeepLink('daily/2026-07-01.md')
 
     expect(clipboard.writes()).toEqual(['reflect://daily/2026-07-01'])
-    expect(operations.snapshot()).toMatchObject([{ label: 'Deep link copied', status: 'running' }])
+    expect(progress.started()).toMatchObject([{ label: 'Deep link copied', ended: true }])
   })
 
   it('reports a failure to build the link', async () => {
-    const { actions, clipboard, operations } = setup({
+    const { actions, clipboard, progress } = setup({
       files: { 'notes/a.md': '# A\n' },
       wrapNoteFile: failing('write', new Error('disk full')),
     })
@@ -911,18 +909,18 @@ describe('copyDeepLink', () => {
     await actions.copyDeepLink('notes/a.md')
 
     expect(clipboard.writes()).toEqual([])
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Copying deep link', status: 'failed', message: 'disk full' },
     ])
   })
 
   it('reports a clipboard failure', async () => {
-    const { actions, clipboard, operations } = setup()
+    const { actions, clipboard, progress } = setup()
     clipboard.failWith(new Error('denied'))
 
     await actions.copyDeepLink('daily/2026-07-01.md')
 
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Copying deep link', status: 'failed', message: 'denied' },
     ])
   })
@@ -930,34 +928,33 @@ describe('copyDeepLink', () => {
 
 describe('copyPath', () => {
   it('copies the OS-joined absolute path and completes the operation', async () => {
-    const { actions, clipboard, operations } = setup()
+    const { actions, clipboard, progress } = setup()
 
     await actions.copyPath('notes/a.md')
 
     expect(clipboard.writes()).toEqual(['/g/notes/a.md'])
-    expect(operations.snapshot()).toMatchObject([{ label: 'Note path copied', status: 'running' }])
-    await operations.clock.advance(MIN_VISIBLE_MS)
-    expect(operations.getAll()).toEqual([])
+    expect(progress.started()).toMatchObject([{ label: 'Note path copied', ended: true }])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('fails loudly when no graph is open', async () => {
-    const { actions, operations, graph } = setup()
+    const { actions, progress, graph } = setup()
     graph.setGraph(null)
 
     await actions.copyPath('notes/a.md')
 
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Copying note path', status: 'failed', message: 'No graph is open' },
     ])
   })
 
   it('reports a clipboard failure through the operation', async () => {
-    const { actions, clipboard, operations } = setup()
+    const { actions, clipboard, progress } = setup()
     clipboard.failWith(new Error('denied'))
 
     await actions.copyPath('notes/a.md')
 
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Copying note path', status: 'failed', message: 'denied' },
     ])
   })
@@ -965,7 +962,7 @@ describe('copyPath', () => {
 
 describe('with no graph open', () => {
   it('fails the toggles without a report and writes nothing', async () => {
-    const { actions, files, operations, graph } = setup({ files: { 'notes/a.md': '# A\n' } })
+    const { actions, files, progress, graph } = setup({ files: { 'notes/a.md': '# A\n' } })
     graph.setGraph(null)
 
     await expect(actions.togglePinned('notes/a.md')).resolves.toEqual({ status: 'failed' })
@@ -977,11 +974,11 @@ describe('with no graph open', () => {
     await actions.copyDeepLink('notes/a.md')
 
     expect(files.writes()).toEqual([])
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('rejects a trash and fails a batch trash with the reason', async () => {
-    const { actions, files, operations, graph } = setup({ files: { 'notes/a.md': '# A\n' } })
+    const { actions, files, progress, graph } = setup({ files: { 'notes/a.md': '# A\n' } })
     graph.setGraph(null)
 
     await expect(actions.trashOne('notes/a.md')).rejects.toThrow('No graph is open.')
@@ -990,7 +987,7 @@ describe('with no graph open', () => {
     expect(result.succeeded).toEqual([])
     expect(result.failed.map((failure) => failure.path)).toEqual(['notes/a.md'])
     expect(files.trashed()).toEqual([])
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Trashing notes', status: 'failed', message: 'No graph is open.' },
     ])
   })

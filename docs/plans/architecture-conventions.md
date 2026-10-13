@@ -134,7 +134,7 @@ The desktop app's adapters live in `apps/desktop/src/services/`:
 - `tauri-*.ts` wrap the Tauri APIs (`tauri-ipc.ts`, `tauri-http.ts`,
   `tauri-window.ts`, `tauri-dialog.ts`, ...). `browser-*.ts` are the plain-browser
   equivalents for `pnpm dev` without the shell.
-- `create-desktop-services.ts` (`createDesktopAdapters(facts, ipc)`) picks one set by
+- `create-desktop-services.ts` (`createDesktopAdapters(facts, ipc, primitives)`) picks one set by
   `facts.isNativeShell`.
 - `apps/desktop/src/boot.ts` detects the platform facts, calls `createCoreServices`,
   and exports the result as `appServices`. Only `main.tsx` and the platform roots

@@ -12,7 +12,7 @@ import type { ClockService } from '../app/clock-service.ts'
 import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
 import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
@@ -290,7 +290,7 @@ export interface AssetDescriptionServiceDeps {
   readonly clock: Pick<ClockService, 'now'>
   readonly reconcilers: BackgroundReconcilerFactory
   readonly indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'reindexNotesReferencing'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   readonly graphSession: GraphSessionSource
   readonly logger: Pick<LoggerService, 'warn'>
 }
@@ -806,9 +806,9 @@ class AssetDescriptionServiceImpl implements AssetDescriptionService {
   }
 
   async #runBackfill(session: GraphSession): Promise<ReconcileAssetDescriptionsOutcome> {
-    const { operations, indexLifecycle, logger } = this.#deps
+    const { progress, indexLifecycle, logger } = this.#deps
     const { generation, indexGeneration } = session
-    const operation = operations.start('Describing assets')
+    const operation = progress.start('Describing assets')
     let outcome: ReconcileAssetDescriptionsOutcome
     try {
       outcome = await this.reconcile({

@@ -23,7 +23,7 @@ afterEach(() => {
 function contextFor(notePath: string | null): CommandContext {
   return {
     services: app,
-    app: createAppServices(app, {}),
+    app: createAppServices(app, { operations: app.progress }),
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => notePath,

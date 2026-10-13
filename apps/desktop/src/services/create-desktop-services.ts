@@ -1,13 +1,14 @@
-import type { AppHost } from '@reflect/app'
+import { createOperationsService, type AppHost } from '@reflect/app'
 import {
-  createConsoleLogger,
   createBrowserHttpService,
   createPosixPathTransport,
   createSingleWindowHost,
   isMobilePlatform,
   reachWebStorage,
+  type ClockService,
   type CoreAdapters,
   type IpcBridge,
+  type LoggerService,
   type PlatformFacts,
 } from '@reflect/core'
 import { convertFileSrc } from '@tauri-apps/api/core'
@@ -31,14 +32,27 @@ import { createTauriUpdaterAdapter } from '@/services/tauri-updater.ts'
 import { createTauriWindowHost } from '@/services/tauri-window.ts'
 
 /**
+ * The primitives that the core adapters and the app host share.
+ */
+export interface DesktopPrimitives {
+  readonly clock: ClockService
+  readonly logger: LoggerService
+}
+
+/**
  * The desktop app's adapters over `ipc`: the Tauri ones inside the native
  * shell (`facts.isNativeShell`), the browser ones in plain-browser dev.
  */
-export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): CoreAdapters {
-  const logger = createConsoleLogger()
+export function createDesktopAdapters(
+  facts: PlatformFacts,
+  ipc: IpcBridge,
+  primitives: DesktopPrimitives,
+): Omit<CoreAdapters, 'progress'> {
+  const { clock, logger } = primitives
   const common = {
     ipc,
     platform: facts,
+    clock,
     logger,
     storage: {
       local: reachWebStorage(logger, 'localStorage'),
@@ -70,24 +84,31 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
 }
 
 /**
- * The desktop app's host for the app layer: the Tauri updater and deep-link
- * source inside the native shell, and Sentry exception telemetry everywhere.
+ * The desktop app's host for the app layer: the operations list, the Tauri
+ * updater and deep-link source inside the native shell, and Sentry exception
+ * telemetry everywhere.
  */
-export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost {
+export function createDesktopHost(
+  facts: PlatformFacts,
+  ipc: IpcBridge,
+  primitives: DesktopPrimitives,
+): AppHost {
   void ipc
+  const operations = createOperationsService({ clock: primitives.clock })
   const exceptionTelemetry = createExceptionTelemetry({
     dsn: buildExceptionTelemetryDsn(),
     release: `reflect@${facts.appVersion}`,
     sdk: sentryExceptionTelemetrySdk,
-    logger: createConsoleLogger(),
+    logger: primitives.logger,
   })
   if (facts.isNativeShell) {
     return {
+      operations,
       exceptionTelemetry,
       updater: createTauriUpdaterAdapter(),
       nativeMenu: createTauriNativeMenuHost(),
       deepLink: createTauriDeepLinkSource(),
     }
   }
-  return { exceptionTelemetry }
+  return { operations, exceptionTelemetry }
 }

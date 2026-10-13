@@ -131,7 +131,7 @@ services (`packages/core/src/documents/`):
   spray junk rewrites across the graph. The coordinator serializes the
   graph-wide link rewrite, records the old title as an alias, and moves the
   file onto the new title's slug, reporting progress through
-  `OperationsService` — a rename is app-level background work, not pane state.
+  `ProgressPort` — a rename is app-level background work, not pane state.
   `NoteMoveService.onMoved` announces a landed move; the router subscribes and
   rewrites its history.
 - **`NoteDocumentService`** (`note-document-service.ts`) — session-aware reads

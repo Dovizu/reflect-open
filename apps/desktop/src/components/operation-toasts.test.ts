@@ -1,10 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  createTestLoggerService,
-  createTestOperationsService,
-  type TestLoggerService,
-  type TestOperationsService,
-} from '@reflect/core/testing'
+import { createTestOperationsService, type TestOperationsService } from '@reflect/app/testing'
+import { createTestLoggerService, type TestLoggerService } from '@reflect/core/testing'
 import type { MockToastAddOptions } from '@/test-utils/toast.ts'
 import { attachOperationToasts } from './operation-toasts.ts'
 

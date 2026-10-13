@@ -1,7 +1,7 @@
 import type { ClockService } from '../app/clock-service.ts'
 import { writeGenerationFor, type GraphSessionSource } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import { errorMessage } from '../errors.ts'
 import { isReflectManagedNote } from '../graph/note-management.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
@@ -101,7 +101,7 @@ export interface TitleRenameServiceDeps {
   readonly notePath: Pick<NotePathService, 'slugPathForTitle'>
   readonly noteMove: Pick<NoteMoveService, 'moveNote'>
   readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly progress: ProgressPort
   /**
    * Runs each title tracker's quiet timer.
    */
@@ -229,7 +229,7 @@ class RenameCoordinatorImpl implements RenameCoordinator {
   // Rust). A rename pending across a graph switch is dropped, never
   // cross-written.
   #runRename(rename: TitleRename): void {
-    const { noteFile, wikiResolver, backlinks, openDocuments, operations, logger, graphSession } =
+    const { noteFile, wikiResolver, backlinks, openDocuments, progress, logger, graphSession } =
       this.#deps
     this.#chain = this.#chain.then(async () => {
       const gen = this.#graph === null ? null : writeGenerationFor(graphSession, this.#graph)
@@ -250,7 +250,7 @@ class RenameCoordinatorImpl implements RenameCoordinator {
         // A birth: the first authored title on an untitled note. Nothing
         // links to a title that never existed — no rewrite, no alias — but
         // the file sheds its placeholder name for the title's slug.
-        const operation = operations.start(`Naming "${rename.to}"`)
+        const operation = progress.start(`Naming "${rename.to}"`)
         try {
           await this.#runMove(rename.to, gen)
           operation.done()
@@ -263,7 +263,7 @@ class RenameCoordinatorImpl implements RenameCoordinator {
         return
       }
       const from = rename.from
-      const operation = operations.start(`Renaming "${from}" → "${rename.to}"`)
+      const operation = progress.start(`Renaming "${from}" → "${rename.to}"`)
       // The phases fail independently and the report says what held — the
       // permutations live in `composeRenameFailure`.
       const failures: RenamePhaseFailures = { rewrite: null, alias: null, move: null }

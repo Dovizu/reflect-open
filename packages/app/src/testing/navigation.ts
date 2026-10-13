@@ -21,8 +21,8 @@ import {
   createTestGraphSessionService,
   createTestIdService,
   createTestLoggerService,
-  createTestOperationsService,
 } from '@reflect/core/testing'
+import { createTestOperationsService } from './operations.ts'
 
 export interface TestNavigationServiceOptions {
   /**

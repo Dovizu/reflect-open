@@ -16,7 +16,7 @@ import {
   createTestFileChangeService,
   createTestLifecycleService,
   createTestNoteFileService,
-  createTestOperationsService,
+  createTestProgressPort,
   createTestSecretStoreService,
   createTestSettingsService,
   createTestTranscriptionService,
@@ -25,7 +25,7 @@ import {
   type TestFileChangeService,
   type TestLifecycleService,
   type TestNoteFileService,
-  type TestOperationsService,
+  type TestProgressPort,
   type TestSecretStoreService,
   type TestSettingsService,
   type TestTranscriptionService,
@@ -89,7 +89,7 @@ export interface AudioMemoTestKit {
   secrets: TestSecretStoreService
   settings: TestSettingsService
   transcription: TestTranscriptionService
-  operations: TestOperationsService
+  progress: TestProgressPort
   lifecycle: TestLifecycleService
   fileChanges: TestFileChangeService
   clock: TestClockService
@@ -138,7 +138,7 @@ export async function createAudioMemoTestKit(
     .fn<BacklinkTargetService['ensure']>()
     .mockResolvedValue('Audio memos')
   const clock = createTestClockService({ now: Date.now() })
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const lifecycle = createTestLifecycleService()
   const fileChanges = createTestFileChangeService()
   const readBytesMock = vi
@@ -162,7 +162,7 @@ export async function createAudioMemoTestKit(
     reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
     lifecycle,
     fileChanges,
-    operations,
+    progress,
     clock,
   })
 
@@ -172,7 +172,7 @@ export async function createAudioMemoTestKit(
     secrets,
     settings,
     transcription,
-    operations,
+    progress,
     lifecycle,
     fileChanges,
     clock,

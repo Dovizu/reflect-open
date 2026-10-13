@@ -12,6 +12,12 @@ export {
   type ExceptionTelemetryService,
 } from './app/exception-telemetry-service.ts'
 export {
+  createOperationsService,
+  LINGER_MS,
+  MIN_VISIBLE_MS,
+  type OperationsService,
+} from './app/operations-service.ts'
+export {
   createUpdateService,
   type UpdaterAdapter,
   type UpdateService,

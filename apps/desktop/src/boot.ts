@@ -4,7 +4,7 @@ import { createDeferredIpcTransport } from '@/services/deferred-ipc.ts'
 import { detectPlatformFacts } from '@/services/detect-platform.ts'
 import { createTauriIpcTransport } from '@/services/tauri-ipc.ts'
 import { createAppServices } from '@reflect/app'
-import { createCoreServices } from '@reflect/core'
+import { createConsoleLogger, createCoreServices, createSystemClock } from '@reflect/core'
 import { isTauri } from '@tauri-apps/api/core'
 
 const facts = detectPlatformFacts(isTauri())
@@ -19,12 +19,19 @@ export const pendingDevIpc = facts.isNativeShell ? null : createDeferredIpcTrans
 
 const ipc = pendingDevIpc?.transport ?? createTauriIpcTransport()
 
+const primitives = { clock: createSystemClock(), logger: createConsoleLogger() }
+
+const host = createDesktopHost(facts, ipc, primitives)
+
 /**
  * The app-scoped services of this webview.
  */
-export const coreServices = createCoreServices(createDesktopAdapters(facts, ipc))
+export const coreServices = createCoreServices({
+  ...createDesktopAdapters(facts, ipc, primitives),
+  progress: host.operations,
+})
 
-export const appServices = createAppServices(coreServices, createDesktopHost(facts, ipc))
+export const appServices = createAppServices(coreServices, host)
 
 // Runs before every module imported after this one, so exception telemetry
 // exists while the rest of the app's modules evaluate.

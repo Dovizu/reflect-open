@@ -1,4 +1,4 @@
-import type { OperationsService } from '../app/operations-service.ts'
+import type { ProgressPort } from '../app/ports.ts'
 import { ReflectError } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
 import type { Settings } from '../settings/schema.ts'
@@ -9,7 +9,7 @@ import {
   type SettingsStatus,
 } from '../settings/settings-service.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
-import { createTestOperationsService } from './operations.ts'
+import { createTestProgressPort } from './ports.ts'
 
 /**
  * The real {@link SettingsService} over an in-memory settings document.
@@ -19,7 +19,7 @@ export interface TestSettingsService extends SettingsService {
    * Answers `settings_load` and `settings_save`; register handlers to gate them.
    */
   readonly ipc: TestIpcBridgeService
-  readonly operations: OperationsService
+  readonly progress: ProgressPort
   /**
    * Every document a save persisted, oldest first.
    */
@@ -40,7 +40,7 @@ export interface TestSettingsService extends SettingsService {
 
 class TestSettingsServiceImpl implements TestSettingsService {
   readonly ipc: TestIpcBridgeService
-  readonly operations: OperationsService
+  readonly progress: ProgressPort
   readonly #inner: SettingsService
   readonly #saved: Settings[] = []
   #stored: Partial<Settings>
@@ -48,9 +48,9 @@ class TestSettingsServiceImpl implements TestSettingsService {
   #failSave = false
   #loadFails = false
 
-  constructor(initial: Partial<Settings> | undefined, operations: OperationsService) {
+  constructor(initial: Partial<Settings> | undefined, progress: ProgressPort) {
     this.#stored = { ...initial }
-    this.operations = operations
+    this.progress = progress
     this.ipc = createTestIpcBridgeService({
       commands: {
         settings_load: () => {
@@ -70,7 +70,7 @@ class TestSettingsServiceImpl implements TestSettingsService {
         },
       },
     })
-    this.#inner = createSettingsService({ ipc: this.ipc, operations })
+    this.#inner = createSettingsService({ ipc: this.ipc, progress })
   }
 
   readonly get = (): Settings => this.#inner.get()
@@ -128,7 +128,7 @@ class TestSettingsServiceImpl implements TestSettingsService {
  */
 export function createTestSettingsService(
   initial?: Partial<Settings>,
-  deps?: { operations?: OperationsService | undefined },
+  deps?: { progress?: ProgressPort | undefined },
 ): TestSettingsService {
-  return new TestSettingsServiceImpl(initial, deps?.operations ?? createTestOperationsService())
+  return new TestSettingsServiceImpl(initial, deps?.progress ?? createTestProgressPort())
 }

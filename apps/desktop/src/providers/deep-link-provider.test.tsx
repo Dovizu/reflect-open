@@ -1,11 +1,14 @@
 import { StrictMode, type ReactElement, type ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { createTestAppServices, createTestDeepLinkService } from '@reflect/app/testing'
+import {
+  createTestAppServices,
+  createTestDeepLinkService,
+  createTestOperationsService,
+} from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestCaptureInboxService,
   createTestGraphSessionService,
-  createTestOperationsService,
 } from '@reflect/core/testing'
 import { act } from '@/test-utils/act.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -27,7 +30,7 @@ function setup() {
     operations,
     graphSession,
   })
-  const app = createTestCoreServices({ captureInbox, operations, graphSession })
+  const app = createTestCoreServices({ captureInbox, progress: operations, graphSession })
   const appServices = createTestAppServices(app, { deepLink })
 
   function tree(): ReactElement {

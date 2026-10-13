@@ -11,12 +11,12 @@ import {
   type GraphSessionService,
   type LoggerService,
   type NoteCreationService,
-  type OperationsService,
   type PersonContactResolution,
   type PersonNoteService,
   type SettingsService,
   type SuggestionService,
 } from '@reflect/core'
+import type { OperationsService } from '../app/operations-service.ts'
 import { Counter, isNotNullish } from '@ocavue/utils'
 import { buildAutocompleteEntries } from './wiki-autocomplete-entries.ts'
 

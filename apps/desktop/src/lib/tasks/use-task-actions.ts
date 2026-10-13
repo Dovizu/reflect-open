@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { errorMessage, type InsertTaskTarget, type OpenTask } from '@reflect/core'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 
 /**
  * Task actions for the Tasks view's rows and keyboard shortcuts (Plan 18):
@@ -85,7 +85,8 @@ type PendingWrites = Readonly<Partial<Record<TaskWriteKind, number>>>
 export function useTaskActions(): TaskActions {
   const { graph } = useGraph()
   const root = graph?.root ?? null
-  const { tasks: taskService, operations } = useCoreServices()
+  const { tasks: taskService } = useCoreServices()
+  const { operations } = useAppServices()
   const [pending, setPending] = useState<PendingWrites>({})
 
   const isPending = (kind: TaskWriteKind): boolean => (pending[kind] ?? 0) > 0

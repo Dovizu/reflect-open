@@ -8,9 +8,9 @@ import {
   createTestCoreServices,
   createTestContactsService,
   createTestGraphSessionService,
-  createTestOperationsService,
   createTestSettingsService,
 } from '@reflect/core/testing'
+import { createTestOperationsService } from '@reflect/app/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { useEditorAutocomplete } from './use-editor-autocomplete.ts'
@@ -42,7 +42,7 @@ async function setup(options?: SetupOptions) {
   const operations = createTestOperationsService()
   const settings = createTestSettingsService(
     { contactsEnabled: options?.contactsEnabled ?? false },
-    { operations },
+    { progress: operations },
   )
   const created: { title: string; generation: number }[] = []
   const noteCreation = {
@@ -85,7 +85,7 @@ async function setup(options?: SetupOptions) {
     contacts,
     personNotes,
     settings,
-    operations,
+    progress: operations,
   })
   const { result } = await renderHookInApp(() => useEditorAutocomplete(), {
     app,

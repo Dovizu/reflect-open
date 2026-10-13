@@ -6,7 +6,7 @@ import { createTestNoteMoveService, createTestNoteSession } from '../testing/doc
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
+import { createTestProgressPort } from '../testing/ports.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTemplateService, type TemplateInsertTarget } from './template-service.ts'
@@ -19,7 +19,7 @@ function setup(options?: { files?: Record<string, string>; indexed?: readonly Te
     options?.indexed ??
       Object.entries(options?.files ?? {}).map(([path, markdown]) => ({ path, markdown })),
   )
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   const indexStore = createTestIndexStoreService()
   const noteMove = createTestNoteMoveService({
@@ -43,10 +43,10 @@ function setup(options?: { files?: Record<string, string>; indexed?: readonly Te
     notePath: createNotePathService({ database, noteFile }),
     noteMove,
     openDocuments,
-    operations,
+    progress,
     graphSession: graph,
   })
-  return { templates, noteFile, database, operations, openDocuments, noteMove, graph }
+  return { templates, noteFile, database, progress, openDocuments, noteMove, graph }
 }
 
 function fakeEditor(): { inserted: string[]; focused: number } & TemplateInsertTarget {
@@ -85,30 +85,30 @@ describe('templateBody', () => {
 
 describe('insertTemplate', () => {
   it('inserts the body at the cursor and refocuses the editor', async () => {
-    const { templates, operations } = setup({
+    const { templates, progress } = setup({
       files: { 'templates/journal.md': '# Journal\n\nMood:\n' },
     })
     const editor = fakeEditor()
     await templates.insertTemplate('templates/journal.md', editor)
     expect(editor.inserted).toEqual(['# Journal\n\nMood:\n'])
     expect(editor.focused).toBe(1)
-    expect(operations.getAll()).toEqual([])
+    expect(progress.getAll()).toEqual([])
   })
 
   it('fails loud when there is no editor to insert into', async () => {
-    const { templates, operations } = setup()
+    const { templates, progress } = setup()
     await templates.insertTemplate('templates/journal.md', null)
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Inserting template', status: 'failed', message: 'No open note to insert into' },
     ])
   })
 
   it('surfaces a failed read as a failed operation, never a silent nothing', async () => {
-    const { templates, operations } = setup()
+    const { templates, progress } = setup()
     const editor = fakeEditor()
     await templates.insertTemplate('templates/journal.md', editor)
     expect(editor.inserted).toEqual([])
-    expect(operations.snapshot()).toMatchObject([{ label: 'Inserting template', status: 'failed' }])
+    expect(progress.snapshot()).toMatchObject([{ label: 'Inserting template', status: 'failed' }])
   })
 })
 
@@ -138,14 +138,14 @@ describe('slashItems', () => {
   })
 
   it('resolves the editor at select time, not capture time', async () => {
-    const { templates, operations } = setup({ files })
+    const { templates, progress } = setup({ files })
     let editor: TemplateInsertTarget | null = fakeEditor()
     const items = await templates.slashItems(() => editor)
     // The pane unmounted between the menu opening and the select.
     editor = null
     items[0]!.onSelect()
     await expect
-      .poll(() => operations.snapshot())
+      .poll(() => progress.snapshot())
       .toMatchObject([{ label: 'Inserting template', message: 'No open note to insert into' }])
   })
 })

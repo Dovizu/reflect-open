@@ -22,7 +22,7 @@ import {
   createTestLoggerService,
   createTestNoteFileService,
   createTestNoteSession,
-  createTestOperationsService,
+  createTestProgressPort,
   createTestPageDescriberService,
   createTestPlatformService,
   createTestSecretStoreService,
@@ -63,7 +63,7 @@ function setup(options: { mobile?: boolean } = {}) {
   const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   const lifecycle = createTestLifecycleService()
   const fileChanges = createTestFileChangeService()
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const logger = createTestLoggerService()
   const capture = createCaptureService({
     captureInbox,
@@ -90,7 +90,7 @@ function setup(options: { mobile?: boolean } = {}) {
     reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
     lifecycle,
     fileChanges,
-    operations,
+    progress,
     platform: createTestPlatformService({ surface: { mobileApp: options.mobile ?? false } }),
     logger,
   })
@@ -101,7 +101,7 @@ function setup(options: { mobile?: boolean } = {}) {
     openDocuments,
     lifecycle,
     fileChanges,
-    operations,
+    progress,
     logger,
     /**
      * One call per drain phase.
@@ -217,7 +217,7 @@ describe('CaptureService (shared-inbox relay)', () => {
     await flush()
 
     expect(kit.drains).toHaveBeenCalledTimes(1)
-    expect(kit.operations.snapshot()).toEqual([
+    expect(kit.progress.snapshot()).toEqual([
       expect.objectContaining({
         label: 'Saving shared capture',
         status: 'failed',
@@ -229,7 +229,7 @@ describe('CaptureService (shared-inbox relay)', () => {
     session.schedule()
     await flush()
     expect(kit.drains).toHaveBeenCalledTimes(2)
-    expect(kit.operations.getAll()).toHaveLength(1)
+    expect(kit.progress.getAll()).toHaveLength(1)
     session.dispose()
   })
 
@@ -243,7 +243,7 @@ describe('CaptureService (shared-inbox relay)', () => {
     expect(kit.relays).not.toHaveBeenCalled()
     expect(kit.drains).toHaveBeenCalledTimes(1)
     expect(kit.enrichments).toHaveBeenCalledTimes(1)
-    expect(kit.operations.getAll()).toEqual([])
+    expect(kit.progress.getAll()).toEqual([])
     session.dispose()
   })
 
@@ -360,7 +360,7 @@ describe('CaptureService (triggers)', () => {
     session.schedule()
     await flush()
 
-    expect(kit.operations.snapshot()).toEqual([
+    expect(kit.progress.snapshot()).toEqual([
       expect.objectContaining({
         label: 'Saving link capture',
         status: 'failed',
@@ -485,7 +485,7 @@ describe('CaptureService (X posts)', () => {
 
     expect(kit.captureInbox.files().has(`${X_POST.id}.json`)).toBe(true)
     expect(kit.noteFile.writes()).toEqual([])
-    expect(kit.operations.snapshot()).toEqual([
+    expect(kit.progress.snapshot()).toEqual([
       expect.objectContaining({
         label: 'Saving link capture',
         message: 'Resolve or finish loading the daily note before saving X posts',

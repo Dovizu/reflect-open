@@ -5,7 +5,7 @@ import { createTestClockService, type TestClockService } from '../testing/clock.
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
 import { createTestHttpService, type TestHttpService } from '../testing/http.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
+import { createTestProgressPort } from '../testing/ports.ts'
 import {
   createTestPersistenceFlushService,
   type TestPersistenceFlushService,
@@ -244,7 +244,7 @@ function fakeServices(options: FakeOptions = {}) {
         return changes.length
       },
     },
-    operations: createTestOperationsService(clock),
+    progress: createTestProgressPort(),
     lifecycle,
     platform: createTestPlatformService({ surface: { mobileApp: options.mobile ?? false } }),
     persistenceFlush,

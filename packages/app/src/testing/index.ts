@@ -10,6 +10,11 @@ export {
   type TestNativeMenuService,
   type TestNativeMenuServiceOptions,
 } from './commands.ts'
+export {
+  createTestOperationsService,
+  type OperationSnapshot,
+  type TestOperationsService,
+} from './operations.ts'
 export { createTestAppServices, type TestAppServices } from './services.ts'
 export {
   createTestExceptionTelemetry,

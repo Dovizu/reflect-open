@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { createTestOperationsService } from '../testing/operations.ts'
+import { createTestProgressPort } from '../testing/ports.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
 import { DEFAULT_SETTINGS, type AiProviderConfig, type Settings } from './schema.ts'
 import { createSettingsService } from './settings-service.ts'
 
 function setup(stored: Record<string, unknown> = {}) {
   const ipc = createTestIpcBridgeService()
-  const operations = createTestOperationsService()
+  const progress = createTestProgressPort()
   const disk = {
     stored,
     failLoad: false,
@@ -47,13 +47,13 @@ function setup(stored: Record<string, unknown> = {}) {
     disk.saved.push(document)
     return null
   })
-  const settings = createSettingsService({ ipc, operations })
+  const settings = createSettingsService({ ipc, progress })
   const releaseLoad = async (): Promise<void> => {
     await vi.waitFor(() => expect(disk.pendingLoad).not.toBeNull())
     disk.pendingLoad?.()
     disk.pendingLoad = null
   }
-  return { ipc, operations, disk, settings, releaseLoad }
+  return { ipc, progress, disk, settings, releaseLoad }
 }
 
 describe('createSettingsService', () => {
@@ -333,11 +333,11 @@ describe('createSettingsService', () => {
   })
 
   it('surfaces a failed load and keeps changes session-only', async () => {
-    const { disk, operations, settings } = setup()
+    const { disk, progress, settings } = setup()
     disk.failLoad = true
     await expect(settings.whenLoaded()).resolves.toBe('failed')
     expect(settings.status()).toBe('failed')
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Loading settings', status: 'failed', message: 'corrupt store' },
     ])
 
@@ -371,7 +371,7 @@ describe('createSettingsService', () => {
   })
 
   it('stays failed when the reload fails too', async () => {
-    const { disk, operations, settings } = setup()
+    const { disk, progress, settings } = setup()
     disk.failLoad = true
     await settings.whenLoaded()
 
@@ -379,7 +379,7 @@ describe('createSettingsService', () => {
 
     expect(settings.status()).toBe('failed')
     expect(disk.loadCalls).toBe(2)
-    expect(operations.snapshot()).toHaveLength(2)
+    expect(progress.snapshot()).toHaveLength(2)
   })
 
   it('does not load again once the load succeeded', async () => {
@@ -391,13 +391,13 @@ describe('createSettingsService', () => {
   })
 
   it('keeps the applied value and surfaces a failed save as an operation', async () => {
-    const { disk, operations, settings } = setup()
+    const { disk, progress, settings } = setup()
     await settings.whenLoaded()
     disk.failSaves = true
 
     settings.update({ editorMarkdownSyntax: 'show' })
     await vi.waitFor(() =>
-      expect(operations.snapshot()).toMatchObject([
+      expect(progress.snapshot()).toMatchObject([
         { label: 'Saving settings', status: 'failed', message: 'disk full' },
       ]),
     )
@@ -405,12 +405,12 @@ describe('createSettingsService', () => {
   })
 
   it('retries an unconfirmed save on the next update, even to the same value', async () => {
-    const { disk, operations, settings } = setup()
+    const { disk, progress, settings } = setup()
     await settings.whenLoaded()
     disk.failSaves = true
 
     settings.update({ editorMarkdownSyntax: 'show' })
-    await vi.waitFor(() => expect(operations.getAll()).toHaveLength(1))
+    await vi.waitFor(() => expect(progress.getAll()).toHaveLength(1))
     expect(disk.saved).toEqual([])
 
     disk.failSaves = false
@@ -420,7 +420,7 @@ describe('createSettingsService', () => {
   })
 
   it('continues a queued save after an earlier save fails', async () => {
-    const { disk, operations, settings } = setup()
+    const { disk, progress, settings } = setup()
     await settings.whenLoaded()
     disk.failSaves = true
     disk.gateSaves = true
@@ -436,7 +436,7 @@ describe('createSettingsService', () => {
     disk.pendingSaves[1]?.resolve()
     await settings.flush()
 
-    expect(operations.snapshot()).toMatchObject([
+    expect(progress.snapshot()).toMatchObject([
       { label: 'Saving settings', status: 'failed', message: 'disk full' },
     ])
     expect(disk.saved).toEqual([disk.attempts[1]])
@@ -444,12 +444,12 @@ describe('createSettingsService', () => {
   })
 
   it('flush persists changes a failed save left unconfirmed', async () => {
-    const { disk, operations, settings } = setup()
+    const { disk, progress, settings } = setup()
     await settings.whenLoaded()
     disk.failSaves = true
 
     settings.update({ editorMarkdownSyntax: 'show' })
-    await vi.waitFor(() => expect(operations.getAll()).toHaveLength(1))
+    await vi.waitFor(() => expect(progress.getAll()).toHaveLength(1))
     expect(disk.saved).toEqual([])
 
     disk.failSaves = false
@@ -511,15 +511,14 @@ describe('createTestSettingsService', () => {
   })
 
   it('fails the next save, then recovers', async () => {
-    const settings = createTestSettingsService()
+    const progress = createTestProgressPort()
+    const settings = createTestSettingsService(undefined, { progress })
     await settings.whenLoaded()
     settings.failNextSave()
     settings.update({ editorMarkdownSyntax: 'show' })
     await settings.flush()
     expect(settings.saves()).toHaveLength(1)
-    expect(settings.operations.getAll()).toMatchObject([
-      { label: 'Saving settings', status: 'failed' },
-    ])
+    expect(progress.getAll()).toMatchObject([{ label: 'Saving settings', status: 'failed' }])
   })
 
   it('fails the load', async () => {
