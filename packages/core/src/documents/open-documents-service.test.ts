@@ -16,15 +16,14 @@ import { createOpenDocumentsService, type OpenDocumentsService } from './open-do
  * A session that logs the calls the registry makes.
  */
 function fakeSession(path: string, log: string[]): NoteSession {
-  return {
-    ...createTestNoteSession({ path }),
+  return Object.assign(createTestNoteSession({ path }), {
     externalChanged: () => {
       log.push(`externalChanged:${path}`)
     },
     flush: async () => {
       log.push(`flush:${path}`)
     },
-  }
+  })
 }
 
 let fileChanges: TestFileChangeService

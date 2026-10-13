@@ -93,7 +93,7 @@ export interface BackupServiceDeps {
  * teardown). Here the lifecycle is one object with one `teardown()` that
  * every path — success, partial-init failure, dispose — funnels through, and
  * the provider shrinks to a `useSyncExternalStore` shim. One service serves
- * one (graph, index session) pair; {@link BackupServiceFactory} builds them.
+ * one (graph, index session) pair.
  *
  * Owns: the connection probe, the sync engine, the watcher subscription that
  * feeds its debounce, the resume triggers (launch, window focus, visibility →
@@ -143,17 +143,6 @@ export interface BackupService {
    * Tear everything down; the service is unusable afterwards.
    */
   dispose: () => void
-}
-
-/**
- * Builds the {@link BackupService} of one (graph, index session) pair.
- */
-export interface BackupServiceFactory {
-  create(options: BackupServiceOptions): BackupService
-}
-
-export function createBackupServiceFactory(deps: BackupServiceDeps): BackupServiceFactory {
-  return { create: (options) => createBackupService(deps, options) }
 }
 
 class BackupServiceImpl implements BackupService {

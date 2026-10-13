@@ -4,9 +4,9 @@ import type { BackupService, BackupState, OpenerService } from '@reflect/core'
 import {
   createTestAppServices,
   createTestOpenerService,
-  createTestScriptedBackupServiceFactory,
+  createTestBackupService,
   type TestOpenerService,
-  type TestScriptedBackupServiceFactory,
+  type TestBackupService,
 } from '@reflect/core/testing'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import '@/test-utils/locator.ts'
@@ -22,7 +22,7 @@ let githubConnected: boolean
 
 // The services of the app under test; created fresh for each test.
 let opener: TestOpenerService
-let backups: TestScriptedBackupServiceFactory
+let backup: TestBackupService
 let openUrl: MockInstance<OpenerService['openUrl']>
 let signOut: MockInstance<BackupService['signOut']>
 
@@ -30,13 +30,13 @@ beforeEach(() => {
   githubConnected = false
   opener = createTestOpenerService()
   openUrl = vi.spyOn(opener, 'openUrl')
-  backups = createTestScriptedBackupServiceFactory()
-  signOut = vi.spyOn(backups.backup, 'signOut')
+  backup = createTestBackupService()
+  signOut = vi.spyOn(backup, 'signOut')
 })
 
-async function renderSection(backup: BackupState): Promise<void> {
-  backups.backup.setState(backup)
-  const app = createTestAppServices({ opener, backups })
+async function renderSection(state: BackupState): Promise<void> {
+  backup.setState(state)
+  const app = createTestAppServices({ opener, backup })
   if (githubConnected) {
     await app.githubAuth.save({ kind: 'pat', token: 'ghp_test' })
   }

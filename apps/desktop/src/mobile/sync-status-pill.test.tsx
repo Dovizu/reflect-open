@@ -1,10 +1,7 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it } from 'vitest'
 import type { BackupState, ConflictedNote } from '@reflect/core'
-import {
-  createTestAppServices,
-  createTestScriptedBackupServiceFactory,
-} from '@reflect/core/testing'
+import { createTestAppServices, createTestBackupService } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { SyncStatusPill } from './sync-status-pill.tsx'
 
@@ -41,7 +38,7 @@ async function mount(options?: MountOptions): Promise<void> {
       ...base.indexQuery,
       getConflictedNotes: options?.conflictedNotes ?? (async () => []),
     },
-    backups: createTestScriptedBackupServiceFactory({
+    backup: createTestBackupService({
       state: options?.backup ?? connected({ state: 'idle' }),
     }),
   })

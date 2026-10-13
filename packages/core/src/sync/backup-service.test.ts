@@ -17,9 +17,9 @@ import { createTestGitRepositoryService, createTestGithubAuthService } from '../
 import { createSyncEngineFactory } from './engine.ts'
 import { createGithubRepoService } from './github-repo-service.ts'
 import {
-  createBackupServiceFactory,
+  createBackupService,
   type BackupService,
-  type BackupServiceFactory,
+  type BackupServiceDeps,
   type BackupState,
 } from './backup-service.ts'
 import type {
@@ -35,7 +35,7 @@ let lifecycle: TestLifecycleService
 let logger: TestLoggerService
 let fileChanges: TestFileChangeService
 let persistenceFlush: TestPersistenceFlushService
-let backups: BackupServiceFactory
+let backupDeps: BackupServiceDeps
 
 beforeEach(() => {
   http = createTestHttpService()
@@ -222,7 +222,7 @@ function fakeServices(options: FakeOptions = {}) {
     })
   }
 
-  backups = createBackupServiceFactory({
+  backupDeps = {
     git,
     syncEngines: createSyncEngineFactory({ git, clock }),
     githubAuth: createTestGithubAuthService({ secretStore, http, clock }),
@@ -249,7 +249,7 @@ function fakeServices(options: FakeOptions = {}) {
     platform: createTestPlatformService({ surface: { mobileApp: options.mobile ?? false } }),
     persistenceFlush,
     logger,
-  })
+  }
   return {
     calls,
     invocations,
@@ -266,7 +266,10 @@ function fakeServices(options: FakeOptions = {}) {
  * A backup service of the last {@link fakeServices} call, at graph generation 3.
  */
 function createBackup(options: { indexGeneration: number | null }): BackupService {
-  return backups.create({ generation: GENERATION, indexGeneration: options.indexGeneration })
+  return createBackupService(backupDeps, {
+    generation: GENERATION,
+    indexGeneration: options.indexGeneration,
+  })
 }
 
 /**

@@ -287,10 +287,9 @@ describe('resolveAttendeeTargets', () => {
 
   it('writes unaddressable-owner identities as plain text', async () => {
     seedNotes(database, [personNote('notes/jane.md', 'Jane', ['jane@corp.com'])])
-    const wikiResolver = {
-      ...createWikiResolverService({ database }),
+    const wikiResolver = Object.assign(createWikiResolverService({ database }), {
       getWikiAddressForPath: async () => null,
-    }
+    })
     const unaddressable = meetingService({
       wikiResolver,
       personNotes: createPersonNoteService({ database, wikiResolver, noteCreation }),
@@ -582,10 +581,9 @@ describe('attendee identity outcomes', () => {
 
   it('writes an unaddressable owner as plain text without creating', async () => {
     seedNotes(database, [personNote('notes/jane.md', 'Jane', ['jane@corp.com'])])
-    const wikiResolver = {
-      ...createWikiResolverService({ database }),
+    const wikiResolver = Object.assign(createWikiResolverService({ database }), {
       getWikiAddressForPath: async () => null,
-    }
+    })
     const unaddressable = meetingService({
       wikiResolver,
       personNotes: createPersonNoteService({ database, wikiResolver, noteCreation }),

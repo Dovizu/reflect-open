@@ -9,13 +9,7 @@ import type {
 } from '../ipc/icloud-native-service.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HttpService } from '../app/http-service.ts'
-import type {
-  BackupService,
-  BackupServiceFactory,
-  BackupServiceOptions,
-  BackupState,
-  ConnectExistingResult,
-} from '../sync/backup-service.ts'
+import type { BackupService, BackupState, ConnectExistingResult } from '../sync/backup-service.ts'
 import type { ICloudSyncService } from '../sync/icloud-sync-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type {
@@ -435,48 +429,6 @@ export function createTestGithubAuthService(
 }
 
 /**
- * A {@link BackupServiceFactory} whose every `create` hands out one scripted service.
- */
-export interface TestScriptedBackupServiceFactory extends BackupServiceFactory {
-  /**
-   * The service every `create` call returns.
-   */
-  readonly backup: TestBackupService
-  /**
-   * The options of every `create` call, in order.
-   */
-  creations(): readonly BackupServiceOptions[]
-}
-
-/**
- * A {@link BackupServiceFactory} for surfaces that only read a backup: no
- * engine runs, and the state is what `backup.setState` says (`state` at first).
- */
-class TestScriptedBackupServiceFactoryImpl implements TestScriptedBackupServiceFactory {
-  readonly backup: TestBackupService
-  readonly #created: BackupServiceOptions[] = []
-
-  constructor(options?: { state?: BackupState }) {
-    this.backup = createTestBackupService(options)
-  }
-
-  create(createOptions: BackupServiceOptions): BackupService {
-    this.#created.push(createOptions)
-    return this.backup
-  }
-
-  creations(): readonly BackupServiceOptions[] {
-    return [...this.#created]
-  }
-}
-
-export function createTestScriptedBackupServiceFactory(options?: {
-  state?: BackupState
-}): TestScriptedBackupServiceFactory {
-  return new TestScriptedBackupServiceFactoryImpl(options)
-}
-
-/**
  * One recorded {@link TestBackupService} action.
  */
 export type BackupCall =
@@ -566,6 +518,10 @@ class TestBackupServiceImpl implements TestBackupService {
     this.#log.push({ method: 'signOut' })
   }
 
+  // FIXME: it seems that `backUpNow` DO NOT need to be a lambda function. It can just be a normal method. We only want to write `readonly method = () => { ... } ` and ` interface XXXService { method : () => void } ` if we really need to bind `this` to the method. A good example is `getState`. Because we need to write `return useServiceState(contacts, contacts.getState)`, so `getState` in `ContactsService` should be a lambda function. But as far as I can tell, `backUpNow` does not need to be a lambda function. Before finish all work, do a full scan in the codebase to see if we can remove all unnecessary lambda functions in XXXService. This will make the code cleaner and easier to read.
+  // FIXME GOOD: async backUpNow(): Promise<void> { ... }
+  // FIXME BAD: readonly backUpNow = async (): Promise<void> => { ... }
+  // FIXME it's clear that the GOOD one is shorter and easier to read..
   readonly backUpNow = async (): Promise<void> => {
     this.#log.push({ method: 'backUpNow' })
   }

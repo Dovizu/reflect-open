@@ -6,7 +6,7 @@ import {
   createTestAppServices,
   createTestHttpService,
   createTestPlatformService,
-  createTestScriptedBackupServiceFactory,
+  createTestBackupService,
   createTestSecretStoreService,
   type TestBackupService,
 } from '@reflect/core/testing'
@@ -38,8 +38,8 @@ async function mount(
   ui: ReactNode,
   script?: (backup: TestBackupService) => void,
 ): Promise<InAppRenderResult<AppServices> & { backup: TestBackupService }> {
-  const backups = createTestScriptedBackupServiceFactory({ state: { phase: 'disconnected' } })
-  script?.(backups.backup)
+  const backup = createTestBackupService({ state: { phase: 'disconnected' } })
+  script?.(backup)
   const app = createTestAppServices({
     platform: createTestPlatformService({ isMacosDesktop: false, hasMacosTitleBarOverlay: false }),
     // A stored PAT + GitHub accepting it ("alex") makes the auth step skip
@@ -54,10 +54,10 @@ async function mount(
         reply: { status: 200, json: { login: 'alex' } },
       },
     ]),
-    backups,
+    backup,
   })
   const view = await renderInApp(ui, { app })
-  return Object.assign(view, { backup: backups.backup })
+  return Object.assign(view, { backup })
 }
 
 describe('ConnectGithubDrawer', () => {

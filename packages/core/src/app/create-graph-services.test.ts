@@ -4,13 +4,14 @@ import type { ICloudDownloadServiceOptions } from '../sync/icloud-download-servi
 import type { ICloudSyncServiceOptions } from '../sync/icloud-sync-service.ts'
 import type { TestPlatformOptions } from '../testing/platform.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
-import { createTestAppServices } from '../testing/services.ts'
+import { createTestAppServices, type TestAppServices } from '../testing/services.ts'
 import {
+  createTestBackupService,
   createTestICloudSyncService,
-  createTestScriptedBackupServiceFactory,
   type TestICloudSyncService,
 } from '../testing/sync.ts'
-import { createGraphServices } from './create-graph-services.ts'
+import type { BackupServiceOptions } from '../sync/backup-service.ts'
+import { createGraphServices, type GraphServicesDeps } from './create-graph-services.ts'
 import { createGraphSession, type GraphRole } from './graph-session.ts'
 
 const ICLOUD_ROOT = '/Users/me/Library/Mobile Documents/iCloud~reflect/Documents/notes'
@@ -20,6 +21,40 @@ interface SetupOptions {
   root?: string
   indexGeneration?: number | null
   platform?: TestPlatformOptions
+}
+
+/**
+ * The deps of the per-session services, taken from the test app.
+ */
+function sessionDeps(
+  app: TestAppServices,
+): Pick<GraphServicesDeps, 'backup' | 'icloudSync' | 'icloudDownload'> {
+  const { icloudNative, fileChanges, indexLifecycle, lifecycle, clock, logger } = app
+  return {
+    backup: {
+      git: app.gitRepository,
+      syncEngines: app.syncEngines,
+      githubAuth: app.githubAuth,
+      githubRepos: app.githubRepos,
+      fileChanges,
+      indexLifecycle,
+      operations: app.operations,
+      lifecycle,
+      platform: app.platform,
+      persistenceFlush: app.persistenceFlush,
+      logger,
+    },
+    icloudSync: {
+      icloudNative,
+      fileChanges,
+      indexLifecycle,
+      openDocuments: app.openDocuments,
+      lifecycle,
+      clock,
+      logger,
+    },
+    icloudDownload: { icloudNative, lifecycle, clock, logger },
+  }
 }
 
 /**
@@ -37,33 +72,13 @@ function setup(options?: SetupOptions) {
     },
     controller.signal,
   )
-  const backups = createTestScriptedBackupServiceFactory()
+  const backup = createTestBackupService()
+  const backups: BackupServiceOptions[] = []
   const chats: { attached: number; detached: number }[] = []
   const icloudSyncs: { options: ICloudSyncServiceOptions; service: TestICloudSyncService }[] = []
   const downloads: { options: ICloudDownloadServiceOptions; calls: string[] }[] = []
-  const graph = createGraphServices(session, options?.role ?? 'main', {
-    backups,
-    icloudSyncs: {
-      create: (syncOptions) => {
-        const service = createTestICloudSyncService()
-        icloudSyncs.push({ options: syncOptions, service })
-        return service
-      },
-    },
-    icloudDownloads: {
-      create: (downloadOptions) => {
-        const calls: string[] = []
-        downloads.push({ options: downloadOptions, calls })
-        return {
-          start: () => {
-            calls.push('start')
-          },
-          dispose: () => {
-            calls.push('dispose')
-          },
-        }
-      },
-    },
+  const deps: GraphServicesDeps = {
+    ...sessionDeps(app),
     capture: app.capture,
     assetDescription: app.assetDescription,
     chatSessions: {
@@ -87,8 +102,31 @@ function setup(options?: SetupOptions) {
     mobileOnboarding: app.mobileOnboarding,
     graphSession: app.graphSession,
     platform: app.platform,
+  }
+  const graph = createGraphServices(session, options?.role ?? 'main', deps, {
+    backup: (_deps, backupOptions) => {
+      backups.push(backupOptions)
+      return backup
+    },
+    icloudSync: (_deps, syncOptions) => {
+      const service = createTestICloudSyncService()
+      icloudSyncs.push({ options: syncOptions, service })
+      return service
+    },
+    icloudDownload: (_deps, downloadOptions) => {
+      const calls: string[] = []
+      downloads.push({ options: downloadOptions, calls })
+      return {
+        start: () => {
+          calls.push('start')
+        },
+        dispose: () => {
+          calls.push('dispose')
+        },
+      }
+    },
   })
-  return { app, controller, session, graph, backups, chats, icloudSyncs, downloads }
+  return { app, controller, session, graph, backup, backups, chats, icloudSyncs, downloads }
 }
 
 describe('createGraphServices', () => {
@@ -101,9 +139,9 @@ describe('createGraphServices', () => {
     const context = setup()
     await context.app.settings.whenLoaded()
 
-    expect(context.graph.backup).toBe(context.backups.backup)
-    expect(context.backups.creations()).toEqual([{ generation: 3, indexGeneration: 5 }])
-    expect(context.backups.backup.calls()).toEqual([{ method: 'start' }])
+    expect(context.graph.backup).toBe(context.backup)
+    expect(context.backups).toEqual([{ generation: 3, indexGeneration: 5 }])
+    expect(context.backup.calls()).toEqual([{ method: 'start' }])
     expect(context.chats).toEqual([{ attached: 1, detached: 0 }])
     expect(context.app.attachments.watchers()).toBe(1)
     expect(context.app.capture.sessions()).toEqual([
@@ -119,14 +157,14 @@ describe('createGraphServices', () => {
   it('runs every lifecycle of a graph whose index failed to open, until the session ends', () => {
     const context = setup({ root: ICLOUD_ROOT, indexGeneration: null })
 
-    expect(context.backups.creations()).toEqual([{ generation: 3, indexGeneration: null }])
+    expect(context.backups).toEqual([{ generation: 3, indexGeneration: null }])
     expect(context.icloudSyncs.map((sync) => sync.options.indexGeneration)).toEqual([null])
     expect(context.app.capture.sessions()).toHaveLength(1)
     expect(context.app.attachments.watchers()).toBe(1)
     expect(context.chats).toEqual([{ attached: 1, detached: 0 }])
 
     context.controller.abort()
-    expect(context.backups.backup.calls().at(-1)).toEqual({ method: 'dispose' })
+    expect(context.backup.calls().at(-1)).toEqual({ method: 'dispose' })
     expect(context.icloudSyncs[0]?.service.calls()).toEqual(['start', 'dispose'])
     expect(context.app.capture.sessions()[0]?.disposed).toBe(true)
     expect(context.app.attachments.watchers()).toBe(0)
@@ -137,7 +175,7 @@ describe('createGraphServices', () => {
     const context = setup({ role: 'note-window', root: ICLOUD_ROOT })
 
     expect(context.graph.backup).toBeNull()
-    expect(context.backups.creations()).toEqual([])
+    expect(context.backups).toEqual([])
     expect(context.chats).toEqual([{ attached: 1, detached: 0 }])
     expect(context.app.attachments.watchers()).toBe(1)
     expect(context.app.capture.sessions()).toEqual([])
@@ -149,7 +187,7 @@ describe('createGraphServices', () => {
     const context = setup({ root: ICLOUD_ROOT })
     context.controller.abort()
 
-    expect(context.backups.backup.calls().at(-1)).toEqual({ method: 'dispose' })
+    expect(context.backup.calls().at(-1)).toEqual({ method: 'dispose' })
     expect(context.chats).toEqual([{ attached: 1, detached: 1 }])
     expect(context.app.attachments.watchers()).toBe(0)
     expect(context.app.capture.sessions()[0]?.disposed).toBe(true)
@@ -214,22 +252,25 @@ describe('createGraphServices', () => {
       { root: '/g', name: 'g', generation: 3, indexGeneration: 5 },
       controller.signal,
     )
-    const backups = createTestScriptedBackupServiceFactory()
-    createGraphServices(session, 'main', {
-      backups,
-      icloudSyncs: app.icloudSyncs,
-      icloudDownloads: app.icloudDownloads,
-      capture: app.capture,
-      assetDescription: app.assetDescription,
-      chatSessions: app.chatSessions,
-      attachments: app.attachments,
-      settings: app.settings,
-      mobileOnboarding: app.mobileOnboarding,
-      graphSession: app.graphSession,
-      platform: app.platform,
-    })
+    const backup = createTestBackupService()
+    createGraphServices(
+      session,
+      'main',
+      {
+        ...sessionDeps(app),
+        capture: app.capture,
+        assetDescription: app.assetDescription,
+        chatSessions: app.chatSessions,
+        attachments: app.attachments,
+        settings: app.settings,
+        mobileOnboarding: app.mobileOnboarding,
+        graphSession: app.graphSession,
+        platform: app.platform,
+      },
+      { backup: () => backup },
+    )
 
-    expect(backups.backup.calls()).toEqual([{ method: 'start' }, { method: 'dispose' }])
+    expect(backup.calls()).toEqual([{ method: 'start' }, { method: 'dispose' }])
     expect(app.attachments.watchers()).toBe(0)
     expect(app.capture.sessions()[0]?.disposed).toBe(true)
   })

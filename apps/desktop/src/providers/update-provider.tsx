@@ -48,7 +48,17 @@ export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): Re
 
   const state = useServiceState(update, update.getState)
 
-  const value = useMemo<UpdateContextValue>(() => ({ ...update, state }), [update, state])
+  const value = useMemo<UpdateContextValue>(
+    () => ({
+      state,
+      supported: update.supported,
+      checkNow: update.checkNow,
+      install: update.install,
+      restart: update.restart,
+      retryAction: update.retryAction,
+    }),
+    [update, state],
+  )
 
   return <UpdateContext value={value}>{children}</UpdateContext>
 }

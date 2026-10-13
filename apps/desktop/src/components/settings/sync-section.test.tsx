@@ -14,11 +14,11 @@ import {
   createTestAppServices,
   createTestICloudNativeService,
   createTestPlatformService,
-  createTestScriptedBackupServiceFactory,
+  createTestBackupService,
   createTestWindowService,
   type TestOpenGraph,
   type TestPlatformOptions,
-  type TestScriptedBackupServiceFactory,
+  type TestBackupService,
 } from '@reflect/core/testing'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 import { useRouter } from '@/routing/router.tsx'
@@ -47,7 +47,7 @@ let platform: TestPlatformOptions
 let backupState: BackupState
 
 // The services of the app under test.
-let backups: TestScriptedBackupServiceFactory
+let backup: TestBackupService
 let disconnectGraph: MockInstance<BackupService['disconnectGraph']>
 let openRecent: MockInstance<GraphSessionService['openRecent']>
 // What the next `openRecent` of the rendered app resolves.
@@ -63,10 +63,10 @@ async function renderSection(): Promise<void> {
       new ReflectError('io', 'test iCloud: the container is unavailable'),
     )
   }
-  backups.backup.setState(backupState)
+  backup.setState(backupState)
   const app = createTestAppServices({
     icloudNative,
-    backups,
+    backup,
     platform: createTestPlatformService(platform),
     window: createTestWindowService({ openNoteWindow }),
   })
@@ -108,8 +108,8 @@ beforeEach(() => {
   backupState = { phase: 'disconnected' }
   reopens = true
   openNoteWindow.mockReset().mockResolvedValue(true)
-  backups = createTestScriptedBackupServiceFactory()
-  disconnectGraph = vi.spyOn(backups.backup, 'disconnectGraph')
+  backup = createTestBackupService()
+  disconnectGraph = vi.spyOn(backup, 'disconnectGraph')
 })
 
 describe('SyncSection', () => {
