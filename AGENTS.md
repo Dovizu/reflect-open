@@ -97,7 +97,7 @@ Desktop JS tests are split into Vitest projects (details in
   logic test that drives the DOM is named `.test.tsx` so it lands in the
   browser project.
 - `console.warn` / `console.error` fail tests (`vitest-fail-on-console`).
-  This covers the desktop and the core projects. The allowlist in
+  This covers the core, app and desktop projects. The allowlist in
   `apps/desktop/src/test-utils/allowed-console.ts` holds one browser artifact;
   a new entry needs a measured reason in that file.
 
@@ -152,6 +152,8 @@ reflect-open/
 │   ├── core/               # @reflect/core — ALL TS business logic as services (app/,
 │   │                       #   graph/, documents/, indexing/, markdown/, embeddings/,
 │   │                       #   ai/, sync/, settings/, ipc/, testing/)
+│   ├── app/                # @reflect/app — the app layer: windows, routes, commands,
+│   │                       #   menus, update, theme, boot flows (no React, no Tauri)
 │   └── db/                 # @reflect/db — generated Kysely schema + the IPC dialect
 ├── crates/
 │   └── index-schema/       # Shared SQLite migrations for <graph>/.reflect/index.sqlite
@@ -187,30 +189,27 @@ Read [docs/plans/architecture-conventions.md](docs/plans/architecture-convention
 and [docs/contributing/services.md](docs/contributing/services.md) before adding logic.
 The short version:
 
-- Business logic lives in `@reflect/core` as services: `createXxxService(deps)` in
-  `packages/core/src/<domain>/<name>-service.ts` returns an instance of an unexported
-  class that implements the `XxxService` interface. A service
-  gets other services only through `deps`. Core has no process-wide instances, no
-  module-level mutable state, and never imports `@tauri-apps/*`.
-- `createCoreServices(adapters)` (`packages/core/src/app/create-core-services.ts`) builds
-  every service once and returns `CoreServices`. The desktop app supplies the platform
-  adapters from `apps/desktop/src/services/` and builds the services in
-  `apps/desktop/src/boot.ts`.
-- React reads services with `useCoreServices()`
-  (`apps/desktop/src/services/services-provider.tsx`). Non-React desktop modules take
-  them as a first parameter `ctx`. Commands get them from `CommandContext.services`.
-  Never import `appServices` from `boot.ts` outside `main.tsx` and the platform roots.
-- Core emits events (`onXxx(listener)`); the desktop app maps them to query-cache
-  invalidation. Core never touches the query cache.
+- Three packages: `@reflect/core` (business logic, platform primitive interfaces),
+  `@reflect/app` (windows, routes, commands, menus, update, theme, boot flows),
+  `apps/desktop` (React, Tauri adapters). Lint keeps React, TanStack and Tauri out of
+  both packages. A service is `createXxxService(deps)` in
+  `<package>/src/<domain>/<name>-service.ts`; it gets other services only through `deps`.
+- Two roots: `createCoreServices(adapters: CoreAdapters)` and
+  `createAppServices(core, host: AppHost)`. `apps/desktop/src/boot.ts` builds the
+  primitives, the host, core, then app. Core's ports (`progress`, `activity` in
+  `packages/core/src/app/ports.ts`, and `role`) are implemented by app services.
+- React reads `useCoreServices()` and `useAppServices()`; commands read
+  `CommandContext.services` and `.app`. Never import from `boot.ts` outside
+  `main.tsx` and the platform roots.
+- Core, app, or desktop? A product rule every client needs goes in core; windows,
+  routes, menus and pixels go in app; React goes in desktop. See
+  [docs/contributing/services.md](docs/contributing/services.md).
 - Rust-boundary wrappers (`NoteFileService`) take an explicit `generation`. User-facing
-  services take none: they read the `GraphSession` once at method entry
-  (`graphSession.getState()` / `requireGraphSession`) and pass its generations down.
-  Background loops get the session from `createGraphServices`. See
-  [docs/contributing/services.md](docs/contributing/services.md) §2.
-- Tests construct services over the test doubles in `@reflect/core/testing`
-  (`createTestCoreServices()`, `createTestXxxService()`), and desktop tests render with
-  `renderInApp` / `renderHookInApp`. `vi.mock` is only for stubbing a pure UI child.
-  See [docs/contributing/testing.md](docs/contributing/testing.md).
+  services read the `GraphSession` once at method entry and pass its generations down.
+- Tests build services over `@reflect/core/testing` and `@reflect/app/testing`
+  (`createTestCoreServices()`, `createTestAppServices(core)`); desktop tests render with
+  `renderInApp`. `vi.mock` only for the allowlist in `eslint.config.js`. See
+  [docs/contributing/testing.md](docs/contributing/testing.md).
 
 **Frontend ↔ Rust**
 
