@@ -18,6 +18,7 @@ const ICLOUD_ROOT = '/Users/me/Library/Mobile Documents/iCloud~reflect/Documents
 interface SetupOptions {
   role?: GraphRole
   root?: string
+  indexGeneration?: number | null
   platform?: TestPlatformOptions
 }
 
@@ -26,7 +27,12 @@ function setup(options?: SetupOptions) {
   const app = createTestAppServices({ platform: createTestPlatformService(options?.platform) })
   const controller = new AbortController()
   const session = createGraphSession(
-    { root: options?.root ?? '/g', name: 'g', generation: 3, indexGeneration: 5 },
+    {
+      root: options?.root ?? '/g',
+      name: 'g',
+      generation: 3,
+      indexGeneration: options?.indexGeneration === undefined ? 5 : options.indexGeneration,
+    },
     controller.signal,
   )
   const backups = createTestScriptedBackupServiceFactory()
@@ -106,6 +112,23 @@ describe('createGraphServices', () => {
     ])
     expect(context.icloudSyncs).toEqual([])
     expect(context.downloads).toEqual([])
+  })
+
+  it('runs every lifecycle of a graph whose index failed to open, until the session ends', () => {
+    const context = setup({ root: ICLOUD_ROOT, indexGeneration: null })
+
+    expect(context.backups.creations()).toEqual([{ generation: 3, indexGeneration: null }])
+    expect(context.icloudSyncs.map((sync) => sync.options.indexGeneration)).toEqual([null])
+    expect(context.app.capture.sessions()).toHaveLength(1)
+    expect(context.app.attachments.watchers()).toBe(1)
+    expect(context.chats).toEqual([{ attached: 1, detached: 0 }])
+
+    context.controller.abort()
+    expect(context.backups.backup.calls().at(-1)).toEqual({ method: 'dispose' })
+    expect(context.icloudSyncs[0]?.service.calls()).toEqual(['start', 'dispose'])
+    expect(context.app.capture.sessions()[0]?.disposed).toBe(true)
+    expect(context.app.attachments.watchers()).toBe(0)
+    expect(context.chats).toEqual([{ attached: 1, detached: 1 }])
   })
 
   it('runs only the chat session and the catalog watch in a note window', () => {

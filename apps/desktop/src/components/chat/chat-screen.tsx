@@ -19,18 +19,9 @@ import { ChatTurnList } from './chat-turn-list.tsx'
  * shouldn't be required — and queues them as the next message's attachments.
  */
 export function ChatScreen(): ReactElement {
-  const chat = useChatSession({ optional: true })
+  const { providers, attachImages } = useChatSession()
   const { navigate } = useRouter()
 
-  if (chat === null) {
-    return (
-      <div className="flex h-full items-center justify-center px-6 text-sm text-text-muted">
-        Chat needs the search index, which couldn’t open for this graph.
-      </div>
-    )
-  }
-
-  const { providers, attachImages } = chat
   if (providers.length === 0) {
     return (
       <div className="flex h-full items-center justify-center px-6">

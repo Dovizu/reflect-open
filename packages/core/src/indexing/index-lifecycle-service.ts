@@ -85,8 +85,8 @@ export interface IndexLifecycleService {
    * (hash reconcile, or a full rebuild when the stored projection version is
    * stale), then subscribe to live file changes, then start the Rust watcher,
    * sequenced so the passes never write concurrently. The pass bails between
-   * steps once `session.signal` aborts. Call only after the graph row is
-   * committed.
+   * steps once `session.signal` aborts; a session without an index runs none.
+   * Call only after the graph row is committed.
    */
   sync: (session: GraphSession) => void
   /**
@@ -121,8 +121,8 @@ export interface IndexLifecycleService {
   /**
    * Resume after {@link IndexLifecycleService.suspend} and run one coalesced
    * full sync for anything that changed while the live subscription was
-   * absent. A null session clears suspension without starting work
-   * (foreground can precede graph open).
+   * absent. A null session, or one without an index, clears suspension
+   * without starting work (foreground can precede graph open).
    */
   resume: (session: GraphSession | null) => void
   /**
@@ -331,7 +331,7 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
 
   function resume(session: GraphSession | null): void {
     suspended = false
-    if (session !== null && !session.signal.aborted) {
+    if (session !== null && session.indexGeneration !== null && !session.signal.aborted) {
       // Events intentionally dropped while suspended are recovered by the
       // full reconcile. `refresh` also folds a rapid resume/poll burst into a
       // single queued rerun when a prior pass is still settling.
@@ -374,7 +374,7 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     live.unlisten?.()
     live.unlisten = null
 
-    if (isSuspended()) {
+    if (generation === null || isSuspended()) {
       return
     }
 

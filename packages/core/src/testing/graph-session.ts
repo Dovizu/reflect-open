@@ -89,8 +89,7 @@ function graphPatch(
     indexGeneration,
     indexing: false,
     error: null,
-    session:
-      indexGeneration === null ? null : createGraphSession({ ...info, indexGeneration }, signal),
+    session: createGraphSession({ ...info, indexGeneration }, signal),
     services: null,
   }
 }

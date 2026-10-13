@@ -367,7 +367,8 @@ The shape:
   `subscribe()` when the UI reads it.
 - A per-graph lifecycle is constructed in `createGraphServices`
   (`app/create-graph-services.ts`). `GraphSessionService` calls it when a graph
-  reaches `ready` with an index session, publishes the result as
+  reaches `ready` (also when its index failed to open: `indexGeneration` is
+  then null), publishes the result as
   `GraphSessionState.services`, and aborts `GraphSession.signal` when the graph
   closes or another open starts; the container disposes everything it started
   on that abort. The app reads it with `useGraphServices()`.

@@ -30,7 +30,8 @@ export interface GraphServicesDeps {
 
 /**
  * The graph-scoped services: one set per {@link GraphSession}, disposed when
- * its `signal` aborts.
+ * its `signal` aborts. A graph whose index failed to open has a session too,
+ * and its lifecycles run with a null `indexGeneration`.
  *
  * Every window runs the chat session and the attachment catalog watch. Only
  * the main window runs the backup, the iCloud conflict sweeps (iCloud roots),

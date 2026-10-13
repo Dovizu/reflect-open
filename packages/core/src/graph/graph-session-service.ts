@@ -52,9 +52,8 @@ export interface GraphSessionState<Services = unknown> {
   readonly error: string | null
   readonly recents: RecentGraph[]
   /**
-   * The open graph as one object. Null while no graph is open and while the
-   * graph is open without an index session. Its `signal` aborts when the
-   * graph closes or another open is requested.
+   * The open graph as one object; null while no graph is open. Its `signal`
+   * aborts when the graph closes or another open is requested.
    */
   readonly session: GraphSession | null
   /** The graph-scoped services of `session`; null whenever `session` is null or ended. */
@@ -239,11 +238,8 @@ export function createGraphSessionService<Services = unknown>(
     return openSeq
   }
 
-  /** The session object of an open graph; null when its index failed to open. */
-  function sessionFor(graph: GraphInfo, indexGeneration: number | null): GraphSession | null {
-    if (indexGeneration === null) {
-      return null
-    }
+  /** The session object of an open graph. */
+  function sessionFor(graph: GraphInfo, indexGeneration: number | null): GraphSession {
     const controller = new AbortController()
     sessionAbort?.abort()
     sessionAbort = controller
@@ -258,10 +254,10 @@ export function createGraphSessionService<Services = unknown>(
     graph: GraphInfo,
     indexGeneration: number | null,
     role: GraphRole,
-  ): GraphSession | null {
+  ): GraphSession {
     const session = sessionFor(graph, indexGeneration)
     setState({ graph, indexGeneration, status: 'ready', session, services: null })
-    if (session !== null && createServices !== undefined && !session.signal.aborted) {
+    if (createServices !== undefined && !session.signal.aborted) {
       setState({ services: createServices(session, role) })
     }
     return session
@@ -361,10 +357,10 @@ export function createGraphSessionService<Services = unknown>(
         // land before the reconcile indexes files: index.sync starts in the
         // .finally so it always runs after the seed attempt.
         // Best-effort: a failed seed must never block opening.
-        if (session !== null) {
+        if (generation !== null) {
           ensureWelcomeNote(
             { indexStore, noteFile, id },
-            { fileGeneration: info.generation, indexGeneration: session.indexGeneration },
+            { fileGeneration: info.generation, indexGeneration: generation },
           )
             .catch((err: unknown) => {
               logger.error('welcome seed failed:', errorMessage(err))
@@ -534,7 +530,7 @@ export function createGraphSessionService<Services = unknown>(
   function refreshIndex(): void {
     const { session } = state
     // Off-main, a refresh would start a second concurrent index writer.
-    if (session === null || !windowService.isMainWindow()) {
+    if (session === null || session.indexGeneration === null || !windowService.isMainWindow()) {
       return
     }
     // The index lifecycle coalesces stacked triggers (resume + poll-end +

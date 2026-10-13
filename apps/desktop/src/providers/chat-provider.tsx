@@ -19,7 +19,7 @@ const NO_CHAT = {
   getState: (): ChatSessionState | null => null,
 }
 
-/** The chat session of the open graph; `optional` allows none (a graph without an index session). */
+/** The chat session of the open graph; `optional` allows none (no graph is open). */
 export function useChatSession(options: { optional: true }): ChatContextValue | null
 export function useChatSession(): ChatContextValue
 export function useChatSession(options?: { optional: true }): ChatContextValue | null {
@@ -30,7 +30,7 @@ export function useChatSession(options?: { optional: true }): ChatContextValue |
     [state, session],
   )
   if (value === null && options?.optional !== true) {
-    throw new Error('useChatSession: the open graph has no chat session')
+    throw new Error('useChatSession must be used while a graph is open')
   }
   return value
 }

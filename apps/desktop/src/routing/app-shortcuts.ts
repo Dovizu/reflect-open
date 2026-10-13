@@ -68,7 +68,7 @@ export function useAppShortcuts(): CommandContext {
   } = useNoteTemplates()
   const { toggleSidebar } = useSidebar()
   const { toggle: toggleAudioMemo } = useAudioMemo()
-  // A graph without an index session has no chat session.
+  // The hook can outlive the open graph, and its chat session with it.
   const newChat = useChatSession({ optional: true })?.newChat ?? doNothing
   const { updateSettings } = useSettings()
   const {

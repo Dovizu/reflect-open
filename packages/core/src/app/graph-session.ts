@@ -9,8 +9,8 @@ export interface GraphSession {
   readonly name: string
   /** The file session generation from `graph_open`. */
   readonly generation: number
-  /** The index session generation from `index_open`. */
-  readonly indexGeneration: number
+  /** The index session generation from `index_open`; null when the index failed to open. */
+  readonly indexGeneration: number | null
   /** Aborts when the graph closes or another graph replaces it. */
   readonly signal: AbortSignal
 }

@@ -412,7 +412,7 @@ describe('GraphSessionService open sequencing', () => {
       status: 'ready',
       graph: { root: '/a' },
       indexGeneration: null,
-      session: null,
+      session: { root: '/a', indexGeneration: null },
     })
     expect(context.noteFile.writes()).toEqual([])
     expect(context.indexCalls()).not.toContain('reconcileScan')
@@ -825,11 +825,13 @@ describe('GraphSessionService graph services', () => {
     ])
   })
 
-  it('builds no services without an index session', async () => {
+  it('builds services for a graph whose index failed to open', async () => {
     const context = await bootDesktop({ indexOpenFails: true })
     await context.session.openRecent('/a')
-    expect(context.session.getState()).toMatchObject({ status: 'ready', services: null })
-    expect(context.built).toEqual([])
+    expect(context.session.getState()).toMatchObject({ status: 'ready', services: { id: 1 } })
+    expect(context.built.map(({ role, session }) => [role, session.indexGeneration])).toEqual([
+      ['main', null],
+    ])
   })
 })
 

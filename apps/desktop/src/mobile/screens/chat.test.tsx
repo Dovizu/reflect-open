@@ -92,9 +92,10 @@ async function renderHarness() {
     secretStore: createTestSecretStoreService({ [aiKeySecretName(MODEL.id)]: 'sk-test' }),
     chatEngine,
   })
+  // The index is not open, so the history drawer reads nothing.
   return await renderInApp(<Harness />, {
     app,
-    graph: GRAPH,
+    graph: { ...GRAPH, indexGeneration: null },
     settings: { aiProviders: settingsState.models, defaultAiProviderId: settingsState.defaultId },
   })
 }
