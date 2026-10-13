@@ -40,22 +40,22 @@ describe('DescribeAssetsField', () => {
     await expect.element(page.getByText(/add an ai provider to enable this/i)).toBeInTheDocument()
   })
 
-  it('confirms the cost before running the backfill, then runs it pinned to the graph', async () => {
+  it('confirms the cost before running the backfill, then runs it', async () => {
     const app = await renderField()
     await page.getByRole('button', { name: /backfill assets/i }).click()
 
     // The cost warning appears; nothing is sent until the user confirms.
     await expect.element(page.getByText(/backfill assets\?/i)).toBeInTheDocument()
-    expect(app.assetDescription.backfills()).toEqual([])
+    expect(app.assetDescription.backfills()).toBe(0)
 
     await page.getByRole('button', { name: /^backfill assets$/i }).click()
-    expect(app.assetDescription.backfills()).toEqual([5])
+    expect(app.assetDescription.backfills()).toBe(1)
   })
 
   it('cancels without sending anything', async () => {
     const app = await renderField()
     await page.getByRole('button', { name: /backfill assets/i }).click()
     await page.getByRole('button', { name: /cancel/i }).click()
-    expect(app.assetDescription.backfills()).toEqual([])
+    expect(app.assetDescription.backfills()).toBe(0)
   })
 })

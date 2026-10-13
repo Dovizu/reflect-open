@@ -6,6 +6,7 @@ import {
 } from '../ai/asset-describer-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
@@ -203,10 +204,11 @@ export interface AssetDescriptionService {
    * the explicit backfill behind the Settings button + cost warning. Unlike the
    * automatic path it enumerates all of `assets/`, but obeys the same privacy and
    * idempotency rules — already-described assets are skipped, and private or
-   * unreferenced ones are never sent. Coalesces while a run is in flight (the
-   * generation is the file-write generation, `GraphInfo.generation`).
+   * unreferenced ones are never sent. Pinned to the open graph; coalesces
+   * while a run for that graph is in flight. Without an open graph it stops
+   * at once with a `noGraph` stop and no operation.
    */
-  backfillVisibly(generation: number): Promise<ReconcileAssetDescriptionsOutcome>
+  backfillVisibly(): Promise<ReconcileAssetDescriptionsOutcome>
   /**
    * Fires after a pass re-indexed the notes referencing the assets it
    * described, even when that re-index failed partway. The re-index writes
@@ -228,6 +230,7 @@ export function createAssetDescriptionService(deps: {
   reconcilers: BackgroundReconcilerFactory
   indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'reindexNotesReferencing'>
   operations: Pick<OperationsService, 'start'>
+  graphSession: GraphSessionSource
   logger: Pick<LoggerService, 'warn'>
 }): AssetDescriptionService {
   const {
@@ -242,6 +245,7 @@ export function createAssetDescriptionService(deps: {
     reconcilers,
     indexLifecycle,
     operations,
+    graphSession,
     logger,
   } = deps
 
@@ -700,7 +704,23 @@ export function createAssetDescriptionService(deps: {
     return outcome
   }
 
-  function backfillVisibly(generation: number): Promise<ReconcileAssetDescriptionsOutcome> {
+  function backfillVisibly(): Promise<ReconcileAssetDescriptionsOutcome> {
+    const { session } = graphSession.getState()
+    if (session === null) {
+      return Promise.resolve({
+        pending: 0,
+        described: 0,
+        skippedUpToDate: 0,
+        skippedUnreferenced: 0,
+        skippedPrivate: 0,
+        skippedUserAuthored: 0,
+        skippedOversize: 0,
+        refused: 0,
+        describedAssetPaths: [],
+        stopped: { reason: 'noGraph', message: 'No graph is open.' },
+      })
+    }
+    const { generation } = session
     if (backfillInFlight !== null && backfillInFlight.generation === generation) {
       return backfillInFlight.promise
     }

@@ -112,14 +112,10 @@ export function IcloudSettingsField(): ReactElement | null {
     conflictCount !== undefined && forkCount !== undefined && (conflictCount > 0 || forkCount > 0)
 
   async function moveToICloud(): Promise<void> {
-    if (graph === null) {
-      return
-    }
     setBusy(true)
     setError(null)
     try {
       const failure = await migration.moveGraph({
-        generation: graph.generation,
         disconnectBackup: backupConnected ? disconnectGraph : null,
         openGraph: openRecent,
         onCopied: (failureSoFar) => {

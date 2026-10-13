@@ -816,6 +816,8 @@ export function composeAppServices(
     clock,
     logger,
     operations,
+    // Read at call time: the graph session is built on this lifecycle.
+    graphSession: { getState: () => graphSession.getState() },
   })
   const noteRows = create.noteRows()
   const icloudNative = create.icloudNative({ ipc, logger })
@@ -922,6 +924,7 @@ export function composeAppServices(
     clock,
     platform,
     window: windowService,
+    graphSession,
     logger,
   })
   const mobileServices = create.mobile({
@@ -1015,7 +1018,7 @@ export function composeAppServices(
       settings,
       logger,
     }),
-    agentSkill: create.agentSkill({ ipc }),
+    agentSkill: create.agentSkill({ ipc, graphSession }),
     mobileStorage,
     imageCodec,
     exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
@@ -1058,8 +1061,13 @@ export function composeAppServices(
       clipboard: adapters.clipboard,
     }),
     icloudNative,
-    icloudMigration: create.icloudMigration({ icloudNative }),
-    conflictResolution: create.conflictResolution({ noteFile, indexLifecycle, fileChanges }),
+    icloudMigration: create.icloudMigration({ icloudNative, graphSession }),
+    conflictResolution: create.conflictResolution({
+      noteFile,
+      indexLifecycle,
+      fileChanges,
+      graphSession,
+    }),
     syncStatus: create.syncStatus(),
     embedMedia: create.embedMedia({ xArchive, webFetch, platform, clock, logger }),
     linkPreview: create.linkPreview({
@@ -1172,7 +1180,6 @@ export function composeAppServices(
       credentials: aiCredentials,
       embeddingRuntime,
       settings,
-      graphSession,
       clock,
       id,
       imageCodec,
@@ -1212,6 +1219,7 @@ export function composeAppServices(
       reconcilers,
       indexLifecycle,
       operations,
+      graphSession,
       logger,
     }),
     wikiLinkSuggestions: create.wikiLinkSuggestions({

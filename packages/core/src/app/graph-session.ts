@@ -1,3 +1,5 @@
+import { ReflectError } from '../errors.ts'
+
 /** The main window owns the graph; a note window adopts the main window's sessions. */
 export type GraphRole = 'main' | 'note-window'
 
@@ -27,4 +29,18 @@ export function createGraphSession(
     indexGeneration: fields.indexGeneration,
     signal: signal ?? new AbortController().signal,
   }
+}
+
+/** Where a service reads the open graph's {@link GraphSession} from (`GraphSessionService`). */
+export interface GraphSessionSource {
+  getState: () => { readonly session: GraphSession | null }
+}
+
+/** The open graph's session; throws `No graph is open.` when none is open. */
+export function requireGraphSession(graphSession: GraphSessionSource): GraphSession {
+  const { session } = graphSession.getState()
+  if (session === null) {
+    throw new ReflectError('noGraph', 'No graph is open.')
+  }
+  return session
 }

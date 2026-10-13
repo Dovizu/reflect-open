@@ -1,16 +1,9 @@
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import { resolveConflictMarkers, type ConflictResolution } from '../markdown/conflict-markers.ts'
-
-/** The (graph, index session) pair a resolution writes under. */
-export interface ConflictResolutionSession {
-  /** The open graph's generation — the write is pinned to it. */
-  generation: number
-  /** The open index session; `null` skips the direct reindex. */
-  indexGeneration: number | null
-}
 
 /** What one {@link ConflictResolutionService.resolve} did. */
 export interface ConflictResolutionOutcome {
@@ -28,6 +21,7 @@ export interface ConflictResolutionServiceDeps {
   noteFile: Pick<NoteFileService, 'read' | 'write'>
   indexLifecycle: Pick<IndexLifecycleService, 'indexNote'>
   fileChanges: Pick<FileChangeService, 'emit'>
+  graphSession: GraphSessionSource
 }
 
 /**
@@ -39,21 +33,26 @@ export interface ConflictResolutionServiceDeps {
  * the resolved file reindexes.
  */
 export interface ConflictResolutionService {
-  /** Splice the chosen side(s) into the file, reindex it, and notify open sessions. Never rejects. */
-  resolve: (
-    path: string,
-    keep: ConflictResolution,
-    session: ConflictResolutionSession,
-  ) => Promise<ConflictResolutionOutcome>
+  /**
+   * Splice the chosen side(s) into the file of the open graph, reindex it
+   * (unless its index failed to open), and notify open sessions. Never
+   * rejects; does nothing when no graph is open.
+   */
+  resolve: (path: string, keep: ConflictResolution) => Promise<ConflictResolutionOutcome>
 }
 
 export function createConflictResolutionService(
   deps: ConflictResolutionServiceDeps,
 ): ConflictResolutionService {
-  const { noteFile, indexLifecycle, fileChanges } = deps
+  const { noteFile, indexLifecycle, fileChanges, graphSession } = deps
 
   return {
-    resolve: async (path, keep, { generation, indexGeneration }) => {
+    resolve: async (path, keep) => {
+      const { session } = graphSession.getState()
+      if (session === null) {
+        return { wrote: false, error: null }
+      }
+      const { generation, indexGeneration } = session
       let wrote = false
       let error: string | null = null
       try {

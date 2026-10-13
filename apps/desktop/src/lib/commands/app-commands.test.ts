@@ -342,18 +342,20 @@ describe('app commands', () => {
   })
 
   it('index.rebuild runs at the open generation and reports as an operation', async () => {
+    app.graphSession.setGraph({ indexGeneration: 7 })
     const { context } = fakeContext()
     await command('index.rebuild').run(context)
     expect(app.indexLifecycle.rebuilds()).toEqual([7])
     expect(app.operations.findByLabel('Rebuilding search index')?.status).toBe('running')
 
     // No graph open → no rebuild.
-    const { context: noGraph } = fakeContext({ generation: () => null })
-    await command('index.rebuild').run(noGraph)
+    app.graphSession.setGraph(null)
+    await command('index.rebuild').run(context)
     expect(app.indexLifecycle.rebuilds()).toEqual([7])
   })
 
   it('index.rebuild re-runs the embedding backfill when the model is ready', async () => {
+    app.graphSession.setGraph({ indexGeneration: 7 })
     app.embeddingRuntime.setStatus({ status: 'ready', model: 'all-MiniLM-L6-v2' })
     const { context } = fakeContext()
     await command('index.rebuild').run(context)

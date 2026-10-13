@@ -13,6 +13,7 @@ import {
   createTestAssetReferences,
   createTestAssetStoreService,
   createTestClockService,
+  createTestGraphSessionService,
   createTestHashService,
   createTestLifecycleService,
   createTestLoggerService,
@@ -125,6 +126,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     },
   }
   const provider = options?.provider === undefined ? PROVIDER : options.provider
+  const graphSession = createTestGraphSessionService({ graph: { generation: GENERATION } })
   const service = createAssetDescriptionService({
     assetStore: {
       readBase64: async (path, generation) => {
@@ -166,6 +168,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
       },
     },
     operations,
+    graphSession,
     logger,
   })
   let indexedEvents = 0
@@ -179,6 +182,7 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
   }
   return {
     service,
+    graphSession,
     files,
     refs,
     describer,
@@ -732,7 +736,7 @@ describe('AssetDescriptionService.backfillVisibly', () => {
     refs.set('assets/a.png', ['notes/pub.md'])
     refs.set('assets/b.pdf', ['notes/pub.md'])
 
-    const running = service.backfillVisibly(GENERATION)
+    const running = service.backfillVisibly()
     expect(operations.findByLabel('Describing assets')).toMatchObject({ status: 'running' })
     const outcome = await running
 
@@ -742,14 +746,25 @@ describe('AssetDescriptionService.backfillVisibly', () => {
     expect(operations.getAll().filter((operation) => operation.status !== 'running')).toEqual([])
   })
 
-  it('coalesces a second request at the same generation into the run in flight', async () => {
+  it('stops without an operation when no graph is open', async () => {
+    const { service, graphSession, operations, describer } = setup()
+    graphSession.setGraph(null)
+
+    const outcome = await service.backfillVisibly()
+
+    expect(outcome.stopped).toEqual({ reason: 'noGraph', message: 'No graph is open.' })
+    expect(operations.getAll()).toEqual([])
+    expect(describer.calls()).toEqual([])
+  })
+
+  it('coalesces a second request for the same graph into the run in flight', async () => {
     const { service, files, refs, addAsset, describer } = setup()
     await addAsset('assets/a.png', 'aGVsbG8=')
     files.set('notes/pub.md', publicNote('assets/a.png'))
     refs.set('assets/a.png', ['notes/pub.md'])
 
-    const first = service.backfillVisibly(GENERATION)
-    const second = service.backfillVisibly(GENERATION)
+    const first = service.backfillVisibly()
+    const second = service.backfillVisibly()
 
     expect(second).toBe(first)
     await first
@@ -760,7 +775,7 @@ describe('AssetDescriptionService.backfillVisibly', () => {
     const { service, addAsset, operations } = setup({ provider: null })
     await addAsset('assets/a.png', 'aGVsbG8=')
 
-    const outcome = await service.backfillVisibly(GENERATION)
+    const outcome = await service.backfillVisibly()
 
     expect(outcome.stopped?.reason).toBe('config')
     expect(operations.findByLabel('Describing assets')).toMatchObject({
@@ -778,7 +793,7 @@ describe('AssetDescriptionService.backfillVisibly', () => {
     describer.setResult(() => {
       throw new ReflectError('network', 'offline')
     })
-    await service.backfillVisibly(GENERATION)
+    await service.backfillVisibly()
     expect(operations.findByLabel('Describing assets')).toMatchObject({
       status: 'warning',
       message: 'Some assets could not be described — check your connection and try again.',
@@ -787,7 +802,7 @@ describe('AssetDescriptionService.backfillVisibly', () => {
     describer.setResult(() => {
       throw new ReflectError('io', 'disk error')
     })
-    await service.backfillVisibly(GENERATION)
+    await service.backfillVisibly()
     expect(operations.findByLabel('Describing assets')).toMatchObject({
       status: 'failed',
       message: 'disk error',

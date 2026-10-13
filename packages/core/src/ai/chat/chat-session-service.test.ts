@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { createGraphSession } from '../../app/graph-session.ts'
 import type { EmbedStatus } from '../../embeddings/embedding-runtime-service.ts'
 import type { GraphInfo } from '../../graph/schemas.ts'
 import type { AiProviderConfig, Settings } from '../../settings/schema.ts'
@@ -9,7 +10,6 @@ import {
   createTestChatHistoryService,
   createTestClockService,
   createTestEmbeddingRuntimeService,
-  createTestGraphSessionService,
   createTestIdService,
   createTestImageCodec,
   createTestLoggerService,
@@ -101,12 +101,6 @@ async function setup(options: SetupOptions = {}) {
   const embeddingRuntime = createTestEmbeddingRuntimeService(
     options.embedStatus === undefined ? {} : { status: options.embedStatus },
   )
-  const graphSession = createTestGraphSessionService({
-    state: {
-      graph: GRAPH,
-      indexGeneration: options.indexGeneration === undefined ? 7 : options.indexGeneration,
-    },
-  })
   const logger = createTestLoggerService()
   const clock = createTestClockService({ now: NOW, today: '2026-10-13' })
   const service = createChatSessionService({
@@ -122,13 +116,17 @@ async function setup(options: SetupOptions = {}) {
     credentials,
     embeddingRuntime,
     settings,
-    graphSession,
     clock,
     id,
     imageCodec: createTestImageCodec(),
     logger,
   })
-  const session = service.create({ graph: GRAPH })
+  const session = service.create({
+    session: createGraphSession({
+      ...GRAPH,
+      indexGeneration: options.indexGeneration === undefined ? 7 : options.indexGeneration,
+    }),
+  })
   return {
     service,
     session,
@@ -137,7 +135,6 @@ async function setup(options: SetupOptions = {}) {
     chatEngine,
     chatGraphContext,
     embeddingRuntime,
-    graphSession,
     logger,
     clock,
   }
@@ -190,20 +187,6 @@ describe('ChatSession persistence', () => {
     await flush()
 
     expect(session.getState().turns).toEqual([])
-  })
-
-  it('resumes once the index of the graph opens', async () => {
-    const { session, graphSession } = await setup({
-      conversations: [stored()],
-      indexGeneration: null,
-    })
-    session.attach()
-    await flush()
-    expect(session.getState().turns).toEqual([])
-
-    graphSession.setState({ indexGeneration: 3 })
-
-    await vi.waitFor(() => expect(session.getState().turns).toEqual([RESTORED_TURN]))
   })
 
   it('saves the user half at send and the settled turn after the stream', async () => {
@@ -535,25 +518,6 @@ describe('ChatSession graph binding', () => {
     expect(chatHistory.getSaves()).toEqual([])
     expect(chatHistory.getDeletes()).toEqual([])
     expect(session.getState().turns).toEqual([])
-  })
-
-  it('keeps its own generation when another graph replaces the open one', async () => {
-    // The workspace of the old graph unmounts a moment after the graph
-    // session reports the new graph. A turn of the old session that settles
-    // meanwhile must carry the old generation, which Rust rejects as stale,
-    // and must never read the new graph's history.
-    const { session, chatHistory, graphSession } = await setup()
-    session.attach()
-    await flush()
-
-    graphSession.setState({
-      graph: { root: '/other', name: 'other', generation: 2 },
-      indexGeneration: 9,
-    })
-    await session.send('hello')
-    await flush()
-
-    expect(chatHistory.getSaves().map((save) => save.generation)).toEqual([7, 7])
   })
 
   it('aborts the in-flight turn when the session detaches', async () => {

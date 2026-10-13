@@ -42,8 +42,8 @@ export interface TestAssetDescriptionService extends AssetDescriptionService {
   sessions(): readonly TestAssetDescriptionSessionState[]
   /** The input of every `reconcile` call, in order. */
   reconciles(): readonly ReconcileAssetDescriptionsInput[]
-  /** The generation of every `backfillVisibly` call, in order. */
-  backfills(): readonly number[]
+  /** How many times `backfillVisibly` ran. */
+  backfills(): number
   /** Notify every `onDescriptionsIndexed` listener. */
   emitDescriptionsIndexed(): void
 }
@@ -55,7 +55,7 @@ export interface TestAssetDescriptionService extends AssetDescriptionService {
 export function createTestAssetDescriptionService(): TestAssetDescriptionService {
   const states: TestAssetDescriptionSessionState[] = []
   const reconcileLog: ReconcileAssetDescriptionsInput[] = []
-  const backfillLog: number[] = []
+  let backfillCount = 0
   const listeners = new Set<() => void>()
 
   function emptyOutcome(): ReconcileAssetDescriptionsOutcome {
@@ -98,8 +98,8 @@ export function createTestAssetDescriptionService(): TestAssetDescriptionService
         },
       }
     },
-    async backfillVisibly(generation) {
-      backfillLog.push(generation)
+    async backfillVisibly() {
+      backfillCount += 1
       return emptyOutcome()
     },
     onDescriptionsIndexed(listener) {
@@ -113,7 +113,7 @@ export function createTestAssetDescriptionService(): TestAssetDescriptionService
     },
     sessions: () => states.map((state) => ({ ...state })),
     reconciles: () => [...reconcileLog],
-    backfills: () => [...backfillLog],
+    backfills: () => backfillCount,
     emitDescriptionsIndexed() {
       for (const listener of listeners) {
         listener()
