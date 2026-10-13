@@ -5,13 +5,18 @@ import { CLAIM_TIER, type IndexedNote } from '../indexing/indexed-note.ts'
 import {
   createIndexApplyBatchWriter,
   createMtimeTouchBatchWriter,
+  type IndexApplyBatch,
   type IndexedNoteTouch,
   type IndexStoreService,
+  type MtimeTouchBatch,
+  type SkippedIndexedNote,
   type ReconcileScan,
 } from '../indexing/index-store-service.ts'
 import type { TestDatabaseService } from './database.ts'
 
-/** One recorded {@link IndexStoreService} call. */
+/**
+ * One recorded {@link IndexStoreService} call.
+ */
 export type IndexStoreCall =
   | { readonly method: 'open' }
   | { readonly method: 'apply'; readonly note: IndexedNote; readonly generation: number }
@@ -54,11 +59,17 @@ export interface TestIndexStoreServiceOptions {
    * database, so reads through it see what the store wrote.
    */
   database?: TestDatabaseService
-  /** What `open` resolves with. Defaults to `1`. */
+  /**
+   * What `open` resolves with. Defaults to `1`.
+   */
   generation?: number
-  /** What `reconcileScan` resolves with. Defaults to an empty scan. */
+  /**
+   * What `reconcileScan` resolves with. Defaults to an empty scan.
+   */
   scan?: ReconcileScan
-  /** Initial `index_meta` entries. */
+  /**
+   * Initial `index_meta` entries.
+   */
   meta?: Readonly<Record<string, string>>
   /**
    * Called after a call is recorded and before it takes effect. A returned
@@ -68,74 +79,194 @@ export interface TestIndexStoreServiceOptions {
 }
 
 export interface TestIndexStoreService extends IndexStoreService {
-  /** Every call, in order, including calls that `fail` rejected. */
+  /**
+   * Every call, in order, including calls that `fail` rejected.
+   */
   calls(): readonly IndexStoreCall[]
-  /** Every projection written by `apply` and `applyBatch`, in order. */
+  /**
+   * Every projection written by `apply` and `applyBatch`, in order.
+   */
   applied(): readonly IndexedNote[]
-  /** Every path passed to a successful `remove`, in order. */
+  /**
+   * Every path passed to a successful `remove`, in order.
+   */
   removed(): readonly string[]
-  /** Every successful `move` and `moveIndexed`, in order. */
+  /**
+   * Every successful `move` and `moveIndexed`, in order.
+   */
   moved(): readonly { readonly from: string; readonly to: string }[]
 }
 
 const EMPTY_SCAN: ReconcileScan = { total: 0, candidates: [], orphans: [], stalePlaceholders: [] }
 
-/** An in-memory {@link IndexStoreService} that records every call. */
-export function createTestIndexStoreService(
-  options?: TestIndexStoreServiceOptions,
-): TestIndexStoreService {
-  const database = options?.database
-  const generation = options?.generation ?? 1
-  const scan = options?.scan ?? EMPTY_SCAN
-  const fail = options?.fail
-  const meta = new Map(Object.entries(options?.meta ?? {}))
-  const log: IndexStoreCall[] = []
-  const appliedNotes: IndexedNote[] = []
-  const removedPaths: string[] = []
-  const moves: { from: string; to: string }[] = []
-  let metaSeeded = database === undefined
+class TestIndexStoreServiceImpl implements TestIndexStoreService {
+  readonly #database: TestDatabaseService | undefined
+  readonly #generation: number
+  readonly #scan: ReconcileScan
+  readonly #fail: ((call: IndexStoreCall) => unknown) | undefined
+  readonly #meta: Map<string, string>
+  readonly #log: IndexStoreCall[] = []
+  readonly #appliedNotes: IndexedNote[] = []
+  readonly #removedPaths: string[] = []
+  readonly #moves: { from: string; to: string }[] = []
+  #metaSeeded: boolean
 
-  function record(call: IndexStoreCall): void {
-    log.push(call)
-    const failure = fail?.(call)
+  constructor(options: TestIndexStoreServiceOptions | undefined) {
+    this.#database = options?.database
+    this.#generation = options?.generation ?? 1
+    this.#scan = options?.scan ?? EMPTY_SCAN
+    this.#fail = options?.fail
+    this.#meta = new Map(Object.entries(options?.meta ?? {}))
+    this.#metaSeeded = this.#database === undefined
+  }
+
+  async open(): Promise<number> {
+    this.#record({ method: 'open' })
+    return this.#generation
+  }
+
+  async apply(note: IndexedNote, writeGeneration: number): Promise<void> {
+    this.#record({ method: 'apply', note, generation: writeGeneration })
+    await this.#writeNotes([note])
+  }
+
+  async applyBatch(notes: IndexedNote[], writeGeneration: number): Promise<void> {
+    this.#record({ method: 'applyBatch', notes: [...notes], generation: writeGeneration })
+    await this.#writeNotes(notes)
+  }
+
+  async remove(path: string, writeGeneration: number): Promise<void> {
+    this.#record({ method: 'remove', path, generation: writeGeneration })
+    await this.#database?.runQuery('DELETE FROM notes WHERE path = ?', [path])
+    this.#removedPaths.push(path)
+  }
+
+  async move(from: string, to: string, writeGeneration: number): Promise<void> {
+    this.#record({ method: 'move', from, to, generation: writeGeneration })
+    await this.#moveRows(from, to)
+    this.#moves.push({ from, to })
+  }
+
+  async moveIndexed(from: string, to: string, fileGeneration: number): Promise<void> {
+    this.#record({ method: 'moveIndexed', from, to, fileGeneration })
+    await this.#moveRows(from, to)
+    this.#moves.push({ from, to })
+  }
+
+  async reconcileScan(scanGeneration: number): Promise<ReconcileScan> {
+    this.#record({ method: 'reconcileScan', generation: scanGeneration })
+    return this.#scan
+  }
+
+  async touch(entries: readonly IndexedNoteTouch[], writeGeneration: number): Promise<void> {
+    this.#record({ method: 'touch', entries: [...entries], generation: writeGeneration })
+  }
+
+  async clear(writeGeneration: number): Promise<void> {
+    this.#record({ method: 'clear', generation: writeGeneration })
+    await this.#database?.runQuery('DELETE FROM notes', [])
+  }
+
+  async getMeta(key: string): Promise<string | null> {
+    this.#record({ method: 'getMeta', key })
+    const database = this.#database
+    if (database === undefined) {
+      return this.#meta.get(key) ?? null
+    }
+    await this.#seedMeta()
+    const row = await database.db
+      .selectFrom('indexMeta')
+      .where('key', '=', key)
+      .select('value')
+      .executeTakeFirst()
+    return row?.value ?? null
+  }
+
+  async setMeta(key: string, value: string, writeGeneration: number): Promise<void> {
+    this.#record({ method: 'setMeta', key, value, generation: writeGeneration })
+    await this.#seedMeta()
+    await this.#writeMeta(key, value)
+  }
+
+  createApplyBatch(
+    writeGeneration: number,
+    onSkippedNote?: (note: SkippedIndexedNote) => void,
+  ): IndexApplyBatch {
+    return createIndexApplyBatchWriter(
+      (notes, generation) => this.applyBatch(notes, generation),
+      writeGeneration,
+      onSkippedNote,
+    )
+  }
+
+  createTouchBatch(writeGeneration: number): MtimeTouchBatch {
+    return createMtimeTouchBatchWriter(
+      (entries, generation) => this.touch(entries, generation),
+      writeGeneration,
+    )
+  }
+
+  calls(): readonly IndexStoreCall[] {
+    return [...this.#log]
+  }
+
+  applied(): readonly IndexedNote[] {
+    return [...this.#appliedNotes]
+  }
+
+  removed(): readonly string[] {
+    return [...this.#removedPaths]
+  }
+
+  moved(): readonly { readonly from: string; readonly to: string }[] {
+    return this.#moves.map((move) => ({ ...move }))
+  }
+
+  #record(call: IndexStoreCall): void {
+    this.#log.push(call)
+    const failure = this.#fail?.(call)
     if (failure !== undefined) {
       throw failure
     }
   }
 
-  async function seedMeta(): Promise<void> {
-    if (metaSeeded || database === undefined) {
+  async #seedMeta(): Promise<void> {
+    if (this.#metaSeeded || this.#database === undefined) {
       return
     }
-    metaSeeded = true
-    for (const [key, value] of meta) {
-      await writeMeta(key, value)
+    this.#metaSeeded = true
+    for (const [key, value] of this.#meta) {
+      await this.#writeMeta(key, value)
     }
   }
 
-  async function writeMeta(key: string, value: string): Promise<void> {
-    if (database === undefined) {
-      meta.set(key, value)
+  async #writeMeta(key: string, value: string): Promise<void> {
+    if (this.#database === undefined) {
+      this.#meta.set(key, value)
       return
     }
-    await database.runQuery('INSERT OR REPLACE INTO index_meta(key, value) VALUES (?, ?)', [
+    await this.#database.runQuery('INSERT OR REPLACE INTO index_meta(key, value) VALUES (?, ?)', [
       key,
       value,
     ])
   }
 
-  async function writeNotes(notes: readonly IndexedNote[]): Promise<void> {
+  async #writeNotes(notes: readonly IndexedNote[]): Promise<void> {
+    const database = this.#database
     for (const note of notes) {
       if (database !== undefined) {
         await database.runQuery('DELETE FROM notes WHERE path = ?', [note.path])
         database.applyProjection(note)
       }
-      appliedNotes.push(note)
+      this.#appliedNotes.push(note)
     }
   }
 
-  /** Re-key every row of `from` to `to`, statement for statement like `index_move`. */
-  async function moveRows(from: string, to: string): Promise<void> {
+  /**
+   * Re-key every row of `from` to `to`, statement for statement like `index_move`.
+   */
+  async #moveRows(from: string, to: string): Promise<void> {
+    const database = this.#database
     if (database === undefined) {
       return
     }
@@ -189,74 +320,13 @@ export function createTestIndexStoreService(
       throw error
     }
   }
+}
 
-  const applyBatch: IndexStoreService['applyBatch'] = async (notes, writeGeneration) => {
-    record({ method: 'applyBatch', notes: [...notes], generation: writeGeneration })
-    await writeNotes(notes)
-  }
-
-  const touch: IndexStoreService['touch'] = async (entries, writeGeneration) => {
-    record({ method: 'touch', entries: [...entries], generation: writeGeneration })
-  }
-
-  return {
-    open: async () => {
-      record({ method: 'open' })
-      return generation
-    },
-    apply: async (note, writeGeneration) => {
-      record({ method: 'apply', note, generation: writeGeneration })
-      await writeNotes([note])
-    },
-    applyBatch,
-    remove: async (path, writeGeneration) => {
-      record({ method: 'remove', path, generation: writeGeneration })
-      await database?.runQuery('DELETE FROM notes WHERE path = ?', [path])
-      removedPaths.push(path)
-    },
-    move: async (from, to, writeGeneration) => {
-      record({ method: 'move', from, to, generation: writeGeneration })
-      await moveRows(from, to)
-      moves.push({ from, to })
-    },
-    moveIndexed: async (from, to, fileGeneration) => {
-      record({ method: 'moveIndexed', from, to, fileGeneration })
-      await moveRows(from, to)
-      moves.push({ from, to })
-    },
-    reconcileScan: async (scanGeneration) => {
-      record({ method: 'reconcileScan', generation: scanGeneration })
-      return scan
-    },
-    touch,
-    clear: async (writeGeneration) => {
-      record({ method: 'clear', generation: writeGeneration })
-      await database?.runQuery('DELETE FROM notes', [])
-    },
-    getMeta: async (key) => {
-      record({ method: 'getMeta', key })
-      if (database === undefined) {
-        return meta.get(key) ?? null
-      }
-      await seedMeta()
-      const row = await database.db
-        .selectFrom('indexMeta')
-        .where('key', '=', key)
-        .select('value')
-        .executeTakeFirst()
-      return row?.value ?? null
-    },
-    setMeta: async (key, value, writeGeneration) => {
-      record({ method: 'setMeta', key, value, generation: writeGeneration })
-      await seedMeta()
-      await writeMeta(key, value)
-    },
-    createApplyBatch: (writeGeneration, onSkippedNote) =>
-      createIndexApplyBatchWriter(applyBatch, writeGeneration, onSkippedNote),
-    createTouchBatch: (writeGeneration) => createMtimeTouchBatchWriter(touch, writeGeneration),
-    calls: () => [...log],
-    applied: () => [...appliedNotes],
-    removed: () => [...removedPaths],
-    moved: () => moves.map((move) => ({ ...move })),
-  }
+/**
+ * An in-memory {@link IndexStoreService} that records every call.
+ */
+export function createTestIndexStoreService(
+  options?: TestIndexStoreServiceOptions,
+): TestIndexStoreService {
+  return new TestIndexStoreServiceImpl(options)
 }

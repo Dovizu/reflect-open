@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IcloudScanOptions, IcloudSweepOutcome } from '../ipc/icloud-native-service.ts'
@@ -338,14 +338,10 @@ describe('createICloudSyncService', () => {
   })
 
   it('a failed change subscription is logged and the baseline sweep still runs', async () => {
-    const sync = service({
-      fileChanges: {
-        ...fileChanges,
-        subscribe: () => {
-          throw new ReflectError('io', 'watcher unavailable')
-        },
-      },
+    vi.spyOn(fileChanges, 'subscribe').mockImplementation(() => {
+      throw new ReflectError('io', 'watcher unavailable')
     })
+    const sync = service()
     await sync.start()
     await settleScan()
 
