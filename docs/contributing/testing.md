@@ -17,7 +17,7 @@ project:
   (`fileParallelism: false`) because real keyboard focus is a per-page global.
 - **`apps/desktop/vitest.node.config.ts` (`node`)**:
   `src/**/*.test.ts`, executed in a plain node environment.
-- **`packages/core/vitest.browser.config.ts` (`core-browser`)**:
+- **`packages/core/vitest.browser.config.ts` (`core-browser`)**: // FIXME: 1. some information in this file is wrong or outdated, like we do not have packages/core/vitest.browser.config.ts anymore; 2. this file is too verbose. Try to delete at least half of the content in this file and make it more concise. Only keep the information that is readlly necessary and cannot (or hard to) infer from the existing code base.
   `src/**/*.test.tsx`. Only `link-preview/metadata.test.tsx` lives here:
   `parsePageMeta` uses the host's `DOMParser`, and in production that host is
   always a browser (the Tauri webview, or the extension), never node.
