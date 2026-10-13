@@ -61,6 +61,16 @@ describe('AppStoreEnvironmentService', () => {
     expect(environment.getState()).toEqual({ value: null, isLoading: false, isError: true })
   })
 
+  it('retries a failed probe once', async () => {
+    probe = () =>
+      probes === 1 ? Promise.reject(new Error('no app transaction')) : Promise.resolve('Xcode')
+    const environment = service()
+
+    await expect(environment.environment()).resolves.toBe('Xcode')
+    expect(probes).toBe(2)
+    expect(environment.getState()).toEqual({ value: 'Xcode', isLoading: false, isError: false })
+  })
+
   it('probes once per launch', async () => {
     const environment = service()
     await environment.environment()
