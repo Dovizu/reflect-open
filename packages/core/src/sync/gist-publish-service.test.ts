@@ -1,22 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
+import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
 import type { NoteSession } from '../documents/note-session.ts'
+import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { gistBodyHash } from '../markdown/gist.ts'
+import { createPrivacyService } from '../privacy/privacy-service.ts'
 import {
   createTestClipboardService,
-  createTestGistService,
+  createTestFileChangeService,
   createTestHttpService,
-  createTestNoteDocumentService,
   createTestNoteFileService,
   createTestNoteSession,
-  createTestOpenDocumentsService,
   createTestOperationsService,
-  createTestPrivacyService,
   type TestHttpReply,
 } from '../testing/index.ts'
 import { createGistPublishService } from './gist-publish-service.ts'
+import { createGistService } from './gist-service.ts'
 
 const GISTS_URL = 'https://api.github.com/gists'
 const PUBLISHED = { id: 'g1', htmlUrl: 'https://gist.github.com/alex/g1' }
@@ -65,24 +66,25 @@ function setup(options?: SetupOptions) {
       return await files.write(...args)
     },
   }
-  const openDocuments = createTestOpenDocumentsService(
-    options?.session === undefined ? {} : { sessions: [options.session] },
-  )
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  if (options?.session !== undefined) {
+    openDocuments.register({ session: options.session })
+  }
   const tokenReads = { count: 0 }
   const noteRows = createNoteRowService()
   const operations = createTestOperationsService()
   const clipboard = createTestClipboardService()
   const service = createGistPublishService({
-    gists: createTestGistService({ http }),
+    gists: createGistService({ http }),
     githubAuth: {
       getToken: async () => {
         tokenReads.count += 1
         return token
       },
     },
-    noteDocuments: createTestNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     noteRows,
-    privacy: createTestPrivacyService({ noteFile }),
+    privacy: createPrivacyService({ noteFile }),
     operations,
     clipboard,
   })

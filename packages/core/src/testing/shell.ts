@@ -4,11 +4,6 @@ import type { AppLifecycleService, BackgroundTaskToken } from '../app/lifecycle-
 import type { LoggerService } from '../app/logger-service.ts'
 import { createOpenerService, type OpenerService } from '../app/opener-service.ts'
 import {
-  createPathService,
-  createPosixPathTransport,
-  type PathService,
-} from '../app/path-service.ts'
-import {
   MAIN_WINDOW_LABEL,
   type CloseRequestedHandler,
   type WindowService,
@@ -143,11 +138,6 @@ export function createTestOpenerService(options?: { logger?: LoggerService }): T
       failure = error === null ? null : { error }
     },
   }
-}
-
-/** A {@link PathService} with POSIX syntax and the home directory `home`. */
-export function createTestPathService(options?: { home?: string }): PathService {
-  return createPathService({ transport: createPosixPathTransport(options?.home ?? '/home/test') })
 }
 
 export interface TestWindowService extends WindowService {

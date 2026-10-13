@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { createTestClockService } from '../testing/clock.ts'
-import { createTestDailyNoteService } from '../testing/daily.ts'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
 import { createTestLifecycleService } from '../testing/shell.ts'
+import { createDailyNoteService, type DailyNoteService } from './daily-note-service.ts'
+
+function createTestDailyNoteService(
+  deps?: Partial<Parameters<typeof createDailyNoteService>[0]>,
+): DailyNoteService {
+  return createDailyNoteService({
+    database: deps?.database ?? createTestDatabaseService(),
+    clock: deps?.clock ?? createTestClockService(),
+    lifecycle: deps?.lifecycle ?? createTestLifecycleService(),
+  })
+}
 
 describe('today', () => {
   it('follows the clock', () => {

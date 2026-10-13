@@ -2,20 +2,33 @@ import { describe, expect, it, vi } from 'vitest'
 import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import { AUDIO_MEMOS_DIR } from '../graph/paths.ts'
+import { createAiCredentialService } from '../ai/ai-credential-service.ts'
+import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
+import { createTranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
+import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
+import { createBacklinkTargetService } from '../capture/backlink-target-service.ts'
+import { createAudioMemoService } from './audio-memo-service.ts'
+import { createMobileAudioMemoService } from './mobile-audio-memo-service.ts'
+import { createNativeActionService } from './native-action-service.ts'
 import {
+  createTestAiKeyValidationService,
   createTestAssetStoreService,
-  createTestAudioMemoService,
   createTestAudioRecorderService,
   createTestClockService,
+  createTestFileChangeService,
   createTestHapticsService,
+  createTestIdService,
+  createTestLanguageModelService,
   createTestLifecycleService,
   createTestLoggerService,
-  createTestMobileAudioMemoService,
-  createTestNativeActionService,
+  createTestNoteCreationService,
   createTestNoteFileService,
   createTestOperationsService,
   createTestPlatformService,
+  createTestSecretStoreService,
   createTestSettingsService,
+  createTestTranscriptionService,
+  createTestWindowService,
 } from '../testing/index.ts'
 import type {
   AudioRecorderFinalSegment,
@@ -97,21 +110,40 @@ async function setup(options?: SetupOptions) {
     isNativeShell: options?.isNativeShell ?? true,
   })
   const listDirMock = vi.spyOn(noteFile, 'listDir')
-  const audioMemo = createTestAudioMemoService({
-    settings,
-    noteFile,
+  const aiCredentials = createAiCredentialService({ secretStore: createTestSecretStoreService() })
+  const audioMemo = createAudioMemoService({
     assetStore,
+    noteFile,
+    backlinkTarget: createBacklinkTargetService({
+      noteFile,
+      noteCreation: createTestNoteCreationService({ noteFile }),
+    }),
+    transcription: createTestTranscriptionService(),
+    transcriptEnrichment: createTranscriptEnrichmentService({
+      languageModel: createTestLanguageModelService(),
+    }),
+    aiProviderConfig: createAiProviderConfigService({
+      settings,
+      credentials: aiCredentials,
+      keyValidation: createTestAiKeyValidationService(),
+      id: createTestIdService(),
+    }),
+    aiCredentials,
     audioRecorder: recorder,
+    reconcilers: createBackgroundReconcilerFactory({ lifecycle }),
     lifecycle,
+    fileChanges: createTestFileChangeService(),
+    settings,
     operations,
-    logger,
     clock,
     platform,
+    window: createTestWindowService(),
+    logger,
   })
-  const service = createTestMobileAudioMemoService({
+  const service = createMobileAudioMemoService({
     audioMemo,
     audioRecorder: recorder,
-    nativeAction: createTestNativeActionService({
+    nativeAction: createNativeActionService({
       audioRecorder: recorder,
       clock,
       platform,

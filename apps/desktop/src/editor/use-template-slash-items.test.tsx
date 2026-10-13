@@ -3,7 +3,6 @@ import {
   createTestAppServices,
   createTestNoteFileService,
   createTestOperationsService,
-  createTestTemplateService,
 } from '@reflect/core/testing'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import type { NoteEditorHandle } from './note-editor.tsx'
@@ -11,7 +10,8 @@ import { useTemplateSlashItems } from './use-template-slash-items.ts'
 
 function setup() {
   const operations = createTestOperationsService()
-  const templates = createTestTemplateService({
+  const base = createTestAppServices()
+  const { templates } = createTestAppServices({
     noteFile: createTestNoteFileService({
       files: {
         'templates/journal.md': '# Journal\n\nMood:\n',
@@ -19,6 +19,7 @@ function setup() {
       },
     }),
     indexQuery: {
+      ...base.indexQuery,
       listTemplates: async () => [
         { path: 'templates/journal.md', title: 'Journal', mtime: 1 },
         { path: 'templates/person.md', title: 'Person', mtime: 2 },

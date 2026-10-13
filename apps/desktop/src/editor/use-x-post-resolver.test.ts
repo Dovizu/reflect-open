@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { ResolvedArchivedPost } from '@reflect/core'
 import {
-  createTestEmbedMediaService,
+  createTestAppServices,
   createTestPlatformService,
   createTestXArchiveService,
   type TestXArchiveService,
@@ -15,7 +15,7 @@ let ctx: XPostContext
 
 beforeEach(() => {
   xArchive = createTestXArchiveService()
-  ctx = { embedMedia: createTestEmbedMediaService({ xArchive, platform }) }
+  ctx = { embedMedia: createTestAppServices({ xArchive, platform }).embedMedia }
 })
 
 afterEach(() => {

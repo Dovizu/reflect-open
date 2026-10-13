@@ -1,6 +1,7 @@
 import { vi, type Mock, type MockInstance } from 'vitest'
 import { audioMemoIdentity } from './audio-memo.ts'
-import { aiKeySecretName } from '../ai/ai-credential-service.ts'
+import { aiKeySecretName, createAiCredentialService } from '../ai/ai-credential-service.ts'
+import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
 import type { TranscriptionService } from '../ai/transcription-service.ts'
@@ -9,8 +10,8 @@ import type { BacklinkTargetService } from '../capture/backlink-target-service.t
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import {
-  createTestAiCredentialService,
-  createTestAiProviderConfigService,
+  createTestAiKeyValidationService,
+  createTestIdService,
   createTestAssetStoreService,
   createTestClockService,
   createTestFileChangeService,
@@ -119,7 +120,7 @@ export async function createAudioMemoTestKit(
     defaultAiProviderId: providers.defaultProviderId,
   })
   await settings.whenLoaded()
-  const aiCredentials = createTestAiCredentialService({ secretStore: secrets })
+  const aiCredentials = createAiCredentialService({ secretStore: secrets })
   const transcription = createTestTranscriptionService('memo transcript')
   const enrichMock = vi
     .fn<TranscriptEnrichmentService['enrich']>()
@@ -141,7 +142,12 @@ export async function createAudioMemoTestKit(
     backlinkTarget: { ensure: ensureBacklinkTargetMock },
     transcription: options?.wrapTranscription?.(transcription) ?? transcription,
     transcriptEnrichment: { enrich: enrichMock },
-    aiProviderConfig: createTestAiProviderConfigService({ settings, credentials: aiCredentials }),
+    aiProviderConfig: createAiProviderConfigService({
+      settings,
+      credentials: aiCredentials,
+      keyValidation: createTestAiKeyValidationService(),
+      id: createTestIdService(),
+    }),
     aiCredentials,
     settings,
     reconcilers: createBackgroundReconcilerFactory({ lifecycle }),

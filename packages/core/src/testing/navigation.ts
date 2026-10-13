@@ -6,32 +6,16 @@ import {
   type DeepLinkSource,
 } from '../navigation/deep-link-service.ts'
 import {
-  createLinkNavigationService,
-  type LinkNavigationService,
-  type LinkNavigationServiceDeps,
-} from '../navigation/link-navigation-service.ts'
-import {
   createNavigationService,
   type NavigateOptions,
   type NavigationService,
 } from '../navigation/navigation-service.ts'
 import type { Route } from '../navigation/route.ts'
-import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
-import type { NoteFileService } from '../graph/note-file-service.ts'
-import { createTestAttachmentService } from './attachments.ts'
 import { createTestCaptureInboxService } from './capture.ts'
 import { createTestClockService } from './clock.ts'
-import { createTestDatabaseService } from './database.ts'
-import {
-  createTestNoteCreationService,
-  createTestNoteFileService,
-  createTestNoteLinkResolverService,
-} from './graph.ts'
 import { createTestIdService } from './id.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestOperationsService } from './operations.ts'
-import { createTestPlatformService } from './platform.ts'
-import { createTestOpenerService, createTestWindowService } from './shell.ts'
 
 export interface TestNavigationServiceOptions {
   /** The route the history starts on; defaults to today. */
@@ -142,38 +126,4 @@ export function createTestDeepLinkService(
     },
     dispatched: () => [...calls],
   }
-}
-
-export interface TestLinkNavigationServiceOptions extends Partial<LinkNavigationServiceDeps> {
-  /** The files behind the default link resolver and note creation; empty by default. */
-  noteFile?: NoteFileService
-}
-
-/**
- * The real {@link LinkNavigationService} over test doubles. The default
- * platform is a desktop native shell and the default window opens every note
- * window, so a new-window request succeeds unless a double says otherwise.
- */
-export function createTestLinkNavigationService(
-  options?: TestLinkNavigationServiceOptions,
-): LinkNavigationService {
-  const noteFile = options?.noteFile ?? createTestNoteFileService()
-  const wikiResolver =
-    options?.wikiResolver ?? createWikiResolverService({ database: createTestDatabaseService() })
-  const noteLinkResolver =
-    options?.noteLinkResolver ?? createTestNoteLinkResolverService({ noteFile })
-  return createLinkNavigationService({
-    noteLinkResolver,
-    noteCreation:
-      options?.noteCreation ?? createTestNoteCreationService({ noteFile, noteLinkResolver }),
-    wikiResolver,
-    window: options?.window ?? createTestWindowService(),
-    platform: options?.platform ?? createTestPlatformService(),
-    opener: options?.opener ?? createTestOpenerService(),
-    deepLink: options?.deepLink ?? createTestDeepLinkService(),
-    navigation: options?.navigation ?? createTestNavigationService(),
-    attachments: options?.attachments ?? createTestAttachmentService(),
-    operations: options?.operations ?? createTestOperationsService(),
-    logger: options?.logger ?? createTestLoggerService(),
-  })
 }

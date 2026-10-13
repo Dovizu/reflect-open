@@ -1,944 +1,297 @@
 import {
+  composeAppServices,
   createIndexReadServices,
+  type AppAdapters,
   type AppServices,
+  type InternalServices,
   type MobileServices,
+  type NoteServices,
+  type ServiceFactories,
 } from '../app/create-app-services.ts'
-import type { AiKeyValidationService } from '../ai/ai-key-validation-service.ts'
-import type { AssetDescriberService } from '../ai/asset-describer-service.ts'
-import type { ChatEngineService } from '../ai/chat/chat-engine-service.ts'
-import type { ChatGraphContextService } from '../ai/chat/chat-graph-context-service.ts'
-import type { LanguageModelService } from '../ai/language-model-service.ts'
-import type { PageDescriberService } from '../ai/page-describer-service.ts'
-import type { TranscriptionService } from '../ai/transcription-service.ts'
-import type { HttpService } from '../app/http-service.ts'
-import type { WebFetchService } from '../app/web-fetch-service.ts'
-import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
-import type { PersonNoteService } from '../contacts/person-note-service.ts'
-import type { EmbeddingIndexService } from '../embeddings/embedding-index-service.ts'
-import type { RetrievalService } from '../embeddings/retrieval-service.ts'
-import type { AssetStoreService } from '../graph/asset-store-service.ts'
-import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
-import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
-import type { DatabaseService } from '../indexing/database-service.ts'
-import type { GraphStatsService } from '../indexing/graph-stats-service.ts'
-import type { IndexStoreService } from '../indexing/index-store-service.ts'
-import type { SuggestionService } from '../indexing/suggestion-service.ts'
+import { createDetachedLifecycleDom } from '../app/lifecycle-service.ts'
+import { createPosixPathTransport } from '../app/path-service.ts'
+import { createSingleWindowHost } from '../app/window-service.ts'
+import { createPrivacyService } from '../privacy/privacy-service.ts'
+import type { IdService } from '../app/id-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
-import type { AppStoreService } from '../ipc/app-store-plugin.ts'
-import type { IapService } from '../ipc/iap-plugin.ts'
-import type { WebAuthService } from '../ipc/web-auth-plugin.ts'
-import type { PrivacyService } from '../privacy/privacy-service.ts'
-import type { SecretStoreService } from '../secrets/secret-store-service.ts'
-import type { SyncEngineFactory } from '../sync/engine.ts'
-import type { GistService } from '../sync/gist-service.ts'
-import type { GitRepositoryService } from '../sync/git-repository-service.ts'
-import type { GithubRepoService } from '../sync/github-repo-service.ts'
-import type { XArchiveService } from '../x-archive.ts'
-import type { PathService } from '../app/path-service.ts'
-import type { AppInfoService } from '../app/app-info-service.ts'
-import type { AiCredentialService } from '../ai/ai-credential-service.ts'
-import type { AiPromptService } from '../ai/ai-prompt-service.ts'
-import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
-import type { SelectionTransformService } from '../ai/selection-transform-service.ts'
-import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
 import {
-  createTestAiCredentialService,
   createTestAiKeyValidationService,
-  createTestAiPromptService,
-  createTestAiProviderConfigService,
   createTestAssetDescriberService,
-  createTestPageDescriberService,
-  createTestSelectionTransformService,
-  createTestTranscriptEnrichmentService,
-  createTestTranscriptionService,
-  type TestAssetDescriberService,
-  type TestPageDescriberService,
-  type TestTranscriptionService,
   createTestLanguageModelService,
-  type TestAiKeyValidationService,
-  type TestLanguageModelService,
+  createTestPageDescriberService,
+  createTestTranscriptionService,
 } from './ai.ts'
-import { createTestAudioRecorderService, type TestAudioRecorderService } from './audio-recorder.ts'
+import { createTestAgentSkillService } from './agent-skill.ts'
+import { createTestAssetDescriptionService } from './assets.ts'
+import { createTestAttachmentService } from './attachments.ts'
+import { createTestAudioRecorderService } from './audio-recorder.ts'
+import { createTestCalendarService } from './calendar.ts'
 import {
-  createTestAudioMemoService,
-  createTestMobileAudioMemoService,
-  createTestNativeActionService,
-} from './audio-memo.ts'
-import { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
-import {
-  createTestBacklinkTargetService,
   createTestCaptureInboxService,
   createTestCaptureService,
   createTestWebFetchService,
   createTestXArchiveService,
-  type TestCaptureInboxService,
-  type TestCaptureService,
-  type TestWebFetchService,
-  type TestXArchiveService,
 } from './capture.ts'
-import {
-  createTestBackupServiceFactory,
-  createTestGistPublishService,
-  createTestConflictResolutionService,
-  createTestGistService,
-  createTestGitRepositoryService,
-  createTestGithubAuthService,
-  createTestGithubRepoService,
-  createTestICloudDownloadServiceFactory,
-  createTestICloudMigrationService,
-  createTestICloudNativeService,
-  createTestICloudSyncServiceFactory,
-  createTestSyncEngineFactory,
-  createTestSyncStatusService,
-  type TestGitRepositoryService,
-  type TestGithubAuthService,
-  type TestICloudNativeService,
-} from './sync.ts'
-import {
-  createTestCalendarEventsService,
-  createTestCalendarService,
-  type TestCalendarService,
-} from './calendar.ts'
-import { createTestClockService, type TestClockService } from './clock.ts'
-import { createTestDailyNoteService } from './daily.ts'
-import {
-  createTestContactSuggestionService,
-  createTestContactsService,
-  createTestMeetingService,
-  createTestPersonNoteService,
-  type TestContactsService,
-} from './contacts.ts'
 import {
   createTestChatEngineService,
   createTestChatGraphContextService,
   createTestChatHistoryService,
-  createTestChatSessionService,
-  createTestNoteToolsService,
-  type TestChatEngineService,
-  type TestChatGraphContextService,
-  type TestChatHistoryService,
 } from './chat.ts'
-import type { ChatSessionService } from '../ai/chat/chat-session-service.ts'
-import type { NoteToolsService } from '../ai/chat/note-tools-service.ts'
-import { createTestDatabaseService, type TestDatabaseService } from './database.ts'
+import { createTestClockService, type TestClockService } from './clock.ts'
+import { createTestNativeMenuService } from './commands.ts'
+import { createTestContactsService } from './contacts.ts'
+import { createTestDatabaseService } from './database.ts'
+import { createTestNoteMoveService } from './documents.ts'
 import {
   createTestEmbeddingIndexService,
   createTestEmbeddingRuntimeService,
   createTestRetrievalService,
   createTestSemanticSearchService,
-  type TestEmbeddingIndexService,
-  type TestEmbeddingRuntimeService,
-  type TestRetrievalService,
-  type TestSemanticSearchService,
 } from './embeddings.ts'
-import {
-  createTestExceptionTelemetry,
-  type TestExceptionTelemetryService,
-} from './exception-telemetry.ts'
-import { createTestFileChangeService, type TestFileChangeService } from './file-change.ts'
-import { createNoteRowService } from '../documents/note-row-service.ts'
-import { createGraphServices, type GraphServices } from '../app/create-graph-services.ts'
-import type { BackupServiceFactory } from '../sync/backup-service.ts'
-import type { ICloudDownloadServiceFactory } from '../sync/icloud-download-service.ts'
-import type { ICloudSyncServiceFactory } from '../sync/icloud-sync-service.ts'
-import { createTestAttachmentService, type TestAttachmentService } from './attachments.ts'
-import {
-  createTestNoteActionsService,
-  createTestTemplateService,
-  createTestNoteMoveService,
-  createTestNoteSessionService,
-  createTestNoteDocumentService,
-  createTestNotePreviewService,
-  createTestOpenDocumentsService,
-  createTestTitleRenameService,
-  type TestNoteActionsService,
-  type TestNoteMoveService,
-  type TestNoteSessionService,
-  type TestTitleRenameService,
-} from './documents.ts'
+import { createTestExceptionTelemetry } from './exception-telemetry.ts'
+import { createTestFileChangeService } from './file-change.ts'
 import {
   createTestAssetStoreService,
   createTestNoteCreationService,
   createTestNoteFileService,
   createTestNoteLinkResolverService,
-  type TestAssetStoreService,
-  type TestNoteCreationService,
-  type TestNoteFileService,
-  type TestNoteLinkResolverService,
 } from './graph.ts'
-import { createTestGraphSessionService, type TestGraphSessionService } from './graph-session.ts'
-import { createTestPrivacyService, type TestPrivacyService } from './privacy.ts'
-import { createTestHttpService, type TestHttpService } from './http.ts'
-import {
-  createTestHashService,
-  createTestIdService,
-  type TestHashService,
-  type TestIdService,
-} from './id.ts'
-import { createTestImageCodec, type TestImageCodecService } from './image-codec.ts'
-import {
-  createTestIndexLifecycleService,
-  type TestIndexLifecycleService,
-} from './index-lifecycle.ts'
-import { createTestIndexStoreService, type TestIndexStoreService } from './index-store.ts'
+import { createTestGraphSessionService } from './graph-session.ts'
+import { createTestHttpService } from './http.ts'
+import { createTestHashService, createTestIdService } from './id.ts'
+import { createTestImageCodec } from './image-codec.ts'
+import { createTestIndexLifecycleService } from './index-lifecycle.ts'
+import { createTestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
-import { createTestLoggerService, type TestLoggerService } from './logger.ts'
-import { createTestKeyboardService, createTestShareService } from './mobile.ts'
-import {
-  createTestMobileOnboardingService,
-  type TestMobileOnboardingService,
-} from './mobile-onboarding.ts'
-import { createTestMobileStorageService, type TestMobileStorageService } from './mobile-storage.ts'
-import { createTestOperationsService, type TestOperationsService } from './operations.ts'
-import { createTestTaskService } from './tasks.ts'
+import { createTestLoggerService } from './logger.ts'
+import { createTestMobileOnboardingService } from './mobile-onboarding.ts'
+import { createTestMobileStorageService } from './mobile-storage.ts'
 import {
   createTestAppStoreEnvironmentService,
   createTestClassicAccessService,
   createTestPaywallService,
   createTestSubscriptionService,
-  type TestAppStoreEnvironmentService,
-  type TestClassicAccessService,
-  type TestPaywallService,
-  type TestSubscriptionService,
 } from './monetization.ts'
+import { createTestDeepLinkService, createTestNavigationService } from './navigation.ts'
+import { createTestOperationsService } from './operations.ts'
+import { createTestPersistenceFlushService } from './persistence-flush.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
 import {
   createTestAppStoreService,
   createTestHapticsService,
   createTestIapService,
   createTestWebAuthService,
-  type TestAppStoreService,
-  type TestHapticsService,
-  type TestIapService,
-  type TestWebAuthService,
 } from './plugins.ts'
-import {
-  createTestAppInfoService,
-  createTestSecretStoreService,
-  type TestSecretStoreService,
-} from './secrets.ts'
+import { createTestAppInfoService, createTestSecretStoreService } from './secrets.ts'
+import { createTestSettingsService } from './settings.ts'
 import {
   createTestClipboardService,
   createTestDialogService,
   createTestLifecycleService,
   createTestOpenerService,
-  createTestPathService,
   createTestWindowService,
-  type TestClipboardService,
-  type TestDialogService,
-  type TestLifecycleService,
-  type TestOpenerService,
-  type TestWindowService,
 } from './shell.ts'
+import { createTestStorageService } from './storage.ts'
 import {
-  createTestDeepLinkService,
-  createTestLinkNavigationService,
-  createTestNavigationService,
-  type TestDeepLinkService,
-  type TestNavigationService,
-} from './navigation.ts'
-import { createTestSettingsService, type TestSettingsService } from './settings.ts'
-import {
-  createTestPersistenceFlushService,
-  type TestPersistenceFlushService,
-} from './persistence-flush.ts'
-import { createTestStorageService, type TestStorageService } from './storage.ts'
-import { createTestThemeService, type TestThemeService } from './theme.ts'
-import { createTestUpdateService, type TestUpdateService } from './update.ts'
-import {
-  createTestCommandService,
-  createTestKeymapService,
-  createTestNativeMenuService,
-  type TestNativeMenuService,
-} from './commands.ts'
-import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
-import type { AudioMemoService } from '../audio/audio-memo-service.ts'
-import type { NativeActionService } from '../audio/native-action-service.ts'
-import type { AssetPrivacyService } from '../assets/asset-privacy-service.ts'
-import {
-  createTestAssetDescriptionService,
-  createTestAssetPrivacyService,
-  type TestAssetDescriptionService,
-} from './assets.ts'
-import type { CommandService } from '../commands/command-service.ts'
-import { createTestEmbedMediaService } from './embeds.ts'
-import { createTestLinkPreviewService } from './link-preview.ts'
-import type { KeymapService } from '../commands/keymap-service.ts'
-import { createTestPaletteSearchService, createTestWikiLinkSuggestionService } from './search.ts'
-
-/** The services that {@link createAppServices} builds but keeps out of {@link AppServices}. */
-export interface InternalServices {
-  readonly http: HttpService
-  readonly secretStore: SecretStoreService
-  readonly personNotes: PersonNoteService
-  readonly database: DatabaseService
-  readonly indexStore: IndexStoreService
-  readonly gitRepository: GitRepositoryService
-  readonly githubRepos: GithubRepoService
-  readonly gists: GistService
-  readonly syncEngines: SyncEngineFactory
-  readonly captureInbox: CaptureInboxService
-  readonly webFetch: WebFetchService
-  readonly xArchive: XArchiveService
-  readonly audioRecorder: AudioRecorderService
-  readonly iap: IapService
-  readonly appStore: AppStoreService
-  readonly webAuth: WebAuthService
-  readonly assetStore: AssetStoreService
-  readonly wikiResolver: WikiResolverService
-  readonly suggestions: SuggestionService
-  readonly graphStats: GraphStatsService
-  readonly noteLinkResolver: NoteLinkResolverService
-  readonly privacy: PrivacyService
-  readonly retrieval: RetrievalService
-  readonly embeddingIndex: EmbeddingIndexService
-  readonly aiCredentials: AiCredentialService
-  readonly aiKeyValidation: AiKeyValidationService
-  readonly languageModel: LanguageModelService
-  readonly pageDescriber: PageDescriberService
-  readonly assetDescriber: AssetDescriberService
-  readonly transcription: TranscriptionService
-  readonly transcriptEnrichment: TranscriptEnrichmentService
-  readonly noteTools: NoteToolsService
-  readonly chatEngine: ChatEngineService
-  readonly chatGraphContext: ChatGraphContextService
-  readonly backlinkTarget: BacklinkTargetService
-  readonly nativeAction: NativeActionService
-  readonly assetPrivacy: AssetPrivacyService
-  readonly backups: BackupServiceFactory
-  readonly icloudSyncs: ICloudSyncServiceFactory
-  readonly icloudDownloads: ICloudDownloadServiceFactory
-}
-
-/** {@link MobileServices} where every service is its in-memory test double. */
-export interface TestMobileServices extends MobileServices {
-  readonly haptics: TestHapticsService
-  readonly subscription: TestSubscriptionService
-  readonly appStoreEnvironment: TestAppStoreEnvironmentService
-  readonly paywall: TestPaywallService
-}
-
-/**
- * {@link AppServices} plus {@link InternalServices}, where every service is its
- * in-memory test double. The mobile services always exist.
- */
-export interface TestAppServices extends AppServices, InternalServices {
-  readonly ipc: TestIpcBridgeService
-  readonly logger: TestLoggerService
-  readonly clock: TestClockService
-  readonly id: TestIdService
-  readonly hash: TestHashService
-  readonly platform: TestPlatformService
-  readonly storage: TestStorageService
-  readonly http: TestHttpService
-  readonly dialog: TestDialogService
-  readonly clipboard: TestClipboardService
-  readonly opener: TestOpenerService
-  readonly path: PathService
-  readonly window: TestWindowService
-  readonly lifecycle: TestLifecycleService
-  readonly secretStore: TestSecretStoreService
-  readonly appInfo: AppInfoService
-  readonly calendar: TestCalendarService
-  readonly contacts: TestContactsService
-  readonly agentSkill: TestAgentSkillService
-  readonly mobileStorage: TestMobileStorageService
-  readonly imageCodec: TestImageCodecService
-  readonly exceptionTelemetry: TestExceptionTelemetryService
-  readonly operations: TestOperationsService
-  readonly settings: TestSettingsService
-  readonly theme: TestThemeService
-  readonly persistenceFlush: TestPersistenceFlushService
-  readonly database: TestDatabaseService
-  readonly fileChanges: TestFileChangeService
-  readonly indexStore: TestIndexStoreService
-  readonly embeddingRuntime: TestEmbeddingRuntimeService
-  readonly chatHistory: TestChatHistoryService
-  readonly update: TestUpdateService
-  readonly navigation: TestNavigationService
-  readonly deepLink: TestDeepLinkService
-  readonly gitRepository: TestGitRepositoryService
-  readonly githubAuth: TestGithubAuthService
-  readonly icloudNative: TestICloudNativeService
-  readonly captureInbox: TestCaptureInboxService
-  readonly webFetch: TestWebFetchService
-  readonly xArchive: TestXArchiveService
-  readonly audioRecorder: TestAudioRecorderService
-  readonly iap: TestIapService
-  readonly appStore: TestAppStoreService
-  readonly webAuth: TestWebAuthService
-  readonly classicAccess: TestClassicAccessService
-  readonly noteFile: TestNoteFileService
-  readonly assetStore: TestAssetStoreService
-  readonly attachments: TestAttachmentService
-  readonly noteActions: TestNoteActionsService
-  readonly noteSessions: TestNoteSessionService
-  readonly noteMove: TestNoteMoveService
-  readonly titleRename: TestTitleRenameService
-  readonly noteLinkResolver: TestNoteLinkResolverService
-  readonly noteCreation: TestNoteCreationService
-  readonly privacy: TestPrivacyService
-  readonly indexLifecycle: TestIndexLifecycleService
-  readonly graphSession: TestGraphSessionService<GraphServices<AppServices>>
-  readonly retrieval: TestRetrievalService
-  readonly embeddingIndex: TestEmbeddingIndexService
-  readonly semanticSearch: TestSemanticSearchService
-  readonly mobileOnboarding: TestMobileOnboardingService
-  readonly aiCredentials: AiCredentialService
-  readonly aiKeyValidation: TestAiKeyValidationService
-  readonly languageModel: TestLanguageModelService
-  readonly aiPrompts: AiPromptService
-  readonly keymap: KeymapService
-  readonly commands: CommandService
-  readonly nativeMenu: TestNativeMenuService
-  readonly aiProviderConfig: AiProviderConfigService
-  readonly selectionTransform: SelectionTransformService
-  readonly pageDescriber: TestPageDescriberService
-  readonly assetDescriber: TestAssetDescriberService
-  readonly transcription: TestTranscriptionService
-  readonly transcriptEnrichment: TranscriptEnrichmentService
-  readonly noteTools: NoteToolsService
-  readonly chatEngine: TestChatEngineService
-  readonly chatGraphContext: TestChatGraphContextService
-  readonly chatSessions: ChatSessionService
-  readonly backlinkTarget: BacklinkTargetService
-  readonly capture: TestCaptureService
-  readonly audioMemo: AudioMemoService
-  readonly nativeAction: NativeActionService
-  readonly assetPrivacy: AssetPrivacyService
-  readonly assetDescription: TestAssetDescriptionService
-  readonly mobile: TestMobileServices
-}
+  createTestGitRepositoryService,
+  createTestGithubAuthService,
+  createTestICloudNativeService,
+} from './sync.ts'
+import { createTestThemeService } from './theme.ts'
+import { createTestUpdateService } from './update.ts'
 
 /** Replacements for the services of {@link createTestAppServices}. */
 export type TestAppServiceOverrides = Partial<AppServices & InternalServices>
 
-/** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
+/** The services that {@link createTestAppServices} passes as adapters. */
+function createTestEdgeServices() {
+  return {
+    logger: createTestLoggerService(),
+    clock: createTestClockService(),
+    id: createTestIdService(),
+    hash: createTestHashService(),
+    http: createTestHttpService(),
+    dialog: createTestDialogService(),
+    clipboard: createTestClipboardService(),
+    imageCodec: createTestImageCodec(),
+    exceptionTelemetry: createTestExceptionTelemetry(),
+  }
+}
+
+type TestEdgeServices = ReturnType<typeof createTestEdgeServices>
+
+/** {@link createNoteServices} with doubles that record each resolution and creation. */
+function createTestNoteServices(deps: {
+  noteFile: NoteFileService
+  wikiResolver: WikiResolverService
+  id: IdService
+}) {
+  const noteLinkResolver = createTestNoteLinkResolverService(deps)
+  return {
+    noteLinkResolver,
+    noteCreation: createTestNoteCreationService({ ...deps, noteLinkResolver }),
+    privacy: createPrivacyService(deps),
+  } satisfies NoteServices
+}
+
+/** The services whose test double is not the real service: in-memory, scripted, or recording. */
+function createTestServiceFactories(
+  shared: { ipc: TestIpcBridgeService; platform: TestPlatformService; clock: TestClockService },
+  overrides: TestAppServiceOverrides | undefined,
+) {
+  /** Puts the overrides of a group's members in place of the built ones. */
+  function withOverrides<Group extends object>(group: Group): Group {
+    const result = { ...group } as Record<string, unknown>
+    for (const key of Object.keys(group)) {
+      const service = overrides?.[key as keyof TestAppServiceOverrides]
+      if (service !== undefined) {
+        result[key] = service
+      }
+    }
+    return result as Group
+  }
+
+  return {
+    ipc: () => shared.ipc,
+    database: () => createTestDatabaseService(),
+    platform: () => shared.platform,
+    window: () => createTestWindowService(),
+    operations: () => createTestOperationsService(shared.clock),
+    settings: ({ operations }) => createTestSettingsService({}, { operations }),
+    storage: () => createTestStorageService(),
+    lifecycle: () => createTestLifecycleService(),
+    fileChanges: () => createTestFileChangeService(),
+    secretStore: () => createTestSecretStoreService(),
+    webAuth: () => createTestWebAuthService(null),
+    classicAccess: () => createTestClassicAccessService(),
+    audioRecorder: () => createTestAudioRecorderService(),
+    iap: () => createTestIapService(),
+    appStore: () => createTestAppStoreService(),
+    subscription: () => createTestSubscriptionService(),
+    appStoreEnvironment: () => createTestAppStoreEnvironmentService(),
+    haptics: () => createTestHapticsService(),
+    paywall: () => createTestPaywallService(),
+    mobile: ({ build }) => build(),
+    noteFile: () => createTestNoteFileService(),
+    assetStore: () => createTestAssetStoreService(),
+    indexReads: (deps) => withOverrides(createIndexReadServices(deps)),
+    indexStore: () => createTestIndexStoreService(),
+    xArchive: () => createTestXArchiveService(),
+    aiKeyValidation: () => createTestAiKeyValidationService(),
+    languageModel: () => createTestLanguageModelService(),
+    noteServices: (deps) => withOverrides(createTestNoteServices(deps)),
+    calendar: () => createTestCalendarService(),
+    contacts: () => createTestContactsService(),
+    mobileStorage: () => createTestMobileStorageService(),
+    noteMove: (deps) => createTestNoteMoveService(deps),
+    captureInbox: () => createTestCaptureInboxService(),
+    webFetch: () => createTestWebFetchService(),
+    pageDescriber: () => createTestPageDescriberService(),
+    assetDescriber: () => createTestAssetDescriberService(),
+    indexLifecycle: (deps) => createTestIndexLifecycleService(deps),
+    // The test graph session answers the graph commands on its own bridge unless a test gives one.
+    graphSession: ({ ipc: _ipc, ...deps }) =>
+      createTestGraphSessionService(
+        overrides?.ipc === undefined ? deps : { ...deps, ipc: overrides.ipc },
+      ),
+    opener: ({ logger }) => createTestOpenerService({ logger }),
+    navigation: () => createTestNavigationService(),
+    deepLink: (deps) => createTestDeepLinkService(deps),
+    attachments: () => createTestAttachmentService(),
+    persistenceFlush: ({ openDocuments }) => createTestPersistenceFlushService({ openDocuments }),
+    gitRepository: () => createTestGitRepositoryService(),
+    githubAuth: (deps) => createTestGithubAuthService(deps),
+    icloudNative: () => createTestICloudNativeService(),
+    embeddingRuntime: () => createTestEmbeddingRuntimeService(),
+    retrieval: () => createTestRetrievalService(),
+    embeddingIndex: (deps) => createTestEmbeddingIndexService(deps),
+    transcription: () => createTestTranscriptionService(),
+    chatHistory: () => createTestChatHistoryService(),
+    chatEngine: () => createTestChatEngineService(),
+    chatGraphContext: () => createTestChatGraphContextService(),
+    appInfo: () => createTestAppInfoService(),
+    agentSkill: () => createTestAgentSkillService(),
+    theme: () => createTestThemeService(),
+    update: () => createTestUpdateService(),
+    semanticSearch: (deps) => createTestSemanticSearchService(deps),
+    mobileOnboarding: (deps) => createTestMobileOnboardingService(deps),
+    nativeMenu: ({ commands, window, platform, logger }) =>
+      createTestNativeMenuService({ commands, window, platform, logger }),
+    capture: () => createTestCaptureService(),
+    assetDescription: () => createTestAssetDescriptionService(),
+  } satisfies Partial<ServiceFactories>
+}
+
+type TestServiceFactories = ReturnType<typeof createTestServiceFactories>
+
+/** The service each factory builds. */
+type Built<Factories> = {
+  readonly [Key in keyof Factories]: Factories[Key] extends (...args: never) => infer Service
+    ? Service
+    : never
+}
+
+/** `Base` with the members of `Narrow` in place of its own. */
+type Override<Base, Narrow> = Omit<Base, keyof Narrow> & Narrow
+
+type MobileKey = 'iap' | 'appStore' | 'subscription' | 'appStoreEnvironment' | 'haptics' | 'paywall'
+
+/** {@link MobileServices} where each service with a test double is that double. */
+export type TestMobileServices = Override<
+  MobileServices,
+  Pick<Built<TestServiceFactories>, 'haptics' | 'subscription' | 'appStoreEnvironment' | 'paywall'>
+>
+
+/**
+ * {@link AppServices} plus {@link InternalServices}, where each service with
+ * a test double is that double. The mobile services always exist.
+ */
+export type TestAppServices = Override<
+  AppServices & InternalServices,
+  Omit<Built<TestServiceFactories>, MobileKey | 'mobile' | 'indexReads' | 'noteServices'> &
+    Built<TestServiceFactories>['noteServices'] &
+    TestEdgeServices & { readonly mobile: TestMobileServices }
+>
+
+/**
+ * {@link createAppServices} over test adapters, with the test double of each
+ * service that has one and `overrides` in place of the matching services.
+ */
 export function createTestAppServices(): TestAppServices
 export function createTestAppServices<Overrides extends TestAppServiceOverrides>(
   overrides: Overrides,
 ): Omit<TestAppServices, keyof Overrides> & Overrides
 export function createTestAppServices(overrides?: TestAppServiceOverrides): TestAppServices {
-  const testLogger = createTestLoggerService()
-  const logger = overrides?.logger ?? testLogger
-  const clock = createTestClockService()
-  const operations = createTestOperationsService(clock)
-  const database = createTestDatabaseService()
-  const noteFile = createTestNoteFileService()
-  const id = createTestIdService()
-  const secretStore = createTestSecretStoreService()
-  const settings = createTestSettingsService(
-    {},
-    { operations: overrides?.operations ?? operations },
-  )
-  const indexReads = createIndexReadServices({
-    database: overrides?.database ?? database,
-    noteFile: overrides?.noteFile ?? noteFile,
-  })
-  const noteLinkResolver = createTestNoteLinkResolverService({
-    wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
-    noteFile: overrides?.noteFile ?? noteFile,
-  })
-  const noteCreation = createTestNoteCreationService({
-    noteFile: overrides?.noteFile ?? noteFile,
-    noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
-    id: overrides?.id ?? id,
-  })
-  const calendar = createTestCalendarService()
-  const contacts = createTestContactsService()
-  const personNotes = createTestPersonNoteService({
-    database: overrides?.database ?? database,
-    wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
-    noteCreation: overrides?.noteCreation ?? noteCreation,
-  })
-  const http = createTestHttpService()
-  const fileChanges = createTestFileChangeService()
-  const openDocuments = createTestOpenDocumentsService({
-    fileChanges: overrides?.fileChanges ?? fileChanges,
-  })
-  const indexStore = createTestIndexStoreService()
-  const xArchive = createTestXArchiveService()
-  const webFetch = createTestWebFetchService()
-  const hash = createTestHashService()
-  const aiCredentials = createTestAiCredentialService({
-    secretStore: overrides?.secretStore ?? secretStore,
-  })
-  const aiKeyValidation = createTestAiKeyValidationService()
-  const languageModel = createTestLanguageModelService()
-  const privacy = createTestPrivacyService({ noteFile: overrides?.noteFile ?? noteFile })
-  const aiProviderConfig = createTestAiProviderConfigService({
-    settings: overrides?.settings ?? settings,
-    credentials: overrides?.aiCredentials ?? aiCredentials,
-    keyValidation: overrides?.aiKeyValidation ?? aiKeyValidation,
-    id: overrides?.id ?? id,
-  })
+  const defaults = createTestEdgeServices()
+  const edge = { ...defaults, ...overrides }
+  const ipc = createTestIpcBridgeService({ logger: edge.logger })
   const platform = createTestPlatformService()
-  const commands = createTestCommandService({
-    platform: overrides?.platform ?? platform,
-    logger,
-  })
-  const dialog = createTestDialogService()
-  const path = createTestPathService()
-  const windowService = createTestWindowService()
-  const captureInbox = createTestCaptureInboxService()
-  const lifecycle = createTestLifecycleService()
-  const mobileStorage = createTestMobileStorageService()
-  const indexLifecycle = createTestIndexLifecycleService({
-    indexStore: overrides?.indexStore ?? indexStore,
-    noteFile: overrides?.noteFile ?? noteFile,
-    fileChanges: overrides?.fileChanges ?? fileChanges,
-    database: overrides?.database ?? database,
-    xArchive: overrides?.xArchive ?? xArchive,
-    hash: overrides?.hash ?? hash,
-    clock: overrides?.clock ?? clock,
-    logger,
-    operations: overrides?.operations ?? operations,
-  })
-  const clipboard = createTestClipboardService()
-  const noteDocuments = createTestNoteDocumentService({
-    openDocuments: overrides?.openDocuments ?? openDocuments,
-    noteFile: overrides?.noteFile ?? noteFile,
-  })
-  const ipc = createTestIpcBridgeService({ logger })
-  const noteMove = createTestNoteMoveService({
-    ipc: overrides?.ipc ?? ipc,
-    indexStore: overrides?.indexStore ?? indexStore,
-    openDocuments: overrides?.openDocuments ?? openDocuments,
-    logger,
-  })
-  const noteRows = createNoteRowService()
-  const icloudNative = createTestICloudNativeService()
-  const graphSession = createTestGraphSessionService<GraphServices<AppServices>>({
-    ...(overrides?.ipc === undefined ? {} : { ipc: overrides.ipc }),
-    indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-    indexStore: overrides?.indexStore ?? indexStore,
-    noteFile: overrides?.noteFile ?? noteFile,
-    id: overrides?.id ?? id,
-    fileChanges: overrides?.fileChanges ?? fileChanges,
-    window: overrides?.window ?? windowService,
-    dialog: overrides?.dialog ?? dialog,
-    path: overrides?.path ?? path,
-    platform: overrides?.platform ?? platform,
-    lifecycle: overrides?.lifecycle ?? lifecycle,
-    mobileStorage: overrides?.mobileStorage ?? mobileStorage,
-    noteRows: overrides?.noteRows ?? noteRows,
-    openDocuments: overrides?.openDocuments ?? openDocuments,
-    noteMove: overrides?.noteMove ?? noteMove,
-    icloudNative: overrides?.icloudNative ?? icloudNative,
-    logger,
-    createServices: (session, role) =>
-      createGraphServices(services, session, role, {
-        backups: services.backups,
-        icloudSyncs: services.icloudSyncs,
-        icloudDownloads: services.icloudDownloads,
-        capture: services.capture,
-        assetDescription: services.assetDescription,
-        chatSessions: services.chatSessions,
-        attachments: services.attachments,
-        settings: services.settings,
-        mobileOnboarding: services.mobileOnboarding,
-        graphSession: services.graphSession,
-        platform: services.platform,
-      }),
-  })
-  const opener = createTestOpenerService({ logger })
-  const navigation = createTestNavigationService()
-  const deepLink = createTestDeepLinkService({
-    indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
-    captureInbox: overrides?.captureInbox ?? captureInbox,
-    operations: overrides?.operations ?? operations,
-    id: overrides?.id ?? id,
-    clock: overrides?.clock ?? clock,
-    logger,
-  })
-  const attachments = createTestAttachmentService()
-  const persistenceFlush = createTestPersistenceFlushService({
-    openDocuments: overrides?.openDocuments ?? openDocuments,
-  })
-  const gitRepository = createTestGitRepositoryService()
-  const githubAuth = createTestGithubAuthService({
-    secretStore: overrides?.secretStore ?? secretStore,
-    http: overrides?.http ?? http,
-    clock: overrides?.clock ?? clock,
-  })
-  const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
-  const gists = createTestGistService({ http: overrides?.http ?? http })
-  const syncEngines = createTestSyncEngineFactory({
-    git: overrides?.gitRepository ?? gitRepository,
-    clock: overrides?.clock ?? clock,
-  })
-  const embeddingRuntime = createTestEmbeddingRuntimeService()
-  const retrieval = createTestRetrievalService()
-  const embeddingIndex = createTestEmbeddingIndexService({
-    embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
-    noteFile: overrides?.noteFile ?? noteFile,
-    database: overrides?.database ?? database,
-    indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-    logger,
-  })
-  const storage = createTestStorageService()
-  const audioRecorder = createTestAudioRecorderService()
-  const haptics = createTestHapticsService()
-  const assetStore = createTestAssetStoreService()
-  const transcription = createTestTranscriptionService()
-  const transcriptEnrichment = createTestTranscriptEnrichmentService({
-    languageModel: overrides?.languageModel ?? languageModel,
-  })
-  const backlinkTarget = createTestBacklinkTargetService({
-    noteFile: overrides?.noteFile ?? noteFile,
-    noteCreation: overrides?.noteCreation ?? noteCreation,
-  })
-  const audioMemo = createTestAudioMemoService({
-    assetStore: overrides?.assetStore ?? assetStore,
-    noteFile: overrides?.noteFile ?? noteFile,
-    backlinkTarget: overrides?.backlinkTarget ?? backlinkTarget,
-    transcription: overrides?.transcription ?? transcription,
-    transcriptEnrichment: overrides?.transcriptEnrichment ?? transcriptEnrichment,
-    aiProviderConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
-    aiCredentials: overrides?.aiCredentials ?? aiCredentials,
-    audioRecorder: overrides?.audioRecorder ?? audioRecorder,
-    lifecycle: overrides?.lifecycle ?? lifecycle,
-    fileChanges: overrides?.fileChanges ?? fileChanges,
-    settings: overrides?.settings ?? settings,
-    operations: overrides?.operations ?? operations,
-    clock: overrides?.clock ?? clock,
-    platform: overrides?.platform ?? platform,
-    window: overrides?.window ?? windowService,
-    logger,
-  })
-  const nativeAction = createTestNativeActionService({
-    audioRecorder: overrides?.audioRecorder ?? audioRecorder,
-    clock: overrides?.clock ?? clock,
-    platform: overrides?.platform ?? platform,
-    logger,
-  })
-  const chatHistory = createTestChatHistoryService()
-  const chatEngine = createTestChatEngineService()
-  const chatGraphContext = createTestChatGraphContextService()
-  const imageCodec = createTestImageCodec()
-  const services: TestAppServices = {
-    ipc,
-    logger: testLogger,
-    clock,
-    id,
-    hash,
-    platform,
-    storage,
-    http,
-    dialog,
-    clipboard,
-    opener,
-    path,
-    window: windowService,
-    lifecycle,
-    secretStore,
-    appInfo: createTestAppInfoService(),
-    calendar,
-    calendarEvents: createTestCalendarEventsService({
-      calendar: overrides?.calendar ?? calendar,
-      settings: overrides?.settings ?? settings,
-      platform: overrides?.platform ?? platform,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
-      logger,
-    }),
-    contacts,
-    contactSuggestions: createTestContactSuggestionService({
-      contacts: overrides?.contacts ?? contacts,
-      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
-      openDocuments: overrides?.openDocuments ?? openDocuments,
-      noteFile: overrides?.noteFile ?? noteFile,
-      settings: overrides?.settings ?? settings,
-    }),
-    personNotes,
-    meetings: createTestMeetingService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      noteCreation: overrides?.noteCreation ?? noteCreation,
-      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
-      suggestions: overrides?.suggestions ?? indexReads.suggestions,
-      personNotes: overrides?.personNotes ?? personNotes,
-      contacts: overrides?.contacts ?? contacts,
-      settings: overrides?.settings ?? settings,
-      logger,
-    }),
-    agentSkill: createTestAgentSkillService(),
-    mobileStorage,
-    imageCodec,
-    exceptionTelemetry: createTestExceptionTelemetry(),
-    operations,
-    settings,
-    theme: createTestThemeService(),
-    persistenceFlush,
-    database,
-    fileChanges,
-    indexStore,
-    embeddingRuntime,
-    chatHistory,
-    update: createTestUpdateService(),
-    navigation,
-    deepLink,
-    linkNavigation: createTestLinkNavigationService({
-      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
-      noteCreation: overrides?.noteCreation ?? noteCreation,
-      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
-      window: overrides?.window ?? windowService,
-      platform: overrides?.platform ?? platform,
-      opener: overrides?.opener ?? opener,
-      deepLink: overrides?.deepLink ?? deepLink,
-      navigation,
-      attachments: overrides?.attachments ?? attachments,
-      operations: overrides?.operations ?? operations,
-      logger,
-    }),
-    gitRepository,
-    githubAuth,
-    githubRepos,
-    syncEngines,
-    backups: createTestBackupServiceFactory({
-      git: overrides?.gitRepository ?? gitRepository,
-      syncEngines: overrides?.syncEngines ?? syncEngines,
-      githubAuth: overrides?.githubAuth ?? githubAuth,
-      githubRepos: overrides?.githubRepos ?? githubRepos,
-      fileChanges: overrides?.fileChanges ?? fileChanges,
-      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-      operations: overrides?.operations ?? operations,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
-      platform: overrides?.platform ?? platform,
-      persistenceFlush: overrides?.persistenceFlush ?? persistenceFlush,
-      logger,
-    }),
-    gists,
-    gistPublish: createTestGistPublishService({
-      gists: overrides?.gists ?? gists,
-      githubAuth: overrides?.githubAuth ?? githubAuth,
-      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
-      noteRows: overrides?.noteRows ?? noteRows,
-      privacy: overrides?.privacy ?? privacy,
-      operations: overrides?.operations ?? operations,
-      clipboard: overrides?.clipboard ?? clipboard,
-    }),
-    icloudNative,
-    icloudSyncs: createTestICloudSyncServiceFactory({
-      icloudNative: overrides?.icloudNative ?? icloudNative,
-      fileChanges: overrides?.fileChanges ?? fileChanges,
-      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-      openDocuments: overrides?.openDocuments ?? openDocuments,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
-      clock: overrides?.clock ?? clock,
-      logger,
-    }),
-    icloudDownloads: createTestICloudDownloadServiceFactory({
-      icloudNative: overrides?.icloudNative ?? icloudNative,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
-      clock: overrides?.clock ?? clock,
-      logger,
-    }),
-    icloudMigration: createTestICloudMigrationService({
-      icloudNative: overrides?.icloudNative ?? icloudNative,
-    }),
-    conflictResolution: createTestConflictResolutionService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-      fileChanges: overrides?.fileChanges ?? fileChanges,
-    }),
-    syncStatus: createTestSyncStatusService(),
-    captureInbox,
-    webFetch,
-    xArchive,
-    embedMedia: createTestEmbedMediaService({
-      xArchive: overrides?.xArchive ?? xArchive,
-      webFetch: overrides?.webFetch ?? webFetch,
-      platform: overrides?.platform ?? platform,
-      clock: overrides?.clock ?? clock,
-      logger,
-    }),
-    linkPreview: createTestLinkPreviewService({
-      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
-      privacy: overrides?.privacy ?? privacy,
-      webFetch: overrides?.webFetch ?? webFetch,
-    }),
-    audioRecorder,
-    iap: createTestIapService(),
-    appStore: createTestAppStoreService(),
-    webAuth: createTestWebAuthService(null),
-    classicAccess: createTestClassicAccessService(),
-    noteFile,
-    assetStore,
-    attachments,
-    noteSessions: createTestNoteSessionService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      clock: overrides?.clock ?? clock,
-      logger,
-    }),
-    openDocuments,
-    noteMove,
-    titleRename: createTestTitleRenameService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      wikiResolver: overrides?.wikiResolver ?? indexReads.wikiResolver,
-      backlinks: overrides?.backlinks ?? indexReads.backlinks,
-      notePath: overrides?.notePath ?? indexReads.notePath,
-      noteMove: overrides?.noteMove ?? noteMove,
-      openDocuments: overrides?.openDocuments ?? openDocuments,
-      operations: overrides?.operations ?? operations,
-      clock: overrides?.clock ?? clock,
-      logger,
-    }),
-    keyboard: createTestKeyboardService(),
-    share: createTestShareService({ openDocuments: overrides?.openDocuments ?? openDocuments }),
-    noteDocuments,
-    notePreview: createTestNotePreviewService({
-      noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
-      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
-      attachments: overrides?.attachments ?? attachments,
-    }),
-    tasks: createTestTaskService({
-      database: overrides?.database ?? database,
-      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
-      operations: overrides?.operations ?? operations,
-      clock: overrides?.clock ?? clock,
-      logger,
-    }),
-    noteActions: createTestNoteActionsService({
-      noteDocuments: overrides?.noteDocuments ?? noteDocuments,
-      noteFile: overrides?.noteFile ?? noteFile,
-      openDocuments: overrides?.openDocuments ?? openDocuments,
-      operations: overrides?.operations ?? operations,
-      clipboard: overrides?.clipboard ?? clipboard,
-      path: overrides?.path ?? path,
-      id: overrides?.id ?? id,
-    }),
-    noteRows,
-    templates: createTestTemplateService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
-      notePath: overrides?.notePath ?? indexReads.notePath,
-      noteMove: overrides?.noteMove ?? noteMove,
-      openDocuments: overrides?.openDocuments ?? openDocuments,
-      operations: overrides?.operations ?? operations,
-    }),
-    dailyNotes: createTestDailyNoteService({
-      database: overrides?.database ?? database,
-      clock: overrides?.clock ?? clock,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
-    }),
-    ...indexReads,
-    noteLinkResolver,
-    noteCreation,
-    privacy,
-    indexLifecycle,
-    graphSession,
-    retrieval,
-    embeddingIndex,
-    semanticSearch: createTestSemanticSearchService({
-      embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
-      embeddingIndex: overrides?.embeddingIndex ?? embeddingIndex,
-      retrieval: overrides?.retrieval ?? retrieval,
-      settings: overrides?.settings ?? settings,
-      storage: overrides?.storage ?? storage,
-      window: overrides?.window ?? windowService,
-      indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
-      graphSession: overrides?.graphSession ?? graphSession,
-      logger,
-    }),
-    mobileOnboarding: createTestMobileOnboardingService({
-      mobileStorage: overrides?.mobileStorage ?? mobileStorage,
-      settings: overrides?.settings ?? settings,
-      graphSession: overrides?.graphSession ?? graphSession,
-      platform: overrides?.platform ?? platform,
-      clock: overrides?.clock ?? clock,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
-      logger,
-    }),
-    aiCredentials,
-    aiKeyValidation,
-    languageModel,
-    aiPrompts: createTestAiPromptService({
-      settings: overrides?.settings ?? settings,
-      id: overrides?.id ?? id,
-    }),
-    keymap: createTestKeymapService({ platform: overrides?.platform ?? platform }),
-    commands,
-    nativeMenu: createTestNativeMenuService({
-      commands: overrides?.commands ?? commands,
-      window: overrides?.window ?? windowService,
-      platform: overrides?.platform ?? platform,
-      logger,
-    }),
-    aiProviderConfig,
-    selectionTransform: createTestSelectionTransformService({
-      logger,
-      languageModel: overrides?.languageModel ?? languageModel,
-      providerConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
-      credentials: overrides?.aiCredentials ?? aiCredentials,
-      privacy: overrides?.privacy ?? privacy,
-    }),
-    pageDescriber: createTestPageDescriberService(),
-    assetDescriber: createTestAssetDescriberService(),
-    transcription,
-    transcriptEnrichment,
-    noteTools: createTestNoteToolsService({
-      retrieval: overrides?.retrieval ?? retrieval,
-      noteFile: overrides?.noteFile ?? noteFile,
-      noteList: overrides?.noteList ?? indexReads.noteList,
-      xArchive: overrides?.xArchive ?? xArchive,
-      privacy: overrides?.privacy ?? privacy,
-    }),
-    chatEngine,
-    chatGraphContext,
-    chatSessions: createTestChatSessionService({
-      chatEngine: overrides?.chatEngine ?? chatEngine,
-      chatHistory: overrides?.chatHistory ?? chatHistory,
-      chatGraphContext: overrides?.chatGraphContext ?? chatGraphContext,
-      settings: overrides?.settings ?? settings,
-      credentials: overrides?.aiCredentials ?? aiCredentials,
-      providerConfig: overrides?.aiProviderConfig ?? aiProviderConfig,
-      embeddingRuntime: overrides?.embeddingRuntime ?? embeddingRuntime,
-      graphSession: overrides?.graphSession ?? graphSession,
-      clock: overrides?.clock ?? clock,
-      id: overrides?.id ?? id,
-      imageCodec: overrides?.imageCodec ?? imageCodec,
-      logger,
-    }),
-    backlinkTarget,
-    capture: createTestCaptureService(),
-    assetPrivacy: createTestAssetPrivacyService({
-      noteFile: overrides?.noteFile ?? noteFile,
-      xArchive: overrides?.xArchive ?? xArchive,
-    }),
-    assetDescription: createTestAssetDescriptionService(),
-    wikiLinkSuggestions: createTestWikiLinkSuggestionService({
-      suggestions: overrides?.suggestions ?? indexReads.suggestions,
-      noteCreation: overrides?.noteCreation ?? noteCreation,
-      contacts: overrides?.contacts ?? contacts,
-      personNotes: overrides?.personNotes ?? personNotes,
-      settings: overrides?.settings ?? settings,
-      clock: overrides?.clock ?? clock,
-      operations: overrides?.operations ?? operations,
-      logger,
-    }),
-    paletteSearch: createTestPaletteSearchService({
-      suggestions: overrides?.suggestions ?? indexReads.suggestions,
-      search: overrides?.search ?? indexReads.search,
-      retrieval: overrides?.retrieval ?? retrieval,
-      commands: overrides?.commands ?? commands,
-      clock: overrides?.clock ?? clock,
-    }),
-    audioMemo,
-    nativeAction,
-    mobile: {
-      haptics,
-      subscription: createTestSubscriptionService(),
-      appStoreEnvironment: createTestAppStoreEnvironmentService(),
-      paywall: createTestPaywallService(),
-      mobileAudioMemo: createTestMobileAudioMemoService({
-        audioMemo: overrides?.audioMemo ?? audioMemo,
-        audioRecorder: overrides?.audioRecorder ?? audioRecorder,
-        nativeAction: overrides?.nativeAction ?? nativeAction,
-        lifecycle: overrides?.lifecycle ?? lifecycle,
-        haptics,
-        platform: overrides?.platform ?? platform,
-        logger,
-      }),
-    },
+  const adapters: AppAdapters = {
+    ipc: ipc.transport,
+    platform: edge.platform ?? platform,
+    http: edge.http,
+    storage: { local: null, session: null },
+    dialog: edge.dialog,
+    clipboard: edge.clipboard,
+    opener: { openUrl: async () => {}, revealItemInDir: async () => {} },
+    path: createPosixPathTransport('/home/test'),
+    window: createSingleWindowHost(),
+    lifecycle: createDetachedLifecycleDom(),
+    logger: edge.logger,
+    clock: edge.clock,
+    id: edge.id,
+    hash: edge.hash,
+    imageCodec: edge.imageCodec,
+    exceptionTelemetry: edge.exceptionTelemetry,
   }
-  return Object.assign(services, overrides)
+  const fixed: Record<string, () => unknown> = {}
+  for (const [key, service] of Object.entries(overrides ?? {})) {
+    fixed[key] = () => service
+  }
+  const { services, internal } = composeAppServices(adapters, {
+    ...createTestServiceFactories({ ipc, platform, clock: defaults.clock }, overrides),
+    ...(fixed as Partial<ServiceFactories>),
+  })
+  return { ...services, ...internal } as TestAppServices
 }

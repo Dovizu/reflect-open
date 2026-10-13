@@ -1,15 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
-import {
-  createTestNoteMoveService,
-  createTestNoteSession,
-  createTestOpenDocumentsService,
-  createTestTemplateService,
-} from '../testing/documents.ts'
+import { createIndexQueryService } from '../indexing/index-query-service.ts'
+import { createNotePathService } from '../indexing/note-path-service.ts'
+import { createTestNoteMoveService, createTestNoteSession } from '../testing/documents.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
-import type { TemplateInsertTarget } from './template-service.ts'
+import { createOpenDocumentsService } from './open-documents-service.ts'
+import { createTemplateService, type TemplateInsertTarget } from './template-service.ts'
 
 function setup(options?: { files?: Record<string, string>; indexed?: readonly TestNote[] }) {
   const noteFile = createTestNoteFileService({ files: options?.files ?? {} })
@@ -20,7 +19,7 @@ function setup(options?: { files?: Record<string, string>; indexed?: readonly Te
       Object.entries(options?.files ?? {}).map(([path, markdown]) => ({ path, markdown })),
   )
   const operations = createTestOperationsService()
-  const openDocuments = createTestOpenDocumentsService()
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   const indexStore = createTestIndexStoreService()
   const noteMove = createTestNoteMoveService({
     indexStore: {
@@ -36,11 +35,12 @@ function setup(options?: { files?: Record<string, string>; indexed?: readonly Te
     },
     openDocuments,
   })
-  const templates = createTestTemplateService({
+  const templates = createTemplateService({
     noteFile,
-    database,
-    openDocuments,
+    indexQuery: createIndexQueryService({ database }),
+    notePath: createNotePathService({ database, noteFile }),
     noteMove,
+    openDocuments,
     operations,
   })
   return { templates, noteFile, database, operations, openDocuments, noteMove }

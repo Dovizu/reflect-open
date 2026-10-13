@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPersonNoteService, type PersonNoteService } from './person-note-service.ts'
 import {
+  createMeetingService,
   meetingLine,
   mergeAttendeeUpgrades,
   withAttendee,
@@ -8,12 +9,12 @@ import {
   type MeetingService,
 } from './meeting-service.ts'
 import type { ContactMatch } from './commands.ts'
+import { createSuggestionService } from '../indexing/suggestion-service.ts'
 import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import {
   createTestContactsService,
   createTestDatabaseService,
   createTestLoggerService,
-  createTestMeetingService,
   createTestNoteCreationService,
   createTestNoteFileService,
   createTestSettingsService,
@@ -21,7 +22,6 @@ import {
   type NoteFileWrite,
   type TestContactsService,
   type TestDatabaseService,
-  type TestMeetingServiceOptions,
   type TestNote,
   type TestNoteCreationService,
   type TestNoteFileService,
@@ -78,13 +78,18 @@ function dailyWrites(): NoteFileWrite[] {
 }
 
 /** The meeting service over this test's doubles, with `overrides` in place of the matching ones. */
-function meetingService(overrides?: TestMeetingServiceOptions): MeetingService {
-  return createTestMeetingService({
-    database,
+function meetingService(
+  overrides?: Partial<Parameters<typeof createMeetingService>[0]>,
+): MeetingService {
+  return createMeetingService({
     noteFile,
     noteCreation,
-    contacts,
+    wikiResolver: createWikiResolverService({ database }),
+    suggestions: createSuggestionService({ database }),
     personNotes,
+    contacts,
+    settings: createTestSettingsService(),
+    logger: createTestLoggerService(),
     ...overrides,
   })
 }
@@ -273,13 +278,13 @@ describe('resolveAttendeeTargets', () => {
 
   it('writes unaddressable-owner identities as plain text', async () => {
     seedNotes(database, [personNote('notes/jane.md', 'Jane', ['jane@corp.com'])])
-    const unaddressable = createTestMeetingService({
-      database,
-      contacts,
-      wikiResolver: {
-        ...createWikiResolverService({ database }),
-        getWikiAddressForPath: async () => null,
-      },
+    const wikiResolver = {
+      ...createWikiResolverService({ database }),
+      getWikiAddressForPath: async () => null,
+    }
+    const unaddressable = meetingService({
+      wikiResolver,
+      personNotes: createPersonNoteService({ database, wikiResolver, noteCreation }),
     })
 
     await expect(

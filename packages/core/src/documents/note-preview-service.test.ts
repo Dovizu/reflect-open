@@ -5,23 +5,40 @@ import type { ExistingWikiTargetResolution } from '../graph/note-link-resolver-s
 import type { FileMeta } from '../graph/schemas.ts'
 import {
   createTestAssetStoreService,
+  createTestAttachmentService,
   createTestClockService,
   createTestDialogService,
   createTestFileChangeService,
-  createTestNoteDocumentService,
   createTestNoteFileService,
   createTestNoteLinkResolverService,
-  createTestNotePreviewService,
-  createTestOpenDocumentsService,
   createTestNoteSession,
   createTestOperationsService,
   createTestPlatformService,
 } from '../testing/index.ts'
 import { createAttachmentService } from './attachment-service.ts'
-import { createNotePreviewService } from './note-preview-service.ts'
+import { createNoteDocumentService } from './note-document-service.ts'
+import { createNotePreviewService, type NotePreviewServiceDeps } from './note-preview-service.ts'
+import { createOpenDocumentsService } from './open-documents-service.ts'
 
 function previewAssetUrl(generation: number, path: string): string {
   return `reflect-asset://localhost/${encodeURIComponent(`${generation}/${path}`)}?reflect-preview=raster`
+}
+
+/** The real service over a link resolver and note documents over `noteFile` (empty by default). */
+function notePreviewOver(
+  options?: Partial<NotePreviewServiceDeps> & { noteFile?: NoteFileService },
+) {
+  const noteFile = options?.noteFile ?? createTestNoteFileService()
+  return createNotePreviewService({
+    noteLinkResolver: options?.noteLinkResolver ?? createTestNoteLinkResolverService({ noteFile }),
+    noteDocuments:
+      options?.noteDocuments ??
+      createNoteDocumentService({
+        openDocuments: createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
+        noteFile,
+      }),
+    attachments: options?.attachments ?? createTestAttachmentService(),
+  })
 }
 
 /** A real `AttachmentService` whose catalog lists `listing()`. */
@@ -50,7 +67,7 @@ describe('previewWikiTarget', () => {
       files: { 'notes/alpha.md': '---\nprivate: true\n---\n# Alpha\n\nBody' },
     })
     const noteLinkResolver = createTestNoteLinkResolverService({ noteFile })
-    const notePreview = createTestNotePreviewService({ noteFile, noteLinkResolver })
+    const notePreview = notePreviewOver({ noteFile, noteLinkResolver })
 
     const preview = await notePreview.previewWikiTarget('Alpha', 7)
 
@@ -64,12 +81,13 @@ describe('previewWikiTarget', () => {
     const noteFile = createTestNoteFileService({
       files: { 'notes/alpha.md': '# Alpha\n\nOn disk' },
     })
-    const openDocuments = createTestOpenDocumentsService({
-      sessions: [createTestNoteSession({ path: 'notes/alpha.md', content: '# Alpha\n\nLive' })],
+    const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+    openDocuments.register({
+      session: createTestNoteSession({ path: 'notes/alpha.md', content: '# Alpha\n\nLive' }),
     })
-    const notePreview = createTestNotePreviewService({
+    const notePreview = notePreviewOver({
       noteFile,
-      noteDocuments: createTestNoteDocumentService({ openDocuments, noteFile }),
+      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     })
 
     await expect(notePreview.previewWikiTarget('Alpha', 7)).resolves.toMatchObject({
@@ -85,7 +103,7 @@ describe('previewWikiTarget', () => {
     ]
     let reads = 0
     for (const resolution of resolutions) {
-      const notePreview = createTestNotePreviewService({
+      const notePreview = notePreviewOver({
         noteLinkResolver: { resolveWikiTarget: async () => resolution },
         noteDocuments: {
           readExisting: async () => {
@@ -100,7 +118,7 @@ describe('previewWikiTarget', () => {
   })
 
   it('resolves null instead of rejecting when resolution or the read fails', async () => {
-    const failingResolution = createTestNotePreviewService({
+    const failingResolution = notePreviewOver({
       noteLinkResolver: {
         resolveWikiTarget: async () => {
           throw new Error('index gone')
@@ -109,7 +127,7 @@ describe('previewWikiTarget', () => {
     })
     await expect(failingResolution.previewWikiTarget('Alpha', 7)).resolves.toBeNull()
 
-    const failingRead = createTestNotePreviewService({
+    const failingRead = notePreviewOver({
       noteLinkResolver: {
         resolveWikiTarget: async () => ({ kind: 'resolved', path: 'notes/alpha.md' }),
       },
@@ -124,7 +142,7 @@ describe('previewWikiTarget', () => {
 
   it('serves only local sniffable raster images to the preview', async () => {
     const noteFile = createTestNoteFileService({ files: { 'notes/alpha.md': '# Alpha' } })
-    const notePreview = createTestNotePreviewService({
+    const notePreview = notePreviewOver({
       noteFile,
       attachments: attachmentsOver(async () => []),
     })
@@ -163,7 +181,7 @@ describe('previewWikiTarget', () => {
   it('waits for the catalog before resolving a bare image embed', async () => {
     const listing = Promise.withResolvers<readonly { path: string; size: number }[]>()
     const noteFile = createTestNoteFileService({ files: { 'notes/alpha.md': '![[photo.png]]' } })
-    const notePreview = createTestNotePreviewService({
+    const notePreview = notePreviewOver({
       noteFile,
       attachments: attachmentsOver(() => listing.promise),
     })
@@ -189,7 +207,7 @@ describe('previewWikiTarget', () => {
 describe('readExistingNoteSource', () => {
   it('reads an existing note through the note documents', async () => {
     const noteFile = createTestNoteFileService({ files: { 'notes/alpha.md': '# Alpha' } })
-    const notePreview = createTestNotePreviewService({ noteFile })
+    const notePreview = notePreviewOver({ noteFile })
 
     await expect(notePreview.readExistingNoteSource('notes/alpha.md', 7)).resolves.toBe('# Alpha')
   })

@@ -1,6 +1,5 @@
 import {
   createTestAppServices,
-  createTestLinkNavigationService,
   createTestLoggerService,
   createTestOperationsService,
   createTestWindowService,
@@ -39,19 +38,20 @@ function RouteProbe(): ReactNode {
 
 /** Render `ui` in an app whose link navigation runs on the scripted resolvers above. */
 function renderWithLinkNavigation(ui: ReactNode) {
+  const base = createTestAppServices()
   const app = createTestAppServices({
     operations,
-    linkNavigation: createTestLinkNavigationService({
-      wikiResolver: { resolveWikiTarget },
+    linkNavigation: createTestAppServices({
+      wikiResolver: { ...base.wikiResolver, resolveWikiTarget },
       noteLinkResolver: {
         resolveWikiTarget: resolveExistingWikiTarget,
         resolveMarkdownHref: vi.fn(),
       },
-      noteCreation: { resolveOrCreateNoteWithTitle },
+      noteCreation: { ...base.noteCreation, resolveOrCreateNoteWithTitle },
       window: createTestWindowService({ openNoteWindow }),
       operations,
       logger,
-    }),
+    }).linkNavigation,
   })
   return renderInApp(ui, { app })
 }

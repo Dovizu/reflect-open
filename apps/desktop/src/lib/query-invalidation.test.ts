@@ -3,7 +3,6 @@ import {
   createTestAppServices,
   createTestAssetDescriptionService,
   createTestCaptureService,
-  createTestEmbedMediaService,
   createTestIndexLifecycleService,
   createTestIndexStoreService,
   createTestWindowService,
@@ -14,7 +13,7 @@ import { createXPostResolver, xPostQueryOptions } from '@/editor/use-x-post-reso
 import { queryClient, queryKeys } from './query-client.ts'
 import { installQueryInvalidation } from './query-invalidation.ts'
 
-const app = { embedMedia: createTestEmbedMediaService() }
+const app = { embedMedia: createTestAppServices().embedMedia }
 const url = 'https://x.com/jack/status/123'
 const post: XPost = {
   id: '123',

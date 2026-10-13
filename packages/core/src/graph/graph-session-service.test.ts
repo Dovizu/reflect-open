@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
+import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
@@ -14,7 +15,6 @@ import { createTestICloudNativeService } from '../testing/sync.ts'
 import {
   createTestDialogService,
   createTestLifecycleService,
-  createTestPathService,
   createTestWindowService,
 } from '../testing/shell.ts'
 import type { GraphReleaseReason, GraphSessionState } from './graph-session-service.ts'
@@ -119,7 +119,7 @@ function setup(options?: SetupOptions) {
     fileChanges,
     window: windowService,
     dialog,
-    path: createTestPathService({ home: '/Users/me' }),
+    path: createPathService({ transport: createPosixPathTransport('/Users/me') }),
     platform: createTestPlatformService(options?.platform),
     lifecycle,
     mobileStorage,

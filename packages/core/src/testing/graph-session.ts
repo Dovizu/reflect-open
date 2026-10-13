@@ -8,7 +8,8 @@ import {
 } from '../graph/graph-session-service.ts'
 import type { RecentGraph } from '../graph/schemas.ts'
 import { createTestFileChangeService } from './file-change.ts'
-import { createTestNoteMoveService, createTestOpenDocumentsService } from './documents.ts'
+import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
+import { createTestNoteMoveService } from './documents.ts'
 import { createTestNoteFileService } from './graph.ts'
 import { createTestIdService } from './id.ts'
 import { createTestIndexLifecycleService } from './index-lifecycle.ts'
@@ -21,9 +22,9 @@ import { createTestICloudNativeService } from './sync.ts'
 import {
   createTestDialogService,
   createTestLifecycleService,
-  createTestPathService,
   createTestWindowService,
 } from './shell.ts'
+import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
 
 /**
  * An open graph as a test names it. The defaults are the graph `test` at
@@ -141,12 +142,12 @@ export function createTestGraphSessionService<Services = never>(
     fileChanges: options?.fileChanges ?? fileChanges,
     window: windowService,
     dialog: options?.dialog ?? createTestDialogService(),
-    path: options?.path ?? createTestPathService(),
+    path: options?.path ?? createPathService({ transport: createPosixPathTransport('/home/test') }),
     platform: options?.platform ?? createTestPlatformService(),
     lifecycle: options?.lifecycle ?? createTestLifecycleService(),
     mobileStorage: options?.mobileStorage ?? createTestMobileStorageService(),
     noteRows: options?.noteRows ?? createNoteRowService(),
-    openDocuments: options?.openDocuments ?? createTestOpenDocumentsService(),
+    openDocuments: options?.openDocuments ?? createOpenDocumentsService({ fileChanges }),
     noteMove: options?.noteMove ?? createTestNoteMoveService(),
     icloudNative: options?.icloudNative ?? createTestICloudNativeService(),
     logger,

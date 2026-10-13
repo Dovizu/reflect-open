@@ -6,7 +6,6 @@ import type { LinkClickHandler } from '@meowdown/core'
 import {
   createTestAppServices,
   createTestAttachmentService,
-  createTestLinkNavigationService,
   createTestOpenerService,
   createTestWindowService,
   type TestAttachmentService,
@@ -34,13 +33,13 @@ async function mount(generation: number | null, sourcePath: string | null): Prom
   const app = createTestAppServices({
     opener,
     attachments,
-    linkNavigation: createTestLinkNavigationService({
-      deepLink: { dispatch: dispatchDeepLink },
+    linkNavigation: createTestAppServices({
+      deepLink: { ...createTestAppServices().deepLink, dispatch: dispatchDeepLink },
       noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
       window: createTestWindowService({ openNoteWindow }),
       opener,
       attachments,
-    }),
+    }).linkNavigation,
   })
   const { result } = await renderHookInApp(() => useMarkdownLinkClick(generation, sourcePath), {
     app,

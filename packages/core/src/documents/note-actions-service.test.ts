@@ -2,22 +2,54 @@ import { describe, expect, it, vi } from 'vitest'
 import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { createTestClockService } from '../testing/clock.ts'
-import {
-  createTestNoteActionsService,
-  createTestNoteSession,
-  createTestOpenDocumentsService,
-  type TestNoteSessionOptions,
-} from '../testing/documents.ts'
+import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
+import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
+import { createTestNoteSession, type TestNoteSessionOptions } from '../testing/documents.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
+import { createTestIdService } from '../testing/id.ts'
 import { parseNote } from '../markdown/extract.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
 import { createTestClipboardService } from '../testing/shell.ts'
-import { canTrashNote } from './note-actions-service.ts'
+import { canTrashNote, createNoteActionsService } from './note-actions-service.ts'
+import { createNoteDocumentService } from './note-document-service.ts'
 import { createNoteSessionService } from './note-session.ts'
 import type { NoteSession, NoteSessionSnapshot } from './note-session-types.ts'
+import { createOpenDocumentsService } from './open-documents-service.ts'
 
 const ULID_RE = /^[0-9a-hjkmnp-tv-z]{26}$/
+
+/** The real service; without `indexLifecycle`, an indexer that only records its calls. */
+function createNoteActions(deps: {
+  noteFile: NoteFileService
+  sessions: readonly NoteSession[]
+  operations?: ReturnType<typeof createTestOperationsService>
+  clipboard?: ReturnType<typeof createTestClipboardService>
+  indexLifecycle?: Pick<IndexLifecycleService, 'indexNote'>
+}) {
+  const { noteFile } = deps
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  for (const session of deps.sessions) {
+    openDocuments.register({ session })
+  }
+  const indexLog: { path: string; generation: number }[] = []
+  const service = createNoteActionsService({
+    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteFile,
+    openDocuments,
+    indexLifecycle: deps.indexLifecycle ?? {
+      indexNote: async (path, indexOptions) => {
+        indexLog.push({ path, generation: indexOptions.generation })
+      },
+    },
+    operations: deps.operations ?? createTestOperationsService(),
+    clipboard: deps.clipboard ?? createTestClipboardService(),
+    path: createPathService({ transport: createPosixPathTransport('/home/test') }),
+    id: createTestIdService(),
+  })
+  return { actions: { ...service, indexed: () => [...indexLog] }, openDocuments }
+}
 
 function setup(options?: {
   files?: Readonly<Record<string, string>>
@@ -30,14 +62,11 @@ function setup(options?: {
     options?.files === undefined ? {} : { files: options.files },
   )
   const session = options?.session === undefined ? null : createTestNoteSession(options.session)
-  const openDocuments = createTestOpenDocumentsService({
-    sessions: session === null ? [] : [session],
-  })
   const operations = createTestOperationsService()
   const clipboard = createTestClipboardService()
-  const actions = createTestNoteActionsService({
+  const { actions, openDocuments } = createNoteActions({
     noteFile: options?.wrapNoteFile?.(files) ?? files,
-    openDocuments,
+    sessions: session === null ? [] : [session],
     operations,
     clipboard,
     ...(options?.indexNote === undefined
@@ -537,8 +566,7 @@ describe('trashOne', () => {
 })
 
 function setupWith(files: NoteFileService, session: NoteSession) {
-  const openDocuments = createTestOpenDocumentsService({ sessions: [session] })
-  const actions = createTestNoteActionsService({ noteFile: files, openDocuments })
+  const { actions } = createNoteActions({ noteFile: files, sessions: [session] })
   return { actions }
 }
 

@@ -78,14 +78,18 @@ The rules:
 ## Testing a service
 
 A service is unit-tested by **constructing it over test doubles**. The doubles
-come from `@reflect/core/testing` (`packages/core/src/testing/`): one
-`createTestXxxService()` per service.
+come from `@reflect/core/testing` (`packages/core/src/testing/`). There is a
+`createTestXxxService()` only for a service whose real implementation cannot
+run in a test (files, IPC, HTTP, the clock), whose answer a test scripts, or
+whose calls a test observes. Every other service is tested as the real
+`createXxxService()` over doubles.
 
 ```ts
 // packages/core/src/documents/note-move-service.test.ts
 const ipc = createTestIpcBridgeService()
 const indexStore = createTestIndexStoreService()
-const openDocuments = createTestOpenDocumentsService({ sessions: [session] })
+const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+openDocuments.register({ session })
 const logger = createTestLoggerService()
 const noteMove = createNoteMoveService({ ipc, indexStore, openDocuments, logger })
 
@@ -101,9 +105,7 @@ Rules:
 - Construct only the service under test and its direct dependencies.
 - Prefer a **real** service over lower doubles to a double of every layer. To
   test `TaskService`, use the real `NoteDocumentService` and
-  `OpenDocumentsService` and fake only the files. Most
-  `createTestXxxService()` functions already are the real service over
-  doubles.
+  `OpenDocumentsService` and fake only the files.
 - Do not use `vi.mock`, `vi.useFakeTimers` or console spies in a service test.
   The doubles replace them. The exception is the test of an edge
   implementation itself, such as the system clock or the console logger.
@@ -134,15 +136,19 @@ SQL.
 
 ### `createTestAppServices()`
 
-`createTestAppServices()` returns the whole `AppServices` object over test
-doubles that share one clock, one note-file store, one database and one
-logger. Its type, `TestAppServices`, keeps the test members:
+`createTestAppServices()` builds the whole `AppServices` object through the
+production composition root, `composeAppServices` in
+`app/create-app-services.ts`. It passes test adapters and a test factory table
+(`testing/services.ts`) that replaces only the services with a test double.
+Every other service is the real one, over doubles that share one clock, one
+note-file store, one database and one logger. Its type, `TestAppServices`,
+takes each member type from the table, so it keeps the test members:
 `app.noteFile.getWrites(path)`, `app.clock.advance(ms)`. It also exposes the
 services that `AppServices` keeps internal (`InternalServices`, e.g.
 `app.database`) and always has `app.mobile`.
 
-Pass overrides to replace a service. The other doubles are built over your
-override:
+Pass overrides to replace a service. Each override becomes the factory of its
+key, so every service built after it gets your override:
 
 ```ts
 const noteFile = createTestNoteFileService({ files: { 'notes/a.md': '# A\n' } })

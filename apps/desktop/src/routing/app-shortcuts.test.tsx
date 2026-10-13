@@ -10,7 +10,6 @@ import {
 } from '@reflect/core'
 import {
   createTestAppServices,
-  createTestKeymapService,
   createTestPlatformService,
   createTestThemeService,
   type TestAppServices,
@@ -249,7 +248,7 @@ describe('app shortcuts', () => {
   })
 
   it('registers the command keybindings in the central keymap registry', () => {
-    const keymap = createTestKeymapService()
+    const { keymap } = createTestAppServices()
     registerAppKeymaps(keymap)
     const bindings = keymap.list()
     for (const key of [

@@ -9,7 +9,6 @@ import {
   createTestContactsService,
   createTestOperationsService,
   createTestSettingsService,
-  createTestWikiLinkSuggestionService,
 } from '@reflect/core/testing'
 import { describe, expect, it, vi } from 'vitest'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
@@ -56,8 +55,20 @@ async function setup(options?: SetupOptions) {
     status: options?.authorization ?? 'authorized',
     contacts: [ADA],
   })
-  const wikiLinkSuggestions = createTestWikiLinkSuggestionService({
+  const base = createTestAppServices()
+  const personNotes: typeof base.personNotes = {
+    ...base.personNotes,
+    resolvePersonContact: async (contact) => ({
+      kind: 'new',
+      contact,
+      insertText: contact.fullName,
+    }),
+    ensurePersonNote: async (input) =>
+      await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation),
+  }
+  const { wikiLinkSuggestions } = createTestAppServices({
     suggestions: {
+      ...base.suggestions,
       suggestWikiLinkTargets: async () =>
         options?.wikiLinks ?? { suggestions: [], claimedTargetKeys: [], queryReadsAsDate: false },
       suggestTags: async () => [
@@ -65,17 +76,9 @@ async function setup(options?: SetupOptions) {
         { tag: 'home', count: 1 },
       ],
     },
-    noteCreation,
+    noteCreation: { ...base.noteCreation, ...noteCreation },
     contacts,
-    personNotes: {
-      resolvePersonContact: async (contact) => ({
-        kind: 'new',
-        contact,
-        insertText: contact.fullName,
-      }),
-      ensurePersonNote: async (input) =>
-        await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation),
-    },
+    personNotes,
     settings,
     operations,
   })

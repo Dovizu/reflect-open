@@ -122,8 +122,8 @@ const unread = fields.filter(
 if (unread.length > 0) {
   failures.push(
     `${unread.length} AppServices fields are not read by a desktop non-test file. Keep them as ` +
-      `locals in createAppServices and list them in InternalServices ` +
-      `(packages/core/src/testing/services.ts):\n  ${unread.join('\n  ')}`,
+      `locals in composeAppServices and list them in InternalServices ` +
+      `(packages/core/src/app/create-app-services.ts):\n  ${unread.join('\n  ')}`,
   )
 }
 

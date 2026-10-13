@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
-import { NoteBusyError } from '../documents/note-document-service.ts'
+import {
+  createOpenDocumentsService,
+  type OpenDocumentsService,
+} from '../documents/open-documents-service.ts'
+import { createNoteDocumentService, NoteBusyError } from '../documents/note-document-service.ts'
 import {
   isSameTaskPath,
   parseNote,
@@ -17,12 +20,8 @@ import {
   seedNotes,
   type TestDatabaseService,
 } from '../testing/database.ts'
-import {
-  createTestNoteDocumentService,
-  createTestNoteSession,
-  createTestOpenDocumentsService,
-  type TestNoteSession,
-} from '../testing/documents.ts'
+import { createTestNoteSession, type TestNoteSession } from '../testing/documents.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService, type TestOperationsService } from '../testing/operations.ts'
@@ -73,13 +72,13 @@ function openSession(session: TestNoteSession): void {
 beforeEach(() => {
   database = createTestDatabaseService()
   noteFile = createTestNoteFileService()
-  openDocuments = createTestOpenDocumentsService()
+  openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   operations = createTestOperationsService()
   clock = createTestClockService()
   logger = createTestLoggerService()
   tasks = createTaskService({
     database,
-    noteDocuments: createTestNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
     operations,
     clock,
     logger,
@@ -605,7 +604,7 @@ describe('recently completed', () => {
     tasks.markRecentlyCompleted('/g', [a])
     const other = createTaskService({
       database,
-      noteDocuments: createTestNoteDocumentService({ openDocuments, noteFile }),
+      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
       operations,
       clock,
       logger,

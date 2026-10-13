@@ -11,7 +11,7 @@ import {
   type IndexFileProgress,
   type IndexLifecycleService,
 } from '../indexing/index-lifecycle-service.ts'
-import { createIndexQueryService } from '../indexing/index-query-service.ts'
+import { createIndexQueryService, type IndexQueryService } from '../indexing/index-query-service.ts'
 import type { IndexStoreService } from '../indexing/index-store-service.ts'
 import type { XArchiveService } from '../x-archive.ts'
 import { createTestXArchiveService } from './capture.ts'
@@ -31,6 +31,8 @@ export interface TestIndexLifecycleServiceOptions {
   fileChanges?: FileChangeService
   /** Read lazily, so the default (Node only) costs nothing until a pass reads rows. */
   database?: DatabaseService
+  /** Defaults to one over `database`. */
+  indexQuery?: IndexQueryService
   xArchive?: XArchiveService
   hash?: HashService
   clock?: ClockService
@@ -61,7 +63,7 @@ export function createTestIndexLifecycleService(
     indexStore: options?.indexStore ?? createTestIndexStoreService(),
     noteFile: options?.noteFile ?? createTestNoteFileService(),
     fileChanges: options?.fileChanges ?? createTestFileChangeService(),
-    indexQuery: createIndexQueryService({ database }),
+    indexQuery: options?.indexQuery ?? createIndexQueryService({ database }),
     database,
     xArchive: options?.xArchive ?? createTestXArchiveService(),
     hash: options?.hash ?? createTestHashService(),
