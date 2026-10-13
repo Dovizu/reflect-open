@@ -1,9 +1,15 @@
-import type { GraphSessionSource } from '../app/graph-session.ts'
+import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
-import { resolveConflictMarkers, type ConflictResolution } from '../markdown/conflict-markers.ts'
+import {
+  conflictMarkerBlockCount,
+  conflictMarkerLabels,
+  resolveConflictMarkers,
+  type ConflictMarkerLabels,
+  type ConflictResolution,
+} from '../markdown/conflict-markers.ts'
 
 /**
  * What one {@link ConflictResolutionService.resolve} did.
@@ -18,6 +24,20 @@ export interface ConflictResolutionOutcome {
    * The failure text for the user, or `null` when every step worked.
    */
   error: string | null
+}
+
+/**
+ * What {@link ConflictResolutionService.conflictMarkers} found in a file.
+ */
+export interface ConflictMarkers {
+  /**
+   * The device labels of the first marker block, or `null` when it has none.
+   */
+  labels: ConflictMarkerLabels | null
+  /**
+   * How many marker blocks the file holds.
+   */
+  blocks: number
 }
 
 /**
@@ -45,6 +65,12 @@ export interface ConflictResolutionService {
    * rejects; does nothing when no graph is open.
    */
   resolve: (path: string, keep: ConflictResolution) => Promise<ConflictResolutionOutcome>
+  /**
+   * The conflict markers of the note's file on disk, never of an open
+   * session's buffer: a dirty session parks an external change without
+   * loading it. Rejects when no graph is open.
+   */
+  conflictMarkers: (path: string) => Promise<ConflictMarkers>
 }
 
 class ConflictResolutionServiceImpl implements ConflictResolutionService {
@@ -52,6 +78,13 @@ class ConflictResolutionServiceImpl implements ConflictResolutionService {
 
   constructor(deps: ConflictResolutionServiceDeps) {
     this.#deps = deps
+  }
+
+  readonly conflictMarkers = async (path: string): Promise<ConflictMarkers> => {
+    const { noteFile, graphSession } = this.#deps
+    const session = requireGraphSession(graphSession)
+    const source = await noteFile.read(path, session.generation)
+    return { labels: conflictMarkerLabels(source), blocks: conflictMarkerBlockCount(source) }
   }
 
   readonly resolve = async (

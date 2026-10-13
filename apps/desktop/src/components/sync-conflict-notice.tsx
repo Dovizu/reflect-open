@@ -1,7 +1,6 @@
 import type { ReactElement, ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { GitMerge } from 'lucide-react'
-import { conflictMarkerBlockCount, conflictMarkerLabels } from '@reflect/core'
 import { CONFLICT_SIDE_DOT } from '@/components/conflict-note-view.tsx'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Button } from '@/components/ui/button.tsx'
@@ -43,7 +42,7 @@ export function SyncConflictNotice({
 }: SyncConflictNoticeProps): ReactElement | null {
   const { graph } = useGraph()
   const { busy, error, resolve } = useConflictResolution(path)
-  const { indexQuery, noteDocuments, platform } = useAppServices()
+  const { indexQuery, conflictResolution, platform } = useAppServices()
   const { data } = useQuery({
     queryKey: queryKeys.index.noteConflict(graph?.root, path),
     queryFn: async () => (await indexQuery.getNote(path)) ?? null,
@@ -57,13 +56,7 @@ export function SyncConflictNotice({
   // splices in every non-first side, so naming a single device would lie.
   const { data: markerInfo } = useQuery({
     queryKey: queryKeys.index.noteConflictLabels(graph?.root, path),
-    queryFn: async () => {
-      const source = await noteDocuments.readSource(path)
-      return {
-        labels: conflictMarkerLabels(source),
-        blocks: conflictMarkerBlockCount(source),
-      }
-    },
+    queryFn: () => conflictResolution.conflictMarkers(path),
     enabled: graph !== null && hasConflict,
   })
 
