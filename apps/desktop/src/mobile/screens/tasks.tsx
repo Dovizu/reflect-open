@@ -1,19 +1,16 @@
-import { useDeferredValue, useMemo, useRef, useState, type ReactElement } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Archive, CircleCheck, Plus, SlidersHorizontal } from 'lucide-react'
-import type { OpenTask } from '@reflect/core'
+import {
+  composeVisibleTaskGroups,
+  getTaskKey,
+  todaysDailyTarget,
+  type InsertTaskTarget,
+  type OpenTask,
+} from '@reflect/core'
 import { Button } from '@/components/ui/button.tsx'
 import { Spinner } from '@/components/ui/spinner.tsx'
 import { useRecentlyCompleted } from '@/lib/tasks/recently-completed.ts'
-import { getTaskKey } from '@/lib/tasks/task-identity.ts'
 import { useTaskFilters } from '@/lib/tasks/task-filters.ts'
-import type { InsertTaskTarget } from '@/lib/tasks/task-insert-target.ts'
-import { todaysDailyTarget } from '@/lib/tasks/task-navigation.ts'
-import { composeVisibleTaskGroups } from '@/lib/tasks/task-visibility.ts'
-import {
-  createCompletedTasksQueryOptions,
-  createOpenTasksQueryOptions,
-} from '@/lib/tasks/tasks-query.ts'
 import { useTaskActions } from '@/lib/tasks/use-task-actions.ts'
 import { useToday } from '@/lib/use-today.ts'
 import { hapticImpactLight } from '@/mobile/haptics.ts'
@@ -27,12 +24,13 @@ import { useArrivalFocus } from '@/mobile/use-arrival-focus.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { routeForPath } from '@/routing/route.ts'
 import { useRouter } from '@/routing/router.tsx'
+import { useServiceState } from '@/services/use-service-state.ts'
 
 /**
  * The Tasks tab (V1 mobile's third tab over Plan 18's shipped data layer): every
  * open task across the graph in desktop's exact groups — Current / Overdue /
- * Upcoming, then per-note — via the same queries, grouping
- * ({@link composeVisibleTaskGroups}) and optimistic mutations
+ * Upcoming, then per-note — via the same task rows, grouping
+ * ({@link composeVisibleTaskGroups}) and optimistic writes
  * ({@link useTaskActions}) the desktop view uses; this screen adds only the
  * touch surface. Task taps, toggles, adds, filters, scheduling, and archival
  * get light haptics; tapping a row opens the quick-edit sheet (edit / schedule /
@@ -72,14 +70,14 @@ export function MobileTasks(): ReactElement {
     selectText: true,
   })
 
-  const { data: open, isError: openFailed } = useQuery({
-    ...createOpenTasksQueryOptions({ tasks: taskService }, graph?.root),
-    enabled,
-  })
-  const { data: completed, isError: completedFailed } = useQuery({
-    ...createCompletedTasksQueryOptions({ tasks: taskService }, graph?.root),
-    enabled: enabled && filters.archived,
-  })
+  const { open, completed, openFailed, completedFailed } = useServiceState(
+    taskService,
+    taskService.getState,
+  )
+  useEffect(
+    () => (filters.archived ? taskService.includeCompleted() : undefined),
+    [taskService, filters.archived],
+  )
   const isError = openFailed || (filters.archived && completedFailed)
   const ready = open !== undefined && (!filters.archived || completed !== undefined)
 

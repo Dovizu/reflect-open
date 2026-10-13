@@ -9,7 +9,6 @@ export {
   pinnedOrder,
   parseNote,
   getTaskDueDate,
-  type TaskEditResult,
   type TaskLocator,
   type TaskRow,
   type TaskSnapshot,
@@ -61,29 +60,15 @@ export {
 } from '../indexing/index.ts'
 export { groupTaskContexts, type TaskContext, type TaskGroup } from '../tasks/group-tasks.ts'
 export { type OpenTask } from '../tasks/open-task.ts'
-export {
-  asCompleted,
-  asOpen,
-  withChecked,
-  withEditedTask,
-  withoutTasks,
-  withRelocatedTasks,
-  type TaskMoves,
-} from '../tasks/task-cache.ts'
 export { resolveTaskEdit, type TaskDraftResolution } from '../tasks/task-content.ts'
 export { getTaskKey, isSameTask } from '../tasks/task-identity.ts'
-export { createInsertedTaskRow, type InsertTaskTarget } from '../tasks/task-insert-target.ts'
+export { type InsertTaskTarget } from '../tasks/task-insert-target.ts'
 export { previousTaskKey, todaysDailyTarget } from '../tasks/task-navigation.ts'
-export { getScheduledMarkdown, withDraftDueDate } from '../tasks/task-schedule-content.ts'
+export { withDraftDueDate } from '../tasks/task-schedule-content.ts'
 export {
   withoutReopenedTasks,
   type TaskAction,
   type TaskService,
   type TaskWriteResult,
 } from '../tasks/task-service.ts'
-export {
-  composeVisibleTaskGroups,
-  visibleGroups,
-  type TaskFilters,
-  type TaskListSources,
-} from '../tasks/task-visibility.ts'
+export { composeVisibleTaskGroups, type TaskFilters } from '../tasks/task-visibility.ts'

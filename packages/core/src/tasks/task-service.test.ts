@@ -3,7 +3,7 @@ import {
   createOpenDocumentsService,
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
-import { createGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
+import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
 import { createNoteDocumentService, NoteBusyError } from '../documents/note-document-service.ts'
 import {
   isSameTaskPath,
@@ -13,6 +13,10 @@ import {
   type TaskEditResult,
   type TaskSnapshot,
 } from '../markdown/index.ts'
+import type {
+  IndexAppliedEvent,
+  IndexReconciledEvent,
+} from '../indexing/index-lifecycle-service.ts'
 import { buildIndexedNote } from '../indexing/indexed-note.ts'
 import type { SnippetTask } from '../indexing/snippet-tasks.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
@@ -27,8 +31,14 @@ import { createTestNoteFileService, type TestNoteFileService } from '../testing/
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService, type TestOperationsService } from '../testing/operations.ts'
 import { makeOpenTask } from '../testing/tasks.ts'
+import type { OpenTask } from './open-task.ts'
 import { getTaskKey } from './task-identity.ts'
-import { createTaskService, type TaskRef, type TaskService } from './task-service.ts'
+import {
+  createTaskService,
+  type TaskRef,
+  type TaskService,
+  type TaskServiceDeps,
+} from './task-service.ts'
 
 /**
  * The `index`th task of `source` as the index would hand it to the Tasks view.
@@ -71,10 +81,64 @@ let operations: TestOperationsService
 let clock: TestClockService
 let logger: TestLoggerService
 let tasks: TaskService
-const graphSession: GraphSessionSource = {
-  getState: () => ({
-    session: createGraphSession({ root: '/g', name: 'g', generation: 7, indexGeneration: 1 }),
-  }),
+let appliedListeners: Set<(event: IndexAppliedEvent) => void>
+let reconciledListeners: Set<(event: IndexReconciledEvent) => void | Promise<void>>
+
+const openGraph = createGraphSession({ root: '/g', name: 'g', generation: 7, indexGeneration: 1 })
+
+/**
+ * A graph session source over `read`, plus a way to report a switch to its subscribers.
+ */
+function sessionSource(read: () => GraphSession | null): TaskServiceDeps['graphSession'] & {
+  notify: () => void
+} {
+  const listeners = new Set<() => void>()
+  return {
+    getState: () => ({ session: read() }),
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    notify: () => {
+      for (const listener of listeners) {
+        listener()
+      }
+    },
+  }
+}
+
+function createTasks(graphSession: TaskServiceDeps['graphSession']): TaskService {
+  return createTaskService({
+    database,
+    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    operations,
+    clock,
+    logger,
+    graphSession,
+    indexLifecycle: {
+      onApplied: (listener) => {
+        appliedListeners.add(listener)
+        return () => {
+          appliedListeners.delete(listener)
+        }
+      },
+      onReconciled: (listener) => {
+        reconciledListeners.add(listener)
+        return () => {
+          reconciledListeners.delete(listener)
+        }
+      },
+    },
+    window: { isMainWindow: () => true, subscribeIndexWritten: () => () => {} },
+  })
+}
+
+function emitApplied(): void {
+  for (const listener of appliedListeners) {
+    listener({ generation: 1, changes: [] })
+  }
 }
 
 function openSession(session: TestNoteSession): void {
@@ -88,14 +152,9 @@ beforeEach(() => {
   operations = createTestOperationsService()
   clock = createTestClockService()
   logger = createTestLoggerService()
-  tasks = createTaskService({
-    database,
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
-    operations,
-    clock,
-    logger,
-    graphSession,
-  })
+  appliedListeners = new Set()
+  reconciledListeners = new Set()
+  tasks = createTasks(sessionSource(() => openGraph))
 })
 
 const flushMicrotasks = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -557,14 +616,7 @@ describe('snippet tasks', () => {
 describe('no graph open', () => {
   it('rejects writes and skips snippet toggles', async () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n')
-    const closed = createTaskService({
-      database,
-      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
-      operations,
-      clock,
-      logger,
-      graphSession: { getState: () => ({ session: null }) },
-    })
+    const closed = createTasks(sessionSource(() => null))
 
     await expect(closed.writeTask(task, [{ kind: 'toggle' }])).rejects.toThrow('No graph is open.')
     await closed.toggleSnippetTask('notes/a.md', { locator: task, checked: false })
@@ -579,14 +631,7 @@ describe('no graph open', () => {
       { root: '/g', name: 'g', generation: 7, indexGeneration: 1 },
       controller.signal,
     )
-    const switching = createTaskService({
-      database,
-      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
-      operations,
-      clock,
-      logger,
-      graphSession: { getState: () => ({ session }) },
-    })
+    const switching = createTasks(sessionSource(() => session))
     const one = makeOpenTask({ notePath: 'notes/a.md', astPath: [0], markdown: 'one' })
     const two = makeOpenTask({ notePath: 'notes/a.md', astPath: [1], markdown: 'two' })
 
@@ -654,14 +699,235 @@ describe('recently completed', () => {
 
   it('is separate per service', () => {
     tasks.markRecentlyCompleted('/g', [a])
-    const other = createTaskService({
-      database,
-      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
-      operations,
-      clock,
-      logger,
-      graphSession,
-    })
+    const other = createTasks(sessionSource(() => openGraph))
     expect(other.getRecentlyCompleted('/g')).toEqual([])
+  })
+})
+
+describe('task list state', () => {
+  const one = makeOpenTask({ notePath: 'notes/a.md', astPath: [0], markdown: 'one', text: 'one' })
+  const two = makeOpenTask({ notePath: 'notes/b.md', astPath: [0], markdown: 'two', text: 'two' })
+  const written = { source: '', moved: [], inserted: [], tasks: [], updatedAt: 0 }
+
+  /**
+   * Subscribe to `tasks` over `open` and wait for the first read to land.
+   */
+  async function subscribed(open: readonly OpenTask[] = [one, two]) {
+    const getOpenTasks = vi.spyOn(tasks, 'getOpenTasks').mockResolvedValue([...open])
+    const unsubscribe = tasks.subscribe(() => {})
+    await flushMicrotasks()
+    return { getOpenTasks, unsubscribe }
+  }
+
+  it('reads the open tasks on the first subscription, not before', async () => {
+    seedNotes(database, [{ path: 'notes/a.md', markdown: '+ [ ] one\n+ [x] done\n' }])
+    const getOpenTasks = vi.spyOn(tasks, 'getOpenTasks')
+    expect(tasks.getState()).toEqual({
+      open: undefined,
+      completed: undefined,
+      openFailed: false,
+      completedFailed: false,
+    })
+    expect(getOpenTasks).not.toHaveBeenCalled()
+
+    let changes = 0
+    tasks.subscribe(() => {
+      changes += 1
+    })
+    await flushMicrotasks()
+
+    expect(tasks.getState().open?.map((row) => row.markdown)).toEqual(['one'])
+    expect(tasks.getState().completed).toBeUndefined()
+    expect(tasks.getState()).toBe(tasks.getState())
+    expect(changes).toBe(1)
+  })
+
+  it('reads the completed tasks only while they are included', async () => {
+    await subscribed()
+    const getCompletedTasks = vi.spyOn(tasks, 'getCompletedTasks').mockResolvedValue([one])
+    expect(getCompletedTasks).not.toHaveBeenCalled()
+
+    const release = tasks.includeCompleted()
+    await flushMicrotasks()
+    expect(tasks.getState().completed).toEqual([one])
+
+    release()
+    await tasks.refresh()
+    expect(getCompletedTasks).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a failed read and clears it once a read lands', async () => {
+    const getOpenTasks = vi.spyOn(tasks, 'getOpenTasks').mockRejectedValue(new Error('no index'))
+    tasks.subscribe(() => {})
+    await flushMicrotasks()
+    expect(tasks.getState()).toMatchObject({ open: undefined, openFailed: true })
+
+    getOpenTasks.mockResolvedValue([one])
+    await tasks.refresh()
+    expect(tasks.getState()).toMatchObject({ open: [one], openFailed: false })
+  })
+
+  it('applies the optimistic patch before the write starts', async () => {
+    await subscribed()
+    const write = Promise.withResolvers<typeof written>()
+    const writeTask = vi.spyOn(tasks, 'writeTask').mockReturnValue(write.promise)
+
+    const completing = tasks.completeTasks([one])
+
+    expect(tasks.getState().open).toEqual([two])
+    expect(tasks.getRecentlyCompleted('/g')).toEqual([{ ...one, checked: true }])
+    expect(writeTask).toHaveBeenCalledWith(one, [{ kind: 'toggle' }])
+    write.resolve(written)
+    await completing
+    expect(tasks.getState().open).toEqual([two])
+  })
+
+  it('restores the rows and rethrows when a single write fails', async () => {
+    await subscribed()
+    vi.spyOn(tasks, 'writeTask').mockRejectedValue(new Error('disk full'))
+
+    const editing = tasks.editTask(one, 'edited')
+    expect(tasks.getState().open?.[0]).toMatchObject({ markdown: 'edited', text: 'edited' })
+
+    await expect(editing).rejects.toThrow('disk full')
+    expect(tasks.getState().open).toEqual([one, two])
+  })
+
+  it('restores the struck row when an edit-and-reopen write fails', async () => {
+    await subscribed([])
+    tasks.markRecentlyCompleted('/g', [one])
+    const struck = { ...one, checked: true }
+    vi.spyOn(tasks, 'writeTask').mockRejectedValue(new Error('disk full'))
+
+    const reopening = tasks.editAndToggleTask(struck, 'edited')
+    expect(tasks.hasRecentlyCompleted('/g', getTaskKey(one))).toBe(false)
+    expect(tasks.getState().open).toEqual([
+      { ...struck, checked: false, markdown: 'edited', text: 'edited' },
+    ])
+
+    await expect(reopening).rejects.toThrow('disk full')
+    expect(tasks.getState().open).toEqual([])
+    expect(tasks.getRecentlyCompleted('/g')).toEqual([struck])
+  })
+
+  it('re-reads instead of restoring when a batch fails', async () => {
+    const { getOpenTasks } = await subscribed()
+    getOpenTasks.mockResolvedValue([one])
+    vi.spyOn(tasks, 'writeTask').mockRejectedValue(new Error('stale index'))
+
+    await expect(tasks.completeTasks([one, two])).rejects.toThrow('stale index')
+    await flushMicrotasks()
+
+    expect(getOpenTasks).toHaveBeenCalledTimes(2)
+    expect(tasks.getState().open).toEqual([one])
+    expect(tasks.getRecentlyCompleted('/g')).toEqual([])
+  })
+
+  it('keeps a checked task struck when its delete fails', async () => {
+    await subscribed([])
+    const struck = { ...one, checked: true }
+    tasks.markRecentlyCompleted('/g', [one])
+    vi.spyOn(tasks, 'writeTask').mockRejectedValue(new Error('disk full'))
+
+    const deleting = tasks.deleteTasks([struck])
+    expect(tasks.getRecentlyCompleted('/g')).toEqual([])
+
+    await expect(deleting).rejects.toThrow('disk full')
+    expect(tasks.getRecentlyCompleted('/g')).toEqual([struck])
+  })
+
+  it('re-keys the rows a write moved and adds the inserted row', async () => {
+    await subscribed()
+    const from = { astPath: [0], markdown: 'one', breadcrumbs: [], checked: false }
+    vi.spyOn(tasks, 'insertTask').mockResolvedValue({
+      created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
+      moved: [{ from, to: { ...from, astPath: [1] } }],
+      updatedAt: 5,
+    })
+
+    const created = await tasks.addTask(one)
+
+    expect(created).toMatchObject({ notePath: 'notes/a.md', astPath: [0], markdown: '' })
+    expect(tasks.getState().open?.map((row) => [row.markdown, row.astPath])).toEqual([
+      ['one', [1]],
+      ['two', [0]],
+      ['', [0]],
+    ])
+  })
+
+  it('drops a read in flight that an optimistic write overtook', async () => {
+    const { getOpenTasks } = await subscribed()
+    const read = Promise.withResolvers<OpenTask[]>()
+    getOpenTasks.mockReturnValue(read.promise)
+    vi.spyOn(tasks, 'writeTask').mockResolvedValue(written)
+
+    const refreshing = tasks.refresh()
+    await tasks.editTask(one, 'edited')
+    read.resolve([one, two])
+    await refreshing
+
+    expect(tasks.getState().open?.[0]).toMatchObject({ markdown: 'edited' })
+  })
+
+  it('re-reads on index changes while subscribed, at most once per throttle window', async () => {
+    const { getOpenTasks, unsubscribe } = await subscribed()
+
+    emitApplied()
+    emitApplied()
+    emitApplied()
+    await flushMicrotasks()
+    expect(getOpenTasks).toHaveBeenCalledTimes(2)
+
+    await clock.advance(3_000)
+    expect(getOpenTasks).toHaveBeenCalledTimes(3)
+
+    // Unsubscribed, a change only marks the rows stale for the next subscriber.
+    unsubscribe()
+    await clock.advance(3_000)
+    emitApplied()
+    await flushMicrotasks()
+    expect(getOpenTasks).toHaveBeenCalledTimes(3)
+    tasks.subscribe(() => {})
+    await flushMicrotasks()
+    expect(getOpenTasks).toHaveBeenCalledTimes(4)
+  })
+
+  it('re-reads after a requested rebuild but not after a sync pass', async () => {
+    const { getOpenTasks } = await subscribed()
+
+    for (const listener of reconciledListeners) {
+      void listener({ generation: 1, source: 'sync' })
+    }
+    await flushMicrotasks()
+    expect(getOpenTasks).toHaveBeenCalledTimes(1)
+
+    for (const listener of reconciledListeners) {
+      void listener({ generation: 1, source: 'rebuild' })
+    }
+    await flushMicrotasks()
+    expect(getOpenTasks).toHaveBeenCalledTimes(2)
+  })
+
+  it('drops the rows on a graph switch and reads the new graph', async () => {
+    let session: GraphSession | null = openGraph
+    const source = sessionSource(() => session)
+    const switching = createTasks(source)
+    const getOpenTasks = vi.spyOn(switching, 'getOpenTasks').mockResolvedValue([one])
+    switching.subscribe(() => {})
+    await flushMicrotasks()
+    expect(switching.getState().open).toEqual([one])
+
+    getOpenTasks.mockResolvedValue([two])
+    session = createGraphSession({ root: '/h', name: 'h', generation: 8, indexGeneration: 1 })
+    source.notify()
+    expect(switching.getState().open).toBeUndefined()
+    await flushMicrotasks()
+    expect(switching.getState().open).toEqual([two])
+
+    session = null
+    source.notify()
+    expect(switching.getState().open).toBeUndefined()
+    await switching.refresh()
+    expect(getOpenTasks).toHaveBeenCalledTimes(2)
   })
 })

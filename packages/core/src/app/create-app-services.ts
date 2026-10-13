@@ -1509,7 +1509,16 @@ export function composeAppServices(
       attachments,
       graphSession,
     }),
-    tasks: create.tasks({ database, noteDocuments, operations, clock, logger, graphSession }),
+    tasks: create.tasks({
+      database,
+      noteDocuments,
+      operations,
+      clock,
+      logger,
+      graphSession,
+      indexLifecycle,
+      window: windowService,
+    }),
     noteActions: create.noteActions({
       noteDocuments,
       noteFile,
