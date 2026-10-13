@@ -1,3 +1,4 @@
+import { createWebCryptoHashService } from '../app/hash-service.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
 import type { HashService } from '../app/hash-service.ts'
@@ -23,7 +24,6 @@ import { createTestClockService } from './clock.ts'
 import { createTestDatabaseService } from './database.ts'
 import { createTestFileChangeService } from './file-change.ts'
 import { createTestNoteFileService } from './graph.ts'
-import { createTestHashService } from './id.ts'
 import { createTestIndexStoreService } from './index-store.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestProgressPort } from './ports.ts'
@@ -227,7 +227,7 @@ export function createTestIndexLifecycleService(
     indexQuery: options?.indexQuery ?? createIndexQueryService({ database }),
     database,
     xArchive: options?.xArchive ?? createTestXArchiveService(),
-    hash: options?.hash ?? createTestHashService(),
+    hash: options?.hash ?? createWebCryptoHashService(),
     clock,
     logger: options?.logger ?? createTestLoggerService(),
     progress: options?.progress ?? createTestProgressPort(),

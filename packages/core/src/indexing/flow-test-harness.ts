@@ -1,19 +1,13 @@
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { expect } from 'vitest'
-import {
-  createIndexReadServices,
-  createNoteServices,
-  type IndexReadServices,
-  type NoteServices,
-} from '../app/create-core-services.ts'
 import { ReflectError } from '../errors.ts'
 import { createNoteFileService } from '../graph/note-file-service.ts'
 import { normalizeWikiTarget, parseNote } from '../markdown/index.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import type { TestDatabaseService } from '../testing/database.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
-import { createTestIdService } from '../testing/id.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
+import { createTestCoreServices } from '../testing/services.ts'
 import { buildIndexedNote, type IndexedNote } from './indexed-note.ts'
 import type { WikiLinkSuggestionResult } from './suggestion-service.ts'
 
@@ -35,9 +29,9 @@ export function project(path: string, source: string, mtime: number): IndexedNot
 /**
  * The index read services and the note services over one test database.
  */
-export type FlowIndex = IndexReadServices & NoteServices
+export type FlowIndex = ReturnType<typeof connectIndex>
 
-export function connectIndex(database: TestDatabaseService): FlowIndex {
+export function connectIndex(database: TestDatabaseService) {
   // The projections exist only in the index. Disk probes see an empty
   // graph, so the writable resolvers exercise their indexed tiers.
   const notOnDisk = (): never => {
@@ -51,20 +45,11 @@ export function connectIndex(database: TestDatabaseService): FlowIndex {
     clock: createTestClockService(),
     fileChanges: createTestFileChangeService(),
   })
-  const indexReads = createIndexReadServices({
+  return createTestCoreServices({
     database,
     noteFile,
     graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
   })
-  return {
-    ...indexReads,
-    ...createNoteServices({
-      noteFile,
-      wikiResolver: indexReads.wikiResolver,
-      id: createTestIdService(),
-      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
-    }),
-  }
 }
 
 export function disconnectIndex(database: TestDatabaseService): void {

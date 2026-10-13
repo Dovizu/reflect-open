@@ -1,4 +1,4 @@
-import type { GraphRole, GraphSession, GraphSessionSource } from './graph-session.ts'
+import type { GraphRole, GraphSession } from './graph-session.ts'
 import type { Unlisten } from '../unlisten.ts'
 import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
 import {
@@ -532,63 +532,6 @@ export interface MobileServices {
 }
 
 /**
- * The read-only services over the index.
- */
-export interface IndexReadServices {
-  readonly indexQuery: IndexQueryService
-  readonly wikiResolver: WikiResolverService
-  readonly backlinks: BacklinkService
-  readonly search: SearchService
-  readonly suggestions: SuggestionService
-  readonly noteList: NoteListService
-  readonly graphStats: GraphStatsService
-  readonly notePath: NotePathService
-}
-
-export function createIndexReadServices(deps: {
-  database: DatabaseService
-  noteFile: NoteFileService
-  graphSession: GraphSessionSource
-}): IndexReadServices {
-  const { database, noteFile, graphSession } = deps
-  const wikiResolver = createWikiResolverService({ database })
-  return {
-    indexQuery: createIndexQueryService({ database }),
-    wikiResolver,
-    backlinks: createBacklinkService({ database, noteFile, graphSession }),
-    search: createSearchService({ database, wikiResolver }),
-    suggestions: createSuggestionService({ database }),
-    noteList: createNoteListService({ database }),
-    graphStats: createGraphStatsService({ database }),
-    notePath: createNotePathService({ database, noteFile }),
-  }
-}
-
-/**
- * The link resolution, note creation and privacy services.
- */
-export interface NoteServices {
-  readonly noteLinkResolver: NoteLinkResolverService
-  readonly noteCreation: NoteCreationService
-  readonly privacy: PrivacyService
-}
-
-export function createNoteServices(deps: {
-  noteFile: NoteFileService
-  wikiResolver: WikiResolverService
-  id: IdService
-  graphSession: GraphSessionSource
-}): NoteServices {
-  const { noteFile, wikiResolver, id, graphSession } = deps
-  const noteLinkResolver = createNoteLinkResolverService({ wikiResolver, noteFile })
-  return {
-    noteLinkResolver,
-    noteCreation: createNoteCreationService({ noteFile, noteLinkResolver, id }),
-    privacy: createPrivacyService({ noteFile, graphSession }),
-  }
-}
-
-/**
  * The host primitives that {@link createCoreServices} builds the services on.
  */
 export interface CoreAdapters {
@@ -658,18 +601,6 @@ export interface CoreAdapters {
 }
 
 /**
- * Builds the mobile services on a mobile platform only.
- */
-function createMobileServices(deps: {
-  platform: PlatformFacts
-  build: () => MobileServices
-}): MobileServices | null {
-  return isMobilePlatform(deps.platform.appPlatform) || deps.platform.surface.mobileApp
-    ? deps.build()
-    : null
-}
-
-/**
  * The factory of every service {@link createCoreServices} builds, by key.
  */
 export const coreServiceFactories = {
@@ -692,14 +623,23 @@ export const coreServiceFactories = {
   noteFile: createNoteFileService,
   assetStore: createAssetStoreService,
   openDocuments: createOpenDocumentsService,
-  indexReads: createIndexReadServices,
+  indexQuery: createIndexQueryService,
+  wikiResolver: createWikiResolverService,
+  backlinks: createBacklinkService,
+  search: createSearchService,
+  suggestions: createSuggestionService,
+  noteList: createNoteListService,
+  graphStats: createGraphStatsService,
+  notePath: createNotePathService,
   indexStore: createIndexStoreService,
   xArchive: createXArchiveService,
   aiCredentials: createAiCredentialService,
   aiKeyValidation: createAiKeyValidationService,
   languageModel: createLanguageModelService,
   aiProviderConfig: createAiProviderConfigService,
-  noteServices: createNoteServices,
+  noteLinkResolver: createNoteLinkResolverService,
+  noteCreation: createNoteCreationService,
+  privacy: createPrivacyService,
   calendar: createCalendarService,
   contacts: createContactsService,
   personNotes: createPersonNoteService,
@@ -732,7 +672,6 @@ export const coreServiceFactories = {
   transcription: createTranscriptionService,
   transcriptEnrichment: createTranscriptEnrichmentService,
   audioMemo: createAudioMemoService,
-  mobile: createMobileServices,
   chatHistory: createChatHistoryService,
   dailyNotes: createDailyNoteService,
   noteTools: createNoteToolsService,
@@ -913,6 +852,12 @@ export function createCoreServices(
 export function composeCoreServices(
   adapters: CoreAdapters,
   factories?: Partial<ServiceFactories>,
+  options?: {
+    /**
+     * Builds the mobile services on every platform, so a test can reach them.
+     */
+    readonly alwaysBuildMobile?: boolean
+  },
 ): { services: CoreServices; internal: CoreInternalServices } {
   const create: ServiceFactories = { ...coreServiceFactories, ...factories }
   const { logger, clock, ipc, activity } = adapters
@@ -985,12 +930,16 @@ export function composeCoreServices(
   const noteFile = create.noteFile({ ipc, clock, fileChanges })
   const assetStore = create.assetStore({ ipc, clock, fileChanges })
   const openDocuments = create.openDocuments({ fileChanges })
-  const indexReads = create.indexReads({
-    database,
-    noteFile,
-    // Read at call time: the graph session is built later.
-    graphSession: { getState: () => graphSession.getState() },
-  })
+  // Read at call time: the graph session is built later.
+  const lateGraphSession = { getState: () => graphSession.getState() }
+  const indexQuery = create.indexQuery({ database })
+  const wikiResolver = create.wikiResolver({ database })
+  const backlinks = create.backlinks({ database, noteFile, graphSession: lateGraphSession })
+  const search = create.search({ database, wikiResolver })
+  const suggestions = create.suggestions({ database })
+  const noteList = create.noteList({ database })
+  const graphStats = create.graphStats({ database })
+  const notePath = create.notePath({ database, noteFile })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = create.indexStore({ ipc, database })
   const xArchive = create.xArchive({ ipc })
@@ -1003,19 +952,15 @@ export function composeCoreServices(
     keyValidation: aiKeyValidation,
     id,
   })
-  const noteServices = create.noteServices({
-    noteFile,
-    wikiResolver: indexReads.wikiResolver,
-    id,
-    // Read at call time: the graph session is built later.
-    graphSession: { getState: () => graphSession.getState() },
-  })
+  const noteLinkResolver = create.noteLinkResolver({ wikiResolver, noteFile })
+  const noteCreation = create.noteCreation({ noteFile, noteLinkResolver, id })
+  const privacy = create.privacy({ noteFile, graphSession: lateGraphSession })
   const calendar = create.calendar({ ipc, logger })
   const contacts = create.contacts({ ipc, logger })
   const personNotes = create.personNotes({
     database,
-    wikiResolver: indexReads.wikiResolver,
-    noteCreation: noteServices.noteCreation,
+    wikiResolver,
+    noteCreation,
   })
   const path = create.path({ transport: adapters.path })
   const mobileStorage = create.mobileStorage({ ipc })
@@ -1037,14 +982,14 @@ export function composeCoreServices(
   })
   const assetDescriber = create.assetDescriber({ languageModel })
   const backlinkTarget = create.backlinkTarget({
-    noteCreation: noteServices.noteCreation,
+    noteCreation,
     noteFile,
   })
   const indexLifecycle = create.indexLifecycle({
     indexStore,
     noteFile,
     fileChanges,
-    indexQuery: indexReads.indexQuery,
+    indexQuery,
     database,
     xArchive,
     hash,
@@ -1110,7 +1055,7 @@ export function composeCoreServices(
   const embeddingRuntime = create.embeddingRuntime({ ipc, logger })
   const retrieval = create.retrieval({
     database,
-    search: indexReads.search,
+    search,
     embeddingRuntime,
     logger,
   })
@@ -1145,21 +1090,23 @@ export function composeCoreServices(
     graphSession,
     logger,
   })
-  const mobileServices = create.mobile({
-    platform: adapters.platform,
-    build: buildMobileServices,
-  })
+  const mobile =
+    options?.alwaysBuildMobile === true ||
+    isMobilePlatform(platform.appPlatform) ||
+    platform.surface.mobileApp
+      ? buildMobileServices()
+      : null
   const chatHistory = create.chatHistory({ ipc, database, logger })
   const dailyNotes = create.dailyNotes({ database, clock, activity })
   const noteTools = create.noteTools({
     retrieval,
     noteFile,
-    noteList: indexReads.noteList,
+    noteList,
     dailyNotes,
     assetReferences: createAssetReferences({ database, xArchive }),
     assetPrivacy,
     xArchive,
-    privacy: noteServices.privacy,
+    privacy,
   })
   const chatEngine = create.chatEngine({
     logger,
@@ -1168,8 +1115,8 @@ export function composeCoreServices(
     fitToContextWindow,
   })
   const chatGraphContext = create.chatGraphContext({
-    graphStats: indexReads.graphStats,
-    privacy: noteServices.privacy,
+    graphStats,
+    privacy,
   })
   const imageCodec = adapters.imageCodec ?? createUnavailableImageCodec()
   const backupDeps: BackupServiceDeps = {
@@ -1217,9 +1164,9 @@ export function composeCoreServices(
     }),
     meetings: create.meetings({
       noteFile,
-      noteCreation: noteServices.noteCreation,
-      wikiResolver: indexReads.wikiResolver,
-      suggestions: indexReads.suggestions,
+      noteCreation,
+      wikiResolver,
+      suggestions,
       personNotes,
       contacts,
       settings,
@@ -1235,22 +1182,22 @@ export function composeCoreServices(
     chatHistory,
     deepLinkIntake: create.deepLinkIntake({
       source: adapters.deepLink ?? createNoDeepLinkSource(),
-      indexQuery: indexReads.indexQuery,
+      indexQuery,
       captureInbox,
       progress,
       id,
       clock,
       graphSession,
     }),
-    wikiResolver: indexReads.wikiResolver,
-    noteLinkResolver: noteServices.noteLinkResolver,
+    wikiResolver,
+    noteLinkResolver,
     githubAuth,
     gistPublish: create.gistPublish({
       gists,
       githubAuth,
       noteDocuments,
       noteRows,
-      privacy: noteServices.privacy,
+      privacy,
       progress,
       graphSession,
     }),
@@ -1272,7 +1219,7 @@ export function composeCoreServices(
     }),
     linkPreview: create.linkPreview({
       noteDocuments,
-      privacy: noteServices.privacy,
+      privacy,
       webFetch,
       parseMetadata: parseLinkPreviewMeta,
       graphSession,
@@ -1285,9 +1232,9 @@ export function composeCoreServices(
     noteMove,
     titleRename: create.titleRename({
       noteFile,
-      wikiResolver: indexReads.wikiResolver,
-      backlinks: indexReads.backlinks,
-      notePath: indexReads.notePath,
+      wikiResolver,
+      backlinks,
+      notePath,
       noteMove,
       openDocuments,
       progress,
@@ -1297,7 +1244,7 @@ export function composeCoreServices(
     }),
     noteDocuments,
     notePreview: create.notePreview({
-      noteLinkResolver: noteServices.noteLinkResolver,
+      noteLinkResolver,
       noteDocuments,
       attachments,
       graphSession,
@@ -1318,7 +1265,7 @@ export function composeCoreServices(
       noteFile,
       openDocuments,
       indexLifecycle,
-      indexQuery: indexReads.indexQuery,
+      indexQuery,
       noteRows,
       progress,
       path,
@@ -1329,19 +1276,19 @@ export function composeCoreServices(
     dailyNotes,
     templates: create.templates({
       noteFile,
-      indexQuery: indexReads.indexQuery,
-      notePath: indexReads.notePath,
+      indexQuery,
+      notePath,
       noteMove,
       openDocuments,
       progress,
       graphSession,
     }),
-    indexQuery: indexReads.indexQuery,
-    backlinks: indexReads.backlinks,
-    search: indexReads.search,
-    noteList: indexReads.noteList,
-    notePath: indexReads.notePath,
-    noteCreation: noteServices.noteCreation,
+    indexQuery,
+    backlinks,
+    search,
+    noteList,
+    notePath,
+    noteCreation,
     indexLifecycle,
     graphSession,
     semanticSearch: create.semanticSearch({
@@ -1362,7 +1309,7 @@ export function composeCoreServices(
       languageModel,
       providerConfig: aiProviderConfig,
       credentials: aiCredentials,
-      privacy: noteServices.privacy,
+      privacy,
     }),
     chatSessions: create.chatSessions({
       chatEngine,
@@ -1388,7 +1335,7 @@ export function composeCoreServices(
       pageDescriber,
       aiProviderConfig,
       aiCredentials,
-      privacy: noteServices.privacy,
+      privacy,
       hash,
       clock,
       reconcilers,
@@ -1415,9 +1362,9 @@ export function composeCoreServices(
       logger,
     }),
     personNotes,
-    suggestions: indexReads.suggestions,
+    suggestions,
     retrieval,
-    mobile: mobileServices,
+    mobile,
   }
   const internal: CoreInternalServices = {
     http: adapters.http,
@@ -1434,10 +1381,10 @@ export function composeCoreServices(
     webAuth,
     assetStore,
     noteFile,
-    wikiResolver: indexReads.wikiResolver,
-    suggestions: indexReads.suggestions,
-    graphStats: indexReads.graphStats,
-    privacy: noteServices.privacy,
+    wikiResolver,
+    suggestions,
+    graphStats,
+    privacy,
     embeddingIndex,
     aiCredentials,
     aiKeyValidation,

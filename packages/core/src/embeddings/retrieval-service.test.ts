@@ -1,4 +1,3 @@
-import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { describe, expect, it } from 'vitest'
 import {
   createTestDatabaseService,
@@ -9,7 +8,8 @@ import {
   seedNotes,
   type TestNote,
 } from '../testing/index.ts'
-import { createIndexReadServices } from '../app/create-core-services.ts'
+import { createSearchService } from '../indexing/search-service.ts'
+import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import type { EmbedStatus } from './embedding-runtime-service.ts'
 import { createRetrievalService } from './retrieval-service.ts'
 
@@ -78,11 +78,10 @@ async function setup(options?: { status?: EmbedStatus; embedded?: boolean }) {
   })
   const retrieval = createRetrievalService({
     database,
-    search: createIndexReadServices({
+    search: createSearchService({
       database,
-      noteFile,
-      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
-    }).search,
+      wikiResolver: createWikiResolverService({ database }),
+    }),
     embeddingRuntime: runtime,
     logger,
   })

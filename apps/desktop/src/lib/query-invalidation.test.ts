@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestWindowService, type TestWindowService } from '@reflect/app/testing'
 import {
   createTestCoreServices,
-  createTestAssetDescriptionService,
   createTestCaptureService,
   createTestGraphSessionService,
   createTestIndexLifecycleService,
@@ -35,9 +34,7 @@ function installApp(app: TestCoreServices, window: TestWindowService = createTes
 }
 
 function install(capture: ReturnType<typeof createTestCaptureService>): () => void {
-  return installApp(
-    createTestCoreServices({ capture, assetDescription: createTestAssetDescriptionService() }),
-  ).stop
+  return installApp(createTestCoreServices({ capture })).stop
 }
 
 function cachePost(): void {

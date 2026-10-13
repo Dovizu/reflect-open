@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { createTestGitRepositoryService } from '../testing/sync.ts'
 import { createGitRepositoryService } from './git-repository-service.ts'
 const STATUS = {
   initialized: true,
@@ -54,18 +53,5 @@ describe('createGitRepositoryService', () => {
     const git = createGitRepositoryService({ ipc })
 
     await expect(git.fetch(null, 1)).rejects.toMatchObject({ kind: 'parse' })
-  })
-})
-describe('createTestGitRepositoryService', () => {
-  it('tracks the remote through setup and disconnect', async () => {
-    const git = createTestGitRepositoryService({ initialized: true, branch: 'master' })
-
-    await expect(git.setup('https://example.com/r.git', null, 1)).resolves.toMatchObject({
-      initialized: true,
-      branch: 'master',
-      remoteUrl: 'https://example.com/r.git',
-    })
-    await git.disconnect(1)
-    await expect(git.status(1)).resolves.toMatchObject({ branch: 'master', remoteUrl: null })
   })
 })

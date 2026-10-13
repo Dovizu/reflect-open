@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTestCaptureInboxService, createTestIpcBridgeService } from '../testing/index.ts'
+import { createTestIpcBridgeService } from '../testing/index.ts'
 import { createCaptureInboxService } from './capture-inbox-service.ts'
 describe('createCaptureInboxService', () => {
   it('sends each operation as its command with the graph generation', async () => {
@@ -50,33 +50,5 @@ describe('createCaptureInboxService', () => {
 
     ipc.onCommand('capture_shared_inbox_relay', () => 'two')
     await expect(inbox.relaySharedInbox(3)).rejects.toMatchObject({ kind: 'parse' })
-  })
-})
-describe('createTestCaptureInboxService', () => {
-  it('keeps an in-memory inbox and records changes', async () => {
-    const inbox = createTestCaptureInboxService({
-      envelopes: { 'a.json': { id: 'a' }, 'a.jpg': 'jpeg' },
-      shared: { 'c.json': '{}' },
-    })
-
-    await expect(inbox.read('a.json', 1)).resolves.toBe('{"id":"a"}')
-    await inbox.spool('b.json', '{"id":"b"}', 1)
-    await inbox.promoteScreenshot('a.jpg', 'assets/a.jpg', 1600, 1)
-    await inbox.remove('a.json', 1)
-    await inbox.reject('a.jpg', 1)
-    await expect(inbox.relaySharedInbox(1)).resolves.toBe(1)
-    await expect(inbox.relaySharedInbox(1)).resolves.toBe(0)
-
-    expect((await inbox.list(1)).map((entry) => entry.path)).toEqual([
-      '.reflect/inbox/b.json',
-      '.reflect/inbox/c.json',
-    ])
-    expect(inbox.spooled()).toEqual([{ name: 'b.json', json: '{"id":"b"}', generation: 1 }])
-    expect(inbox.removed()).toEqual(['a.json'])
-    expect(inbox.rejected()).toEqual(['a.jpg'])
-    expect(inbox.promoted()).toEqual([
-      { spoolName: 'a.jpg', assetPath: 'assets/a.jpg', maxDim: 1600, generation: 1 },
-    ])
-    await expect(inbox.read('a.json', 1)).rejects.toMatchObject({ kind: 'notFound' })
   })
 })

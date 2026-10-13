@@ -3,6 +3,7 @@ import { createGraphSession, type GraphRole, type GraphServicesDeps } from '@ref
 import {
   createTestCoreServices,
   createTestPlatformService,
+  trackAssetDescriptionSessions,
   type TestCoreServices,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
@@ -50,6 +51,7 @@ function graphDeps(core: TestCoreServices): GraphServicesDeps {
 
 function setup(options?: { role?: GraphRole; root?: string; platform?: TestPlatformOptions }) {
   const core = createTestCoreServices()
+  const sessions = trackAssetDescriptionSessions(core.assetDescription)
   const platform = createTestPlatformService(options?.platform)
   const mobileOnboarding = createTestMobileOnboardingService()
   const controller = new AbortController()
@@ -70,7 +72,7 @@ function setup(options?: { role?: GraphRole; root?: string; platform?: TestPlatf
   })
   const downloads = () =>
     core.icloudNative.calls().filter((call) => call.method === 'downloadPending').length
-  return { core, controller, session, graph, mobileOnboarding, downloads }
+  return { core, controller, session, graph, mobileOnboarding, downloads, sessions }
 }
 
 describe('createAppGraphServices', () => {
@@ -79,20 +81,20 @@ describe('createAppGraphServices', () => {
     expect(context.graph).toMatchObject({ session: context.session, role: 'main' })
     expect(context.graph.backup).not.toBeNull()
     expect(context.core.capture.sessions()).toHaveLength(1)
-    expect(context.core.assetDescription.sessions()).toHaveLength(1)
+    expect(context.sessions()).toHaveLength(1)
   })
 
   it('runs only the chat session and the catalog watch in a note window', () => {
     const context = setup({ role: 'note-window', root: ICLOUD_ROOT })
     expect(context.graph.backup).toBeNull()
     expect(context.core.capture.sessions()).toEqual([])
-    expect(context.core.assetDescription.sessions()).toEqual([])
+    expect(context.sessions()).toEqual([])
     expect(context.core.attachments.watchers()).toBe(1)
   })
 
   it('opens and disposes the asset description session as `describeAssets` flips', () => {
     const context = setup()
-    const sessions = () => context.core.assetDescription.sessions()
+    const { sessions } = context
     expect(sessions().map((session) => session.disposed)).toEqual([false])
 
     context.core.settings.update({ describeAssets: false })
@@ -110,7 +112,7 @@ describe('createAppGraphServices', () => {
 
   it('describes no assets on mobile', () => {
     const context = setup({ platform: { appPlatform: 'ios' } })
-    expect(context.core.assetDescription.sessions()).toEqual([])
+    expect(context.sessions()).toEqual([])
   })
 
   it('refreshes downloads while the mobile graph is stored in iCloud', () => {
@@ -130,6 +132,7 @@ describe('createAppGraphServices', () => {
     const context = setup()
     context.controller.abort()
     const core = createTestCoreServices()
+    const sessions = trackAssetDescriptionSessions(core.assetDescription)
     const ended = new AbortController()
     ended.abort()
     createAppGraphServices(
@@ -144,7 +147,7 @@ describe('createAppGraphServices', () => {
         mobileOnboarding: context.mobileOnboarding,
       },
     )
-    expect(core.assetDescription.sessions().every((session) => session.disposed)).toBe(true)
+    expect(sessions().every((session) => session.disposed)).toBe(true)
     expect(core.attachments.watchers()).toBe(0)
   })
 })

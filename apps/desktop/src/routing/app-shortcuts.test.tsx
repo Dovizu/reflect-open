@@ -5,7 +5,7 @@ import {
   type NoteDocumentService,
 } from '@reflect/core'
 import type { AppServices, LinkNavigationService, NativeMenuService } from '@reflect/app'
-import { createTestAppServices, createTestThemeService } from '@reflect/app/testing'
+import { createTestAppServices } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestPlatformService,
@@ -97,7 +97,7 @@ async function shortcutsHook() {
     },
   })
   app = services
-  appLayer = createTestAppServices(services, { theme: createTestThemeService('light') })
+  appLayer = createTestAppServices(services)
   openRecent = vi.spyOn(services.graphSession, 'openRecent').mockResolvedValue(true)
   openRouteInNewWindow = vi
     .spyOn(appLayer.linkNavigation, 'openRouteInNewWindow')

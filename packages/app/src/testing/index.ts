@@ -24,13 +24,6 @@ export {
   type TestLifecycleServiceOptions,
 } from './lifecycle.ts'
 export {
-  createTestExceptionTelemetry,
-  type ExceptionReport,
-  type ExceptionReportSource,
-  type TestExceptionTelemetryService,
-} from './exception-telemetry.ts'
-export { createTestThemeService, type TestThemeService } from './theme.ts'
-export {
   createTestUpdateService,
   createTestUpdaterAdapter,
   type TestUpdateCall,

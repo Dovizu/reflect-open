@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ICloudDownloadServiceOptions } from '../sync/icloud-download-service.ts'
 import type { ICloudSyncServiceOptions } from '../sync/icloud-sync-service.ts'
+import { trackAssetDescriptionSessions } from '../testing/assets.ts'
 import { createTestCoreServices, type TestCoreServices } from '../testing/services.ts'
 import {
   createTestBackupService,
@@ -89,6 +90,7 @@ function sessionDeps(
  */
 function setup(options?: SetupOptions) {
   const app = createTestCoreServices()
+  const assetSessions = trackAssetDescriptionSessions(app.assetDescription)
   const controller = new AbortController()
   const session = createGraphSession(
     {
@@ -157,6 +159,7 @@ function setup(options?: SetupOptions) {
   )
   return {
     app,
+    assetSessions,
     controller,
     session,
     deps,
@@ -188,7 +191,7 @@ describe('createGraphServices', () => {
     expect(context.app.capture.sessions()).toEqual([
       { generation: 3, starts: 1, schedules: 0, disposed: false },
     ])
-    expect(context.app.assetDescription.sessions()).toEqual([
+    expect(context.assetSessions()).toEqual([
       { generation: 3, indexGeneration: 5, starts: 1, schedules: 0, disposed: false },
     ])
     expect(context.icloudSyncs).toEqual([])
@@ -224,7 +227,7 @@ describe('createGraphServices', () => {
     expect(context.chats).toEqual([{ attached: 1, detached: 0 }])
     expect(context.app.attachments.watchers()).toBe(1)
     expect(context.app.capture.sessions()).toEqual([])
-    expect(context.app.assetDescription.sessions()).toEqual([])
+    expect(context.assetSessions()).toEqual([])
     expect(context.icloudSyncs).toEqual([])
     expect(context.downloads).toEqual([])
   })
@@ -240,7 +243,7 @@ describe('createGraphServices', () => {
     expect(context.chats).toEqual([{ attached: 1, detached: 1 }])
     expect(context.app.attachments.watchers()).toBe(0)
     expect(context.app.capture.sessions()[0]?.disposed).toBe(true)
-    expect(context.app.assetDescription.sessions()[0]?.disposed).toBe(true)
+    expect(context.assetSessions()[0]?.disposed).toBe(true)
     expect(context.icloudSyncs[0]?.service.calls()).toEqual(['start', 'dispose'])
     expect(context.downloads[0]?.calls).toEqual(['start', 'dispose'])
   })
@@ -305,13 +308,9 @@ describe('openGraphLifecycle', () => {
       'assetDescription',
       context.factories,
     )
-    expect(context.app.assetDescription.sessions().map((session) => session.disposed)).toEqual([
-      false,
-    ])
+    expect(context.assetSessions().map((session) => session.disposed)).toEqual([false])
     close()
-    expect(context.app.assetDescription.sessions().map((session) => session.disposed)).toEqual([
-      true,
-    ])
+    expect(context.assetSessions().map((session) => session.disposed)).toEqual([true])
 
     const stop = openGraphLifecycle(
       context.session,

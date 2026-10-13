@@ -122,17 +122,3 @@ describe('getJson and setJson', () => {
     expect(storage.local.get('key')).toBeNull()
   })
 })
-describe('createTestStorageService', () => {
-  it('seeds, dumps, and notifies per key without touching globals', () => {
-    const storage = createTestStorageService({ local: { a: '1' }, session: { b: '2' } })
-    const listener = vi.fn()
-    storage.session.subscribe('b', listener)
-
-    storage.local.set('a', null)
-    storage.session.set('b', '3')
-    storage.session.set('b', '3')
-
-    expect(storage.dump()).toEqual({ local: {}, session: { b: '3' } })
-    expect(listener).toHaveBeenCalledOnce()
-  })
-})

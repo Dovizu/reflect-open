@@ -19,10 +19,6 @@ export interface TestDeepLinkSource extends DeepLinkSource {
    */
   deliver(urls: string[]): void
   /**
-   * Set the URLs the app was launched with.
-   */
-  setCurrent(urls: string[] | null): void
-  /**
    * How many subscriptions are live.
    */
   subscriptionCount(): number
@@ -30,7 +26,7 @@ export interface TestDeepLinkSource extends DeepLinkSource {
 
 class TestDeepLinkSourceImpl implements TestDeepLinkSource {
   readonly #listeners = new Set<(urls: string[]) => void>()
-  #current: string[] | null
+  readonly #current: string[] | null
 
   constructor(options?: { current?: string[] | null }) {
     this.#current = options?.current ?? null
@@ -52,10 +48,6 @@ class TestDeepLinkSourceImpl implements TestDeepLinkSource {
     for (const listener of this.#listeners) {
       listener(urls)
     }
-  }
-
-  setCurrent(urls: string[] | null): void {
-    this.#current = urls
   }
 
   subscriptionCount(): number {

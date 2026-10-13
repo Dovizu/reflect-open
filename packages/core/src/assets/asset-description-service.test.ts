@@ -1,3 +1,4 @@
+import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { describe, expect, it, vi } from 'vitest'
 import { AssetDescriptionRejectedError } from '../ai/asset-describer-service.ts'
 import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
@@ -14,7 +15,6 @@ import {
   createTestAssetStoreService,
   createTestClockService,
   createTestGraphSessionService,
-  createTestHashService,
   createTestActivityPort,
   createTestLoggerService,
   createTestNoteFileService,
@@ -47,7 +47,7 @@ const GENERATION = 7
 const INDEX_GENERATION = 11
 const NOW = Date.parse('2026-06-16T00:00:00.000Z')
 
-const realHashService = createTestHashService()
+const realHashService = createWebCryptoHashService()
 let hashing = 0
 
 /**

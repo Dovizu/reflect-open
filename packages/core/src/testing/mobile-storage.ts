@@ -9,7 +9,6 @@ export interface TestMobileStorageServiceOptions {
 }
 
 export interface TestMobileStorageService extends MobileStorageService {
-  setStorage(storage: MobileStorageInfo): void
   /**
    * The path of every `createGraph`, in order.
    */
@@ -21,7 +20,7 @@ function baseName(path: string): string {
 }
 
 class TestMobileStorageServiceImpl implements TestMobileStorageService {
-  #storage: MobileStorageInfo
+  readonly #storage: MobileStorageInfo
   readonly #created: string[] = []
 
   constructor(options?: TestMobileStorageServiceOptions) {
@@ -43,10 +42,6 @@ class TestMobileStorageServiceImpl implements TestMobileStorageService {
   async createGraph(path: string): Promise<GraphInfo> {
     this.#created.push(path)
     return { root: path, name: baseName(path), generation: 1 }
-  }
-
-  setStorage(next: MobileStorageInfo): void {
-    this.#storage = next
   }
 
   createdGraphs(): readonly string[] {

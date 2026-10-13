@@ -1,10 +1,10 @@
+import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
-import { createTestHashService } from '../testing/id.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import type { FileChange } from './file-change-service.ts'
@@ -65,7 +65,7 @@ function setup(options?: {
     indexQuery: createIndexQueryService({ database }),
     database,
     xArchive: createTestXArchiveService(),
-    hash: createTestHashService(),
+    hash: createWebCryptoHashService(),
     clock: createTestClockService({ now: 1_750_000_000_000 }),
     logger,
   })

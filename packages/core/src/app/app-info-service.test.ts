@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTestAppInfoService, createTestIpcBridgeService } from '../testing/index.ts'
+import { createTestIpcBridgeService } from '../testing/index.ts'
 import { createAppInfoService, marketingVersion } from './app-info-service.ts'
 describe('createAppInfoService', () => {
   it('reads the version through `app_version`', async () => {
@@ -16,16 +16,6 @@ describe('createAppInfoService', () => {
     })
   })
 })
-describe('createTestAppInfoService', () => {
-  it('reports a test version by default', async () => {
-    await expect(createTestAppInfoService().version()).resolves.toBe('0.0.0-test')
-  })
-
-  it('reports the given version', async () => {
-    await expect(createTestAppInfoService('1.0.0').version()).resolves.toBe('1.0.0')
-  })
-})
-
 describe('marketingVersion', () => {
   it('strips the prerelease tag', () => {
     expect(marketingVersion('0.6.0-beta.6')).toBe('0.6.0')
