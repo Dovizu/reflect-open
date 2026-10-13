@@ -1,11 +1,13 @@
 import { userEvent, type Locator } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
+import {
+  createTestAppServices,
+  makeOpenTask as task,
+  type TestAppServices,
+} from '@reflect/core/testing'
 import type { OpenTask, TaskAction, TaskService, TaskWriteResult } from '@reflect/core'
 import { useEffect, useState, type MutableRefObject, type ReactNode } from 'react'
 import { act } from '@/test-utils/act.ts'
-import { queryKeys } from '@/lib/query-client.ts'
-import { makeOpenTask as task } from '@/lib/tasks/open-task-fixture.ts'
 import { useRouter } from '@/routing/router.tsx'
 import { fireEvent } from '@/test-utils/fire-event.ts'
 import { MOD_KEY } from '@/test-utils/mod-key.ts'
@@ -44,7 +46,9 @@ let writeTask: MockInstance<TaskService['writeTask']>
 let insertTask: MockInstance<TaskService['insertTask']>
 let continueTaskInContext: MockInstance<TaskService['continueTaskInContext']>
 
-/** The result of a write that changed nothing the cache needs to re-address. */
+/**
+ * The result of a write that changed nothing the cache needs to re-address.
+ */
 const WRITTEN: TaskWriteResult = { source: '', moved: [], inserted: [], tasks: [], updatedAt: 0 }
 
 type TaskActionKind = TaskAction['kind']
@@ -53,12 +57,16 @@ function isWrite(actions: readonly TaskAction[], kinds: readonly TaskActionKind[
   return actions.length === kinds.length && actions.every((action, i) => action.kind === kinds[i])
 }
 
-/** The `writeTask` calls whose actions are exactly `kinds`, e.g. `('setMarkdown', 'toggle')`. */
+/**
+ * The `writeTask` calls whose actions are exactly `kinds`, e.g. `('setMarkdown', 'toggle')`.
+ */
 function writesOf(...kinds: TaskActionKind[]): unknown[][] {
   return writeTask.mock.calls.filter((call) => isWrite(call[1], kinds))
 }
 
-/** Reject the writes whose actions are exactly `kinds`; every other write succeeds. */
+/**
+ * Reject the writes whose actions are exactly `kinds`; every other write succeeds.
+ */
 function failWrites(kinds: TaskActionKind[], cause: Error): void {
   writeTask.mockImplementation((_task, actions) =>
     isWrite(actions, kinds) ? Promise.reject(cause) : Promise.resolve(WRITTEN),
@@ -1509,7 +1517,6 @@ describe('TasksScreen', () => {
       }),
     ])
     const view = await renderScreen()
-    const client = view.queryClient
 
     await userEvent.click(await view.findByRole('button', { name: 'Complete: project task' }))
     await view.findByRole('button', { name: 'Reopen: project task' })
@@ -1528,7 +1535,7 @@ describe('TasksScreen', () => {
         updatedAt: 200,
       }),
     ])
-    await client.invalidateQueries({ queryKey: queryKeys.index.all })
+    await app.tasks.refresh()
 
     await view.findByRole('button', { name: 'Complete: project task' })
     expect(view.queryByRole('button', { name: 'Reopen: project task' })).toBeNull()
@@ -1546,7 +1553,6 @@ describe('TasksScreen', () => {
     })
     getOpenTasks.mockResolvedValue([staleRow])
     const view = await renderScreen()
-    const client = view.queryClient
 
     await userEvent.click(await view.findByRole('button', { name: 'Complete: project task' }))
     await view.findByRole('button', { name: 'Reopen: project task' })
@@ -1554,7 +1560,7 @@ describe('TasksScreen', () => {
     // An unrelated invalidation refetches before the completion's reindex lands:
     // the index still returns the pre-completion row (same updatedAt). The row
     // must stay struck rather than flicker back to open.
-    await client.invalidateQueries({ queryKey: queryKeys.index.all })
+    await app.tasks.refresh()
 
     await view.findByRole('button', { name: 'Reopen: project task' })
     expect(view.queryByRole('button', { name: 'Complete: project task' })).toBeNull()

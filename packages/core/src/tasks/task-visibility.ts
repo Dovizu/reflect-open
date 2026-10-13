@@ -37,13 +37,13 @@ export function visibleGroups(groups: TaskGroup[], filters: TaskFilters): TaskGr
 
 export interface TaskListSources {
   /**
-   * The open-tasks query data (`undefined` while loading).
+   * The open tasks (`undefined` while loading).
    */
-  readonly open: OpenTask[] | undefined
+  readonly open: readonly OpenTask[] | undefined
   /**
-   * The completed-tasks query data — only read when `filters.archived` is on.
+   * The completed tasks, only read when `filters.archived` is on.
    */
-  readonly completed: OpenTask[] | undefined
+  readonly completed: readonly OpenTask[] | undefined
   /**
    * This session's completed tasks, still showing struck until archived.
    */

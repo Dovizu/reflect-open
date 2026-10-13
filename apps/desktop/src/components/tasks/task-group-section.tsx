@@ -1,9 +1,13 @@
 import { Fragment, type MutableRefObject, type ReactElement } from 'react'
 import { Plus } from 'lucide-react'
-import { groupTaskContexts, type OpenTask, type TaskGroup } from '@reflect/core'
+import {
+  getTaskKey,
+  groupTaskContexts,
+  type InsertTaskTarget,
+  type OpenTask,
+  type TaskGroup,
+} from '@reflect/core'
 import { addTargetForGroup, taskGroupHeaderStyle } from '@/lib/tasks/task-group-presentation.tsx'
-import type { InsertTaskTarget } from '@/lib/tasks/task-insert-target.ts'
-import { getTaskKey } from '@/lib/tasks/task-identity.ts'
 import type { TaskSelection } from '@/lib/tasks/use-task-selection.ts'
 import type { TaskRowEditHandlers } from '@/lib/tasks/use-task-row-handlers.ts'
 import { cn } from '@/lib/utils.ts'
@@ -14,18 +18,30 @@ import { TaskRow } from './task-row.tsx'
 interface TaskGroupSectionProps {
   group: TaskGroup
   selection: TaskSelection
-  /** The inline-editor callbacks for a row, built once by the screen. */
+  /**
+   * The inline-editor callbacks for a row, built once by the screen.
+   */
   editHandlers: (task: OpenTask) => TaskRowEditHandlers
-  /** Whether a Tasks-view write is already in flight. */
+  /**
+   * Whether a Tasks-view write is already in flight.
+   */
   taskActionPending: boolean
-  /** Complete/reopen the selected rows using the clicked task's next checkbox state. */
+  /**
+   * Complete/reopen the selected rows using the clicked task's next checkbox state.
+   */
   onCheckboxToggle: (task: OpenTask) => void
   onSelectionCheckboxToggle: (task: OpenTask) => void
-  /** Today's ISO date — the Current group's "+ Add" targets today's daily. */
+  /**
+   * Today's ISO date — the Current group's "+ Add" targets today's daily.
+   */
   today: string
-  /** Add a task to this group and open its editor (the header's "+ Add", V1). */
+  /**
+   * Add a task to this group and open its editor (the header's "+ Add", V1).
+   */
   onAdd: (target: InsertTaskTarget) => void
-  /** Holds the editing row's flush-then-convert trigger for the toolbar button. */
+  /**
+   * Holds the editing row's flush-then-convert trigger for the toolbar button.
+   */
   convertControllerRef: MutableRefObject<(() => void) | null>
   onOpen: (notePath: string, event?: ModClickEvent) => void
 }
