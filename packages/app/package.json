@@ -14,7 +14,8 @@
   "dependencies": {
     "@ocavue/utils": "^1.8.0",
     "@reflect/core": "workspace:*",
-    "@reflect/utils": "workspace:*"
+    "@reflect/utils": "workspace:*",
+    "date-fns": "^4.4.0"
   },
   "devDependencies": {
     "@ocavue/tsconfig": "^0.7.1",

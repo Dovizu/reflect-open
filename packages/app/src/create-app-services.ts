@@ -16,6 +16,10 @@ import {
   createAutocompleteSuggestionService,
   type AutocompleteSuggestionService,
 } from './search/autocomplete-suggestion-service.ts'
+import {
+  createCalendarEventsService,
+  type CalendarEventsService,
+} from './calendar/calendar-events-service.ts'
 
 /**
  * What the host supplies to the app layer: the window, lifecycle, storage,
@@ -64,6 +68,10 @@ export interface AppServices {
    * The editor's `[[` and `#` menus.
    */
   readonly autocompleteSuggestions: AutocompleteSuggestionService
+  /**
+   * The calendar events behind the daily note's events panel, fetched live.
+   */
+  readonly calendarEvents: CalendarEventsService
 }
 
 /**
@@ -97,6 +105,13 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       operations: core.operations,
       logger: core.logger,
       graphSession: core.graphSession,
+    }),
+    calendarEvents: createCalendarEventsService({
+      calendar: core.calendar,
+      settings: core.settings,
+      platform: core.platform,
+      lifecycle: core.lifecycle,
+      logger: core.logger,
     }),
   }
 }

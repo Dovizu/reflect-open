@@ -61,5 +61,5 @@ export {
   type CalendarInfo,
   type CalendarEvent,
 } from '../calendar/commands.ts'
-export { displayEvents, defaultAttendees } from '../calendar/events.ts'
+export { dayRange, displayEvents, defaultAttendees } from '../calendar/events.ts'
 export { type MeetingAttendee } from '../contacts/meeting-service.ts'

@@ -99,38 +99,6 @@ export {
   type UpdatedPreset,
 } from '../search/all-notes-filters.ts'
 export { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
-export { dailyArrivalIntent } from '../daily/daily-arrivals.ts'
-export {
-  createDayWindow,
-  dateAtIndex,
-  FUTURE_DAYS,
-  indexOfDate,
-  indexWithin,
-  neighborDate,
-  PAST_DAYS,
-  type DayWindow,
-  type DayWindowRadius,
-} from '../daily/day-window.ts'
-export {
-  addMonths,
-  buildMonthGrid,
-  monthLabel,
-  monthOf,
-  monthShortLabel,
-  weekdayLabels,
-  type MonthGrid,
-  type MonthGridCell,
-} from '../daily/month-grid.ts'
-export {
-  createWeekWindow,
-  monthPickTarget,
-  WEEK_WINDOW_RADIUS,
-  weekAtIndex,
-  weekIndexOf,
-  weekOf,
-  weekStartOf,
-  type WeekWindow,
-} from '../daily/week-window.ts'
 export { type TemplateService } from '../documents/template-service.ts'
 export {
   isOstensiblyEmptyNoteSource,
@@ -171,12 +139,7 @@ export {
 export type { GraphServices } from '../app/create-graph-services.ts'
 export { type AgentSkillStatus } from '../app/agent-skill-service.ts'
 export { type AgentSkillService } from '../app/agent-skill-service.ts'
-export {
-  countSelectedCalendars,
-  groupCalendarsBySource,
-  showsDayEvents,
-  type CalendarEventsService,
-} from '../calendar/calendar-events-service.ts'
+export { type CalendarService } from '../calendar/calendar-service.ts'
 export {
   canPromptForContacts,
   contactsAccessNotice,

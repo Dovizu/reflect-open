@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { dailyArrivalIntent } from '@reflect/core'
+import { dailyArrivalIntent } from '@reflect/app'
 
 export interface DailyArrivalsOptions {
   /** The router's navigation counter — bumped on every `navigate`. */

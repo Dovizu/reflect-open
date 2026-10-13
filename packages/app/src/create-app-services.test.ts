@@ -9,6 +9,7 @@ describe('createAppServices', () => {
     const app = createAppServices(core, {})
     expect(Object.keys(app).toSorted()).toEqual([
       'autocompleteSuggestions',
+      'calendarEvents',
       'exceptionTelemetry',
       'keyboard',
       'share',

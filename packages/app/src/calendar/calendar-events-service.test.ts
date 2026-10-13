@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { CalendarEvent, CalendarInfo } from '@reflect/core'
 import {
   createTestCalendarService,
   createTestLifecycleService,
   createTestLoggerService,
   createTestPlatformService,
   createTestSettingsService,
-} from '../testing/index.ts'
+} from '@reflect/core/testing'
 import {
   countSelectedCalendars,
   createCalendarEventsService,
   groupCalendarsBySource,
   showsDayEvents,
 } from './calendar-events-service.ts'
-import type { CalendarEvent, CalendarInfo } from './calendar-service.ts'
 
 const CALENDARS: CalendarInfo[] = [
   { id: 'cal-work', title: 'Work', source: 'Google', color: '#ff0000' },
