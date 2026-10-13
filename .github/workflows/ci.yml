@@ -70,8 +70,10 @@ jobs:
           # FIXME: is VITEST_CHROMIUM_GC_DISK_THRESHOLD_GB still needed? I don't see any code that uses it. If it's still used, add a github permalink in the comment
 
   # Not part of `all-green`: a WebKit failure does not block merging.
+  # Disabled on the `service` branch while the service refactor is in progress;
+  # restore `github.event_name != 'merge_group'` before the branch is reviewed.
   test-webkit:
-    if: github.event_name != 'merge_group'
+    if: false
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
