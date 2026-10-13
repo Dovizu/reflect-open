@@ -10,7 +10,9 @@ export interface ArchivedXPost {
   data: XPost
 }
 
-/** One adapter shared by captured messages and archive files. */
+/**
+ * One adapter shared by captured messages and archive files.
+ */
 export const xPostSchema = z.unknown().transform((value, context) => {
   const result = parseXPost(value)
   if (!result.issues) return result.value
@@ -23,7 +25,9 @@ export const archivedPostSchema = z.looseObject({
   data: xPostSchema,
 })
 
-/** Capture one progressive MP4 per video; HLS is not archived. */
+/**
+ * Capture one progressive MP4 per video; HLS is not archived.
+ */
 export function createArchivedPost(post: XPost, capturedAt: string): ArchivedXPost {
   function select(entry: XPostBase): XPostBase {
     return {
@@ -52,7 +56,9 @@ export const resolvedPostSchema = z.object({
   resources: z.array(z.object({ url: z.string(), hash: z.string() })),
 })
 
-/** An archived post with the local hash of each media resource it references. */
+/**
+ * An archived post with the local hash of each media resource it references.
+ */
 export type ResolvedArchivedPost = z.infer<typeof resolvedPostSchema>
 
 const syndicationPostSchema = z.unknown().transform((value): XPost | null => {
@@ -61,33 +67,66 @@ const syndicationPostSchema = z.unknown().transform((value): XPost | null => {
   return result.issues ? null : result.value
 })
 
-/** X (Twitter) posts and their media archived under `assets/x/`. */
+export interface XArchiveServiceDeps {
+  readonly ipc: Pick<IpcBridgeService, 'call'>
+}
+
+/**
+ * X (Twitter) posts and their media archived under `assets/x/`.
+ */
 export interface XArchiveService {
-  /** The archived post with this id, fetching missing media, or `null` when none is archived. */
+  /**
+   * The archived post with this id, fetching missing media, or `null` when none is archived.
+   */
   resolve(generation: number, postId: string): Promise<ResolvedArchivedPost | null>
-  /** The archive files that reference an `assets/x/` media file. Other paths have no owners. */
+  /**
+   * The archive files that reference an `assets/x/` media file. Other paths have no owners.
+   */
   owners(assetPath: string, generation?: number): Promise<string[]>
-  /** Save one archived post. */
+  /**
+   * Save one archived post.
+   */
   write(generation: number, post: ArchivedXPost): Promise<void>
-  /** The post from X's syndication API, or `null` when X has no renderable public post with this id. */
+  /**
+   * The post from X's syndication API, or `null` when X has no renderable public post with this id.
+   */
   fetchSyndication(postId: string): Promise<XPost | null>
 }
 
-export function createXArchiveService(deps: { ipc: IpcBridgeService }): XArchiveService {
-  const { ipc } = deps
-  return {
-    resolve: async (generation, postId) =>
-      await ipc.call('x_archive_resolve', { generation, postId }, resolvedPostSchema.nullable()),
-    async owners(assetPath, generation) {
-      if (!assetPath.startsWith('assets/x/')) return []
-      return await ipc.call('x_archive_owners', { assetPath, generation }, z.array(z.string()))
-    },
-    async write(generation, post) {
-      await ipc.call('x_archive_write', { generation, value: post }, z.null())
-    },
-    async fetchSyndication(postId) {
-      const post = await ipc.call('x_syndication_fetch', { postId }, syndicationPostSchema)
-      return post?.id === postId ? post : null
-    },
+class XArchiveServiceImpl implements XArchiveService {
+  readonly #deps: XArchiveServiceDeps
+
+  constructor(deps: XArchiveServiceDeps) {
+    this.#deps = deps
   }
+
+  async resolve(generation: number, postId: string): Promise<ResolvedArchivedPost | null> {
+    return await this.#deps.ipc.call(
+      'x_archive_resolve',
+      { generation, postId },
+      resolvedPostSchema.nullable(),
+    )
+  }
+
+  async owners(assetPath: string, generation?: number): Promise<string[]> {
+    if (!assetPath.startsWith('assets/x/')) return []
+    return await this.#deps.ipc.call(
+      'x_archive_owners',
+      { assetPath, generation },
+      z.array(z.string()),
+    )
+  }
+
+  async write(generation: number, post: ArchivedXPost): Promise<void> {
+    await this.#deps.ipc.call('x_archive_write', { generation, value: post }, z.null())
+  }
+
+  async fetchSyndication(postId: string): Promise<XPost | null> {
+    const post = await this.#deps.ipc.call('x_syndication_fetch', { postId }, syndicationPostSchema)
+    return post?.id === postId ? post : null
+  }
+}
+
+export function createXArchiveService(deps: XArchiveServiceDeps): XArchiveService {
+  return new XArchiveServiceImpl(deps)
 }

@@ -16,22 +16,32 @@ import type { CloudSafe } from './cloud-safe.ts'
 
 export type { CloudSafe } from './cloud-safe.ts'
 
-/** The one place a `CloudSafe` is born. Private by design. */
+/**
+ * The one place a `CloudSafe` is born. Private by design.
+ */
 function mint<T>(value: T): CloudSafe<T> {
   // The brand has no runtime representation, so this assertion is the
   // entire implementation — the guarantees live in the callers below.
   return value as CloudSafe<T>
 }
 
-/** What the cloud guard needs to know about a note. */
+/**
+ * What the cloud guard needs to know about a note.
+ */
 export interface CloudSendable {
-  /** Graph-relative path (for the error message). */
+  /**
+   * Graph-relative path (for the error message).
+   */
   path: string
-  /** The note's live `private: true` frontmatter flag. */
+  /**
+   * The note's live `private: true` frontmatter flag.
+   */
   isPrivate: boolean
 }
 
-/** Thrown when a private note would otherwise reach an external service. */
+/**
+ * Thrown when a private note would otherwise reach an external service.
+ */
 export class PrivateNoteError extends Error {
   constructor(path: string) {
     super(`"${path}" is marked private and cannot be sent to an external service`)
@@ -39,7 +49,9 @@ export class PrivateNoteError extends Error {
   }
 }
 
-/** Type guard for {@link PrivateNoteError} across module boundaries. */
+/**
+ * Type guard for {@link PrivateNoteError} across module boundaries.
+ */
 export function isPrivateNoteError(value: unknown): value is PrivateNoteError {
   return value instanceof Error && value.name === 'PrivateNoteError'
 }
@@ -65,12 +77,16 @@ export function cloudSafeLinkHref(note: CloudSendable, href: string): CloudSafe<
   return mint(href)
 }
 
-/** Read a note's authored `private` flag from its full markdown source. */
+/**
+ * Read a note's authored `private` flag from its full markdown source.
+ */
 export function notePrivate(source: string): boolean {
   return parseFrontmatter(splitFrontmatter(source).raw).data.private
 }
 
-/** One search hit as an external service may see it. */
+/**
+ * One search hit as an external service may see it.
+ */
 export interface CloudSearchHit {
   path: string
   title: string
@@ -91,15 +107,23 @@ async function searchHitsWithProbe(
     )
 }
 
-/** One note-listing entry as an external service may see it. */
+/**
+ * One note-listing entry as an external service may see it.
+ */
 export interface CloudNoteListing {
   path: string
   title: string
-  /** ISO `YYYY-MM-DD` when the note is a daily note, `null` otherwise. */
+  /**
+   * ISO `YYYY-MM-DD` when the note is a daily note, `null` otherwise.
+   */
   dailyDate: string | null
-  /** The indexed row preview (may be empty). */
+  /**
+   * The indexed row preview (may be empty).
+   */
   snippet: string
-  /** Last file modification, ISO 8601 UTC. */
+  /**
+   * Last file modification, ISO 8601 UTC.
+   */
   modifiedAt: string
 }
 
@@ -122,21 +146,37 @@ async function noteListingsWithProbe(
     )
 }
 
-/** The graph-level prompt context as an external service may see it. */
+/**
+ * The graph-level prompt context as an external service may see it.
+ */
 export interface CloudGraphContext {
-  /** The graph's display name (its root folder name). */
+  /**
+   * The graph's display name (its root folder name).
+   */
   graphName: string
-  /** Non-daily notes the assistant can list or read. */
+  /**
+   * Non-daily notes the assistant can list or read.
+   */
   noteCount: number
-  /** Days with a daily note. */
+  /**
+   * Days with a daily note.
+   */
   dailyNoteCount: number
-  /** ISO date of the first daily note, `null` when there are none. */
+  /**
+   * ISO date of the first daily note, `null` when there are none.
+   */
   earliestDailyDate: string | null
-  /** ISO date of the latest daily note, `null` when there are none. */
+  /**
+   * ISO date of the latest daily note, `null` when there are none.
+   */
   latestDailyDate: string | null
-  /** Tag facets, most-used first. */
+  /**
+   * Tag facets, most-used first.
+   */
   tags: { tag: string; count: number }[]
-  /** The facet list was capped — more tags exist. */
+  /**
+   * The facet list was capped — more tags exist.
+   */
   tagsTruncated: boolean
 }
 
@@ -154,7 +194,9 @@ export function cloudSafeGraphContext(context: CloudGraphContext): CloudSafe<Clo
   return mint(context)
 }
 
-/** A note's content as an external service may see it. */
+/**
+ * A note's content as an external service may see it.
+ */
 export interface CloudNoteContent {
   path: string
   title: string
@@ -180,11 +222,17 @@ export function cloudSafeNoteContent(
   })
 }
 
-/** One asset's stored description as an external service may see it. */
+/**
+ * One asset's stored description as an external service may see it.
+ */
 export interface CloudAssetDescription {
-  /** Graph-relative asset path, e.g. `assets/photo.png`. */
+  /**
+   * Graph-relative asset path, e.g. `assets/photo.png`.
+   */
   path: string
-  /** The description file's markdown body (frontmatter stripped, capped). */
+  /**
+   * The description file's markdown body (frontmatter stripped, capped).
+   */
   description: string
   truncated: boolean
 }
@@ -222,18 +270,30 @@ export function cloudSafeSelection(note: CloudSendable, selectedText: string): C
   return mint(selectedText)
 }
 
-/** The `private: true` gate every outbound payload passes through. */
+export interface PrivacyServiceDeps {
+  readonly noteFile: Pick<NoteFileService, 'read'>
+}
+
+/**
+ * The `private: true` gate every outbound payload passes through.
+ */
 export interface PrivacyService {
-  /** Throw {@link PrivateNoteError} unless `note`'s content may leave the device. */
+  /**
+   * Throw {@link PrivateNoteError} unless `note`'s content may leave the device.
+   */
   assertCloudAllowed(note: CloudSendable): void
-  /** Read a note's authored `private` flag from its full markdown source. */
+  /**
+   * Read a note's authored `private` flag from its full markdown source.
+   */
   notePrivate(source: string): boolean
   /**
    * Read a note's live `private` flag from disk. Fails closed: a missing or
    * unreadable note counts as private.
    */
   isPrivateLive(path: string): Promise<boolean>
-  /** Gate a link destination before metadata lookup fetches it for a note. */
+  /**
+   * Gate a link destination before metadata lookup fetches it for a note.
+   */
   cloudSafeLinkHref(note: CloudSendable, href: string): CloudSafe<string>
   /**
    * Gate retrieval hits for an outbound payload: private hits are dropped
@@ -250,43 +310,86 @@ export interface PrivacyService {
   cloudSafeNoteListings(
     entries: readonly (CloudSendable & Omit<CloudNoteListing, 'path'>)[],
   ): Promise<CloudSafe<CloudNoteListing>[]>
-  /** Gate the graph-level stats block, computed over public rows only. */
+  /**
+   * Gate the graph-level stats block, computed over public rows only.
+   */
   cloudSafeGraphContext(context: CloudGraphContext): CloudSafe<CloudGraphContext>
-  /** Gate one note's content, given its live privacy flag. */
+  /**
+   * Gate one note's content, given its live privacy flag.
+   */
   cloudSafeNoteContent(
     note: CloudSendable & Omit<CloudNoteContent, 'path'>,
   ): CloudSafe<CloudNoteContent>
-  /** Gate one asset's stored description, given the asset's live verdict. */
+  /**
+   * Gate one asset's stored description, given the asset's live verdict.
+   */
   cloudSafeAssetDescription(
     asset: CloudSendable & Omit<CloudAssetDescription, 'path'>,
   ): CloudSafe<CloudAssetDescription>
-  /** Gate an editor selection, given its source note's live privacy flag. */
+  /**
+   * Gate an editor selection, given its source note's live privacy flag.
+   */
   cloudSafeSelection(note: CloudSendable, selectedText: string): CloudSafe<string>
 }
 
-export function createPrivacyService(deps: {
-  noteFile: Pick<NoteFileService, 'read'>
-}): PrivacyService {
-  const { noteFile } = deps
+class PrivacyServiceImpl implements PrivacyService {
+  readonly #deps: PrivacyServiceDeps
 
-  async function isPrivateLive(path: string): Promise<boolean> {
+  constructor(deps: PrivacyServiceDeps) {
+    this.#deps = deps
+  }
+
+  assertCloudAllowed(note: CloudSendable): void {
+    assertCloudAllowed(note)
+  }
+
+  notePrivate(source: string): boolean {
+    return notePrivate(source)
+  }
+
+  async isPrivateLive(path: string): Promise<boolean> {
     try {
-      return notePrivate(await noteFile.read(path))
+      return notePrivate(await this.#deps.noteFile.read(path))
     } catch {
       return true
     }
   }
 
-  return {
-    assertCloudAllowed,
-    notePrivate,
-    isPrivateLive,
-    cloudSafeLinkHref,
-    cloudSafeSearchHits: async (hits) => await searchHitsWithProbe(hits, isPrivateLive),
-    cloudSafeNoteListings: async (entries) => await noteListingsWithProbe(entries, isPrivateLive),
-    cloudSafeGraphContext,
-    cloudSafeNoteContent,
-    cloudSafeAssetDescription,
-    cloudSafeSelection,
+  cloudSafeLinkHref(note: CloudSendable, href: string): CloudSafe<string> {
+    return cloudSafeLinkHref(note, href)
   }
+
+  async cloudSafeSearchHits(hits: readonly RetrievalHit[]): Promise<CloudSafe<CloudSearchHit>[]> {
+    return await searchHitsWithProbe(hits, (path) => this.isPrivateLive(path))
+  }
+
+  async cloudSafeNoteListings(
+    entries: readonly (CloudSendable & Omit<CloudNoteListing, 'path'>)[],
+  ): Promise<CloudSafe<CloudNoteListing>[]> {
+    return await noteListingsWithProbe(entries, (path) => this.isPrivateLive(path))
+  }
+
+  cloudSafeGraphContext(context: CloudGraphContext): CloudSafe<CloudGraphContext> {
+    return cloudSafeGraphContext(context)
+  }
+
+  cloudSafeNoteContent(
+    note: CloudSendable & Omit<CloudNoteContent, 'path'>,
+  ): CloudSafe<CloudNoteContent> {
+    return cloudSafeNoteContent(note)
+  }
+
+  cloudSafeAssetDescription(
+    asset: CloudSendable & Omit<CloudAssetDescription, 'path'>,
+  ): CloudSafe<CloudAssetDescription> {
+    return cloudSafeAssetDescription(asset)
+  }
+
+  cloudSafeSelection(note: CloudSendable, selectedText: string): CloudSafe<string> {
+    return cloudSafeSelection(note, selectedText)
+  }
+}
+
+export function createPrivacyService(deps: PrivacyServiceDeps): PrivacyService {
+  return new PrivacyServiceImpl(deps)
 }
