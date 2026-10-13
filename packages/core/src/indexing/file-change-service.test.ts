@@ -170,6 +170,52 @@ describe('createFileChangeService', () => {
     expect(seen).toHaveBeenCalledTimes(1)
   })
 
+  it('shares one native listener across subscribers and parses each payload once', async () => {
+    const { ipc, fileChanges } = setup()
+    const listen = vi.spyOn(ipc, 'listen')
+    const first: FileChangeBatch[] = []
+    const second: FileChangeBatch[] = []
+    const unlistenFirst = fileChanges.subscribe((batch) => {
+      first.push(batch)
+    })
+    const unlistenSecond = fileChanges.subscribe((batch) => {
+      second.push(batch)
+    })
+    await settle()
+
+    ipc.emit('index:changed', [{ path: 'notes/a.md', kind: 'upsert' }])
+
+    expect(listen).toHaveBeenCalledTimes(1)
+    expect(first).toHaveLength(1)
+    expect(second[0]).toBe(first[0])
+    unlistenFirst()
+    unlistenSecond()
+  })
+
+  it('tears down the native listener after the last unsubscribe and re-registers on the next', async () => {
+    const { ipc, fileChanges } = setup()
+    const listen = vi.spyOn(ipc, 'listen')
+    const paths: string[] = []
+    const listener = (batch: FileChangeBatch): void => {
+      paths.push(...batch.changes.map((change) => change.path))
+    }
+    const unlistenFirst = fileChanges.subscribe(listener)
+    const unlistenSecond = fileChanges.subscribe(listener)
+    await settle()
+
+    unlistenFirst()
+    ipc.emit('index:changed', [{ path: 'notes/a.md', kind: 'upsert' }])
+    unlistenSecond()
+    ipc.emit('index:changed', [{ path: 'notes/b.md', kind: 'upsert' }])
+    const unlistenThird = fileChanges.subscribe(listener)
+    await settle()
+    ipc.emit('index:changed', [{ path: 'notes/c.md', kind: 'upsert' }])
+
+    expect(listen).toHaveBeenCalledTimes(2)
+    expect(paths).toEqual(['notes/a.md', 'notes/c.md'])
+    unlistenThird()
+  })
+
   it('starts and stops the native watcher', async () => {
     const { ipc, fileChanges } = setup()
     ipc.onCommand('watch_start', () => null)

@@ -42,14 +42,14 @@ export interface NoteMoveService {
   /** Subscribe to landed note moves; returns the unsubscribe. */
   onMoved(listener: NoteMovedListener): Unlisten
   /** Follow the Rust-side `note:moved` broadcast. */
-  followNativeMoves(): Promise<Unlisten>
+  followNativeMoves(): Unlisten
 }
 
 export interface NoteMoveServiceDeps {
   ipc: Pick<IpcBridgeService, 'listen'>
   indexStore: Pick<IndexStoreService, 'moveIndexed'>
   openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
-  logger: Pick<LoggerService, 'error'>
+  logger: Pick<LoggerService, 'error' | 'warn'>
 }
 
 export function createNoteMoveService(deps: NoteMoveServiceDeps): NoteMoveService {
@@ -96,9 +96,13 @@ Rules:
   `logger` instead of `console.*`, `clock` instead of `Date.now()` and
   `setTimeout`, `id` instead of `crypto.randomUUID()`, `http` instead of
   `fetch`. This is what lets a test control them.
-- Narrow each dependency to what you use with `Pick<>`, as the example does. A
-  test then only has to provide those methods, and the dependency graph stays
-  readable.
+- Declare each dependency as `Pick<XxxService, 'method'>` of the methods the
+  service actually calls, as the example does.
+  `packages/core/src/capture/capture-service.ts` is the model:
+  `noteFile: Pick<NoteFileService, 'read' | 'write' | 'listNotes'>`,
+  `clock: Pick<ClockService, 'now'>`. A test double then only has to implement
+  those methods, and the dependency graph shows which methods each service
+  uses.
 - Do not import another service's instance, and do not read a global.
   `@reflect/core` has none.
 - Do not pass a service as an argument of a method. If two services need each
@@ -148,13 +152,23 @@ In `packages/core/src/app/create-app-services.ts`:
    ```
 
 3. Add the key to `SERVICE_KEYS` in `create-app-services.test.ts`.
-4. Export the interface, the factory and its public types from a barrel in
-   `packages/core/src/exports/` (`NoteMoveService` is in `platform.ts`). The apps
-   import only from the package root.
+4. Export the names the app imports from a barrel in `packages/core/src/exports/`
+   (`NoteMoveService` is in `platform.ts`). The apps import only from the package
+   root. The factory and its `XxxServiceDeps` stay out of the barrel: only
+   `createAppServices` builds services. `pnpm lint` runs
+   `packages/core/scripts/check-exports.mjs`, which fails on a barrel name that
+   no app file references and on an `AppServices` field that no desktop
+   non-test file reads.
 
-A service that only a mobile platform needs is an optional field
-(`readonly haptics?: HapticsService`). `createAppServices` builds it in
-`createMobileServices()`, which runs only on a mobile platform.
+`AppServices` holds only the services that the app reads. A service that only
+other services use stays a local in `createAppServices`; list it in
+`InternalServices` (`testing/services.ts`) instead, so tests still reach its
+double through `TestAppServices`.
+
+A service that only a mobile platform needs goes in `MobileServices`, which
+`AppServices.mobile` holds (`null` off mobile). `createAppServices` builds it in
+`createMobileServices()`, which runs only on a mobile platform. The mobile tree
+reads it with `useMobileAppServices()`.
 
 ## 6. The test double
 
@@ -349,8 +363,9 @@ service stays app-scoped and takes `generation` per call.
       `console.*`, `Date.now()`, `setTimeout`, `fetch` or `@tauri-apps/*`
 - [ ] State inside the factory; changes reported through `onXxx(listener)` /
       `subscribe(listener)`
-- [ ] Field on `AppServices`, built in `createAppServices`, key in
-      `SERVICE_KEYS`, exported from `packages/core/src/exports/`
+- [ ] Built in `createAppServices`; on `AppServices` (key in `SERVICE_KEYS`)
+      only when the app reads it, else in `InternalServices`; the names the
+      app imports exported from `packages/core/src/exports/`
 - [ ] `createTestXxxService` in `packages/core/src/testing/`, exported from
       `testing/index.ts`, wired into `createTestAppServices`
 - [ ] `<name>-service.test.ts` constructing the service over test doubles

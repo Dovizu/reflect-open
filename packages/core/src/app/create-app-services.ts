@@ -1,45 +1,28 @@
-import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
-import {
-  createAiKeyValidationService,
-  type AiKeyValidationService,
-} from '../ai/ai-key-validation-service.ts'
+import { createAiCredentialService } from '../ai/ai-credential-service.ts'
+import { createAiKeyValidationService } from '../ai/ai-key-validation-service.ts'
 import { createAiPromptService, type AiPromptService } from '../ai/ai-prompt-service.ts'
 import {
   createAiProviderConfigService,
   type AiProviderConfigService,
 } from '../ai/ai-provider-config-service.ts'
-import {
-  createAssetDescriberService,
-  type AssetDescriberService,
-} from '../ai/asset-describer-service.ts'
-import {
-  createPageDescriberService,
-  type PageDescriberService,
-} from '../ai/page-describer-service.ts'
+import { createAssetDescriberService } from '../ai/asset-describer-service.ts'
+import { createPageDescriberService } from '../ai/page-describer-service.ts'
 import {
   createSelectionTransformService,
   type SelectionTransformService,
 } from '../ai/selection-transform-service.ts'
-import {
-  createTranscriptEnrichmentService,
-  type TranscriptEnrichmentService,
-} from '../ai/transcript-enrichment-service.ts'
+import { createTranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
 import {
   createTranscriptionService,
   withAppReviewDemoTranscription,
-  type TranscriptionService,
 } from '../ai/transcription-service.ts'
 import {
   createLanguageModelService,
   createLazyAiSdkLoader,
   withAppReviewDemo,
-  type LanguageModelService,
 } from '../ai/language-model-service.ts'
-import { createChatEngineService, type ChatEngineService } from '../ai/chat/chat-engine-service.ts'
-import {
-  createChatGraphContextService,
-  type ChatGraphContextService,
-} from '../ai/chat/chat-graph-context-service.ts'
+import { createChatEngineService } from '../ai/chat/chat-engine-service.ts'
+import { createChatGraphContextService } from '../ai/chat/chat-graph-context-service.ts'
 import {
   createChatHistoryService,
   type ChatHistoryService,
@@ -49,52 +32,33 @@ import {
   type ChatSessionService,
 } from '../ai/chat/chat-session-service.ts'
 import { fitToContextWindow } from '../ai/chat/context-window.ts'
-import { createNoteToolsService, type NoteToolsService } from '../ai/chat/note-tools-service.ts'
+import { createNoteToolsService } from '../ai/chat/note-tools-service.ts'
 import { createAssetReferences } from '../indexing/asset-refs.ts'
 
-import {
-  createBacklinkTargetService,
-  type BacklinkTargetService,
-} from '../capture/backlink-target-service.ts'
+import { createBacklinkTargetService } from '../capture/backlink-target-service.ts'
 import { createCaptureService, type CaptureService } from '../capture/capture-service.ts'
 import { createAudioMemoService, type AudioMemoService } from '../audio/audio-memo-service.ts'
 import {
   createMobileAudioMemoService,
   type MobileAudioMemoService,
 } from '../audio/mobile-audio-memo-service.ts'
-import {
-  createNativeActionService,
-  type NativeActionService,
-} from '../audio/native-action-service.ts'
+import { createNativeActionService } from '../audio/native-action-service.ts'
 import {
   createAssetDescriptionService,
   type AssetDescriptionService,
 } from '../assets/asset-description-service.ts'
-import {
-  createAssetPrivacyService,
-  type AssetPrivacyService,
-} from '../assets/asset-privacy-service.ts'
-import {
-  createCaptureInboxService,
-  type CaptureInboxService,
-} from '../graph/capture-inbox-service.ts'
+import { createAssetPrivacyService } from '../assets/asset-privacy-service.ts'
+import { createCaptureInboxService } from '../graph/capture-inbox-service.ts'
 import {
   createICloudNativeService,
   type ICloudNativeService,
 } from '../ipc/icloud-native-service.ts'
-import {
-  createGitRepositoryService,
-  type GitRepositoryService,
-} from '../sync/git-repository-service.ts'
-import { createGistService, type GistService } from '../sync/gist-service.ts'
+import { createGitRepositoryService } from '../sync/git-repository-service.ts'
+import { createGistService } from '../sync/gist-service.ts'
 import { createGistPublishService, type GistPublishService } from '../sync/gist-publish-service.ts'
-import {
-  createGitHostCredentialService,
-  type GitHostCredentialService,
-} from '../sync/git-host-credential-service.ts'
 import { createGithubAuthService, type GithubAuthService } from '../sync/github-auth-service.ts'
-import { createGithubRepoService, type GithubRepoService } from '../sync/github-repo-service.ts'
-import { createSyncEngineFactory, type SyncEngineFactory } from '../sync/engine.ts'
+import { createGithubRepoService } from '../sync/github-repo-service.ts'
+import { createSyncEngineFactory } from '../sync/engine.ts'
 import { createBackupServiceFactory, type BackupServiceFactory } from '../sync/backup-service.ts'
 import {
   createConflictResolutionService,
@@ -113,15 +77,14 @@ import {
   type ICloudSyncServiceFactory,
 } from '../sync/icloud-sync-service.ts'
 import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
-import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
+import { createXArchiveService } from '../x-archive.ts'
 import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
 import {
   createLinkPreviewService,
   type LinkPreviewService,
 } from '../link-preview/link-preview-service.ts'
 import { parseLinkPreviewMeta } from '../link-preview/metadata.ts'
-import { createWebFetchService, type WebFetchService } from './web-fetch-service.ts'
-import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
+import { createWebFetchService } from './web-fetch-service.ts'
 import { createPlatformAudioRecorder } from '../audio/platform-audio-recorder.ts'
 import {
   createClassicAccessService,
@@ -147,8 +110,8 @@ import {
 } from '../contacts/contact-suggestion-service.ts'
 import { createContactsService, type ContactsService } from '../contacts/contacts-service.ts'
 import { createMeetingService, type MeetingService } from '../contacts/meeting-service.ts'
-import { createPersonNoteService, type PersonNoteService } from '../contacts/person-note-service.ts'
-import { createAssetStoreService, type AssetStoreService } from '../graph/asset-store-service.ts'
+import { createPersonNoteService } from '../contacts/person-note-service.ts'
+import { createAssetStoreService } from '../graph/asset-store-service.ts'
 import {
   createNoteCreationService,
   type NoteCreationService,
@@ -198,11 +161,8 @@ import {
   createEmbeddingRuntimeService,
   type EmbeddingRuntimeService,
 } from '../embeddings/embedding-runtime-service.ts'
-import {
-  createEmbeddingIndexService,
-  type EmbeddingIndexService,
-} from '../embeddings/embedding-index-service.ts'
-import { createRetrievalService, type RetrievalService } from '../embeddings/retrieval-service.ts'
+import { createEmbeddingIndexService } from '../embeddings/embedding-index-service.ts'
+import { createRetrievalService } from '../embeddings/retrieval-service.ts'
 import {
   createSemanticSearchService,
   type SemanticSearchService,
@@ -224,9 +184,9 @@ import {
   createWikiResolverService,
   type WikiResolverService,
 } from '../indexing/wiki-resolver-service.ts'
-import { createIndexStoreService, type IndexStoreService } from '../indexing/index-store-service.ts'
-import { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
-import { createIapService, type IapService } from '../ipc/iap-plugin.ts'
+import { createIndexStoreService } from '../indexing/index-store-service.ts'
+import { createAppStoreService } from '../ipc/app-store-plugin.ts'
+import { createIapService } from '../ipc/iap-plugin.ts'
 import {
   createIpcBridgeService,
   type IpcBridge,
@@ -237,11 +197,8 @@ import {
   type MobileStorageService,
 } from '../ipc/mobile-storage-service.ts'
 import { createHapticsService, type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
-import { createWebAuthService, type WebAuthService } from '../ipc/web-auth-plugin.ts'
-import {
-  createSecretStoreService,
-  type SecretStoreService,
-} from '../secrets/secret-store-service.ts'
+import { createWebAuthService } from '../ipc/web-auth-plugin.ts'
+import { createSecretStoreService } from '../secrets/secret-store-service.ts'
 import {
   createDeepLinkService,
   createNoDeepLinkSource,
@@ -328,20 +285,17 @@ export interface AppServices {
   readonly hash: HashService
   readonly platform: PlatformService
   readonly storage: StorageService
-  readonly http: HttpService
   readonly dialog: DialogService
   readonly clipboard: ClipboardService
   readonly opener: OpenerService
   readonly path: PathService
   readonly window: WindowService
   readonly lifecycle: AppLifecycleService
-  readonly secretStore: SecretStoreService
   readonly appInfo: AppInfoService
   readonly calendar: CalendarService
   readonly calendarEvents: CalendarEventsService
   readonly contacts: ContactsService
   readonly contactSuggestions: ContactSuggestionService
-  readonly personNotes: PersonNoteService
   readonly meetings: MeetingService
   readonly agentSkill: AgentSkillService
   readonly mobileStorage: MobileStorageService
@@ -351,9 +305,7 @@ export interface AppServices {
   readonly settings: SettingsService
   readonly theme: ThemeService
   readonly persistenceFlush: PersistenceFlushService
-  readonly database: DatabaseService
   readonly fileChanges: FileChangeService
-  readonly indexStore: IndexStoreService
   readonly embeddingRuntime: EmbeddingRuntimeService
   readonly chatHistory: ChatHistoryService
   readonly update: UpdateService
@@ -363,14 +315,8 @@ export interface AppServices {
   readonly deepLink: DeepLinkService
   /** Turns an activated link into a navigation, a new window, or a refusal. */
   readonly linkNavigation: LinkNavigationService
-  readonly gitRepository: GitRepositoryService
   readonly githubAuth: GithubAuthService
-  readonly gitHostCredentials: GitHostCredentialService
-  readonly githubRepos: GithubRepoService
-  readonly gists: GistService
   readonly gistPublish: GistPublishService
-  /** Builds the sync engine of one graph session. */
-  readonly syncEngines: SyncEngineFactory
   /** Builds the backup lifecycle of one (graph, index session) pair. */
   readonly backups: BackupServiceFactory
   readonly icloudNative: ICloudNativeService
@@ -381,29 +327,10 @@ export interface AppServices {
   readonly icloudMigration: ICloudMigrationService
   readonly conflictResolution: ConflictResolutionService
   readonly syncStatus: SyncStatusService
-  readonly captureInbox: CaptureInboxService
-  readonly webFetch: WebFetchService
-  readonly xArchive: XArchiveService
   readonly embedMedia: EmbedMediaService
   readonly linkPreview: LinkPreviewService
-  readonly audioRecorder: AudioRecorderService
-  /** Mobile only. */
-  readonly haptics?: HapticsService
-  /** Mobile only. */
-  readonly iap?: IapService
-  /** Mobile only. */
-  readonly appStore?: AppStoreService
-  /** Mobile only. */
-  readonly webAuth?: WebAuthService
   readonly classicAccess: ClassicAccessService
-  /** Mobile only. */
-  readonly subscription?: SubscriptionService
-  /** Mobile only. */
-  readonly appStoreEnvironment?: AppStoreEnvironmentService
-  /** Mobile only. */
-  readonly paywall?: PaywallService
   readonly noteFile: NoteFileService
-  readonly assetStore: AssetStoreService
   readonly attachments: AttachmentService
   readonly noteSessions: NoteSessionService
   readonly openDocuments: OpenDocumentsService
@@ -417,27 +344,17 @@ export interface AppServices {
   readonly dailyNotes: DailyNoteService
   readonly templates: TemplateService
   readonly indexQuery: IndexQueryService
-  readonly wikiResolver: WikiResolverService
   readonly backlinks: BacklinkService
   readonly search: SearchService
-  readonly suggestions: SuggestionService
   readonly noteList: NoteListService
-  readonly graphStats: GraphStatsService
   readonly notePath: NotePathService
-  readonly noteLinkResolver: NoteLinkResolverService
   readonly noteCreation: NoteCreationService
-  readonly privacy: PrivacyService
   readonly indexLifecycle: IndexLifecycleService
   readonly graphSession: GraphSessionService
-  readonly retrieval: RetrievalService
-  readonly embeddingIndex: EmbeddingIndexService
   readonly semanticSearch: SemanticSearchService
   readonly mobileOnboarding: MobileOnboardingService
   readonly keyboard: KeyboardService
   readonly share: ShareService
-  readonly aiCredentials: AiCredentialService
-  readonly aiKeyValidation: AiKeyValidationService
-  readonly languageModel: LanguageModelService
   readonly aiPrompts: AiPromptService
   readonly keymap: KeymapService
   /** The command registry. The app decides the context type that its commands run with. */
@@ -445,42 +362,39 @@ export interface AppServices {
   readonly nativeMenu: NativeMenuService
   readonly aiProviderConfig: AiProviderConfigService
   readonly selectionTransform: SelectionTransformService
-  readonly pageDescriber: PageDescriberService
-  readonly assetDescriber: AssetDescriberService
-  readonly transcription: TranscriptionService
-  readonly transcriptEnrichment: TranscriptEnrichmentService
-  readonly noteTools: NoteToolsService
-  readonly chatEngine: ChatEngineService
-  readonly chatGraphContext: ChatGraphContextService
   /** Creates the chat session of an open graph; the workspace owns the session. */
   readonly chatSessions: ChatSessionService
-  readonly backlinkTarget: BacklinkTargetService
   readonly capture: CaptureService
   readonly audioMemo: AudioMemoService
-  /** Mobile only. */
-  readonly nativeAction?: NativeActionService
-  /** Mobile only. */
-  readonly mobileAudioMemo?: MobileAudioMemoService
-  readonly assetPrivacy: AssetPrivacyService
   readonly assetDescription: AssetDescriptionService
   /** The editor's `[[` and `#` menus. */
   readonly wikiLinkSuggestions: WikiLinkSuggestionService
   /** The command palette's data layer. */
   readonly paletteSearch: PaletteSearchService
+  /** The services that only a mobile platform builds; `null` elsewhere. */
+  readonly mobile: MobileServices | null
 }
 
-/** The read-only services over the index, as {@link AppServices} holds them. */
-export type IndexReadServices = Pick<
-  AppServices,
-  | 'indexQuery'
-  | 'wikiResolver'
-  | 'backlinks'
-  | 'search'
-  | 'suggestions'
-  | 'noteList'
-  | 'graphStats'
-  | 'notePath'
->
+/** The mobile-only services that the app reads. */
+export interface MobileServices {
+  readonly haptics: HapticsService
+  readonly subscription: SubscriptionService
+  readonly appStoreEnvironment: AppStoreEnvironmentService
+  readonly paywall: PaywallService
+  readonly mobileAudioMemo: MobileAudioMemoService
+}
+
+/** The read-only services over the index. */
+export interface IndexReadServices {
+  readonly indexQuery: IndexQueryService
+  readonly wikiResolver: WikiResolverService
+  readonly backlinks: BacklinkService
+  readonly search: SearchService
+  readonly suggestions: SuggestionService
+  readonly noteList: NoteListService
+  readonly graphStats: GraphStatsService
+  readonly notePath: NotePathService
+}
 
 export function createIndexReadServices(deps: {
   database: DatabaseService
@@ -500,8 +414,12 @@ export function createIndexReadServices(deps: {
   }
 }
 
-/** The link resolution, note creation and privacy services, as {@link AppServices} holds them. */
-export type NoteServices = Pick<AppServices, 'noteLinkResolver' | 'noteCreation' | 'privacy'>
+/** The link resolution, note creation and privacy services. */
+export interface NoteServices {
+  readonly noteLinkResolver: NoteLinkResolverService
+  readonly noteCreation: NoteCreationService
+  readonly privacy: PrivacyService
+}
 
 export function createNoteServices(deps: {
   noteFile: NoteFileService
@@ -593,17 +511,15 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     clock,
     logger,
   })
-  const createMobileServices = () => {
+  const createMobileServices = (): MobileServices => {
     const iap = createIapService({ ipc, logger })
     const appStore = createAppStoreService({ ipc })
     const subscription = createSubscriptionService({ iap, storage, clock, platform, logger })
     const appStoreEnvironment = createAppStoreEnvironmentService({ appStore, storage, platform })
+    const haptics = createHapticsService({ ipc, logger })
+    const nativeAction = createNativeActionService({ audioRecorder, clock, platform, logger })
     return {
-      haptics: createHapticsService({ ipc, logger }),
-      nativeAction: createNativeActionService({ audioRecorder, clock, platform, logger }),
-      iap,
-      appStore,
-      webAuth,
+      haptics,
       subscription,
       appStoreEnvironment,
       paywall: createPaywallService({
@@ -615,11 +531,20 @@ export function createAppServices(adapters: AppAdapters): AppServices {
         platform,
         storage,
       }),
+      mobileAudioMemo: createMobileAudioMemoService({
+        audioMemo,
+        audioRecorder,
+        nativeAction,
+        lifecycle,
+        haptics,
+        platform,
+        logger,
+      }),
     }
   }
   const noteFile = createNoteFileService({ ipc, clock, fileChanges })
   const assetStore = createAssetStoreService({ ipc, clock, fileChanges })
-  const openDocuments = createOpenDocumentsService()
+  const openDocuments = createOpenDocumentsService({ fileChanges })
   const indexReads = createIndexReadServices({ database, noteFile })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = createIndexStoreService({ ipc, database })
@@ -638,7 +563,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
   })
   const noteServices = createNoteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
   const calendar = createCalendarService({ ipc, logger })
-  const contacts = createContactsService({ ipc })
+  const contacts = createContactsService({ ipc, logger })
   const personNotes = createPersonNoteService({
     database,
     wikiResolver: indexReads.wikiResolver,
@@ -690,6 +615,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     logger,
   })
   const opener = createOpenerService({ transport: adapters.opener, logger })
+  const navigation = createNavigationService()
   const deepLink = createDeepLinkService({
     source: adapters.deepLink ?? createNoDeepLinkSource(),
     indexQuery: indexReads.indexQuery,
@@ -713,11 +639,11 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     window: windowService,
     platform,
     settings,
+    openDocuments,
     logger,
   })
   const gitRepository = createGitRepositoryService({ ipc })
   const githubAuth = createGithubAuthService({ secretStore, http: adapters.http, clock })
-  const gitHostCredentials = createGitHostCredentialService({ secretStore })
   const githubRepos = createGithubRepoService({ http: adapters.http })
   const gists = createGistService({ http: adapters.http })
   const noteRows = createNoteRowService()
@@ -794,14 +720,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     hash,
     platform,
     storage,
-    http: adapters.http,
     dialog: adapters.dialog,
     clipboard: adapters.clipboard,
     opener,
     path,
     window: windowService,
     lifecycle,
-    secretStore,
     appInfo: createAppInfoService({ ipc }),
     calendar,
     calendarEvents: createCalendarEventsService({
@@ -819,7 +743,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       noteFile,
       settings,
     }),
-    personNotes,
     meetings: createMeetingService({
       noteFile,
       noteCreation: noteServices.noteCreation,
@@ -838,11 +761,9 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     settings,
     theme: createThemeService({ settings, storage, platform }),
     persistenceFlush,
-    database,
-    indexStore,
     embeddingRuntime,
     chatHistory,
-    navigation: createNavigationService(),
+    navigation,
     deepLink,
     linkNavigation: createLinkNavigationService({
       noteLinkResolver: noteServices.noteLinkResolver,
@@ -852,6 +773,7 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       platform,
       opener,
       deepLink,
+      navigation,
       attachments,
       operations,
       logger,
@@ -865,17 +787,12 @@ export function createAppServices(adapters: AppAdapters): AppServices {
           window: windowService,
         })
       : createUnsupportedUpdateService(),
-    gitRepository,
     githubAuth,
-    gitHostCredentials,
-    githubRepos,
-    syncEngines,
     backups: createBackupServiceFactory({
       git: gitRepository,
       syncEngines,
       githubAuth,
       githubRepos,
-      gitHostCredentials,
       fileChanges,
       indexLifecycle,
       operations,
@@ -884,7 +801,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       persistenceFlush,
       logger,
     }),
-    gists,
     gistPublish: createGistPublishService({
       gists,
       githubAuth,
@@ -908,9 +824,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
     icloudMigration: createICloudMigrationService({ icloudNative }),
     conflictResolution: createConflictResolutionService({ noteFile, indexLifecycle, fileChanges }),
     syncStatus: createSyncStatusService(),
-    captureInbox,
-    webFetch,
-    xArchive,
     embedMedia: createEmbedMediaService({ xArchive, webFetch, platform, clock, logger }),
     linkPreview: createLinkPreviewService({
       noteDocuments,
@@ -918,12 +831,9 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       webFetch,
       parseMetadata: parseLinkPreviewMeta,
     }),
-    audioRecorder,
     classicAccess,
-    ...mobileServices,
     fileChanges,
     noteFile,
-    assetStore,
     attachments,
     noteSessions: createNoteSessionService({ noteFile, clock, logger }),
     openDocuments,
@@ -968,12 +878,14 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       openDocuments,
       operations,
     }),
-    ...indexReads,
-    ...noteServices,
+    indexQuery: indexReads.indexQuery,
+    backlinks: indexReads.backlinks,
+    search: indexReads.search,
+    noteList: indexReads.noteList,
+    notePath: indexReads.notePath,
+    noteCreation: noteServices.noteCreation,
     indexLifecycle,
     graphSession,
-    retrieval,
-    embeddingIndex,
     semanticSearch: createSemanticSearchService({
       embeddingRuntime,
       embeddingIndex,
@@ -991,11 +903,9 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       graphSession,
       platform,
       clock,
+      lifecycle,
       logger,
     }),
-    aiCredentials,
-    aiKeyValidation,
-    languageModel,
     aiPrompts: createAiPromptService({ settings, id }),
     keymap: createKeymapService({ platform }),
     commands,
@@ -1015,13 +925,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       credentials: aiCredentials,
       privacy: noteServices.privacy,
     }),
-    pageDescriber,
-    assetDescriber,
-    transcription,
-    transcriptEnrichment,
-    noteTools,
-    chatEngine,
-    chatGraphContext,
     chatSessions: createChatSessionService({
       chatEngine,
       chatHistory,
@@ -1036,7 +939,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       imageCodec,
       logger,
     }),
-    backlinkTarget,
     capture: createCaptureService({
       captureInbox,
       noteFile,
@@ -1059,21 +961,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       logger,
     }),
     audioMemo,
-    ...(mobileServices === null
-      ? {}
-      : {
-          nativeAction: mobileServices.nativeAction,
-          mobileAudioMemo: createMobileAudioMemoService({
-            audioMemo,
-            audioRecorder,
-            nativeAction: mobileServices.nativeAction,
-            lifecycle,
-            haptics: mobileServices.haptics,
-            platform,
-            logger,
-          }),
-        }),
-    assetPrivacy,
     assetDescription: createAssetDescriptionService({
       assetStore,
       noteFile,
@@ -1105,5 +992,6 @@ export function createAppServices(adapters: AppAdapters): AppServices {
       commands,
       clock,
     }),
+    mobile: mobileServices,
   }
 }

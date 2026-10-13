@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import fixtures from '../actions/bookmark-envelope.fixtures.json' with { type: 'json' }
-import type { TextCaptureEnvelope } from '../actions/capture-envelope.ts'
+import fixtures from './bookmark-envelope.fixtures.json' with { type: 'json' }
+import type { TextCaptureEnvelope } from './capture-envelope.ts'
 import {
   CAPTURED_AT,
   createCaptureTestKit,

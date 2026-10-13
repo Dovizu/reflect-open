@@ -60,16 +60,13 @@ export interface LiveIndex {
    * Returns an unlisten function; call it (and resubscribe with the new
    * generation) when the active graph changes.
    *
-   * `onApplied` fires after a batch's note rows have been written to the
-   * index: the hook for cache invalidation (Plan 07's TanStack Query layer).
-   * Invalidating on the raw file event would refetch *before* the rows
-   * changed. A batch whose changes were all already reflected (mtime/hash
-   * skips) fires nothing: there is nothing new to refetch.
-   *
-   * After the same apply step, `emitChangesApplied` broadcasts the
-   * **full** batch (notes *and* asset-file changes) to its subscribers: the
-   * seam the asset-description controller (Plan 20) uses so its privacy gate
-   * always reads a settled index, never racing a just-written private note's
+   * After a batch's note rows have been written to the index,
+   * `emitChangesApplied` broadcasts the **full** batch (notes *and*
+   * asset-file changes) to its subscribers: the hook for cache invalidation
+   * (Plan 07's TanStack Query layer), which would refetch *before* the rows
+   * changed if it ran on the raw file event, and the seam the
+   * asset-description controller (Plan 20) uses so its privacy gate always
+   * reads a settled index, never racing a just-written private note's
    * indexing. Batches that touch neither notes nor assets (e.g. audio-memo
    * recordings) are skipped entirely.
    *
@@ -77,12 +74,7 @@ export interface LiveIndex {
    * queue. Events dropped after suspension are intentionally recovered by the
    * lifecycle's foreground reconcile.
    */
-  subscribe(
-    generation: number,
-    onApplied?: (changes: FileChange[]) => void,
-    onMoved?: MovedHandler,
-    canApply?: () => boolean,
-  ): Unlisten
+  subscribe(generation: number, onMoved?: MovedHandler, canApply?: () => boolean): Unlisten
 }
 
 export function createLiveIndex(
@@ -312,7 +304,6 @@ export function createLiveIndex(
 
   function subscribe(
     generation: number,
-    onApplied?: (changes: FileChange[]) => void,
     onMoved?: MovedHandler,
     canApply: () => boolean = () => true,
   ): Unlisten {
@@ -335,12 +326,9 @@ export function createLiveIndex(
           }
           return notes.length > 0 ? apply(notes, generation, undefined, onMoved, canApply) : 0
         })
-        .then((mutations) => {
+        .then(() => {
           if (!canApply()) {
             return
-          }
-          if (notes.length > 0 && mutations > 0) {
-            onApplied?.(notes)
           }
           // Post-apply: the asset-description controller reads the now-settled
           // index off this. Carries the full batch (notes + asset files) and the

@@ -91,7 +91,7 @@ Every native call goes through one seam:
     own saves flow file → watcher → index like any external edit).
   - **`rebuildVisibly(generation)`** — wipe and re-index everything. For
     explicit repair, not the hot path.
-  - It reports through events (`onApplied`, `onChangesApplied`,
+  - It reports through events (`onApplied`,
     `onReconciled`, `onMoved`, ...); the app maps them to cache invalidation,
     and the embedding services follow them to re-embed.
 

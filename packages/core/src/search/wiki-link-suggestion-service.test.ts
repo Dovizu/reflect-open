@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { ContactMatch, ContactsAuthorization } from '../contacts/contacts-service.ts'
+import {
+  withContactsLookups,
+  type ContactMatch,
+  type ContactsAuthorization,
+} from '../contacts/contacts-service.ts'
 import type {
   EnsurePersonNoteInput,
   PersonContactResolution,
@@ -50,6 +54,7 @@ async function setup(options?: SetupOptions) {
   await settings.whenLoaded()
   const clock = createTestClockService({ now: new Date(2026, 5, 9, 12).getTime() })
   const contacts = createTestContactsService({ contacts: options?.contacts ?? [] })
+  let authorization: ContactsAuthorization | null = null
   const linkQueries: { query: string; limit?: number; dateGen?: DateSuggestionContext }[] = []
   const tagQueries: string[] = []
   const created: { title: string; generation: number; body?: string }[] = []
@@ -79,14 +84,16 @@ async function setup(options?: SetupOptions) {
           Promise.resolve({ kind: 'created', path: 'notes/created.md' }))
       },
     },
-    contacts: {
+    contacts: withContactsLookups({
+      ...contacts,
+      getState: () => ({ authorization }),
       lookupByName: async (name) => {
         if (options?.contactsFailure !== undefined) {
           throw options.contactsFailure
         }
         return await contacts.lookupByName(name)
       },
-    },
+    }),
     personNotes: {
       resolvePersonContact: async (contact) => ({
         kind: 'new',
@@ -104,8 +111,10 @@ async function setup(options?: SetupOptions) {
     operations,
     logger,
   })
-  const suggest = (query: string, contactsAuthorization: ContactsAuthorization | null = null) =>
-    service.suggestLinks(query, { generation: 7, contactsAuthorization })
+  const suggest = (query: string, next: ContactsAuthorization | null = null) => {
+    authorization = next
+    return service.suggestLinks(query, { generation: 7 })
+  }
   return {
     service,
     suggest,
@@ -507,7 +516,7 @@ describe('WikiLinkSuggestionService.suggestLinks', () => {
     ])
     const service = createTestWikiLinkSuggestionService({ database })
 
-    const items = await service.suggestLinks('road', { generation: 1, contactsAuthorization: null })
+    const items = await service.suggestLinks('road', { generation: 1 })
     expect(items.map((item) => item.label)).toEqual(['Road trip', 'Roadmap', 'Create “road”'])
     database.close()
   })

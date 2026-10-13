@@ -7,7 +7,7 @@ import { getTaskKey } from '@/lib/tasks/task-identity.ts'
 import type { TaskSelection } from '@/lib/tasks/use-task-selection.ts'
 import type { TaskRowEditHandlers } from '@/lib/tasks/use-task-row-handlers.ts'
 import { cn } from '@/lib/utils.ts'
-import type { ModClickEvent } from '@/lib/windows/open-in-new-window.ts'
+import type { ModClickEvent } from '@/hooks/use-note-link-navigation.ts'
 import { TaskBreadcrumbs } from './task-breadcrumbs.tsx'
 import { TaskRow } from './task-row.tsx'
 

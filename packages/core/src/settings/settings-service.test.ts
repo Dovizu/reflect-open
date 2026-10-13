@@ -350,6 +350,46 @@ describe('createSettingsService', () => {
     expect(disk.attempts).toEqual([])
   })
 
+  it('reloads after a failed load and adopts the stored document', async () => {
+    const { disk, settings } = setup({ editorMarkdownSyntax: 'show' })
+    disk.failLoad = true
+    await expect(settings.whenLoaded()).resolves.toBe('failed')
+    settings.update({ editorMarkdownSyntax: 'hide' })
+    const listener = vi.fn()
+    settings.subscribe(listener)
+
+    disk.failLoad = false
+    await expect(settings.reload()).resolves.toBe('loaded')
+
+    expect(settings.status()).toBe('loaded')
+    expect(settings.get().editorMarkdownSyntax).toBe('show')
+    expect(listener).toHaveBeenCalledOnce()
+    await expect(settings.whenLoaded()).resolves.toBe('loaded')
+    settings.update({ editorMarkdownSyntax: 'hide' })
+    await settings.flush()
+    expect(disk.saved).toEqual([expect.objectContaining({ editorMarkdownSyntax: 'hide' })])
+  })
+
+  it('stays failed when the reload fails too', async () => {
+    const { disk, operations, settings } = setup()
+    disk.failLoad = true
+    await settings.whenLoaded()
+
+    await expect(settings.reload()).resolves.toBe('failed')
+
+    expect(settings.status()).toBe('failed')
+    expect(disk.loadCalls).toBe(2)
+    expect(operations.snapshot()).toHaveLength(2)
+  })
+
+  it('does not load again once the load succeeded', async () => {
+    const { disk, settings } = setup()
+
+    await expect(settings.reload()).resolves.toBe('loaded')
+
+    expect(disk.loadCalls).toBe(1)
+  })
+
   it('keeps the applied value and surfaces a failed save as an operation', async () => {
     const { disk, operations, settings } = setup()
     await settings.whenLoaded()

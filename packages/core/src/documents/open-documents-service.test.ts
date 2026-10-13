@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestNoteSession } from '../testing/documents.ts'
+import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import {
@@ -23,10 +24,12 @@ function fakeSession(path: string, log: string[]): NoteSession {
   }
 }
 
+let fileChanges: TestFileChangeService
 let openDocuments: OpenDocumentsService
 
 beforeEach(() => {
-  openDocuments = createOpenDocumentsService()
+  fileChanges = createTestFileChangeService()
+  openDocuments = createOpenDocumentsService({ fileChanges })
 })
 
 describe('open documents', () => {
@@ -133,6 +136,56 @@ describe('retarget (Plan 17)', () => {
     } finally {
       unregister()
     }
+  })
+})
+
+describe('external changes', () => {
+  it('routes an upsert to every open session at that path', () => {
+    const log: string[] = []
+    const unregisterA = openDocuments.register({ session: fakeSession('notes/a.md', log) })
+    const unregisterA2 = openDocuments.register({ session: fakeSession('notes/a.md', log) })
+    const unregisterB = openDocuments.register({ session: fakeSession('notes/b.md', log) })
+
+    fileChanges.emit({
+      changes: [
+        { path: 'notes/a.md', kind: 'upsert' },
+        { path: 'notes/b.md', kind: 'remove' },
+        { path: 'notes/c.md', kind: 'upsert' },
+      ],
+      source: 'external',
+    })
+
+    expect(log).toEqual(['externalChanged:notes/a.md', 'externalChanged:notes/a.md'])
+    unregisterA()
+    unregisterA2()
+    unregisterB()
+  })
+
+  it("matches the session's current path after a rename retargets it", () => {
+    const session = createTestNoteSession({ path: 'notes/a.md' })
+    const unregister = openDocuments.register({ session })
+    session.retarget('notes/renamed.md')
+
+    fileChanges.emit({ changes: [{ path: 'notes/a.md', kind: 'upsert' }], source: 'external' })
+    expect(session.getCalls('externalChanged')).toHaveLength(0)
+    fileChanges.emit({
+      changes: [{ path: 'notes/renamed.md', kind: 'upsert' }],
+      source: 'external',
+    })
+    expect(session.getCalls('externalChanged')).toHaveLength(1)
+    unregister()
+  })
+
+  it('subscribes once while any document is open', () => {
+    expect(fileChanges.listenerCount().changes).toBe(0)
+    const unregisterA = openDocuments.register({ session: fakeSession('notes/a.md', []) })
+    const unregisterB = openDocuments.register({ session: fakeSession('notes/b.md', []) })
+    expect(fileChanges.listenerCount().changes).toBe(1)
+    unregisterA()
+    unregisterA()
+    expect(fileChanges.listenerCount().changes).toBe(1)
+    unregisterB()
+    expect(fileChanges.listenerCount().changes).toBe(0)
   })
 })
 

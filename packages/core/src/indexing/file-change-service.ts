@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import type { LoggerService } from '../app/logger-service.ts'
-import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
+import {
+  createFanOut,
+  listenNow,
+  type IpcBridgeService,
+  type Unlisten,
+} from '../ipc/ipc-service.ts'
 
 /** Event name the Rust watcher emits tracked-file changes on. */
 export const FILE_CHANGES_EVENT = 'index:changed'
@@ -56,7 +61,8 @@ export interface FileChangeBatch {
 export interface FileChangeService {
   /**
    * Receive every batch: the watcher's {@link FILE_CHANGES_EVENT} (validated,
-   * tagged `external`) and every batch passed to {@link emit}.
+   * tagged `external`) and every batch passed to {@link emit}. All
+   * subscribers share one native registration.
    */
   subscribe(listener: (batch: FileChangeBatch) => void): Unlisten
   /**
@@ -102,14 +108,7 @@ export function createFileChangeService(
   },
 ): FileChangeService {
   const { ipc, logger } = deps
-  const listeners = new Set<(batch: FileChangeBatch) => void>()
   const ownWriteListeners = new Set<(paths: readonly string[]) => void>()
-
-  function emit(batch: FileChangeBatch): void {
-    for (const listener of listeners) {
-      listener(batch)
-    }
-  }
 
   function listenNative(event: string, handler: (payload: unknown) => void): Unlisten {
     return listenNow(
@@ -120,27 +119,23 @@ export function createFileChangeService(
     )
   }
 
+  // Every subscriber shares one native registration; the payload is parsed once.
+  const batches = createFanOut<FileChangeBatch>((emit) =>
+    listenNative(FILE_CHANGES_EVENT, (payload) => {
+      const parsed = fileChangesSchema.safeParse(payload)
+      if (parsed.success) {
+        emit({ changes: parsed.data, source: 'external' })
+      } else {
+        // The Rust and TS event contract drifted: loud beats silently stale
+        // indexes and editors.
+        logger.error(`invalid ${FILE_CHANGES_EVENT} payload:`, parsed.error)
+      }
+    }),
+  )
+
   return {
     subscribe(listener) {
-      // Wrapped for identity, so one function added twice detaches independently.
-      const deliver = (batch: FileChangeBatch): void => {
-        listener(batch)
-      }
-      listeners.add(deliver)
-      const stopNative = listenNative(FILE_CHANGES_EVENT, (payload) => {
-        const parsed = fileChangesSchema.safeParse(payload)
-        if (parsed.success) {
-          deliver({ changes: parsed.data, source: 'external' })
-        } else {
-          // The Rust and TS event contract drifted: loud beats silently stale
-          // indexes and editors.
-          logger.error(`invalid ${FILE_CHANGES_EVENT} payload:`, parsed.error)
-        }
-      })
-      return () => {
-        listeners.delete(deliver)
-        stopNative()
-      }
+      return batches.subscribe(listener)
     },
 
     subscribeReconcile(listener) {
@@ -159,7 +154,7 @@ export function createFileChangeService(
       }
     },
 
-    emit,
+    emit: batches.emit,
 
     reportOwnWrite(changes) {
       const paths = changes.map((change) => change.path)
@@ -172,7 +167,7 @@ export function createFileChangeService(
         }
       }
       if (options.echoOwnWrites) {
-        emit({ changes: [...changes], source: 'own-write' })
+        batches.emit({ changes: [...changes], source: 'own-write' })
       }
     },
 

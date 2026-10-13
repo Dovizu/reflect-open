@@ -6,11 +6,12 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./capture-envelope": "./src/actions/capture-envelope.ts",
+    "./capture-envelope": "./src/capture/capture-envelope.ts",
     "./x-archive": "./src/x-archive.ts",
     "./testing": "./src/testing/index.ts"
   },
   "scripts": {
+    "check:exports": "node scripts/check-exports.mjs",
     "test": "vitest run --config ../../vitest.config.ts --project core-browser --project core-node"
   },
   "dependencies": {

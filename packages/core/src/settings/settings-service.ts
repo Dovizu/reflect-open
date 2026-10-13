@@ -25,6 +25,11 @@ export interface SettingsService {
   /** Computes a patch from the latest settings; calls made before the load replay over the loaded document. */
   updateWith: (updater: SettingsUpdater) => void
   whenLoaded: () => Promise<SettingsLoadOutcome>
+  /**
+   * After a failed load, load the stored document again; on success it
+   * replaces the session-only settings. Otherwise answers {@link whenLoaded}.
+   */
+  reload: () => Promise<SettingsLoadOutcome>
   /** Drains pending saves and resubmits a document that no save has confirmed. Never rejects. */
   flush: () => Promise<void>
   status: () => SettingsStatus
@@ -49,9 +54,10 @@ export function createSettingsService(deps: {
   let lastSubmission: Promise<void> = Promise.resolve()
 
   let resolveLoad: (outcome: SettingsLoadOutcome) => void = () => {}
-  const loaded = new Promise<SettingsLoadOutcome>((resolve) => {
+  let loaded = new Promise<SettingsLoadOutcome>((resolve) => {
     resolveLoad = resolve
   })
+  let reloading: Promise<SettingsLoadOutcome> | null = null
 
   const emit = (): void => {
     for (const listener of listeners) {
@@ -107,6 +113,32 @@ export function createSettingsService(deps: {
         hydrate('failed', DEFAULT_SETTINGS)
       },
     )
+  }
+
+  const reload = (): Promise<SettingsLoadOutcome> => {
+    if (state !== 'failed') {
+      start()
+      return loaded
+    }
+    reloading ??= ipc
+      .call('settings_load', {}, settingsSchema)
+      .then(
+        (document): SettingsLoadOutcome => {
+          state = 'loaded'
+          current = document
+          loaded = Promise.resolve('loaded')
+          emit()
+          return 'loaded'
+        },
+        (error: unknown): SettingsLoadOutcome => {
+          operations.start('Loading settings').fail(errorMessage(error))
+          return 'failed'
+        },
+      )
+      .finally(() => {
+        reloading = null
+      })
+    return reloading
   }
 
   const apply = (updater: SettingsUpdater): void => {
@@ -170,6 +202,7 @@ export function createSettingsService(deps: {
       start()
       return loaded
     },
+    reload,
     async flush() {
       await drain()
       if (dirty && state === 'loaded') {

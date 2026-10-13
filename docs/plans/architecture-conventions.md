@@ -155,18 +155,17 @@ The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
   ```
 
   `useAppServices()` throws outside a provider. Do not add per-service hooks. The
-  mobile tree uses `useMobileAppServices()` (`mobile/mobile-services.ts`), which types
-  the mobile-only services as present.
+  mobile tree uses `useMobileAppServices()` (`mobile/mobile-services.ts`), which adds
+  `app.mobile` and throws when it is `null`.
 - **Non-React desktop modules** (`lib/`, `providers/*.ts`): the first parameter is
   `ctx`, typed as the `Pick` of `AppServices` the function uses. The React caller
   passes `useAppServices()`:
 
   ```ts
-  // apps/desktop/src/lib/note-delete.ts
-  export async function deleteOpenNote(
+  // apps/desktop/src/lib/note-pin.ts
+  export async function toggleNotePinned(
     ctx: Pick<AppServices, 'noteActions'>,
-    path: string,
-    generation: number,
+    input: NoteActionInput,
   ): Promise<void>
   ```
 
@@ -237,8 +236,8 @@ maps events to cache invalidation in a few small adapters:
 |---|---|---|
 | `indexLifecycle.onApplied`, `onReconciled`, `onMoved`, `onStalePlaceholders` | `providers/graph-index.ts` (`bindGraphIndex`) | invalidate index queries, reload open documents, follow healed moves, request iCloud downloads |
 | `graphSession.onGraphReleased`, `onGraphDeleted` | `providers/graph-session.ts` (`bootGraphSession`) | drop what the app holds per graph |
-| `capture.onXPostsWritten` | `lib/capture-x-posts.ts` | invalidate X post queries |
-| `assetDescription.onDescriptionsIndexed` | `lib/asset-description-queries.ts` | invalidate index queries |
+| `capture.onXPostsWritten` | `lib/query-invalidation.ts` | invalidate X post queries |
+| `assetDescription.onDescriptionsIndexed` | `lib/query-invalidation.ts` | invalidate index queries |
 | `chatSessions.onConversationsChanged` | `providers/chat-provider.tsx` | invalidate chat history queries |
 | `noteMove.onMoved` | `routing/router.tsx` | rewrite history entries to the new path |
 

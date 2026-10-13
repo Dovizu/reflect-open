@@ -14,7 +14,6 @@ import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestSecretStoreService } from '../testing/secrets.ts'
 import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
 import {
-  createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
@@ -83,8 +82,6 @@ interface FakeOptions {
   failStatus?: boolean
   /** Make the keychain read throw (locked keychain, stale ACL after re-signing). */
   failSecretGet?: boolean
-  /** A stored sign-in for the origin's non-GitHub host (`git-host:<host>`), as JSON. */
-  hostSecret?: string | null
   /** Scripted `mergeRemote` outcome (defaults to up-to-date). */
   mergeOutcome?: MergeOutcome
   /** Per-call merge outcomes for retry/convergence tests. */
@@ -135,10 +132,6 @@ function fakeServices(options: FakeOptions = {}) {
   const initialSecrets: Record<string, string> = {}
   if (auth !== null) {
     initialSecrets['github-auth'] = auth
-  }
-  const hostSecret = options.hostSecret ?? null
-  if (hostSecret !== null && status.remoteUrl !== null) {
-    initialSecrets[`git-host:${new URL(status.remoteUrl).hostname}`] = hostSecret
   }
   const secrets = createTestSecretStoreService(initialSecrets)
   const secretStore = {
@@ -217,7 +210,6 @@ function fakeServices(options: FakeOptions = {}) {
     syncEngines: createTestSyncEngineFactory({ git, clock }),
     githubAuth: createTestGithubAuthService({ secretStore, http, clock }),
     githubRepos: createTestGithubRepoService({ http }),
-    gitHostCredentials: createTestGitHostCredentialService({ secretStore }),
     fileChanges: watchedChanges,
     indexLifecycle: {
       applyChanges: async (changes, generation, canApply) => {
@@ -361,7 +353,7 @@ describe('createBackupService', () => {
     backup.dispose()
   })
 
-  it('refuses a generic HTTPS remote without a stored sign-in', async () => {
+  it('refuses a generic HTTPS remote', async () => {
     // A *public* generic HTTPS remote would pull anonymously and only fail
     // on push — edits arriving while the user's own never leave. The guard
     // surfaces the error before the engine ever starts.
@@ -391,46 +383,6 @@ describe('createBackupService', () => {
     expect(commitCount(calls)).toBe(1)
     expect(calls).not.toContain('fetch')
     expect(calls).not.toContain('push')
-    backup.dispose()
-  })
-
-  it('adopts a generic HTTPS remote with a stored host sign-in and sends it', async () => {
-    const { calls, invocations } = fakeServices({
-      auth: null,
-      remoteUrl: 'https://gitlab.com/alex/notes.git',
-      hostSecret: JSON.stringify({ username: 'alex', secret: 'glpat-xyz' }),
-    })
-    const backup = createBackup({ indexGeneration: 1 })
-    await backup.start()
-    await vi.waitFor(() => {
-      expect(calls).toContain('fetch')
-    })
-    const fetch = invocations.find((call) => call.command === 'fetch')
-    expect(fetch?.args).toMatchObject({ credential: { username: 'alex', secret: 'glpat-xyz' } })
-    expect(backup.getState()).toMatchObject({ phase: 'connected', repo: null })
-    backup.dispose()
-  })
-
-  it('keeps local history when the host sign-in cannot be read', async () => {
-    const { calls } = fakeServices({
-      auth: null,
-      remoteUrl: 'https://gitlab.com/alex/notes.git',
-      failSecretGet: true,
-    })
-    const backup = createBackup({ indexGeneration: 1 })
-    await backup.start()
-    expect(backup.getState()).toMatchObject({
-      phase: 'connected',
-      status: { state: 'error', errorKind: 'rejected' },
-    })
-    await vi.waitFor(() => {
-      expect(calls).toContain('commitAll')
-    })
-    expect(calls).not.toContain('fetch')
-    expect(logger.getErrors()).toContainEqual({
-      message: 'reading the host sign-in failed:',
-      cause: expect.any(String),
-    })
     backup.dispose()
   })
 

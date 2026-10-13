@@ -1,8 +1,10 @@
 import type { LoggerService } from '../app/logger-service.ts'
-import type {
-  ContactMatch,
-  ContactsAuthorization,
-  ContactsService,
+import {
+  withContactsLookups,
+  type ContactMatch,
+  type ContactsAuthorization,
+  type ContactsService,
+  type ContactsState,
 } from '../contacts/contacts-service.ts'
 import {
   createContactSuggestionService,
@@ -44,6 +46,7 @@ export type ContactsLookup =
   | { readonly kind: 'name'; readonly name: string }
 
 export interface TestContactsService extends ContactsService {
+  /** Set the permission state, as the OS and as already read by the app. */
   setStatus(status: ContactsAuthorization): void
   setContacts(contacts: readonly ContactMatch[]): void
   /** How many times `requestAccess` ran. */
@@ -59,7 +62,8 @@ function words(text: string): string[] {
 }
 
 /**
- * An in-memory {@link ContactsService} over a fixed address book.
+ * An in-memory {@link ContactsService} over a fixed address book. Its state
+ * starts read: `getState` answers `status` at once.
  * `lookupByEmail` matches an address case-insensitively; `lookupByName`
  * matches when every query word is a prefix of a word in a contact's names.
  * Like the OS, `requestAccess` prompts only while the status is
@@ -73,14 +77,39 @@ export function createTestContactsService(
   const grantAccess = options?.grantAccess ?? true
   let requests = 0
   const log: ContactsLookup[] = []
+  const listeners = new Set<() => void>()
+  let state: ContactsState = { authorization: status }
 
-  return {
-    authorizationStatus: async () => status,
+  function adoptStatus(): void {
+    if (state.authorization === status) {
+      return
+    }
+    state = { authorization: status }
+    for (const listener of listeners) {
+      listener()
+    }
+  }
+
+  const service = withContactsLookups({
+    getState: () => state,
+    subscribe: (listener) => {
+      const deliver = (): void => {
+        listener()
+      }
+      listeners.add(deliver)
+      return () => {
+        listeners.delete(deliver)
+      }
+    },
+    refresh: async () => {
+      adoptStatus()
+    },
     requestAccess: async () => {
       requests++
       if (status === 'notDetermined') {
         status = grantAccess ? 'authorized' : 'denied'
       }
+      adoptStatus()
       return status === 'authorized' || status === 'limited'
     },
     lookupByEmail: async (email) => {
@@ -100,8 +129,12 @@ export function createTestContactsService(
         )
       })
     },
+  })
+  return {
+    ...service,
     setStatus(next) {
       status = next
+      adoptStatus()
     },
     setContacts(next) {
       contacts = [...next]

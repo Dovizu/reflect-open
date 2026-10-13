@@ -248,7 +248,7 @@ beforeEach(async () => {
     platform: createTestPlatformService({ reducedMotion: true }),
   })
   storage = app.storage
-  haptics = app.haptics
+  haptics = app.mobile.haptics
   // Today is 2026-06-14.
   app.clock.setNow(new Date(2026, 5, 14, 12).getTime())
   // A wiki-link tap resolves to this note.

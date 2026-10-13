@@ -696,7 +696,7 @@ describe('canLookupContacts', () => {
       await settings.whenLoaded()
       contacts.setStatus(status)
 
-      await expect(meetingService({ settings }).canLookupContacts()).resolves.toBe(expected)
+      expect(meetingService({ settings }).canLookupContacts()).toBe(expected)
     },
   )
 })
@@ -810,7 +810,7 @@ describe('attendeeSuggestions', () => {
       logger,
       contacts: {
         ...contacts,
-        lookupByName: async () => {
+        lookupPeople: async () => {
           throw failure
         },
       },

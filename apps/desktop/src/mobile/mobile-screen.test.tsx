@@ -375,13 +375,13 @@ describe('MobileShell', () => {
     const view = await mount({ kind: 'today' })
 
     await user.click(view.getByRole('button', { name: dayCellLabel(other) }))
-    app.haptics.reset()
+    app.mobile.haptics.reset()
 
     await user.click(view.getByRole('button', { name: 'Today' }))
-    expect(app.haptics.impacts()).toBe(1)
+    expect(app.mobile.haptics.impacts()).toBe(1)
 
     await user.click(view.getByRole('button', { name: 'Settings' }))
-    expect(app.haptics.impacts()).toBe(2)
+    expect(app.mobile.haptics.impacts()).toBe(2)
     await expect.element(view.getByRole('heading', { name: 'Settings' })).toBeVisible()
   })
 

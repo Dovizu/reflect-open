@@ -137,7 +137,9 @@ SQL.
 `createTestAppServices()` returns the whole `AppServices` object over test
 doubles that share one clock, one note-file store, one database and one
 logger. Its type, `TestAppServices`, keeps the test members:
-`app.noteFile.getWrites(path)`, `app.clock.advance(ms)`.
+`app.noteFile.getWrites(path)`, `app.clock.advance(ms)`. It also exposes the
+services that `AppServices` keeps internal (`InternalServices`, e.g.
+`app.database`) and always has `app.mobile`.
 
 Pass overrides to replace a service. The other doubles are built over your
 override:

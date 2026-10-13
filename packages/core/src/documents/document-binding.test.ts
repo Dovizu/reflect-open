@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTestNoteSession } from '../testing/documents.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
 import {
   createDocumentBinding,
   type BindFactories,
@@ -41,7 +42,7 @@ function factories(session: NoteSession, coordinator: DocumentCoordinator | null
 let openDocuments: OpenDocumentsService
 
 beforeEach(() => {
-  openDocuments = createOpenDocumentsService()
+  openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
 })
 
 function createBinding(): DocumentBinding {

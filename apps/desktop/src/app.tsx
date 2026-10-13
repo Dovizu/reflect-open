@@ -1,7 +1,6 @@
 import { useEffect, type ReactElement } from 'react'
 import { GraphChooser } from '@/components/graph-chooser.tsx'
 import { GraphWorkspace } from '@/components/graph-workspace.tsx'
-import { installQuitFlush } from '@/lib/quit-flush.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
@@ -16,10 +15,9 @@ export function App(): ReactElement {
 
   // Quit-time persistence: flush dirty note buffers when exiting, awaiting
   // persistence before destruction but hiding the macOS main window first.
-  // Unmount effects don't run on those paths. installQuitFlush returns its
-  // teardown, which the effect returns as cleanup.
+  // Unmount effects don't run on those paths.
   useEffect(() => {
-    return installQuitFlush(services)
+    return services.persistenceFlush.installDesktopQuitPolicy()
   }, [services])
 
   if (status === 'ready' && graph) {

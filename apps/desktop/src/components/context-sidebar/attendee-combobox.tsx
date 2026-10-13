@@ -1,13 +1,7 @@
 import { useDeferredValue, useRef, useState, type KeyboardEvent, type ReactElement } from 'react'
 import { Command as CommandPrimitive } from 'cmdk'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import {
-  aliasHint,
-  displayNoteTitle,
-  foldKey,
-  isContactsReadable,
-  type MeetingAttendee,
-} from '@reflect/core'
+import { aliasHint, displayNoteTitle, foldKey, type MeetingAttendee } from '@reflect/core'
 import { getIsComposing } from '@meowdown/core'
 import { CommandItem, CommandList } from '@/components/ui/command.tsx'
 import { INPUT_CLASS_NAME } from '@/components/ui/input.tsx'
@@ -16,7 +10,7 @@ import {
   buildAutocompleteEntries,
   type AutocompleteEntry,
 } from '@/editor/wiki-autocomplete-entries.ts'
-import { useContactsAuthorization } from '@/hooks/use-contacts-authorization.ts'
+import { useContactsState } from '@/hooks/use-contacts-state.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useSettings } from '@/providers/settings-provider.tsx'
@@ -72,10 +66,10 @@ function entryAttendee(entry: AutocompleteEntry): MeetingAttendee {
 export function AttendeeCombobox({ attendees, onAdd }: AttendeeComboboxProps): ReactElement {
   const { graph } = useGraph()
   const { settings } = useSettings()
-  const { meetings } = useAppServices()
-  const authorization = useContactsAuthorization()
-  const contactsInMenu =
-    settings.contactsEnabled && authorization !== null && isContactsReadable(authorization)
+  const { contacts, meetings } = useAppServices()
+  // Re-render when the permission state changes; the gate reads it.
+  useContactsState()
+  const contactsInMenu = contacts.canLookup(settings)
 
   const [query, setQuery] = useState('')
   const [dismissed, setDismissed] = useState(false)

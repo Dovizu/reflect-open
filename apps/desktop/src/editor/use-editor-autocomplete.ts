@@ -5,7 +5,6 @@ import type {
   WikilinkItem,
   WikilinkSearchHandler,
 } from '@meowdown/react'
-import { useContactsAuthorization } from '@/hooks/use-contacts-authorization.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
@@ -29,7 +28,6 @@ export interface EditorAutocomplete {
  */
 export function useEditorAutocomplete(): EditorAutocomplete {
   const { graph } = useGraph()
-  const authorization = useContactsAuthorization()
   const { wikiLinkSuggestions } = useAppServices()
   const generation = graph?.generation ?? null
 
@@ -38,12 +36,9 @@ export function useEditorAutocomplete(): EditorAutocomplete {
       if (generation === null) {
         return []
       }
-      return await wikiLinkSuggestions.suggestLinks(query, {
-        generation,
-        contactsAuthorization: authorization,
-      })
+      return await wikiLinkSuggestions.suggestLinks(query, { generation })
     },
-    [generation, authorization, wikiLinkSuggestions],
+    [generation, wikiLinkSuggestions],
   )
 
   const onTagSearch = useCallback(

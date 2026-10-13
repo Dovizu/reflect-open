@@ -1,4 +1,39 @@
-import { createIndexReadServices, type AppServices } from '../app/create-app-services.ts'
+import {
+  createIndexReadServices,
+  type AppServices,
+  type MobileServices,
+} from '../app/create-app-services.ts'
+import type { AiKeyValidationService } from '../ai/ai-key-validation-service.ts'
+import type { AssetDescriberService } from '../ai/asset-describer-service.ts'
+import type { ChatEngineService } from '../ai/chat/chat-engine-service.ts'
+import type { ChatGraphContextService } from '../ai/chat/chat-graph-context-service.ts'
+import type { LanguageModelService } from '../ai/language-model-service.ts'
+import type { PageDescriberService } from '../ai/page-describer-service.ts'
+import type { TranscriptionService } from '../ai/transcription-service.ts'
+import type { HttpService } from '../app/http-service.ts'
+import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
+import type { PersonNoteService } from '../contacts/person-note-service.ts'
+import type { EmbeddingIndexService } from '../embeddings/embedding-index-service.ts'
+import type { RetrievalService } from '../embeddings/retrieval-service.ts'
+import type { AssetStoreService } from '../graph/asset-store-service.ts'
+import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
+import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
+import type { DatabaseService } from '../indexing/database-service.ts'
+import type { GraphStatsService } from '../indexing/graph-stats-service.ts'
+import type { IndexStoreService } from '../indexing/index-store-service.ts'
+import type { SuggestionService } from '../indexing/suggestion-service.ts'
+import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import type { AppStoreService } from '../ipc/app-store-plugin.ts'
+import type { IapService } from '../ipc/iap-plugin.ts'
+import type { WebAuthService } from '../ipc/web-auth-plugin.ts'
+import type { PrivacyService } from '../privacy/privacy-service.ts'
+import type { SecretStoreService } from '../secrets/secret-store-service.ts'
+import type { SyncEngineFactory } from '../sync/engine.ts'
+import type { GistService } from '../sync/gist-service.ts'
+import type { GitRepositoryService } from '../sync/git-repository-service.ts'
+import type { GithubRepoService } from '../sync/github-repo-service.ts'
+import type { XArchiveService } from '../x-archive.ts'
 import type { PathService } from '../app/path-service.ts'
 import type { AppInfoService } from '../app/app-info-service.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
@@ -46,7 +81,6 @@ import {
   createTestGistPublishService,
   createTestConflictResolutionService,
   createTestGistService,
-  createTestGitHostCredentialService,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestGithubRepoService,
@@ -215,7 +249,6 @@ import {
 } from './commands.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import type { AudioMemoService } from '../audio/audio-memo-service.ts'
-import type { MobileAudioMemoService } from '../audio/mobile-audio-memo-service.ts'
 import type { NativeActionService } from '../audio/native-action-service.ts'
 import type { AssetPrivacyService } from '../assets/asset-privacy-service.ts'
 import {
@@ -229,8 +262,60 @@ import { createTestLinkPreviewService } from './link-preview.ts'
 import type { KeymapService } from '../commands/keymap-service.ts'
 import { createTestPaletteSearchService, createTestWikiLinkSuggestionService } from './search.ts'
 
-/** {@link AppServices} where every service is its in-memory test double. */
-export interface TestAppServices extends AppServices {
+/** The services that {@link createAppServices} builds but keeps out of {@link AppServices}. */
+export interface InternalServices {
+  readonly http: HttpService
+  readonly secretStore: SecretStoreService
+  readonly personNotes: PersonNoteService
+  readonly database: DatabaseService
+  readonly indexStore: IndexStoreService
+  readonly gitRepository: GitRepositoryService
+  readonly githubRepos: GithubRepoService
+  readonly gists: GistService
+  readonly syncEngines: SyncEngineFactory
+  readonly captureInbox: CaptureInboxService
+  readonly webFetch: WebFetchService
+  readonly xArchive: XArchiveService
+  readonly audioRecorder: AudioRecorderService
+  readonly iap: IapService
+  readonly appStore: AppStoreService
+  readonly webAuth: WebAuthService
+  readonly assetStore: AssetStoreService
+  readonly wikiResolver: WikiResolverService
+  readonly suggestions: SuggestionService
+  readonly graphStats: GraphStatsService
+  readonly noteLinkResolver: NoteLinkResolverService
+  readonly privacy: PrivacyService
+  readonly retrieval: RetrievalService
+  readonly embeddingIndex: EmbeddingIndexService
+  readonly aiCredentials: AiCredentialService
+  readonly aiKeyValidation: AiKeyValidationService
+  readonly languageModel: LanguageModelService
+  readonly pageDescriber: PageDescriberService
+  readonly assetDescriber: AssetDescriberService
+  readonly transcription: TranscriptionService
+  readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly noteTools: NoteToolsService
+  readonly chatEngine: ChatEngineService
+  readonly chatGraphContext: ChatGraphContextService
+  readonly backlinkTarget: BacklinkTargetService
+  readonly nativeAction: NativeActionService
+  readonly assetPrivacy: AssetPrivacyService
+}
+
+/** {@link MobileServices} where every service is its in-memory test double. */
+export interface TestMobileServices extends MobileServices {
+  readonly haptics: TestHapticsService
+  readonly subscription: TestSubscriptionService
+  readonly appStoreEnvironment: TestAppStoreEnvironmentService
+  readonly paywall: TestPaywallService
+}
+
+/**
+ * {@link AppServices} plus {@link InternalServices}, where every service is its
+ * in-memory test double. The mobile services always exist.
+ */
+export interface TestAppServices extends AppServices, InternalServices {
   readonly ipc: TestIpcBridgeService
   readonly logger: TestLoggerService
   readonly clock: TestClockService
@@ -272,14 +357,10 @@ export interface TestAppServices extends AppServices {
   readonly webFetch: TestWebFetchService
   readonly xArchive: TestXArchiveService
   readonly audioRecorder: TestAudioRecorderService
-  readonly haptics: TestHapticsService
   readonly iap: TestIapService
   readonly appStore: TestAppStoreService
   readonly webAuth: TestWebAuthService
   readonly classicAccess: TestClassicAccessService
-  readonly subscription: TestSubscriptionService
-  readonly appStoreEnvironment: TestAppStoreEnvironmentService
-  readonly paywall: TestPaywallService
   readonly noteFile: TestNoteFileService
   readonly assetStore: TestAssetStoreService
   readonly attachments: TestAttachmentService
@@ -317,24 +398,26 @@ export interface TestAppServices extends AppServices {
   readonly capture: TestCaptureService
   readonly audioMemo: AudioMemoService
   readonly nativeAction: NativeActionService
-  readonly mobileAudioMemo: MobileAudioMemoService
   readonly assetPrivacy: AssetPrivacyService
   readonly assetDescription: TestAssetDescriptionService
+  readonly mobile: TestMobileServices
 }
+
+/** Replacements for the services of {@link createTestAppServices}. */
+export type TestAppServiceOverrides = Partial<AppServices & InternalServices>
 
 /** Fresh test doubles for every app service, with `overrides` in place of the matching ones. */
 export function createTestAppServices(): TestAppServices
-export function createTestAppServices<Overrides extends Partial<AppServices>>(
+export function createTestAppServices<Overrides extends TestAppServiceOverrides>(
   overrides: Overrides,
 ): Omit<TestAppServices, keyof Overrides> & Overrides
-export function createTestAppServices(overrides?: Partial<AppServices>): AppServices {
+export function createTestAppServices(overrides?: TestAppServiceOverrides): TestAppServices {
   const testLogger = createTestLoggerService()
   const logger = overrides?.logger ?? testLogger
   const clock = createTestClockService()
   const operations = createTestOperationsService(clock)
   const database = createTestDatabaseService()
   const noteFile = createTestNoteFileService()
-  const openDocuments = createTestOpenDocumentsService()
   const id = createTestIdService()
   const secretStore = createTestSecretStoreService()
   const settings = createTestSettingsService(
@@ -363,6 +446,9 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
   })
   const http = createTestHttpService()
   const fileChanges = createTestFileChangeService()
+  const openDocuments = createTestOpenDocumentsService({
+    fileChanges: overrides?.fileChanges ?? fileChanges,
+  })
   const indexStore = createTestIndexStoreService()
   const xArchive = createTestXArchiveService()
   const webFetch = createTestWebFetchService()
@@ -429,6 +515,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const opener = createTestOpenerService({ logger })
+  const navigation = createTestNavigationService()
   const deepLink = createTestDeepLinkService({
     indexQuery: overrides?.indexQuery ?? indexReads.indexQuery,
     captureInbox: overrides?.captureInbox ?? captureInbox,
@@ -438,15 +525,14 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     logger,
   })
   const attachments = createTestAttachmentService()
-  const persistenceFlush = createTestPersistenceFlushService()
+  const persistenceFlush = createTestPersistenceFlushService({
+    openDocuments: overrides?.openDocuments ?? openDocuments,
+  })
   const gitRepository = createTestGitRepositoryService()
   const githubAuth = createTestGithubAuthService({
     secretStore: overrides?.secretStore ?? secretStore,
     http: overrides?.http ?? http,
     clock: overrides?.clock ?? clock,
-  })
-  const gitHostCredentials = createTestGitHostCredentialService({
-    secretStore: overrides?.secretStore ?? secretStore,
   })
   const githubRepos = createTestGithubRepoService({ http: overrides?.http ?? http })
   const gists = createTestGistService({ http: overrides?.http ?? http })
@@ -563,7 +649,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     embeddingRuntime,
     chatHistory,
     update: createTestUpdateService(),
-    navigation: createTestNavigationService(),
+    navigation,
     deepLink,
     linkNavigation: createTestLinkNavigationService({
       noteLinkResolver: overrides?.noteLinkResolver ?? noteLinkResolver,
@@ -573,13 +659,13 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       platform: overrides?.platform ?? platform,
       opener: overrides?.opener ?? opener,
       deepLink: overrides?.deepLink ?? deepLink,
+      navigation,
       attachments: overrides?.attachments ?? attachments,
       operations: overrides?.operations ?? operations,
       logger,
     }),
     gitRepository,
     githubAuth,
-    gitHostCredentials,
     githubRepos,
     syncEngines,
     backups: createTestBackupServiceFactory({
@@ -587,7 +673,6 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       syncEngines: overrides?.syncEngines ?? syncEngines,
       githubAuth: overrides?.githubAuth ?? githubAuth,
       githubRepos: overrides?.githubRepos ?? githubRepos,
-      gitHostCredentials: overrides?.gitHostCredentials ?? gitHostCredentials,
       fileChanges: overrides?.fileChanges ?? fileChanges,
       indexLifecycle: overrides?.indexLifecycle ?? indexLifecycle,
       operations: overrides?.operations ?? operations,
@@ -647,14 +732,10 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       webFetch: overrides?.webFetch ?? webFetch,
     }),
     audioRecorder,
-    haptics,
     iap: createTestIapService(),
     appStore: createTestAppStoreService(),
     webAuth: createTestWebAuthService(null),
     classicAccess: createTestClassicAccessService(),
-    subscription: createTestSubscriptionService(),
-    appStoreEnvironment: createTestAppStoreEnvironmentService(),
-    paywall: createTestPaywallService(),
     noteFile,
     assetStore,
     attachments,
@@ -739,6 +820,7 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
       graphSession: overrides?.graphSession ?? graphSession,
       platform: overrides?.platform ?? platform,
       clock: overrides?.clock ?? clock,
+      lifecycle: overrides?.lifecycle ?? lifecycle,
       logger,
     }),
     aiCredentials,
@@ -817,15 +899,21 @@ export function createTestAppServices(overrides?: Partial<AppServices>): AppServ
     }),
     audioMemo,
     nativeAction,
-    mobileAudioMemo: createTestMobileAudioMemoService({
-      audioMemo: overrides?.audioMemo ?? audioMemo,
-      audioRecorder: overrides?.audioRecorder ?? audioRecorder,
-      nativeAction: overrides?.nativeAction ?? nativeAction,
-      lifecycle: overrides?.lifecycle ?? lifecycle,
-      haptics: overrides?.haptics ?? haptics,
-      platform: overrides?.platform ?? platform,
-      logger,
-    }),
+    mobile: {
+      haptics,
+      subscription: createTestSubscriptionService(),
+      appStoreEnvironment: createTestAppStoreEnvironmentService(),
+      paywall: createTestPaywallService(),
+      mobileAudioMemo: createTestMobileAudioMemoService({
+        audioMemo: overrides?.audioMemo ?? audioMemo,
+        audioRecorder: overrides?.audioRecorder ?? audioRecorder,
+        nativeAction: overrides?.nativeAction ?? nativeAction,
+        lifecycle: overrides?.lifecycle ?? lifecycle,
+        haptics,
+        platform: overrides?.platform ?? platform,
+        logger,
+      }),
+    },
   }
   return Object.assign(services, overrides)
 }

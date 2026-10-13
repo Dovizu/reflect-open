@@ -141,7 +141,8 @@ describe('followNativeMoves', () => {
     const session = createTestNoteSession({ path: 'notes/a.md' })
     const { noteMove, ipc, openDocuments, moves } = setup({ sessions: [session] })
 
-    const unlisten = await noteMove.followNativeMoves()
+    const unlisten = noteMove.followNativeMoves()
+    await Promise.resolve()
     ipc.emit(NOTE_MOVED_EVENT, { from: 'notes/a.md', to: 'notes/b.md' })
 
     expect(session.path).toBe('notes/b.md')
@@ -153,10 +154,10 @@ describe('followNativeMoves', () => {
     expect(moves).toEqual([['notes/a.md', 'notes/b.md']])
   })
 
-  it('logs a payload that is not a move and follows nothing', async () => {
+  it('logs a payload that is not a move and follows nothing', () => {
     const { noteMove, ipc, logger, moves } = setup()
 
-    await noteMove.followNativeMoves()
+    noteMove.followNativeMoves()
     ipc.emit(NOTE_MOVED_EVENT, { from: 'notes/a.md' })
 
     expect(moves).toEqual([])
