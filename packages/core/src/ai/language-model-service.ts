@@ -8,6 +8,7 @@ import { OPENROUTER_BASE_URL, openRouterAttributionHeaders } from './openrouter.
 
 /** Loads each provider SDK on first use, so no SDK is in the startup bundle. */
 export interface AiSdkLoader {
+  // FIXME: I don't think you need "Pick" here;
   openai: () => Promise<Pick<typeof import('@reflect/modules/ai-sdk/openai'), 'createOpenAI'>>
   anthropic: () => Promise<
     Pick<typeof import('@reflect/modules/ai-sdk/anthropic'), 'createAnthropic'>
