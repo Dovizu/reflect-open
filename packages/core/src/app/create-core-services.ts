@@ -280,10 +280,6 @@ import {
   type PaletteSearchService,
 } from '../search/palette-search-service.ts'
 import {
-  createAutocompleteSuggestionService,
-  type AutocompleteSuggestionService,
-} from '../search/autocomplete-suggestion-service.ts'
-import {
   createNativeMenuService,
   createUnsupportedNativeMenuHost,
   type NativeMenuHost,
@@ -581,13 +577,17 @@ export interface CoreServices {
    */
   readonly assetDescription: AssetDescriptionService
   /**
-   * The editor's `[[` and `#` menus.
-   */
-  readonly autocompleteSuggestions: AutocompleteSuggestionService
-  /**
    * The command palette's data layer.
    */
   readonly paletteSearch: PaletteSearchService
+  /**
+   * The mapping from email identities to `#person` notes.
+   */
+  readonly personNotes: PersonNoteService
+  /**
+   * Autocomplete candidates for `#` tags and `[[` wiki targets.
+   */
+  readonly suggestions: SuggestionService
   /**
    * The services that only a mobile platform builds; `null` elsewhere.
    */
@@ -871,7 +871,6 @@ export const coreServiceFactories = {
   chatSessions: createChatSessionService,
   capture: createCaptureService,
   assetDescription: createAssetDescriptionService,
-  autocompleteSuggestions: createAutocompleteSuggestionService,
   paletteSearch: createPaletteSearchService,
 }
 
@@ -892,10 +891,6 @@ export interface CoreInternalServices {
    * The OS keychain behind every credential.
    */
   readonly secretStore: SecretStoreService
-  /**
-   * The mapping from email identities to `#person` notes.
-   */
-  readonly personNotes: PersonNoteService
   /**
    * Typed read-only queries over the active graph's SQLite index.
    */
@@ -952,10 +947,6 @@ export interface CoreInternalServices {
    * Wiki-target resolution over the index's claims and keys.
    */
   readonly wikiResolver: WikiResolverService
-  /**
-   * Autocomplete candidates for `#` tags and `[[` wiki targets.
-   */
-  readonly suggestions: SuggestionService
   /**
    * Graph-level aggregates over the non-private notes.
    */
@@ -1600,17 +1591,8 @@ export function composeCoreServices(
       graphSession,
       logger,
     }),
-    autocompleteSuggestions: create.autocompleteSuggestions({
-      suggestions: indexReads.suggestions,
-      noteCreation: noteServices.noteCreation,
-      contacts,
-      personNotes,
-      settings,
-      clock,
-      operations,
-      logger,
-      graphSession,
-    }),
+    personNotes,
+    suggestions: indexReads.suggestions,
     paletteSearch: create.paletteSearch({
       suggestions: indexReads.suggestions,
       search: indexReads.search,
@@ -1623,7 +1605,6 @@ export function composeCoreServices(
   const internal: CoreInternalServices = {
     http: adapters.http,
     secretStore,
-    personNotes,
     database,
     indexStore,
     gitRepository,
@@ -1638,7 +1619,6 @@ export function composeCoreServices(
     assetStore,
     noteFile,
     wikiResolver: indexReads.wikiResolver,
-    suggestions: indexReads.suggestions,
     graphStats: indexReads.graphStats,
     noteLinkResolver: noteServices.noteLinkResolver,
     privacy: noteServices.privacy,

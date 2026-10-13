@@ -6,7 +6,7 @@ import type {
   WikilinkSearchHandler,
 } from '@meowdown/react'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /** The `[[` and `#` autocomplete search handlers a {@link NoteEditor} wires up. */
 export interface EditorAutocomplete {
@@ -28,7 +28,7 @@ export interface EditorAutocomplete {
  */
 export function useEditorAutocomplete(): EditorAutocomplete {
   const { graph } = useGraph()
-  const { autocompleteSuggestions } = useCoreServices()
+  const { autocompleteSuggestions } = useAppServices()
 
   const onWikilinkSearch = useCallback(
     (query: string): Promise<WikilinkItem[]> => autocompleteSuggestions.suggestLinks(query),

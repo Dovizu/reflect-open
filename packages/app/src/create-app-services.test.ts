@@ -8,6 +8,7 @@ describe('createAppServices', () => {
     const core = createTestCoreServices()
     const app = createAppServices(core, {})
     expect(Object.keys(app).toSorted()).toEqual([
+      'autocompleteSuggestions',
       'exceptionTelemetry',
       'keyboard',
       'share',

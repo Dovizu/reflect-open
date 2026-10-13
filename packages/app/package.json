@@ -12,6 +12,7 @@
     "test": "vitest run --config ../../vitest.config.ts --project app-node"
   },
   "dependencies": {
+    "@ocavue/utils": "^1.8.0",
     "@reflect/core": "workspace:*",
     "@reflect/utils": "workspace:*"
   },

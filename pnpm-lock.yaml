@@ -301,6 +301,9 @@ importers:
 
   packages/app:
     dependencies:
+      '@ocavue/utils':
+        specifier: ^1.8.0
+        version: 1.9.0
       '@reflect/core':
         specifier: workspace:*
         version: link:../core

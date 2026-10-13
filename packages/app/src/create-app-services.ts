@@ -12,6 +12,10 @@ import { createThemeService, type ThemeService } from './settings/theme-service.
 import { createKeyboardService, type KeyboardService } from './mobile/keyboard-service.ts'
 import { createShareService, type ShareService } from './mobile/share-service.ts'
 import { createSyncStatusService, type SyncStatusService } from './sync/sync-status-service.ts'
+import {
+  createAutocompleteSuggestionService,
+  type AutocompleteSuggestionService,
+} from './search/autocomplete-suggestion-service.ts'
 
 /**
  * What the host supplies to the app layer: the window, lifecycle, storage,
@@ -56,6 +60,10 @@ export interface AppServices {
    * Shares a note through the OS share sheet.
    */
   readonly share: ShareService
+  /**
+   * The editor's `[[` and `#` menus.
+   */
+  readonly autocompleteSuggestions: AutocompleteSuggestionService
 }
 
 /**
@@ -79,5 +87,16 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     syncStatus: createSyncStatusService(),
     keyboard: createKeyboardService(),
     share: createShareService({ openDocuments: core.openDocuments }),
+    autocompleteSuggestions: createAutocompleteSuggestionService({
+      suggestions: core.suggestions,
+      noteCreation: core.noteCreation,
+      contacts: core.contacts,
+      personNotes: core.personNotes,
+      settings: core.settings,
+      clock: core.clock,
+      operations: core.operations,
+      logger: core.logger,
+      graphSession: core.graphSession,
+    }),
   }
 }
