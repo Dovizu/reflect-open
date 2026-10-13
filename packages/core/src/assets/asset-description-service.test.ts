@@ -1,5 +1,5 @@
 import { sha256Hex } from '@reflect/utils'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AssetDescriptionRejectedError } from '../ai/asset-describer-service.ts'
 import { createBackgroundReconcilerFactory } from '../reconcile/background-reconciler.ts'
 import { ReflectError } from '../errors.ts'
@@ -51,28 +51,6 @@ const GENERATION = 7
 const INDEX_GENERATION = 11
 const NOW = Date.parse('2026-06-16T00:00:00.000Z')
 
-let hashing = 0
-const subtle = globalThis.crypto.subtle
-const digest = subtle.digest.bind(subtle)
-
-/**
- * Count the digests in flight so {@link flush} can wait for them.
- */
-beforeEach(() => {
-  vi.spyOn(subtle, 'digest').mockImplementation(async (...args) => {
-    hashing += 1
-    try {
-      return await digest(...args)
-    } finally {
-      hashing -= 1
-    }
-  })
-})
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
-
 /**
  * A public note referencing `assetPath`.
  */
@@ -92,15 +70,13 @@ function upsert(path: string): FileChange {
 }
 
 /**
- * Wait until the work in flight has settled. A pass hashes through WebCrypto,
- * which resolves off the timer queue, so one timer turn is not enough: wait
- * for two consecutive turns with no digest in flight.
+ * Give the work in flight several timer turns. A pass hashes through WebCrypto,
+ * which resolves off the timer queue, so one turn is not enough. Use it only
+ * before asserting that nothing happened; wait for an outcome with `vi.waitFor`.
  */
-async function flush(): Promise<void> {
-  let quietTurns = 0
-  while (quietTurns < 2) {
+async function settle(): Promise<void> {
+  for (let turn = 0; turn < 10; turn += 1) {
     await new Promise((resolve) => setTimeout(resolve, 0))
-    quietTurns = hashing === 0 ? quietTurns + 1 : 0
   }
 }
 
@@ -579,7 +555,7 @@ describe('AssetDescriptionService.openSession', () => {
   it('runs no launch pass — existing assets are never auto-scanned', async () => {
     const { session, classified } = await describable()
     session.start()
-    await flush()
+    await settle()
     expect(classified).toEqual([])
   })
 
@@ -587,27 +563,29 @@ describe('AssetDescriptionService.openSession', () => {
     const { session, index, classified, describer, files } = await describable()
     session.start()
     index.emit([upsert('assets/a.png')])
-    await flush()
 
-    expect(classified).toEqual(['assets/a.png'])
-    expect(describer.calls()).toHaveLength(1)
-    expect(files.writes().map((write) => [write.path, write.generation])).toEqual([
-      ['assets/a.png.reflect.md', GENERATION],
-    ])
+    await vi.waitFor(() => {
+      expect(classified).toEqual(['assets/a.png'])
+      expect(describer.calls()).toHaveLength(1)
+      expect(files.writes().map((write) => [write.path, write.generation])).toEqual([
+        ['assets/a.png.reflect.md', GENERATION],
+      ])
+    })
   })
 
   it('re-indexes the notes referencing assets it described, so the text is searchable', async () => {
     const { session, index, reindexed, indexedEvents } = await describable()
     session.start()
     index.emit([upsert('assets/a.png')])
-    await flush()
 
-    expect(reindexed).toEqual([
-      [['assets/a.png'], { generation: INDEX_GENERATION, fileGeneration: GENERATION }],
-    ])
-    // The re-index wrote search rows directly, so index-backed caches must be
-    // told for ⌘K to reflect the new descriptions.
-    expect(indexedEvents()).toBe(1)
+    await vi.waitFor(() => {
+      expect(reindexed).toEqual([
+        [['assets/a.png'], { generation: INDEX_GENERATION, fileGeneration: GENERATION }],
+      ])
+      // The re-index wrote search rows directly, so index-backed caches must be
+      // told for ⌘K to reflect the new descriptions.
+      expect(indexedEvents()).toBe(1)
+    })
   })
 
   it('still reports the descriptions as indexed when the re-index fails, and logs it', async () => {
@@ -616,12 +594,13 @@ describe('AssetDescriptionService.openSession', () => {
     index.reindexError = failure
     session.start()
     index.emit([upsert('assets/a.png')])
-    await flush()
 
-    expect(indexedEvents()).toBe(1)
-    expect(logger.getWarnings()).toEqual([
-      { message: 'asset-description re-index failed:', cause: failure },
-    ])
+    await vi.waitFor(() => {
+      expect(indexedEvents()).toBe(1)
+      expect(logger.getWarnings()).toEqual([
+        { message: 'asset-description re-index failed:', cause: failure },
+      ])
+    })
   })
 
   it('does not re-index when nothing was described this pass', async () => {
@@ -629,9 +608,9 @@ describe('AssetDescriptionService.openSession', () => {
     refs.set('assets/a.png', []) // unreferenced: skipped, nothing written
     session.start()
     index.emit([upsert('assets/a.png')])
-    await flush()
 
-    expect(classified).toEqual(['assets/a.png'])
+    await vi.waitFor(() => expect(classified).toEqual(['assets/a.png']))
+    await settle()
     expect(reindexed).toEqual([])
     expect(indexedEvents()).toBe(0)
   })
@@ -646,7 +625,7 @@ describe('AssetDescriptionService.openSession', () => {
       { path: 'assets/a.png', kind: 'remove' },
       upsert('notes/x.md'),
     ])
-    await flush()
+    await settle()
 
     expect(classified).toEqual([])
   })
@@ -656,9 +635,8 @@ describe('AssetDescriptionService.openSession', () => {
     files.set('notes/x.md', '# Now public\n\n![](assets/a.png)\n')
     session.start()
     index.emit([upsert('notes/x.md')])
-    await flush()
 
-    expect(classified).toEqual(['assets/a.png'])
+    await vi.waitFor(() => expect(classified).toEqual(['assets/a.png']))
   })
 
   it('coalesces a trigger that lands mid-pass into one follow-up', async () => {
@@ -668,15 +646,14 @@ describe('AssetDescriptionService.openSession', () => {
     session.start()
 
     index.emit([upsert('assets/a.png')]) // starts the pass (now in-flight)
-    await flush()
+    await vi.waitFor(() => expect(describer.calls()).toHaveLength(1))
     index.emit([upsert('assets/b.pdf')]) // lands mid-pass → queued
-    await flush()
+    await settle()
     expect(classified).toEqual(['assets/a.png'])
 
     first.resolve('A flow diagram.') // clears a.png; the follow-up runs for b.pdf
-    await flush()
 
-    expect(classified).toEqual(['assets/a.png', 'assets/b.pdf'])
+    await vi.waitFor(() => expect(classified).toEqual(['assets/a.png', 'assets/b.pdf']))
   })
 
   it('keeps an asset dirty after a transient stop and retries it on wake', async () => {
@@ -687,16 +664,17 @@ describe('AssetDescriptionService.openSession', () => {
     session.start()
 
     index.emit([upsert('assets/a.png')])
-    await flush()
-    expect(describer.calls()).toHaveLength(1)
+    await vi.waitFor(() => expect(describer.calls()).toHaveLength(1))
+    await settle()
     expect(logger.getWarnings()).toEqual([]) // a network stop heals itself: never logged
 
     describer.setResult('A flow diagram.')
     activity.emitWake() // back online → retry the leftover
-    await flush()
 
-    expect(describer.calls()).toHaveLength(2)
-    expect(files.files().has('assets/a.png.reflect.md')).toBe(true)
+    await vi.waitFor(() => {
+      expect(describer.calls()).toHaveLength(2)
+      expect(files.files().has('assets/a.png.reflect.md')).toBe(true)
+    })
   })
 
   it('logs an unexpected stop once, not on every retry', async () => {
@@ -707,11 +685,12 @@ describe('AssetDescriptionService.openSession', () => {
     session.start()
 
     index.emit([upsert('assets/a.png')])
-    await flush()
+    await vi.waitFor(() => expect(describer.calls()).toHaveLength(1))
+    await settle()
     activity.emitWake()
-    await flush()
+    await vi.waitFor(() => expect(describer.calls()).toHaveLength(2))
+    await settle()
 
-    expect(describer.calls()).toHaveLength(2)
     expect(logger.getWarnings()).toEqual([
       { message: 'asset description stopped (io): index not ready', cause: undefined },
     ])
@@ -722,9 +701,9 @@ describe('AssetDescriptionService.openSession', () => {
     session.start()
 
     index.emit([upsert('assets/a.png')])
-    await flush()
+    await vi.waitFor(() => expect(classified).toEqual(['assets/a.png']))
     activity.emitWake()
-    await flush()
+    await settle()
 
     expect(classified).toEqual(['assets/a.png'])
   })
@@ -738,7 +717,7 @@ describe('AssetDescriptionService.openSession', () => {
     expect(index.listenerCount()).toBe(0)
     index.emit([upsert('assets/a.png')])
     session.schedule()
-    await flush()
+    await settle()
     expect(classified).toEqual([])
   })
 
@@ -746,11 +725,12 @@ describe('AssetDescriptionService.openSession', () => {
     const { session, index, classified } = await describable()
     session.start()
     session.start() // second call must be a no-op
-    await flush()
+    await settle()
 
     expect(index.listenerCount()).toBe(1)
     index.emit([upsert('assets/a.png')])
-    await flush()
+    await vi.waitFor(() => expect(classified).toEqual(['assets/a.png']))
+    await settle()
     expect(classified).toEqual(['assets/a.png']) // one pass, not two
   })
 
@@ -759,12 +739,11 @@ describe('AssetDescriptionService.openSession', () => {
     session.start()
 
     index.emit([upsert('assets/a.png')], INDEX_GENERATION + 1) // a stale emit from another graph
-    await flush()
+    await settle()
     expect(classified).toEqual([])
 
     index.emit([upsert('assets/a.png')]) // our generation → processed
-    await flush()
-    expect(classified).toEqual(['assets/a.png'])
+    await vi.waitFor(() => expect(classified).toEqual(['assets/a.png']))
   })
 
   it('follows the index generation, not the file generation', async () => {
@@ -772,12 +751,11 @@ describe('AssetDescriptionService.openSession', () => {
     session.start()
 
     index.emit([upsert('assets/a.png')], GENERATION)
-    await flush()
+    await settle()
     expect(classified).toEqual([])
 
     index.emit([upsert('assets/a.png')], INDEX_GENERATION)
-    await flush()
-    expect(classified).toEqual(['assets/a.png'])
+    await vi.waitFor(() => expect(classified).toEqual(['assets/a.png']))
   })
 })
 
