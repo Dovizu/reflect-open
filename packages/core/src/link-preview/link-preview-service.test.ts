@@ -4,6 +4,7 @@ import { createOpenDocumentsService } from '../documents/open-documents-service.
 import { createPrivacyService } from '../privacy/privacy-service.ts'
 import {
   createTestFileChangeService,
+  createTestGraphSessionService,
   createTestNoteFileService,
   createTestWebFetchService,
 } from '../testing/index.ts'
@@ -11,7 +12,6 @@ import { createLinkPreviewService, type LinkPreviewSession } from './link-previe
 
 const session: LinkPreviewSession = {
   path: 'notes/a.md',
-  generation: 7,
   graphKey: '/graph-a',
   sessionEpoch: 3,
 }
@@ -34,6 +34,7 @@ function setup(source: string) {
     webFetch,
     // The real parser needs a `DOMParser`.
     parseMetadata: () => ({ title: 'Example title', description: null, iconUrl: ICON }),
+    graphSession: createTestGraphSessionService({ graph: { generation: 7 } }),
   })
   return { noteFile, webFetch, linkPreview }
 }

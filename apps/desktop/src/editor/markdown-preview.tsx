@@ -6,7 +6,6 @@ import { MarkdownView } from '@meowdown/react'
 import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
 import { useWikilinkResolver } from '@/editor/resolve-wikilink.ts'
 import { cn } from '@/lib/utils.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 
 /**
  * A read-only rendering of note markdown via @meowdown/react's `<MarkdownView>`
@@ -70,8 +69,7 @@ export function MarkdownPreview({
   interactive = true,
   className,
 }: MarkdownPreviewProps): ReactElement {
-  const generation = useGraph({ optional: true })?.graph?.generation ?? null
-  const onLinkClick = useMarkdownLinkClick(generation, sourcePath)
+  const onLinkClick = useMarkdownLinkClick(sourcePath)
   // The click handler is read through a ref so a changing prop never gives
   // MarkdownView a new callback identity (which would re-render its whole
   // tree).

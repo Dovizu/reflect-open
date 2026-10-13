@@ -11,7 +11,6 @@ import { useAppServices } from '@/services/services-provider.tsx'
  * have to guess where the file belongs.
  */
 export function useMarkdownLinkNavigation(
-  generation: number | null,
   sourcePath: string,
 ): (options: { href: string; openInNewWindow: boolean }) => void {
   const { linkNavigation } = useAppServices()
@@ -19,8 +18,8 @@ export function useMarkdownLinkNavigation(
 
   return useCallback(
     ({ href, openInNewWindow }: { href: string; openInNewWindow: boolean }) => {
-      linkNavigation.followMarkdownNoteLink({ href, sourcePath, openInNewWindow, generation }, host)
+      linkNavigation.followMarkdownNoteLink({ href, sourcePath, openInNewWindow }, host)
     },
-    [generation, host, linkNavigation, sourcePath],
+    [host, linkNavigation, sourcePath],
   )
 }

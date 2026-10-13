@@ -2,7 +2,6 @@ import { useCallback } from 'react'
 import type { WikilinkClickHandler } from '@meowdown/core'
 import { useWikiLinkNavigation } from '@/editor/use-wiki-link-navigation.ts'
 import { useNoteLinkNavigation, type ModClickEvent } from '@/hooks/use-note-link-navigation.ts'
-import { useGraph } from '@/providers/graph-provider.tsx'
 import { routeForPath } from '@/routing/route.ts'
 import { isModEvent } from '@meowdown/core'
 
@@ -31,7 +30,6 @@ export interface BacklinkNavigation {
  * pipeline as the editor.
  */
 export function useBacklinkNavigation(): BacklinkNavigation {
-  const { graph } = useGraph()
   const navigateNoteLink = useNoteLinkNavigation()
 
   const openSource = useCallback(
@@ -44,7 +42,7 @@ export function useBacklinkNavigation(): BacklinkNavigation {
     [navigateNoteLink],
   )
 
-  const navigateWikiLink = useWikiLinkNavigation(graph?.generation ?? null)
+  const navigateWikiLink = useWikiLinkNavigation()
   const onWikilinkClick = useCallback<WikilinkClickHandler>(
     (payload) => navigateWikiLink({ target: payload.target, openInNewWindow: payload.mod }),
     [navigateWikiLink],

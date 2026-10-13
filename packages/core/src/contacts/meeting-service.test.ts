@@ -14,6 +14,7 @@ import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import {
   createTestContactsService,
   createTestDatabaseService,
+  createTestGraphSessionService,
   createTestLoggerService,
   createTestNoteCreationService,
   createTestNoteFileService,
@@ -43,7 +44,6 @@ function input(overrides: Partial<AddMeetingInput> = {}): AddMeetingInput {
     title: 'Standup',
     attendees: [],
     backlinkMeeting: true,
-    generation: GENERATION,
     ...overrides,
   }
 }
@@ -90,6 +90,7 @@ function meetingService(
     contacts,
     settings: createTestSettingsService(),
     logger: createTestLoggerService(),
+    graphSession: createTestGraphSessionService({ graph: { generation: GENERATION } }),
     ...overrides,
   })
 }
@@ -515,6 +516,13 @@ describe('addMeetingToDaily', () => {
     await expect(meetings.addMeetingToDaily(input({ title: '  [|]  ' }))).rejects.toThrow(
       'a meeting needs a name',
     )
+    expect(noteFile.writes()).toEqual([])
+  })
+
+  it('rejects with no graph open before writing', async () => {
+    const closed = meetingService({ graphSession: createTestGraphSessionService({ graph: null }) })
+
+    await expect(closed.addMeetingToDaily(input())).rejects.toThrow('No graph is open.')
     expect(noteFile.writes()).toEqual([])
   })
 })

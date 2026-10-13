@@ -39,7 +39,7 @@ function install(capture: ReturnType<typeof createTestCaptureService>): () => vo
 }
 
 function cachePost(): void {
-  queryClient.setQueryData(xPostQueryOptions(app, 3, '123').queryKey, post)
+  queryClient.setQueryData(xPostQueryOptions(app, '/graph', '123').queryKey, post)
 }
 
 afterEach(() => {
@@ -54,7 +54,7 @@ describe('installQueryInvalidation', () => {
     cachePost()
     const capture = createTestCaptureService()
     const stop = install(capture)
-    const resolveXPost = createXPostResolver(app, 3)
+    const resolveXPost = createXPostResolver(app, '/graph')
     expect(resolveXPost(url)).toBe(post)
 
     capture.emitXPostsWritten()
@@ -68,7 +68,7 @@ describe('installQueryInvalidation', () => {
   it('keeps cached X posts while no pass reports a write', () => {
     cachePost()
     const stop = install(createTestCaptureService())
-    const resolveXPost = createXPostResolver(app, 3)
+    const resolveXPost = createXPostResolver(app, '/graph')
 
     expect(resolveXPost(url)).toBe(post)
     stop()
@@ -78,7 +78,7 @@ describe('installQueryInvalidation', () => {
     cachePost()
     const capture = createTestCaptureService()
     install(capture)()
-    const resolveXPost = createXPostResolver(app, 3)
+    const resolveXPost = createXPostResolver(app, '/graph')
 
     capture.emitXPostsWritten()
 
@@ -152,6 +152,20 @@ describe('installQueryInvalidation for the index and the graph', () => {
     await app.graphSession.openRecent('/other')
     await app.graphSession.deleteGraph()
     expect(queryClient.getQueryData(queryKeys.icloud.status)).toBeUndefined()
+    stop()
+  })
+
+  it('drops the archived X posts whenever the graph session ends', async () => {
+    const { app, stop } = installApp(createTestAppServices())
+    app.graphSession.setGraph({ root: '/known' })
+    cachePost()
+
+    await app.graphSession.openRecent('/known')
+    expect(queryClient.getQueriesData({ queryKey: queryKeys.xPost.all })).toEqual([])
+
+    cachePost()
+    await app.graphSession.chooseGraph()
+    expect(queryClient.getQueriesData({ queryKey: queryKeys.xPost.all })).toEqual([])
     stop()
   })
 

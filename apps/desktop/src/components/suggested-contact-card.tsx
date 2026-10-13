@@ -34,9 +34,8 @@ export function SuggestedContactCard({
   const contact = useSuggestedContact(path)
   const [isBusy, setIsBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const generation = graph?.generation ?? null
 
-  if (contact === null || generation === null) {
+  if (contact === null) {
     return null
   }
 
@@ -86,14 +85,14 @@ export function SuggestedContactCard({
         size="xs"
         variant="ghost"
         disabled={isBusy}
-        onClick={() => void resolve(() => contactSuggestions.ignore(path, contact, generation))}
+        onClick={() => void resolve(() => contactSuggestions.ignore(path, contact))}
       >
         Ignore
       </Button>
       <Button
         size="xs"
         disabled={isBusy}
-        onClick={() => void resolve(() => contactSuggestions.addToNote(path, contact, generation))}
+        onClick={() => void resolve(() => contactSuggestions.addToNote(path, contact))}
       >
         Add
       </Button>

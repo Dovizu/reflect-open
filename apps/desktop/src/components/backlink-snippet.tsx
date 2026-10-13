@@ -50,7 +50,7 @@ export function BacklinkSnippet({
   const resolveYouTubeVideo = useYouTubeVideoResolver()
   const resolveWikilink = useWikilinkResolver()
   const onTaskClick = useSnippetTaskToggle(notePath, tasks)
-  const onLinkClick = useMarkdownLinkClick(generation, notePath)
+  const onLinkClick = useMarkdownLinkClick(notePath)
   return (
     <div className="reflect-backlink-snippet select-text text-xs text-text">
       <MarkdownView

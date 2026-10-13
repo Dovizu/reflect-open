@@ -3,8 +3,10 @@ import type { ClockService } from '../app/clock-service.ts'
 import type { IdService } from '../app/id-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
+import type { GraphSession } from '../app/graph-session.ts'
 import { errorMessage } from '../errors.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
+import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { IndexQueryService } from '../indexing/index-query-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
 import { parseDeepLink } from './deep-link-parse.ts'
@@ -29,8 +31,6 @@ export function createNoDeepLinkSource(): DeepLinkSource {
 /** What acting on a deep link needs from the open graph session. */
 export interface DeepLinkIo {
   navigate: (route: Route) => void
-  /** `GraphInfo.generation` — pins the capture spool to the issuing graph. */
-  generation: number
   /**
    * Whether the graph session or navigation intent changed while the handler
    * awaited. Note resolution queries whichever index is open when it runs, so
@@ -45,8 +45,6 @@ export interface DeepLinkIo {
 /** The open graph session that acts on incoming deep links. */
 export interface DeepLinkSession {
   navigate: (route: Route) => void
-  /** `GraphInfo.generation` of the session. */
-  generation: number
   /**
    * Start one navigation intent for a link that addresses a place. The
    * returned probe answers whether the intent went stale since.
@@ -96,14 +94,16 @@ export interface DeepLinkService {
    * target resolving through the index first), capture links spool an envelope
    * into `.reflect/inbox/` for the watcher-triggered drain to materialize.
    * Every outcome that isn't a navigation surfaces on the operations status
-   * line — an outside-world input must never crash or silently vanish.
+   * line — an outside-world input must never crash or silently vanish. A
+   * capture spools into the graph open when the call starts.
    */
   handle: (url: string, io: DeepLinkIo) => Promise<void>
   /**
    * Route incoming URLs into `session` until the returned function is called:
    * attaches a handler that runs {@link DeepLinkService.handle} for each URL
    * and logs a rejection. Only a link that addresses a place begins a
-   * navigation intent.
+   * navigation intent. The graph open when `serve` is called is the one every
+   * URL acts on; a note resolution that outlives it is dropped.
    */
   serve: (session: DeepLinkSession) => Unlisten
   /**
@@ -129,10 +129,11 @@ export interface DeepLinkServiceDeps {
   id: Pick<IdService, 'uuid'>
   clock: Pick<ClockService, 'now'>
   logger: Pick<LoggerService, 'error'>
+  graphSession: Pick<GraphSessionService, 'getState'>
 }
 
 export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkService {
-  const { source, indexQuery, captureInbox, operations, id, clock, logger } = deps
+  const { source, indexQuery, captureInbox, operations, id, clock, logger, graphSession } = deps
 
   let pendingUrls: string[] = []
   let activeHandler: ((url: string) => void) | null = null
@@ -190,7 +191,11 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
     }
   }
 
-  const handle = async (url: string, io: DeepLinkIo): Promise<void> => {
+  const handleIn = async (
+    url: string,
+    io: DeepLinkIo,
+    session: GraphSession | null,
+  ): Promise<void> => {
     const link = parseDeepLink(url)
     if (link === null) {
       operations.start('Opening link').fail(`Unrecognized link: ${truncate(url)}`)
@@ -228,6 +233,10 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
             : link.capture === 'checkbox'
               ? 'Checkbox added to today'
               : 'Added to today'
+        if (session === null) {
+          operations.start('Saving capture').fail('No graph is open.')
+          return
+        }
         try {
           // The URL parser enforces the same text constraints, so this parse is
           // belt-and-braces — but it is fallible, and a schema tightening must
@@ -240,7 +249,11 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
             capturedAt: new Date(clock.now()).toISOString(),
             source: 'deep-link',
           })
-          await captureInbox.spool(`${envelope.id}.json`, JSON.stringify(envelope), io.generation)
+          await captureInbox.spool(
+            `${envelope.id}.json`,
+            JSON.stringify(envelope),
+            session.generation,
+          )
         } catch (cause) {
           operations.start('Saving capture').fail(errorMessage(cause))
           return
@@ -250,17 +263,22 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
     }
   }
 
+  const handle = (url: string, io: DeepLinkIo): Promise<void> =>
+    handleIn(url, io, graphSession.getState().session)
+
   const serve = (session: DeepLinkSession): Unlisten => {
-    const { navigate, generation } = session
+    const { navigate } = session
+    const graph = graphSession.getState().session
     setHandler((url) => {
       const link = parseDeepLink(url)
       // Capture and rejected URLs do not express a navigation intent, so they
       // must not supersede a note target that is still resolving.
-      const io: DeepLinkIo =
-        link !== null && link.kind !== 'capture'
-          ? { navigate, generation, isStale: session.beginNavigationIntent() }
-          : { navigate, generation }
-      handle(url, io).catch((cause: unknown) => {
+      let io: DeepLinkIo = { navigate }
+      if (link !== null && link.kind !== 'capture') {
+        const intentStale = session.beginNavigationIntent()
+        io = { navigate, isStale: () => graph?.signal.aborted === true || intentStale() }
+      }
+      handleIn(url, io, graph).catch((cause: unknown) => {
         logger.error(`deep link failed: ${url}`, cause)
       })
     })

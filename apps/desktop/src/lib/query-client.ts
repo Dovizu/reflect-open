@@ -101,8 +101,8 @@ export const queryKeys = {
   },
   xPost: {
     all: ['x-post'] as const,
-    archive(generation: number, postId: string) {
-      return [...this.all, generation, postId] as const
+    archive(root: GraphRoot, postId: string) {
+      return [...this.all, root, postId] as const
     },
   },
   chat: {
@@ -327,6 +327,14 @@ export function dropIcloudStatusQuery(): void {
 /** Refetch chat-history queries; called after a turn save or a delete. */
 export function invalidateChatQueries(): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.chat.all })
+}
+
+/**
+ * Forget the archived X posts when their graph session ends: their media URLs
+ * name that session, so a reopen of the same graph must read them again.
+ */
+export function dropXPostQueries(): void {
+  queryClient.removeQueries({ queryKey: queryKeys.xPost.all })
 }
 
 /** Re-read archived X posts; called after a capture pass writes archive JSON. */

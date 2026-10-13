@@ -9,6 +9,7 @@ import {
   type parseLinkPreviewMeta,
   type WebFetchService,
 } from '@reflect/core'
+import { createTestGraphSessionService } from '@reflect/core/testing'
 
 /** The boundaries of the resolver pipeline that `useLinkPreview` gets from `LinkPreviewService`. */
 interface LinkPreviewResolverDependencies {
@@ -36,12 +37,12 @@ function createNoteLinkPreviewResolver(
       fetchLinkPreviewIcon: dependencies.fetchIcon,
     },
     parseMetadata: dependencies.parseMetadata,
+    graphSession: createTestGraphSessionService({ graph: { generation: 7 } }),
   }).createResolver(session, currentSession)
 }
 
 const session: LinkPreviewSession = {
   path: 'notes/a.md',
-  generation: 7,
   graphKey: '/graph-a',
   sessionEpoch: 3,
 }

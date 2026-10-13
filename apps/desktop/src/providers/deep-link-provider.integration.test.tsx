@@ -1,14 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GraphInfo } from '@reflect/core'
 import {
   createTestAppServices,
   createTestCaptureInboxService,
   createTestDeepLinkService,
+  createTestGraphSessionService,
 } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { DeepLinkProvider } from './deep-link-provider.tsx'
-
-const GRAPH: GraphInfo = { root: '/g', name: 'g', generation: 7 }
 
 describe('DeepLinkProvider navigation intent integration', () => {
   it('keeps a deferred note resolution current when a capture arrives', async () => {
@@ -17,11 +15,17 @@ describe('DeepLinkProvider navigation intent integration', () => {
       () => pendingResolution.promise,
     )
     const captureInbox = createTestCaptureInboxService()
+    const graphSession = createTestGraphSessionService()
     const app = createTestAppServices({
       captureInbox,
-      deepLink: createTestDeepLinkService({ indexQuery: { resolveNoteTarget }, captureInbox }),
+      graphSession,
+      deepLink: createTestDeepLinkService({
+        indexQuery: { resolveNoteTarget },
+        captureInbox,
+        graphSession,
+      }),
     })
-    await renderInApp(<DeepLinkProvider graph={GRAPH}>{null}</DeepLinkProvider>, { app })
+    await renderInApp(<DeepLinkProvider>{null}</DeepLinkProvider>, { app })
 
     app.deepLink.dispatch('reflect://note/Project%20X')
     expect(resolveNoteTarget).toHaveBeenCalledWith('Project X')

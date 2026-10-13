@@ -13,6 +13,7 @@ import {
 import type { Route } from '../navigation/route.ts'
 import { createTestCaptureInboxService } from './capture.ts'
 import { createTestClockService } from './clock.ts'
+import { createTestGraphSessionService } from './graph-session.ts'
 import { createTestIdService } from './id.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestOperationsService } from './operations.ts'
@@ -100,7 +101,8 @@ export interface TestDeepLinkService extends DeepLinkService {
 
 /**
  * The real {@link DeepLinkService} over test doubles (a
- * {@link createTestDeepLinkSource} by default), recording each `dispatch` call.
+ * {@link createTestDeepLinkSource} by default, and the test graph open with
+ * generation 1), recording each `dispatch` call.
  */
 export function createTestDeepLinkService(
   options?: TestDeepLinkServiceOptions,
@@ -116,6 +118,7 @@ export function createTestDeepLinkService(
     id: options?.id ?? createTestIdService(),
     clock: options?.clock ?? createTestClockService(),
     logger: options?.logger ?? createTestLoggerService(),
+    graphSession: options?.graphSession ?? createTestGraphSessionService({ graph: {} }),
   })
   const calls: string[] = []
   return {

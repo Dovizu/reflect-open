@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactElement, type ReactNode } from 'react'
-import type { GraphInfo } from '@reflect/core'
+import { useEffect, type ReactElement, type ReactNode } from 'react'
+import { useGraph } from '@/providers/graph-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
@@ -11,36 +11,19 @@ import { useAppServices } from '@/services/services-provider.tsx'
  */
 
 interface DeepLinkProviderProps {
-  graph: GraphInfo
   children: ReactNode
 }
 
-export function DeepLinkProvider({ graph, children }: DeepLinkProviderProps): ReactElement {
+export function DeepLinkProvider({ children }: DeepLinkProviderProps): ReactElement {
   const { navigate } = useRouter()
   const { deepLink, linkNavigation } = useAppServices()
-
-  // The graph session this provider instance currently serves. Staleness must
-  // mean "the session changed", NOT "the effect re-ran": StrictMode's probe
-  // cycle detaches and reattaches the handler around an in-flight note
-  // resolution, and an effect-scoped flag would silently drop a link the
-  // probe attach drained from the intake buffer — exactly a ⌘-clicked note
-  // window's initial link. A resolution that outlives this whole instance
-  // (graph switch remounts the keyed workspace) navigates a torn-down router,
-  // which is a no-op — the wrong-graph homonym can never surface.
-  const sessionRef = useRef(graph.generation)
+  // Serve again for each graph session: the service acts on the session open
+  // when `serve` is called.
+  const { session } = useGraph()
 
   useEffect(() => {
-    sessionRef.current = graph.generation
-    const generation = graph.generation
-    return deepLink.serve({
-      navigate,
-      generation,
-      beginNavigationIntent: () => {
-        const isStale = linkNavigation.beginIntent()
-        return () => sessionRef.current !== generation || isStale()
-      },
-    })
-  }, [deepLink, linkNavigation, navigate, graph.generation])
+    return deepLink.serve({ navigate, beginNavigationIntent: linkNavigation.beginIntent })
+  }, [deepLink, linkNavigation, navigate, session])
 
   return <>{children}</>
 }

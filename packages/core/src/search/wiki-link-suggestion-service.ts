@@ -6,6 +6,7 @@ import type { ContactsService } from '../contacts/contacts-service.ts'
 import { contactDetailsMarkdown } from '../contacts/markdown.ts'
 import type { PersonContactResolution, PersonNoteService } from '../contacts/person-note-service.ts'
 import { errorMessage } from '../errors.ts'
+import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
 import { aliasHint } from '../indexing/suggest.ts'
@@ -33,11 +34,6 @@ export interface TagMenuItem {
   tag: string
 }
 
-export interface WikiLinkSuggestionOptions {
-  /** The open graph's generation: a background create that outlives it is rejected. */
-  generation: number
-}
-
 /**
  * The editor's `[[` and `#` autocomplete, shared by every note editor (the
  * note pane and the Tasks view's inline editor). The menu UI hands over the
@@ -49,8 +45,10 @@ export interface WikiLinkSuggestionService {
   /**
    * The `[[` menu rows for `query`: ranked note suggestions, Contact rows, and
    * a trailing `Create "<query>"` row when nothing matches the typed text.
+   * No rows with no graph open. A row's background create writes into the
+   * graph open when the rows were asked for, and fails after a switch.
    */
-  suggestLinks(query: string, options: WikiLinkSuggestionOptions): Promise<WikiLinkMenuItem[]>
+  suggestLinks(query: string): Promise<WikiLinkMenuItem[]>
   /** The `#` menu rows for `query`, most-used first. */
   suggestTags(query: string): Promise<TagMenuItem[]>
 }
@@ -64,13 +62,23 @@ export interface WikiLinkSuggestionServiceDeps {
   clock: Pick<ClockService, 'now'>
   operations: Pick<OperationsService, 'start'>
   logger: LoggerService
+  graphSession: Pick<GraphSessionService, 'getState'>
 }
 
 export function createWikiLinkSuggestionService(
   deps: WikiLinkSuggestionServiceDeps,
 ): WikiLinkSuggestionService {
-  const { suggestions, noteCreation, contacts, personNotes, settings, clock, operations, logger } =
-    deps
+  const {
+    suggestions,
+    noteCreation,
+    contacts,
+    personNotes,
+    settings,
+    clock,
+    operations,
+    logger,
+    graphSession,
+  } = deps
 
   /**
    * The one user-visible refusal for an `ambiguous` title resolution: several
@@ -102,8 +110,12 @@ export function createWikiLinkSuggestionService(
   }
 
   return {
-    async suggestLinks(query, options) {
-      const { generation } = options
+    async suggestLinks(query) {
+      const session = graphSession.getState().session
+      if (session === null) {
+        return []
+      }
+      const { generation } = session
       const current = settings.get()
       const { dateFormat, weekStartDay } = current
       // Contacts join the menu (v1's backlink-menu behavior) only while the

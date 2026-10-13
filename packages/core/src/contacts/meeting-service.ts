@@ -1,5 +1,7 @@
+import { requireGraphSession } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import { isAppError } from '../errors.ts'
+import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { dailyPath, notePath } from '../graph/paths.ts'
@@ -81,8 +83,6 @@ export interface AddMeetingInput {
    * "Met with …".
    */
   startTime?: string
-  /** `GraphInfo.generation` — pins every read and write to the issuing graph. */
-  generation: number
 }
 
 export interface AddMeetingOutcome {
@@ -340,7 +340,8 @@ export interface MeetingService {
    * Write a meeting into the day's note (see the module doc). The daily append
    * lands first — it is the durable, user-visible artifact — and note creation
    * follows; a failure in between leaves unresolved links that create their
-   * notes on click, so every partial outcome is still coherent.
+   * notes on click, so every partial outcome is still coherent. Every read and
+   * write goes to the graph open when the call starts; with none it throws.
    */
   addMeetingToDaily(input: AddMeetingInput): Promise<AddMeetingOutcome>
 }
@@ -354,6 +355,7 @@ export function createMeetingService(deps: {
   contacts: ContactsService
   settings: SettingsService
   logger: LoggerService
+  graphSession: Pick<GraphSessionService, 'getState'>
 }): MeetingService {
   const {
     noteFile,
@@ -364,6 +366,7 @@ export function createMeetingService(deps: {
     contacts,
     settings,
     logger,
+    graphSession,
   } = deps
 
   /** A note's source at `generation`, where "no note yet" reads as empty. */
@@ -507,6 +510,7 @@ export function createMeetingService(deps: {
     },
 
     async addMeetingToDaily(input) {
+      const { generation } = requireGraphSession(graphSession)
       const title = wikiLinkSafe(input.title)
       if (title === '') {
         throw new Error('a meeting needs a name')
@@ -514,7 +518,7 @@ export function createMeetingService(deps: {
       const lookupContacts = input.lookupContacts ?? false
 
       const daily = dailyPath(input.date)
-      const source = await noteSource(daily, input.generation)
+      const source = await noteSource(daily, generation)
       // An already-linked meeting makes the whole call a no-op — appending
       // nothing but still creating notes would be surprising. A run that failed
       // between the append and note creation still heals: the line's unresolved
@@ -544,12 +548,12 @@ export function createMeetingService(deps: {
       await noteFile.write(
         daily,
         appendListItem(source, { kind: 'bullet', markdown: line, section: MEETINGS_SECTION }),
-        input.generation,
+        generation,
       )
 
       const createdNotes: string[] = []
       if (input.backlinkMeeting && !(await titleHasNote(title))) {
-        await noteCreation.createNoteWithTitle(title, input.generation, MEETING_NOTE_BODY)
+        await noteCreation.createNoteWithTitle(title, generation, MEETING_NOTE_BODY)
         createdNotes.push(title)
       }
       for (const resolved of attendees) {
@@ -562,7 +566,7 @@ export function createMeetingService(deps: {
           title: attendee.name,
           emails: attendee.emails ?? [],
           body,
-          generation: input.generation,
+          generation: generation,
         })
         if (outcome.kind === 'created') {
           createdNotes.push(attendee.name)

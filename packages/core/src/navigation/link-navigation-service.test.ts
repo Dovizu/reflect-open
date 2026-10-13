@@ -9,6 +9,7 @@ import {
   createTestAttachmentService,
   createTestDatabaseService,
   createTestDeepLinkService,
+  createTestGraphSessionService,
   createTestLoggerService,
   createTestNavigationService,
   createTestNoteCreationService,
@@ -18,6 +19,7 @@ import {
   createTestOperationsService,
   createTestPlatformService,
   createTestWindowService,
+  type TestOpenGraph,
   type TestPlatformOptions,
 } from '../testing/index.ts'
 import {
@@ -45,6 +47,7 @@ function setup(options?: {
   noteLinkResolver?: Pick<NoteLinkResolverService, 'resolveWikiTarget' | 'resolveMarkdownHref'>
   noteCreation?: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
   wikiResolver?: Pick<WikiResolverService, 'resolveWikiTarget'>
+  graph?: TestOpenGraph | null
 }) {
   const noteFile = createTestNoteFileService({
     files: options?.files ?? {},
@@ -74,6 +77,9 @@ function setup(options?: {
     attachments,
     operations,
     logger,
+    graphSession: createTestGraphSessionService({
+      graph: options?.graph === undefined ? { generation: 7 } : options.graph,
+    }),
   })
   return {
     linkNavigation,
@@ -298,7 +304,7 @@ describe('followWikiLink', () => {
     const { linkNavigation, host, noteCreation } = setup({
       files: { 'notes/target.md': '# Target' },
     })
-    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: false, generation: 1 }, host)
+    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: false }, host)
     await settle()
     expect(host.routes()).toEqual([{ kind: 'note', path: 'notes/target.md' }])
     expect(noteCreation.created()).toEqual([])
@@ -306,31 +312,26 @@ describe('followWikiLink', () => {
 
   it('treats an unresolved ISO date as a daily target', async () => {
     const { linkNavigation, host, noteCreation, noteLinkResolver } = setup()
-    linkNavigation.followWikiLink(
-      { target: '2026-06-09', openInNewWindow: false, generation: 1 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
     await settle()
     expect(host.routes()).toEqual([{ kind: 'daily', date: '2026-06-09' }])
     expect(noteCreation.created()).toEqual([])
     expect(noteLinkResolver.calls()).toMatchObject([
-      { kind: 'wiki', target: '2026-06-09', generation: 1, result: { kind: 'missing' } },
+      { kind: 'wiki', target: '2026-06-09', generation: 7, result: { kind: 'missing' } },
     ])
   })
 
   it('preserves an existing regular note titled as an ISO date', async () => {
     const { linkNavigation, host } = setup({ files: { 'notes/2026-06-09.md': '# 2026-06-09' } })
-    linkNavigation.followWikiLink(
-      { target: '2026-06-09', openInNewWindow: false, generation: 1 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
     await settle()
     expect(host.routes()).toEqual([{ kind: 'note', path: 'notes/2026-06-09.md' }])
   })
 
-  it('retains read-only index resolution for ISO dates without a graph generation', async () => {
+  it('retains read-only index resolution for ISO dates with no graph open', async () => {
     const targets: string[] = []
     const { linkNavigation, host, noteLinkResolver } = setup({
+      graph: null,
       wikiResolver: {
         resolveWikiTarget: async (target) => {
           targets.push(target)
@@ -338,24 +339,21 @@ describe('followWikiLink', () => {
         },
       },
     })
-    linkNavigation.followWikiLink(
-      { target: '2026-06-09', openInNewWindow: false, generation: null },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
     await settle()
     expect(host.routes()).toEqual([{ kind: 'note', path: 'notes/2026-06-09.md' }])
     expect(targets).toEqual(['2026-06-09'])
     expect(noteLinkResolver.calls()).toEqual([])
   })
 
-  it('opens the lazy daily route for an unindexed ISO date without a graph generation', async () => {
+  it('opens the lazy daily route for an unindexed ISO date when read-only', async () => {
     const { linkNavigation, host } = setup({
       wikiResolver: {
         resolveWikiTarget: async (target) => ({ kind: 'unresolved', text: target }),
       },
     })
     linkNavigation.followWikiLink(
-      { target: '2026-06-09', openInNewWindow: false, generation: null },
+      { target: '2026-06-09', openInNewWindow: false, readOnly: true },
       host,
     )
     await settle()
@@ -372,10 +370,7 @@ describe('followWikiLink', () => {
         resolveMarkdownHref: async () => ({ kind: 'missing' }),
       },
     })
-    linkNavigation.followWikiLink(
-      { target: '2026-06-09', openInNewWindow: false, generation: 1 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
     await settle()
     expect(operations.findByLabel('Opening link')).toMatchObject({
       status: 'failed',
@@ -392,10 +387,7 @@ describe('followWikiLink', () => {
         resolveMarkdownHref: async () => ({ kind: 'missing' }),
       },
     })
-    linkNavigation.followWikiLink(
-      { target: '2026-06-09', openInNewWindow: false, generation: 1 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
     await settle()
     expect(operations.findByLabel('Opening link')).toMatchObject({
       status: 'failed',
@@ -413,34 +405,28 @@ describe('followWikiLink', () => {
         }),
       },
     })
-    linkNavigation.followWikiLink(
-      { target: 'Project log', openInNewWindow: false, generation: 1 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: 'Project log', openInNewWindow: false }, host)
     await settle()
     expect(host.routes()).toEqual([{ kind: 'daily', date: '2026-06-09' }])
   })
 
   it('creates and opens an unresolved title', async () => {
     const { linkNavigation, host, noteCreation, noteFile } = setup()
-    linkNavigation.followWikiLink(
-      { target: 'Brand New', openInNewWindow: false, generation: 7 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: 'Brand New', openInNewWindow: false }, host)
     await settle()
     expect(noteCreation.created()).toEqual(['notes/brand-new.md'])
-    expect(noteFile.writes()).toMatchObject([{ path: 'notes/brand-new.md', generation: 7 }])
+    expect(noteFile.writes()).toMatchObject([{ path: 'notes/brand-new.md' }])
     expect(host.routes()).toEqual([{ kind: 'note', path: 'notes/brand-new.md' }])
   })
 
-  it('does not create when no generation is available', async () => {
+  it('does not create when read-only', async () => {
     const { linkNavigation, host, noteCreation } = setup({
       wikiResolver: {
         resolveWikiTarget: async (target) => ({ kind: 'unresolved', text: target }),
       },
     })
     linkNavigation.followWikiLink(
-      { target: 'Brand New', openInNewWindow: false, generation: null },
+      { target: 'Brand New', openInNewWindow: false, readOnly: true },
       host,
     )
     await settle()
@@ -448,23 +434,21 @@ describe('followWikiLink', () => {
     expect(host.routes()).toEqual([])
   })
 
-  it('opens an indexed title without a graph generation', async () => {
+  it('opens an indexed title with no graph open', async () => {
     const { linkNavigation, host } = setup({
+      graph: null,
       wikiResolver: {
         resolveWikiTarget: async () => ({ kind: 'resolved', ref: 'notes/target.md' }),
       },
     })
-    linkNavigation.followWikiLink(
-      { target: 'Target', openInNewWindow: false, generation: null },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: false }, host)
     await settle()
     expect(host.routes()).toEqual([{ kind: 'note', path: 'notes/target.md' }])
   })
 
   it('ignores an empty target', async () => {
     const { linkNavigation, host, noteLinkResolver, noteCreation } = setup()
-    linkNavigation.followWikiLink({ target: '   ', openInNewWindow: false, generation: 1 }, host)
+    linkNavigation.followWikiLink({ target: '   ', openInNewWindow: false }, host)
     await settle()
     expect(noteLinkResolver.calls()).toEqual([])
     expect(noteCreation.created()).toEqual([])
@@ -473,7 +457,7 @@ describe('followWikiLink', () => {
 
   it('opens the resolved note in a new window instead of navigating', async () => {
     const { linkNavigation, host, window } = setup({ files: { 'notes/target.md': '# Target' } })
-    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: true, generation: 1 }, host)
+    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: true }, host)
     await settle()
     expect(window.openedNoteWindows()).toEqual(['reflect://note/notes%2Ftarget.md'])
     expect(host.routes()).toEqual([])
@@ -481,10 +465,7 @@ describe('followWikiLink', () => {
 
   it('still creates an unresolved title, then opens the new window', async () => {
     const { linkNavigation, host, window, noteCreation } = setup()
-    linkNavigation.followWikiLink(
-      { target: 'Brand New', openInNewWindow: true, generation: 7 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: 'Brand New', openInNewWindow: true }, host)
     await settle()
     expect(noteCreation.created()).toEqual(['notes/brand-new.md'])
     expect(window.openedNoteWindows()).toEqual(['reflect://note/notes%2Fbrand-new.md'])
@@ -496,7 +477,7 @@ describe('followWikiLink', () => {
       files: { 'notes/target.md': '# Target' },
       openNoteWindow: () => false,
     })
-    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: true, generation: 1 }, host)
+    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: true }, host)
     await settle()
     expect(host.routes()).toEqual([{ kind: 'note', path: 'notes/target.md' }])
   })
@@ -508,10 +489,7 @@ describe('followWikiLink', () => {
         'notes/business-ideas-2.md': '# Business ideas',
       },
     })
-    linkNavigation.followWikiLink(
-      { target: 'Business ideas', openInNewWindow: false, generation: 7 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: 'Business ideas', openInNewWindow: false }, host)
     await settle()
     expect(host.routes()).toEqual([])
     expect(noteCreation.created()).toEqual([])
@@ -526,10 +504,7 @@ describe('followWikiLink', () => {
       files: { 'notes/business-ideas.md': '# Business ideas' },
       evicted: ['notes/business-ideas.md'],
     })
-    linkNavigation.followWikiLink(
-      { target: 'Business ideas', openInNewWindow: false, generation: 7 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: 'Business ideas', openInNewWindow: false }, host)
     await settle()
     expect(host.routes()).toEqual([])
     expect(noteCreation.created()).toEqual([])
@@ -548,10 +523,7 @@ describe('followWikiLink', () => {
         },
       },
     })
-    linkNavigation.followWikiLink(
-      { target: 'Business ideas', openInNewWindow: false, generation: 1 },
-      host,
-    )
+    linkNavigation.followWikiLink({ target: 'Business ideas', openInNewWindow: false }, host)
     await settle()
     expect(operations.findByLabel('Opening link')).toMatchObject({
       status: 'failed',
@@ -568,7 +540,7 @@ describe('followWikiLink', () => {
     const { linkNavigation, host } = setup({
       noteCreation: { resolveOrCreateNoteWithTitle: () => pending.promise },
     })
-    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: false, generation: 1 }, host)
+    linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: false }, host)
     host.leave()
     pending.resolve({ kind: 'resolved', path: 'notes/target.md' })
     await settle()
@@ -585,8 +557,8 @@ describe('followWikiLink', () => {
             : Promise.resolve({ kind: 'resolved', path: 'notes/newer.md' }),
       },
     })
-    linkNavigation.followWikiLink({ target: 'Older', openInNewWindow: false, generation: 1 }, host)
-    linkNavigation.followWikiLink({ target: 'Newer', openInNewWindow: false, generation: 1 }, host)
+    linkNavigation.followWikiLink({ target: 'Older', openInNewWindow: false }, host)
+    linkNavigation.followWikiLink({ target: 'Newer', openInNewWindow: false }, host)
     await settle()
     pendingOlder.resolve({ kind: 'resolved', path: 'notes/older.md' })
     await settle()
@@ -604,7 +576,6 @@ describe('followMarkdownNoteLink', () => {
         href: './roadmap/plan.md',
         sourcePath: 'projects/TASKS.md',
         openInNewWindow: false,
-        generation: 7,
       },
       host,
     )
@@ -627,7 +598,6 @@ describe('followMarkdownNoteLink', () => {
         href: './roadmap/plan.md',
         sourcePath: 'projects/TASKS.md',
         openInNewWindow: true,
-        generation: 7,
       },
       host,
     )
@@ -636,14 +606,13 @@ describe('followMarkdownNoteLink', () => {
     expect(host.routes()).toEqual([])
   })
 
-  it('does nothing without a graph generation', async () => {
-    const { linkNavigation, host, noteLinkResolver } = setup({ files })
+  it('does nothing with no graph open', async () => {
+    const { linkNavigation, host, noteLinkResolver } = setup({ files, graph: null })
     linkNavigation.followMarkdownNoteLink(
       {
         href: './roadmap/plan.md',
         sourcePath: 'projects/TASKS.md',
         openInNewWindow: false,
-        generation: null,
       },
       host,
     )
@@ -659,7 +628,6 @@ describe('followMarkdownNoteLink', () => {
         href: './absent.md',
         sourcePath: 'projects/TASKS.md',
         openInNewWindow: false,
-        generation: 7,
       },
       host,
     )
@@ -680,7 +648,7 @@ describe('followMarkdownNoteLink', () => {
       },
     })
     linkNavigation.followMarkdownNoteLink(
-      { href: './plan.md', sourcePath: 'projects/TASKS.md', openInNewWindow: false, generation: 7 },
+      { href: './plan.md', sourcePath: 'projects/TASKS.md', openInNewWindow: false },
       host,
     )
     await settle()
@@ -699,7 +667,7 @@ describe('followMarkdownNoteLink', () => {
       },
     })
     linkNavigation.followMarkdownNoteLink(
-      { href: './plan.md', sourcePath: 'projects/TASKS.md', openInNewWindow: false, generation: 7 },
+      { href: './plan.md', sourcePath: 'projects/TASKS.md', openInNewWindow: false },
       host,
     )
     await settle()
@@ -721,7 +689,7 @@ describe('followMarkdownNoteLink', () => {
       },
     })
     linkNavigation.followMarkdownNoteLink(
-      { href: './plan.md', sourcePath: 'projects/TASKS.md', openInNewWindow: false, generation: 7 },
+      { href: './plan.md', sourcePath: 'projects/TASKS.md', openInNewWindow: false },
       host,
     )
     host.leave()
@@ -826,7 +794,7 @@ describe('followDeepLink', () => {
 })
 
 describe('followMarkdownLink', () => {
-  const source = { sourcePath: 'projects/TASKS.md', generation: 7 }
+  const source = { sourcePath: 'projects/TASKS.md' }
 
   it('opens an http(s) link in the OS browser', () => {
     const { linkNavigation, host, opener } = setup()
@@ -910,10 +878,7 @@ describe('followMarkdownLink', () => {
       files: { 'notes/foo.md': '# Foo' },
     })
     for (const href of ['assets/cat.png', 'notes/foo.md']) {
-      linkNavigation.followMarkdownLink(
-        { href, sourcePath: null, openInNewWindow: false, generation: 7 },
-        host,
-      )
+      linkNavigation.followMarkdownLink({ href, sourcePath: null, openInNewWindow: false }, host)
     }
     await settle()
     expect(attachments.opened()).toEqual([])

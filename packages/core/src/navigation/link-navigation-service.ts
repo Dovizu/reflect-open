@@ -5,6 +5,7 @@ import type { PlatformService } from '../app/platform-service.ts'
 import type { WindowService } from '../app/window-service.ts'
 import type { AttachmentService } from '../documents/attachment-service.ts'
 import { errorMessage } from '../errors.ts'
+import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 import { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
@@ -106,16 +107,16 @@ export interface LinkNavigationService {
    * ordinary resolution precedence, then open their lazy daily route on a
    * miss. Every other writable title goes through the ambiguity-preserving
    * index + disk resolver before it opens or creates, so an indexed duplicate
-   * cannot bypass the same guard used for an index miss. With a `null`
-   * `generation` (no writable graph), existing titles still use the read-only
-   * index resolver and unresolved titles are a no-op.
+   * cannot bypass the same guard used for an index miss. With `readOnly`, or
+   * with no graph open, existing titles still use the read-only index
+   * resolver and unresolved titles are a no-op.
    *
    * Resolution is async, and the host can unmount or the user can act again
    * while it's in flight — a late navigate would yank the user somewhere
    * they've already left, so every navigation is gated on the host's intent.
    */
   followWikiLink: (
-    options: { target: string; openInNewWindow: boolean; generation: number | null },
+    options: { target: string; openInNewWindow: boolean; readOnly?: boolean },
     host: LinkNavigationHost,
   ) => void
   /**
@@ -124,16 +125,11 @@ export interface LinkNavigationService {
    * resolves source-relative from `sourcePath` (vault-root for a leading
    * `/`), with the same branch shape as wiki links except that `missing` is a
    * no-op: an unqualified href has two candidate physical locations, so
-   * creation would have to guess where the file belongs. A `null`
-   * `generation` is a no-op.
+   * creation would have to guess where the file belongs. With no graph
+   * open it is a no-op.
    */
   followMarkdownNoteLink: (
-    options: {
-      href: string
-      sourcePath: string
-      openInNewWindow: boolean
-      generation: number | null
-    },
+    options: { href: string; sourcePath: string; openInNewWindow: boolean },
     host: LinkNavigationHost,
   ) => void
   /**
@@ -145,12 +141,7 @@ export interface LinkNavigationService {
    * note links do nothing.
    */
   followMarkdownLink: (
-    options: {
-      href: string
-      sourcePath: string | null
-      openInNewWindow: boolean
-      generation: number | null
-    },
+    options: { href: string; sourcePath: string | null; openInNewWindow: boolean },
     host: LinkNavigationHost,
   ) => void
   /**
@@ -185,6 +176,7 @@ export interface LinkNavigationServiceDeps {
   attachments: Pick<AttachmentService, 'resolveAssetOpenPath' | 'openOrReveal'>
   operations: Pick<OperationsService, 'start'>
   logger: Pick<LoggerService, 'error'>
+  graphSession: Pick<GraphSessionService, 'getState'>
 }
 
 export function createLinkNavigationService(
@@ -202,6 +194,7 @@ export function createLinkNavigationService(
     attachments,
     operations,
     logger,
+    graphSession,
   } = deps
 
   let latestIntent = 0
@@ -217,6 +210,8 @@ export function createLinkNavigationService(
         `Couldn’t open “${name}” because a matching note is currently unavailable. Try again when it is available on this device.`,
       )
   }
+
+  const currentGeneration = (): number | null => graphSession.getState().session?.generation ?? null
 
   const canOpenWindows = (): boolean => platform.isNativeShell && !platform.surface.mobileApp
 
@@ -267,9 +262,10 @@ export function createLinkNavigationService(
   }
 
   const followWikiLink: LinkNavigationService['followWikiLink'] = (
-    { target, openInNewWindow, generation },
+    { target, openInNewWindow, readOnly },
     host,
   ) => {
+    const generation = (readOnly ?? false) ? null : currentGeneration()
     const isStale = host.beginIntent()
     const open = (route: NoteRoute): void => {
       openNoteLink({ target: route, openInNewWindow }, host)
@@ -344,10 +340,15 @@ export function createLinkNavigationService(
     })()
   }
 
-  const followMarkdownNoteLink: LinkNavigationService['followMarkdownNoteLink'] = (
-    { href, sourcePath, openInNewWindow, generation },
-    host,
-  ) => {
+  const followMarkdownNoteLinkAt = (
+    {
+      href,
+      sourcePath,
+      openInNewWindow,
+    }: { href: string; sourcePath: string; openInNewWindow: boolean },
+    generation: number | null,
+    host: LinkNavigationHost,
+  ): void => {
     if (generation === null) {
       return
     }
@@ -405,9 +406,10 @@ export function createLinkNavigationService(
   }
 
   const followMarkdownLink: LinkNavigationService['followMarkdownLink'] = (
-    { href, sourcePath, openInNewWindow, generation },
+    { href, sourcePath, openInNewWindow },
     host,
   ) => {
+    const generation = currentGeneration()
     if (generation !== null && sourcePath !== null) {
       const assetPath = attachments.resolveAssetOpenPath(sourcePath, href, generation)
       if (assetPath !== null) {
@@ -424,7 +426,7 @@ export function createLinkNavigationService(
       return
     }
     if (sourcePath !== null) {
-      followMarkdownNoteLink({ href, sourcePath, openInNewWindow, generation }, host)
+      followMarkdownNoteLinkAt({ href, sourcePath, openInNewWindow }, generation, host)
     }
   }
 
@@ -439,7 +441,9 @@ export function createLinkNavigationService(
     openDeepLinkInNewWindow,
     openNoteLink,
     followWikiLink,
-    followMarkdownNoteLink,
+    followMarkdownNoteLink: (options, host) => {
+      followMarkdownNoteLinkAt(options, currentGeneration(), host)
+    },
     followMarkdownLink,
     followDeepLink,
     reportAmbiguousNoteTitle,

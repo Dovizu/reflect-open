@@ -173,21 +173,13 @@ export function NotePaneComponent({
     graphKey: graph?.root ?? null,
     dateFormat: settings.dateFormat,
   })
-  const onWikiLinkClick = useWikiLinkNavigation(generation)
-  const onLinkClick = useMarkdownLinkClick(generation, path)
+  const onWikiLinkClick = useWikiLinkNavigation()
+  const onLinkClick = useMarkdownLinkClick(path)
   const onTagClick = useTagNavigation()
   const { onWikilinkSearch, onTagSearch } = useEditorAutocomplete()
   const linkPreviewSession = useMemo(
-    () =>
-      generation === null || graphKey === null
-        ? null
-        : {
-            path,
-            generation,
-            graphKey,
-            sessionEpoch: document.sessionEpoch,
-          },
-    [path, generation, graphKey, document.sessionEpoch],
+    () => (graphKey === null ? null : { path, graphKey, sessionEpoch: document.sessionEpoch }),
+    [path, graphKey, document.sessionEpoch],
   )
   const resolveLinkPreview = useLinkPreview(linkPreviewSession)
 

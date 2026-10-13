@@ -1,8 +1,10 @@
 import {
   createTestAppServices,
+  createTestGraphSessionService,
   createTestLoggerService,
   createTestOperationsService,
   createTestWindowService,
+  type TestOpenGraph,
   type TestOperationsService,
 } from '@reflect/core/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,8 +23,8 @@ const logger = createTestLoggerService()
 let lastHandler: ((options: { target: string; openInNewWindow: boolean }) => void) | null = null
 let navigate: ReturnType<typeof useRouter>['navigate'] | null = null
 
-function Host({ generation }: { generation: number | null }): ReactNode {
-  lastHandler = useWikiLinkNavigation(generation)
+function Host({ readOnly = false }: { readOnly?: boolean }): ReactNode {
+  lastHandler = useWikiLinkNavigation({ readOnly })
   navigate = useRouter().navigate
   return null
 }
@@ -37,11 +39,14 @@ function RouteProbe(): ReactNode {
 }
 
 /** Render `ui` in an app whose link navigation runs on the scripted resolvers above. */
-function renderWithLinkNavigation(ui: ReactNode) {
+function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
   const base = createTestAppServices()
+  const graphSession = createTestGraphSessionService()
   const app = createTestAppServices({
     operations,
+    graphSession,
     linkNavigation: createTestAppServices({
+      graphSession,
       wikiResolver: { ...base.wikiResolver, resolveWikiTarget },
       noteLinkResolver: {
         resolveWikiTarget: resolveExistingWikiTarget,
@@ -53,15 +58,16 @@ function renderWithLinkNavigation(ui: ReactNode) {
       logger,
     }).linkNavigation,
   })
-  return renderInApp(ui, { app })
+  return renderInApp(ui, { app, ...(graph === undefined ? {} : { graph }) })
 }
 
-function renderHost(generation: number | null = 1) {
+function renderHost(options: { graph?: TestOpenGraph | null; readOnly?: boolean } = {}) {
   return renderWithLinkNavigation(
     <>
-      <Host generation={generation} />
+      <Host readOnly={options.readOnly ?? false} />
       <RouteProbe />
     </>,
+    options.graph,
   )
 }
 
@@ -130,9 +136,9 @@ describe('useWikiLinkNavigation', () => {
     expect(currentRoute(view)).toContain('notes/2026-06-09.md')
   })
 
-  it('retains read-only index resolution for ISO dates without a graph generation', async () => {
+  it('retains read-only index resolution for ISO dates when read-only', async () => {
     resolveWikiTarget.mockResolvedValue({ kind: 'resolved', ref: 'notes/2026-06-09.md' })
-    const view = await renderHost(null)
+    const view = await renderHost({ readOnly: true })
 
     lastHandler?.({ target: '2026-06-09', openInNewWindow: false })
 
@@ -195,16 +201,25 @@ describe('useWikiLinkNavigation', () => {
       kind: 'created',
       path: 'notes/created.md',
     })
-    const view = await renderHost(7)
+    const view = await renderHost({ graph: { generation: 7 } })
     lastHandler?.({ target: 'Brand New', openInNewWindow: false })
     await vi.waitFor(() => expect(currentRoute(view)).toContain('notes/created.md'))
     expect(resolveOrCreateNoteWithTitle).toHaveBeenCalledWith('Brand New', 7)
     expect(view.getByTestId('route').element().getAttribute('data-focus')).toBe('false')
   })
 
-  it('does not create when no generation is available', async () => {
+  it('does not create when read-only', async () => {
     resolveWikiTarget.mockResolvedValue({ kind: 'unresolved', text: 'Brand New' })
-    const view = await renderHost(null)
+    const view = await renderHost({ readOnly: true })
+    lastHandler?.({ target: 'Brand New', openInNewWindow: false })
+    await vi.waitFor(() => expect(resolveWikiTarget).toHaveBeenCalled())
+    expect(resolveOrCreateNoteWithTitle).not.toHaveBeenCalled()
+    expect(currentRoute(view)).toContain('"today"')
+  })
+
+  it('does not create with no graph open', async () => {
+    resolveWikiTarget.mockResolvedValue({ kind: 'unresolved', text: 'Brand New' })
+    const view = await renderHost({ graph: null })
     lastHandler?.({ target: 'Brand New', openInNewWindow: false })
     await vi.waitFor(() => expect(resolveWikiTarget).toHaveBeenCalled())
     expect(resolveOrCreateNoteWithTitle).not.toHaveBeenCalled()
@@ -238,7 +253,7 @@ describe('useWikiLinkNavigation', () => {
       kind: 'created',
       path: 'notes/created.md',
     })
-    const view = await renderHost(7)
+    const view = await renderHost({ graph: { generation: 7 } })
     lastHandler?.({ target: 'Brand New', openInNewWindow: true })
     await vi.waitFor(() =>
       expect(openNoteWindow).toHaveBeenCalledWith('reflect://note/notes%2Fcreated.md'),
@@ -252,7 +267,7 @@ describe('useWikiLinkNavigation', () => {
       kind: 'ambiguous',
       paths: ['notes/business-ideas.md', 'notes/business-ideas-2.md'],
     })
-    const view = await renderHost(7)
+    const view = await renderHost({ graph: { generation: 7 } })
     lastHandler?.({ target: 'Business ideas', openInNewWindow: false })
     await vi.waitFor(() => expect(resolveOrCreateNoteWithTitle).toHaveBeenCalled())
     expect(currentRoute(view)).toContain('"today"')
@@ -269,7 +284,7 @@ describe('useWikiLinkNavigation', () => {
       kind: 'unavailable',
       paths: ['notes/business-ideas.md'],
     })
-    const view = await renderHost(7)
+    const view = await renderHost({ graph: { generation: 7 } })
 
     lastHandler?.({ target: 'Business ideas', openInNewWindow: false })
 
@@ -321,7 +336,7 @@ describe('useWikiLinkNavigation', () => {
     resolveOrCreateNoteWithTitle.mockReturnValue(pending.promise)
     const view = await renderWithLinkNavigation(
       <>
-        <Host key="host" generation={1} />
+        <Host key="host" />
         <RouteProbe key="probe" />
       </>,
     )
@@ -380,7 +395,7 @@ describe('useWikiLinkNavigation', () => {
   it('drops a pending note creation after unrelated router navigation', async () => {
     const pendingCreation = Promise.withResolvers<{ kind: 'created'; path: string }>()
     resolveOrCreateNoteWithTitle.mockReturnValue(pendingCreation.promise)
-    const view = await renderHost(7)
+    const view = await renderHost({ graph: { generation: 7 } })
 
     lastHandler?.({ target: 'Brand New', openInNewWindow: false })
     await vi.waitFor(() =>
