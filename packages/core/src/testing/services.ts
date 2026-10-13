@@ -14,11 +14,10 @@ import { createPosixPathTransport } from '../app/path-service.ts'
 import { createSingleWindowHost } from '../app/window-service.ts'
 import { createPrivacyService } from '../privacy/privacy-service.ts'
 import type { IdService } from '../app/id-service.ts'
-import type { ProgressPort } from '../app/ports.ts'
+import type { ActivityPort, ProgressPort } from '../app/ports.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import type { BackupService } from '../sync/backup-service.ts'
-import type { ActivityPort } from '../app/ports.ts'
 import {
   createTestAiKeyValidationService,
   createTestAssetDescriberService,

@@ -1,7 +1,6 @@
 import { isCaptureSpoolPath } from '../capture/capture-identity.ts'
-import type { ActivityPort } from '../app/ports.ts'
+import type { ActivityPort, ProgressPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { ProgressPort } from '../app/ports.ts'
 import type { PersistenceFlushService } from '../app/persistence-flush-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'

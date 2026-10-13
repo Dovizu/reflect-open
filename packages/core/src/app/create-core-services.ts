@@ -233,12 +233,11 @@ import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
 import { isMobilePlatform } from './platform.ts'
-import type { ProgressPort } from './ports.ts'
+import type { ActivityPort, ProgressPort } from './ports.ts'
 import { createUnavailableImageCodec, type ImageCodecService } from './image-codec-service.ts'
 import type { LoggerService } from './logger-service.ts'
 import { createTaskService, type TaskService } from '../tasks/task-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
-import type { ActivityPort } from './ports.ts'
 import {
   createPersistenceFlushService,
   type PersistenceFlushService,
