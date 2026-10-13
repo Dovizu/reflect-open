@@ -1,3 +1,4 @@
+import { createTestWindowService } from '@reflect/app/testing'
 import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RetrievalService } from '@reflect/core'
@@ -5,7 +6,6 @@ import {
   createTestCoreServices,
   createTestNoteFileService,
   createTestRetrievalService,
-  createTestWindowService,
 } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
@@ -26,7 +26,6 @@ async function renderSimilar(path: string, probe: boolean = true) {
   const app = createTestCoreServices({
     noteFile: createTestNoteFileService({ files: { 'daily/2026-06-09.md': '- daily entry\n' } }),
     retrieval: createTestRetrievalService({ relatedNotes }),
-    window: createTestWindowService({ openNoteWindow }),
   })
   return await renderInApp(
     <>
@@ -35,6 +34,7 @@ async function renderSimilar(path: string, probe: boolean = true) {
     </>,
     {
       app,
+      appServices: { window: createTestWindowService({ openNoteWindow }) },
       graph: { root: '/g', name: 'g' },
       settings: { semanticSearchEnabled },
     },

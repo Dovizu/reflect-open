@@ -17,14 +17,9 @@ export {
   type TestIpcBridgeServiceOptions,
 } from './ipc.ts'
 export {
-  createTestDialogService,
   createTestActivityPort,
-  createTestWindowService,
-  type DialogCall,
-  type TestDialogService,
   type TestActivityPort,
   type TestActivityPortOptions,
-  type TestWindowService,
 } from './shell.ts'
 export {
   createTestPlatformService,
@@ -186,11 +181,6 @@ export {
   type TestGraphSessionServiceOptions,
   type TestOpenGraph,
 } from './graph-session.ts'
-export {
-  createTestMobileOnboardingService,
-  type TestMobileOnboardingService,
-  type TestMobileOnboardingServiceOptions,
-} from './mobile-onboarding.ts'
 export {
   createTestIndexLifecycleService,
   type TestIndexLifecycleService,

@@ -3,10 +3,10 @@ import {
   createTestIpcBridgeService,
   createTestLoggerService,
   createTestPlatformService,
-  createTestWindowService,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
 import { createTestNativeMenuService } from '../testing/commands.ts'
+import { createTestWindowService } from '../testing/window.ts'
 import { createCommandService } from './command-service.ts'
 import type { AppSubmenuLayout, NativeMenuItem } from './native-menu-service.ts'
 

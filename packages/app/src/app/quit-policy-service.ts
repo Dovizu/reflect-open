@@ -1,10 +1,10 @@
 import type {
   BackgroundTaskToken,
   PersistenceFlushService,
-  PlatformService,
+  PlatformFacts,
   Unlisten,
-  WindowService,
 } from '@reflect/core'
+import type { WindowService } from './window-service.ts'
 import type { AppLifecycleService } from './lifecycle-service.ts'
 
 /**
@@ -29,7 +29,7 @@ export interface QuitPolicyService {
 export interface QuitPolicyServiceDeps {
   readonly lifecycle: AppLifecycleService
   readonly window: Pick<WindowService, 'isMainWindow' | 'onCloseRequested' | 'hide'>
-  readonly platform: Pick<PlatformService, 'isNativeShell' | 'isMacosDesktop'>
+  readonly platform: Pick<PlatformFacts, 'isNativeShell' | 'isMacosDesktop'>
   readonly persistenceFlush: Pick<PersistenceFlushService, 'flushAll' | 'startFlushAll'>
 }
 

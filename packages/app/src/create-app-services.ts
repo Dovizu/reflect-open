@@ -47,12 +47,37 @@ import {
 import { createNavigationService, type NavigationService } from './navigation/navigation-service.ts'
 import type { AppLifecycleService } from './app/lifecycle-service.ts'
 import { createQuitPolicyService, type QuitPolicyService } from './app/quit-policy-service.ts'
+import type { WindowService } from './app/window-service.ts'
+import type { DialogService } from './app/dialog-service.ts'
+import {
+  createPlatformService,
+  type PlatformMedia,
+  type PlatformService,
+} from './app/platform-service.ts'
+import {
+  createMobileOnboardingService,
+  type MobileOnboardingService,
+} from './graph/mobile-onboarding-service.ts'
+import { createGraphBootService, type GraphBootService } from './graph/graph-boot-service.ts'
 
 /**
  * What the host supplies to the app layer: the window, lifecycle, storage,
  * updater, menu and deep-link primitives of one webview.
  */
 export interface AppHost {
+  /**
+   * The window service the host built before the core services, which read its role.
+   */
+  readonly window: WindowService
+  /**
+   * Native open panels.
+   */
+  readonly dialog: DialogService
+  /**
+   * The media queries behind the reduced-motion and color-scheme signals;
+   * defaults to the global `matchMedia`.
+   */
+  readonly media?: PlatformMedia
   /**
    * The lifecycle service the host built before the core services, which follow it as their activity port.
    */
@@ -87,6 +112,27 @@ export interface AppHost {
  * The app-layer services of one webview, built over the core services.
  */
 export interface AppServices {
+  /**
+   * Facts about this webview's window and the actions that span windows.
+   */
+  readonly window: WindowService
+  /**
+   * Native open panels.
+   */
+  readonly dialog: DialogService
+  /**
+   * The platform facts plus the webview's reduced-motion and color-scheme signals.
+   */
+  readonly platform: PlatformService
+  /**
+   * The window-aware graph flows: the boot path, the folder picker, and the
+   * opens and closes that end the session note windows adopted.
+   */
+  readonly graphBoot: GraphBootService
+  /**
+   * The mobile graph bootstrap into one of two fixed roots, the iCloud Drive container or the app sandbox.
+   */
+  readonly mobileOnboarding: MobileOnboardingService
   /**
    * The system clipboard.
    */
@@ -173,11 +219,12 @@ export interface AppServices {
  * Build the app layer once per webview.
  */
 export function createAppServices(core: CoreServices, host: AppHost): AppServices {
+  const platform = createPlatformService({ facts: core.platform, media: host.media })
   const commands = createCommandService({ platform: core.platform, logger: core.logger })
   const keymap = createKeymapService({ platform: core.platform })
   const nativeMenu = createNativeMenuService({
     commands,
-    window: core.window,
+    window: host.window,
     platform: core.platform,
     ipc: core.ipc,
     logger: core.logger,
@@ -201,7 +248,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     noteLinkResolver: core.noteLinkResolver,
     noteCreation: core.noteCreation,
     wikiResolver: core.wikiResolver,
-    window: core.window,
+    window: host.window,
     platform: core.platform,
     opener,
     deepLinkRouter,
@@ -212,6 +259,29 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     graphSession: core.graphSession,
   })
   return {
+    window: host.window,
+    dialog: host.dialog,
+    platform,
+    graphBoot: createGraphBootService({
+      graphSession: core.graphSession,
+      indexLifecycle: core.indexLifecycle,
+      window: host.window,
+      dialog: host.dialog,
+      path: core.path,
+      lifecycle: host.lifecycle,
+      platform: core.platform,
+      deepLinkRouter,
+      logger: core.logger,
+    }),
+    mobileOnboarding: createMobileOnboardingService({
+      mobileStorage: core.mobileStorage,
+      settings: core.settings,
+      graphSession: core.graphSession,
+      platform: core.platform,
+      clock: core.clock,
+      activity: host.lifecycle,
+      logger: core.logger,
+    }),
     clipboard: host.clipboard,
     opener,
     commands,
@@ -222,14 +292,14 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     theme: createThemeService({
       settings: core.settings,
       storage: core.storage,
-      platform: core.platform,
+      platform,
     }),
     update: createUpdateService({
       updater: host.updater,
       clock: core.clock,
       logger: core.logger,
       platform: core.platform,
-      window: core.window,
+      window: host.window,
     }),
     operations: host.operations,
     syncStatus: createSyncStatusService(),
@@ -259,7 +329,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     lifecycle: host.lifecycle,
     quitPolicy: createQuitPolicyService({
       lifecycle: host.lifecycle,
-      window: core.window,
+      window: host.window,
       platform: core.platform,
       persistenceFlush: core.persistenceFlush,
     }),

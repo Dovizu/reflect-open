@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { onTestFinished } from 'vitest'
 import { render, renderHook, type RenderHookResult, type RenderResult } from 'vitest-browser-react'
-import type { AppServices } from '@reflect/app'
+import type { AppServices, MobileOnboardingState } from '@reflect/app'
 import {
   createTestAppServices,
   createTestOperationsService,
@@ -13,7 +13,6 @@ import type {
   BackupState,
   GraphServices,
   GraphSessionState,
-  MobileOnboardingState,
   Settings,
 } from '@reflect/core'
 import {
@@ -157,18 +156,12 @@ async function prepare(options: AnyOptions | undefined): Promise<
     throw new Error('renderInApp: `servicesOnly` mounts no graph, router or sync')
   }
 
-  const { graphSession, settings, mobileOnboarding } = app
+  const { graphSession, settings } = app
   if (options?.settings !== undefined) {
     if (!('seed' in settings)) {
       throw new Error('renderInApp: `settings` needs a test settings service in `app`')
     }
     ;(settings as TestCoreServices['settings']).seed(options.settings)
-  }
-  if (options?.mobile !== undefined) {
-    if (!('setState' in mobileOnboarding)) {
-      throw new Error('renderInApp: `mobile` needs a test mobile onboarding service in `app`')
-    }
-    ;(mobileOnboarding as TestCoreServices['mobileOnboarding']).setState(options.mobile)
   }
   if (!servicesOnly) {
     if (!('setGraph' in graphSession) || !('setState' in graphSession)) {
@@ -187,6 +180,12 @@ async function prepare(options: AnyOptions | undefined): Promise<
   const queryClient =
     options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const appLayer = createTestAppServices(app, options?.appServices)
+  if (options?.mobile !== undefined) {
+    if (!('setState' in appLayer.mobileOnboarding)) {
+      throw new Error('renderInApp: `mobile` needs a test mobile onboarding service')
+    }
+    appLayer.mobileOnboarding.setState(options.mobile)
+  }
   registerAppCommands(appLayer.commands)
 
   const route = options?.route

@@ -9,18 +9,15 @@ import {
   type PinnedNote,
   type SettingsService,
 } from '@reflect/core'
-import type { NativeContextMenuOptions } from '@reflect/app'
+import type { GraphBootService, NativeContextMenuOptions } from '@reflect/app'
 import {
   createTestAppServices,
   createTestOperationsService,
+  createTestWindowService,
   type TestOpenerService,
   type TestOperationsService,
 } from '@reflect/app/testing'
-import {
-  createTestCoreServices,
-  createTestBackupService,
-  createTestWindowService,
-} from '@reflect/core/testing'
+import { createTestCoreServices, createTestBackupService } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import type { Route } from '@/routing/route.ts'
 import { UpdateProvider } from '@/providers/update-provider.tsx'
@@ -68,8 +65,8 @@ function untitledNotePath(): string {
 }
 
 let openRecent: MockInstance<GraphSessionService['openRecent']>
-let pickAndOpen: MockInstance<GraphSessionService['pickAndOpen']>
-let chooseGraph: MockInstance<GraphSessionService['chooseGraph']>
+let pickAndOpen: MockInstance<GraphBootService['pickAndOpen']>
+let chooseGraph: MockInstance<GraphBootService['chooseGraph']>
 let updateSettingsWith: MockInstance<SettingsService['updateWith']>
 
 beforeEach(() => {
@@ -98,10 +95,11 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
       commitSourceEdit: () => Promise.reject(new Error('commitSourceEdit is not stubbed')),
       isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
     },
-    window: createTestWindowService({ openNoteWindow }),
     backup: createTestBackupService({ state: { phase: 'disconnected' } }),
   })
-  const appLayer = createTestAppServices(app)
+  const appLayer = createTestAppServices(app, {
+    window: createTestWindowService({ openNoteWindow }),
+  })
   const context: CommandContext = {
     services: app,
     app: appLayer,
@@ -131,8 +129,8 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
   vi.spyOn(app.indexQuery, 'getPinnedNotes').mockImplementation(getPinnedNotes)
   vi.spyOn(appLayer.nativeMenu, 'openContextMenu').mockImplementation(openNativeContextMenu)
   openRecent = vi.spyOn(app.graphSession, 'openRecent').mockResolvedValue(true)
-  pickAndOpen = vi.spyOn(app.graphSession, 'pickAndOpen').mockResolvedValue()
-  chooseGraph = vi.spyOn(app.graphSession, 'chooseGraph').mockResolvedValue()
+  pickAndOpen = vi.spyOn(appLayer.graphBoot, 'pickAndOpen').mockResolvedValue()
+  chooseGraph = vi.spyOn(appLayer.graphBoot, 'chooseGraph').mockResolvedValue()
   updateSettingsWith = vi.spyOn(app.settings, 'updateWith')
   opener = appLayer.opener
   // The app constrains the sidebar to its rail width; without it the graph

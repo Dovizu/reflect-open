@@ -1,4 +1,5 @@
-import type { GraphSessionSource } from './graph-session.ts'
+import type { GraphRole, GraphSession, GraphSessionSource } from './graph-session.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
 import {
   createAiKeyValidationService,
@@ -144,10 +145,6 @@ import {
   createGraphSessionService,
   type GraphSessionService,
 } from '../graph/graph-session-service.ts'
-import {
-  createMobileOnboardingService,
-  type MobileOnboardingService,
-} from '../graph/mobile-onboarding-service.ts'
 import { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
@@ -228,7 +225,6 @@ import { createAgentSkillService, type AgentSkillService } from './agent-skill-s
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
 import type { ClockService } from './clock-service.ts'
-import type { DialogService } from './dialog-service.ts'
 import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
@@ -242,15 +238,9 @@ import {
   createPersistenceFlushService,
   type PersistenceFlushService,
 } from './persistence-flush-service.ts'
-import {
-  createPlatformService,
-  type FileSrcConverter,
-  type PlatformFacts,
-  type PlatformService,
-} from './platform-service.ts'
+import { appleFileSrc, type FileSrcConverter, type PlatformFacts } from './platform-service.ts'
 import { createWebStorageService, type StorageService } from './storage-service.ts'
-import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
-import { createGraphServices, type GraphServices } from './create-graph-services.ts'
+import type { GraphServices, GraphServicesDeps } from './create-graph-services.ts'
 import type { AudioRecorderService } from '../audio/audio-recorder-service.ts'
 
 /**
@@ -278,25 +268,17 @@ export interface CoreServices {
    */
   readonly hash: HashService
   /**
-   * What the host is and can do, plus its reduced-motion and color-scheme signals.
+   * What the host is and can do, decided once at startup.
    */
-  readonly platform: PlatformService
+  readonly platform: PlatformFacts
   /**
    * Key-value storage that outlives a page (`local`) or a session (`session`).
    */
   readonly storage: StorageService
   /**
-   * Native open panels.
-   */
-  readonly dialog: DialogService
-  /**
    * Host filesystem path building, in the host platform's path syntax.
    */
   readonly path: PathService
-  /**
-   * Facts about this webview's window and the actions that span windows.
-   */
-  readonly window: WindowService
   /**
    * Facts about the running application build.
    */
@@ -485,10 +467,6 @@ export interface CoreServices {
    */
   readonly semanticSearch: SemanticSearchService
   /**
-   * The mobile graph bootstrap into one of two fixed roots, the iCloud Drive container or the app sandbox.
-   */
-  readonly mobileOnboarding: MobileOnboardingService
-  /**
    * The saved AI prompts of the editor AI menu's user library.
    */
   readonly aiPrompts: AiPromptService
@@ -630,6 +608,14 @@ export interface CoreAdapters {
    */
   readonly platform: PlatformFacts
   /**
+   * Which window this webview is: only the main window opens graphs and runs their indexer.
+   */
+  readonly role: GraphRole
+  /**
+   * Listen for index writes that another webview committed.
+   */
+  readonly peerIndexWrites: (listener: () => void) => Unlisten
+  /**
    * Where business code reports visible background work.
    */
   readonly progress: ProgressPort
@@ -642,17 +628,9 @@ export interface CoreAdapters {
    */
   readonly storage: { readonly local: Storage | null; readonly session: Storage | null }
   /**
-   * Native open panels.
-   */
-  readonly dialog: DialogService
-  /**
    * The native operations behind the path service.
    */
   readonly path: PathTransport
-  /**
-   * The native window operations behind the window service.
-   */
-  readonly window: WindowHost
   /**
    * The app activity signals that business services follow.
    */
@@ -679,6 +657,11 @@ export interface CoreAdapters {
    * The system's `reflect://` delivery; without one, no URL arrives.
    */
   readonly deepLink?: DeepLinkSource
+  /**
+   * Builds the graph-scoped services of a session that just opened, over
+   * `deps`. They must dispose themselves when `session.signal` aborts.
+   */
+  readonly createGraphServices: (session: GraphSession, deps: GraphServicesDeps) => GraphServices
 }
 
 /**
@@ -698,8 +681,6 @@ function createMobileServices(deps: {
  */
 export const coreServiceFactories = {
   database: createDatabaseService,
-  platform: createPlatformService,
-  window: createWindowService,
   settings: createSettingsService,
   storage: createWebStorageService,
   fileChanges: createFileChangeService,
@@ -743,7 +724,6 @@ export const coreServiceFactories = {
   backlinkTarget: createBacklinkTargetService,
   indexLifecycle: createIndexLifecycleService,
   graphSession: createGraphSessionService<GraphServices>,
-  graphServices: createGraphServices,
   attachments: createAttachmentService,
   persistenceFlush: createPersistenceFlushService,
   gitRepository: createGitRepositoryService,
@@ -781,7 +761,6 @@ export const coreServiceFactories = {
   noteActions: createNoteActionsService,
   templates: createTemplateService,
   semanticSearch: createSemanticSearchService,
-  mobileOnboarding: createMobileOnboardingService,
   aiPrompts: createAiPromptService,
   selectionTransform: createSelectionTransformService,
   chatSessions: createChatSessionService,
@@ -941,8 +920,8 @@ export function composeCoreServices(
   const create: ServiceFactories = { ...coreServiceFactories, ...factories }
   const { logger, clock, ipc, activity } = adapters
   const database = create.database({ ipc })
-  const platform = create.platform({ facts: adapters.platform, fileSrc: adapters.convertFileSrc })
-  const windowService = create.window({ ipc, host: adapters.window, logger })
+  const platform = adapters.platform
+  const fileSrc = { convertFileSrc: adapters.convertFileSrc ?? appleFileSrc }
   const progress = adapters.progress
   const settings = create.settings({ ipc, progress })
   const storage = create.storage({
@@ -1093,19 +1072,15 @@ export function composeCoreServices(
     noteFile,
     id,
     fileChanges,
-    window: windowService,
-    dialog: adapters.dialog,
-    path,
-    platform,
-    activity,
+    role: adapters.role,
     mobileStorage,
     noteRows,
     openDocuments,
     noteMove,
     icloudNative,
     logger,
-    createServices: (session, role) =>
-      create.graphServices(session, role, {
+    createServices: (session) =>
+      adapters.createGraphServices(session, {
         backup: backupDeps,
         icloudSync: icloudSyncDeps,
         icloudDownload: icloudDownloadDeps,
@@ -1113,10 +1088,7 @@ export function composeCoreServices(
         assetDescription: services.assetDescription,
         chatSessions: services.chatSessions,
         attachments,
-        settings,
-        mobileOnboarding: services.mobileOnboarding,
         graphSession,
-        platform,
       }),
   })
   const attachments = create.attachments({
@@ -1125,7 +1097,7 @@ export function composeCoreServices(
     fileChanges,
     progress,
     clock,
-    platform,
+    platform: fileSrc,
     graphSession,
   })
   const persistenceFlush = create.persistenceFlush({
@@ -1172,7 +1144,7 @@ export function composeCoreServices(
     progress,
     clock,
     platform,
-    window: windowService,
+    role: adapters.role,
     graphSession,
     logger,
   })
@@ -1234,9 +1206,7 @@ export function composeCoreServices(
     hash,
     platform,
     storage,
-    dialog: adapters.dialog,
     path,
-    window: windowService,
     appInfo: create.appInfo({ ipc }),
     calendar,
     contacts,
@@ -1296,7 +1266,14 @@ export function composeCoreServices(
       fileChanges,
       graphSession,
     }),
-    embedMedia: create.embedMedia({ xArchive, webFetch, platform, clock, logger, graphSession }),
+    embedMedia: create.embedMedia({
+      xArchive,
+      webFetch,
+      platform: fileSrc,
+      clock,
+      logger,
+      graphSession,
+    }),
     linkPreview: create.linkPreview({
       noteDocuments,
       privacy: noteServices.privacy,
@@ -1337,7 +1314,8 @@ export function composeCoreServices(
       logger,
       graphSession,
       indexLifecycle,
-      window: windowService,
+      role: adapters.role,
+      peerIndexWrites: adapters.peerIndexWrites,
     }),
     noteActions: create.noteActions({
       noteDocuments,
@@ -1376,18 +1354,9 @@ export function composeCoreServices(
       retrieval,
       settings,
       storage,
-      window: windowService,
+      role: adapters.role,
       indexLifecycle,
       graphSession,
-      logger,
-    }),
-    mobileOnboarding: create.mobileOnboarding({
-      mobileStorage,
-      settings,
-      graphSession,
-      platform,
-      clock,
-      activity,
       logger,
     }),
     aiPrompts: create.aiPrompts({ settings, id }),

@@ -1,13 +1,13 @@
 import {
   createTestAppServices,
   createTestOperationsService,
+  createTestWindowService,
   type TestOperationsService,
 } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestGraphSessionService,
   createTestLoggerService,
-  createTestWindowService,
   type TestOpenGraph,
 } from '@reflect/core/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -57,10 +57,10 @@ function renderWithLinkNavigation(ui: ReactNode, graph?: TestOpenGraph | null) {
         resolveMarkdownHref: vi.fn(),
       },
       noteCreation: Object.assign(base.noteCreation, { resolveOrCreateNoteWithTitle }),
-      window: createTestWindowService({ openNoteWindow }),
       progress: operations,
       logger,
     }),
+    { window: createTestWindowService({ openNoteWindow }) },
   ).linkNavigation
   return renderInApp(ui, {
     app,

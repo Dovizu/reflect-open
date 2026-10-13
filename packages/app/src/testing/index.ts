@@ -45,3 +45,14 @@ export {
   type TestNavigationService,
   type TestNavigationServiceOptions,
 } from './navigation.ts'
+export {
+  createTestWindowService,
+  type TestWindowService,
+  type TestWindowServiceOptions,
+} from './window.ts'
+export { createTestDialogService, type DialogCall, type TestDialogService } from './dialog.ts'
+export {
+  createTestMobileOnboardingService,
+  type TestMobileOnboardingService,
+  type TestMobileOnboardingServiceOptions,
+} from './mobile-onboarding.ts'

@@ -1,12 +1,12 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import {
   requireGraphSession,
+  type GraphRole,
   type GraphSession,
   type GraphSessionSource,
 } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { ProgressPort } from '../app/ports.ts'
-import type { WindowService } from '../app/window-service.ts'
 import { NoteBusyError, type NoteDocumentService } from '../documents/note-document-service.ts'
 import { errorMessage, ReflectError } from '../errors.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
@@ -45,7 +45,14 @@ export interface TaskServiceDeps {
   readonly logger: Pick<LoggerService, 'error' | 'warn'>
   readonly graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
   readonly indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'onReconciled'>
-  readonly window: Pick<WindowService, 'isMainWindow' | 'subscribeIndexWritten'>
+  /**
+   * Which window this webview is; only a note window follows {@link peerIndexWrites}.
+   */
+  readonly role: GraphRole
+  /**
+   * Listen for index writes that another webview committed.
+   */
+  readonly peerIndexWrites: (listener: () => void) => Unlisten
 }
 
 /**
@@ -943,7 +950,7 @@ class TaskServiceImpl implements TaskService {
       return
     }
     this.#attached = true
-    const { graphSession, indexLifecycle, window } = this.#deps
+    const { graphSession, indexLifecycle, role, peerIndexWrites } = this.#deps
     graphSession.subscribe(() => {
       if (this.#adoptSession()) {
         this.#publish()
@@ -957,9 +964,9 @@ class TaskServiceImpl implements TaskService {
         this.#invalidate()
       }
     })
-    if (!window.isMainWindow()) {
+    if (role !== 'main') {
       // A note window runs no indexer; the main window's committed writes reach it here.
-      window.subscribeIndexWritten(() => this.#throttledInvalidate())
+      peerIndexWrites(() => this.#throttledInvalidate())
     }
   }
 

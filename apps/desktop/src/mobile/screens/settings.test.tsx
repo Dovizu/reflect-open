@@ -6,7 +6,6 @@ import {
   createTestAppInfoService,
   createTestCoreServices,
   createTestBackupService,
-  createTestWindowService,
   seedNotes,
 } from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
@@ -72,7 +71,7 @@ async function mount(options?: MountOptions) {
     appInfo: createTestAppInfoService('1.2.3-beta.4'),
     backup,
     // A note window's graph runs no backup.
-    window: createTestWindowService(options?.backup === null ? { label: 'note-1' } : {}),
+    role: options?.backup === null ? 'note-window' : 'main',
   })
   seedNotes(app.database, [
     { path: 'notes/a.md', markdown: '# A\n' },

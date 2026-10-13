@@ -65,8 +65,8 @@ interface GraphFooterProps {
 export function GraphFooter({ graph, context }: GraphFooterProps): ReactElement {
   const [appsOpen, setAppsOpen] = useState(false)
   const graphTriggerRef = useRef<HTMLButtonElement>(null)
-  const { window: appWindow, logger } = useCoreServices()
-  const { opener } = useAppServices()
+  const { logger } = useCoreServices()
+  const { opener, window: appWindow } = useAppServices()
   const { recents, indexing, openRecent, chooseGraph } = useGraph()
   const { colorFor } = useGraphColors()
   const { backup } = useSync()

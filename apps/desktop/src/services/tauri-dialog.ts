@@ -1,5 +1,5 @@
 import { open } from '@tauri-apps/plugin-dialog'
-import type { DialogService, PickFilesOptions } from '@reflect/core'
+import type { DialogService, PickFilesOptions } from '@reflect/app'
 
 class TauriDialogServiceImpl implements DialogService {
   async pickFiles({

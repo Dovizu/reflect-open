@@ -2,7 +2,7 @@ import { useEffect, type ReactElement } from 'react'
 import { GraphChooser } from '@/components/graph-chooser.tsx'
 import { GraphWorkspace } from '@/components/graph-workspace.tsx'
 import { useGraph } from '@/providers/graph-provider.tsx'
-import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Root component — the Plan 02 loading gate. Routes between the graph chooser
@@ -10,8 +10,7 @@ import { useAppServices, useCoreServices } from '@/services/services-provider.ts
  * (daily notes, search, AI) hang off the workspace in later plans.
  */
 export function App(): ReactElement {
-  const services = useCoreServices()
-  const { quitPolicy } = useAppServices()
+  const { quitPolicy, window } = useAppServices()
   const { status, graph, error } = useGraph()
 
   // Quit-time persistence: flush dirty note buffers when exiting, awaiting
@@ -29,7 +28,7 @@ export function App(): ReactElement {
     // A secondary note window never chooses: opening a graph from here would
     // re-root every other window. Landing in this state means its bootstrap
     // failed (e.g. it raced a graph switch) — say so and stop.
-    if (!services.window.isMainWindow()) {
+    if (!window.isMainWindow()) {
       return (
         <div className="flex h-screen w-screen flex-col items-center justify-center gap-1 px-8 text-center text-sm text-text-muted">
           <p>This window couldn’t open the graph. Close it and reopen from the main window.</p>

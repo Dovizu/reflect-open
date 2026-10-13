@@ -1,16 +1,14 @@
-import { createGraphSession } from '../app/graph-session.ts'
+import { createGraphSession, type GraphRole } from '../app/graph-session.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
 import {
   createGraphSessionService,
-  type GraphBootHooks,
   type GraphReleaseReason,
   type GraphSessionService,
   type GraphSessionServiceDeps,
   type GraphSessionState,
 } from '../graph/graph-session-service.ts'
-import type { WindowService } from '../app/window-service.ts'
 import type { Unlisten } from '../unlisten.ts'
-import type { RecentGraph } from '../graph/schemas.ts'
+import type { GraphInfo, RecentGraph } from '../graph/schemas.ts'
 import { createTestFileChangeService } from './file-change.ts'
 import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
 import { createTestNoteMoveService } from './documents.ts'
@@ -21,14 +19,7 @@ import { createTestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestMobileStorageService } from './mobile-storage.ts'
-import { createTestPlatformService } from './platform.ts'
 import { createTestICloudNativeService } from './sync.ts'
-import {
-  createTestDialogService,
-  createTestActivityPort,
-  createTestWindowService,
-} from './shell.ts'
-import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
 
 /**
  * An open graph as a test names it. The defaults are the graph `test` at
@@ -80,6 +71,7 @@ export interface TestGraphSessionService<Services = unknown> extends GraphSessio
 
 function graphPatch(
   graph: TestOpenGraph | null,
+  role: GraphRole,
   signal: AbortSignal,
 ): Partial<GraphSessionState<never>> {
   if (graph === null) {
@@ -105,7 +97,7 @@ function graphPatch(
     indexGeneration,
     indexing: false,
     error: null,
-    session: createGraphSession({ ...info, indexGeneration }, signal),
+    session: createGraphSession({ ...info, indexGeneration, role }, signal),
     services: null,
   }
 }
@@ -116,7 +108,7 @@ function baseName(path: string): string {
 
 class TestGraphSessionServiceImpl<Services> implements TestGraphSessionService<Services> {
   readonly #inner: GraphSessionService<Services>
-  readonly #windowService: Pick<WindowService, 'isMainWindow'>
+  readonly #role: GraphRole
   readonly #createServices: GraphSessionServiceDeps<Services>['createServices']
   readonly #listeners = new Set<() => void>()
   // Ends the session of the last `setGraph`.
@@ -131,14 +123,14 @@ class TestGraphSessionServiceImpl<Services> implements TestGraphSessionService<S
   constructor(
     inner: GraphSessionService<Services>,
     options: {
-      readonly windowService: Pick<WindowService, 'isMainWindow'>
+      readonly role: GraphRole
       readonly createServices: GraphSessionServiceDeps<Services>['createServices']
       readonly graph: TestOpenGraph | null | undefined
       readonly state: Partial<GraphSessionState<Services>> | undefined
     },
   ) {
     this.#inner = inner
-    this.#windowService = options.windowService
+    this.#role = options.role
     this.#createServices = options.createServices
     this.#overlay = {
       ...(options.graph === undefined ? {} : this.#seedGraph(options.graph)),
@@ -165,8 +157,8 @@ class TestGraphSessionServiceImpl<Services> implements TestGraphSessionService<S
     }
   }
 
-  boot(hooks?: GraphBootHooks): Unlisten {
-    return this.#inner.boot(hooks)
+  attach(): Unlisten {
+    return this.#inner.attach()
   }
 
   loadRecents(options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> {
@@ -181,12 +173,12 @@ class TestGraphSessionServiceImpl<Services> implements TestGraphSessionService<S
     return this.#inner.createGraphAt(root)
   }
 
-  pickAndOpen(): Promise<void> {
-    return this.#inner.pickAndOpen()
+  close(): Promise<void> {
+    return this.#inner.close()
   }
 
-  chooseGraph(): Promise<void> {
-    return this.#inner.chooseGraph()
+  adopt(info: GraphInfo, indexGeneration: number | null): void {
+    this.#inner.adopt(info, indexGeneration)
   }
 
   forgetRecent(root: string): Promise<void> {
@@ -203,6 +195,10 @@ class TestGraphSessionServiceImpl<Services> implements TestGraphSessionService<S
 
   park(error: string | null): void {
     this.#inner.park(error)
+  }
+
+  reportError(error: string): void {
+    this.#inner.reportError(error)
   }
 
   onGraphReleased(listener: (reason: GraphReleaseReason) => void): Unlisten {
@@ -227,14 +223,17 @@ class TestGraphSessionServiceImpl<Services> implements TestGraphSessionService<S
   #seedGraph(graph: TestOpenGraph | null): Partial<GraphSessionState<Services>> {
     this.#seeded.abort()
     this.#seeded = new AbortController()
-    const patch: Partial<GraphSessionState<Services>> = graphPatch(graph, this.#seeded.signal)
+    const patch: Partial<GraphSessionState<Services>> = graphPatch(
+      graph,
+      this.#role,
+      this.#seeded.signal,
+    )
     const session = patch.session ?? null
     const createServices = this.#createServices
     if (session === null || createServices === undefined) {
       return patch
     }
-    const role = this.#windowService.isMainWindow() ? 'main' : 'note-window'
-    return { ...patch, services: createServices(session, role) }
+    return { ...patch, services: createServices(session) }
   }
 }
 
@@ -268,7 +267,7 @@ export function createTestGraphSessionService<Services = never>(
   const noteFile = options?.noteFile ?? createTestNoteFileService()
   const fileChanges = createTestFileChangeService()
   const logger = options?.logger ?? createTestLoggerService()
-  const windowService = options?.window ?? createTestWindowService()
+  const role = options?.role ?? 'main'
   const createServices = options?.createServices
   const inner: GraphSessionService<Services> = createGraphSessionService<Services>({
     ipc: options?.ipc ?? createDefaultIpc(),
@@ -279,11 +278,7 @@ export function createTestGraphSessionService<Services = never>(
     noteFile,
     id: options?.id ?? createTestIdService(),
     fileChanges: options?.fileChanges ?? fileChanges,
-    window: windowService,
-    dialog: options?.dialog ?? createTestDialogService(),
-    path: options?.path ?? createPathService({ transport: createPosixPathTransport('/home/test') }),
-    platform: options?.platform ?? createTestPlatformService(),
-    activity: options?.activity ?? createTestActivityPort(),
+    role,
     mobileStorage: options?.mobileStorage ?? createTestMobileStorageService(),
     noteRows:
       options?.noteRows ??
@@ -302,7 +297,7 @@ export function createTestGraphSessionService<Services = never>(
   const testService: TestGraphSessionService<Services> = new TestGraphSessionServiceImpl<Services>(
     inner,
     {
-      windowService,
+      role,
       createServices,
       graph: options?.graph,
       state: options?.state,

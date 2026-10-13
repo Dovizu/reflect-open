@@ -5,8 +5,8 @@ import {
   type PlatformFacts,
   type TimerHandle,
   type Unlisten,
-  type WindowService,
 } from '@reflect/core'
+import type { WindowService } from './window-service.ts'
 
 /**
  * The auto-update lifecycle, as plain-language phases the UI renders

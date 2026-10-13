@@ -3,9 +3,6 @@ import type { AssetDescriptionService } from '../assets/asset-description-servic
 import type { CaptureService } from '../capture/capture-service.ts'
 import type { AttachmentService } from '../documents/attachment-service.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'
-import type { MobileOnboardingService } from '../graph/mobile-onboarding-service.ts'
-import type { Unlisten } from '../unlisten.ts'
-import type { SettingsService } from '../settings/settings-service.ts'
 import {
   createBackupService,
   type BackupService,
@@ -15,37 +12,31 @@ import {
   createICloudDownloadService,
   type ICloudDownloadServiceDeps,
 } from '../sync/icloud-download-service.ts'
-import {
-  createICloudSyncService,
-  isICloudRoot,
-  type ICloudSyncServiceDeps,
-} from '../sync/icloud-sync-service.ts'
+import { createICloudSyncService, type ICloudSyncServiceDeps } from '../sync/icloud-sync-service.ts'
 import type { GraphRole, GraphSession } from './graph-session.ts'
-import { isMobilePlatform } from './platform.ts'
-import type { PlatformFacts } from './platform-service.ts'
 
 /**
  * What {@link createGraphServices} builds the lifecycles of one graph session from.
  */
 export interface GraphServicesDeps {
   /**
-   * The deps of the backup service that each main-window session builds.
+   * The deps of the backup service.
    */
   readonly backup: BackupServiceDeps
   /**
-   * The deps of the iCloud conflict service that each main-window session of an iCloud root builds.
+   * The deps of the iCloud conflict service.
    */
   readonly icloudSync: ICloudSyncServiceDeps
   /**
-   * The deps of the iCloud download service that runs while the mobile graph is stored in iCloud.
+   * The deps of the iCloud download service.
    */
   readonly icloudDownload: ICloudDownloadServiceDeps
   /**
-   * Opens the capture drain session of a main-window session.
+   * Opens the capture drain session.
    */
   readonly capture: Pick<CaptureService, 'openSession'>
   /**
-   * Opens the asset description session of a desktop main-window session.
+   * Opens the asset description session.
    */
   readonly assetDescription: Pick<AssetDescriptionService, 'openSession'>
   /**
@@ -57,22 +48,45 @@ export interface GraphServicesDeps {
    */
   readonly attachments: Pick<AttachmentService, 'watchCatalog'>
   /**
-   * Turns the asset description session on and off with `describeAssets`.
-   */
-  readonly settings: Pick<SettingsService, 'get' | 'subscribe'>
-  /**
-   * Turns the iCloud download service on and off with the iCloud storage choice.
-   */
-  readonly mobileOnboarding: Pick<MobileOnboardingService, 'getState' | 'subscribe'>
-  /**
    * Gives the iCloud download service the index refresh it calls after downloads land.
    */
   readonly graphSession: Pick<GraphSessionService, 'refreshIndex'>
-  /**
-   * Tells mobile from desktop, and the mobile app from a mobile web view.
-   */
-  readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
 }
+
+/**
+ * Which lifecycles {@link createGraphServices} runs for one session, each for the whole session.
+ */
+export interface GraphLifecycleFlags {
+  /**
+   * The Git backup.
+   */
+  readonly backup: boolean
+  /**
+   * The iCloud conflict sweeps.
+   */
+  readonly icloudSync: boolean
+  /**
+   * The capture drain.
+   */
+  readonly capture: boolean
+  /**
+   * The asset descriptions.
+   */
+  readonly assetDescription: boolean
+  /**
+   * The iCloud download refresh.
+   */
+  readonly icloudDownload: boolean
+  /**
+   * The iCloud conflict sweeps also watch the file metadata.
+   */
+  readonly metadataWatch: boolean
+}
+
+/**
+ * A lifecycle that {@link openGraphLifecycle} opens on its own.
+ */
+export type GraphLifecycle = 'assetDescription' | 'icloudDownload'
 
 /**
  * The factory of each per-session service that {@link createGraphServices} builds.
@@ -93,12 +107,10 @@ export type GraphServiceFactories = typeof graphServiceFactories
  * its `signal` aborts. A graph whose index failed to open has a session too,
  * and its lifecycles run with a null `indexGeneration`.
  *
- * Every window runs the chat session and the attachment catalog watch. Only
- * the main window runs the backup, the iCloud conflict sweeps (iCloud roots),
- * the capture drain, and asset descriptions (desktop, while `describeAssets`
- * is on); a main-window-only field is `null` in a note window. The iCloud
- * download refresh runs while the mobile graph is stored in iCloud. The
- * lifecycles that no surface reads run inside and have no field.
+ * Every session runs the chat session and the attachment catalog watch; the
+ * {@link GraphLifecycleFlags} pick the other lifecycles. `backup` is `null`
+ * when the backup does not run. The lifecycles that no surface reads run
+ * inside and have no field.
  */
 export interface GraphServices {
   /**
@@ -106,7 +118,7 @@ export interface GraphServices {
    */
   readonly session: GraphSession
   /**
-   * The role of this window for the session; it decides which lifecycles run.
+   * The role of this window for the session.
    */
   readonly role: GraphRole
   /**
@@ -114,59 +126,48 @@ export interface GraphServices {
    */
   readonly chat: ChatSession
   /**
-   * The backup lifecycle; `null` in a note window.
+   * The backup lifecycle; `null` when it does not run.
    */
   readonly backup: BackupService | null
 }
 
 /**
- * Run `open` while `active()` holds, re-checked on every `subscribe` notification.
+ * Open one lifecycle of `session`; the returned function disposes it.
  */
-function whileActive(
-  active: () => boolean,
-  subscribe: (listener: () => void) => Unlisten,
-  open: () => () => void,
-): Unlisten {
-  let close: (() => void) | null = null
-  const follow = (): void => {
-    if (active() === (close !== null)) {
-      return
-    }
-    if (close === null) {
-      close = open()
-    } else {
-      close()
-      close = null
+export function openGraphLifecycle(
+  session: GraphSession,
+  deps: GraphServicesDeps,
+  lifecycle: GraphLifecycle,
+  factories?: Partial<GraphServiceFactories>,
+): () => void {
+  const { root, generation, indexGeneration } = session
+  if (lifecycle === 'assetDescription') {
+    const describe = deps.assetDescription.openSession({ generation, indexGeneration })
+    describe.start()
+    return () => {
+      describe.dispose()
     }
   }
-  const unlisten = subscribe(follow)
-  follow()
+  const create = { ...graphServiceFactories, ...factories }
+  const downloads = create.icloudDownload(deps.icloudDownload, {
+    root,
+    refreshIndex: () => deps.graphSession.refreshIndex(),
+  })
+  downloads.start()
   return () => {
-    unlisten()
-    close?.()
-    close = null
+    downloads.dispose()
   }
 }
 
 export function createGraphServices(
   session: GraphSession,
-  role: GraphRole,
   deps: GraphServicesDeps,
+  lifecycles: GraphLifecycleFlags,
   factories?: Partial<GraphServiceFactories>,
 ): GraphServices {
   const { root, generation, indexGeneration, signal } = session
   const create = { ...graphServiceFactories, ...factories }
-  const {
-    capture,
-    assetDescription,
-    chatSessions,
-    attachments,
-    settings,
-    mobileOnboarding,
-    graphSession,
-    platform,
-  } = deps
-  const mobile = isMobilePlatform(platform.appPlatform) || platform.surface.mobileApp
+  const { capture, chatSessions, attachments } = deps
   const disposers: Array<() => void> = []
 
   const chat = chatSessions.create({ session })
@@ -174,62 +175,39 @@ export function createGraphServices(
   disposers.push(attachments.watchCatalog(generation))
 
   let backup: BackupService | null = null
-  if (role === 'main') {
-    const mainBackup = create.backup(deps.backup, { generation, indexGeneration })
-    backup = mainBackup
-    void mainBackup.start()
+  if (lifecycles.backup) {
+    const sessionBackup = create.backup(deps.backup, { generation, indexGeneration })
+    backup = sessionBackup
+    void sessionBackup.start()
     disposers.push(() => {
-      mainBackup.dispose()
+      sessionBackup.dispose()
     })
-    if (isICloudRoot(root)) {
-      const icloud = create.icloudSync(deps.icloudSync, {
-        root,
-        generation,
-        indexGeneration,
-        metadataWatch: platform.surface.mobileApp,
-      })
-      void icloud.start()
-      disposers.push(() => {
-        icloud.dispose()
-      })
-    }
+  }
+  if (lifecycles.icloudSync) {
+    const icloud = create.icloudSync(deps.icloudSync, {
+      root,
+      generation,
+      indexGeneration,
+      metadataWatch: lifecycles.metadataWatch,
+    })
+    void icloud.start()
+    disposers.push(() => {
+      icloud.dispose()
+    })
+  }
+  if (lifecycles.capture) {
     const captureSession = capture.openSession({ generation })
     captureSession.start()
     disposers.push(() => {
       captureSession.dispose()
     })
-    if (!mobile) {
-      disposers.push(
-        whileActive(
-          () => settings.get().describeAssets,
-          settings.subscribe,
-          () => {
-            const describe = assetDescription.openSession({ generation, indexGeneration })
-            describe.start()
-            return () => {
-              describe.dispose()
-            }
-          },
-        ),
-      )
-    }
   }
-  disposers.push(
-    whileActive(
-      () => mobileOnboarding.getState().kind === 'icloud',
-      mobileOnboarding.subscribe,
-      () => {
-        const downloads = create.icloudDownload(deps.icloudDownload, {
-          root,
-          refreshIndex: () => graphSession.refreshIndex(),
-        })
-        downloads.start()
-        return () => {
-          downloads.dispose()
-        }
-      },
-    ),
-  )
+  if (lifecycles.assetDescription) {
+    disposers.push(openGraphLifecycle(session, deps, 'assetDescription', factories))
+  }
+  if (lifecycles.icloudDownload) {
+    disposers.push(openGraphLifecycle(session, deps, 'icloudDownload', factories))
+  }
 
   const dispose = (): void => {
     for (const teardown of disposers.splice(0).reverse()) {
@@ -242,5 +220,5 @@ export function createGraphServices(
     signal.addEventListener('abort', dispose, { once: true })
   }
 
-  return { session, role, chat, backup }
+  return { session, role: session.role, chat, backup }
 }

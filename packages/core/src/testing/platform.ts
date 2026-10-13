@@ -2,11 +2,12 @@ import type { AppPlatform } from '../app/platform.ts'
 import {
   appleFileSrc,
   type BuildPlatform,
-  type ColorScheme,
+  type FileSrcSource,
   type PlatformFacts,
-  type PlatformService,
   type PlatformSurface,
 } from '../app/platform-service.ts'
+
+type ColorScheme = 'light' | 'dark'
 
 export interface TestPlatformOptions extends Partial<Omit<PlatformFacts, 'surface'>> {
   surface?: Partial<PlatformSurface>
@@ -14,7 +15,15 @@ export interface TestPlatformOptions extends Partial<Omit<PlatformFacts, 'surfac
   colorScheme?: ColorScheme
 }
 
-export interface TestPlatformService extends PlatformService {
+/**
+ * Platform facts that also answer the file URL and the webview's
+ * reduced-motion and color-scheme signals, so one double serves both layers.
+ */
+export interface TestPlatformService extends PlatformFacts, FileSrcSource {
+  prefersReducedMotion(): boolean
+  subscribeReducedMotion(listener: (value: boolean) => void): () => void
+  colorScheme(): ColorScheme
+  subscribeColorScheme(listener: (value: ColorScheme) => void): () => void
   /**
    * Change the reduced-motion preference and notify subscribers.
    */
@@ -102,7 +111,7 @@ class TestPlatformServiceImpl implements TestPlatformService {
 }
 
 /**
- * A platform service with fixed facts; defaults to a macOS desktop native shell.
+ * A test platform with fixed facts; defaults to a macOS desktop native shell.
  */
 export function createTestPlatformService(options: TestPlatformOptions = {}): TestPlatformService {
   return new TestPlatformServiceImpl(options)

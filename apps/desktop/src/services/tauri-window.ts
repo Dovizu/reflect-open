@@ -1,12 +1,8 @@
 import { emitTo } from '@tauri-apps/api/event'
 import { getAllWebviewWindows, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import {
-  MAIN_WINDOW_LABEL,
-  type LoggerService,
-  type Unlisten,
-  type WindowHost,
-} from '@reflect/core'
+import { MAIN_WINDOW_LABEL, type WindowHost } from '@reflect/app'
+import type { LoggerService, Unlisten } from '@reflect/core'
 
 type CloseRequestedHandler = Parameters<WindowHost['onCloseRequested']>[0]
 

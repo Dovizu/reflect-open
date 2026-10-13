@@ -1,3 +1,4 @@
+import type { AppServices } from '@reflect/app'
 import type { CoreServices, Unlisten } from '@reflect/core'
 import {
   dropIcloudStatusQuery,
@@ -19,8 +20,9 @@ import {
 export function installQueryInvalidation(
   app: Pick<
     CoreServices,
-    'capture' | 'assetDescription' | 'chatSessions' | 'indexLifecycle' | 'graphSession' | 'window'
+    'capture' | 'assetDescription' | 'chatSessions' | 'indexLifecycle' | 'graphSession'
   >,
+  { window }: Pick<AppServices, 'window'>,
 ): Unlisten {
   const unlisteners = [
     app.capture.onXPostsWritten(invalidateXPostQueries),
@@ -52,11 +54,11 @@ export function installQueryInvalidation(
     // deleted graph.
     app.graphSession.onGraphDeleted(dropIcloudStatusQuery),
   ]
-  if (!app.window.isMainWindow()) {
+  if (!window.isMainWindow()) {
     // A note window runs no indexer: the Rust `index:written` broadcast
     // (fired after the main window's applies commit) keeps its index-backed
     // queries fresh.
-    unlisteners.push(app.window.subscribeIndexWritten(throttledInvalidateIndexQueries))
+    unlisteners.push(window.subscribeIndexWritten(throttledInvalidateIndexQueries))
   }
   return () => {
     for (const unlisten of unlisteners) {

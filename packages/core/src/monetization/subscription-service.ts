@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { ClockService } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformService } from '../app/platform-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import { getJson, setJson, type StorageService } from '../app/storage-service.ts'
 import { IAP_PRODUCT_IDS, type IapService } from '../ipc/iap-plugin.ts'
 import type { Unlisten } from '../unlisten.ts'
@@ -116,7 +116,7 @@ export interface SubscriptionServiceDeps {
   readonly iap: Pick<IapService, 'isOwned' | 'subscribePurchaseUpdated'>
   readonly storage: Pick<StorageService, 'local'>
   readonly clock: Pick<ClockService, 'now' | 'setTimeout' | 'clearTimeout' | 'sleep'>
-  readonly platform: Pick<PlatformService, 'appPlatform'>
+  readonly platform: Pick<PlatformFacts, 'appPlatform'>
   readonly logger: Pick<LoggerService, 'warn'>
 }
 

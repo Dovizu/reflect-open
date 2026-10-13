@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Unlisten } from '../unlisten.ts'
-import { createTestIpcBridgeService, type TestIpcBridgeService } from '../testing/ipc.ts'
-import { createTestLoggerService } from '../testing/logger.ts'
+import type { Unlisten } from '@reflect/core'
+import {
+  createTestIpcBridgeService,
+  createTestLoggerService,
+  type TestIpcBridgeService,
+} from '@reflect/core/testing'
 import {
   createSingleWindowHost,
   createWindowService,

@@ -136,7 +136,8 @@ function createTasks(graphSession: TaskServiceDeps['graphSession']): TaskService
         }
       },
     },
-    window: { isMainWindow: () => true, subscribeIndexWritten: () => () => {} },
+    role: 'main',
+    peerIndexWrites: () => () => {},
   })
 }
 

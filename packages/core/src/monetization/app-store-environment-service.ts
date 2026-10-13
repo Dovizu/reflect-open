@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { PlatformService } from '../app/platform-service.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
 import { getJson, setJson, type StorageService } from '../app/storage-service.ts'
 import type { AppStoreService } from '../ipc/app-store-plugin.ts'
 import type { Unlisten } from '../unlisten.ts'
@@ -57,7 +57,7 @@ const IDLE_STATE: AppStoreEnvironmentState = { value: null, isLoading: false, is
 export interface AppStoreEnvironmentServiceDeps {
   readonly appStore: Pick<AppStoreService, 'environment'>
   readonly storage: Pick<StorageService, 'local'>
-  readonly platform: Pick<PlatformService, 'appPlatform'>
+  readonly platform: Pick<PlatformFacts, 'appPlatform'>
 }
 
 class AppStoreEnvironmentServiceImpl implements AppStoreEnvironmentService {

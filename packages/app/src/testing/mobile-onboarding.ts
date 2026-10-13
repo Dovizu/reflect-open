@@ -1,18 +1,19 @@
-import type { Unlisten } from '../unlisten.ts'
+import type { MobileStorageKind, Unlisten } from '@reflect/core'
+import {
+  createTestActivityPort,
+  createTestClockService,
+  createTestGraphSessionService,
+  createTestLoggerService,
+  createTestMobileStorageService,
+  createTestPlatformService,
+  createTestSettingsService,
+} from '@reflect/core/testing'
 import {
   createMobileOnboardingService,
   type MobileOnboardingService,
   type MobileOnboardingServiceDeps,
   type MobileOnboardingState,
 } from '../graph/mobile-onboarding-service.ts'
-import type { MobileStorageKind } from '../ipc/mobile-storage-service.ts'
-import { createTestClockService } from './clock.ts'
-import { createTestGraphSessionService } from './graph-session.ts'
-import { createTestLoggerService } from './logger.ts'
-import { createTestMobileStorageService } from './mobile-storage.ts'
-import { createTestPlatformService } from './platform.ts'
-import { createTestSettingsService } from './settings.ts'
-import { createTestActivityPort } from './shell.ts'
 
 /**
 

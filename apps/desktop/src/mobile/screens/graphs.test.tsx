@@ -1,7 +1,9 @@
 import { useEffect, type ReactNode } from 'react'
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import type { MobileOnboardingService, MobileStorageInfo } from '@reflect/core'
+import type { MobileOnboardingService } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
+import type { MobileStorageInfo } from '@reflect/core'
 import {
   createTestCoreServices,
   createTestMobileStorageService,
@@ -54,11 +56,13 @@ async function mount(storage: MobileStorageInfo = STORAGE): Promise<void> {
     platform: createTestPlatformService(MOBILE_PLATFORM),
     mobileStorage: createTestMobileStorageService({ storage }),
   })
+  const appServices = createTestAppServices(app)
   completeOnboarding = vi
-    .spyOn(app.mobileOnboarding, 'completeOnboarding')
+    .spyOn(appServices.mobileOnboarding, 'completeOnboarding')
     .mockImplementation(completeOnboardingResult)
   await renderInApp(<MobileGraphs />, {
     app,
+    appServices,
     graph: { root: '/iCloud/Documents/Notes', name: 'Notes' },
     route: { kind: 'graphs' },
   })

@@ -10,11 +10,14 @@ import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-se
 import type { TranscriptionService } from '../ai/transcription-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
-import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
+import {
+  requireGraphSession,
+  type GraphRole,
+  type GraphSessionSource,
+} from '../app/graph-session.ts'
 import type { ActivityPort, ProgressPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
-import type { WindowService } from '../app/window-service.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
@@ -316,7 +319,7 @@ export interface AudioMemoServiceDeps {
   readonly progress: ProgressPort
   readonly clock: Pick<ClockService, 'now'>
   readonly platform: Pick<PlatformFacts, 'isMacosDesktop'>
-  readonly window: Pick<WindowService, 'isMainWindow'>
+  readonly role: GraphRole
   readonly graphSession: GraphSessionSource
   readonly logger: Pick<LoggerService, 'error'>
 }
@@ -929,7 +932,7 @@ class AudioMemoServiceImpl implements AudioMemoService {
 
   constructor(deps: AudioMemoServiceDeps) {
     this.#deps = deps
-    this.#mainWindow = deps.window.isMainWindow()
+    this.#mainWindow = deps.role === 'main'
     this.#transcriptions = createAudioMemoTranscriptionService({
       noteFile: deps.noteFile,
       assetStore: deps.assetStore,

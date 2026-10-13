@@ -1,3 +1,4 @@
+import { createTestWindowService, type TestWindowService } from '@reflect/app/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import type { ReactElement } from 'react'
@@ -15,7 +16,6 @@ import {
   createTestChatGraphContextService,
   createTestSecretStoreService,
   seedNotes,
-  type TestCoreServices,
   type TestChatEngineService,
   type TestChatGraphContextService,
   type TestOpenGraph,
@@ -57,7 +57,7 @@ const GRAPH_CONTEXT: CloudGraphContext = {
 
 let chatEngine: TestChatEngineService
 let chatGraphContext: TestChatGraphContextService
-let noteWindows: TestCoreServices['window']
+let noteWindows: TestWindowService
 
 beforeEach(() => {
   settingsState.models = []
@@ -123,7 +123,7 @@ async function renderChat() {
   })
   // The cited `[[Atlas]]` links resolve through the index.
   seedNotes(app.database, [{ path: 'notes/atlas.md', markdown: '# Atlas\n' }])
-  noteWindows = app.window
+  noteWindows = createTestWindowService()
   return await renderInApp(
     <>
       <ChatScreen />
@@ -132,6 +132,7 @@ async function renderChat() {
     </>,
     {
       app,
+      appServices: { window: noteWindows },
       graph: GRAPH,
       settings: {
         aiProviders: settingsState.models,

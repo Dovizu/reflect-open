@@ -1,10 +1,11 @@
 import type { ReactElement, ReactNode } from 'react'
 import { actAsync } from '@/test-utils/act.ts'
 import { describe, expect, it, vi } from 'vitest'
+import type { AppServices } from '@reflect/app'
+import { createTestDialogService } from '@reflect/app/testing'
 import type { AppPlatform, CoreServices, RecentGraph } from '@reflect/core'
 import {
   createTestCoreServices,
-  createTestDialogService,
   createTestGraphSessionService,
   createTestMobileStorageService,
   createTestPlatformService,
@@ -14,7 +15,8 @@ import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { GraphProvider, useGraph } from './graph-provider.tsx'
 
 /**
- * The graph session and the mobile onboarding are covered in `@reflect/core`.
+ * The graph session, its boot flows and the mobile onboarding are covered in
+ * `@reflect/core` and `@reflect/app`.
  * These cover the provider as their React shell. They mount it themselves:
  * `renderInApp` reports a graph over the session, which hides the opens.
  */
@@ -32,15 +34,24 @@ function tree(children: ReactNode, platform?: AppPlatform): ReactElement {
 /**
  * Mount the provider over `app` and read its context.
  */
-async function renderGraph<App extends CoreServices>(app: App, platform?: AppPlatform) {
+async function renderGraph<App extends CoreServices>(
+  app: App,
+  platform?: AppPlatform,
+  appServices?: Partial<AppServices>,
+) {
   const result = {} as { current: ReturnType<typeof useGraph> }
   function Probe(): null {
     result.current = useGraph()
     return null
   }
-  await renderInApp(tree(<Probe />, platform), { app, servicesOnly: true })
+  const view = await renderInApp(tree(<Probe />, platform), {
+    app,
+    servicesOnly: true,
+    ...(appServices === undefined ? {} : { appServices }),
+  })
   return {
     app,
+    appServices: view.appServices,
     result,
   }
 }
@@ -56,10 +67,9 @@ describe('GraphProvider', () => {
     const recents: RecentGraph[] = [{ root: '/known', name: 'known', openedMs: 1 }]
     const dialog = createTestDialogService()
     const { result } = await renderGraph(
-      createTestCoreServices({
-        dialog,
-        graphSession: createTestGraphSessionService({ dialog, recents }),
-      }),
+      createTestCoreServices({ graphSession: createTestGraphSessionService({ recents }) }),
+      undefined,
+      { dialog },
     )
     await vi.waitFor(() => expect(result.current.status).toBe('ready'))
     expect(result.current.graph?.root).toBe('/known')
@@ -76,8 +86,8 @@ describe('GraphProvider', () => {
   })
 
   it('opens a picked folder and seeds the empty graph', async () => {
-    const { app, result } = await renderGraph(createTestCoreServices())
-    app.dialog.setFolder('/fresh')
+    const { app, appServices, result } = await renderGraph(createTestCoreServices())
+    appServices.dialog.setFolder('/fresh')
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
     await actAsync(async () => {
@@ -163,7 +173,7 @@ describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
   })
 
   it('publishes the app’s mobile onboarding and passes completeOnboarding through', async () => {
-    const { app, result } = await renderGraph(
+    const { app, appServices, result } = await renderGraph(
       createTestCoreServices({
         platform: createTestPlatformService({ appPlatform: 'ios' }),
       }),
@@ -180,7 +190,7 @@ describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
     expect(result.current.needsOnboarding).toBe(false)
     expect(result.current.graph?.root).toBe('/local/Documents')
     expect(result.current.mobileStorageKind).toBe('local')
-    expect(app.mobileOnboarding.getState().kind).toBe('local')
+    expect(appServices.mobileOnboarding.getState().kind).toBe('local')
     await vi.waitFor(() => expect(app.settings.saves().at(-1)?.mobileOnboarded).toBe(true))
   })
 })

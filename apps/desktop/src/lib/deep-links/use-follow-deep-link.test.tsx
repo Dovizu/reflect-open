@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement, ReactNode } from 'react'
-import { createTestAppServices } from '@reflect/app/testing'
-import { createTestCoreServices, createTestWindowService } from '@reflect/core/testing'
+import { createTestAppServices, createTestWindowService } from '@reflect/app/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
 import { useRouter } from '@/routing/router.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -15,8 +15,10 @@ const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
  * Render over a native shell whose note windows and deep-link intake are the spies above.
  */
 async function render(ui: ReactNode) {
-  const app = createTestCoreServices({ window: createTestWindowService({ openNoteWindow }) })
-  const appServices = createTestAppServices(app)
+  const app = createTestCoreServices()
+  const appServices = createTestAppServices(app, {
+    window: createTestWindowService({ openNoteWindow }),
+  })
   vi.spyOn(appServices.deepLinkRouter, 'dispatch').mockImplementation(dispatchDeepLink)
   return await renderInApp(ui, { app, appServices })
 }

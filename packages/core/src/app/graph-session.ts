@@ -26,16 +26,21 @@ export interface GraphSession {
    */
   readonly indexGeneration: number | null
   /**
+   * The role of this window for the session.
+   */
+  readonly role: GraphRole
+  /**
    * Aborts when the graph closes or another graph replaces it.
    */
   readonly signal: AbortSignal
 }
 
 /**
- * A {@link GraphSession} over `fields`. Without `signal`, the session never aborts.
+ * A {@link GraphSession} over `fields`. Without `role`, the session is the
+ * main window's. Without `signal`, the session never aborts.
  */
 export function createGraphSession(
-  fields: Omit<GraphSession, 'signal'>,
+  fields: Omit<GraphSession, 'signal' | 'role'> & { readonly role?: GraphRole },
   signal?: AbortSignal,
 ): GraphSession {
   return {
@@ -43,6 +48,7 @@ export function createGraphSession(
     name: fields.name,
     generation: fields.generation,
     indexGeneration: fields.indexGeneration,
+    role: fields.role ?? 'main',
     signal: signal ?? new AbortController().signal,
   }
 }

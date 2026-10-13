@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Keep a note window's OS title on its current note (route changes and
@@ -9,7 +9,7 @@ import { useCoreServices } from '@/services/services-provider.tsx'
  * falls back to the app name.
  */
 export function useNoteWindowTitle(title: string | null): void {
-  const { window: appWindow } = useCoreServices()
+  const { window: appWindow } = useAppServices()
   useEffect(() => {
     appWindow.setTitle(title ?? 'Reflect')
   }, [appWindow, title])

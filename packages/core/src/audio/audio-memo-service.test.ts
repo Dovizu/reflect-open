@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { GraphRole } from '../app/graph-session.ts'
 import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import { AUDIO_MEMOS_DIR } from '../graph/paths.ts'
@@ -25,7 +26,6 @@ import {
   createTestSecretStoreService,
   createTestSettingsService,
   createTestTranscriptionService,
-  createTestWindowService,
 } from '../testing/index.ts'
 import { createAudioMemoService, type AudioMemoSurface } from './audio-memo-service.ts'
 import type { AudioRecorderFinalSegment } from './audio-recorder-service.ts'
@@ -68,7 +68,7 @@ interface SetupOptions {
   providers?: AiProvidersState
   supported?: boolean
   surfaceHidden?: boolean
-  windowLabel?: string
+  role?: GraphRole
   isMacosDesktop?: boolean
 }
 
@@ -119,9 +119,7 @@ async function setup(options?: SetupOptions) {
     progress,
     clock: createTestClockService({ now: RECORDED_AT.getTime() }),
     platform: createTestPlatformService({ isMacosDesktop: options?.isMacosDesktop ?? true }),
-    window: createTestWindowService(
-      options?.windowLabel === undefined ? {} : { label: options.windowLabel },
-    ),
+    role: options?.role ?? 'main',
     graphSession,
     logger,
   })
@@ -284,7 +282,7 @@ describe('AudioMemoService.openPipeline', () => {
   })
 
   it('a note window gets the capture queue but no transcription lifecycle', async () => {
-    const { service, assetStore, passes } = await setup({ windowLabel: 'note-1' })
+    const { service, assetStore, passes } = await setup({ role: 'note-window' })
     const pipeline = service.openPipeline({ isErrorSurfaceVisible: () => true })
     await flush()
 

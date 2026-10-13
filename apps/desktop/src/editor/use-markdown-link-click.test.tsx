@@ -6,13 +6,13 @@ import type { LinkClickHandler } from '@meowdown/core'
 import {
   createTestAppServices,
   createTestOpenerService,
+  createTestWindowService,
   type TestOpenerService,
 } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestAttachmentService,
   createTestGraphSessionService,
-  createTestWindowService,
   type TestAttachmentService,
 } from '@reflect/core/testing'
 import { useMarkdownLinkClick } from '@/editor/use-markdown-link-click.ts'
@@ -40,10 +40,10 @@ async function mount(sourcePath: string | null): Promise<void> {
     createTestCoreServices({
       graphSession,
       noteLinkResolver: { resolveWikiTarget: vi.fn(), resolveMarkdownHref },
-      window: createTestWindowService({ openNoteWindow }),
       attachments,
     }),
     {
+      window: createTestWindowService({ openNoteWindow }),
       opener,
       deepLinkRouter: Object.assign(createTestAppServices().deepLinkRouter, {
         dispatch: dispatchDeepLink,

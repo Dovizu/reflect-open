@@ -3,7 +3,7 @@ import type { XPost, YouTubeVideo } from '@post-embed/types'
 import { oembedRequestURL } from './oembed.ts'
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformService } from '../app/platform-service.ts'
+import type { FileSrcSource } from '../app/platform-service.ts'
 import type { WebFetchService } from '../app/web-fetch-service.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
@@ -15,7 +15,7 @@ const YOUTUBE_VIDEO_DROP_MS = 30 * 60 * 1000
 export interface EmbedMediaServiceDeps {
   readonly xArchive: Pick<XArchiveService, 'resolve' | 'write' | 'fetchSyndication'>
   readonly webFetch: Pick<WebFetchService, 'fetchOembed'>
-  readonly platform: Pick<PlatformService, 'convertFileSrc'>
+  readonly platform: FileSrcSource
   readonly clock: Pick<ClockService, 'now' | 'setTimeout' | 'clearTimeout'>
   readonly logger: Pick<LoggerService, 'error'>
   readonly graphSession: Pick<GraphSessionService, 'getState'>

@@ -1,4 +1,5 @@
-import type { GraphSessionSource } from '../app/graph-session.ts'
+import type { GraphRole, GraphSession, GraphSessionSource } from '../app/graph-session.ts'
+import type { Unlisten } from '../unlisten.ts'
 import {
   composeCoreServices,
   createIndexReadServices,
@@ -9,9 +10,16 @@ import {
   type NoteServices,
   type ServiceFactories,
 } from '../app/create-core-services.ts'
-import { createGraphServices } from '../app/create-graph-services.ts'
+import {
+  createGraphServices,
+  type GraphLifecycleFlags,
+  type GraphServices,
+  type GraphServicesDeps,
+} from '../app/create-graph-services.ts'
 import { createPosixPathTransport } from '../app/path-service.ts'
-import { createSingleWindowHost } from '../app/window-service.ts'
+import { isMobilePlatform } from '../app/platform.ts'
+import type { PlatformFacts } from '../app/platform-service.ts'
+import { isICloudRoot } from '../sync/icloud-sync-service.ts'
 import { createPrivacyService } from '../privacy/privacy-service.ts'
 import type { IdService } from '../app/id-service.ts'
 import type { ActivityPort, ProgressPort } from '../app/ports.ts'
@@ -41,7 +49,7 @@ import {
   createTestChatGraphContextService,
   createTestChatHistoryService,
 } from './chat.ts'
-import { createTestClockService, type TestClockService } from './clock.ts'
+import { createTestClockService } from './clock.ts'
 import { createTestContactsService } from './contacts.ts'
 import { createTestDatabaseService } from './database.ts'
 import { createTestDeepLinkIntakeService } from './deep-link.ts'
@@ -67,7 +75,6 @@ import { createTestIndexLifecycleService } from './index-lifecycle.ts'
 import { createTestIndexStoreService } from './index-store.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService } from './logger.ts'
-import { createTestMobileOnboardingService } from './mobile-onboarding.ts'
 import { createTestMobileStorageService } from './mobile-storage.ts'
 import {
   createTestAppStoreEnvironmentService,
@@ -86,11 +93,7 @@ import {
 } from './plugins.ts'
 import { createTestAppInfoService, createTestSecretStoreService } from './secrets.ts'
 import { createTestSettingsService } from './settings.ts'
-import {
-  createTestActivityPort,
-  createTestDialogService,
-  createTestWindowService,
-} from './shell.ts'
+import { createTestActivityPort } from './shell.ts'
 import { createTestStorageService } from './storage.ts'
 import {
   createTestGitRepositoryService,
@@ -114,6 +117,37 @@ export type TestCoreServiceOverrides = Partial<CoreServices & CoreInternalServic
    * The progress port the services report to.
    */
   readonly progress?: ProgressPort
+  /**
+   * Which window the services run in; defaults to the main window.
+   */
+  readonly role?: GraphRole
+  /**
+   * The index writes of other webviews; defaults to none.
+   */
+  readonly peerIndexWrites?: (listener: () => void) => Unlisten
+  /**
+   * Builds the graph-scoped services of each session; defaults to
+   * {@link createGraphServices} with the lifecycles of {@link testGraphLifecycles}.
+   */
+  readonly createGraphServices?: (session: GraphSession, deps: GraphServicesDeps) => GraphServices
+}
+
+/**
+ * The lifecycles a test session runs: the main window runs the backup, the
+ * capture drain, the iCloud conflict sweeps of an iCloud root and, off
+ * mobile, the asset descriptions. No session refreshes iCloud downloads.
+ */
+function testGraphLifecycles(session: GraphSession, platform: PlatformFacts): GraphLifecycleFlags {
+  const main = session.role === 'main'
+  const mobile = isMobilePlatform(platform.appPlatform) || platform.surface.mobileApp
+  return {
+    backup: main,
+    icloudSync: main && isICloudRoot(session.root),
+    capture: main,
+    assetDescription: main && !mobile,
+    icloudDownload: false,
+    metadataWatch: platform.surface.mobileApp,
+  }
 }
 
 /**
@@ -126,7 +160,6 @@ function createTestEdgeServices() {
     id: createTestIdService(),
     hash: createTestHashService(),
     http: createTestHttpService(),
-    dialog: createTestDialogService(),
     imageCodec: createTestImageCodec(),
     activity: createTestActivityPort(),
     progress: createTestProgressPort(),
@@ -155,10 +188,7 @@ function createTestNoteServices(deps: {
 /**
  * The services whose test double is not the real service: in-memory, scripted, or recording.
  */
-function createTestServiceFactories(
-  shared: { platform: TestPlatformService; clock: TestClockService },
-  overrides: TestCoreServiceOverrides | undefined,
-) {
+function createTestServiceFactories(overrides: TestCoreServiceOverrides | undefined) {
   /**
    * Puts the overrides of a group's members in place of the built ones.
    */
@@ -173,11 +203,8 @@ function createTestServiceFactories(
     return result as Group
   }
 
-  const backup = overrides?.backup
   return {
     database: () => createTestDatabaseService(),
-    platform: () => shared.platform,
-    window: () => createTestWindowService(),
     settings: ({ progress }) => createTestSettingsService({}, { progress }),
     storage: () => createTestStorageService(),
     fileChanges: () => createTestFileChangeService(),
@@ -230,16 +257,8 @@ function createTestServiceFactories(
     appInfo: () => createTestAppInfoService(),
     agentSkill: () => createTestAgentSkillService(),
     semanticSearch: (deps) => createTestSemanticSearchService(deps),
-    mobileOnboarding: (deps) => createTestMobileOnboardingService(deps),
     capture: () => createTestCaptureService(),
     assetDescription: () => createTestAssetDescriptionService(),
-    graphServices: (session, role, deps) =>
-      createGraphServices(
-        session,
-        role,
-        deps,
-        backup === undefined ? {} : { backup: () => backup },
-      ),
   } satisfies Partial<ServiceFactories>
 }
 
@@ -277,8 +296,26 @@ export type TestCoreServices = Override<
   CoreServices & CoreInternalServices,
   Omit<Built<TestServiceFactories>, MobileKey | 'mobile' | 'indexReads' | 'noteServices'> &
     Built<TestServiceFactories>['noteServices'] &
-    TestEdgeServices & { readonly ipc: TestIpcBridgeService; readonly mobile: TestMobileServices }
+    TestEdgeServices & {
+      readonly ipc: TestIpcBridgeService
+      readonly mobile: TestMobileServices
+      readonly platform: TestPlatformService
+      readonly role: GraphRole
+    }
 >
+
+/**
+ * The overrides that go to the adapters rather than in place of a service.
+ */
+const TEST_ADAPTER_KEYS = new Set([
+  'backup',
+  'progress',
+  'role',
+  'peerIndexWrites',
+  'createGraphServices',
+])
+
+type TestAdapterKey = 'backup' | 'peerIndexWrites' | 'createGraphServices'
 
 /**
  * {@link createCoreServices} over test adapters, with the test double of each
@@ -288,39 +325,51 @@ export function createTestCoreServices<
   Overrides extends TestCoreServiceOverrides = Record<never, never>,
 >(
   overrides?: Overrides & TestCoreServiceOverrides,
-): Omit<TestCoreServices, keyof Overrides> & Omit<Overrides, 'backup'> {
+): Omit<TestCoreServices, keyof Overrides> & Omit<Overrides, TestAdapterKey> {
   const defaults = createTestEdgeServices()
   const edge = { ...defaults, ...overrides }
-  const platform = createTestPlatformService()
+  const platform = edge.platform ?? createTestPlatformService()
+  const backup = overrides?.backup
   const adapters: CoreAdapters = {
     ipc: edge.ipc ?? createTestIpcBridgeService({ logger: edge.logger }),
-    platform: edge.platform ?? platform,
+    platform,
+    role: edge.role ?? 'main',
+    peerIndexWrites: edge.peerIndexWrites ?? (() => () => {}),
     progress: edge.progress,
     http: edge.http,
     storage: { local: null, session: null },
-    dialog: edge.dialog,
     path: createPosixPathTransport('/home/test'),
-    window: createSingleWindowHost(),
     activity: edge.activity,
     logger: edge.logger,
     clock: edge.clock,
     id: edge.id,
     hash: edge.hash,
     imageCodec: edge.imageCodec,
+    createGraphServices:
+      edge.createGraphServices ??
+      ((session, deps) =>
+        createGraphServices(
+          session,
+          deps,
+          testGraphLifecycles(session, platform),
+          backup === undefined ? {} : { backup: () => backup },
+        )),
   }
   const fixed: Record<string, () => unknown> = {}
   for (const [key, service] of Object.entries(overrides ?? {})) {
-    if (key !== 'backup' && key !== 'progress') {
+    if (!TEST_ADAPTER_KEYS.has(key)) {
       fixed[key] = () => service
     }
   }
   const { services, internal } = composeCoreServices(adapters, {
-    ...createTestServiceFactories({ platform, clock: defaults.clock }, overrides),
+    ...createTestServiceFactories(overrides),
     ...(fixed as Partial<ServiceFactories>),
   })
-  return { ...services, ...internal, activity: adapters.activity, progress: edge.progress } as Omit<
-    TestCoreServices,
-    keyof Overrides
-  > &
-    Omit<Overrides, 'backup'>
+  return {
+    ...services,
+    ...internal,
+    activity: adapters.activity,
+    progress: edge.progress,
+    role: adapters.role,
+  } as Omit<TestCoreServices, keyof Overrides> & Omit<Overrides, TestAdapterKey>
 }

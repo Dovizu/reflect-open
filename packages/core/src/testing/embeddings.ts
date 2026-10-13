@@ -1,7 +1,7 @@
 import type { LoggerService } from '../app/logger-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import type { StorageService } from '../app/storage-service.ts'
-import type { WindowService } from '../app/window-service.ts'
+import type { GraphRole } from '../app/graph-session.ts'
 import {
   createEmbeddingIndexService,
   type EmbedChunkPayload,
@@ -38,7 +38,6 @@ import { createTestIndexLifecycleService } from './index-lifecycle.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestSettingsService } from './settings.ts'
-import { createTestWindowService } from './shell.ts'
 import { createTestStorageService } from './storage.ts'
 
 export interface TestEmbeddingRuntimeServiceOptions {
@@ -481,7 +480,7 @@ export interface TestSemanticSearchServiceOptions {
   retrieval?: RetrievalService
   settings?: SettingsService
   storage?: StorageService
-  window?: WindowService
+  role?: GraphRole
   indexLifecycle?: IndexLifecycleService
   graphSession?: SemanticSearchGraphSource
   logger?: LoggerService
@@ -556,7 +555,7 @@ export function createTestSemanticSearchService(
       retrieval: options?.retrieval ?? createTestRetrievalService(),
       settings: options?.settings ?? createTestSettingsService(),
       storage: options?.storage ?? createTestStorageService(),
-      window: options?.window ?? createTestWindowService(),
+      role: options?.role ?? 'main',
       indexLifecycle,
       graphSession:
         options?.graphSession ?? createTestGraphSessionService({ indexLifecycle, logger }),

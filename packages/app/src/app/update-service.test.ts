@@ -3,7 +3,6 @@ import {
   createTestClockService,
   createTestLoggerService,
   createTestPlatformService,
-  createTestWindowService,
   type TestClockService,
   type TestLoggerService,
   type TestPlatformOptions,
@@ -14,6 +13,7 @@ import {
   type TestUpdaterAdapter,
   type TestUpdaterOptions,
 } from '../testing/update.ts'
+import { createTestWindowService } from '../testing/window.ts'
 import { createUpdateService, type UpdateService } from './update-service.ts'
 
 const SIX_HOURS_MS = 6 * 60 * 60 * 1000

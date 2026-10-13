@@ -1,5 +1,5 @@
 import { formatBinding } from '@reflect/app'
-import { createTestAppServices } from '@reflect/app/testing'
+import { createTestAppServices, createTestWindowService } from '@reflect/app/testing'
 import { userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEffect, type ReactNode } from 'react'
@@ -9,7 +9,6 @@ import {
   createTestEmbeddingRuntimeService,
   createTestNoteFileService,
   createTestRetrievalService,
-  createTestWindowService,
 } from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import { useRouter } from '@/routing/router.tsx'
@@ -107,9 +106,10 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
         : { status: 'uninitialized' },
     }),
     noteFile: createTestNoteFileService({ files }),
+  })
+  const appLayer = createTestAppServices(app, {
     window: createTestWindowService({ openNoteWindow }),
   })
-  const appLayer = createTestAppServices(app)
   const fullContext: CommandContext = {
     services: app,
     app: appLayer,

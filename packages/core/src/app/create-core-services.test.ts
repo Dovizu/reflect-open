@@ -10,7 +10,7 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestProgressPort } from '../testing/ports.ts'
 import { createTestCoreServices } from '../testing/services.ts'
-import { createTestActivityPort, createTestDialogService } from '../testing/shell.ts'
+import { createTestActivityPort } from '../testing/shell.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import {
   composeCoreServices,
@@ -19,7 +19,6 @@ import {
   type CoreServices,
 } from './create-core-services.ts'
 import { createPosixPathTransport } from './path-service.ts'
-import { createSingleWindowHost } from './window-service.ts'
 
 const SERVICE_KEYS = [
   'ipc',
@@ -29,16 +28,13 @@ const SERVICE_KEYS = [
   'hash',
   'platform',
   'storage',
-  'dialog',
   'path',
-  'window',
   'appInfo',
   'calendar',
   'contacts',
   'contactSuggestions',
   'meetings',
   'agentSkill',
-  'mobileOnboarding',
   'mobileStorage',
   'imageCodec',
   'indexLifecycle',
@@ -97,15 +93,18 @@ function requiredAdapters(): CoreAdapters {
   return {
     ipc,
     platform: createTestPlatformService(),
+    role: 'main',
+    peerIndexWrites: () => () => {},
     progress: createTestProgressPort(),
     http: createTestHttpService(),
     storage: { local: null, session: null },
-    dialog: createTestDialogService(),
     path: createPosixPathTransport('/home/test'),
-    window: createSingleWindowHost(),
     activity: createTestActivityPort(),
     logger: createTestLoggerService(),
     clock: createTestClockService({ now: 5 }),
+    createGraphServices: (session) => {
+      throw new Error(`no graph services for ${session.root}`)
+    },
   }
 }
 
@@ -127,11 +126,10 @@ describe('createCoreServices', () => {
     const { adapters, services } = setup()
     expect(services.logger).toBe(adapters.logger)
     expect(services.clock).toBe(adapters.clock)
-    expect(services.dialog).toBe(adapters.dialog)
+    expect(services.platform).toBe(adapters.platform)
     await expect(services.ipc.call('app_version', {}, z.string())).resolves.toBe('1.2.3')
     expect(services.platform.appVersion).toBe('0.0.0-test')
     await expect(services.path.homeDir()).resolves.toBe('/home/test')
-    expect(services.window.isMainWindow()).toBe(true)
   })
 
   it('defaults the id and hash', () => {

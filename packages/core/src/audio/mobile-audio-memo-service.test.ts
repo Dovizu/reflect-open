@@ -29,7 +29,6 @@ import {
   createTestSecretStoreService,
   createTestSettingsService,
   createTestTranscriptionService,
-  createTestWindowService,
 } from '../testing/index.ts'
 import type {
   AudioRecorderFinalSegment,
@@ -140,7 +139,7 @@ async function setup(options?: SetupOptions) {
     progress,
     clock,
     platform,
-    window: createTestWindowService(),
+    role: 'main',
     graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
     logger,
   })

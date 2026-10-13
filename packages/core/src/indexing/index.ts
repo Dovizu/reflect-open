@@ -4,7 +4,6 @@ export {
   type FileChange,
   type FileChangeSource,
 } from './file-change-service.ts'
-export { INDEX_WRITTEN_EVENT } from '../app/window-service.ts'
 export type { ApplyErrorHandler, MovedHandler } from './live.ts'
 export { type TemplateEntry } from './index-query-service.ts'
 export {

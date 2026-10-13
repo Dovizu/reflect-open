@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createPersistenceFlushService, type Unlisten, type WindowService } from '@reflect/core'
+import { createPersistenceFlushService, type Unlisten } from '@reflect/core'
 import {
   createTestLoggerService,
   createTestPlatformService,
   createTestSettingsService,
-  createTestWindowService,
   type TestLoggerService,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
 import { createTestLifecycleService, type TestLifecycleService } from '../testing/lifecycle.ts'
+import { createTestWindowService } from '../testing/window.ts'
+import type { WindowService } from './window-service.ts'
 import type { AppLifecycleService } from './lifecycle-service.ts'
 import { createQuitPolicyService, type QuitPolicyService } from './quit-policy-service.ts'
 

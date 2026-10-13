@@ -1,3 +1,4 @@
+import { createTestWindowService } from '@reflect/app/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
   BacklinkContextPage,
@@ -5,7 +6,7 @@ import type {
   NoteCreationService,
   NoteLinkResolverService,
 } from '@reflect/core'
-import { createTestCoreServices, createTestWindowService } from '@reflect/core/testing'
+import { createTestCoreServices } from '@reflect/core/testing'
 import type { ReactNode } from 'react'
 import { useRouter } from '@/routing/router.tsx'
 import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
@@ -27,9 +28,7 @@ const getBacklinksPage: BacklinkService['getBacklinksWithContext'] = async (path
 }
 
 function createApp() {
-  const services = createTestCoreServices({
-    window: createTestWindowService({ openNoteWindow }),
-  })
+  const services = createTestCoreServices()
   vi.spyOn(services.backlinks, 'getBacklinksWithContext').mockImplementation(getBacklinksPage)
   vi.spyOn(services.noteCreation, 'resolveOrCreateNoteWithTitle').mockImplementation(
     resolveOrCreateNoteWithTitle,
@@ -51,7 +50,11 @@ function RouteProbe(): ReactNode {
 }
 
 function renderInGraph(ui: ReactNode) {
-  return renderInApp(ui, { app, graph: { root: '/g', name: 'g', generation: 1 } })
+  return renderInApp(ui, {
+    app,
+    appServices: { window: createTestWindowService({ openNoteWindow }) },
+    graph: { root: '/g', name: 'g', generation: 1 },
+  })
 }
 
 function renderPanel(path: string) {

@@ -1,3 +1,4 @@
+import { createTestWindowService } from '@reflect/app/testing'
 import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactNode } from 'react'
@@ -8,7 +9,6 @@ import {
   createTestNoteFileService,
   createTestRetrievalService,
   createTestStorageService,
-  createTestWindowService,
   type TestNoteFileService,
   type TestStorageService,
 } from '@reflect/core/testing'
@@ -51,7 +51,6 @@ function createApp(storage: TestStorageService = createTestStorageService()) {
     noteFile,
     storage,
     retrieval: createTestRetrievalService({ relatedNotes }),
-    window: createTestWindowService({ openNoteWindow }),
   })
   vi.spyOn(app.dailyNotes, 'dailyDatesInRange').mockImplementation(dailyDatesInRange)
   vi.spyOn(app.indexQuery, 'getNote').mockImplementation(async () => noteRowAnswer ?? undefined)
@@ -61,6 +60,7 @@ function createApp(storage: TestStorageService = createTestStorageService()) {
 async function renderSidebar(date: string, app = createApp()) {
   return await renderInApp(sidebar(date), {
     app,
+    appServices: { window: createTestWindowService({ openNoteWindow }) },
     graph: { root: '/g', name: 'g' },
     settings: { semanticSearchEnabled: true, dateFormat: 'mdy', weekStartDay: 'monday' },
   })

@@ -9,7 +9,11 @@ export type { Unlisten } from '../unlisten.ts'
 export { type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
 export { type AudioRecorderFinalSegment } from '../audio/audio-recorder-service.ts'
 export { type IcloudStatus } from '../ipc/icloud-native-service.ts'
-export { type MobileStorageInfo, type MobileStorageKind } from '../ipc/mobile-storage-service.ts'
+export {
+  type MobileStorageInfo,
+  type MobileStorageKind,
+  type MobileStorageService,
+} from '../ipc/mobile-storage-service.ts'
 export { githubAppInstallUrl, type GithubAuthService } from '../sync/github-auth-service.ts'
 export { newRepoUrl, parseRepoInput, type GithubRepoRef } from '../sync/github-repo-service.ts'
 export {
@@ -26,22 +30,17 @@ export { type IdService } from '../app/id-service.ts'
 export { localIsoDate, parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
-  createPlatformService,
   type BuildPlatform,
-  type ColorScheme,
   type FileSrcConverter,
   type PlatformFacts,
-  type PlatformService,
 } from '../app/platform-service.ts'
 
-export { type DialogService, type PickFilesOptions } from '../app/dialog-service.ts'
-export { createPosixPathTransport, type PathTransport } from '../app/path-service.ts'
 export {
-  MAIN_WINDOW_LABEL,
-  createSingleWindowHost,
-  type WindowHost,
-  type WindowService,
-} from '../app/window-service.ts'
+  createPathService,
+  createPosixPathTransport,
+  type PathService,
+  type PathTransport,
+} from '../app/path-service.ts'
 export { type ActivityPort, type BackgroundTaskToken } from '../app/ports.ts'
 export {
   createPersistenceFlushService,
@@ -125,14 +124,21 @@ export {
   type OperationOptions,
   type ProgressPort,
 } from '../app/ports.ts'
-export { type GraphSession } from '../app/graph-session.ts'
+export { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
 export {
   createCoreServices,
   type CoreAdapters,
   type CoreServices,
   type MobileServices,
 } from '../app/create-core-services.ts'
-export type { GraphServices } from '../app/create-graph-services.ts'
+export {
+  createGraphServices,
+  openGraphLifecycle,
+  type GraphLifecycle,
+  type GraphLifecycleFlags,
+  type GraphServices,
+  type GraphServicesDeps,
+} from '../app/create-graph-services.ts'
 export { type AgentSkillStatus } from '../app/agent-skill-service.ts'
 export { type AgentSkillService } from '../app/agent-skill-service.ts'
 export { type CalendarService } from '../calendar/calendar-service.ts'
@@ -156,7 +162,10 @@ export {
 export { type BacklinkService } from '../indexing/backlink-service.ts'
 export { createSearchService, type SearchService } from '../indexing/search-service.ts'
 export { createSuggestionService, type SuggestionService } from '../indexing/suggestion-service.ts'
-export { type IndexFileProgress } from '../indexing/index-lifecycle-service.ts'
+export {
+  type IndexFileProgress,
+  type IndexLifecycleService,
+} from '../indexing/index-lifecycle-service.ts'
 export { type AiPromptDraft, type AiPromptService } from '../ai/ai-prompt-service.ts'
 export {
   type AiProviderConfigService,
@@ -189,6 +198,7 @@ export {
   type GraphImportProgress,
   type GraphImportSummary,
   type WindowBootstrap,
+  windowBootstrapSchema,
 } from '../graph/schemas.ts'
 export { type EmbedMediaService } from '../embeds/embed-media-service.ts'
 
@@ -207,10 +217,6 @@ export {
   type V1ImportService,
   type V1ImportState,
 } from '../graph/v1-import-service.ts'
-export {
-  type MobileOnboardingService,
-  type MobileOnboardingState,
-} from '../graph/mobile-onboarding-service.ts'
 export {
   DEFAULT_GRAPH_NAME,
   cleanGraphName,
