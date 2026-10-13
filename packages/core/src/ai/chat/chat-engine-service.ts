@@ -117,7 +117,7 @@ export interface ChatEngineService {
    * rather than erroring at the provider. See {@link streamChatTurn} for the
    * stream's contract.
    */
-  streamTurn: (request: ChatTurnRequest) => AsyncGenerator<ChatStreamEvent>
+  streamTurn(request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent>
 }
 
 class ChatEngineServiceImpl implements ChatEngineService {
@@ -127,10 +127,7 @@ class ChatEngineServiceImpl implements ChatEngineService {
     this.#deps = deps
   }
 
-  readonly streamTurn = (request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> =>
-    this.#streamTurn(request)
-
-  async *#streamTurn(request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> {
+  async *streamTurn(request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> {
     const { logger, languageModel, noteTools, fitToContextWindow } = this.#deps
     try {
       request.signal?.throwIfAborted()

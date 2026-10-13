@@ -78,7 +78,7 @@ export interface AiProviderConfigService {
   /**
    * The entries and the default id, as the pure transforms take them.
    */
-  state: () => AiProvidersState
+  state(): AiProvidersState
   /**
    * The entry AI features use by default (`null` only when the list is empty).
    */
@@ -90,57 +90,52 @@ export interface AiProviderConfigService {
    * not be read this session, so a key can never be stored for an entry that
    * won't survive a restart.
    */
-  add: (draft: NewAiProvider) => Promise<void>
+  add(draft: NewAiProvider): Promise<void>
   /**
    * Delete the key from the keychain, then drop the settings entry.
    */
-  remove: (id: string) => Promise<void>
+  remove(id: string): Promise<void>
   /**
    * Make the entry with `id` the app-wide default.
    */
-  makeDefault: (id: string) => void
+  makeDefault(id: string): void
   /**
    * Change the default model used by the configured provider entry.
    */
-  setDefaultModel: (id: string, model: string) => void
+  setDefaultModel(id: string, model: string): void
   /**
    * Check a draft before {@link AiProviderConfigService.add}: a required key
    * must be present, an OpenAI-compatible entry needs an http(s) base URL,
    * and the key is verified with a live probe. `unverified` skips the probe
    * (the "save anyway" path after an `unreachable` result).
    */
-  checkDraft: (
-    draft: NewAiProvider,
-    options: { unverified: boolean },
-  ) => Promise<AiProviderDraftCheck>
+  checkDraft(draft: NewAiProvider, options: { unverified: boolean }): Promise<AiProviderDraftCheck>
   /**
    * Every model the chat picker offers; see {@link chatModelOptions}.
    */
-  chatModelOptions: () => ChatModelOption[]
+  chatModelOptions(): ChatModelOption[]
   /**
    * The entry a chat turn should call, by the saved `chatModelSelection`.
    */
-  chatModel: () => AiProviderConfig | null
+  chatModel(): AiProviderConfig | null
   /**
    * Save the chat model choice (`chatModelSelection` in the settings).
    */
-  selectChatModel: (selection: ChatModelSelection | null) => void
+  selectChatModel(selection: ChatModelSelection | null): void
   /**
    * The entry audio transcription should run on; see {@link pickTranscriptionConfig}.
    */
-  transcriptionConfig: () => TranscriptionConfig | null
+  transcriptionConfig(): TranscriptionConfig | null
   /**
    * The transcription entry with a usable key; see
    * {@link resolveTranscriptionTarget}. `getKey` defaults to a fresh pass
    * reader of the credential service.
    */
-  resolveTranscriptionTarget: (
-    getKey?: AiKeyReader,
-  ) => Promise<TranscriptionTarget | TranscriptionMiss>
+  resolveTranscriptionTarget(getKey?: AiKeyReader): Promise<TranscriptionTarget | TranscriptionMiss>
   /**
    * The small-model entry for audio memo enrichment.
    */
-  audioMemoEnrichmentConfig: () => AiProviderConfig | null
+  audioMemoEnrichmentConfig(): AiProviderConfig | null
 }
 
 class AiProviderConfigServiceImpl implements AiProviderConfigService {
@@ -154,7 +149,7 @@ class AiProviderConfigServiceImpl implements AiProviderConfigService {
 
   readonly list = (): AiProviderConfig[] => this.#deps.settings.get().aiProviders
 
-  readonly state = (): AiProvidersState => {
+  state(): AiProvidersState {
     const current = this.#deps.settings.get()
     return { providers: current.aiProviders, defaultProviderId: current.defaultAiProviderId }
   }
@@ -167,7 +162,7 @@ class AiProviderConfigServiceImpl implements AiProviderConfigService {
   // land mid-flight, and a snapshot-based write would clobber it (or
   // resurrect an entry whose key was already deleted).
 
-  readonly add = async (draft: NewAiProvider): Promise<void> => {
+  async add(draft: NewAiProvider): Promise<void> {
     const { settings, credentials, id: idService } = this.#deps
     // Refuse before the key touches the keychain: with an unreadable
     // settings store the entry would be session-only, and after a restart
@@ -212,7 +207,7 @@ class AiProviderConfigServiceImpl implements AiProviderConfigService {
     })
   }
 
-  readonly remove = async (id: string): Promise<void> => {
+  async remove(id: string): Promise<void> {
     const { settings, credentials } = this.#deps
     // Keychain first, deliberately. The two stores can't be updated
     // transactionally; interrupted in this order, the leftover is a
@@ -230,11 +225,11 @@ class AiProviderConfigServiceImpl implements AiProviderConfigService {
     })
   }
 
-  readonly makeDefault = (id: string): void => {
+  makeDefault(id: string): void {
     this.#deps.settings.updateWith(() => ({ defaultAiProviderId: id }))
   }
 
-  readonly setDefaultModel = (id: string, model: string): void => {
+  setDefaultModel(id: string, model: string): void {
     const normalizedModel = model.trim()
     if (normalizedModel === '') {
       return
@@ -246,10 +241,10 @@ class AiProviderConfigServiceImpl implements AiProviderConfigService {
     }))
   }
 
-  readonly checkDraft = async (
+  async checkDraft(
     draft: NewAiProvider,
     options: { unverified: boolean },
-  ): Promise<AiProviderDraftCheck> => {
+  ): Promise<AiProviderDraftCheck> {
     const apiKey = draft.apiKey.trim()
     const requiresApiKey = aiProviderRequiresApiKey(draft.provider)
     const provider = aiProvider(draft.provider)
@@ -288,29 +283,34 @@ class AiProviderConfigServiceImpl implements AiProviderConfigService {
     return { status: 'ready', draft: { ...draft, apiKey, baseUrl } }
   }
 
-  readonly chatModelOptions = (): ChatModelOption[] =>
-    chatModelOptions(this.#deps.settings.get().aiProviders)
+  chatModelOptions(): ChatModelOption[] {
+    return chatModelOptions(this.#deps.settings.get().aiProviders)
+  }
 
-  readonly chatModel = (): AiProviderConfig | null =>
-    resolveChatModel(this.state(), this.#deps.settings.get().chatModelSelection)
+  chatModel(): AiProviderConfig | null {
+    return resolveChatModel(this.state(), this.#deps.settings.get().chatModelSelection)
+  }
 
-  readonly selectChatModel = (selection: ChatModelSelection | null): void => {
+  selectChatModel(selection: ChatModelSelection | null): void {
     this.#deps.settings.update({ chatModelSelection: selection })
   }
 
-  readonly transcriptionConfig = (): TranscriptionConfig | null =>
-    pickTranscriptionConfig(this.state())
+  transcriptionConfig(): TranscriptionConfig | null {
+    return pickTranscriptionConfig(this.state())
+  }
 
-  readonly resolveTranscriptionTarget = async (
+  async resolveTranscriptionTarget(
     getKey?: AiKeyReader,
-  ): Promise<TranscriptionTarget | TranscriptionMiss> =>
-    await resolveTranscriptionTarget(
+  ): Promise<TranscriptionTarget | TranscriptionMiss> {
+    return await resolveTranscriptionTarget(
       this.state(),
       getKey ?? this.#deps.credentials.createPassReader(),
     )
+  }
 
-  readonly audioMemoEnrichmentConfig = (): AiProviderConfig | null =>
-    pickAudioMemoEnrichmentConfig(this.state())
+  audioMemoEnrichmentConfig(): AiProviderConfig | null {
+    return pickAudioMemoEnrichmentConfig(this.state())
+  }
 }
 
 export function createAiProviderConfigService(

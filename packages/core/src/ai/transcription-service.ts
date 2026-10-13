@@ -78,14 +78,14 @@ export interface TranscriptionService {
    * rejected, `network` when the call can't complete, `parse` when the response
    * shape is unrecognizable.
    */
-  transcribe: (request: TranscriptionRequest) => Promise<string>
+  transcribe(request: TranscriptionRequest): Promise<string>
   /**
    * The transcript this service gives a whole recording session for `apiKey`
    * without reading any audio, or `null` when the session's segments must be
    * transcribed. Only the App Review demo key gets one: a canned transcript
    * without any provider call.
    */
-  sessionTranscript: (apiKey: string) => string | null
+  sessionTranscript(apiKey: string): string | null
 }
 
 class TranscriptionServiceImpl implements TranscriptionService {
@@ -95,13 +95,18 @@ class TranscriptionServiceImpl implements TranscriptionService {
     this.#fetch = (input, init) => deps.http.fetch(input, init)
   }
 
-  readonly transcribe = async (request: TranscriptionRequest): Promise<string> =>
-    this.#demoTranscript(request.apiKey) ??
-    (request.provider === 'openai'
-      ? await transcribeWithOpenAi(this.#fetch, request)
-      : await transcribeWithGemini(this.#fetch, request))
+  async transcribe(request: TranscriptionRequest): Promise<string> {
+    return (
+      this.#demoTranscript(request.apiKey) ??
+      (request.provider === 'openai'
+        ? await transcribeWithOpenAi(this.#fetch, request)
+        : await transcribeWithGemini(this.#fetch, request))
+    )
+  }
 
-  readonly sessionTranscript = (apiKey: string): string | null => this.#demoTranscript(apiKey)
+  sessionTranscript(apiKey: string): string | null {
+    return this.#demoTranscript(apiKey)
+  }
 
   #demoTranscript(apiKey: string): string | null {
     return apiKey === APP_REVIEW_STUB_KEY ? stubTranscriptBody() : null

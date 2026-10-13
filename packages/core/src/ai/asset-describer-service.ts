@@ -130,7 +130,7 @@ export interface AssetDescriberService {
    * refuses this asset itself. The enrichment pass is the retry layer
    * (`maxRetries: 0`).
    */
-  describe: (request: DescribeAssetRequest) => Promise<string>
+  describe(request: DescribeAssetRequest): Promise<string>
 }
 
 class AssetDescriberServiceImpl implements AssetDescriberService {
@@ -140,7 +140,7 @@ class AssetDescriberServiceImpl implements AssetDescriberService {
     this.#deps = deps
   }
 
-  readonly describe = async (request: DescribeAssetRequest): Promise<string> => {
+  async describe(request: DescribeAssetRequest): Promise<string> {
     const sdk = await import('@reflect/modules/ai')
     const content: UserContent = [
       { type: 'text', text: describePrompt(request.kind, request.filename) },

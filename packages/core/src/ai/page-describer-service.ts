@@ -185,7 +185,7 @@ export interface PageDescriberService {
    * and {@link DescriptionRejectedError} when the provider refuses this capture
    * itself.
    */
-  describe: (request: DescribePageRequest) => Promise<PageEnrichment>
+  describe(request: DescribePageRequest): Promise<PageEnrichment>
 }
 
 class PageDescriberServiceImpl implements PageDescriberService {
@@ -195,7 +195,7 @@ class PageDescriberServiceImpl implements PageDescriberService {
     this.#deps = deps
   }
 
-  readonly describe = async (request: DescribePageRequest): Promise<PageEnrichment> => {
+  async describe(request: DescribePageRequest): Promise<PageEnrichment> {
     const sdk = await import('@reflect/modules/ai')
     const content: UserContent = [{ type: 'text', text: describePrompt(request) }]
     if (request.screenshotBase64) {

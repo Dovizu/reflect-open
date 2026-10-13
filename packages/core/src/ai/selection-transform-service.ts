@@ -84,7 +84,7 @@ export interface SelectionTransformService {
    * `error`. A missing provider, a private note and a missing API key each
    * end the stream with an `error` before any provider call.
    */
-  transform: (request: SelectionTransformRequest) => AsyncGenerator<TransformStreamEvent>
+  transform(request: SelectionTransformRequest): AsyncGenerator<TransformStreamEvent>
 }
 
 class SelectionTransformServiceImpl implements SelectionTransformService {
@@ -94,10 +94,7 @@ class SelectionTransformServiceImpl implements SelectionTransformService {
     this.#deps = deps
   }
 
-  readonly transform = (request: SelectionTransformRequest): AsyncGenerator<TransformStreamEvent> =>
-    this.#transform(request)
-
-  async *#transform(request: SelectionTransformRequest): AsyncGenerator<TransformStreamEvent> {
+  async *transform(request: SelectionTransformRequest): AsyncGenerator<TransformStreamEvent> {
     const { logger, languageModel, providerConfig, credentials, privacy } = this.#deps
     const { model: modelOverride, signal } = request
     const base =

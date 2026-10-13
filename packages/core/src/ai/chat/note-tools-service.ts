@@ -150,14 +150,14 @@ export interface NoteToolsService {
   /**
    * Build the tool set of one chat turn.
    */
-  build: (options: BuildNoteToolsOptions) => NoteTools
+  build(options: BuildNoteToolsOptions): NoteTools
 }
 
 /**
  * The daily-note range query of `DailyNoteService`.
  */
 export interface DailyNoteQueries {
-  listDailyNotes: (range: DailyNotesRange) => Promise<DailyNoteRow[]>
+  listDailyNotes(range: DailyNotesRange): Promise<DailyNoteRow[]>
 }
 
 export interface NoteToolsServiceDeps {
@@ -184,7 +184,7 @@ class NoteToolsServiceImpl implements NoteToolsService {
     this.#deps = deps
   }
 
-  readonly build = (options: BuildNoteToolsOptions): NoteTools => {
+  build(options: BuildNoteToolsOptions): NoteTools {
     const {
       retrieval,
       noteList,

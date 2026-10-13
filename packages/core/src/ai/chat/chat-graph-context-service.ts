@@ -26,7 +26,7 @@ export interface ChatGraphContextService {
   /**
    * Load the prompt context for the open graph, named `graphName`.
    */
-  load: (graphName: string) => Promise<CloudSafe<CloudGraphContext>>
+  load(graphName: string): Promise<CloudSafe<CloudGraphContext>>
 }
 
 class ChatGraphContextServiceImpl implements ChatGraphContextService {
@@ -36,7 +36,7 @@ class ChatGraphContextServiceImpl implements ChatGraphContextService {
     this.#deps = deps
   }
 
-  readonly load = async (graphName: string): Promise<CloudSafe<CloudGraphContext>> => {
+  async load(graphName: string): Promise<CloudSafe<CloudGraphContext>> {
     const { graphStats, privacy } = this.#deps
     const stats = await graphStats.loadGraphStats({ tagLimit: MAX_CONTEXT_TAGS })
     return privacy.cloudSafeGraphContext({ graphName, ...stats })
