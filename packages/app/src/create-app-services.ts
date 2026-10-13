@@ -44,6 +44,7 @@ export interface AppServices {
    * Checks for, downloads, and installs app updates.
    */
   readonly update: UpdateService
+  /**
    * Derives the mobile sync status that the settings sheet and the status pill show.
    */
   readonly syncStatus: SyncStatusService
