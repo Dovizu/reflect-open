@@ -11,23 +11,39 @@ export interface TestLoggerService extends LoggerService {
   getInfos(): readonly LogEntry[]
 }
 
-/** A logger that records every entry and prints nothing. */
-export function createTestLoggerService(): TestLoggerService {
-  const errors: LogEntry[] = []
-  const warnings: LogEntry[] = []
-  const infos: LogEntry[] = []
-  return {
-    error: (message, cause) => {
-      errors.push({ message, cause })
-    },
-    warn: (message, cause) => {
-      warnings.push({ message, cause })
-    },
-    info: (message, cause) => {
-      infos.push({ message, cause })
-    },
-    getErrors: () => [...errors],
-    getWarnings: () => [...warnings],
-    getInfos: () => [...infos],
+class TestLoggerServiceImpl implements TestLoggerService {
+  readonly #errors: LogEntry[] = []
+  readonly #warnings: LogEntry[] = []
+  readonly #infos: LogEntry[] = []
+
+  error(message: string, cause?: unknown): void {
+    this.#errors.push({ message, cause })
   }
+
+  warn(message: string, cause?: unknown): void {
+    this.#warnings.push({ message, cause })
+  }
+
+  info(message: string, cause?: unknown): void {
+    this.#infos.push({ message, cause })
+  }
+
+  getErrors(): readonly LogEntry[] {
+    return [...this.#errors]
+  }
+
+  getWarnings(): readonly LogEntry[] {
+    return [...this.#warnings]
+  }
+
+  getInfos(): readonly LogEntry[] {
+    return [...this.#infos]
+  }
+}
+
+/**
+ * A logger that records every entry and prints nothing.
+ */
+export function createTestLoggerService(): TestLoggerService {
+  return new TestLoggerServiceImpl()
 }

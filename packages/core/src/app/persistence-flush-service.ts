@@ -6,7 +6,9 @@ import type { LoggerService } from './logger-service.ts'
 import type { PlatformService } from './platform-service.ts'
 import type { WindowService } from './window-service.ts'
 
-/** The dirty state a registered flusher lands. Settings is built in. */
+/**
+ * The dirty state a registered flusher lands. Settings is built in.
+ */
 export type PersistenceFlusherKind = 'documents' | 'backup'
 
 export type PersistenceFlusher = () => Promise<void>
@@ -23,7 +25,9 @@ export interface PersistenceFlushService {
    * function removes it if it is still installed.
    */
   registerFlusher(kind: PersistenceFlusherKind, fn: PersistenceFlusher): Unlisten
-  /** Documents and settings in parallel, then backup. Never rejects; failures are logged. */
+  /**
+   * Documents and settings in parallel, then backup. Never rejects; failures are logged.
+   */
   flushAll(): Promise<void>
   /**
    * Flush on window close (the macOS main window hides and stays alive),
@@ -39,149 +43,164 @@ export interface PersistenceFlushService {
   installMobileBackgroundPolicy(): Unlisten
 }
 
-export function createPersistenceFlushService(deps: {
-  lifecycle: AppLifecycleService
-  window: WindowService
-  platform: PlatformService
-  settings: SettingsService
-  openDocuments: Pick<OpenDocumentsService, 'flushAll'>
-  logger: LoggerService
-}): PersistenceFlushService {
-  const { lifecycle, window, platform, settings, openDocuments, logger } = deps
-  const flushers = new Map<PersistenceFlusherKind, PersistenceFlusher>([
-    ['documents', () => openDocuments.flushAll()],
-  ])
+export interface PersistenceFlushServiceDeps {
+  readonly lifecycle: AppLifecycleService
+  readonly window: WindowService
+  readonly platform: PlatformService
+  readonly settings: SettingsService
+  readonly openDocuments: Pick<OpenDocumentsService, 'flushAll'>
+  readonly logger: LoggerService
+}
 
-  const run = async (what: string, fn: (() => Promise<void>) | undefined): Promise<void> => {
-    try {
-      await fn?.()
-    } catch (cause) {
-      logger.error(`${what} flush failed:`, cause)
+class PersistenceFlushServiceImpl implements PersistenceFlushService {
+  readonly #deps: PersistenceFlushServiceDeps
+  readonly #flushers: Map<PersistenceFlusherKind, PersistenceFlusher>
+
+  constructor(deps: PersistenceFlushServiceDeps) {
+    this.#deps = deps
+    this.#flushers = new Map<PersistenceFlusherKind, PersistenceFlusher>([
+      ['documents', () => deps.openDocuments.flushAll()],
+    ])
+  }
+
+  registerFlusher(kind: PersistenceFlusherKind, fn: PersistenceFlusher): Unlisten {
+    this.#flushers.set(kind, fn)
+    return () => {
+      if (this.#flushers.get(kind) === fn) {
+        this.#flushers.delete(kind)
+      }
     }
   }
 
-  const flushAll = async (): Promise<void> => {
+  async flushAll(): Promise<void> {
+    const { settings } = this.#deps
     await Promise.allSettled([
-      run('documents', flushers.get('documents')),
-      run('settings', () => settings.flush()),
+      this.#run('documents', this.#flushers.get('documents')),
+      this.#run('settings', () => settings.flush()),
     ])
-    await run('backup', flushers.get('backup'))
+    await this.#run('backup', this.#flushers.get('backup'))
   }
 
-  return {
-    registerFlusher(kind, fn) {
-      flushers.set(kind, fn)
-      return () => {
-        if (flushers.get(kind) === fn) {
-          flushers.delete(kind)
-        }
+  installDesktopQuitPolicy(): Unlisten {
+    const { lifecycle, window, platform, settings } = this.#deps
+    if (!platform.isNativeShell) {
+      return () => {}
+    }
+    const removeClose = window.onCloseRequested(async (event) => {
+      const shouldHide = platform.isMacosDesktop && window.isMainWindow()
+      if (shouldHide) {
+        // Before any await: AppKit otherwise destroys the last window and the app exits.
+        event.preventDefault()
       }
-    },
-    flushAll,
-    installDesktopQuitPolicy() {
-      if (!platform.isNativeShell) {
-        return () => {}
-      }
-      const removeClose = window.onCloseRequested(async (event) => {
-        const shouldHide = platform.isMacosDesktop && window.isMainWindow()
+      try {
         if (shouldHide) {
-          // Before any await: AppKit otherwise destroys the last window and the app exits.
-          event.preventDefault()
+          await window.hide()
         }
-        try {
-          if (shouldHide) {
-            await window.hide()
-          }
-        } finally {
-          await flushAll()
-        }
+      } finally {
+        await this.flushAll()
+      }
+    })
+    // A failed flush still quits: refusing would trap the user.
+    const removeQuit = lifecycle.subscribeQuitRequested(() => {
+      void this.flushAll().then(() => {
+        void lifecycle.confirmQuit()
       })
-      // A failed flush still quits: refusing would trap the user.
-      const removeQuit = lifecycle.subscribeQuitRequested(() => {
-        void flushAll().then(() => {
-          void lifecycle.confirmQuit()
-        })
-      })
-      // Unload cannot wait, but writes sent before teardown still reach the shell.
-      const removeUnload = lifecycle.subscribeBeforeUnload(() => {
-        void run('documents', flushers.get('documents'))
-        void run('settings', () => settings.flush())
-        void run('backup', flushers.get('backup'))
-      })
-      return () => {
-        removeClose()
-        removeQuit()
-        removeUnload()
-      }
-    },
-    installMobileBackgroundPolicy() {
-      let inFlight: Promise<void> | null = null
-      let rerun = false
-      let hidden = lifecycle.isHidden()
-      let transition = hidden ? 1 : 0
-      let lastRequestedTransition = 0
-
-      const runProtected = async (): Promise<void> => {
-        let backgroundTask: BackgroundTaskToken | null = null
-        try {
-          backgroundTask = await lifecycle.beginBackgroundTask()
-        } catch {
-          // No native protection: the flush stays best-effort.
-        }
-        try {
-          await flushAll()
-        } finally {
-          if (backgroundTask !== null) {
-            try {
-              await lifecycle.endBackgroundTask(backgroundTask)
-            } catch {
-              // The OS expiration handler also ends an outstanding task.
-            }
-          }
-        }
-      }
-
-      const flush = (): void => {
-        if (inFlight !== null) {
-          rerun = true
-          return
-        }
-        inFlight = runProtected()
-          .catch(() => {})
-          .finally(() => {
-            inFlight = null
-            if (rerun) {
-              rerun = false
-              flush()
-            }
-          })
-      }
-
-      const flushTransition = (): void => {
-        if (lastRequestedTransition === transition) {
-          return
-        }
-        lastRequestedTransition = transition
-        flush()
-      }
-      const enterHidden = (): void => {
-        if (!hidden) {
-          hidden = true
-          transition += 1
-        }
-        flushTransition()
-      }
-
-      const removeHidden = lifecycle.subscribeHidden(enterHidden)
-      const removeVisible = lifecycle.subscribeVisible(() => {
-        hidden = false
-      })
-      const removePageHide = lifecycle.subscribePageHide(enterHidden)
-      return () => {
-        removeHidden()
-        removeVisible()
-        removePageHide()
-      }
-    },
+    })
+    // Unload cannot wait, but writes sent before teardown still reach the shell.
+    const removeUnload = lifecycle.subscribeBeforeUnload(() => {
+      void this.#run('documents', this.#flushers.get('documents'))
+      void this.#run('settings', () => settings.flush())
+      void this.#run('backup', this.#flushers.get('backup'))
+    })
+    return () => {
+      removeClose()
+      removeQuit()
+      removeUnload()
+    }
   }
+
+  installMobileBackgroundPolicy(): Unlisten {
+    const { lifecycle } = this.#deps
+    let inFlight: Promise<void> | null = null
+    let rerun = false
+    let hidden = lifecycle.isHidden()
+    let transition = hidden ? 1 : 0
+    let lastRequestedTransition = 0
+
+    const runProtected = async (): Promise<void> => {
+      let backgroundTask: BackgroundTaskToken | null = null
+      try {
+        backgroundTask = await lifecycle.beginBackgroundTask()
+      } catch {
+        // No native protection: the flush stays best-effort.
+      }
+      try {
+        await this.flushAll()
+      } finally {
+        if (backgroundTask !== null) {
+          try {
+            await lifecycle.endBackgroundTask(backgroundTask)
+          } catch {
+            // The OS expiration handler also ends an outstanding task.
+          }
+        }
+      }
+    }
+
+    const flush = (): void => {
+      if (inFlight !== null) {
+        rerun = true
+        return
+      }
+      inFlight = runProtected()
+        .catch(() => {})
+        .finally(() => {
+          inFlight = null
+          if (rerun) {
+            rerun = false
+            flush()
+          }
+        })
+    }
+
+    const flushTransition = (): void => {
+      if (lastRequestedTransition === transition) {
+        return
+      }
+      lastRequestedTransition = transition
+      flush()
+    }
+    const enterHidden = (): void => {
+      if (!hidden) {
+        hidden = true
+        transition += 1
+      }
+      flushTransition()
+    }
+
+    const removeHidden = lifecycle.subscribeHidden(enterHidden)
+    const removeVisible = lifecycle.subscribeVisible(() => {
+      hidden = false
+    })
+    const removePageHide = lifecycle.subscribePageHide(enterHidden)
+    return () => {
+      removeHidden()
+      removeVisible()
+      removePageHide()
+    }
+  }
+
+  async #run(what: string, fn: (() => Promise<void>) | undefined): Promise<void> {
+    try {
+      await fn?.()
+    } catch (cause) {
+      this.#deps.logger.error(`${what} flush failed:`, cause)
+    }
+  }
+}
+
+export function createPersistenceFlushService(
+  deps: PersistenceFlushServiceDeps,
+): PersistenceFlushService {
+  return new PersistenceFlushServiceImpl(deps)
 }

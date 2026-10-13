@@ -1,15 +1,25 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import { localIsoDate } from '../lib/dates.ts'
 
-/** A {@link ClockService} whose time moves only when a test moves it. */
+/**
+ * A {@link ClockService} whose time moves only when a test moves it.
+ */
 export interface TestClockService extends ClockService {
-  /** Moves time forward by `ms`, running due timers in order and settling promises between them. */
+  /**
+   * Moves time forward by `ms`, running due timers in order and settling promises between them.
+   */
   advance(ms: number): Promise<void>
-  /** Sets the wall clock without running timers or moving the monotonic clock. */
+  /**
+   * Sets the wall clock without running timers or moving the monotonic clock.
+   */
   setNow(epochMs: number): void
-  /** Pins `today()` to `isoDate` and notifies `subscribeToday` listeners. */
+  /**
+   * Pins `today()` to `isoDate` and notifies `subscribeToday` listeners.
+   */
   setToday(isoDate: string): void
-  /** The number of scheduled timeouts and intervals. */
+  /**
+   * The number of scheduled timeouts and intervals.
+   */
   pendingTimers(): number
 }
 
@@ -28,49 +38,122 @@ async function settle(): Promise<void> {
   }
 }
 
-/**
- * Without `today`, `today()` follows the local date of `now()`. `setToday`
- * pins it until the next `setToday`.
- */
-export function createTestClockService(options?: {
-  now?: number
-  today?: string
-}): TestClockService {
-  let wallMs = options?.now ?? 0
-  let monotonicMs = 0
-  let pinnedToday: string | null = options?.today ?? null
-  const listeners = new Set<(today: string) => void>()
-  const timers = new Map<number, ScheduledTimer>()
-  let nextId = 1
-  let nextOrder = 0
+class TestClockServiceImpl implements TestClockService {
+  #wallMs: number
+  #monotonicMs = 0
+  #pinnedToday: string | null
+  readonly #listeners = new Set<(today: string) => void>()
+  readonly #timers = new Map<number, ScheduledTimer>()
+  #nextId = 1
+  #nextOrder = 0
+  #lastToday: string
 
-  const currentToday = (): string => pinnedToday ?? localIsoDate(new Date(wallMs))
-  let lastToday = currentToday()
+  constructor(options: { now?: number; today?: string } | undefined) {
+    this.#wallMs = options?.now ?? 0
+    this.#pinnedToday = options?.today ?? null
+    this.#lastToday = this.today()
+  }
 
-  const notifyToday = (): void => {
-    const next = currentToday()
-    if (next === lastToday) {
+  now(): number {
+    return this.#wallMs
+  }
+
+  monotonicNow(): number {
+    return this.#monotonicMs
+  }
+
+  today(): string {
+    return this.#pinnedToday ?? localIsoDate(new Date(this.#wallMs))
+  }
+
+  subscribeToday(listener: (today: string) => void): () => void {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  setTimeout(fn: () => void, ms: number): TimerHandle {
+    return this.#schedule(fn, ms, null)
+  }
+
+  clearTimeout(handle: TimerHandle): void {
+    this.#timers.delete(handle.id)
+  }
+
+  setInterval(fn: () => void, ms: number): TimerHandle {
+    // A zero period would never let `advance` finish.
+    return this.#schedule(fn, ms, Math.max(1, ms))
+  }
+
+  clearInterval(handle: TimerHandle): void {
+    this.#timers.delete(handle.id)
+  }
+
+  sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.setTimeout(resolve, ms)
+    })
+  }
+
+  async advance(ms: number): Promise<void> {
+    const target = this.#monotonicMs + Math.max(0, ms)
+    await settle()
+    for (let next = this.#nextDue(target); next !== null; next = this.#nextDue(target)) {
+      const [id, timer] = next
+      this.#moveTo(timer.due)
+      if (timer.interval === null) {
+        this.#timers.delete(id)
+      } else {
+        timer.due += timer.interval
+        timer.order = this.#nextOrder++
+      }
+      timer.fn()
+      await settle()
+    }
+    this.#moveTo(target)
+    await settle()
+  }
+
+  setNow(epochMs: number): void {
+    this.#wallMs = epochMs
+    this.#notifyToday()
+  }
+
+  setToday(isoDate: string): void {
+    this.#pinnedToday = isoDate
+    this.#notifyToday()
+  }
+
+  pendingTimers(): number {
+    return this.#timers.size
+  }
+
+  #notifyToday(): void {
+    const next = this.today()
+    if (next === this.#lastToday) {
       return
     }
-    lastToday = next
-    for (const listener of listeners) {
+    this.#lastToday = next
+    for (const listener of this.#listeners) {
       listener(next)
     }
   }
 
-  const schedule = (fn: () => void, ms: number, interval: number | null): TimerHandle => {
-    const id = nextId++
-    timers.set(id, { fn, interval, due: monotonicMs + Math.max(0, ms), order: nextOrder++ })
+  #schedule(fn: () => void, ms: number, interval: number | null): TimerHandle {
+    const id = this.#nextId++
+    this.#timers.set(id, {
+      fn,
+      interval,
+      due: this.#monotonicMs + Math.max(0, ms),
+      order: this.#nextOrder++,
+    })
     return { id }
   }
 
-  const clearTimer = (handle: TimerHandle): void => {
-    timers.delete(handle.id)
-  }
-
-  const nextDue = (limit: number): [number, ScheduledTimer] | null => {
+  #nextDue(limit: number): [number, ScheduledTimer] | null {
     let found: [number, ScheduledTimer] | null = null
-    for (const entry of timers) {
+    for (const entry of this.#timers) {
       const timer = entry[1]
       if (timer.due > limit) {
         continue
@@ -86,59 +169,20 @@ export function createTestClockService(options?: {
     return found
   }
 
-  const moveTo = (monotonicTarget: number): void => {
-    wallMs += monotonicTarget - monotonicMs
-    monotonicMs = monotonicTarget
-    notifyToday()
+  #moveTo(monotonicTarget: number): void {
+    this.#wallMs += monotonicTarget - this.#monotonicMs
+    this.#monotonicMs = monotonicTarget
+    this.#notifyToday()
   }
+}
 
-  const clock: TestClockService = {
-    now: () => wallMs,
-    monotonicNow: () => monotonicMs,
-    today: currentToday,
-    subscribeToday(listener) {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    setTimeout: (fn, ms) => schedule(fn, ms, null),
-    clearTimeout: clearTimer,
-    // A zero period would never let `advance` finish.
-    setInterval: (fn, ms) => schedule(fn, ms, Math.max(1, ms)),
-    clearInterval: clearTimer,
-    sleep(ms) {
-      return new Promise((resolve) => {
-        clock.setTimeout(resolve, ms)
-      })
-    },
-    async advance(ms) {
-      const target = monotonicMs + Math.max(0, ms)
-      await settle()
-      for (let next = nextDue(target); next !== null; next = nextDue(target)) {
-        const [id, timer] = next
-        moveTo(timer.due)
-        if (timer.interval === null) {
-          timers.delete(id)
-        } else {
-          timer.due += timer.interval
-          timer.order = nextOrder++
-        }
-        timer.fn()
-        await settle()
-      }
-      moveTo(target)
-      await settle()
-    },
-    setNow(epochMs) {
-      wallMs = epochMs
-      notifyToday()
-    },
-    setToday(isoDate) {
-      pinnedToday = isoDate
-      notifyToday()
-    },
-    pendingTimers: () => timers.size,
-  }
-  return clock
+/**
+ * Without `today`, `today()` follows the local date of `now()`. `setToday`
+ * pins it until the next `setToday`.
+ */
+export function createTestClockService(options?: {
+  now?: number
+  today?: string
+}): TestClockService {
+  return new TestClockServiceImpl(options)
 }

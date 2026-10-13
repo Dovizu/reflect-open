@@ -35,15 +35,7 @@ async function renderSection(): Promise<void> {
   }
   const app = createTestAppServices({
     settings,
-    secretStore: {
-      ...secrets,
-      set: async (name, value) => {
-        if (failSecretSet) {
-          throw new ReflectError('io', 'keychain locked')
-        }
-        await secrets.set(name, value)
-      },
-    },
+    secretStore: secrets,
   })
   keyValidation = app.aiKeyValidation
   await renderInApp(<AiProvidersSection />, { app, servicesOnly: true })
@@ -88,6 +80,13 @@ async function openDialog(): Promise<Locator> {
 beforeEach(() => {
   stored = {}
   secrets = createTestSecretStoreService()
+  const set = secrets.set.bind(secrets)
+  vi.spyOn(secrets, 'set').mockImplementation(async (name, value) => {
+    if (failSecretSet) {
+      throw new ReflectError('io', 'keychain locked')
+    }
+    await set(name, value)
+  })
   failSecretSet = false
   failLoad = false
 })

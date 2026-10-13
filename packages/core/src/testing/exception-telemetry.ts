@@ -1,5 +1,6 @@
 import type {
   ExceptionErrorHandler,
+  ExceptionRootOptions,
   ExceptionTelemetryService,
 } from '../app/exception-telemetry-service.ts'
 
@@ -13,8 +14,48 @@ export interface ExceptionReport {
 
 export interface TestExceptionTelemetryService extends ExceptionTelemetryService {
   installCalls(): number
-  /** Every error the root handlers received, in order. */
+  /**
+   * Every error the root handlers received, in order.
+   */
   reports(): readonly ExceptionReport[]
+}
+
+class TestExceptionTelemetryServiceImpl implements TestExceptionTelemetryService {
+  readonly #enabled: boolean
+  readonly #recorded: ExceptionReport[] = []
+  #installs = 0
+
+  constructor(enabled: boolean) {
+    this.#enabled = enabled
+  }
+
+  install(): void {
+    this.#installs += 1
+  }
+
+  reactRootOptions(): ExceptionRootOptions {
+    return this.#enabled
+      ? {
+          onCaughtError: this.#handler('caught'),
+          onRecoverableError: this.#handler('recoverable'),
+          onUncaughtError: this.#handler('uncaught'),
+        }
+      : {}
+  }
+
+  installCalls(): number {
+    return this.#installs
+  }
+
+  reports(): readonly ExceptionReport[] {
+    return [...this.#recorded]
+  }
+
+  #handler(source: ExceptionReportSource): ExceptionErrorHandler {
+    return (error, errorInfo) => {
+      this.#recorded.push({ source, error, componentStack: errorInfo.componentStack })
+    }
+  }
 }
 
 /**
@@ -24,29 +65,5 @@ export interface TestExceptionTelemetryService extends ExceptionTelemetryService
 export function createTestExceptionTelemetry(options?: {
   enabled?: boolean
 }): TestExceptionTelemetryService {
-  const enabled = options?.enabled ?? true
-  const recorded: ExceptionReport[] = []
-  let installs = 0
-
-  const handler =
-    (source: ExceptionReportSource): ExceptionErrorHandler =>
-    (error, errorInfo) => {
-      recorded.push({ source, error, componentStack: errorInfo.componentStack })
-    }
-
-  return {
-    install() {
-      installs += 1
-    },
-    reactRootOptions: () =>
-      enabled
-        ? {
-            onCaughtError: handler('caught'),
-            onRecoverableError: handler('recoverable'),
-            onUncaughtError: handler('uncaught'),
-          }
-        : {},
-    installCalls: () => installs,
-    reports: () => [...recorded],
-  }
+  return new TestExceptionTelemetryServiceImpl(options?.enabled ?? true)
 }

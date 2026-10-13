@@ -20,10 +20,107 @@ export interface TestImageEncode {
 export interface TestImageCodecService extends ImageCodecService {
   decodedFiles(): readonly Blob[]
   encodes(): readonly TestImageEncode[]
-  /** The number of decoded images not yet closed. */
+  /**
+   * The number of decoded images not yet closed.
+   */
   openImages(): number
-  /** Make later encodes resolve `null`; `false` makes them succeed again. */
+  /**
+   * Make later encodes resolve `null`; `false` makes them succeed again.
+   */
   failEncodes(fail: boolean): void
+}
+
+interface TestDecodedImageHost {
+  isFailing(): boolean
+  recordEncode(encode: TestImageEncode): void
+  releaseImage(): void
+}
+
+class TestDecodedImage implements DecodedImage {
+  readonly #file: Blob
+  readonly #host: TestDecodedImageHost
+  #closed = false
+
+  readonly width: number
+  readonly height: number
+
+  constructor(file: Blob, dimensions: TestImageSize, host: TestDecodedImageHost) {
+    this.#file = file
+    this.#host = host
+    this.width = dimensions.width
+    this.height = dimensions.height
+  }
+
+  async encode(options: ImageEncodeOptions): Promise<Blob | null> {
+    if (this.#host.isFailing()) {
+      return null
+    }
+    const width = options.width ?? this.width
+    const height = options.height ?? this.height
+    this.#host.recordEncode({
+      file: this.#file,
+      type: options.type,
+      quality: options.quality,
+      width,
+      height,
+    })
+    return new Blob([`encoded ${width}x${height}`], { type: options.type })
+  }
+
+  close(): void {
+    if (!this.#closed) {
+      this.#closed = true
+      this.#host.releaseImage()
+    }
+  }
+}
+
+class TestImageCodecServiceImpl implements TestImageCodecService {
+  readonly #size: (file: Blob) => TestImageSize | null
+  readonly #decoded: Blob[] = []
+  readonly #encoded: TestImageEncode[] = []
+  readonly #host: TestDecodedImageHost
+  #open = 0
+  #failing = false
+
+  constructor(size: (file: Blob) => TestImageSize | null) {
+    this.#size = size
+    this.#host = {
+      isFailing: () => this.#failing,
+      recordEncode: (encode) => {
+        this.#encoded.push(encode)
+      },
+      releaseImage: () => {
+        this.#open -= 1
+      },
+    }
+  }
+
+  async decode(file: Blob): Promise<DecodedImage | null> {
+    const dimensions = this.#size(file)
+    if (dimensions === null) {
+      return null
+    }
+    this.#decoded.push(file)
+    this.#open += 1
+    return new TestDecodedImage(file, dimensions, this.#host)
+  }
+
+  decodedFiles(): readonly Blob[] {
+    return [...this.#decoded]
+  }
+
+  encodes(): readonly TestImageEncode[] {
+    return [...this.#encoded]
+  }
+
+  openImages(): number {
+    return this.#open
+  }
+
+  failEncodes(fail: boolean): void {
+    this.#failing = fail
+  }
 }
 
 /**
@@ -35,56 +132,9 @@ export interface TestImageCodecService extends ImageCodecService {
 export function createTestImageCodec(options?: {
   size?: (file: Blob) => TestImageSize | null
 }): TestImageCodecService {
-  const size =
+  return new TestImageCodecServiceImpl(
     options?.size ??
-    ((file: Blob): TestImageSize | null =>
-      file.type.startsWith('image/') ? { width: 1, height: 1 } : null)
-  const decoded: Blob[] = []
-  const encoded: TestImageEncode[] = []
-  let open = 0
-  let failing = false
-
-  return {
-    async decode(file) {
-      const dimensions = size(file)
-      if (dimensions === null) {
-        return null
-      }
-      decoded.push(file)
-      open += 1
-      let closed = false
-      const image: DecodedImage = {
-        width: dimensions.width,
-        height: dimensions.height,
-        async encode(encodeOptions: ImageEncodeOptions) {
-          if (failing) {
-            return null
-          }
-          const width = encodeOptions.width ?? dimensions.width
-          const height = encodeOptions.height ?? dimensions.height
-          encoded.push({
-            file,
-            type: encodeOptions.type,
-            quality: encodeOptions.quality,
-            width,
-            height,
-          })
-          return new Blob([`encoded ${width}x${height}`], { type: encodeOptions.type })
-        },
-        close() {
-          if (!closed) {
-            closed = true
-            open -= 1
-          }
-        },
-      }
-      return image
-    },
-    decodedFiles: () => [...decoded],
-    encodes: () => [...encoded],
-    openImages: () => open,
-    failEncodes(fail) {
-      failing = fail
-    },
-  }
+      ((file: Blob): TestImageSize | null =>
+        file.type.startsWith('image/') ? { width: 1, height: 1 } : null),
+  )
 }

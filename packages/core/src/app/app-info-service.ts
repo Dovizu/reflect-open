@@ -1,22 +1,39 @@
 import { z } from 'zod'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
-/** Facts about the running application build. */
+/**
+ * Facts about the running application build.
+ */
 export interface AppInfoService {
-  /** The application version reported by the native shell. */
+  /**
+   * The application version reported by the native shell.
+   */
   version(): Promise<string>
 }
 
 const appVersionSchema = z.string()
 
-/** App info over the `app_version` command. */
-export function createAppInfoService(deps: { ipc: IpcBridgeService }): AppInfoService {
-  const { ipc } = deps
-  return {
-    async version() {
-      return await ipc.call('app_version', {}, appVersionSchema)
-    },
+export interface AppInfoServiceDeps {
+  readonly ipc: IpcBridgeService
+}
+
+class AppInfoServiceImpl implements AppInfoService {
+  readonly #deps: AppInfoServiceDeps
+
+  constructor(deps: AppInfoServiceDeps) {
+    this.#deps = deps
   }
+
+  async version(): Promise<string> {
+    return await this.#deps.ipc.call('app_version', {}, appVersionSchema)
+  }
+}
+
+/**
+ * App info over the `app_version` command.
+ */
+export function createAppInfoService(deps: AppInfoServiceDeps): AppInfoService {
+  return new AppInfoServiceImpl(deps)
 }
 
 /**

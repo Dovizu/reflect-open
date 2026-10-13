@@ -82,13 +82,57 @@ export interface PlatformServiceDeps {
   readonly fileSrc?: FileSrcConverter | undefined
 }
 
-export function createPlatformService(deps: PlatformServiceDeps): PlatformService {
-  const { facts, media, fileSrc } = deps
-  const toFileSrc = fileSrc ?? appleFileSrc
+class PlatformServiceImpl implements PlatformService {
+  readonly #media: PlatformMedia | undefined
+  readonly #toFileSrc: FileSrcConverter
+
+  readonly appPlatform: AppPlatform
+  readonly isNativeShell: boolean
+  readonly isMacosDesktop: boolean
+  readonly isApplePlatform: boolean
+  readonly hasMacosTitleBarOverlay: boolean
+  readonly surface: PlatformSurface
+  readonly isDev: boolean
+  readonly appVersion: string
+
+  constructor(deps: PlatformServiceDeps) {
+    const { facts, media, fileSrc } = deps
+    this.#media = media
+    this.#toFileSrc = fileSrc ?? appleFileSrc
+    this.appPlatform = facts.appPlatform
+    this.isNativeShell = facts.isNativeShell
+    this.isMacosDesktop = facts.isMacosDesktop
+    this.isApplePlatform = facts.isApplePlatform
+    this.hasMacosTitleBarOverlay = facts.hasMacosTitleBarOverlay
+    this.surface = { touchEditor: facts.surface.touchEditor, mobileApp: facts.surface.mobileApp }
+    this.isDev = facts.isDev
+    this.appVersion = facts.appVersion
+  }
+
+  convertFileSrc(filePath: string, protocol: string): string {
+    return this.#toFileSrc(filePath, protocol)
+  }
+
+  prefersReducedMotion(): boolean {
+    return this.#matches(REDUCED_MOTION_QUERY)
+  }
+
+  subscribeReducedMotion(listener: (value: boolean) => void): () => void {
+    return this.#subscribe(REDUCED_MOTION_QUERY, listener)
+  }
+
+  colorScheme(): ColorScheme {
+    return this.#matches(DARK_QUERY) ? 'dark' : 'light'
+  }
+
+  subscribeColorScheme(listener: (value: ColorScheme) => void): () => void {
+    return this.#subscribe(DARK_QUERY, (dark) => listener(dark ? 'dark' : 'light'))
+  }
+
   // Resolved per call: the global `matchMedia` may be replaced after construction.
-  function resolveMatchMedia(): ((query: string) => MediaQueryList) | undefined {
-    if (media) {
-      return media.matchMedia
+  #resolveMatchMedia(): ((query: string) => MediaQueryList) | undefined {
+    if (this.#media) {
+      return this.#media.matchMedia
     }
     if (typeof globalThis.matchMedia !== 'function') {
       return undefined
@@ -96,13 +140,13 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
     return (query) => globalThis.matchMedia(query)
   }
 
-  function matches(query: string): boolean {
-    const matchMedia = resolveMatchMedia()
+  #matches(query: string): boolean {
+    const matchMedia = this.#resolveMatchMedia()
     return matchMedia !== undefined && matchMedia(query).matches
   }
 
-  function subscribe(query: string, onChange: (matches: boolean) => void): () => void {
-    const matchMedia = resolveMatchMedia()
+  #subscribe(query: string, onChange: (matches: boolean) => void): () => void {
+    const matchMedia = this.#resolveMatchMedia()
     if (matchMedia === undefined) {
       return () => {}
     }
@@ -116,21 +160,8 @@ export function createPlatformService(deps: PlatformServiceDeps): PlatformServic
     list.addListener(handler)
     return () => list.removeListener(handler)
   }
+}
 
-  return {
-    appPlatform: facts.appPlatform,
-    isNativeShell: facts.isNativeShell,
-    isMacosDesktop: facts.isMacosDesktop,
-    isApplePlatform: facts.isApplePlatform,
-    hasMacosTitleBarOverlay: facts.hasMacosTitleBarOverlay,
-    surface: { touchEditor: facts.surface.touchEditor, mobileApp: facts.surface.mobileApp },
-    isDev: facts.isDev,
-    appVersion: facts.appVersion,
-    convertFileSrc: (filePath, protocol) => toFileSrc(filePath, protocol),
-    prefersReducedMotion: () => matches(REDUCED_MOTION_QUERY),
-    subscribeReducedMotion: (listener) => subscribe(REDUCED_MOTION_QUERY, listener),
-    colorScheme: () => (matches(DARK_QUERY) ? 'dark' : 'light'),
-    subscribeColorScheme: (listener) =>
-      subscribe(DARK_QUERY, (dark) => listener(dark ? 'dark' : 'light')),
-  }
+export function createPlatformService(deps: PlatformServiceDeps): PlatformService {
+  return new PlatformServiceImpl(deps)
 }

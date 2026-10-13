@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { HostedAiProviderConfig, OpenAiCompatibleProviderConfig } from '../settings/schema.ts'
 import { createTestSecretStoreService } from '../testing/index.ts'
 import { createAiCredentialService } from './ai-credential-service.ts'
@@ -67,14 +67,9 @@ describe('AiCredentialService', () => {
   })
 
   it('reads a keychain failure as a missing key in a pass reader', async () => {
-    const credentials = createAiCredentialService({
-      secretStore: {
-        ...createTestSecretStoreService(),
-        get: async () => {
-          throw new Error('keychain locked')
-        },
-      },
-    })
+    const secretStore = createTestSecretStoreService()
+    vi.spyOn(secretStore, 'get').mockRejectedValue(new Error('keychain locked'))
+    const credentials = createAiCredentialService({ secretStore })
     await expect(credentials.createPassReader()('cfg')).resolves.toBeNull()
   })
 })

@@ -130,15 +130,9 @@ function fakeServices(options: FakeOptions = {}) {
   if (auth !== null) {
     initialSecrets['github-auth'] = auth
   }
-  const secrets = createTestSecretStoreService(initialSecrets)
-  const secretStore = {
-    ...secrets,
-    get: async (name: string) => {
-      if (options.failSecretGet === true) {
-        throw new ReflectError('io', 'keychain unavailable')
-      }
-      return await secrets.get(name)
-    },
+  const secretStore = createTestSecretStoreService(initialSecrets)
+  if (options.failSecretGet === true) {
+    vi.spyOn(secretStore, 'get').mockRejectedValue(new ReflectError('io', 'keychain unavailable'))
   }
 
   const git = createTestGitRepositoryService()
@@ -233,7 +227,7 @@ function fakeServices(options: FakeOptions = {}) {
   return {
     calls,
     invocations,
-    secrets,
+    secrets: secretStore,
     status,
     releaseStatus: () => statusGate.resolve(),
     releaseIndexApply: () => indexApplyGate.resolve(),
