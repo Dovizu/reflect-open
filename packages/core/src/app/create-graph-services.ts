@@ -170,49 +170,54 @@ export function createGraphServices(
   const { capture, chatSessions, attachments } = deps
   const disposers: Array<() => void> = []
 
-  const chat = chatSessions.create({ session })
-  disposers.push(chat.attach())
-  disposers.push(attachments.watchCatalog(generation))
-
-  let backup: BackupService | null = null
-  if (lifecycles.backup) {
-    const sessionBackup = create.backup(deps.backup, { generation, indexGeneration })
-    backup = sessionBackup
-    void sessionBackup.start()
-    disposers.push(() => {
-      sessionBackup.dispose()
-    })
-  }
-  if (lifecycles.icloudSync) {
-    const icloud = create.icloudSync(deps.icloudSync, {
-      root,
-      generation,
-      indexGeneration,
-      metadataWatch: lifecycles.metadataWatch,
-    })
-    void icloud.start()
-    disposers.push(() => {
-      icloud.dispose()
-    })
-  }
-  if (lifecycles.capture) {
-    const captureSession = capture.openSession({ generation })
-    captureSession.start()
-    disposers.push(() => {
-      captureSession.dispose()
-    })
-  }
-  if (lifecycles.assetDescription) {
-    disposers.push(openGraphLifecycle(session, deps, 'assetDescription', factories))
-  }
-  if (lifecycles.icloudDownload) {
-    disposers.push(openGraphLifecycle(session, deps, 'icloudDownload', factories))
-  }
-
   const dispose = (): void => {
     for (const teardown of disposers.splice(0).reverse()) {
       teardown()
     }
+  }
+  let chat: GraphServices['chat']
+  let backup: BackupService | null = null
+  try {
+    chat = chatSessions.create({ session })
+    disposers.push(chat.attach())
+    disposers.push(attachments.watchCatalog(generation))
+
+    if (lifecycles.backup) {
+      const sessionBackup = create.backup(deps.backup, { generation, indexGeneration })
+      backup = sessionBackup
+      void sessionBackup.start()
+      disposers.push(() => {
+        sessionBackup.dispose()
+      })
+    }
+    if (lifecycles.icloudSync) {
+      const icloud = create.icloudSync(deps.icloudSync, {
+        root,
+        generation,
+        indexGeneration,
+        metadataWatch: lifecycles.metadataWatch,
+      })
+      void icloud.start()
+      disposers.push(() => {
+        icloud.dispose()
+      })
+    }
+    if (lifecycles.capture) {
+      const captureSession = capture.openSession({ generation })
+      captureSession.start()
+      disposers.push(() => {
+        captureSession.dispose()
+      })
+    }
+    if (lifecycles.assetDescription) {
+      disposers.push(openGraphLifecycle(session, deps, 'assetDescription', factories))
+    }
+    if (lifecycles.icloudDownload) {
+      disposers.push(openGraphLifecycle(session, deps, 'icloudDownload', factories))
+    }
+  } catch (cause) {
+    dispose()
+    throw cause
   }
   if (signal.aborted) {
     dispose()

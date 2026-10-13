@@ -31,6 +31,10 @@ interface SetupOptions {
    */
   holdOpens?: boolean
   indexOpenFails?: boolean
+  /**
+   * Make `createServices` throw after it records the session.
+   */
+  createServicesFails?: boolean
 }
 
 /**
@@ -132,6 +136,9 @@ function setup(options?: SetupOptions) {
     createServices: (opened) => {
       const services = { id: built.length + 1 }
       built.push({ session: opened, role: opened.role, services })
+      if (options?.createServicesFails ?? false) {
+        throw new Error('services are broken')
+      }
       return services
     },
   })
@@ -282,6 +289,21 @@ describe('GraphSessionService open sequencing', () => {
 
     expect(context.session.getState().status).toBe('choosing')
     expect(context.session.getState().error).toMatch(/cannot open graph/)
+  })
+
+  it('closes the half-open graph when building its services throws', async () => {
+    const context = await start({ createServicesFails: true })
+
+    await expect(context.session.openRecent('/a')).resolves.toBe(false)
+
+    expect(context.session.getState()).toMatchObject({
+      status: 'choosing',
+      graph: null,
+      session: null,
+      services: null,
+    })
+    expect(context.session.getState().error).toMatch(/services are broken/)
+    expect(context.built[0]?.session.signal.aborted).toBe(true)
   })
 
   it('clears the previous error when an open starts', async () => {

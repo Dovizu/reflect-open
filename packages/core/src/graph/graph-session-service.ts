@@ -267,7 +267,15 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     this.#setState({ graph, indexGeneration, status: 'ready', session, services: null })
     const { createServices } = this.#deps
     if (createServices !== undefined && !session.signal.aborted) {
-      this.#setState({ services: createServices(session) })
+      try {
+        this.#setState({ services: createServices(session) })
+      } catch (cause) {
+        // A half-open graph must not stay published: the caller reports the error.
+        this.#sessionAbort?.abort()
+        this.#sessionAbort = null
+        this.#setState({ graph: null, indexGeneration: null, session: null, services: null })
+        throw cause
+      }
     }
     return session
   }
