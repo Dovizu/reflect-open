@@ -57,13 +57,13 @@ export interface MobileAudioMemoSessionState {
 }
 
 export interface MobileAudioMemoServiceDeps {
-  readonly audioMemo: Pick<AudioMemoService, 'openPipeline'>
+  readonly audioMemo: AudioMemoService
   readonly audioRecorder: AudioRecorderService
   readonly nativeAction: NativeActionService
-  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
-  readonly haptics: Pick<HapticsService, 'impactLight'>
-  readonly platform: Pick<PlatformFacts, 'isNativeShell'>
-  readonly logger: Pick<LoggerService, 'error' | 'warn'>
+  readonly activity: ActivityPort
+  readonly haptics: HapticsService
+  readonly platform: PlatformFacts
+  readonly logger: LoggerService
 }
 
 /**

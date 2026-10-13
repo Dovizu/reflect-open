@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createTestWindowService, type TestWindowService } from '@reflect/app/testing'
+import {
+  createTestAppServices,
+  createTestWindowService,
+  type TestWindowService,
+} from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestCaptureService,
@@ -29,7 +33,7 @@ let services: TestCoreServices | null = null
  */
 function installApp(app: TestCoreServices, window: TestWindowService = createTestWindowService()) {
   services = app
-  const stop = installQueryInvalidation(app, { window })
+  const stop = installQueryInvalidation(app, createTestAppServices(app, { window }))
   return { app, window, stop }
 }
 
@@ -38,7 +42,7 @@ function install(capture: ReturnType<typeof createTestCaptureService>): () => vo
 }
 
 function cachePost(): void {
-  queryClient.setQueryData(xPostQueryOptions(app, '/graph', '123').queryKey, post)
+  queryClient.setQueryData(xPostQueryOptions(app.embedMedia, '/graph', '123').queryKey, post)
 }
 
 afterEach(() => {
@@ -53,7 +57,7 @@ describe('installQueryInvalidation', () => {
     cachePost()
     const capture = createTestCaptureService()
     const stop = install(capture)
-    const resolveXPost = createXPostResolver(app, '/graph')
+    const resolveXPost = createXPostResolver(app.embedMedia, '/graph')
     expect(resolveXPost(url)).toBe(post)
 
     capture.emitXPostsWritten()
@@ -67,7 +71,7 @@ describe('installQueryInvalidation', () => {
   it('keeps cached X posts while no pass reports a write', () => {
     cachePost()
     const stop = install(createTestCaptureService())
-    const resolveXPost = createXPostResolver(app, '/graph')
+    const resolveXPost = createXPostResolver(app.embedMedia, '/graph')
 
     expect(resolveXPost(url)).toBe(post)
     stop()
@@ -77,7 +81,7 @@ describe('installQueryInvalidation', () => {
     cachePost()
     const capture = createTestCaptureService()
     install(capture)()
-    const resolveXPost = createXPostResolver(app, '/graph')
+    const resolveXPost = createXPostResolver(app.embedMedia, '/graph')
 
     capture.emitXPostsWritten()
 

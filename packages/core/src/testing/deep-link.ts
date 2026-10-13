@@ -6,9 +6,11 @@ import {
   type DeepLinkSource,
   type DeepLinkTarget,
 } from '../navigation/deep-link-intake-service.ts'
+import { createIndexQueryService } from '../indexing/index-query-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import { createTestCaptureInboxService } from './capture.ts'
 import { createTestClockService } from './clock.ts'
+import { createTestDatabaseService } from './database.ts'
 import { createTestGraphSessionService } from './graph-session.ts'
 import { createTestIdService } from './id.ts'
 import { createTestProgressPort } from './ports.ts'
@@ -123,9 +125,11 @@ export function createTestDeepLinkIntakeService(
   return new TestDeepLinkIntakeServiceImpl(
     createDeepLinkIntakeService({
       source: options?.source ?? createTestDeepLinkSource(),
-      indexQuery: options?.indexQuery ?? {
-        resolveNoteTarget: (target) => Promise.resolve(notes[target] ?? null),
-      },
+      indexQuery:
+        options?.indexQuery ??
+        Object.assign(createIndexQueryService({ database: createTestDatabaseService() }), {
+          resolveNoteTarget: (target: string) => Promise.resolve(notes[target] ?? null),
+        }),
       captureInbox: options?.captureInbox ?? createTestCaptureInboxService(),
       progress: options?.progress ?? createTestProgressPort(),
       id: options?.id ?? createTestIdService(),

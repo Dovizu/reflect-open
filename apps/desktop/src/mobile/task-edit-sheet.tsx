@@ -129,7 +129,7 @@ export function MobileTaskEditSheet({
   const finishEdit = useCallback(() => finishRef.current(), [])
 
   const complete = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     const result = resolve()
     if (result.type === 'commit') {
       actions.editAndToggle(task, result.content)
@@ -144,7 +144,7 @@ export function MobileTaskEditSheet({
   }
 
   const convertToBullet = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     const result = resolve()
     if (result.type === 'commit') {
       actions.editAndConvertToBullet(task, result.content)
@@ -159,7 +159,7 @@ export function MobileTaskEditSheet({
   }
 
   const openNote = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     closeNavigate()
     onOpenNote(task.notePath)
   }
@@ -177,13 +177,13 @@ export function MobileTaskEditSheet({
   }
 
   const remove = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     actions.remove([task])
     closeHandled()
   }
 
   const schedule = (isoDate: string | null): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     // Base the rewrite on the freshest draft, then keep every mirror in step
     // by hand: setMarkdown is silent (no onChange echo), so neither the live
     // mirror nor the state (chip highlights) updates on its own.
@@ -195,7 +195,7 @@ export function MobileTaskEditSheet({
   }
 
   const toggleCalendar = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     setShowCalendar((showing) => !showing)
   }
 

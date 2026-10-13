@@ -86,8 +86,8 @@ export interface ClassicAccessServiceDeps {
   readonly webAuth: WebAuthService
   readonly clock: ClockService
   readonly id: IdService
-  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
-  readonly platform: Pick<PlatformFacts, 'appPlatform'>
+  readonly activity: ActivityPort
+  readonly platform: PlatformFacts
   readonly logger: LoggerService
 }
 

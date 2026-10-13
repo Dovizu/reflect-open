@@ -5,8 +5,8 @@ import { wikiLinkSafe } from '../markdown/edit.ts'
 import { parseNote } from '../markdown/extract.ts'
 
 export interface BacklinkTargetServiceDeps {
-  readonly noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-  readonly noteFile: Pick<NoteFileService, 'read'>
+  readonly noteCreation: NoteCreationService
+  readonly noteFile: NoteFileService
 }
 
 /**

@@ -29,7 +29,7 @@ export function ChatHistoryMenu(): ReactElement | null {
   const { data: conversations } = useQuery({
     // The graph root is part of the key: conversations belong to one graph,
     // and a graph switch must never serve the previous graph's cached list.
-    ...createChatConversationsQueryOptions({ chatHistory }, graph?.root),
+    ...createChatConversationsQueryOptions(chatHistory, graph?.root),
     enabled,
   })
 

@@ -163,7 +163,7 @@ export interface LinkNavigationService {
    */
   followDeepLink: (
     options: { href: string; openInNewWindow: boolean },
-    host: Pick<LinkNavigationHost, 'beginIntent'>,
+    host: LinkNavigationHost,
   ) => void
   /**
    * The one user-visible refusal for an `ambiguous` title resolution
@@ -175,24 +175,21 @@ export interface LinkNavigationService {
 }
 
 export interface LinkNavigationServiceDeps {
-  readonly noteLinkResolver: Pick<
-    NoteLinkResolverService,
-    'resolveWikiTarget' | 'resolveMarkdownHref'
-  >
-  readonly noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
+  readonly noteLinkResolver: NoteLinkResolverService
+  readonly noteCreation: NoteCreationService
   /**
    * The read-only index resolver, for a surface with no writable graph.
    */
-  readonly wikiResolver: Pick<WikiResolverService, 'resolveWikiTarget'>
-  readonly window: Pick<WindowService, 'openNoteWindow'>
-  readonly platform: Pick<PlatformFacts, 'isNativeShell' | 'surface'>
-  readonly opener: Pick<OpenerService, 'openUrlSync'>
-  readonly deepLinkRouter: Pick<DeepLinkRouter, 'dispatch'>
-  readonly navigation: Pick<NavigationService, 'navigationRevision'>
-  readonly attachments: Pick<AttachmentService, 'resolveAssetOpenPath' | 'openOrReveal'>
-  readonly operations: Pick<OperationsService, 'fail'>
-  readonly logger: Pick<LoggerService, 'error'>
-  readonly graphSession: Pick<GraphSessionService, 'getState'>
+  readonly wikiResolver: WikiResolverService
+  readonly window: WindowService
+  readonly platform: PlatformFacts
+  readonly opener: OpenerService
+  readonly deepLinkRouter: DeepLinkRouter
+  readonly navigation: NavigationService
+  readonly attachments: AttachmentService
+  readonly operations: OperationsService
+  readonly logger: LoggerService
+  readonly graphSession: GraphSessionService
 }
 
 class LinkNavigationServiceImpl implements LinkNavigationService {
@@ -376,7 +373,7 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
 
   followDeepLink(
     options: { href: string; openInNewWindow: boolean },
-    host: Pick<LinkNavigationHost, 'beginIntent'>,
+    host: LinkNavigationHost,
   ): void {
     const { href, openInNewWindow } = options
     const { deepLinkRouter } = this.#deps

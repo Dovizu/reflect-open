@@ -30,7 +30,7 @@ export function EditorInputTraits(): null {
     if (!touchEditor) {
       return
     }
-    return whenEditorMounted({ logger }, editor, () => {
+    return whenEditorMounted(logger, editor, () => {
       const dom = editor.view.dom
       dom.setAttribute('autocapitalize', 'sentences')
       dom.setAttribute('autocorrect', 'on')

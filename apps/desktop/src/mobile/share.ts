@@ -1,4 +1,4 @@
-import type { AppServices } from '@reflect/app'
+import type { ShareService } from '@reflect/app'
 
 /**
  * Share a note through the OS share sheet (Plan 19, V1 parity) via the Web
@@ -13,9 +13,6 @@ import type { AppServices } from '@reflect/app'
  * where the note is open and its debounced buffer holds the user's latest
  * typing.
  */
-export async function shareNote(
-  { share }: Pick<AppServices, 'share'>,
-  path: string,
-): Promise<void> {
+export async function shareNote(share: ShareService, path: string): Promise<void> {
   await navigator.share(share.noteContent(path))
 }

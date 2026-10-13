@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
 import { createIndexQueryService } from '../indexing/index-query-service.ts'
 import { createNotePathService } from '../indexing/note-path-service.ts'
@@ -22,18 +22,18 @@ function setup(options?: { files?: Record<string, string>; indexed?: readonly Te
   const progress = createTestProgressPort()
   const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
   const indexStore = createTestIndexStoreService()
+  const moveIndexed = indexStore.moveIndexed.bind(indexStore)
+  // The native command moves the file along with its rows.
+  vi.spyOn(indexStore, 'moveIndexed').mockImplementation(async (from, to, fileGeneration) => {
+    await moveIndexed(from, to, fileGeneration)
+    const contents = noteFile.files().get(from)
+    if (contents !== undefined) {
+      noteFile.set(to, contents)
+      await noteFile.delete(from, fileGeneration)
+    }
+  })
   const noteMove = createTestNoteMoveService({
-    indexStore: {
-      // The native command moves the file along with its rows.
-      moveIndexed: async (from, to, fileGeneration) => {
-        await indexStore.moveIndexed(from, to, fileGeneration)
-        const contents = noteFile.files().get(from)
-        if (contents !== undefined) {
-          noteFile.set(to, contents)
-          await noteFile.delete(from, fileGeneration)
-        }
-      },
-    },
+    indexStore,
     openDocuments,
   })
   const graph = createTestGraphSessionService({ graph: { generation: 7 } })

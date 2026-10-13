@@ -113,7 +113,7 @@ export function MobileTasks(): ReactElement {
 
   const editTask = (task: OpenTask, options?: { autoFocus?: boolean; haptic?: boolean }): void => {
     if (options?.haptic !== false) {
-      hapticImpactLight({ haptics })
+      hapticImpactLight(haptics)
     }
     setAutoFocusEditor(options?.autoFocus === true)
     setEditingTask(task)
@@ -124,7 +124,7 @@ export function MobileTasks(): ReactElement {
   // visible, write it, then open its quick-edit sheet with the editor focused
   // so typing starts immediately.
   const onAdd = (target: InsertTaskTarget): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     setQuery('')
     void actions.insert(target).then((created) => {
       if (created !== null) {
@@ -134,7 +134,7 @@ export function MobileTasks(): ReactElement {
   }
 
   const archiveCompleted = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     actions.archive()
   }
 
@@ -164,7 +164,7 @@ export function MobileTasks(): ReactElement {
             edge="trailing"
             aria-label="Task filters"
             onClick={() => {
-              hapticImpactLight({ haptics })
+              hapticImpactLight(haptics)
               setFiltersOpen(true)
             }}
           >

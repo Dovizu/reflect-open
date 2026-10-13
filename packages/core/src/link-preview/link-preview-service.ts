@@ -42,17 +42,17 @@ export interface LinkPreviewServiceDeps {
   /**
    * Reads the note's live full markdown through the open-document registry.
    */
-  readonly noteDocuments: Pick<NoteDocumentService, 'readExisting'>
-  readonly privacy: Pick<PrivacyService, 'notePrivate' | 'cloudSafeLinkHref'>
+  readonly noteDocuments: NoteDocumentService
+  readonly privacy: PrivacyService
   /**
    * Fetches bounded page HTML and a bounded raster favicon, each from a privacy-authorized URL.
    */
-  readonly webFetch: Pick<WebFetchService, 'fetchLinkPreviewHtml' | 'fetchLinkPreviewIcon'>
+  readonly webFetch: WebFetchService
   /**
    * Parses and validates bounded display metadata from the fetched page. Needs a `DOMParser`.
    */
   readonly parseMetadata: typeof parseLinkPreviewMeta
-  readonly graphSession: Pick<GraphSessionService, 'getState'>
+  readonly graphSession: GraphSessionService
 }
 
 /**

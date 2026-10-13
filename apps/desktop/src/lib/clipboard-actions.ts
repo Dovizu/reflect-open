@@ -1,17 +1,13 @@
 import type { AppServices } from '@reflect/app'
 import { errorMessage, type CoreServices } from '@reflect/core'
 
-type NoteClipboardServices = Pick<CoreServices, 'noteActions' | 'graphSession'>
-
-type ClipboardAppServices = Pick<AppServices, 'clipboard' | 'operations'>
-
 /**
  * Put the note's deep link on the clipboard and confirm through the
  * operations status line. Never rejects; does nothing when no graph is open.
  */
 export async function copyNoteDeepLink(
-  { noteActions, graphSession }: NoteClipboardServices,
-  { clipboard, operations }: ClipboardAppServices,
+  { noteActions, graphSession }: CoreServices,
+  { clipboard, operations }: AppServices,
   path: string,
 ): Promise<void> {
   if (graphSession.getState().session === null) {
@@ -37,8 +33,8 @@ export async function copyNoteDeepLink(
  * the operations status line. Never rejects.
  */
 export async function copyNotePath(
-  { noteActions, graphSession }: NoteClipboardServices,
-  { clipboard, operations }: ClipboardAppServices,
+  { noteActions, graphSession }: CoreServices,
+  { clipboard, operations }: AppServices,
   path: string,
 ): Promise<void> {
   if (graphSession.getState().session === null) {
@@ -58,8 +54,8 @@ export async function copyNotePath(
  * failed copy gets its own failure line and never reads as a failed publish.
  */
 export async function publishGistAndCopyLink(
-  { gistPublish }: Pick<CoreServices, 'gistPublish'>,
-  { clipboard, operations }: ClipboardAppServices,
+  { gistPublish }: CoreServices,
+  { clipboard, operations }: AppServices,
   path: string,
 ): Promise<void> {
   const result = await gistPublish.publish(path)

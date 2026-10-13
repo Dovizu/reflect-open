@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
 import { ReflectError } from '../errors.ts'
 import type { IcloudScanOptions, IcloudSweepOutcome } from '../ipc/icloud-native-service.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
+import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createTestActivityPort, type TestActivityPort } from '../testing/shell.ts'
 import { createTestICloudNativeService, type TestICloudNativeService } from '../testing/sync.ts'
@@ -83,21 +85,25 @@ afterEach(() => {
  * A desktop service by default; `watch: true` is the mobile shape.
  */
 function service(overrides: { watch?: boolean } = {}) {
+  const indexLifecycle = createTestIndexLifecycleService()
+  vi.spyOn(indexLifecycle, 'applyChanges').mockImplementation(
+    async (changes, generation, canApply) => {
+      indexApplies.push({
+        paths: changes.map((change) => change.path),
+        generation,
+        canApply: canApply?.() ?? true,
+      })
+      return changes.length
+    },
+  )
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  vi.spyOn(openDocuments, 'dirtyPaths').mockImplementation(() => dirtyPaths)
   active = createICloudSyncService(
     {
       icloudNative: icloud,
       fileChanges,
-      indexLifecycle: {
-        applyChanges: async (changes, generation, canApply) => {
-          indexApplies.push({
-            paths: changes.map((change) => change.path),
-            generation,
-            canApply: canApply?.() ?? true,
-          })
-          return changes.length
-        },
-      },
-      openDocuments: { dirtyPaths: () => dirtyPaths },
+      indexLifecycle,
+      openDocuments,
       activity,
       clock,
       logger,

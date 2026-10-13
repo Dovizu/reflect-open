@@ -52,7 +52,7 @@ export const readNotesInput = z.object({
  */
 export interface ReadNoteDeps {
   readNote: (path: string) => Promise<string>
-  privacy: Pick<PrivacyService, 'cloudSafeNoteContent'>
+  privacy: PrivacyService
 }
 
 /**

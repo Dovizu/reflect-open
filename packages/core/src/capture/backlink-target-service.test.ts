@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
-import { createTestNoteFileService, type TestNoteFileService } from '../testing/index.ts'
+import {
+  createTestNoteCreationService,
+  createTestNoteFileService,
+  type TestNoteFileService,
+} from '../testing/index.ts'
 import {
   createBacklinkTargetService,
   type BacklinkTargetService,
@@ -16,8 +20,10 @@ beforeEach(() => {
   noteFile = createTestNoteFileService({
     files: { 'notes/links.md': '# Links\n', 'notes/links-2.md': '# Links\n' },
   })
+  const noteCreation = createTestNoteCreationService({ noteFile })
+  vi.spyOn(noteCreation, 'resolveOrCreateNoteWithTitle').mockImplementation(resolveOrCreateMock)
   backlinkTarget = createBacklinkTargetService({
-    noteCreation: { resolveOrCreateNoteWithTitle: resolveOrCreateMock },
+    noteCreation,
     noteFile,
   })
 })

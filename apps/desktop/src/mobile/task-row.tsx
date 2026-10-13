@@ -101,7 +101,7 @@ export function MobileTaskRow({
           revealed={revealed}
           className="bg-accent"
           onClick={() => {
-            hapticImpactLight({ haptics })
+            hapticImpactLight(haptics)
             onClose()
             onOpenNote()
           }}
@@ -113,7 +113,7 @@ export function MobileTaskRow({
           revealed={revealed}
           className="bg-destructive"
           onClick={() => {
-            hapticImpactLight({ haptics })
+            hapticImpactLight(haptics)
             onClose()
             onDelete()
           }}
@@ -144,7 +144,7 @@ export function MobileTaskRow({
           aria-label={task.checked ? `Reopen: ${label}` : `Complete: ${label}`}
           disabled={togglePending}
           onClick={() => {
-            hapticImpactLight({ haptics })
+            hapticImpactLight(haptics)
             onToggle()
           }}
           // A generous touch target around the small glyph; self-stretch keeps

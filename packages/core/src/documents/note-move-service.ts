@@ -18,10 +18,10 @@ const noteMovedSchema = z.object({ from: z.string(), to: z.string() })
 export type NoteMovedListener = (from: string, to: string) => void
 
 export interface NoteMoveServiceDeps {
-  readonly ipc: Pick<IpcBridgeService, 'listen'>
-  readonly indexStore: Pick<IndexStoreService, 'moveIndexed'>
-  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor' | 'retarget'>
-  readonly logger: Pick<LoggerService, 'error' | 'warn'>
+  readonly ipc: IpcBridgeService
+  readonly indexStore: IndexStoreService
+  readonly openDocuments: OpenDocumentsService
+  readonly logger: LoggerService
 }
 
 /**

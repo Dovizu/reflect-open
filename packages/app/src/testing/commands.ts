@@ -80,22 +80,19 @@ export interface TestNativeMenuServiceOptions {
   /**
    * Defaults to an empty registry.
    */
-  commands?: Pick<CommandService, 'list'>
+  commands?: CommandService
   /**
    * Defaults to a focused main window.
    */
-  window?: Pick<
-    WindowService,
-    'isMainWindow' | 'focusedWindowLabel' | 'emitTo' | 'subscribeWindowEvent'
-  >
+  window?: WindowService
   /**
    * Defaults to a macOS desktop native shell.
    */
-  platform?: Pick<PlatformFacts, 'isMacosDesktop' | 'isNativeShell'>
+  platform?: PlatformFacts
   /**
    * Defaults to a bridge that answers `menu_install_paste_and_match_style`.
    */
-  ipc?: Pick<IpcBridgeService, 'call'>
+  ipc?: IpcBridgeService
   logger?: LoggerService
 }
 

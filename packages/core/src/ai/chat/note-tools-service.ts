@@ -161,20 +161,14 @@ export interface DailyNoteQueries {
 }
 
 export interface NoteToolsServiceDeps {
-  readonly retrieval: Pick<RetrievalService, 'retrieve'>
-  readonly noteFile: Pick<NoteFileService, 'read'>
-  readonly noteList: Pick<NoteListService, 'listRecentNotes'>
+  readonly retrieval: RetrievalService
+  readonly noteFile: NoteFileService
+  readonly noteList: NoteListService
   readonly dailyNotes: DailyNoteQueries
-  readonly assetReferences: Pick<AssetReferences, 'notePaths'>
-  readonly assetPrivacy: Pick<AssetPrivacyService, 'classifyAssetFromNotes'>
-  readonly xArchive: Pick<XArchiveService, 'owners'>
-  readonly privacy: Pick<
-    PrivacyService,
-    | 'cloudSafeSearchHits'
-    | 'cloudSafeNoteListings'
-    | 'cloudSafeNoteContent'
-    | 'cloudSafeAssetDescription'
-  >
+  readonly assetReferences: AssetReferences
+  readonly assetPrivacy: AssetPrivacyService
+  readonly xArchive: XArchiveService
+  readonly privacy: PrivacyService
 }
 
 class NoteToolsServiceImpl implements NoteToolsService {

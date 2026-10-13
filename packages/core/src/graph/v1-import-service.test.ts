@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import type { GraphInfo, GraphImportSummary } from './schemas.ts'
@@ -39,26 +40,17 @@ function setup(options?: { graph?: GraphInfo | null }) {
   const fileChanges = createTestFileChangeService()
   const clock = createTestClockService({ now: 1_000 })
   const logger = createTestLoggerService()
-  let graph = options?.graph === undefined ? GRAPH : options.graph
+  const graphSession = createTestGraphSessionService({
+    graph: options?.graph === undefined ? GRAPH : options.graph,
+  })
   let refreshes = 0
+  vi.spyOn(graphSession, 'refreshIndex').mockImplementation(() => {
+    refreshes += 1
+  })
   const service = createV1ImportService({
     ipc,
     fileChanges,
-    graphSession: {
-      getState: () => ({
-        status: graph === null ? 'choosing' : 'ready',
-        graph,
-        indexGeneration: null,
-        indexing: false,
-        error: null,
-        recents: [],
-        session: null,
-        services: null,
-      }),
-      refreshIndex: () => {
-        refreshes += 1
-      },
-    },
+    graphSession,
     clock,
     logger,
   })
@@ -75,7 +67,7 @@ function setup(options?: { graph?: GraphInfo | null }) {
     states,
     refreshes: () => refreshes,
     setGraph: (next: GraphInfo | null) => {
-      graph = next
+      graphSession.setGraph(next)
     },
     commands: () => ipc.calls().map((call) => call.command),
   }

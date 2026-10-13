@@ -113,11 +113,11 @@ function resolveActiveSubscription(
 }
 
 export interface SubscriptionServiceDeps {
-  readonly iap: Pick<IapService, 'isOwned' | 'subscribePurchaseUpdated'>
-  readonly storage: Pick<StorageService, 'local'>
-  readonly clock: Pick<ClockService, 'now' | 'setTimeout' | 'clearTimeout' | 'sleep'>
-  readonly platform: Pick<PlatformFacts, 'appPlatform'>
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly iap: IapService
+  readonly storage: StorageService
+  readonly clock: ClockService
+  readonly platform: PlatformFacts
+  readonly logger: LoggerService
 }
 
 class SubscriptionServiceImpl implements SubscriptionService {

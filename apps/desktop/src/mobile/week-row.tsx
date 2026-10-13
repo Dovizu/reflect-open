@@ -72,7 +72,7 @@ function WeekRowComponent({
             aria-label={`${formatDayLabel(day, dateFormat)}${hasDailyNote ? ', has daily note' : ''}`}
             aria-current={selected ? 'date' : undefined}
             onClick={() => {
-              hapticImpactLight({ haptics })
+              hapticImpactLight(haptics)
               onSelect(day)
             }}
             className="relative flex flex-1 flex-col items-center gap-0.5 py-1"

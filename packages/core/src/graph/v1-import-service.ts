@@ -69,10 +69,10 @@ export interface V1ImportService {
 }
 
 export interface V1ImportServiceDeps {
-  readonly ipc: Pick<IpcBridgeService, 'call' | 'listen'>
-  readonly fileChanges: Pick<FileChangeService, 'reportOwnWrite'>
-  readonly graphSession: Pick<GraphSessionService, 'getState' | 'refreshIndex'>
-  readonly clock: Pick<ClockService, 'now'>
+  readonly ipc: IpcBridgeService
+  readonly fileChanges: FileChangeService
+  readonly graphSession: GraphSessionService
+  readonly clock: ClockService
   readonly logger: LoggerService
 }
 

@@ -133,14 +133,14 @@ export interface MobileOnboardingService {
 
 export interface MobileOnboardingServiceDeps {
   readonly mobileStorage: MobileStorageService
-  readonly settings: Pick<SettingsService, 'get' | 'update' | 'whenLoaded' | 'reload'>
+  readonly settings: SettingsService
   /**
    * The session's serialized open, and its 'choosing' state for a boot that opens nothing.
    */
-  readonly graphSession: Pick<GraphSessionService, 'openRecent' | 'park'>
-  readonly platform: Pick<PlatformFacts, 'appPlatform'>
-  readonly clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
-  readonly activity: Pick<ActivityPort, 'subscribeFocus' | 'subscribeVisible'>
+  readonly graphSession: GraphSessionService
+  readonly platform: PlatformFacts
+  readonly clock: ClockService
+  readonly activity: ActivityPort
   readonly logger: LoggerService
 }
 

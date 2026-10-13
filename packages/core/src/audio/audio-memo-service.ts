@@ -293,35 +293,24 @@ export interface AudioMemoSession {
 }
 
 export interface AudioMemoServiceDeps {
-  readonly assetStore: Pick<
-    AssetStoreService,
-    | 'uploadToPath'
-    | 'importAudioMemo'
-    | 'deleteAudioMemo'
-    | 'readBytes'
-    | 'readTranscriptCache'
-    | 'writeTranscriptCache'
-  >
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listDir' | 'listNotes'>
+  readonly assetStore: AssetStoreService
+  readonly noteFile: NoteFileService
   readonly backlinkTarget: BacklinkTargetService
   readonly transcription: TranscriptionService
-  readonly transcriptEnrichment: Pick<TranscriptEnrichmentService, 'enrich'>
-  readonly aiProviderConfig: Pick<
-    AiProviderConfigService,
-    'subscribe' | 'transcriptionConfig' | 'resolveTranscriptionTarget' | 'audioMemoEnrichmentConfig'
-  >
-  readonly aiCredentials: Pick<AiCredentialService, 'read' | 'createPassReader'>
+  readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly aiProviderConfig: AiProviderConfigService
+  readonly aiCredentials: AiCredentialService
   readonly audioRecorder: AudioRecorderService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
-  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
-  readonly settings: Pick<SettingsService, 'get'>
+  readonly activity: ActivityPort
+  readonly fileChanges: FileChangeService
+  readonly settings: SettingsService
   readonly progress: ProgressPort
-  readonly clock: Pick<ClockService, 'now'>
-  readonly platform: Pick<PlatformFacts, 'isMacosDesktop'>
+  readonly clock: ClockService
+  readonly platform: PlatformFacts
   readonly role: GraphRole
   readonly graphSession: GraphSessionSource
-  readonly logger: Pick<LoggerService, 'error'>
+  readonly logger: LoggerService
 }
 
 /**
@@ -365,18 +354,18 @@ interface LiveSession {
 /**
  * The settings path differs per OS.
  */
-function micDeniedMessage(platform: Pick<PlatformFacts, 'isMacosDesktop'>): string {
+function micDeniedMessage(platform: PlatformFacts): string {
   return platform.isMacosDesktop
     ? 'Microphone access was denied. Allow it in System Settings → Privacy & Security → Microphone.'
     : 'Microphone access was denied. Allow microphone access for Reflect in your system settings.'
 }
 
 interface AudioMemoPipelineDeps {
-  readonly aiProviderConfig: Pick<AiProviderConfigService, 'subscribe' | 'transcriptionConfig'>
+  readonly aiProviderConfig: AiProviderConfigService
   readonly progress: ProgressPort
-  readonly logger: Pick<LoggerService, 'error'>
-  readonly noteFile: Pick<NoteFileService, 'listDir'>
-  readonly assetStore: Pick<AssetStoreService, 'deleteAudioMemo'>
+  readonly logger: LoggerService
+  readonly noteFile: NoteFileService
+  readonly assetStore: AssetStoreService
   /**
    * The transcription lifecycle of the open graph's session, or `null` outside the main window.
    */
@@ -613,8 +602,8 @@ class AudioMemoPipelineImpl implements AudioMemoPipeline {
 
 interface AudioMemoSessionDeps {
   readonly audioRecorder: AudioRecorderService
-  readonly clock: Pick<ClockService, 'now'>
-  readonly platform: Pick<PlatformFacts, 'isMacosDesktop'>
+  readonly clock: ClockService
+  readonly platform: PlatformFacts
   readonly openPipeline: (options: AudioMemoPipelineOptions) => AudioMemoPipeline
 }
 

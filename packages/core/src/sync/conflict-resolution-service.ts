@@ -44,9 +44,9 @@ export interface ConflictMarkers {
  * The services a {@link ConflictResolutionService} runs on.
  */
 export interface ConflictResolutionServiceDeps {
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write'>
-  readonly indexLifecycle: Pick<IndexLifecycleService, 'indexNote'>
-  readonly fileChanges: Pick<FileChangeService, 'emit'>
+  readonly noteFile: NoteFileService
+  readonly indexLifecycle: IndexLifecycleService
+  readonly fileChanges: FileChangeService
   readonly graphSession: GraphSessionSource
 }
 

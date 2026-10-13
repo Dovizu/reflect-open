@@ -68,7 +68,7 @@ const syndicationPostSchema = z.unknown().transform((value): XPost | null => {
 })
 
 export interface XArchiveServiceDeps {
-  readonly ipc: Pick<IpcBridgeService, 'call'>
+  readonly ipc: IpcBridgeService
 }
 
 /**

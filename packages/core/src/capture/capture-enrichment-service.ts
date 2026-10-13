@@ -97,14 +97,14 @@ interface GenerateEnrichmentInput {
 }
 
 export interface CaptureEnrichmentServiceDeps {
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listNotes'>
-  readonly assetStore: Pick<AssetStoreService, 'readBase64' | 'writeBase64'>
-  readonly webFetch: Pick<WebFetchService, 'fetchLinkPreviewImage'>
+  readonly noteFile: NoteFileService
+  readonly assetStore: AssetStoreService
+  readonly webFetch: WebFetchService
   readonly pageMeta: PageMetaService
   readonly pageDescriber: PageDescriberService
-  readonly aiProviderConfig: Pick<AiProviderConfigService, 'defaultProvider'>
-  readonly aiCredentials: Pick<AiCredentialService, 'read'>
-  readonly privacy: Pick<PrivacyService, 'cloudSafeLinkHref'>
+  readonly aiProviderConfig: AiProviderConfigService
+  readonly aiCredentials: AiCredentialService
+  readonly privacy: PrivacyService
   readonly hash: HashService
 }
 

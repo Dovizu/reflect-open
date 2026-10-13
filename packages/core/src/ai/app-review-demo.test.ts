@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { AiProviderConfig } from '../settings/schema.ts'
 import { APP_REVIEW_STUB_KEY, createDemoModel, DEMO_REPLY_TEXT } from './app-review-demo.ts'
 import {
+  createTestDatabaseService,
   createTestHttpService,
   createTestLoggerService,
   createTestNoteFileService,
@@ -13,6 +14,7 @@ import {
 } from '../testing/index.ts'
 import { createAssetPrivacyService } from '../assets/asset-privacy-service.ts'
 import { createPrivacyService } from '../privacy/privacy-service.ts'
+import { createNoteListService } from '../indexing/note-list-service.ts'
 import { createNoteToolsService } from './chat/note-tools-service.ts'
 import { createChatEngineService, type ChatStreamEvent } from './chat/chat-engine-service.ts'
 import { fitToContextWindow } from './chat/context-window.ts'
@@ -60,7 +62,7 @@ describe('createDemoModel', () => {
       noteTools: createNoteToolsService({
         retrieval: createTestRetrievalService(),
         noteFile,
-        noteList: { listRecentNotes: async () => [] },
+        noteList: createNoteListService({ database: createTestDatabaseService() }),
         dailyNotes: { listDailyNotes: async () => [] },
         assetReferences,
         assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),

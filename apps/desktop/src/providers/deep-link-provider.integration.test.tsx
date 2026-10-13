@@ -12,16 +12,17 @@ import { DeepLinkProvider } from './deep-link-provider.tsx'
 describe('DeepLinkProvider navigation intent integration', () => {
   it('keeps a deferred note resolution current when a capture arrives', async () => {
     const pendingResolution = Promise.withResolvers<string>()
-    const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>(
-      () => pendingResolution.promise,
-    )
+    const { indexQuery } = createTestCoreServices()
+    const resolveNoteTarget = vi
+      .spyOn(indexQuery, 'resolveNoteTarget')
+      .mockImplementation(() => pendingResolution.promise)
     const captureInbox = createTestCaptureInboxService()
     const graphSession = createTestGraphSessionService()
     const app = createTestCoreServices({
       captureInbox,
       graphSession,
       deepLinkIntake: createTestDeepLinkIntakeService({
-        indexQuery: { resolveNoteTarget },
+        indexQuery,
         captureInbox,
         graphSession,
       }),

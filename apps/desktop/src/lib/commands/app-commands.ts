@@ -1,4 +1,4 @@
-import type { CoreServices } from '@reflect/core'
+import type { NoteCreationService } from '@reflect/core'
 import type { CommandService } from '@reflect/app'
 import { attachFilesToNote } from '@/lib/attach-files.ts'
 import { copyNoteDeepLink, copyNotePath, publishGistAndCopyLink } from '@/lib/clipboard-actions.ts'
@@ -16,8 +16,8 @@ import type { AppCommand, CommandContext } from './types.ts'
  * (the same contract as daily notes). Shared by ⌘N and the All Notes screen's
  * New note button so "what a new note is" stays one definition.
  */
-export function newNoteRoute(ctx: Pick<CoreServices, 'noteCreation'>): Route {
-  return { kind: 'note', path: ctx.noteCreation.untitledNotePath() }
+export function newNoteRoute(noteCreation: NoteCreationService): Route {
+  return { kind: 'note', path: noteCreation.untitledNotePath() }
 }
 
 /**
@@ -32,7 +32,7 @@ function openNewNote(context: CommandContext): void {
   if (route.kind === 'today' || route.kind === 'daily') {
     context.clearScrollState()
   }
-  context.navigate(newNoteRoute(context.services))
+  context.navigate(newNoteRoute(context.services.noteCreation))
 }
 
 const GRAPH_SWITCH_COMMANDS: AppCommand[] = Array.from({ length: 9 }, (_, index) => {

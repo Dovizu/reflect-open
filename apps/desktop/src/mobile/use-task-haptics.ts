@@ -24,7 +24,7 @@ export function useTaskCheckboxHaptics(): void {
       if (marker === null || marker.closest('[contenteditable="true"]') === null) {
         return
       }
-      hapticImpactLight({ haptics })
+      hapticImpactLight(haptics)
     }
     document.addEventListener('mousedown', onMouseDown, { capture: true })
     return () => document.removeEventListener('mousedown', onMouseDown, true)

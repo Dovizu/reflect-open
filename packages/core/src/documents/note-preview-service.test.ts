@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
-import type { ExistingWikiTargetResolution } from '../graph/note-link-resolver-service.ts'
+import type {
+  ExistingWikiTargetResolution,
+  NoteLinkResolverService,
+} from '../graph/note-link-resolver-service.ts'
 import type { FileMeta } from '../graph/schemas.ts'
 import {
   createTestAssetStoreService,
@@ -15,7 +18,7 @@ import {
   createTestPlatformService,
 } from '../testing/index.ts'
 import { createAttachmentService } from './attachment-service.ts'
-import { createNoteDocumentService } from './note-document-service.ts'
+import { createNoteDocumentService, type NoteDocumentService } from './note-document-service.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createNotePreviewService, type NotePreviewServiceDeps } from './note-preview-service.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
@@ -29,6 +32,30 @@ function openGraph() {
 
 function previewAssetUrl(generation: number, path: string): string {
   return `reflect-asset://localhost/${encodeURIComponent(`${generation}/${path}`)}?reflect-preview=raster`
+}
+
+/**
+ * A test link resolver whose `resolveWikiTarget` runs `resolve`.
+ */
+function resolverWith(
+  resolve: () => Promise<ExistingWikiTargetResolution>,
+): NoteLinkResolverService {
+  const noteLinkResolver = createTestNoteLinkResolverService()
+  vi.spyOn(noteLinkResolver, 'resolveWikiTarget').mockImplementation(resolve)
+  return noteLinkResolver
+}
+
+/**
+ * Real note documents whose `readExisting` runs `read`.
+ */
+function documentsWith(read: () => Promise<string>): NoteDocumentService {
+  const noteDocuments = createNoteDocumentService({
+    openDocuments: createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
+    noteFile: createTestNoteFileService(),
+    graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+  })
+  vi.spyOn(noteDocuments, 'readExisting').mockImplementation(read)
+  return noteDocuments
 }
 
 /**
@@ -120,13 +147,11 @@ describe('previewWikiTarget', () => {
     let reads = 0
     for (const resolution of resolutions) {
       const notePreview = notePreviewOver({
-        noteLinkResolver: { resolveWikiTarget: async () => resolution },
-        noteDocuments: {
-          readExisting: async () => {
-            reads += 1
-            return ''
-          },
-        },
+        noteLinkResolver: resolverWith(async () => resolution),
+        noteDocuments: documentsWith(async () => {
+          reads += 1
+          return ''
+        }),
       })
       await expect(notePreview.previewWikiTarget('Target')).resolves.toBeNull()
     }
@@ -135,23 +160,17 @@ describe('previewWikiTarget', () => {
 
   it('resolves null instead of rejecting when resolution or the read fails', async () => {
     const failingResolution = notePreviewOver({
-      noteLinkResolver: {
-        resolveWikiTarget: async () => {
-          throw new Error('index gone')
-        },
-      },
+      noteLinkResolver: resolverWith(async () => {
+        throw new Error('index gone')
+      }),
     })
     await expect(failingResolution.previewWikiTarget('Alpha')).resolves.toBeNull()
 
     const failingRead = notePreviewOver({
-      noteLinkResolver: {
-        resolveWikiTarget: async () => ({ kind: 'resolved', path: 'notes/alpha.md' }),
-      },
-      noteDocuments: {
-        readExisting: async () => {
-          throw new ReflectError('notFound', 'gone')
-        },
-      },
+      noteLinkResolver: resolverWith(async () => ({ kind: 'resolved', path: 'notes/alpha.md' })),
+      noteDocuments: documentsWith(async () => {
+        throw new ReflectError('notFound', 'gone')
+      }),
     })
     await expect(failingRead.previewWikiTarget('Alpha')).resolves.toBeNull()
   })
@@ -175,10 +194,11 @@ describe('previewWikiTarget', () => {
 
   it("resolves the target note's images and embeds from its own folder", async () => {
     const notePreview = createNotePreviewService({
-      noteLinkResolver: {
-        resolveWikiTarget: async () => ({ kind: 'resolved', path: 'Projects/Garden redesign.md' }),
-      },
-      noteDocuments: { readExisting: async () => '![[garden-budget.png]]' },
+      noteLinkResolver: resolverWith(async () => ({
+        kind: 'resolved',
+        path: 'Projects/Garden redesign.md',
+      })),
+      noteDocuments: documentsWith(async () => '![[garden-budget.png]]'),
       attachments: attachmentsOver(async () => []),
       graphSession: openGraph(),
     })

@@ -4,6 +4,7 @@ import type { FileChange } from '../indexing/file-change-service.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
 import { createTestHttpService, type TestHttpService } from '../testing/http.ts'
+import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createTestProgressPort } from '../testing/ports.ts'
 import {
@@ -222,28 +223,31 @@ function fakeServices(options: FakeOptions = {}) {
     })
   }
 
+  const indexLifecycle = createTestIndexLifecycleService()
+  vi.spyOn(indexLifecycle, 'applyChanges').mockImplementation(
+    async (changes, generation, canApply) => {
+      if (canApply?.() === false) {
+        return 0
+      }
+      record('applyChanges', { paths: changes.map((change) => change.path), generation })
+      indexApplyCount += 1
+      if (options.failIndexApply === true) {
+        throw new ReflectError('io', 'index write failed')
+      }
+      if (options.gateIndexApply === true && indexApplyCount === 1) {
+        await indexApplyGate.promise
+      }
+      return changes.length
+    },
+  )
+
   backupDeps = {
     git,
     syncEngines: createSyncEngineFactory({ git, clock }),
     githubAuth: createTestGithubAuthService({ secretStore, http, clock }),
     githubRepos: createGithubRepoService({ http }),
     fileChanges,
-    indexLifecycle: {
-      applyChanges: async (changes, generation, canApply) => {
-        if (canApply?.() === false) {
-          return 0
-        }
-        record('applyChanges', { paths: changes.map((change) => change.path), generation })
-        indexApplyCount += 1
-        if (options.failIndexApply === true) {
-          throw new ReflectError('io', 'index write failed')
-        }
-        if (options.gateIndexApply === true && indexApplyCount === 1) {
-          await indexApplyGate.promise
-        }
-        return changes.length
-      },
-    },
+    indexLifecycle,
     progress: createTestProgressPort(),
     activity,
     platform: createTestPlatformService({ surface: { mobileApp: options.mobile ?? false } }),

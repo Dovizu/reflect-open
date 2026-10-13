@@ -77,7 +77,7 @@ export interface BackupServiceDeps {
   /**
    * Applies the notes a pull changed.
    */
-  readonly indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
+  readonly indexLifecycle: IndexLifecycleService
   readonly progress: ProgressPort
   readonly activity: ActivityPort
   readonly platform: PlatformFacts

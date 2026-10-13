@@ -90,25 +90,19 @@ export interface ReconcileAudioMemosOutcome {
 }
 
 export interface AudioMemoTranscriptionServiceDeps {
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listDir' | 'listNotes'>
-  readonly assetStore: Pick<
-    AssetStoreService,
-    'readBytes' | 'readTranscriptCache' | 'writeTranscriptCache'
-  >
+  readonly noteFile: NoteFileService
+  readonly assetStore: AssetStoreService
   readonly backlinkTarget: BacklinkTargetService
   readonly transcription: TranscriptionService
-  readonly transcriptEnrichment: Pick<TranscriptEnrichmentService, 'enrich'>
-  readonly aiProviderConfig: Pick<
-    AiProviderConfigService,
-    'transcriptionConfig' | 'resolveTranscriptionTarget' | 'audioMemoEnrichmentConfig'
-  >
-  readonly aiCredentials: Pick<AiCredentialService, 'read' | 'createPassReader'>
-  readonly settings: Pick<SettingsService, 'get'>
+  readonly transcriptEnrichment: TranscriptEnrichmentService
+  readonly aiProviderConfig: AiProviderConfigService
+  readonly aiCredentials: AiCredentialService
+  readonly settings: SettingsService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
-  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly activity: ActivityPort
+  readonly fileChanges: FileChangeService
   readonly progress: ProgressPort
-  readonly clock: Pick<ClockService, 'now'>
+  readonly clock: ClockService
 }
 
 /**
@@ -274,11 +268,11 @@ type TranscribeSessionPartsOutcome =
   | { status: 'oversize' }
 
 interface AudioMemoTranscriptionSessionDeps {
-  readonly aiProviderConfig: Pick<AiProviderConfigService, 'transcriptionConfig'>
-  readonly settings: Pick<SettingsService, 'get'>
+  readonly aiProviderConfig: AiProviderConfigService
+  readonly settings: SettingsService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
-  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly activity: ActivityPort
+  readonly fileChanges: FileChangeService
   readonly progress: ProgressPort
   readonly reconcile: (input: ReconcileAudioMemosInput) => Promise<ReconcileAudioMemosOutcome>
 }

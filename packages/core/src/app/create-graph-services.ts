@@ -34,23 +34,23 @@ export interface GraphServicesDeps {
   /**
    * Opens the capture drain session.
    */
-  readonly capture: Pick<CaptureService, 'openSession'>
+  readonly capture: CaptureService
   /**
    * Opens the asset description session.
    */
-  readonly assetDescription: Pick<AssetDescriptionService, 'openSession'>
+  readonly assetDescription: AssetDescriptionService
   /**
    * Creates the chat session of every session.
    */
-  readonly chatSessions: Pick<ChatSessionService, 'create'>
+  readonly chatSessions: ChatSessionService
   /**
    * Watches the attachment catalog of every session.
    */
-  readonly attachments: Pick<AttachmentService, 'watchCatalog'>
+  readonly attachments: AttachmentService
   /**
    * Gives the iCloud download service the index refresh it calls after downloads land.
    */
-  readonly graphSession: Pick<GraphSessionService, 'refreshIndex'>
+  readonly graphSession: GraphSessionService
 }
 
 /**

@@ -56,30 +56,13 @@ export interface GraphBootService {
 }
 
 export interface GraphBootServiceDeps {
-  readonly graphSession: Pick<
-    GraphSessionService,
-    | 'getState'
-    | 'subscribe'
-    | 'attach'
-    | 'loadRecents'
-    | 'openRecent'
-    | 'createGraphAt'
-    | 'close'
-    | 'forgetRecent'
-    | 'deleteGraph'
-    | 'adopt'
-    | 'park'
-    | 'reportError'
-  >
-  readonly window: Pick<
-    WindowService,
-    'isMainWindow' | 'closeSecondaryWindows' | 'bootstrap' | 'subscribeNavigate'
-  >
-  readonly dialog: Pick<DialogService, 'pickFolder'>
-  readonly path: Pick<PathService, 'icloudDriveRoot'>
-  readonly platform: Pick<PlatformFacts, 'appPlatform' | 'isMacosDesktop'>
-  readonly deepLinkRouter: Pick<DeepLinkRouter, 'setInitialWindowRoute' | 'dispatch'>
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly graphSession: GraphSessionService
+  readonly window: WindowService
+  readonly dialog: DialogService
+  readonly path: PathService
+  readonly platform: PlatformFacts
+  readonly deepLinkRouter: DeepLinkRouter
+  readonly logger: LoggerService
 }
 
 class GraphBootServiceImpl implements GraphBootService {

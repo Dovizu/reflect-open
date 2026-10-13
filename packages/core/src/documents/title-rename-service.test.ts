@@ -121,18 +121,18 @@ function setup(options?: SetupOptions) {
     database,
     fail: (call) => (call.method === 'moveIndexed' ? options?.moveError : undefined),
   })
+  const moveIndexed = indexStore.moveIndexed.bind(indexStore)
+  // The native command moves the file along with its rows.
+  vi.spyOn(indexStore, 'moveIndexed').mockImplementation(async (from, to, fileGeneration) => {
+    await moveIndexed(from, to, fileGeneration)
+    const contents = noteFile.files().get(from)
+    if (contents !== undefined) {
+      noteFile.set(to, contents)
+      await noteFile.delete(from, fileGeneration)
+    }
+  })
   const noteMove = createTestNoteMoveService({
-    indexStore: {
-      // The native command moves the file along with its rows.
-      moveIndexed: async (from, to, fileGeneration) => {
-        await indexStore.moveIndexed(from, to, fileGeneration)
-        const contents = noteFile.files().get(from)
-        if (contents !== undefined) {
-          noteFile.set(to, contents)
-          await noteFile.delete(from, fileGeneration)
-        }
-      },
-    },
+    indexStore,
     openDocuments,
     logger,
   })

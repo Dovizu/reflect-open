@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   createPathService,
   createPosixPathTransport,
@@ -6,6 +6,7 @@ import {
   type WindowBootstrap,
 } from '@reflect/core'
 import {
+  createTestDeepLinkIntakeService,
   createTestFileChangeService,
   createTestGraphSessionService,
   createTestIndexLifecycleService,
@@ -16,6 +17,7 @@ import {
   createTestPlatformService,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
+import { createDeepLinkRouter } from '../navigation/deep-link-router.ts'
 import type { Route } from '../navigation/route.ts'
 import { createTestDialogService } from '../testing/dialog.ts'
 import { createTestWindowService } from '../testing/window.ts'
@@ -103,20 +105,24 @@ function setup(options?: SetupOptions) {
   const dialog = createTestDialogService()
   const routes: Route[] = []
   const dispatched: string[] = []
+  const deepLinkRouter = createDeepLinkRouter({
+    intake: createTestDeepLinkIntakeService(),
+    logger,
+    graphSession: session,
+  })
+  vi.spyOn(deepLinkRouter, 'setInitialWindowRoute').mockImplementation((route) => {
+    routes.push(route)
+  })
+  vi.spyOn(deepLinkRouter, 'dispatch').mockImplementation((url) => {
+    dispatched.push(url)
+  })
   const boot = createGraphBootService({
     graphSession: session,
     window,
     dialog,
     path: createPathService({ transport: createPosixPathTransport('/Users/me') }),
     platform: createTestPlatformService(options?.platform),
-    deepLinkRouter: {
-      setInitialWindowRoute: (route) => {
-        routes.push(route)
-      },
-      dispatch: (url) => {
-        dispatched.push(url)
-      },
-    },
+    deepLinkRouter,
     logger,
   })
   return {

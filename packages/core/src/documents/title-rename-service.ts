@@ -92,21 +92,18 @@ export interface TitleRenameService {
 }
 
 export interface TitleRenameServiceDeps {
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write'>
-  readonly wikiResolver: Pick<
-    WikiResolverService,
-    'resolveWikiTarget' | 'getLinkSources' | 'getPathLinkSources'
-  >
-  readonly backlinks: Pick<BacklinkService, 'getBacklinks'>
-  readonly notePath: Pick<NotePathService, 'slugPathForTitle'>
-  readonly noteMove: Pick<NoteMoveService, 'moveNote'>
-  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly noteFile: NoteFileService
+  readonly wikiResolver: WikiResolverService
+  readonly backlinks: BacklinkService
+  readonly notePath: NotePathService
+  readonly noteMove: NoteMoveService
+  readonly openDocuments: OpenDocumentsService
   readonly progress: ProgressPort
   /**
    * Runs each title tracker's quiet timer.
    */
   readonly clock: ClockService
-  readonly logger: Pick<LoggerService, 'error'>
+  readonly logger: LoggerService
   readonly graphSession: GraphSessionSource
 }
 

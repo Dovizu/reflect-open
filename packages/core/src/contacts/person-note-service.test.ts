@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   createTestDatabaseService,
   createTestNoteCreationService,
@@ -112,9 +112,11 @@ describe('resolvePerson', () => {
 
   it('blocks a unique owner without a safe wiki address', async () => {
     seedNotes(database, [personNote('notes/ada.md', 'Ada Lovelace', ['ada@example.com'])])
+    const wikiResolver = createWikiResolverService({ database })
+    vi.spyOn(wikiResolver, 'getWikiAddressForPath').mockResolvedValue(null)
     const unaddressable = createPersonNoteService({
       database,
-      wikiResolver: { getWikiAddressForPath: async () => null },
+      wikiResolver,
       noteCreation,
     })
 

@@ -110,8 +110,8 @@ export interface PersonNoteService {
 
 export interface PersonNoteServiceDeps {
   readonly database: DatabaseService
-  readonly wikiResolver: Pick<WikiResolverService, 'getWikiAddressForPath'>
-  readonly noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
+  readonly wikiResolver: WikiResolverService
+  readonly noteCreation: NoteCreationService
 }
 
 class PersonNoteServiceImpl implements PersonNoteService {

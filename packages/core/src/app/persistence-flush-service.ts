@@ -35,7 +35,7 @@ export interface PersistenceFlushService {
 
 export interface PersistenceFlushServiceDeps {
   readonly settings: SettingsService
-  readonly openDocuments: Pick<OpenDocumentsService, 'flushAll'>
+  readonly openDocuments: OpenDocumentsService
   readonly logger: LoggerService
 }
 

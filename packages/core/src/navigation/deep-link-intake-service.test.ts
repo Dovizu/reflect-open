@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { textCaptureEnvelopeSchema } from '../capture/capture-envelope.ts'
 import type { Unlisten } from '../unlisten.ts'
+import { createIndexQueryService } from '../indexing/index-query-service.ts'
 import { createTestCaptureInboxService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
+import { createTestDatabaseService } from '../testing/database.ts'
 import { createTestDeepLinkIntakeService, createTestDeepLinkSource } from '../testing/deep-link.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestProgressPort } from '../testing/ports.ts'
@@ -11,12 +13,13 @@ import type { DeepLinkIntakeServiceDeps } from './deep-link-intake-service.ts'
 function setup(overrides?: Partial<DeepLinkIntakeServiceDeps>) {
   const progress = createTestProgressPort()
   const captureInbox = createTestCaptureInboxService()
-  const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
+  const indexQuery = createIndexQueryService({ database: createTestDatabaseService() })
+  const resolveNoteTarget = vi.spyOn(indexQuery, 'resolveNoteTarget')
   const graphSession = createTestGraphSessionService({ graph: { generation: 3 } })
   const service = createTestDeepLinkIntakeService({
     progress,
     captureInbox,
-    indexQuery: { resolveNoteTarget },
+    indexQuery,
     graphSession,
     ...overrides,
   })
@@ -176,9 +179,9 @@ describe('DeepLinkIntakeService.resolve', () => {
   })
 
   it('surfaces a spool failure instead of claiming success', async () => {
-    const { resolve, progress } = setup({
-      captureInbox: { spool: () => Promise.reject(new Error('stale generation')) },
-    })
+    const captureInbox = createTestCaptureInboxService()
+    vi.spyOn(captureInbox, 'spool').mockRejectedValue(new Error('stale generation'))
+    const { resolve, progress } = setup({ captureInbox })
 
     await expect(resolve('reflect://append?text=milk')).resolves.toEqual({ kind: 'none' })
 

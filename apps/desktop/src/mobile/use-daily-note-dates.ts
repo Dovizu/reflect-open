@@ -9,7 +9,7 @@ export function useDailyNoteDates(start: string, end: string): ReadonlySet<strin
   const { graph } = useGraph()
   const { dailyNotes } = useCoreServices()
   const { data } = useQuery({
-    ...createDailyDatesQueryOptions({ dailyNotes }, graph?.root, start, end),
+    ...createDailyDatesQueryOptions(dailyNotes, graph?.root, start, end),
     enabled: graph !== null,
     placeholderData: keepPreviousData,
   })

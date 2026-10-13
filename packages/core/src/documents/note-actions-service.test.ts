@@ -3,7 +3,14 @@ import type { NoteFileService } from '../graph/note-file-service.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
-import type { IndexQueryService, NoteRow, PinnedNote } from '../indexing/index-query-service.ts'
+import {
+  createIndexQueryService,
+  type IndexQueryService,
+  type NoteRow,
+  type PinnedNote,
+} from '../indexing/index-query-service.ts'
+import { createTestDatabaseService } from '../testing/database.ts'
+import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
 import { createTestNoteSession, type TestNoteSessionOptions } from '../testing/documents.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import {
@@ -32,14 +39,36 @@ function createTestGraph(): TestGraphSessionService {
 }
 
 /**
+ * An index lifecycle whose `indexNote` only records its calls into `log`.
+ */
+function recordingIndexLifecycle(
+  log: { path: string; generation: number }[],
+): IndexLifecycleService {
+  const indexLifecycle = createTestIndexLifecycleService()
+  vi.spyOn(indexLifecycle, 'indexNote').mockImplementation(async (path, indexOptions) => {
+    log.push({ path, generation: indexOptions.generation })
+  })
+  return indexLifecycle
+}
+
+/**
+ * An index lifecycle whose `indexNote` runs `indexNote`.
+ */
+function indexLifecycleWith(indexNote: () => Promise<void>): IndexLifecycleService {
+  const indexLifecycle = createTestIndexLifecycleService()
+  vi.spyOn(indexLifecycle, 'indexNote').mockImplementation(indexNote)
+  return indexLifecycle
+}
+
+/**
  * The real service; without `indexLifecycle`, an indexer that only records its calls.
  */
 function createNoteActions(deps: {
   noteFile: NoteFileService
   sessions: readonly NoteSession[]
   progress?: ReturnType<typeof createTestProgressPort>
-  indexLifecycle?: Pick<IndexLifecycleService, 'indexNote'>
-  indexQuery?: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
+  indexLifecycle?: IndexLifecycleService
+  indexQuery?: IndexQueryService
   noteRows?: NoteRowService
   graph?: TestGraphSessionService
 }) {
@@ -58,15 +87,9 @@ function createNoteActions(deps: {
     }),
     noteFile,
     openDocuments,
-    indexLifecycle: deps.indexLifecycle ?? {
-      indexNote: async (path, indexOptions) => {
-        indexLog.push({ path, generation: indexOptions.generation })
-      },
-    },
-    indexQuery: deps.indexQuery ?? {
-      getPinnedNotes: async () => [],
-      getNote: async () => undefined,
-    },
+    indexLifecycle: deps.indexLifecycle ?? recordingIndexLifecycle(indexLog),
+    indexQuery:
+      deps.indexQuery ?? createIndexQueryService({ database: createTestDatabaseService() }),
     noteRows: deps.noteRows ?? createNoteRowService({ graphSession: graph }),
     progress: deps.progress ?? createTestProgressPort(),
     path: createPathService({ transport: createPosixPathTransport('/home/test') }),
@@ -101,19 +124,21 @@ function setup(options?: {
   const graph = createTestGraph()
   const noteRows = createNoteRowService({ graphSession: graph })
   const pinned = options?.pinned ?? []
+  const indexQuery = createIndexQueryService({ database: createTestDatabaseService() })
+  vi.spyOn(indexQuery, 'getPinnedNotes').mockImplementation(
+    typeof pinned === 'function' ? pinned : async () => [...pinned],
+  )
+  vi.spyOn(indexQuery, 'getNote').mockImplementation(async (path) => options?.rows?.[path])
   const { actions, openDocuments } = createNoteActions({
     noteFile: options?.wrapNoteFile?.(files) ?? files,
     sessions: session === null ? [] : [session],
     progress,
     noteRows,
     graph,
-    indexQuery: {
-      getPinnedNotes: typeof pinned === 'function' ? pinned : async () => [...pinned],
-      getNote: async (path) => options?.rows?.[path],
-    },
+    indexQuery,
     ...(options?.indexNote === undefined
       ? {}
-      : { indexLifecycle: { indexNote: options.indexNote } }),
+      : { indexLifecycle: indexLifecycleWith(options.indexNote) }),
   })
   return { actions, files, session, openDocuments, progress, noteRows, graph }
 }

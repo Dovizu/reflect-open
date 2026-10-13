@@ -40,7 +40,7 @@ export function DailyCaptureMenu(): ReactElement {
   }
 
   const toggleExpanded = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     setExpanded((current) => !current)
   }
 

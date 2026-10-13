@@ -45,7 +45,7 @@ export interface ShareService {
 }
 
 export interface ShareServiceDeps {
-  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly openDocuments: OpenDocumentsService
 }
 
 class ShareServiceImpl implements ShareService {

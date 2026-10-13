@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import { createTestAssetReferences } from '../testing/assets.ts'
 import { createTestXArchiveService } from '../testing/capture.ts'
@@ -33,16 +33,16 @@ function createPrivacy(
 beforeEach(() => {
   ownerCalls = []
   ownersError = null
+  const xArchive = createTestXArchiveService()
+  vi.spyOn(xArchive, 'owners').mockImplementation(async (assetPath, generation) => {
+    ownerCalls.push([assetPath, generation])
+    if (ownersError !== null) {
+      throw ownersError
+    }
+    return ['assets/x/post-123.json']
+  })
   privacy = createPrivacy({
-    xArchive: {
-      owners: async (assetPath, generation) => {
-        ownerCalls.push([assetPath, generation])
-        if (ownersError !== null) {
-          throw ownersError
-        }
-        return ['assets/x/post-123.json']
-      },
-    },
+    xArchive,
   })
 })
 
@@ -194,12 +194,10 @@ describe('classifyAsset (privacy gate)', () => {
   })
 
   it('fails closed when a referer cannot be read', async () => {
+    const noteFile = createTestNoteFileService()
+    vi.spyOn(noteFile, 'read').mockRejectedValue(new ReflectError('io', 'disk error'))
     const service = createPrivacy({
-      noteFile: {
-        read: async () => {
-          throw new ReflectError('io', 'disk error')
-        },
-      },
+      noteFile,
       assetReferences: createTestAssetReferences({ 'assets/a.png': ['notes/pub.md'] }),
     })
     expect(await service.classifyAsset('assets/a.png', GENERATION)).toBe('skip-private')

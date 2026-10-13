@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { ResolvedArchivedPost } from '@reflect/core'
+import type { EmbedMediaService, ResolvedArchivedPost } from '@reflect/core'
 import {
   createTestCoreServices,
   createTestPlatformService,
@@ -8,19 +8,19 @@ import {
   type TestXArchiveService,
 } from '@reflect/core/testing'
 import { invalidateXPostQueries, queryClient } from '@/lib/query-client.ts'
-import { createXPostResolver, getXPostResolver, type XPostContext } from './use-x-post-resolver.ts'
+import { createXPostResolver, getXPostResolver } from './use-x-post-resolver.ts'
 
 const platform = createTestPlatformService()
 const ROOT = '/graph'
 let xArchive: TestXArchiveService
 let app: TestCoreServices
-let ctx: XPostContext
+let ctx: EmbedMediaService
 
 beforeEach(() => {
   xArchive = createTestXArchiveService()
   app = createTestCoreServices({ xArchive, platform })
   app.graphSession.setGraph({ root: ROOT, generation: 7 })
-  ctx = { embedMedia: app.embedMedia }
+  ctx = app.embedMedia
 })
 
 afterEach(() => {

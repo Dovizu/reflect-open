@@ -101,7 +101,7 @@ export interface UpdateServiceDeps {
   readonly clock: ClockService
   readonly logger: LoggerService
   readonly platform: PlatformFacts
-  readonly window: Pick<WindowService, 'isMainWindow'>
+  readonly window: WindowService
 }
 
 /**
@@ -116,9 +116,7 @@ function errorMessage(error: unknown): string {
 /**
  * Runs the retry that matches the failure in `service`'s state.
  */
-export function retryUpdate(
-  service: Pick<UpdateService, 'getState' | 'install' | 'checkNow'>,
-): Promise<void> {
+export function retryUpdate(service: UpdateService): Promise<void> {
   const state = service.getState()
   return state.phase === 'error' && state.during === 'install'
     ? service.install()

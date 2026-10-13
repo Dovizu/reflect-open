@@ -72,10 +72,10 @@ export const readAssetsInput = z.object({
  */
 export interface ReadAssetDeps {
   readNote: (path: string) => Promise<string>
-  assetReferences: Pick<AssetReferences, 'notePaths'>
-  assetPrivacy: Pick<AssetPrivacyService, 'classifyAssetFromNotes'>
-  xArchive: Pick<XArchiveService, 'owners'>
-  privacy: Pick<PrivacyService, 'cloudSafeAssetDescription'>
+  assetReferences: AssetReferences
+  assetPrivacy: AssetPrivacyService
+  xArchive: XArchiveService
+  privacy: PrivacyService
 }
 
 /**

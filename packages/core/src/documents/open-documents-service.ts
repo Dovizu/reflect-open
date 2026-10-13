@@ -85,7 +85,7 @@ export interface OpenDocumentsService {
 }
 
 export interface OpenDocumentsServiceDeps {
-  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly fileChanges: FileChangeService
 }
 
 class OpenDocumentsServiceImpl implements OpenDocumentsService {

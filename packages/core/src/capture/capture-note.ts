@@ -136,7 +136,7 @@ export async function captureNoteSource(
 
 /** A note's source at `generation`, where "no note yet" reads as empty. */
 export async function noteSource(
-  noteFile: Pick<NoteFileService, 'read'>,
+  noteFile: NoteFileService,
   path: string,
   generation: number,
 ): Promise<string> {

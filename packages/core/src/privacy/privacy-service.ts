@@ -272,7 +272,7 @@ export function cloudSafeSelection(note: CloudSendable, selectedText: string): C
 }
 
 export interface PrivacyServiceDeps {
-  readonly noteFile: Pick<NoteFileService, 'read'>
+  readonly noteFile: NoteFileService
   readonly graphSession: GraphSessionSource
 }
 

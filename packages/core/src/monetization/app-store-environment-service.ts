@@ -55,9 +55,9 @@ export interface AppStoreEnvironmentService {
 const IDLE_STATE: AppStoreEnvironmentState = { value: null, isLoading: false, isError: false }
 
 export interface AppStoreEnvironmentServiceDeps {
-  readonly appStore: Pick<AppStoreService, 'environment'>
-  readonly storage: Pick<StorageService, 'local'>
-  readonly platform: Pick<PlatformFacts, 'appPlatform'>
+  readonly appStore: AppStoreService
+  readonly storage: StorageService
+  readonly platform: PlatformFacts
 }
 
 class AppStoreEnvironmentServiceImpl implements AppStoreEnvironmentService {

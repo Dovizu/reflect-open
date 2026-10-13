@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPersonNoteService, type PersonNoteService } from './person-note-service.ts'
 import {
   createMeetingService,
@@ -845,20 +845,18 @@ describe('attendeeSuggestions', () => {
   })
 
   it('drops daily notes from the suggestions', async () => {
-    const result = await meetingService({
-      suggestions: {
-        suggestWikiTargets: async () => [
-          {
-            target: '2026-07-01',
-            path: 'daily/2026-07-01.md',
-            title: '2026-07-01',
-            alias: null,
-            date: '2026-07-01',
-          },
-          { target: 'Grace', path: 'notes/grace.md', title: 'Grace', alias: null, date: null },
-        ],
+    const suggestions = createSuggestionService({ database })
+    vi.spyOn(suggestions, 'suggestWikiTargets').mockImplementation(async () => [
+      {
+        target: '2026-07-01',
+        path: 'daily/2026-07-01.md',
+        title: '2026-07-01',
+        alias: null,
+        date: '2026-07-01',
       },
-    }).attendeeSuggestions('gra', 6, false)
+      { target: 'Grace', path: 'notes/grace.md', title: 'Grace', alias: null, date: null },
+    ])
+    const result = await meetingService({ suggestions }).attendeeSuggestions('gra', 6, false)
 
     expect(result.suggestions.map((suggestion) => suggestion.title)).toEqual(['Grace'])
   })

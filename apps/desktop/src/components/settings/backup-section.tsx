@@ -59,7 +59,7 @@ export function BackupSettingsField(): ReactElement {
   const action = useAsyncAction()
 
   const conflicted = useQuery({
-    ...createConflictedNotesQueryOptions({ indexQuery }, graph?.root),
+    ...createConflictedNotesQueryOptions(indexQuery, graph?.root),
     enabled: graph !== null,
   })
   const conflictedNotes = conflicted.data ?? []
@@ -69,7 +69,7 @@ export function BackupSettingsField(): ReactElement {
   // note retitled differently on two devices. Surfaced for review beside the
   // marker conflicts; repair is the user's call, never automatic.
   const duplicateIds = useQuery({
-    ...createDuplicateNoteIdsQueryOptions({ indexQuery }, graph?.root),
+    ...createDuplicateNoteIdsQueryOptions(indexQuery, graph?.root),
     enabled: graph !== null,
   })
   const forkGroups = duplicateIds.data ?? []

@@ -82,8 +82,8 @@ composition roots build every service once and pass each one what it needs.
 - The factory returns `new XxxServiceImpl(deps)`. State lives in `#` fields of the
   class. Callers only see the interface.
 - `deps` is one object, stored in the `readonly #deps` field. It holds the other
-  services the service calls, usually narrowed with `Pick<>` to the methods it uses. A
-  service never imports another service's instance.
+  services the service calls, each typed as the full service. A service never
+  imports another service's instance.
 - Pure rules (path helpers, markdown transforms, grouping, formatting) stay plain
   exported functions next to the service. They take no `deps`.
 - The few pure functions that do need a service take it as a first parameter `ctx`
@@ -168,15 +168,15 @@ The services only a mobile platform builds (`haptics`, `subscription`, `paywall`
   Both hooks throw outside their provider. Do not add per-service hooks. The
   mobile tree uses `useMobileAppServices()` (`mobile/mobile-services.ts`), which adds
   `app.mobile` and throws when it is `null`.
-- **Non-React desktop modules** (`lib/`, `providers/*.ts`): the first parameter is
-  `ctx`, typed as the `Pick` of `CoreServices` the function uses (a second `Pick` of
-  `AppServices` when it needs both). The React caller
-  passes `useCoreServices()`:
+- **Non-React desktop modules** (`lib/`, `providers/*.ts`): the leading parameters
+  are the services the function uses, or the `CoreServices` container (and a second
+  `AppServices` one) when it uses three or more. The React caller passes the
+  services it reads from `useCoreServices()`:
 
   ```ts
   // apps/desktop/src/lib/query-options.ts
   export function createConflictedNotesQueryOptions(
-    ctx: Pick<CoreServices, 'indexQuery'>,
+    indexQuery: IndexQueryService,
     root: string | undefined,
   )
   ```

@@ -26,7 +26,7 @@ import { isSameTaskPath } from './task-path.ts'
  * Where the task functions report a locator that names several identical tasks.
  */
 export interface TaskLogContext {
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly logger: LoggerService
 }
 
 /** The task a caller addressed is not in the note anymore: the write is refused. */

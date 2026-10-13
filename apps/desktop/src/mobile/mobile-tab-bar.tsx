@@ -120,7 +120,7 @@ function TabButton({
       // V1 parity: a light haptic on every tab press, including the two taps
       // that make Daily's double-tap-to-today gesture.
       onClick={() => {
-        hapticImpactLight({ haptics })
+        hapticImpactLight(haptics)
         onClick()
       }}
       className={cn(

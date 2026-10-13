@@ -16,7 +16,7 @@ export function NewNoteButton(): ReactElement {
   return (
     <button
       type="button"
-      onClick={() => navigate(newNoteRoute({ noteCreation }))}
+      onClick={() => navigate(newNoteRoute(noteCreation))}
       className="flex items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-text-on-brand shadow-sm transition-colors duration-100 hover:bg-accent-hover"
     >
       New note

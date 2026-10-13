@@ -3,7 +3,10 @@ import { audioMemoIdentity } from './audio-memo.ts'
 import { aiKeySecretName, createAiCredentialService } from '../ai/ai-credential-service.ts'
 import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
-import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
+import {
+  createTranscriptEnrichmentService,
+  type TranscriptEnrichmentService,
+} from '../ai/transcript-enrichment-service.ts'
 import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
@@ -12,6 +15,7 @@ import {
   createTestAiKeyValidationService,
   createTestIdService,
   createTestAssetStoreService,
+  createTestLanguageModelService,
   createTestClockService,
   createTestFileChangeService,
   createTestActivityPort,
@@ -134,6 +138,10 @@ export async function createAudioMemoTestKit(
   const enrichMock = vi
     .fn<TranscriptEnrichmentService['enrich']>()
     .mockImplementation(async (input) => ({ title: 'Memo Transcript', body: input.transcript }))
+  const transcriptEnrichment = createTranscriptEnrichmentService({
+    languageModel: createTestLanguageModelService(),
+  })
+  vi.spyOn(transcriptEnrichment, 'enrich').mockImplementation(enrichMock)
   const ensureBacklinkTargetMock = vi
     .fn<BacklinkTargetService['ensure']>()
     .mockResolvedValue('Audio memos')
@@ -150,7 +158,7 @@ export async function createAudioMemoTestKit(
     assetStore,
     backlinkTarget: { ensure: ensureBacklinkTargetMock },
     transcription,
-    transcriptEnrichment: { enrich: enrichMock },
+    transcriptEnrichment,
     aiProviderConfig: createAiProviderConfigService({
       settings,
       credentials: aiCredentials,

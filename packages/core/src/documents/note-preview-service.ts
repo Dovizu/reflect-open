@@ -42,9 +42,9 @@ export interface NotePreviewService {
 }
 
 export interface NotePreviewServiceDeps {
-  readonly noteLinkResolver: Pick<NoteLinkResolverService, 'resolveWikiTarget'>
-  readonly noteDocuments: Pick<NoteDocumentService, 'readExisting'>
-  readonly attachments: Pick<AttachmentService, 'resolvePreviewImageUrl' | 'resolveWikiEmbed'>
+  readonly noteLinkResolver: NoteLinkResolverService
+  readonly noteDocuments: NoteDocumentService
+  readonly attachments: AttachmentService
   readonly graphSession: GraphSessionSource
 }
 

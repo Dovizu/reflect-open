@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createEmbedMediaService } from './embed-media-service.ts'
 import {
   createTestClockService,
@@ -214,18 +214,18 @@ describe('EmbedMediaService.resolveYouTubeVideo', () => {
     const requests: string[] = []
     const logger = createTestLoggerService()
     const clock = createTestClockService()
+    const webFetch = createTestWebFetchService()
+    vi.spyOn(webFetch, 'fetchOembed').mockImplementation(async (url) => {
+      requests.push(url)
+      const answer = answers.shift()
+      if (typeof answer !== 'string') {
+        // eslint-disable-next-line @typescript-eslint/only-throw-error -- the bridge rejects with a plain `AppError`
+        throw answer
+      }
+      return answer
+    })
     const embedMedia = createTestEmbedMedia({
-      webFetch: {
-        async fetchOembed(url) {
-          requests.push(url)
-          const answer = answers.shift()
-          if (typeof answer !== 'string') {
-            // eslint-disable-next-line @typescript-eslint/only-throw-error -- the bridge rejects with a plain `AppError`
-            throw answer
-          }
-          return answer
-        },
-      },
+      webFetch,
       clock,
       logger,
     })
