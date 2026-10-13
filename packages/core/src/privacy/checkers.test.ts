@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { describe, expect, it } from 'vitest'
 import type { RetrievalHit } from '../embeddings/retrieve.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
@@ -71,7 +72,13 @@ describe('isPrivateNoteError', () => {
 
 function setup(files: Record<string, string>) {
   const noteFile = createTestNoteFileService({ files })
-  return { noteFile, privacy: createPrivacyService({ noteFile }) }
+  return {
+    noteFile,
+    privacy: createPrivacyService({
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }),
+  }
 }
 
 describe('isPrivateLive', () => {

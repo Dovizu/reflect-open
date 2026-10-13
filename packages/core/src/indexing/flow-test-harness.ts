@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { expect } from 'vitest'
 import {
   createIndexReadServices,
@@ -57,6 +58,7 @@ export function connectIndex(database: TestDatabaseService): FlowIndex {
       noteFile,
       wikiResolver: indexReads.wikiResolver,
       id: createTestIdService(),
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
     }),
   }
 }

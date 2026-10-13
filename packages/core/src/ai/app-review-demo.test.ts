@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { isNotNullish } from '@ocavue/utils'
 import { generateText, streamText } from '@reflect/modules/ai'
 import { describe, expect, it } from 'vitest'
@@ -64,7 +65,10 @@ describe('createDemoModel', () => {
         assetReferences,
         assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),
         xArchive,
-        privacy: createPrivacyService({ noteFile }),
+        privacy: createPrivacyService({
+          noteFile,
+          graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+        }),
       }),
       fitToContextWindow,
     })
@@ -74,6 +78,7 @@ describe('createDemoModel', () => {
       messages: [{ role: 'user', content: 'What is in my notes?' }],
       today: '2026-08-14',
       semanticSearchEnabled: false,
+      generation: 1,
       customSystemPrompt: '',
       context: null,
     })

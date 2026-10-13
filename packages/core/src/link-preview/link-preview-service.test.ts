@@ -29,8 +29,12 @@ function setup(source: string) {
     noteDocuments: createNoteDocumentService({
       openDocuments: createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
       noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
     }),
-    privacy: createPrivacyService({ noteFile: createTestNoteFileService() }),
+    privacy: createPrivacyService({
+      noteFile: createTestNoteFileService(),
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }),
     webFetch,
     // The real parser needs a `DOMParser`.
     parseMetadata: () => ({ title: 'Example title', description: null, iconUrl: ICON }),

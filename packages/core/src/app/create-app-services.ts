@@ -1,3 +1,4 @@
+import type { GraphSessionSource } from './graph-session.ts'
 import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
 import {
   createAiKeyValidationService,
@@ -476,13 +477,14 @@ export function createNoteServices(deps: {
   noteFile: NoteFileService
   wikiResolver: WikiResolverService
   id: IdService
+  graphSession: GraphSessionSource
 }): NoteServices {
-  const { noteFile, wikiResolver, id } = deps
+  const { noteFile, wikiResolver, id, graphSession } = deps
   const noteLinkResolver = createNoteLinkResolverService({ wikiResolver, noteFile })
   return {
     noteLinkResolver,
     noteCreation: createNoteCreationService({ noteFile, noteLinkResolver, id }),
-    privacy: createPrivacyService({ noteFile }),
+    privacy: createPrivacyService({ noteFile, graphSession }),
   }
 }
 
@@ -823,7 +825,13 @@ export function composeAppServices(
     keyValidation: aiKeyValidation,
     id,
   })
-  const noteServices = create.noteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
+  const noteServices = create.noteServices({
+    noteFile,
+    wikiResolver: indexReads.wikiResolver,
+    id,
+    // Read at call time: the graph session is built later.
+    graphSession: { getState: () => graphSession.getState() },
+  })
   const calendar = create.calendar({ ipc, logger })
   const contacts = create.contacts({ ipc, logger })
   const personNotes = create.personNotes({
@@ -833,7 +841,12 @@ export function composeAppServices(
   })
   const path = create.path({ transport: adapters.path })
   const mobileStorage = create.mobileStorage({ ipc })
-  const noteDocuments = create.noteDocuments({ openDocuments, noteFile })
+  const noteDocuments = create.noteDocuments({
+    openDocuments,
+    noteFile,
+    // Read at call time: the graph session is built later.
+    graphSession: { getState: () => graphSession.getState() },
+  })
   const noteMove = create.noteMove({ ipc, indexStore, openDocuments, logger })
   const captureInbox = create.captureInbox({ ipc })
   const webFetch = create.webFetch({ ipc })

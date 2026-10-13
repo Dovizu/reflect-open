@@ -427,6 +427,7 @@ class ChatSessionImpl implements ChatSession {
         // A stray enabled flag must lose to the runtime here.
         semanticSearchEnabled:
           settings.get().semanticSearchEnabled && embeddingRuntime.lastStatus().status === 'ready',
+        generation: this.#graph.generation,
         customSystemPrompt,
         context,
         signal: controller.signal,

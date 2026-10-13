@@ -4,6 +4,7 @@ import {
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
 import { createGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createNoteDocumentService, NoteBusyError } from '../documents/note-document-service.ts'
 import {
   isSameTaskPath,
@@ -90,7 +91,11 @@ beforeEach(() => {
   logger = createTestLoggerService()
   tasks = createTaskService({
     database,
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments: createNoteDocumentService({
+      openDocuments,
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+    }),
     operations,
     clock,
     logger,
@@ -559,7 +564,11 @@ describe('no graph open', () => {
     noteFile.set('notes/a.md', '+ [ ] do it\n')
     const closed = createTaskService({
       database,
-      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+      noteDocuments: createNoteDocumentService({
+        openDocuments,
+        noteFile,
+        graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+      }),
       operations,
       clock,
       logger,
@@ -581,7 +590,11 @@ describe('no graph open', () => {
     )
     const switching = createTaskService({
       database,
-      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+      noteDocuments: createNoteDocumentService({
+        openDocuments,
+        noteFile,
+        graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+      }),
       operations,
       clock,
       logger,
@@ -656,7 +669,11 @@ describe('recently completed', () => {
     tasks.markRecentlyCompleted('/g', [a])
     const other = createTaskService({
       database,
-      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+      noteDocuments: createNoteDocumentService({
+        openDocuments,
+        noteFile,
+        graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+      }),
       operations,
       clock,
       logger,

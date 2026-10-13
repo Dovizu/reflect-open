@@ -109,7 +109,9 @@ class TemplateServiceImpl implements TemplateService {
   }
 
   async templateBody(path: string): Promise<string> {
-    return splitFrontmatter(await this.#deps.noteFile.read(path)).body
+    const { noteFile, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    return splitFrontmatter(await noteFile.read(path, generation)).body
   }
 
   async insertTemplate(path: string, editor: TemplateInsertTarget | null): Promise<void> {

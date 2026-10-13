@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { describe, expect, it, vi } from 'vitest'
 import type { XPostEnvelope } from './bookmark-envelope.ts'
 import type { TextCaptureEnvelope } from './capture-envelope.ts'
@@ -80,7 +81,10 @@ function setup(options: { mobile?: boolean } = {}) {
       id: createTestIdService(),
     }),
     aiCredentials: createAiCredentialService({ secretStore: createTestSecretStoreService() }),
-    privacy: createPrivacyService({ noteFile }),
+    privacy: createPrivacyService({
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }),
     hash: createTestHashService(),
     clock: createTestClockService(),
     reconcilers: createBackgroundReconcilerFactory({ lifecycle }),

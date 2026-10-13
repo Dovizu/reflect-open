@@ -1,3 +1,4 @@
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import {
   composeAppServices,
   createIndexReadServices,
@@ -132,6 +133,7 @@ function createTestNoteServices(deps: {
   noteFile: NoteFileService
   wikiResolver: WikiResolverService
   id: IdService
+  graphSession: GraphSessionSource
 }) {
   const noteLinkResolver = createTestNoteLinkResolverService(deps)
   return {

@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../../testing/graph-session.ts'
 import { describe, expect, it } from 'vitest'
 import { ReflectError } from '../../errors.ts'
 import type { ToolExecutionOptions } from '@reflect/modules/ai'
@@ -65,8 +66,11 @@ function buildNoteTools(effects: ToolEffects = {}): NoteTools {
     assetReferences,
     assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),
     xArchive,
-    privacy: createPrivacyService({ noteFile }),
-  }).build({ semanticSearchEnabled: effects.semanticSearchEnabled ?? true })
+    privacy: createPrivacyService({
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }),
+  }).build({ semanticSearchEnabled: effects.semanticSearchEnabled ?? true, generation: 1 })
 }
 
 const CALL: ToolExecutionOptions<Record<string, unknown>> = {

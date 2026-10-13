@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../../testing/graph-session.ts'
 import type { LanguageModel, ModelMessage } from '@reflect/modules/ai'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { convertArrayToReadableStream, MockLanguageModelV3 } from '@reflect/modules/ai/test'
@@ -71,7 +72,10 @@ function createNoteTools(effects?: {
     assetReferences,
     assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),
     xArchive,
-    privacy: createPrivacyService({ noteFile }),
+    privacy: createPrivacyService({
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }),
   })
 }
 
@@ -82,7 +86,7 @@ function tools(effects?: {
   retrieveFn?: () => Promise<RetrievalHit[]>
   readNoteFn?: (path: string) => Promise<string>
 }): NoteTools {
-  return createNoteTools(effects).build({ semanticSearchEnabled: true })
+  return createNoteTools(effects).build({ semanticSearchEnabled: true, generation: 1 })
 }
 
 const USAGE: LanguageModelV3Usage = {
@@ -184,6 +188,7 @@ describe('ChatEngineService.streamTurn', () => {
         messages: [{ role: 'user', content: 'hello' }],
         today: '2026-09-04',
         semanticSearchEnabled: false,
+        generation: 1,
         customSystemPrompt: '',
         context: null,
         signal: controller.signal,
@@ -203,6 +208,7 @@ describe('ChatEngineService.streamTurn', () => {
       messages: [{ role: 'user' as const, content: 'hello' }],
       today: '2026-09-04',
       semanticSearchEnabled: false,
+      generation: 1,
       customSystemPrompt: '',
       context: null,
     }
@@ -236,6 +242,7 @@ describe('ChatEngineService.streamTurn', () => {
         messages,
         today: '2026-06-11',
         semanticSearchEnabled: true,
+        generation: 1,
         customSystemPrompt,
         context: null,
       }),
