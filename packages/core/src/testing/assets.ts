@@ -1,12 +1,5 @@
-import type {
-  AssetDescriptionService,
-  AssetDescriptionSession,
-  AssetDescriptionSessionOptions,
-  ReconcileAssetDescriptionsInput,
-  ReconcileAssetDescriptionsOutcome,
-} from '../assets/asset-description-service.ts'
+import type { AssetDescriptionService } from '../assets/asset-description-service.ts'
 import type { AssetReferences } from '../indexing/asset-refs.ts'
-import type { Unlisten } from '../unlisten.ts'
 
 export interface TestAssetReferences extends AssetReferences {
   /**
@@ -41,143 +34,49 @@ export function createTestAssetReferences(
   return new TestAssetReferencesImpl(references)
 }
 
-/**
- * What happened to one session a {@link TestAssetDescriptionService} opened.
- */
-export interface TestAssetDescriptionSessionState {
+export interface AssetDescriptionSessionRecord {
   generation: number
   indexGeneration: number | null
-  /**
-   * How many times `start()` ran.
-   */
   starts: number
-  /**
-   * How many times `schedule()` ran.
-   */
   schedules: number
   disposed: boolean
 }
 
-export interface TestAssetDescriptionService extends AssetDescriptionService {
-  /**
-   * Every session opened, in order.
-   */
-  sessions(): readonly TestAssetDescriptionSessionState[]
-  /**
-   * The input of every `reconcile` call, in order.
-   */
-  reconciles(): readonly ReconcileAssetDescriptionsInput[]
-  /**
-   * How many times `backfillVisibly` ran.
-   */
-  backfills(): number
-  /**
-   * Notify every `onDescriptionsIndexed` listener.
-   */
-  emitDescriptionsIndexed(): void
-}
-
-class TestAssetDescriptionSessionImpl implements AssetDescriptionSession {
-  readonly #state: TestAssetDescriptionSessionState
-
-  constructor(state: TestAssetDescriptionSessionState) {
-    this.#state = state
-  }
-
-  start(): void {
-    this.#state.starts += 1
-  }
-
-  schedule(): void {
-    this.#state.schedules += 1
-  }
-
-  dispose(): void {
-    this.#state.disposed = true
-  }
-}
-
-class TestAssetDescriptionServiceImpl implements TestAssetDescriptionService {
-  readonly #states: TestAssetDescriptionSessionState[] = []
-  readonly #reconcileLog: ReconcileAssetDescriptionsInput[] = []
-  readonly #listeners = new Set<() => void>()
-  #backfillCount = 0
-
-  async reconcile(
-    input: ReconcileAssetDescriptionsInput,
-  ): Promise<ReconcileAssetDescriptionsOutcome> {
-    this.#reconcileLog.push(input)
-    return emptyOutcome()
-  }
-
-  openSession({
-    generation,
-    indexGeneration,
-  }: AssetDescriptionSessionOptions): AssetDescriptionSession {
-    const state: TestAssetDescriptionSessionState = {
-      generation,
-      indexGeneration,
+/**
+ * Records each session that `service` opens: its options and how often it was
+ * started, scheduled, and disposed. Returns a snapshot of the sessions so far.
+ */
+export function trackAssetDescriptionSessions(
+  service: AssetDescriptionService,
+): () => AssetDescriptionSessionRecord[] {
+  const records: AssetDescriptionSessionRecord[] = []
+  const open = service.openSession.bind(service)
+  service.openSession = (options) => {
+    const session = open(options)
+    const record = {
+      generation: options.generation,
+      indexGeneration: options.indexGeneration,
       starts: 0,
       schedules: 0,
       disposed: false,
     }
-    this.#states.push(state)
-    return new TestAssetDescriptionSessionImpl(state)
-  }
-
-  async backfillVisibly(): Promise<ReconcileAssetDescriptionsOutcome> {
-    this.#backfillCount += 1
-    return emptyOutcome()
-  }
-
-  onDescriptionsIndexed(listener: () => void): Unlisten {
-    const deliver = (): void => {
-      listener()
+    records.push(record)
+    const start = session.start.bind(session)
+    const schedule = session.schedule.bind(session)
+    const dispose = session.dispose.bind(session)
+    session.start = () => {
+      record.starts += 1
+      start()
     }
-    this.#listeners.add(deliver)
-    return () => {
-      this.#listeners.delete(deliver)
+    session.schedule = () => {
+      record.schedules += 1
+      schedule()
     }
-  }
-
-  sessions(): readonly TestAssetDescriptionSessionState[] {
-    return this.#states.map((state) => ({ ...state }))
-  }
-
-  reconciles(): readonly ReconcileAssetDescriptionsInput[] {
-    return [...this.#reconcileLog]
-  }
-
-  backfills(): number {
-    return this.#backfillCount
-  }
-
-  emitDescriptionsIndexed(): void {
-    for (const listener of this.#listeners) {
-      listener()
+    session.dispose = () => {
+      record.disposed = true
+      dispose()
     }
+    return session
   }
-}
-
-function emptyOutcome(): ReconcileAssetDescriptionsOutcome {
-  return {
-    pending: 0,
-    described: 0,
-    skippedUpToDate: 0,
-    skippedUnreferenced: 0,
-    skippedPrivate: 0,
-    skippedUserAuthored: 0,
-    skippedOversize: 0,
-    refused: 0,
-    describedAssetPaths: [],
-    stopped: null,
-  }
-}
-
-/**
- * An {@link AssetDescriptionService} that only records its calls: no pass
- * ever runs, and `reconcile` and `backfillVisibly` answer an empty outcome.
- */
-export function createTestAssetDescriptionService(): TestAssetDescriptionService {
-  return new TestAssetDescriptionServiceImpl()
+  return () => records.map((record) => ({ ...record }))
 }

@@ -5,14 +5,12 @@ import type {
   ClassicSignInOptions,
   ClassicSignInResult,
 } from '../classic/classic-access-service.ts'
-import type { IapProduct } from '../ipc/iap-plugin.ts'
 import type { Unlisten } from '../unlisten.ts'
 import type {
   AppStoreEnvironment,
   AppStoreEnvironmentService,
   AppStoreEnvironmentState,
 } from '../monetization/app-store-environment-service.ts'
-import type { PaywallGate, PaywallService } from '../monetization/paywall-service.ts'
 import type {
   ActiveSubscription,
   SubscriptionService,
@@ -241,81 +239,4 @@ export function createTestAppStoreEnvironmentService(
   env: AppStoreEnvironment = 'Production',
 ): TestAppStoreEnvironmentService {
   return new TestAppStoreEnvironmentServiceImpl(env)
-}
-
-export type PaywallAction =
-  | { kind: 'products' }
-  | { kind: 'purchase'; productId: string }
-  | { kind: 'restore' }
-  | { kind: 'redeemCode' }
-
-export interface TestPaywallService extends PaywallService {
-  /**
-   * Changes the gate and notifies subscribers.
-   */
-  setGate(gate: PaywallGate): void
-  /**
-   * Every action, in order.
-   */
-  actions(): readonly PaywallAction[]
-}
-
-class TestPaywallServiceImpl implements TestPaywallService {
-  #current: PaywallGate
-  #requested = false
-  readonly #log: PaywallAction[] = []
-  readonly #listeners = new Listeners()
-
-  constructor(gate: PaywallGate) {
-    this.#current = gate
-  }
-
-  readonly gate = (): PaywallGate => this.#current
-
-  readonly subscribe = this.#listeners.subscribe
-
-  readonly requested = (): boolean => this.#requested
-
-  readonly setRequested = (next: boolean): void => {
-    if (next === this.#requested) return
-    this.#requested = next
-    this.#listeners.notify()
-  }
-
-  products(): Promise<IapProduct[]> {
-    this.#log.push({ kind: 'products' })
-    return Promise.resolve([])
-  }
-
-  purchase(productId: string): Promise<void> {
-    this.#log.push({ kind: 'purchase', productId })
-    return Promise.resolve()
-  }
-
-  restore(): Promise<ActiveSubscription> {
-    this.#log.push({ kind: 'restore' })
-    return Promise.resolve(null)
-  }
-
-  redeemCode(): Promise<void> {
-    this.#log.push({ kind: 'redeemCode' })
-    return Promise.resolve()
-  }
-
-  setGate(next: PaywallGate): void {
-    this.#current = next
-    this.#listeners.notify()
-  }
-
-  actions(): readonly PaywallAction[] {
-    return [...this.#log]
-  }
-}
-
-/**
- * A {@link PaywallService} whose gate is `gate` until `setGate`. Products are
- * empty, actions resolve at once, and `restore` finds nothing.
- */
-export function createTestPaywallService(gate: PaywallGate = 'hide'): TestPaywallService {
-  return new TestPaywallServiceImpl(gate)
 }

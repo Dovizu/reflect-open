@@ -1,12 +1,11 @@
-import type { GraphRole, GraphSession, GraphSessionSource } from '../app/graph-session.ts'
+import { createWebCryptoHashService } from '../app/hash-service.ts'
+import type { GraphRole, GraphSession } from '../app/graph-session.ts'
 import {
   composeCoreServices,
-  createIndexReadServices,
   type CoreAdapters,
   type CoreServices,
   type CoreInternalServices,
   type MobileServices,
-  type NoteServices,
   type ServiceFactories,
 } from '../app/create-core-services.ts'
 import {
@@ -19,11 +18,7 @@ import { createPosixPathTransport } from '../app/path-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import { isICloudRoot } from '../sync/icloud-sync-service.ts'
-import { createPrivacyService } from '../privacy/privacy-service.ts'
-import type { IdService } from '../app/id-service.ts'
 import type { ActivityPort, ProgressPort } from '../app/ports.ts'
-import type { NoteFileService } from '../graph/note-file-service.ts'
-import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import type { BackupService } from '../sync/backup-service.ts'
 import {
   createTestAiKeyValidationService,
@@ -32,8 +27,6 @@ import {
   createTestPageDescriberService,
   createTestTranscriptionService,
 } from './ai.ts'
-import { createTestAgentSkillService } from './agent-skill.ts'
-import { createTestAssetDescriptionService } from './assets.ts'
 import { createTestAttachmentService } from './attachments.ts'
 import { createTestAudioRecorderService } from './audio-recorder.ts'
 import { createTestCalendarService } from './calendar.ts'
@@ -68,7 +61,7 @@ import {
 } from './graph.ts'
 import { createTestGraphSessionService } from './graph-session.ts'
 import { createTestHttpService } from './http.ts'
-import { createTestHashService, createTestIdService } from './id.ts'
+import { createTestIdService } from './id.ts'
 import { createTestImageCodec } from './image-codec.ts'
 import { createTestIndexLifecycleService } from './index-lifecycle.ts'
 import { createTestIndexStoreService } from './index-store.ts'
@@ -78,7 +71,6 @@ import { createTestMobileStorageService } from './mobile-storage.ts'
 import {
   createTestAppStoreEnvironmentService,
   createTestClassicAccessService,
-  createTestPaywallService,
   createTestSubscriptionService,
 } from './monetization.ts'
 import { createTestPersistenceFlushService } from './persistence-flush.ts'
@@ -153,7 +145,7 @@ function createTestEdgeServices() {
     logger: createTestLoggerService(),
     clock: createTestClockService(),
     id: createTestIdService(),
-    hash: createTestHashService(),
+    hash: createWebCryptoHashService(),
     http: createTestHttpService(),
     imageCodec: createTestImageCodec(),
     activity: createTestActivityPort(),
@@ -164,40 +156,9 @@ function createTestEdgeServices() {
 type TestEdgeServices = ReturnType<typeof createTestEdgeServices>
 
 /**
- * {@link createNoteServices} with doubles that record each resolution and creation.
- */
-function createTestNoteServices(deps: {
-  noteFile: NoteFileService
-  wikiResolver: WikiResolverService
-  id: IdService
-  graphSession: GraphSessionSource
-}) {
-  const noteLinkResolver = createTestNoteLinkResolverService(deps)
-  return {
-    noteLinkResolver,
-    noteCreation: createTestNoteCreationService({ ...deps, noteLinkResolver }),
-    privacy: createPrivacyService(deps),
-  } satisfies NoteServices
-}
-
-/**
  * The services whose test double is not the real service: in-memory, scripted, or recording.
  */
 function createTestServiceFactories(overrides: TestCoreServiceOverrides | undefined) {
-  /**
-   * Puts the overrides of a group's members in place of the built ones.
-   */
-  function withOverrides<Group extends object>(group: Group): Group {
-    const result = { ...group } as Record<string, unknown>
-    for (const key of Object.keys(group)) {
-      const service = overrides?.[key as keyof TestCoreServiceOverrides]
-      if (service !== undefined) {
-        result[key] = service
-      }
-    }
-    return result as Group
-  }
-
   return {
     database: () => createTestDatabaseService(),
     settings: ({ progress }) => createTestSettingsService({}, { progress }),
@@ -210,21 +171,20 @@ function createTestServiceFactories(overrides: TestCoreServiceOverrides | undefi
     iap: () => createTestIapService(),
     appStore: () => createTestAppStoreService(),
     subscription: () => createTestSubscriptionService(),
-    appStoreEnvironment: () => createTestAppStoreEnvironmentService(),
+    // A sandbox install keeps the paywall hidden until a test asks for it.
+    appStoreEnvironment: () => createTestAppStoreEnvironmentService('Sandbox'),
     haptics: () => createTestHapticsService(),
-    paywall: () => createTestPaywallService(),
-    mobile: ({ build }) => build(),
     noteFile: () => createTestNoteFileService(),
     assetStore: () => createTestAssetStoreService(),
-    indexReads: (deps) => withOverrides(createIndexReadServices(deps)),
     indexStore: () => createTestIndexStoreService(),
     xArchive: () => createTestXArchiveService(),
     aiKeyValidation: () => createTestAiKeyValidationService(),
     languageModel: () => createTestLanguageModelService(),
-    noteServices: (deps) => withOverrides(createTestNoteServices(deps)),
     calendar: () => createTestCalendarService(),
     contacts: () => createTestContactsService(),
     mobileStorage: () => createTestMobileStorageService(),
+    noteLinkResolver: (deps) => createTestNoteLinkResolverService(deps),
+    noteCreation: (deps) => createTestNoteCreationService(deps),
     noteMove: (deps) => createTestNoteMoveService(deps),
     captureInbox: () => createTestCaptureInboxService(),
     deepLinkIntake: (deps) => createTestDeepLinkIntakeService(deps),
@@ -250,10 +210,8 @@ function createTestServiceFactories(overrides: TestCoreServiceOverrides | undefi
     chatEngine: () => createTestChatEngineService(),
     chatGraphContext: () => createTestChatGraphContextService(),
     appInfo: () => createTestAppInfoService(),
-    agentSkill: () => createTestAgentSkillService(),
     semanticSearch: (deps) => createTestSemanticSearchService(deps),
     capture: () => createTestCaptureService(),
-    assetDescription: () => createTestAssetDescriptionService(),
   } satisfies Partial<ServiceFactories>
 }
 
@@ -273,14 +231,12 @@ type Built<Factories> = {
  */
 type Override<Base, Narrow> = Omit<Base, keyof Narrow> & Narrow
 
-type MobileKey = 'iap' | 'appStore' | 'subscription' | 'appStoreEnvironment' | 'haptics' | 'paywall'
-
 /**
  * {@link MobileServices} where each service with a test double is that double.
  */
 export type TestMobileServices = Override<
   MobileServices,
-  Pick<Built<TestServiceFactories>, 'haptics' | 'subscription' | 'appStoreEnvironment' | 'paywall'>
+  Pick<Built<TestServiceFactories>, 'haptics' | 'subscription' | 'appStoreEnvironment'>
 >
 
 /**
@@ -289,8 +245,7 @@ export type TestMobileServices = Override<
  */
 export type TestCoreServices = Override<
   CoreServices & CoreInternalServices,
-  Omit<Built<TestServiceFactories>, MobileKey | 'mobile' | 'indexReads' | 'noteServices'> &
-    Built<TestServiceFactories>['noteServices'] &
+  Built<TestServiceFactories> &
     TestEdgeServices & {
       readonly ipc: TestIpcBridgeService
       readonly mobile: TestMobileServices
@@ -304,17 +259,13 @@ export type TestCoreServices = Override<
  */
 const TEST_ADAPTER_KEYS = new Set(['backup', 'progress', 'role', 'createGraphServices'])
 
-type TestAdapterKey = 'backup' | 'createGraphServices'
-
 /**
  * {@link createCoreServices} over test adapters, with the test double of each
  * service that has one and `overrides` in place of the matching services.
  */
 export function createTestCoreServices<
   Overrides extends TestCoreServiceOverrides = Record<never, never>,
->(
-  overrides?: Overrides & TestCoreServiceOverrides,
-): Omit<TestCoreServices, keyof Overrides> & Omit<Overrides, TestAdapterKey> {
+>(overrides?: Overrides & TestCoreServiceOverrides): TestCoreServices & NoInfer<Overrides> {
   const defaults = createTestEdgeServices()
   const edge = { ...defaults, ...overrides }
   const platform = edge.platform ?? createTestPlatformService()
@@ -349,15 +300,16 @@ export function createTestCoreServices<
       fixed[key] = () => service
     }
   }
-  const { services, internal } = composeCoreServices(adapters, {
-    ...createTestServiceFactories(overrides),
-    ...(fixed as Partial<ServiceFactories>),
-  })
+  const { services, internal } = composeCoreServices(
+    adapters,
+    { ...createTestServiceFactories(overrides), ...(fixed as Partial<ServiceFactories>) },
+    { alwaysBuildMobile: true },
+  )
   return {
     ...services,
     ...internal,
     activity: adapters.activity,
     progress: edge.progress,
     role: adapters.role,
-  } as Omit<TestCoreServices, keyof Overrides> & Omit<Overrides, TestAdapterKey>
+  } as TestCoreServices & Overrides
 }

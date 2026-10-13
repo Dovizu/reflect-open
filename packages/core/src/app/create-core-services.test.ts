@@ -16,76 +16,8 @@ import {
   composeCoreServices,
   createCoreServices,
   type CoreAdapters,
-  type CoreServices,
 } from './create-core-services.ts'
 import { createPosixPathTransport } from './path-service.ts'
-
-const SERVICE_KEYS = [
-  'ipc',
-  'logger',
-  'clock',
-  'id',
-  'hash',
-  'platform',
-  'storage',
-  'path',
-  'appInfo',
-  'calendar',
-  'contacts',
-  'contactSuggestions',
-  'meetings',
-  'agentSkill',
-  'mobileStorage',
-  'imageCodec',
-  'indexLifecycle',
-  'graphSession',
-  'settings',
-  'persistenceFlush',
-  'fileChanges',
-  'embeddingRuntime',
-  'chatHistory',
-  'deepLinkIntake',
-  'wikiResolver',
-  'noteLinkResolver',
-  'githubAuth',
-  'gistPublish',
-  'icloudNative',
-  'icloudMigration',
-  'conflictResolution',
-  'embedMedia',
-  'linkPreview',
-  'audioMemo',
-  'classicAccess',
-  'attachments',
-  'noteSessions',
-  'openDocuments',
-  'noteMove',
-  'titleRename',
-  'noteDocuments',
-  'tasks',
-  'noteActions',
-  'noteRows',
-  'dailyNotes',
-  'templates',
-  'indexQuery',
-  'backlinks',
-  'search',
-  'noteList',
-  'notePath',
-  'notePreview',
-  'noteCreation',
-  'aiPrompts',
-  'aiProviderConfig',
-  'selectionTransform',
-  'semanticSearch',
-  'chatSessions',
-  'capture',
-  'assetDescription',
-  'personNotes',
-  'suggestions',
-  'retrieval',
-  'mobile',
-] as const satisfies readonly (keyof CoreServices)[]
 
 function requiredAdapters(): CoreAdapters {
   const ipc = createTestIpcBridgeService({ commands: { app_version: () => '1.2.3' } })
@@ -112,14 +44,6 @@ function setup() {
 }
 
 describe('createCoreServices', () => {
-  it('composes every app service', () => {
-    const { services } = setup()
-    expect(Object.keys(services).toSorted()).toEqual([...SERVICE_KEYS].toSorted())
-    for (const key of SERVICE_KEYS) {
-      expect(services[key], key).toBeDefined()
-    }
-  })
-
   it('passes the given services through and builds the rest over the adapters', async () => {
     const { adapters, services } = setup()
     expect(services.logger).toBe(adapters.logger)

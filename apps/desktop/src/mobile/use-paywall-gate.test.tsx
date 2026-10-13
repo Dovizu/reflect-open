@@ -33,12 +33,12 @@ function iosServices() {
 describe('usePaywallGate', () => {
   it('follows the paywall service gate', async () => {
     const services = iosServices()
-    services.mobile.paywall.setGate('show')
+    services.mobile.appStoreEnvironment.setState({ value: 'Production' })
     const { result, act } = await renderHookInApp(() => usePaywallGate(), { app: services })
     expect(result.current).toBe('show')
 
     await act(() => {
-      services.mobile.paywall.setGate('hide')
+      services.mobile.appStoreEnvironment.setState({ value: 'Sandbox' })
     })
     expect(result.current).toBe('hide')
   })

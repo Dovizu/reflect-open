@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createTestIpcBridgeService, createTestSecretStoreService } from '../testing/index.ts'
+import { createTestIpcBridgeService } from '../testing/index.ts'
 
 import { createSecretStoreService } from './secret-store-service.ts'
 describe('createSecretStoreService', () => {
@@ -48,30 +48,5 @@ describe('createSecretStoreService', () => {
       kind: 'io',
       message: 'keychain locked',
     })
-  })
-})
-describe('createTestSecretStoreService', () => {
-  it('starts from the initial secrets', async () => {
-    const store = createTestSecretStoreService({ a: '1' })
-    await expect(store.get('a')).resolves.toBe('1')
-    await expect(store.get('missing')).resolves.toBeNull()
-  })
-
-  it('replaces and deletes secrets', async () => {
-    const store = createTestSecretStoreService({ a: '1' })
-    await store.set('a', '2')
-    await store.set('b', '3')
-    await store.delete('b')
-    await store.delete('missing')
-
-    expect(store.snapshot()).toEqual({ a: '2' })
-  })
-
-  it('keeps the initial record unchanged', async () => {
-    const initial = { a: '1' }
-    const store = createTestSecretStoreService(initial)
-    await store.set('a', '2')
-
-    expect(initial).toEqual({ a: '1' })
   })
 })

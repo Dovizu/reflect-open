@@ -6,7 +6,6 @@ import {
   type TestStorageService,
 } from '@reflect/core/testing'
 import type { Settings } from '@reflect/core'
-import { createTestThemeService } from '../testing/theme.ts'
 import { createThemeService, THEME_PREFERENCE_CACHE_KEY } from './theme-service.ts'
 
 function setup(stored: Partial<Settings> = {}, options: { gateLoad?: boolean } = {}) {
@@ -130,20 +129,5 @@ describe('createThemeService', () => {
     unsubscribe()
     theme.setPreference('dark')
     expect(calls).toBe(0)
-  })
-})
-describe('createTestThemeService', () => {
-  it('starts settled and lets tests choose the resolved theme', () => {
-    const theme = createTestThemeService()
-    expect(theme.settled()).toBe(true)
-    expect(theme.resolved()).toBe('light')
-    let calls = 0
-    theme.subscribe(() => {
-      calls += 1
-    })
-    theme.setResolved('dark')
-    expect(theme.preference()).toBe('system')
-    expect(theme.resolved()).toBe('dark')
-    expect(calls).toBe(1)
   })
 })

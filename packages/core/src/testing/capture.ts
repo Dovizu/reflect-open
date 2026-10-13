@@ -34,12 +34,6 @@ export interface TestCaptureInboxService extends CaptureInboxService {
   spooled(): readonly { name: string; json: string; generation: number }[]
   removed(): readonly string[]
   rejected(): readonly string[]
-  promoted(): readonly {
-    spoolName: string
-    assetPath: string
-    maxDim: number
-    generation: number
-  }[]
   hostRegistrations(): number
 }
 
@@ -54,12 +48,6 @@ class TestCaptureInboxServiceImpl implements TestCaptureInboxService {
   readonly #spoolLog: { name: string; json: string; generation: number }[] = []
   readonly #removeLog: string[] = []
   readonly #rejectLog: string[] = []
-  readonly #promoteLog: {
-    spoolName: string
-    assetPath: string
-    maxDim: number
-    generation: number
-  }[] = []
   #registrations = 0
 
   constructor(options?: {
@@ -118,16 +106,10 @@ class TestCaptureInboxServiceImpl implements TestCaptureInboxService {
     return moved
   }
 
-  async promoteScreenshot(
-    spoolName: string,
-    assetPath: string,
-    maxDim: number,
-    generation: number,
-  ): Promise<void> {
+  async promoteScreenshot(spoolName: string): Promise<void> {
     if (!this.#inbox.has(spoolName)) {
       throw notFound(`${INBOX_DIR}/${spoolName}`)
     }
-    this.#promoteLog.push({ spoolName, assetPath, maxDim, generation })
   }
 
   add(name: string, contents: unknown, options?: { modifiedMs?: number }): void {
@@ -151,15 +133,6 @@ class TestCaptureInboxServiceImpl implements TestCaptureInboxService {
 
   rejected(): readonly string[] {
     return [...this.#rejectLog]
-  }
-
-  promoted(): readonly {
-    spoolName: string
-    assetPath: string
-    maxDim: number
-    generation: number
-  }[] {
-    return [...this.#promoteLog]
   }
 
   hostRegistrations(): number {

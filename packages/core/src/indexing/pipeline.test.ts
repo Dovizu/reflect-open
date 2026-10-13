@@ -1,3 +1,4 @@
+import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { parseNote } from '../markdown/index.ts'
 import { createTestXArchiveService } from '../testing/capture.ts'
@@ -5,7 +6,6 @@ import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
-import { createTestHashService } from '../testing/id.ts'
 import {
   createTestIndexStoreService,
   type IndexStoreCall,
@@ -30,7 +30,7 @@ const DEFAULT_SCAN = {
   stalePlaceholders: [],
 }
 
-const hash = createTestHashService()
+const hash = createWebCryptoHashService()
 const databases: { close(): void }[] = []
 
 afterEach(() => {

@@ -1,3 +1,4 @@
+import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
 import type { AppPlatform } from '../app/platform.ts'
@@ -6,7 +7,6 @@ import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
-import { createTestHashService } from '../testing/id.ts'
 import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
 import {
   createTestIndexStoreService,
@@ -129,7 +129,7 @@ function setup(options?: {
     indexQuery: createIndexQueryService({ database }),
     database,
     xArchive: createTestXArchiveService(),
-    hash: createTestHashService(),
+    hash: createWebCryptoHashService(),
     clock,
     logger,
     progress: operations,

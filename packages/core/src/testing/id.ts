@@ -1,4 +1,3 @@
-import { createWebCryptoHashService, type HashService } from '../app/hash-service.ts'
 import type { IdService, PkcePair } from '../app/id-service.ts'
 
 const CROCKFORD = '0123456789abcdefghjkmnpqrstvwxyz'
@@ -76,36 +75,4 @@ class TestIdServiceImpl implements TestIdService {
  */
 export function createTestIdService(options?: { seed?: string }): TestIdService {
   return new TestIdServiceImpl(seedNumber(options?.seed ?? ''))
-}
-
-export interface TestHashService extends HashService {
-  /**
-   * Every input passed to `sha256Hex()`, in call order.
-   */
-  hashed(): readonly string[]
-}
-
-/**
- * Forwards to the real Web Crypto hash and records each input.
- */
-class TestHashServiceImpl implements TestHashService {
-  readonly #inner: HashService = createWebCryptoHashService()
-  readonly #hashed: string[] = []
-
-  async sha256Hex(text: string): Promise<string> {
-    this.#hashed.push(text)
-    return await this.#inner.sha256Hex(text)
-  }
-
-  hashed(): readonly string[] {
-    // FIXME: is TestHashService.hashed() ever called? If not, remove createTestHashService and TestHashServiceImpl and TestHashService. Furthermore, do we need every createTestXXXService()? is we can just re-use the real services in tests, we should do that instead of creating test versions that provide no additional value. Check every API in TestXXXService and remove the ones that are not used in tests.
-    return [...this.#hashed]
-  }
-}
-
-/**
- * The real Web Crypto hash, which is deterministic, plus call recording.
- */
-export function createTestHashService(): TestHashService {
-  return new TestHashServiceImpl()
 }

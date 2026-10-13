@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cloudSafeLinkHref } from '../privacy/checkers.ts'
-import { createTestIpcBridgeService, createTestWebFetchService } from '../testing/index.ts'
+import { createTestIpcBridgeService } from '../testing/index.ts'
 import { createWebFetchService } from './web-fetch-service.ts'
 
 function publicUrl(url: string) {
@@ -108,35 +108,5 @@ describe('createWebFetchService', () => {
     await expect(
       webFetch.fetchLinkPreviewIcon(publicUrl('https://x.test/icon')),
     ).rejects.toMatchObject({ kind: 'parse' })
-  })
-})
-describe('createTestWebFetchService', () => {
-  it('answers from per-URL tables and records each request', async () => {
-    const url = publicUrl('https://x.test/a')
-    const webFetch = createTestWebFetchService({
-      html: { [url]: '<title>A</title>' },
-      oembed: { [url]: '{}' },
-      icon: { [url]: 'data:image/png;base64,AAAA' },
-    })
-
-    await expect(webFetch.fetchMeta(url)).resolves.toBe('<title>A</title>')
-    await expect(webFetch.fetchLinkPreviewHtml(url)).resolves.toEqual({
-      html: '<title>A</title>',
-      finalUrl: url,
-    })
-    await expect(webFetch.fetchOembed(url)).resolves.toBe('{}')
-    await expect(webFetch.fetchLinkPreviewIcon(url)).resolves.toBe('data:image/png;base64,AAAA')
-    await expect(webFetch.fetchLinkPreviewImage(url)).resolves.toBeNull()
-    const missing = publicUrl('https://x.test/missing')
-    await expect(webFetch.fetchMeta(missing)).rejects.toMatchObject({ kind: 'notFound' })
-
-    expect(webFetch.requests()).toEqual([
-      { kind: 'meta', url },
-      { kind: 'html', url },
-      { kind: 'oembed', url },
-      { kind: 'icon', url },
-      { kind: 'image', url },
-      { kind: 'meta', url: missing },
-    ])
   })
 })

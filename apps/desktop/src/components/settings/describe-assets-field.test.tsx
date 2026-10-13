@@ -1,7 +1,6 @@
 import { page } from 'vitest/browser'
 import { describe, expect, it, vi } from 'vitest'
 import type { Settings } from '@reflect/core'
-import type { TestCoreServices } from '@reflect/core/testing'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { DescribeAssetsField } from './describe-assets-field.tsx'
 
@@ -12,7 +11,7 @@ const PROVIDER = {
   keyHint: 'wxyz1',
 }
 
-async function renderField(settings?: Partial<Settings>): Promise<TestCoreServices> {
+async function renderField(settings?: Partial<Settings>) {
   const { app } = await renderInApp(<DescribeAssetsField />, {
     graph: { generation: 5 },
     settings: {
@@ -22,12 +21,12 @@ async function renderField(settings?: Partial<Settings>): Promise<TestCoreServic
       ...settings,
     },
   })
-  return app
+  return { app, backfill: vi.spyOn(app.assetDescription, 'backfillVisibly') }
 }
 
 describe('DescribeAssetsField', () => {
   it('reflects and toggles the automatic OCR setting', async () => {
-    const app = await renderField()
+    const { app } = await renderField()
     const toggle = page.getByRole('switch', { name: /ocr new assets automatically/i })
     await expect.element(toggle).toHaveAttribute('aria-checked', 'true')
     await toggle.click()
@@ -41,21 +40,21 @@ describe('DescribeAssetsField', () => {
   })
 
   it('confirms the cost before running the backfill, then runs it', async () => {
-    const app = await renderField()
+    const { backfill } = await renderField()
     await page.getByRole('button', { name: /backfill assets/i }).click()
 
     // The cost warning appears; nothing is sent until the user confirms.
     await expect.element(page.getByText(/backfill assets\?/i)).toBeInTheDocument()
-    expect(app.assetDescription.backfills()).toBe(0)
+    expect(backfill).toHaveBeenCalledTimes(0)
 
     await page.getByRole('button', { name: /^backfill assets$/i }).click()
-    expect(app.assetDescription.backfills()).toBe(1)
+    expect(backfill).toHaveBeenCalledTimes(1)
   })
 
   it('cancels without sending anything', async () => {
-    const app = await renderField()
+    const { backfill } = await renderField()
     await page.getByRole('button', { name: /backfill assets/i }).click()
     await page.getByRole('button', { name: /cancel/i }).click()
-    expect(app.assetDescription.backfills()).toBe(0)
+    expect(backfill).toHaveBeenCalledTimes(0)
   })
 })

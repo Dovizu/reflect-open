@@ -6,7 +6,6 @@ import {
 } from '@reflect/core/testing'
 import type { OperationsService } from '../app/operations-service.ts'
 import { createPlatformService, type PlatformService } from '../app/platform-service.ts'
-import { createGraphBootService } from '../graph/graph-boot-service.ts'
 import { createThemeService } from '../settings/theme-service.ts'
 import { createTestDialogService, type TestDialogService } from './dialog.ts'
 import {
@@ -19,8 +18,6 @@ import { createTestClipboardService, type TestClipboardService } from './clipboa
 import { createTestNativeMenuHost } from './commands.ts'
 import { createTestOpenerService, type TestOpenerService } from './opener.ts'
 import { createLinkNavigationService } from '../navigation/link-navigation-service.ts'
-import { createTestExceptionTelemetry } from './exception-telemetry.ts'
-import { createDeepLinkRouter } from '../navigation/deep-link-router.ts'
 import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
 import { createTestLifecycleService, type TestLifecycleService } from './lifecycle.ts'
 import { createTestOperationsService } from './operations.ts'
@@ -99,13 +96,12 @@ export function createTestAppServices(
   const lifecycle =
     overrides.lifecycle ??
     createTestLifecycleService(activity === undefined ? undefined : { activity })
-  const deepLinkRouter =
-    overrides.deepLinkRouter ??
-    createDeepLinkRouter({
-      intake: core.deepLinkIntake,
-      logger: core.logger,
-      graphSession: core.graphSession,
-    })
+  const app = createAppServices(core, {
+    ...createTestAppHost({ window, dialog, operations, clipboard, lifecycle }),
+    updater: createTestUpdaterAdapter(),
+    nativeMenu: createTestNativeMenuHost(),
+  })
+  const deepLinkRouter = overrides.deepLinkRouter ?? app.deepLinkRouter
   const mobileOnboarding =
     overrides.mobileOnboarding ??
     createTestMobileOnboardingService({
@@ -134,22 +130,8 @@ export function createTestAppServices(
       graphSession: core.graphSession,
     })
   return {
-    ...createAppServices(core, {
-      ...createTestAppHost({ window, dialog, operations, clipboard, lifecycle }),
-      exceptionTelemetry: createTestExceptionTelemetry(),
-      updater: createTestUpdaterAdapter(),
-      nativeMenu: createTestNativeMenuHost(),
-    }),
+    ...app,
     theme: createThemeService({ settings: core.settings, storage: core.storage, platform }),
-    graphBoot: createGraphBootService({
-      graphSession: core.graphSession,
-      window,
-      dialog,
-      path: core.path,
-      platform: core.platform,
-      deepLinkRouter,
-      logger: core.logger,
-    }),
     ...overrides,
     window,
     dialog,

@@ -3,12 +3,7 @@
  * returns an in-memory implementation of the matching service interface plus
  * observation helpers. Apps import this module in tests only.
  */
-export {
-  createTestHashService,
-  createTestIdService,
-  type TestHashService,
-  type TestIdService,
-} from './id.ts'
+export { createTestIdService, type TestIdService } from './id.ts'
 export { createTestLoggerService, type LogEntry, type TestLoggerService } from './logger.ts'
 export { createTestClockService, type TestClockService } from './clock.ts'
 export {
@@ -92,7 +87,6 @@ export {
   type TestChatHistoryServiceOptions,
   type TestChatTurnScript,
 } from './chat.ts'
-export { createTestAgentSkillService, type TestAgentSkillService } from './agent-skill.ts'
 export {
   createTestMobileStorageService,
   type TestMobileStorageService,
@@ -105,10 +99,8 @@ export {
   type TestImageSize,
 } from './image-codec.ts'
 export {
-  createTestAssetDescriptionService,
   createTestAssetReferences,
-  type TestAssetDescriptionService,
-  type TestAssetDescriptionSessionState,
+  trackAssetDescriptionSessions,
   type TestAssetReferences,
 } from './assets.ts'
 export {
@@ -255,14 +247,11 @@ export {
 export {
   createTestAppStoreEnvironmentService,
   createTestClassicAccessService,
-  createTestPaywallService,
   createTestSubscriptionService,
   type AppStoreEnvironmentCall,
   type ClassicAccessCall,
-  type PaywallAction,
   type SubscriptionCall,
   type TestAppStoreEnvironmentService,
   type TestClassicAccessService,
-  type TestPaywallService,
   type TestSubscriptionService,
 } from './monetization.ts'

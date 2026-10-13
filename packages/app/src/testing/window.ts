@@ -43,10 +43,6 @@ export interface TestWindowService extends WindowService {
   emitWindowEvent(event: string, payload: unknown): void
   emitted(): readonly { label: string; event: string; payload: unknown }[]
   setFocusedWindowLabel(label: string | null): void
-  /**
-   * Run the close-requested handlers; reports whether one prevented the close.
-   */
-  requestClose(): Promise<{ prevented: boolean }>
   hidden(): boolean
   devtoolsToggles(): number
 }
@@ -173,19 +169,6 @@ class TestWindowServiceImpl implements TestWindowService {
 
   setFocusedWindowLabel(label: string | null): void {
     this.#focused = label
-  }
-
-  async requestClose(): Promise<{ prevented: boolean }> {
-    let prevented = false
-    const event = {
-      preventDefault: () => {
-        prevented = true
-      },
-    }
-    for (const handler of this.#closeHandlers) {
-      await handler(event)
-    }
-    return { prevented }
   }
 
   hidden(): boolean {
