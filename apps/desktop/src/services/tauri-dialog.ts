@@ -1,7 +1,9 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import type { DialogService } from '@reflect/core'
 
-/** Native open panels through `@tauri-apps/plugin-dialog`. */
+/**
+ * Native open panels through `@tauri-apps/plugin-dialog`.
+ */
 export function createTauriDialogService(): DialogService {
   return {
     async pickFiles({ multiple, title, filters }) {
