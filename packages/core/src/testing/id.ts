@@ -98,6 +98,7 @@ class TestHashServiceImpl implements TestHashService {
   }
 
   hashed(): readonly string[] {
+    // FIXME: is TestHashService.hashed() ever called? If not, remove createTestHashService and TestHashServiceImpl and TestHashService. Furthermore, do we need every createTestXXXService()? is we can just re-use the real services in tests, we should do that instead of creating test versions that provide no additional value.
     return [...this.#hashed]
   }
 }
