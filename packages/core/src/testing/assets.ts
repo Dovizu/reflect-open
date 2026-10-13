@@ -30,6 +30,7 @@ export function createTestAssetReferences(
 /** What happened to one session a {@link TestAssetDescriptionService} opened. */
 export interface TestAssetDescriptionSessionState {
   generation: number
+  indexGeneration: number | null
   /** How many times `start()` ran. */
   starts: number
   /** How many times `schedule()` ran. */
@@ -78,9 +79,10 @@ export function createTestAssetDescriptionService(): TestAssetDescriptionService
       reconcileLog.push(input)
       return emptyOutcome()
     },
-    openSession({ generation }): AssetDescriptionSession {
+    openSession({ generation, indexGeneration }): AssetDescriptionSession {
       const state: TestAssetDescriptionSessionState = {
         generation,
+        indexGeneration,
         starts: 0,
         schedules: 0,
         disposed: false,

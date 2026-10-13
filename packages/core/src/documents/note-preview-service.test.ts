@@ -213,17 +213,8 @@ describe('previewWikiTarget', () => {
   })
 })
 
-describe('readExistingNoteSource', () => {
-  it('reads an existing note through the note documents', async () => {
-    const noteFile = createTestNoteFileService({ files: { 'notes/alpha.md': '# Alpha' } })
-    const notePreview = notePreviewOver({ noteFile })
-
-    await expect(notePreview.readExistingNoteSource('notes/alpha.md')).resolves.toBe('# Alpha')
-  })
-})
-
 describe('with no graph open', () => {
-  it('previews nothing and rejects a read', async () => {
+  it('previews nothing', async () => {
     const noteFile = createTestNoteFileService({ files: { 'notes/alpha.md': '# Alpha' } })
     const notePreview = notePreviewOver({
       noteFile,
@@ -231,8 +222,5 @@ describe('with no graph open', () => {
     })
 
     await expect(notePreview.previewWikiTarget('Alpha')).resolves.toBeNull()
-    await expect(notePreview.readExistingNoteSource('notes/alpha.md')).rejects.toThrow(
-      'No graph is open.',
-    )
   })
 })

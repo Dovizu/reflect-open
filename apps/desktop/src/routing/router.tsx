@@ -32,15 +32,6 @@ interface RouterValue {
    */
   arrivalSeq: number
   /**
-   * Read the synchronous, monotonic navigation-state revision. Unlike rendered
-   * route state, this advances before `navigate`, `back`, or `forward` enqueue
-   * an update (and before the current note follows a rename), so async link
-   * fallbacks can detect even a same-route arrival or a back/forward round trip
-   * that returned to the same history entry. A back/forward at a history
-   * boundary changes nothing and does not advance it.
-   */
-  navigationRevision: () => number
-  /**
    * True when the latest arrival asked the destination to focus its primary
    * input (`navigate(route, { focusEditor: true })`). Only explicit capture
    * gestures request it — the mobile Daily-, All-, Tasks-, and Chat-tab
@@ -151,14 +142,12 @@ export function RouterProvider({
     [navigation],
   )
   const savedScroll = useCallback(() => navigation.savedScroll(rendered.current), [navigation])
-  const navigationRevision = navigation.navigationRevision
 
   const value = useMemo<RouterValue>(
     () => ({
       route: state.route,
       entryId: state.entryId,
       arrivalSeq: state.arrivalSeq,
-      navigationRevision,
       arrivalFocusEditor: state.arrivalFocusEditor,
       navigate,
       back,
@@ -170,16 +159,7 @@ export function RouterProvider({
       clearScrollState,
       savedScroll,
     }),
-    [
-      state,
-      navigationRevision,
-      navigate,
-      back,
-      forward,
-      saveScrollState,
-      clearScrollState,
-      savedScroll,
-    ],
+    [state, navigate, back, forward, saveScrollState, clearScrollState, savedScroll],
   )
 
   return <RouterContext value={value}>{children}</RouterContext>

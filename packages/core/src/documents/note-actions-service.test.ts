@@ -26,9 +26,9 @@ import { createOpenDocumentsService } from './open-documents-service.ts'
 
 const ULID_RE = /^[0-9a-hjkmnp-tv-z]{26}$/
 
-/** A test graph session with the graph at `/g` of generation 3 open. */
+/** A test graph session with the graph at `/g` of generation 3 (index generation 8) open. */
 function createTestGraph(): TestGraphSessionService {
-  return createTestGraphSessionService({ graph: { root: '/g', generation: 3 } })
+  return createTestGraphSessionService({ graph: { root: '/g', generation: 3, indexGeneration: 8 } })
 }
 
 /** The real service; without `indexLifecycle`, an indexer that only records its calls. */
@@ -839,7 +839,18 @@ describe('deepLinkFor', () => {
     expect(source.endsWith('---\n\n# A\n')).toBe(true)
     // The index trails local writes by a watcher debounce; without this the
     // just-copied link answers "Note not found" until the reindex.
-    expect(actions.indexed()).toEqual([{ path: 'notes/a.md', generation: 3 }])
+    expect(actions.indexed()).toEqual([{ path: 'notes/a.md', generation: 8 }])
+  })
+
+  it('skips the immediate reindex when the index failed to open', async () => {
+    const { actions, files, graph } = setup({ files: { 'notes/a.md': '# A\n' } })
+    graph.setGraph({ root: '/g', generation: 3, indexGeneration: null })
+
+    const url = await actions.deepLinkFor('notes/a.md')
+
+    expect(url.startsWith('reflect://note/')).toBe(true)
+    expect(files.writes()).toMatchObject([{ path: 'notes/a.md', generation: 3 }])
+    expect(actions.indexed()).toEqual([])
   })
 
   it('still returns the link when the immediate reindex fails', async () => {

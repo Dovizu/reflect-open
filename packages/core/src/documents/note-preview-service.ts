@@ -1,4 +1,4 @@
-import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 import type { AttachmentService, WikiEmbedDisplay } from './attachment-service.ts'
@@ -27,8 +27,6 @@ export interface NotePreviewService {
    * not log as errors.
    */
   previewWikiTarget(target: string): Promise<NotePreview | null>
-  /** Read an existing note without disturbing its editor session: `NoteDocumentService.readExisting`. */
-  readExistingNoteSource(path: string): Promise<string>
 }
 
 export interface NotePreviewServiceDeps {
@@ -65,9 +63,6 @@ export function createNotePreviewService(deps: NotePreviewServiceDeps): NotePrev
       } catch {
         return null
       }
-    },
-    async readExistingNoteSource(path) {
-      return await noteDocuments.readExisting(path, requireGraphSession(graphSession).generation)
     },
   }
 }

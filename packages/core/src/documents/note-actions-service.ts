@@ -353,7 +353,7 @@ export function createNoteActionsService(deps: {
     }
   }
 
-  async function deepLinkFor(path: string, generation: number): Promise<string> {
+  async function deepLinkFor(path: string, session: GraphSession): Promise<string> {
     if (isDaily(path)) {
       const date = dateFromDailyPath(path)
       // Calendar-validated like the router: a daily/ file with an impossible
@@ -371,14 +371,16 @@ export function createNoteActionsService(deps: {
       return noteDeepLink(existing)
     }
     const minted = id.noteId()
-    await noteDocuments.commitFrontmatter(path, { id: minted }, generation)
+    await noteDocuments.commitFrontmatter(path, { id: minted }, session.generation)
     // Resolution reads the index, which trails local writes by a watcher
     // debounce: index the mint now so the copied link resolves immediately.
     // Best-effort: the watcher pass covers this on its own schedule anyway.
-    try {
-      await indexLifecycle.indexNote(path, { generation })
-    } catch {
-      // the copied link still works once the watcher reindexes the note
+    if (session.indexGeneration !== null) {
+      try {
+        await indexLifecycle.indexNote(path, { generation: session.indexGeneration })
+      } catch {
+        // the copied link still works once the watcher reindexes the note
+      }
     }
     return noteDeepLink(minted)
   }
@@ -479,7 +481,7 @@ export function createNoteActionsService(deps: {
       return { succeeded, failed }
     },
     async deepLinkFor(path) {
-      return await deepLinkFor(path, requireGraphSession(graphSession).generation)
+      return await deepLinkFor(path, requireGraphSession(graphSession))
     },
     async copyDeepLink(path) {
       const session = graphSession.getState().session
@@ -488,7 +490,7 @@ export function createNoteActionsService(deps: {
       }
       let url: string
       try {
-        url = await deepLinkFor(path, session.generation)
+        url = await deepLinkFor(path, session)
       } catch (cause) {
         operations.start('Copying deep link').fail(errorMessage(cause))
         return

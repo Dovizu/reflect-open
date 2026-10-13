@@ -82,9 +82,8 @@ Rules:
   `useSyncExternalStore`, as an event listener) must not depend on `this`.
   Declare it as a function property (`get: () => Settings` in
   `SettingsService`) or with `this: void`, as `followHealedMove` does.
-- A method that writes to the graph takes `generation: number`, the session
-  token Rust checks. Services are app-scoped today, so the caller passes it on
-  every call. Do not store one in the service.
+- A method that writes to the graph pins the write to one graph session. §2
+  says how the method gets that session.
 - Throw `AppError` for failures a caller handles. Validate IPC responses and
   event payloads with zod (`noteMovedSchema` in the example).
 
@@ -108,6 +107,31 @@ Rules:
 - Do not pass a service as an argument of a method. If two services need each
   other, one of them takes a narrow function in `deps` instead, or the shared
   part becomes a third service.
+
+### The open graph
+
+Rust rejects a graph write whose `generation` is not the open graph's. Index
+writes carry the index generation (`indexGeneration`) the same way. Which side
+holds the generation depends on the kind of service:
+
+- **Rust-boundary wrappers** take an explicit `generation` parameter and pass
+  it to the IPC command. `NoteFileService` is the model:
+  `write(path, contents, generation)`. A background pass then writes with the
+  session it started with, and Rust rejects the write after a graph switch.
+- **User-facing services** (what hooks, commands and screens call) take no
+  `generation`. They take `graphSession: GraphSessionSource` in `deps` and read
+  the session once, at the entry of each public method:
+  `graphSession.getState().session`, or `requireGraphSession(graphSession)`
+  (`app/graph-session.ts`) where no open graph is an error. They pass
+  `session.generation` and `session.indexGeneration` to every lower call of
+  that invocation. Do not read the session again after an `await`.
+  `NoteActionsService` is the model: `togglePinned(path)` returns `failed`
+  with no graph open, and `trashOne(path)` throws `No graph is open.`.
+- **Background loops** (backup, capture, asset description, iCloud sync) get
+  the `GraphSession` or its generations from `createGraphServices` (§10).
+
+`indexGeneration` is `null` when the index failed to open. Skip the index write
+then.
 
 ## 3. Where state lives
 
@@ -386,8 +410,8 @@ The shape:
 - What all sessions share stays on the app-scoped object
   (`capture.onXPostsWritten`).
 
-Ordinary services stay app-scoped and take `generation` per call until they
-move into the container.
+Ordinary services stay app-scoped and read the open graph's session per call
+(§2, "The open graph").
 
 ## Checklist
 

@@ -6,7 +6,7 @@ import {
 } from '../ai/asset-describer-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
-import type { GraphSessionSource } from '../app/graph-session.ts'
+import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
 import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
@@ -172,6 +172,8 @@ export interface AssetDescriptionSession {
 export interface AssetDescriptionSessionOptions {
   /** The open graph's generation — every pass's reads and writes pin to it. */
   generation: number
+  /** The open graph's index generation, or `null` when its index failed to open. */
+  indexGeneration: number | null
 }
 
 /**
@@ -495,7 +497,7 @@ export function createAssetDescriptionService(deps: {
   }
 
   function openSession(options: AssetDescriptionSessionOptions): AssetDescriptionSession {
-    const { generation } = options
+    const { generation, indexGeneration } = options
     let started = false
     /** Eligible assets observed changed and not yet successfully reconciled. */
     const dirty = new Set<string>()
@@ -548,9 +550,9 @@ export function createAssetDescriptionService(deps: {
       // them off it); our own index-applied trigger hears that emit too and
       // re-marks the notes' assets, which the next pass skips as up-to-date —
       // one cheap extra cycle, no loop (a clean pass writes nothing new).
-      if (outcome.describedAssetPaths.length > 0) {
+      if (outcome.describedAssetPaths.length > 0 && indexGeneration !== null) {
         try {
-          await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, generation)
+          await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, indexGeneration)
         } catch (cause) {
           logger.warn('asset-description re-index failed:', cause)
         }
@@ -628,7 +630,7 @@ export function createAssetDescriptionService(deps: {
       // image) and note upserts (which may newly reference an asset).
       loop.onDispose(
         indexLifecycle.onApplied((event) => {
-          if (event.generation !== generation || event.changes === null) {
+          if (event.generation !== indexGeneration || event.changes === null) {
             return // a delayed emit from a graph we've switched away from, or a sync pass
           }
           const newAssets: string[] = []
@@ -661,7 +663,8 @@ export function createAssetDescriptionService(deps: {
     promise: Promise<ReconcileAssetDescriptionsOutcome>
   } | null = null
 
-  async function runBackfill(generation: number): Promise<ReconcileAssetDescriptionsOutcome> {
+  async function runBackfill(session: GraphSession): Promise<ReconcileAssetDescriptionsOutcome> {
+    const { generation, indexGeneration } = session
     const operation = operations.start('Describing assets')
     let outcome: ReconcileAssetDescriptionsOutcome
     try {
@@ -681,9 +684,9 @@ export function createAssetDescriptionService(deps: {
     // assets we just described (Plan 20 search integration). A failure here must
     // not fail the backfill — the descriptions are written; search folds them on
     // the next re-index or a rebuild.
-    if (outcome.describedAssetPaths.length > 0) {
+    if (outcome.describedAssetPaths.length > 0 && indexGeneration !== null) {
       try {
-        await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, generation)
+        await indexLifecycle.reindexNotesReferencing(outcome.describedAssetPaths, indexGeneration)
       } catch (cause) {
         logger.warn('asset-description re-index failed:', cause)
       }
@@ -724,7 +727,7 @@ export function createAssetDescriptionService(deps: {
     if (backfillInFlight !== null && backfillInFlight.generation === generation) {
       return backfillInFlight.promise
     }
-    const promise = runBackfill(generation).finally(() => {
+    const promise = runBackfill(session).finally(() => {
       if (backfillInFlight !== null && backfillInFlight.promise === promise) {
         backfillInFlight = null
       }

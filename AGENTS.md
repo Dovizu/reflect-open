@@ -201,8 +201,11 @@ The short version:
   Never import `appServices` from `boot.ts` outside `main.tsx` and the platform roots.
 - Core emits events (`onXxx(listener)`); the desktop app maps them to query-cache
   invalidation. Core never touches the query cache.
-- Service methods that write take the graph's `generation`. Thread it through and read
-  it at call time; never cache one across a graph switch.
+- Rust-boundary wrappers (`NoteFileService`) take an explicit `generation`. User-facing
+  services take none: they read the `GraphSession` once at method entry
+  (`graphSession.getState()` / `requireGraphSession`) and pass its generations down.
+  Background loops get the session from `createGraphServices`. See
+  [docs/contributing/services.md](docs/contributing/services.md) §2.
 - Tests construct services over the test doubles in `@reflect/core/testing`
   (`createTestAppServices()`, `createTestXxxService()`), and desktop tests render with
   `renderInApp` / `renderHookInApp`. `vi.mock` is only for stubbing a pure UI child.

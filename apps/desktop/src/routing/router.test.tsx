@@ -68,18 +68,6 @@ describe('router', () => {
     expect(result.current.savedScroll()).toBeNull()
   })
 
-  it('advances the synchronous navigation revision before the route renders', async () => {
-    const { result, act } = await routerHook()
-    const revision = result.current.navigationRevision
-    const initial = revision()
-
-    await act(() => {
-      result.current.navigate({ kind: 'tasks' })
-      expect(revision()).toBe(initial + 1)
-    })
-    expect(result.current.route).toEqual({ kind: 'tasks' })
-  })
-
   it('restores a saved scroll offset on back/forward, per entry', async () => {
     const { result, act } = await routerHook()
     await act(() => result.current.saveScrollState(120)) // scrolling on today
@@ -150,14 +138,12 @@ describe('router', () => {
       await act(() => result.current.navigate({ kind: 'note', path: 'notes/01abc.md' }))
       const arrivalsBefore = result.current.arrivalSeq
       const entryBefore = result.current.entryId
-      const revisionBefore = result.current.navigationRevision()
 
       await act(() => app.noteMove.followHealedMove('notes/01abc.md', 'notes/meeting-notes.md'))
 
       expect(result.current.route).toEqual({ kind: 'note', path: 'notes/meeting-notes.md' })
       expect(result.current.arrivalSeq).toBe(arrivalsBefore)
       expect(result.current.entryId).toBe(entryBefore)
-      expect(result.current.navigationRevision()).toBe(revisionBefore + 1)
     })
 
     it('a move settling after the workspace unmounts is harmless', async () => {

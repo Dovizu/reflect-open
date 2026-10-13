@@ -77,4 +77,19 @@ describe('useNoteAttachments', () => {
     expect(attachments).not.toBe(before)
     expect(attachments?.resolveImageUrl('assets/cat.png')).toBe(assetUrl(4, 'assets/cat.png'))
   })
+
+  it('resolves only remote images while no graph is open', async () => {
+    await renderHookInApp(
+      () => {
+        attachments = useNoteAttachments('Home.md')
+      },
+      { graph: null },
+    )
+
+    expect(attachments?.resolveImageUrl('https://example.com/cat.png')).toBe(
+      'https://example.com/cat.png',
+    )
+    expect(attachments?.resolveImageUrl('assets/cat.png')).toBeUndefined()
+    expect(attachments?.resolveAttachmentPath('assets/cat.png')).toBeNull()
+  })
 })

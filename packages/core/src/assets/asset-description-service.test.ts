@@ -44,6 +44,7 @@ const PROVIDER: AiProviderConfig = {
 }
 
 const GENERATION = 7
+const INDEX_GENERATION = 11
 const NOW = Date.parse('2026-06-16T00:00:00.000Z')
 
 const realHashService = createTestHashService()
@@ -119,14 +120,16 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
     /** When set, the next re-index rejects with it. */
     reindexError: null as unknown,
     listenerCount: () => appliedListeners.size,
-    emit(changes: FileChange[], generation: number = GENERATION): void {
+    emit(changes: FileChange[], generation: number = INDEX_GENERATION): void {
       for (const listener of appliedListeners) {
         listener({ generation, changes })
       }
     },
   }
   const provider = options?.provider === undefined ? PROVIDER : options.provider
-  const graphSession = createTestGraphSessionService({ graph: { generation: GENERATION } })
+  const graphSession = createTestGraphSessionService({
+    graph: { generation: GENERATION, indexGeneration: INDEX_GENERATION },
+  })
   const service = createAssetDescriptionService({
     assetStore: {
       readBase64: async (path, generation) => {
@@ -533,7 +536,10 @@ describe('AssetDescriptionService.openSession', () => {
     context.files.set('notes/pub.md', `# Both\n\n![](assets/a.png)\n![](assets/b.pdf)\n`)
     context.refs.set('assets/a.png', ['notes/pub.md'])
     context.refs.set('assets/b.pdf', ['notes/pub.md'])
-    const session = context.service.openSession({ generation: GENERATION })
+    const session = context.service.openSession({
+      generation: GENERATION,
+      indexGeneration: INDEX_GENERATION,
+    })
     return { ...context, session }
   }
 
@@ -563,7 +569,7 @@ describe('AssetDescriptionService.openSession', () => {
     index.emit([upsert('assets/a.png')])
     await flush()
 
-    expect(reindexed).toEqual([[['assets/a.png'], GENERATION]])
+    expect(reindexed).toEqual([[['assets/a.png'], INDEX_GENERATION]])
     // The re-index wrote search rows directly, so index-backed caches must be
     // told for ⌘K to reflect the new descriptions.
     expect(indexedEvents()).toBe(1)
@@ -717,11 +723,24 @@ describe('AssetDescriptionService.openSession', () => {
     const { session, index, classified } = await describable()
     session.start()
 
-    index.emit([upsert('assets/a.png')], GENERATION + 1) // a stale emit from another graph
+    index.emit([upsert('assets/a.png')], INDEX_GENERATION + 1) // a stale emit from another graph
     await flush()
     expect(classified).toEqual([])
 
     index.emit([upsert('assets/a.png')]) // our generation → processed
+    await flush()
+    expect(classified).toEqual(['assets/a.png'])
+  })
+
+  it('follows the index generation, not the file generation', async () => {
+    const { session, index, classified } = await describable()
+    session.start()
+
+    index.emit([upsert('assets/a.png')], GENERATION)
+    await flush()
+    expect(classified).toEqual([])
+
+    index.emit([upsert('assets/a.png')], INDEX_GENERATION)
     await flush()
     expect(classified).toEqual(['assets/a.png'])
   })
@@ -741,9 +760,23 @@ describe('AssetDescriptionService.backfillVisibly', () => {
     const outcome = await running
 
     expect(outcome.described).toBe(2)
-    expect(reindexed).toEqual([[['assets/a.png', 'assets/b.pdf'], GENERATION]])
+    expect(reindexed).toEqual([[['assets/a.png', 'assets/b.pdf'], INDEX_GENERATION]])
     expect(indexedEvents()).toBe(1)
     expect(operations.getAll().filter((operation) => operation.status !== 'running')).toEqual([])
+  })
+
+  it('describes without re-indexing when the index failed to open', async () => {
+    const { service, graphSession, files, refs, addAsset, reindexed, indexedEvents } = setup()
+    graphSession.setGraph({ generation: GENERATION, indexGeneration: null })
+    await addAsset('assets/a.png', 'aGVsbG8=')
+    files.set('notes/pub.md', `# A\n\n![](assets/a.png)\n`)
+    refs.set('assets/a.png', ['notes/pub.md'])
+
+    const outcome = await service.backfillVisibly()
+
+    expect(outcome.described).toBe(1)
+    expect(reindexed).toEqual([])
+    expect(indexedEvents()).toBe(0)
   })
 
   it('stops without an operation when no graph is open', async () => {

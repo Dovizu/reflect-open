@@ -135,7 +135,7 @@ export function createGraphServices<App>(
           () => settings.get().describeAssets,
           settings.subscribe,
           () => {
-            const describe = assetDescription.openSession({ generation })
+            const describe = assetDescription.openSession({ generation, indexGeneration })
             describe.start()
             return () => {
               describe.dispose()

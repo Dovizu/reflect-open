@@ -23,8 +23,8 @@ export interface NoteAttachments {
 }
 
 /**
- * Attachment resolution for rendering `notePath` in the open `graph`; no image
- * or attachment resolves while no graph is open.
+ * Attachment resolution for rendering `notePath` in the open `graph`; only a
+ * remote image resolves while no graph is open.
  */
 export function createNoteAttachments(
   graph: GraphInfo | null,
@@ -34,8 +34,7 @@ export function createNoteAttachments(
   return {
     resolveAttachmentPath: (destination) =>
       graph === null ? null : attachments.resolveAttachmentPath(notePath, destination),
-    resolveImageUrl: (source) =>
-      graph === null ? undefined : attachments.resolveImageUrl(notePath, source),
+    resolveImageUrl: (source) => attachments.resolveImageUrl(notePath, source),
     resolveWikiEmbed: ({ target }) => attachments.resolveWikiEmbed(target),
   }
 }
