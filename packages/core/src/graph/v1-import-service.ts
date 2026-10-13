@@ -49,22 +49,22 @@ export interface V1ImportService {
   /**
    * Kick off an import of the chosen `.zip`; ignored while one runs and while no graph is open.
    */
-  start: (zipPath: string) => void
+  start(zipPath: string): void
   /**
    * Ask the running import to stop. The import aborts before anything lands
    * in the graph, so cancelling is always safe.
    */
-  cancel: () => void
+  cancel(): void
   /**
    * Clear a finished (done/failed) import back to idle.
    */
-  dismiss: () => void
+  dismiss(): void
   /**
    * The workspace that shows this import is up. The returned function tells
    * the service it went away: a running import is cancelled and its result
    * dropped.
    */
-  attach: () => Unlisten
+  attach(): Unlisten
 }
 
 export interface V1ImportServiceDeps {
@@ -103,7 +103,7 @@ class V1ImportServiceImpl implements V1ImportService {
     }
   }
 
-  readonly start = (zipPath: string): void => {
+  start(zipPath: string): void {
     const { ipc, graphSession } = this.#deps
     const startedFor = graphSession.getState().graph
     if (this.#running || startedFor === null) {
@@ -152,7 +152,7 @@ class V1ImportServiceImpl implements V1ImportService {
     })()
   }
 
-  readonly cancel = (): void => {
+  cancel(): void {
     if (!this.#running || this.#cancelRequested) {
       return
     }
@@ -163,13 +163,13 @@ class V1ImportServiceImpl implements V1ImportService {
     void this.#cancelNative().catch(() => {})
   }
 
-  readonly dismiss = (): void => {
+  dismiss(): void {
     if (this.#state.phase !== 'running') {
       this.#setState({ phase: 'idle' })
     }
   }
 
-  readonly attach = (): Unlisten => {
+  attach(): Unlisten {
     this.#attached = true
     return () => {
       this.#attached = false

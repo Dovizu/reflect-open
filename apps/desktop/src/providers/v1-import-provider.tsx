@@ -50,9 +50,9 @@ export function V1ImportProvider({ children }: V1ImportProviderProps): ReactElem
   const value = useMemo<V1ImportContextValue>(
     () => ({
       state,
-      dismiss: service.dismiss,
-      startImport: service.start,
-      cancelImport: service.cancel,
+      dismiss: () => service.dismiss(),
+      startImport: (zipPath) => service.start(zipPath),
+      cancelImport: () => service.cancel(),
     }),
     [state, service],
   )
@@ -60,7 +60,11 @@ export function V1ImportProvider({ children }: V1ImportProviderProps): ReactElem
   return (
     <V1ImportContext value={value}>
       {children}
-      <V1ImportDialog state={state} onCancel={service.cancel} onDismiss={service.dismiss} />
+      <V1ImportDialog
+        state={state}
+        onCancel={() => service.cancel()}
+        onDismiss={() => service.dismiss()}
+      />
     </V1ImportContext>
   )
 }

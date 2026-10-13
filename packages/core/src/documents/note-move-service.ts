@@ -66,11 +66,11 @@ export interface NoteMoveService {
    * move already happened; this only updates what points at it — and without
    * it, an open pane's next save would resurrect the dead path.
    */
-  followHealedMove: (from: string, to: string) => void
+  followHealedMove(from: string, to: string): void
   /**
    * Subscribe to landed note moves; returns the unsubscribe.
    */
-  onMoved: (listener: NoteMovedListener) => Unlisten
+  onMoved(listener: NoteMovedListener): Unlisten
   /**
    * Follow the Rust-side "note rows moved" broadcast (`note:moved`), emitted
    * after a rename lands (`note_move_indexed`) or an external move is healed
@@ -111,7 +111,7 @@ class NoteMoveServiceImpl implements NoteMoveService {
     this.#emitMoved(from, to)
   }
 
-  readonly followHealedMove = (from: string, to: string): void => {
+  followHealedMove(from: string, to: string): void {
     const { openDocuments } = this.#deps
     const owner = openDocuments.sessionFor(from)
     if (owner !== null) {
@@ -121,7 +121,7 @@ class NoteMoveServiceImpl implements NoteMoveService {
     this.#emitMoved(from, to)
   }
 
-  readonly onMoved = (listener: NoteMovedListener): Unlisten => {
+  onMoved(listener: NoteMovedListener): Unlisten {
     this.#listeners.add(listener)
     return () => {
       this.#listeners.delete(listener)

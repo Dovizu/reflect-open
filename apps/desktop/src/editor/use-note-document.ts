@@ -128,7 +128,9 @@ export function useNoteDocument(path: string | null, options?: NoteDocumentOptio
             // merely normalized relative to their on-disk Markdown.
             editorRef.current?.getMarkdown()
           },
-          onContent: coordinator ? coordinator.content : undefined,
+          onContent: coordinator
+            ? (content, origin) => coordinator.content(content, origin)
+            : undefined,
           createIfMissing,
           missingSeed,
         }),

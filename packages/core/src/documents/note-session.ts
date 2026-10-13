@@ -173,19 +173,25 @@ class NoteSessionImpl implements NoteSession {
     this.#saveDebounceMs = options.saveDebounceMs ?? DEFAULT_SAVE_DEBOUNCE_MS
   }
 
-  readonly retarget = (to: string): void => {
+  retarget(to: string): void {
     this.path = to
   }
 
-  readonly content = (): string => this.#header + this.#buffer
+  content(): string {
+    return this.#header + this.#buffer
+  }
 
-  readonly liveContent = (): string | null =>
-    this.#status === 'ready' ? this.#header + this.#buffer : null
+  liveContent(): string | null {
+    return this.#status === 'ready' ? this.#header + this.#buffer : null
+  }
 
-  readonly isDirty = (): boolean => this.#dirty
+  isDirty(): boolean {
+    return this.#dirty
+  }
 
-  readonly isUnpersisted = (): boolean =>
-    this.#status === 'ready' && this.#missing && this.#inFlightWrite === null
+  isUnpersisted(): boolean {
+    return this.#status === 'ready' && this.#missing && this.#inFlightWrite === null
+  }
 
   #emit(): void {
     if (this.#disposed) {
@@ -292,7 +298,7 @@ class NoteSessionImpl implements NoteSession {
     }
   }
 
-  readonly flush = (): Promise<void> => {
+  flush(): Promise<void> {
     this.#reconcilePendingEditorInput?.()
     this.#cancelScheduledSave()
     this.#save()
@@ -301,7 +307,7 @@ class NoteSessionImpl implements NoteSession {
     return this.#saveChain
   }
 
-  readonly editorChanged = (markdown: string): void => {
+  editorChanged(markdown: string): void {
     if (this.#applyingContent) {
       // This change is our own applyContent pushing disk content, not a user
       // edit. The editor's serialization may normalize (trailing newline, loose
@@ -422,7 +428,7 @@ class NoteSessionImpl implements NoteSession {
     }
   }
 
-  readonly load = (): void => {
+  load(): void {
     this.#loading = true
     this.#missedChange = false
     this.#status = 'loading'
@@ -477,7 +483,7 @@ class NoteSessionImpl implements NoteSession {
     void this.#loadPromise
   }
 
-  readonly externalChanged = (): void => {
+  externalChanged(): void {
     if (this.#disposed) {
       return
     }
@@ -488,7 +494,7 @@ class NoteSessionImpl implements NoteSession {
     void this.#reconcileFromDisk()
   }
 
-  readonly keepMine = (): void => {
+  keepMine(): void {
     if (this.#conflict !== null) {
       this.#disk = this.#conflict
       this.#missing = false
@@ -499,7 +505,7 @@ class NoteSessionImpl implements NoteSession {
     this.#save()
   }
 
-  readonly loadTheirs = (): void => {
+  loadTheirs(): void {
     if (this.#conflict === null) {
       return
     }
@@ -510,7 +516,7 @@ class NoteSessionImpl implements NoteSession {
     this.#adoptCleanContent(content)
   }
 
-  readonly updateFrontmatter = (patch: FrontmatterPatch): boolean => {
+  updateFrontmatter(patch: FrontmatterPatch): boolean {
     if (this.#disposed || this.#isProtected || this.#status !== 'ready') {
       return false
     }
@@ -525,7 +531,7 @@ class NoteSessionImpl implements NoteSession {
     return true
   }
 
-  readonly commitFrontmatter = async (patch: FrontmatterPatch): Promise<boolean> => {
+  async commitFrontmatter(patch: FrontmatterPatch): Promise<boolean> {
     // No write channel (no graph generation yet) means the patch can't land —
     // say so, rather than riding `updateFrontmatter`'s in-memory success while
     // `save()` silently no-ops. A `true` here would let publish/pin/private
@@ -583,7 +589,7 @@ class NoteSessionImpl implements NoteSession {
    * all-or-nothing: a failed flush reverts the in-memory edit so the editor and
    * the Tasks list can't diverge, then re-throws the failure.
    */
-  readonly commitSourceEdit = async (transform: (full: string) => string): Promise<boolean> => {
+  async commitSourceEdit(transform: (full: string) => string): Promise<boolean> {
     // What the load can't change is refused at once; a stalled read must not
     // hold a session that could never write.
     if (this.#io.write === null || this.#disposed) {
@@ -638,14 +644,14 @@ class NoteSessionImpl implements NoteSession {
     return true
   }
 
-  readonly commitBodyAppend = (block: string): Promise<boolean> => {
+  commitBodyAppend(block: string): Promise<boolean> {
     if (block.trim() === '') {
       return Promise.resolve(false)
     }
     return this.commitSourceEdit((full) => appendBlock(full, block))
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     // A discarded session must not write: its file is being deleted, and a
     // flush would recreate it. Otherwise flush first — the queued save step
     // reads the (now frozen) buffer, so pending edits persist to this
@@ -656,13 +662,13 @@ class NoteSessionImpl implements NoteSession {
     this.#disposed = true
   }
 
-  readonly discard = (): void => {
+  discard(): void {
     this.#cancelScheduledSave()
     this.#discarded = true
     this.#disposed = true
   }
 
-  readonly prepareDelete = async (): Promise<boolean> => {
+  async prepareDelete(): Promise<boolean> {
     this.#deleting = true
     this.#cancelScheduledSave()
     await this.#loadPromise
@@ -670,7 +676,7 @@ class NoteSessionImpl implements NoteSession {
     return this.#status === 'ready' && this.#missing && this.#inFlightWrite === null
   }
 
-  readonly cancelDelete = (): void => {
+  cancelDelete(): void {
     if (!this.#deleting || this.#discarded) {
       return
     }

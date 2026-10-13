@@ -102,57 +102,57 @@ export interface GraphSessionService<Services = unknown> {
    * A mobile window waits for its host to call {@link openRecent} or
    * {@link park}. The returned function stops the boot and the following.
    */
-  boot: (hooks?: GraphBootHooks) => Unlisten
+  boot(hooks?: GraphBootHooks): Unlisten
   /**
    * Refresh the recents list. `surfaceErrors` publishes a failed read as the error.
    */
-  loadRecents: (options?: { surfaceErrors?: boolean }) => Promise<RecentGraph[]>
+  loadRecents(options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]>
   /**
    * Open a graph by its root path. Resolves true only when it reached 'ready'.
    */
-  openRecent: (root: string) => Promise<boolean>
+  openRecent(root: string): Promise<boolean>
   /**
    * Create (and open) a graph at an app-chosen absolute path. Resolves true
    * only on a confirmed open.
    */
-  createGraphAt: (root: string) => Promise<boolean>
+  createGraphAt(root: string): Promise<boolean>
   /**
    * Show the OS folder picker, then open (and bootstrap) the chosen graph.
    */
-  pickAndOpen: () => Promise<void>
+  pickAndOpen(): Promise<void>
   /**
    * Close the active graph and show the graph chooser.
    */
-  chooseGraph: () => Promise<void>
+  chooseGraph(): Promise<void>
   /**
    * Drop a graph from the recents list.
    */
-  forgetRecent: (root: string) => Promise<void>
+  forgetRecent(root: string): Promise<void>
   /**
    * Move the open graph's directory to the OS trash (recoverable), drop it
    * from recents, and return to the chooser. Throws when the delete fails.
    * Desktop-only.
    */
-  deleteGraph: () => Promise<void>
+  deleteGraph(): Promise<void>
   /**
    * Re-run the open graph's background index reconcile. No-op while no index
    * is open and outside the main window.
    */
-  refreshIndex: () => void
+  refreshIndex(): void
   /**
    * Stop at 'choosing' with `error`: the host's boot path could not open a graph.
    */
-  park: (error: string | null) => void
+  park(error: string | null): void
   /**
    * Listen for the point where the previous graph's in-memory leftovers can
    * go: `switch` once another graph's backend open settled the old index pass,
    * `close` once the active graph's index closed.
    */
-  onGraphReleased: (listener: (reason: GraphReleaseReason) => void) => Unlisten
+  onGraphReleased(listener: (reason: GraphReleaseReason) => void): Unlisten
   /**
    * Listen for a graph directory that went to the trash.
    */
-  onGraphDeleted: (listener: (root: string) => void) => Unlisten
+  onGraphDeleted(listener: (root: string) => void): Unlisten
 }
 
 export interface GraphSessionServiceDeps<Services = unknown> {
@@ -222,11 +222,13 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
 
   readonly subscribe = (listener: () => void): Unlisten => this.#attach(this.#listeners, listener)
 
-  readonly onGraphReleased = (listener: (reason: GraphReleaseReason) => void): Unlisten =>
-    this.#attach(this.#releasedListeners, listener)
+  onGraphReleased(listener: (reason: GraphReleaseReason) => void): Unlisten {
+    return this.#attach(this.#releasedListeners, listener)
+  }
 
-  readonly onGraphDeleted = (listener: (root: string) => void): Unlisten =>
-    this.#attach(this.#deletedListeners, listener)
+  onGraphDeleted(listener: (root: string) => void): Unlisten {
+    return this.#attach(this.#deletedListeners, listener)
+  }
 
   #attach<Listener>(set: Set<Listener>, listener: Listener): Unlisten {
     set.add(listener)
@@ -339,7 +341,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     await this.#deps.window.closeSecondaryWindows()
   }
 
-  readonly loadRecents = async (options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> => {
+  async loadRecents(options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> {
     try {
       const list = await this.#deps.ipc.call('recent_graphs', {}, z.array(recentGraphSchema))
       this.#setState({ recents: list })
@@ -356,7 +358,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     }
   }
 
-  readonly openRecent = (root: string): Promise<boolean> => {
+  openRecent(root: string): Promise<boolean> {
     if (!this.#requireMainWindow('opening a graph')) {
       return Promise.resolve(false)
     }
@@ -443,7 +445,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     return next
   }
 
-  readonly createGraphAt = async (root: string): Promise<boolean> => {
+  async createGraphAt(root: string): Promise<boolean> {
     // Guarded BEFORE the create: graph_create activates the shared Rust
     // session, so off-main it would re-root every window even though the
     // openRecent below refuses.
@@ -480,7 +482,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     }
   }
 
-  readonly pickAndOpen = async (): Promise<void> => {
+  async pickAndOpen(): Promise<void> {
     let selected: string | null = null
     try {
       selected = await this.#deps.dialog.pickFolder({
@@ -511,7 +513,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     })
   }
 
-  readonly chooseGraph = async (): Promise<void> => {
+  async chooseGraph(): Promise<void> {
     if (!this.#requireMainWindow('switching graphs')) {
       return
     }
@@ -520,7 +522,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     await this.loadRecents({ surfaceErrors: true })
   }
 
-  readonly forgetRecent = async (root: string): Promise<void> => {
+  async forgetRecent(root: string): Promise<void> {
     const { graph } = this.#state
     try {
       await this.#deps.ipc.call('forget_recent', { root }, voidSchema)
@@ -536,7 +538,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     }
   }
 
-  readonly deleteGraph = async (): Promise<void> => {
+  async deleteGraph(): Promise<void> {
     if (!this.#deps.window.isMainWindow()) {
       throw new Error('Deleting a graph is only available from the main window.')
     }
@@ -573,7 +575,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     await this.loadRecents()
   }
 
-  readonly refreshIndex = (): void => {
+  refreshIndex(): void {
     const { session } = this.#state
     // Off-main, a refresh would start a second concurrent index writer.
     if (session === null || session.indexGeneration === null || !this.#deps.window.isMainWindow()) {
@@ -584,7 +586,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     this.#deps.indexLifecycle.refresh(session)
   }
 
-  readonly park = (error: string | null): void => {
+  park(error: string | null): void {
     this.#setState({ error, status: 'choosing' })
   }
 
@@ -619,7 +621,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     }
   }
 
-  readonly boot = (hooks?: GraphBootHooks): Unlisten => {
+  boot(hooks?: GraphBootHooks): Unlisten {
     let active = true
     // The lifecycle events perform the active teardown; this dynamic guard
     // also closes the launch race where the first sync is scheduled after iOS

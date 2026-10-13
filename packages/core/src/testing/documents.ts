@@ -78,53 +78,61 @@ class TestNoteSessionImpl implements TestNoteSession {
     this.path = options.path
   }
 
-  readonly retarget = (to: string): void => {
+  retarget(to: string): void {
     this.#record('retarget', to)
     this.path = to
   }
 
-  readonly load = (): void => {
+  load(): void {
     this.#record('load')
   }
 
-  readonly editorChanged = (markdown: string): void => {
+  editorChanged(markdown: string): void {
     this.#record('editorChanged', markdown)
   }
 
-  readonly externalChanged = (): void => {
+  externalChanged(): void {
     this.#record('externalChanged')
   }
 
-  readonly flush = async (): Promise<void> => {
+  async flush(): Promise<void> {
     this.#record('flush')
   }
 
-  readonly keepMine = (): void => {
+  keepMine(): void {
     this.#record('keepMine')
   }
 
-  readonly loadTheirs = (): void => {
+  loadTheirs(): void {
     this.#record('loadTheirs')
   }
 
-  readonly content = (): string => this.#content
+  content(): string {
+    return this.#content
+  }
 
-  readonly liveContent = (): string | null => (this.#loaded ? this.#content : null)
+  liveContent(): string | null {
+    return this.#loaded ? this.#content : null
+  }
 
-  readonly isDirty = (): boolean => this.#options.dirty ?? false
+  isDirty(): boolean {
+    return this.#options.dirty ?? false
+  }
 
-  readonly isUnpersisted = (): boolean => this.#options.unpersisted ?? false
+  isUnpersisted(): boolean {
+    return this.#options.unpersisted ?? false
+  }
 
-  readonly prepareDelete = async (): Promise<boolean> => {
+  async prepareDelete(): Promise<boolean> {
     this.#record('prepareDelete')
     return this.#options.unpersisted ?? false
   }
 
-  readonly cancelDelete = (): void => {
+  cancelDelete(): void {
     this.#record('cancelDelete')
   }
 
-  readonly updateFrontmatter = (patch: FrontmatterPatch): boolean => {
+  updateFrontmatter(patch: FrontmatterPatch): boolean {
     this.#record('updateFrontmatter', patch)
     if (!this.#accepts) {
       return false
@@ -133,7 +141,7 @@ class TestNoteSessionImpl implements TestNoteSession {
     return true
   }
 
-  readonly commitFrontmatter = async (patch: FrontmatterPatch): Promise<boolean> => {
+  async commitFrontmatter(patch: FrontmatterPatch): Promise<boolean> {
     this.#record('commitFrontmatter', patch)
     if (!this.#accepts) {
       return false
@@ -142,7 +150,7 @@ class TestNoteSessionImpl implements TestNoteSession {
     return true
   }
 
-  readonly commitBodyAppend = async (block: string): Promise<boolean> => {
+  async commitBodyAppend(block: string): Promise<boolean> {
     this.#record('commitBodyAppend', block)
     if (!this.#accepts || block.trim() === '') {
       return false
@@ -151,7 +159,7 @@ class TestNoteSessionImpl implements TestNoteSession {
     return true
   }
 
-  readonly commitSourceEdit = async (transform: (source: string) => string): Promise<boolean> => {
+  async commitSourceEdit(transform: (source: string) => string): Promise<boolean> {
     this.#record('commitSourceEdit', transform)
     if (!this.#accepts) {
       return false
@@ -160,11 +168,11 @@ class TestNoteSessionImpl implements TestNoteSession {
     return true
   }
 
-  readonly dispose = (): void => {
+  dispose(): void {
     this.#record('dispose')
   }
 
-  readonly discard = (): void => {
+  discard(): void {
     this.#record('discard')
   }
 
@@ -214,11 +222,13 @@ class TestNoteMoveServiceImpl implements TestNoteMoveService {
     return this.#inner.moveNote(from, to, generation)
   }
 
-  readonly followHealedMove = (from: string, to: string): void => {
+  followHealedMove(from: string, to: string): void {
     this.#inner.followHealedMove(from, to)
   }
 
-  readonly onMoved = (listener: NoteMovedListener): Unlisten => this.#inner.onMoved(listener)
+  onMoved(listener: NoteMovedListener): Unlisten {
+    return this.#inner.onMoved(listener)
+  }
 
   followNativeMoves(): Unlisten {
     return this.#inner.followNativeMoves()

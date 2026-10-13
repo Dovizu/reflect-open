@@ -221,7 +221,7 @@ export function createGraphServices(
       () => {
         const downloads = create.icloudDownload(deps.icloudDownload, {
           root,
-          refreshIndex: graphSession.refreshIndex,
+          refreshIndex: () => graphSession.refreshIndex(),
         })
         downloads.start()
         return () => {

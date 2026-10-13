@@ -68,14 +68,14 @@ export interface TestGraphSessionService<Services = unknown> extends GraphSessio
   /**
    * Report `patch` over the real state and notify subscribers.
    */
-  setState: (patch: Partial<GraphSessionState<Services>>) => void
+  setState(patch: Partial<GraphSessionState<Services>>): void
   /**
    * Report `graph` as open and ready without an open flow, or `null` as the
    * graph chooser. The real service's own opens stay hidden behind it. The
    * session of the previous `setGraph` ends, and a graph with an index
    * session gets services from `createServices` when it is given.
    */
-  setGraph: (graph: TestOpenGraph | null) => void
+  setGraph(graph: TestOpenGraph | null): void
 }
 
 function graphPatch(
@@ -165,45 +165,62 @@ class TestGraphSessionServiceImpl<Services> implements TestGraphSessionService<S
     }
   }
 
-  readonly boot = (hooks?: GraphBootHooks): Unlisten => this.#inner.boot(hooks)
+  boot(hooks?: GraphBootHooks): Unlisten {
+    return this.#inner.boot(hooks)
+  }
 
-  readonly loadRecents = (options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> =>
-    this.#inner.loadRecents(options)
+  loadRecents(options?: { surfaceErrors?: boolean }): Promise<RecentGraph[]> {
+    return this.#inner.loadRecents(options)
+  }
 
-  readonly openRecent = (root: string): Promise<boolean> => this.#inner.openRecent(root)
+  openRecent(root: string): Promise<boolean> {
+    return this.#inner.openRecent(root)
+  }
 
-  readonly createGraphAt = (root: string): Promise<boolean> => this.#inner.createGraphAt(root)
+  createGraphAt(root: string): Promise<boolean> {
+    return this.#inner.createGraphAt(root)
+  }
 
-  readonly pickAndOpen = (): Promise<void> => this.#inner.pickAndOpen()
+  pickAndOpen(): Promise<void> {
+    return this.#inner.pickAndOpen()
+  }
 
-  readonly chooseGraph = (): Promise<void> => this.#inner.chooseGraph()
+  chooseGraph(): Promise<void> {
+    return this.#inner.chooseGraph()
+  }
 
-  readonly forgetRecent = (root: string): Promise<void> => this.#inner.forgetRecent(root)
+  forgetRecent(root: string): Promise<void> {
+    return this.#inner.forgetRecent(root)
+  }
 
-  readonly deleteGraph = (): Promise<void> => this.#inner.deleteGraph()
+  deleteGraph(): Promise<void> {
+    return this.#inner.deleteGraph()
+  }
 
-  readonly refreshIndex = (): void => {
+  refreshIndex(): void {
     this.#inner.refreshIndex()
   }
 
-  readonly park = (error: string | null): void => {
+  park(error: string | null): void {
     this.#inner.park(error)
   }
 
-  readonly onGraphReleased = (listener: (reason: GraphReleaseReason) => void): Unlisten =>
-    this.#inner.onGraphReleased(listener)
+  onGraphReleased(listener: (reason: GraphReleaseReason) => void): Unlisten {
+    return this.#inner.onGraphReleased(listener)
+  }
 
-  readonly onGraphDeleted = (listener: (root: string) => void): Unlisten =>
-    this.#inner.onGraphDeleted(listener)
+  onGraphDeleted(listener: (root: string) => void): Unlisten {
+    return this.#inner.onGraphDeleted(listener)
+  }
 
-  readonly setState = (patch: Partial<GraphSessionState<Services>>): void => {
+  setState(patch: Partial<GraphSessionState<Services>>): void {
     this.#overlay = { ...this.#overlay, ...patch }
     for (const listener of this.#listeners) {
       listener()
     }
   }
 
-  readonly setGraph = (graph: TestOpenGraph | null): void => {
+  setGraph(graph: TestOpenGraph | null): void {
     this.setState(this.#seedGraph(graph))
   }
 

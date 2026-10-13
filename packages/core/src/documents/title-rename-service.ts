@@ -67,7 +67,7 @@ export interface RenameCoordinator {
   /**
    * Wire into the session's `onContent` stream (load/external/saved).
    */
-  content: (content: string, origin: NoteContentOrigin) => void
+  content(content: string, origin: NoteContentOrigin): void
   /**
    * A settle point (blur, teardown, quit): fire any pending rename now.
    */
@@ -161,7 +161,7 @@ class RenameCoordinatorImpl implements RenameCoordinator {
     })
   }
 
-  readonly content = (content: string, origin: NoteContentOrigin): void => {
+  content(content: string, origin: NoteContentOrigin): void {
     this.#latestSource = content
     if (origin === 'saved') {
       this.#tracker.saved(content)

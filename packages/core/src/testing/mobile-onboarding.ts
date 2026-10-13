@@ -30,7 +30,7 @@ export interface TestMobileOnboardingService extends MobileOnboardingService {
   /**
    * Report `patch` over the real state and notify subscribers.
    */
-  setState: (patch: Partial<MobileOnboardingState>) => void
+  setState(patch: Partial<MobileOnboardingState>): void
 }
 
 class TestMobileOnboardingServiceImpl implements TestMobileOnboardingService {
@@ -64,16 +64,19 @@ class TestMobileOnboardingServiceImpl implements TestMobileOnboardingService {
     }
   }
 
-  readonly warm = (): void => {
+  warm(): void {
     this.#inner.warm()
   }
 
-  readonly boot = (): Unlisten => this.#inner.boot()
+  boot(): Unlisten {
+    return this.#inner.boot()
+  }
 
-  readonly completeOnboarding = (kind: MobileStorageKind, root?: string): Promise<void> =>
-    this.#inner.completeOnboarding(kind, root)
+  completeOnboarding(kind: MobileStorageKind, root?: string): Promise<void> {
+    return this.#inner.completeOnboarding(kind, root)
+  }
 
-  readonly setState = (patch: Partial<MobileOnboardingState>): void => {
+  setState(patch: Partial<MobileOnboardingState>): void {
     this.#overlay = { ...this.#overlay, ...patch }
     for (const listener of this.#listeners) {
       listener()
