@@ -19,7 +19,6 @@ export interface TestSettingsService extends SettingsService {
    * Answers `settings_load` and `settings_save`; register handlers to gate them.
    */
   readonly ipc: TestIpcBridgeService
-  readonly progress: ProgressPort
   /**
    * Every document a save persisted, oldest first.
    */
@@ -40,7 +39,6 @@ export interface TestSettingsService extends SettingsService {
 
 class TestSettingsServiceImpl implements TestSettingsService {
   readonly ipc: TestIpcBridgeService
-  readonly progress: ProgressPort
   readonly #inner: SettingsService
   readonly #saved: Settings[] = []
   #stored: Partial<Settings>
@@ -50,7 +48,6 @@ class TestSettingsServiceImpl implements TestSettingsService {
 
   constructor(initial: Partial<Settings> | undefined, progress: ProgressPort) {
     this.#stored = { ...initial }
-    this.progress = progress
     this.ipc = createTestIpcBridgeService({
       commands: {
         settings_load: () => {

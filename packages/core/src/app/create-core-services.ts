@@ -288,9 +288,6 @@ export interface CoreServices {
    */
   readonly calendar: CalendarService
   /**
-   * The calendar events behind the daily note's events panel, fetched live.
-   */
-  /**
    * Live reads of the OS address book, and the permission state as a store.
    */
   readonly contacts: ContactsService

@@ -166,7 +166,7 @@ const CORE_IMPORT_MESSAGE =
   '`@reflect/core` is platform-agnostic: no Tauri, no React, no TanStack, nothing from `apps/`. A platform adapter lives in `apps/desktop/src/services/` and reaches core through `createCoreServices(adapters)`.'
 
 const APP_IMPORT_MESSAGE =
-  '`@reflect/app` is the app layer over `@reflect/core`: no Tauri, no React, no TanStack, nothing from `apps/`. A platform adapter lives in `apps/desktop/src/services/` and reaches the app layer through `createCoreServices(core, host)`.'
+  '`@reflect/app` is the app layer over `@reflect/core`: no Tauri, no React, no TanStack, nothing from `apps/`. A platform adapter lives in `apps/desktop/src/services/` and reaches the app layer through `createAppServices(core, host)`.'
 
 const TAURI_IMPORT_MESSAGE =
   'Only the platform adapters in `apps/desktop/src/services/` (and `boot.ts`, `main.tsx`) import `@tauri-apps/*`. Read the service from `useCoreServices()` or take it in `ctx`.'

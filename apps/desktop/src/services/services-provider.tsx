@@ -17,7 +17,7 @@ export function CoreServicesProvider({
 }
 
 /**
- * Provides the open graph's services; `null` while no graph session is open.
+ * Provides the app-layer services of this webview.
  */
 export function AppServicesProvider({
   services,
@@ -51,7 +51,7 @@ export function useCoreServices(): CoreServices {
 }
 
 /**
- * The {@link GraphServices} of the nearest `GraphServicesProvider`.
+ * The {@link AppServices} of the nearest `AppServicesProvider`.
  */
 export function useAppServices(): AppServices {
   const services = use(AppServicesContext)
