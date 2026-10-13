@@ -1,15 +1,22 @@
 import {
-  withContactsLookups,
+  contactsCanLookup,
+  lookupContactPeople,
   type ContactMatch,
   type ContactsAuthorization,
   type ContactsService,
   type ContactsState,
 } from '../contacts/contacts-service.ts'
+import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Settings } from '../settings/schema.ts'
 
 export interface TestContactsServiceOptions {
-  /** The permission state. Defaults to `authorized`. */
+  /**
+   * The permission state. Defaults to `authorized`.
+   */
   status?: ContactsAuthorization
-  /** Whether the permission prompt grants access. Defaults to `true`. */
+  /**
+   * Whether the permission prompt grants access. Defaults to `true`.
+   */
   grantAccess?: boolean
   contacts?: readonly ContactMatch[]
 }
@@ -19,10 +26,14 @@ export type ContactsLookup =
   | { readonly kind: 'name'; readonly name: string }
 
 export interface TestContactsService extends ContactsService {
-  /** Set the permission state, as the OS and as already read by the app. */
+  /**
+   * Set the permission state, as the OS and as already read by the app.
+   */
   setStatus(status: ContactsAuthorization): void
   setContacts(contacts: readonly ContactMatch[]): void
-  /** How many times `requestAccess` ran. */
+  /**
+   * How many times `requestAccess` ran.
+   */
   accessRequests(): number
   lookups(): readonly ContactsLookup[]
 }
@@ -32,6 +43,100 @@ function words(text: string): string[] {
     .toLowerCase()
     .split(/\s+/)
     .filter((word) => word !== '')
+}
+
+class TestContactsServiceImpl implements TestContactsService {
+  readonly #grantAccess: boolean
+  readonly #log: ContactsLookup[] = []
+  readonly #listeners = new Set<() => void>()
+  #status: ContactsAuthorization
+  #contacts: ContactMatch[]
+  #requests = 0
+  #state: ContactsState
+
+  constructor(options?: TestContactsServiceOptions) {
+    this.#status = options?.status ?? 'authorized'
+    this.#contacts = [...(options?.contacts ?? [])]
+    this.#grantAccess = options?.grantAccess ?? true
+    this.#state = { authorization: this.#status }
+  }
+
+  readonly getState = (): ContactsState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    const deliver = (): void => {
+      listener()
+    }
+    this.#listeners.add(deliver)
+    return () => {
+      this.#listeners.delete(deliver)
+    }
+  }
+
+  async refresh(): Promise<void> {
+    this.#adoptStatus()
+  }
+
+  async requestAccess(): Promise<boolean> {
+    this.#requests++
+    if (this.#status === 'notDetermined') {
+      this.#status = this.#grantAccess ? 'authorized' : 'denied'
+    }
+    this.#adoptStatus()
+    return this.#status === 'authorized' || this.#status === 'limited'
+  }
+
+  canLookup(settings: Pick<Settings, 'contactsEnabled'>): boolean {
+    return contactsCanLookup(this.#state, settings)
+  }
+
+  lookupPeople(query: string): Promise<ContactMatch[]> {
+    return lookupContactPeople(query, (name) => this.lookupByName(name))
+  }
+
+  async lookupByEmail(email: string): Promise<ContactMatch[]> {
+    this.#log.push({ kind: 'email', email })
+    const wanted = email.toLowerCase()
+    return this.#contacts.filter((contact) =>
+      contact.emails.some((address) => address.toLowerCase() === wanted),
+    )
+  }
+
+  async lookupByName(name: string): Promise<ContactMatch[]> {
+    this.#log.push({ kind: 'name', name })
+    const query = words(name)
+    return this.#contacts.filter((contact) => {
+      const names = words(`${contact.fullName} ${contact.givenName} ${contact.familyName}`)
+      return query.length > 0 && query.every((part) => names.some((word) => word.startsWith(part)))
+    })
+  }
+
+  setStatus(next: ContactsAuthorization): void {
+    this.#status = next
+    this.#adoptStatus()
+  }
+
+  setContacts(next: readonly ContactMatch[]): void {
+    this.#contacts = [...next]
+  }
+
+  accessRequests(): number {
+    return this.#requests
+  }
+
+  lookups(): readonly ContactsLookup[] {
+    return [...this.#log]
+  }
+
+  #adoptStatus(): void {
+    if (this.#state.authorization === this.#status) {
+      return
+    }
+    this.#state = { authorization: this.#status }
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
 }
 
 /**
@@ -45,74 +150,5 @@ function words(text: string): string[] {
 export function createTestContactsService(
   options?: TestContactsServiceOptions,
 ): TestContactsService {
-  let status = options?.status ?? 'authorized'
-  let contacts = [...(options?.contacts ?? [])]
-  const grantAccess = options?.grantAccess ?? true
-  let requests = 0
-  const log: ContactsLookup[] = []
-  const listeners = new Set<() => void>()
-  let state: ContactsState = { authorization: status }
-
-  function adoptStatus(): void {
-    if (state.authorization === status) {
-      return
-    }
-    state = { authorization: status }
-    for (const listener of listeners) {
-      listener()
-    }
-  }
-
-  const service = withContactsLookups({
-    getState: () => state,
-    subscribe: (listener) => {
-      const deliver = (): void => {
-        listener()
-      }
-      listeners.add(deliver)
-      return () => {
-        listeners.delete(deliver)
-      }
-    },
-    refresh: async () => {
-      adoptStatus()
-    },
-    requestAccess: async () => {
-      requests++
-      if (status === 'notDetermined') {
-        status = grantAccess ? 'authorized' : 'denied'
-      }
-      adoptStatus()
-      return status === 'authorized' || status === 'limited'
-    },
-    lookupByEmail: async (email) => {
-      log.push({ kind: 'email', email })
-      const wanted = email.toLowerCase()
-      return contacts.filter((contact) =>
-        contact.emails.some((address) => address.toLowerCase() === wanted),
-      )
-    },
-    lookupByName: async (name) => {
-      log.push({ kind: 'name', name })
-      const query = words(name)
-      return contacts.filter((contact) => {
-        const names = words(`${contact.fullName} ${contact.givenName} ${contact.familyName}`)
-        return (
-          query.length > 0 && query.every((part) => names.some((word) => word.startsWith(part)))
-        )
-      })
-    },
-  })
-  return {
-    ...service,
-    setStatus(next) {
-      status = next
-      adoptStatus()
-    },
-    setContacts(next) {
-      contacts = [...next]
-    },
-    accessRequests: () => requests,
-    lookups: () => [...log],
-  }
+  return new TestContactsServiceImpl(options)
 }

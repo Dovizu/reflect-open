@@ -12,15 +12,27 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
 import { parseDeepLink } from './deep-link-parse.ts'
 import { routeForPath, type Route } from './route.ts'
 
-/** The operating system's delivery of `reflect://` URLs to the app. */
+/**
+
+ * The operating system's delivery of `reflect://` URLs to the app.
+
+ */
 export interface DeepLinkSource {
-  /** Hear the URLs that arrive while the app runs. */
+  /**
+   * Hear the URLs that arrive while the app runs.
+   */
   onOpenUrl(listener: (urls: string[]) => void): Promise<Unlisten>
-  /** The URLs the app was launched with, or `null`. */
+  /**
+   * The URLs the app was launched with, or `null`.
+   */
   getCurrent(): Promise<string[] | null>
 }
 
-/** A {@link DeepLinkSource} for hosts where the system delivers no URLs. */
+/**
+
+ * A {@link DeepLinkSource} for hosts where the system delivers no URLs.
+
+ */
 export function createNoDeepLinkSource(): DeepLinkSource {
   return {
     onOpenUrl: () => Promise.resolve(() => {}),
@@ -28,7 +40,11 @@ export function createNoDeepLinkSource(): DeepLinkSource {
   }
 }
 
-/** What acting on a deep link needs from the open graph session. */
+/**
+
+ * What acting on a deep link needs from the open graph session.
+
+ */
 export interface DeepLinkIo {
   navigate: (route: Route) => void
   /**
@@ -42,7 +58,11 @@ export interface DeepLinkIo {
   isStale?: () => boolean
 }
 
-/** The open graph session that acts on incoming deep links. */
+/**
+
+ * The open graph session that acts on incoming deep links.
+
+ */
 export interface DeepLinkSession {
   navigate: (route: Route) => void
   /**
@@ -122,57 +142,41 @@ export interface DeepLinkService {
 }
 
 export interface DeepLinkServiceDeps {
-  source: DeepLinkSource
-  indexQuery: Pick<IndexQueryService, 'resolveNoteTarget'>
-  captureInbox: Pick<CaptureInboxService, 'spool'>
-  operations: Pick<OperationsService, 'start'>
-  id: Pick<IdService, 'uuid'>
-  clock: Pick<ClockService, 'now'>
-  logger: Pick<LoggerService, 'error'>
-  graphSession: Pick<GraphSessionService, 'getState'>
+  readonly source: DeepLinkSource
+  readonly indexQuery: Pick<IndexQueryService, 'resolveNoteTarget'>
+  readonly captureInbox: Pick<CaptureInboxService, 'spool'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly id: Pick<IdService, 'uuid'>
+  readonly clock: Pick<ClockService, 'now'>
+  readonly logger: Pick<LoggerService, 'error'>
+  readonly graphSession: Pick<GraphSessionService, 'getState'>
 }
 
-export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkService {
-  const { source, indexQuery, captureInbox, operations, id, clock, logger, graphSession } = deps
+class DeepLinkServiceImpl implements DeepLinkService {
+  readonly #deps: DeepLinkServiceDeps
+  #pendingUrls: string[] = []
+  #activeHandler: ((url: string) => void) | null = null
+  #started = false
+  #initialRoute: Route | null = null
 
-  let pendingUrls: string[] = []
-  let activeHandler: ((url: string) => void) | null = null
-  let started = false
-  let initialRoute: Route | null = null
-
-  const dispatch = (url: string): void => {
-    if (activeHandler !== null) {
-      activeHandler(url)
-    } else {
-      pendingUrls.push(url)
-    }
+  constructor(deps: DeepLinkServiceDeps) {
+    this.#deps = deps
   }
 
-  const setHandler = (handler: ((url: string) => void) | null): void => {
-    activeHandler = handler
-    if (handler !== null && pendingUrls.length > 0) {
-      const queued = pendingUrls
-      pendingUrls = []
-      for (const url of queued) {
-        handler(url)
-      }
-    }
-  }
-
-  const startListener = async (): Promise<void> => {
-    if (started) {
+  readonly startListener = async (): Promise<void> => {
+    if (this.#started) {
       return
     }
-    started = true
+    this.#started = true
     let unlisten: Unlisten | null = null
     try {
-      unlisten = await source.onOpenUrl((urls) => {
+      unlisten = await this.#deps.source.onOpenUrl((urls) => {
         for (const url of urls) {
-          dispatch(url)
+          this.dispatch(url)
         }
       })
-      for (const url of (await source.getCurrent()) ?? []) {
-        dispatch(url)
+      for (const url of (await this.#deps.source.getCurrent()) ?? []) {
+        this.dispatch(url)
       }
     } catch (cause) {
       // Unlatch FIRST so a later call can retry — a failed start must not
@@ -181,7 +185,7 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
       // would stack a second subscription and double-deliver every URL; the
       // teardown is best-effort, so a throwing unlisten can neither re-latch
       // nor mask the original failure.
-      started = false
+      this.#started = false
       try {
         unlisten?.()
       } catch {
@@ -191,11 +195,58 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
     }
   }
 
-  const handleIn = async (
-    url: string,
-    io: DeepLinkIo,
-    session: GraphSession | null,
-  ): Promise<void> => {
+  readonly dispatch = (url: string): void => {
+    if (this.#activeHandler !== null) {
+      this.#activeHandler(url)
+    } else {
+      this.#pendingUrls.push(url)
+    }
+  }
+
+  readonly setHandler = (handler: ((url: string) => void) | null): void => {
+    this.#activeHandler = handler
+    if (handler !== null && this.#pendingUrls.length > 0) {
+      const queued = this.#pendingUrls
+      this.#pendingUrls = []
+      for (const url of queued) {
+        handler(url)
+      }
+    }
+  }
+
+  readonly handle = (url: string, io: DeepLinkIo): Promise<void> =>
+    this.#handleIn(url, io, this.#deps.graphSession.getState().session)
+
+  readonly serve = (session: DeepLinkSession): Unlisten => {
+    const { logger, graphSession } = this.#deps
+    const { navigate } = session
+    const graph = graphSession.getState().session
+    this.setHandler((url) => {
+      const link = parseDeepLink(url)
+      // Capture and rejected URLs do not express a navigation intent, so they
+      // must not supersede a note target that is still resolving.
+      let io: DeepLinkIo = { navigate }
+      if (link !== null && link.kind !== 'capture') {
+        const intentStale = session.beginNavigationIntent()
+        io = { navigate, isStale: () => graph?.signal.aborted === true || intentStale() }
+      }
+      this.#handleIn(url, io, graph).catch((cause: unknown) => {
+        logger.error(`deep link failed: ${url}`, cause)
+      })
+    })
+    return () => {
+      this.setHandler(null)
+    }
+  }
+
+  readonly setInitialWindowRoute = (route: Route): void => {
+    this.#initialRoute = route
+  }
+
+  readonly getInitialWindowRoute = (): Route | null => this.#initialRoute
+
+  async #handleIn(url: string, io: DeepLinkIo, session: GraphSession | null): Promise<void> {
+    const { indexQuery, captureInbox, operations, id, clock } = this.#deps
     const link = parseDeepLink(url)
     if (link === null) {
       operations.start('Opening link').fail(`Unrecognized link: ${truncate(url)}`)
@@ -262,45 +313,17 @@ export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkServic
       }
     }
   }
-
-  const handle = (url: string, io: DeepLinkIo): Promise<void> =>
-    handleIn(url, io, graphSession.getState().session)
-
-  const serve = (session: DeepLinkSession): Unlisten => {
-    const { navigate } = session
-    const graph = graphSession.getState().session
-    setHandler((url) => {
-      const link = parseDeepLink(url)
-      // Capture and rejected URLs do not express a navigation intent, so they
-      // must not supersede a note target that is still resolving.
-      let io: DeepLinkIo = { navigate }
-      if (link !== null && link.kind !== 'capture') {
-        const intentStale = session.beginNavigationIntent()
-        io = { navigate, isStale: () => graph?.signal.aborted === true || intentStale() }
-      }
-      handleIn(url, io, graph).catch((cause: unknown) => {
-        logger.error(`deep link failed: ${url}`, cause)
-      })
-    })
-    return () => {
-      setHandler(null)
-    }
-  }
-
-  return {
-    startListener,
-    dispatch,
-    setHandler,
-    handle,
-    serve,
-    setInitialWindowRoute: (route) => {
-      initialRoute = route
-    },
-    getInitialWindowRoute: () => initialRoute,
-  }
 }
 
-/** Status-line-sized excerpt of an untrusted URL or target. */
+export function createDeepLinkService(deps: DeepLinkServiceDeps): DeepLinkService {
+  return new DeepLinkServiceImpl(deps)
+}
+
+/**
+
+ * Status-line-sized excerpt of an untrusted URL or target.
+
+ */
 function truncate(value: string): string {
   return value.length > 80 ? `${value.slice(0, 77)}…` : value
 }

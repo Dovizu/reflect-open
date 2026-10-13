@@ -43,12 +43,20 @@ export function isOpenableExternalUrl(href: string): boolean {
   return scheme !== undefined && !BLOCKED_SCHEMES.has(scheme.toLowerCase())
 }
 
-/** The route a clicked inline `#tag` opens: the All Notes screen filtered by that tag. */
+/**
+
+ * The route a clicked inline `#tag` opens: the All Notes screen filtered by that tag.
+
+ */
 export function routeForTag(tag: string): Route {
   return { kind: 'allNotes', tag }
 }
 
-/** What one link activation needs from the surface that hosts the link. */
+/**
+
+ * What one link activation needs from the surface that hosts the link.
+
+ */
 export interface LinkNavigationHost {
   /**
    * Navigate in this window. The host passes its router's `navigate`, so the
@@ -164,80 +172,66 @@ export interface LinkNavigationService {
 }
 
 export interface LinkNavigationServiceDeps {
-  noteLinkResolver: Pick<NoteLinkResolverService, 'resolveWikiTarget' | 'resolveMarkdownHref'>
-  noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-  /** The read-only index resolver, for a surface with no writable graph. */
-  wikiResolver: Pick<WikiResolverService, 'resolveWikiTarget'>
-  window: Pick<WindowService, 'openNoteWindow'>
-  platform: Pick<PlatformService, 'isNativeShell' | 'surface'>
-  opener: Pick<OpenerService, 'openUrlSync'>
-  deepLink: Pick<DeepLinkService, 'dispatch'>
-  navigation: Pick<NavigationService, 'navigationRevision'>
-  attachments: Pick<AttachmentService, 'resolveAssetOpenPath' | 'openOrReveal'>
-  operations: Pick<OperationsService, 'start'>
-  logger: Pick<LoggerService, 'error'>
-  graphSession: Pick<GraphSessionService, 'getState'>
+  readonly noteLinkResolver: Pick<
+    NoteLinkResolverService,
+    'resolveWikiTarget' | 'resolveMarkdownHref'
+  >
+  readonly noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
+  /**
+   * The read-only index resolver, for a surface with no writable graph.
+   */
+  readonly wikiResolver: Pick<WikiResolverService, 'resolveWikiTarget'>
+  readonly window: Pick<WindowService, 'openNoteWindow'>
+  readonly platform: Pick<PlatformService, 'isNativeShell' | 'surface'>
+  readonly opener: Pick<OpenerService, 'openUrlSync'>
+  readonly deepLink: Pick<DeepLinkService, 'dispatch'>
+  readonly navigation: Pick<NavigationService, 'navigationRevision'>
+  readonly attachments: Pick<AttachmentService, 'resolveAssetOpenPath' | 'openOrReveal'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly logger: Pick<LoggerService, 'error'>
+  readonly graphSession: Pick<GraphSessionService, 'getState'>
 }
 
-export function createLinkNavigationService(
-  deps: LinkNavigationServiceDeps,
-): LinkNavigationService {
-  const {
-    noteLinkResolver,
-    noteCreation,
-    wikiResolver,
-    window,
-    platform,
-    opener,
-    deepLink,
-    navigation,
-    attachments,
-    operations,
-    logger,
-    graphSession,
-  } = deps
+class LinkNavigationServiceImpl implements LinkNavigationService {
+  readonly #deps: LinkNavigationServiceDeps
+  #latestIntent = 0
 
-  let latestIntent = 0
-
-  const reportAmbiguousNoteTitle = (operationLabel: string, title: string): void => {
-    operations.start(operationLabel).fail(ambiguousNoteTitleMessage(title))
+  constructor(deps: LinkNavigationServiceDeps) {
+    this.#deps = deps
   }
 
-  const reportUnavailableNote = (name: string): void => {
-    operations
-      .start('Opening link')
-      .fail(
-        `Couldn’t open “${name}” because a matching note is currently unavailable. Try again when it is available on this device.`,
-      )
+  readonly beginIntent = (): (() => boolean) => {
+    const { navigation } = this.#deps
+    this.#latestIntent += 1
+    const intent = this.#latestIntent
+    const startedAtRevision = navigation.navigationRevision()
+    return () =>
+      this.#latestIntent !== intent || navigation.navigationRevision() !== startedAtRevision
   }
 
-  const currentGeneration = (): number | null => graphSession.getState().session?.generation ?? null
-
-  const canOpenWindows = (): boolean => platform.isNativeShell && !platform.surface.mobileApp
-
-  const openRouteInNewWindow = async (route: Route): Promise<boolean> => {
-    if (!canOpenWindows()) {
+  readonly openRouteInNewWindow = async (route: Route): Promise<boolean> => {
+    if (!this.#canOpenWindows()) {
       return false
     }
     const link = deepLinkForRoute(route)
     if (link === null) {
       return false
     }
-    return await window.openNoteWindow(link)
+    return await this.#deps.window.openNoteWindow(link)
   }
 
-  const openDeepLinkInNewWindow = async (href: string): Promise<boolean> => {
-    if (!canOpenWindows()) {
+  readonly openDeepLinkInNewWindow = async (href: string): Promise<boolean> => {
+    if (!this.#canOpenWindows()) {
       return false
     }
     const link = parseDeepLink(href)
     if (link === null || link.kind === 'capture') {
       return false
     }
-    return await window.openNoteWindow(href)
+    return await this.#deps.window.openNoteWindow(href)
   }
 
-  const openNoteLink: LinkNavigationService['openNoteLink'] = (
+  readonly openNoteLink: LinkNavigationService['openNoteLink'] = (
     { target, openInNewWindow },
     host,
   ) => {
@@ -250,7 +244,7 @@ export function createLinkNavigationService(
     void (async () => {
       let opened = false
       try {
-        opened = await openRouteInNewWindow(target)
+        opened = await this.openRouteInNewWindow(target)
       } catch {
         // Treat a native open failure like a declined open and fall back below.
       }
@@ -261,14 +255,15 @@ export function createLinkNavigationService(
     })()
   }
 
-  const followWikiLink: LinkNavigationService['followWikiLink'] = (
+  readonly followWikiLink: LinkNavigationService['followWikiLink'] = (
     { target, openInNewWindow, readOnly },
     host,
   ) => {
-    const generation = (readOnly ?? false) ? null : currentGeneration()
+    const { noteLinkResolver, noteCreation, wikiResolver, operations, logger } = this.#deps
+    const generation = (readOnly ?? false) ? null : this.#currentGeneration()
     const isStale = host.beginIntent()
     const open = (route: NoteRoute): void => {
-      openNoteLink({ target: route, openInNewWindow }, host)
+      this.openNoteLink({ target: route, openInNewWindow }, host)
     }
     void (async () => {
       try {
@@ -299,9 +294,9 @@ export function createLinkNavigationService(
           } else if (resolution.kind === 'missing') {
             open({ kind: 'daily', date: normalized.date })
           } else if (resolution.kind === 'ambiguous') {
-            reportAmbiguousNoteTitle('Opening link', normalized.raw)
+            this.reportAmbiguousNoteTitle('Opening link', normalized.raw)
           } else {
-            reportUnavailableNote(normalized.raw)
+            this.#reportUnavailableNote(normalized.raw)
           }
           return
         }
@@ -314,9 +309,9 @@ export function createLinkNavigationService(
             return
           }
           if (outcome.kind === 'ambiguous') {
-            reportAmbiguousNoteTitle('Opening link', normalized.raw)
+            this.reportAmbiguousNoteTitle('Opening link', normalized.raw)
           } else if (outcome.kind === 'unavailable') {
-            reportUnavailableNote(normalized.raw)
+            this.#reportUnavailableNote(normalized.raw)
           } else {
             open(routeForPath(outcome.path))
           }
@@ -340,43 +335,44 @@ export function createLinkNavigationService(
     })()
   }
 
-  const followMarkdownNoteLinkAt = (
-    {
-      href,
-      sourcePath,
-      openInNewWindow,
-    }: { href: string; sourcePath: string; openInNewWindow: boolean },
-    generation: number | null,
-    host: LinkNavigationHost,
-  ): void => {
-    if (generation === null) {
-      return
-    }
-    const isStale = host.beginIntent()
-    void (async () => {
-      try {
-        const resolution = await noteLinkResolver.resolveMarkdownHref(sourcePath, href, generation)
-        if (isStale()) {
-          return
-        }
-        if (resolution.kind === 'resolved') {
-          openNoteLink({ target: routeForPath(resolution.path), openInNewWindow }, host)
-        } else if (resolution.kind === 'ambiguous') {
-          reportAmbiguousNoteTitle('Opening link', href)
-        } else if (resolution.kind === 'unavailable') {
-          reportUnavailableNote(href)
-        }
-      } catch (err) {
-        logger.error('markdown-link resolution failed:', err)
-        operations.start('Opening link').fail(errorMessage(err))
-      }
-    })()
+  readonly followMarkdownNoteLink: LinkNavigationService['followMarkdownNoteLink'] = (
+    options,
+    host,
+  ) => {
+    this.#followMarkdownNoteLinkAt(options, this.#currentGeneration(), host)
   }
 
-  const followDeepLink: LinkNavigationService['followDeepLink'] = (
+  readonly followMarkdownLink: LinkNavigationService['followMarkdownLink'] = (
+    { href, sourcePath, openInNewWindow },
+    host,
+  ) => {
+    const { attachments, opener } = this.#deps
+    const generation = this.#currentGeneration()
+    if (generation !== null && sourcePath !== null) {
+      const assetPath = attachments.resolveAssetOpenPath(sourcePath, href)
+      if (assetPath !== null) {
+        void attachments.openOrReveal(assetPath)
+        return
+      }
+    }
+    if (isDeepLinkUrl(href)) {
+      this.followDeepLink({ href, openInNewWindow }, host)
+      return
+    }
+    if (isOpenableExternalUrl(href)) {
+      opener.openUrlSync(href)
+      return
+    }
+    if (sourcePath !== null) {
+      this.#followMarkdownNoteLinkAt({ href, sourcePath, openInNewWindow }, generation, host)
+    }
+  }
+
+  readonly followDeepLink: LinkNavigationService['followDeepLink'] = (
     { href, openInNewWindow },
     host,
   ) => {
+    const { deepLink } = this.#deps
     const link = parseDeepLink(href)
     // A capture or rejected URL still dispatches so the graph-scoped handler
     // can write it or surface the error, but it cannot supersede navigation.
@@ -394,7 +390,7 @@ export function createLinkNavigationService(
     void (async () => {
       let opened = false
       try {
-        opened = await openDeepLinkInNewWindow(href)
+        opened = await this.openDeepLinkInNewWindow(href)
       } catch {
         // Treat a native open failure like a declined open and fall back below.
       }
@@ -405,47 +401,64 @@ export function createLinkNavigationService(
     })()
   }
 
-  const followMarkdownLink: LinkNavigationService['followMarkdownLink'] = (
-    { href, sourcePath, openInNewWindow },
-    host,
-  ) => {
-    const generation = currentGeneration()
-    if (generation !== null && sourcePath !== null) {
-      const assetPath = attachments.resolveAssetOpenPath(sourcePath, href)
-      if (assetPath !== null) {
-        void attachments.openOrReveal(assetPath)
-        return
-      }
-    }
-    if (isDeepLinkUrl(href)) {
-      followDeepLink({ href, openInNewWindow }, host)
-      return
-    }
-    if (isOpenableExternalUrl(href)) {
-      opener.openUrlSync(href)
-      return
-    }
-    if (sourcePath !== null) {
-      followMarkdownNoteLinkAt({ href, sourcePath, openInNewWindow }, generation, host)
-    }
+  readonly reportAmbiguousNoteTitle = (operationLabel: string, title: string): void => {
+    this.#deps.operations.start(operationLabel).fail(ambiguousNoteTitleMessage(title))
   }
 
-  return {
-    beginIntent: () => {
-      latestIntent += 1
-      const intent = latestIntent
-      const startedAtRevision = navigation.navigationRevision()
-      return () => latestIntent !== intent || navigation.navigationRevision() !== startedAtRevision
-    },
-    openRouteInNewWindow,
-    openDeepLinkInNewWindow,
-    openNoteLink,
-    followWikiLink,
-    followMarkdownNoteLink: (options, host) => {
-      followMarkdownNoteLinkAt(options, currentGeneration(), host)
-    },
-    followMarkdownLink,
-    followDeepLink,
-    reportAmbiguousNoteTitle,
+  #reportUnavailableNote(name: string): void {
+    this.#deps.operations
+      .start('Opening link')
+      .fail(
+        `Couldn’t open “${name}” because a matching note is currently unavailable. Try again when it is available on this device.`,
+      )
   }
+
+  #currentGeneration(): number | null {
+    return this.#deps.graphSession.getState().session?.generation ?? null
+  }
+
+  #canOpenWindows(): boolean {
+    const { platform } = this.#deps
+    return platform.isNativeShell && !platform.surface.mobileApp
+  }
+
+  #followMarkdownNoteLinkAt(
+    {
+      href,
+      sourcePath,
+      openInNewWindow,
+    }: { href: string; sourcePath: string; openInNewWindow: boolean },
+    generation: number | null,
+    host: LinkNavigationHost,
+  ): void {
+    const { noteLinkResolver, operations, logger } = this.#deps
+    if (generation === null) {
+      return
+    }
+    const isStale = host.beginIntent()
+    void (async () => {
+      try {
+        const resolution = await noteLinkResolver.resolveMarkdownHref(sourcePath, href, generation)
+        if (isStale()) {
+          return
+        }
+        if (resolution.kind === 'resolved') {
+          this.openNoteLink({ target: routeForPath(resolution.path), openInNewWindow }, host)
+        } else if (resolution.kind === 'ambiguous') {
+          this.reportAmbiguousNoteTitle('Opening link', href)
+        } else if (resolution.kind === 'unavailable') {
+          this.#reportUnavailableNote(href)
+        }
+      } catch (err) {
+        logger.error('markdown-link resolution failed:', err)
+        operations.start('Opening link').fail(errorMessage(err))
+      }
+    })()
+  }
+}
+
+export function createLinkNavigationService(
+  deps: LinkNavigationServiceDeps,
+): LinkNavigationService {
+  return new LinkNavigationServiceImpl(deps)
 }

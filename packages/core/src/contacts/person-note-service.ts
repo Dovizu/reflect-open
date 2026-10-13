@@ -30,7 +30,11 @@ export interface BlockedPersonResolution {
   readonly reason: 'identity-conflict' | 'unaddressable-owner'
 }
 
-/** The graph's answer for a set of email identities. */
+/**
+
+ * The graph's answer for a set of email identities.
+
+ */
 export type PersonResolution =
   | MissingPersonResolution
   | ExistingPersonResolution
@@ -52,7 +56,11 @@ export interface BlockedPersonContactResolution {
   readonly reason: BlockedPersonResolution['reason'] | 'unaddressable-contact'
 }
 
-/** A Contact row ready for a wikilink surface, or a reason to hide it. */
+/**
+
+ * A Contact row ready for a wikilink surface, or a reason to hide it.
+
+ */
 export type PersonContactResolution =
   | NewPersonContactResolution
   | ExistingPersonContactResolution
@@ -74,7 +82,11 @@ interface PersonOwnerRow {
   readonly path: string
 }
 
-/** The mapping from email identities to `#person` notes. */
+/**
+
+ * The mapping from email identities to `#person` notes.
+
+ */
 export interface PersonNoteService {
   /**
    * Resolve all supplied emails as one person identity. Primary-email order has
@@ -96,41 +108,26 @@ export interface PersonNoteService {
   ensurePersonNote(input: EnsurePersonNoteInput): Promise<EnsurePersonNoteResult>
 }
 
-export function createPersonNoteService(deps: {
-  database: DatabaseService
-  wikiResolver: Pick<WikiResolverService, 'getWikiAddressForPath'>
-  noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-}): PersonNoteService {
-  const { database, wikiResolver, noteCreation } = deps
-  const { db } = database
+export interface PersonNoteServiceDeps {
+  readonly database: DatabaseService
+  readonly wikiResolver: Pick<WikiResolverService, 'getWikiAddressForPath'>
+  readonly noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
+}
 
-  async function personOwners(emails: readonly string[]): Promise<PersonOwnerRow[]> {
-    const owners = new Map<string, PersonOwnerRow>()
-    for (const chunk of inClauseChunks(emails)) {
-      const rows = await db
-        .selectFrom('noteEmails')
-        .innerJoin('notes', 'notes.path', 'noteEmails.notePath')
-        .innerJoin('tags', 'tags.notePath', 'notes.path')
-        .where('noteEmails.emailKey', 'in', chunk)
-        .where('tags.tagKey', '=', PERSON_TAG_KEY)
-        .where('notes.kind', '=', 'note')
-        .select('notes.path as path')
-        .distinct()
-        .orderBy('notes.path')
-        .execute()
-      for (const row of rows) {
-        owners.set(row.path, row)
-      }
-    }
-    return [...owners.values()].sort((left, right) => left.path.localeCompare(right.path))
+class PersonNoteServiceImpl implements PersonNoteService {
+  readonly #deps: PersonNoteServiceDeps
+
+  constructor(deps: PersonNoteServiceDeps) {
+    this.#deps = deps
   }
 
-  async function resolvePerson(values: readonly string[]): Promise<PersonResolution> {
+  async resolvePerson(values: readonly string[]): Promise<PersonResolution> {
+    const { wikiResolver } = this.#deps
     const emails = canonicalEmails(values)
     if (emails.length === 0) {
       return { kind: 'missing', emails }
     }
-    const owners = await personOwners(emails)
+    const owners = await this.#personOwners(emails)
     if (owners.length === 0) {
       return { kind: 'missing', emails }
     }
@@ -154,34 +151,56 @@ export function createPersonNoteService(deps: {
     }
   }
 
-  return {
-    resolvePerson,
-
-    async resolvePersonContact(contact) {
-      const resolution = await resolvePerson(contact.emails)
-      if (resolution.kind === 'existing') {
-        return { ...resolution, contact }
-      }
-      if (resolution.kind === 'blocked') {
-        return { kind: 'blocked', contact, reason: resolution.reason }
-      }
-      const insertText = serializeWikiSuggestionAddress(contact.fullName, null)
-      if (insertText === null) {
-        return { kind: 'blocked', contact, reason: 'unaddressable-contact' }
-      }
-      return { kind: 'new', contact, insertText }
-    },
-
-    async ensurePersonNote(input) {
-      const resolution = await resolvePerson(input.emails)
-      if (resolution.kind !== 'missing') {
-        return resolution
-      }
-      return await noteCreation.resolveOrCreateNoteWithTitle(
-        input.title,
-        input.generation,
-        input.body,
-      )
-    },
+  async resolvePersonContact(contact: ContactMatch): Promise<PersonContactResolution> {
+    const resolution = await this.resolvePerson(contact.emails)
+    if (resolution.kind === 'existing') {
+      return { ...resolution, contact }
+    }
+    if (resolution.kind === 'blocked') {
+      return { kind: 'blocked', contact, reason: resolution.reason }
+    }
+    const insertText = serializeWikiSuggestionAddress(contact.fullName, null)
+    if (insertText === null) {
+      return { kind: 'blocked', contact, reason: 'unaddressable-contact' }
+    }
+    return { kind: 'new', contact, insertText }
   }
+
+  async ensurePersonNote(input: EnsurePersonNoteInput): Promise<EnsurePersonNoteResult> {
+    const resolution = await this.resolvePerson(input.emails)
+    if (resolution.kind !== 'missing') {
+      return resolution
+    }
+    return await this.#deps.noteCreation.resolveOrCreateNoteWithTitle(
+      input.title,
+      input.generation,
+      input.body,
+    )
+  }
+
+  async #personOwners(emails: readonly string[]): Promise<PersonOwnerRow[]> {
+    const { db } = this.#deps.database
+    const owners = new Map<string, PersonOwnerRow>()
+    for (const chunk of inClauseChunks(emails)) {
+      const rows = await db
+        .selectFrom('noteEmails')
+        .innerJoin('notes', 'notes.path', 'noteEmails.notePath')
+        .innerJoin('tags', 'tags.notePath', 'notes.path')
+        .where('noteEmails.emailKey', 'in', chunk)
+        .where('tags.tagKey', '=', PERSON_TAG_KEY)
+        .where('notes.kind', '=', 'note')
+        .select('notes.path as path')
+        .distinct()
+        .orderBy('notes.path')
+        .execute()
+      for (const row of rows) {
+        owners.set(row.path, row)
+      }
+    }
+    return [...owners.values()].sort((left, right) => left.path.localeCompare(right.path))
+  }
+}
+
+export function createPersonNoteService(deps: PersonNoteServiceDeps): PersonNoteService {
+  return new PersonNoteServiceImpl(deps)
 }

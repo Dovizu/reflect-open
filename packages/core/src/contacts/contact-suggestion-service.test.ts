@@ -24,7 +24,7 @@ import {
   suggestedContactDetails,
   type ContactSuggestionService,
 } from './contact-suggestion-service.ts'
-import { withContactsLookups, type ContactsService } from './contacts-service.ts'
+import { contactsCanLookup, type ContactsService } from './contacts-service.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
@@ -46,7 +46,11 @@ let noteFile: TestNoteFileService
 let openDocuments: OpenDocumentsService
 let service: ContactSuggestionService
 
-/** The real service; each dependency left out is a fresh test double. */
+/**
+
+ * The real service; each dependency left out is a fresh test double.
+
+ */
 function contactSuggestionsOver(deps?: {
   contacts?: ContactsService
   openDocuments?: OpenDocumentsService
@@ -68,7 +72,11 @@ function contactSuggestionsOver(deps?: {
   })
 }
 
-/** Open the note in a pane: the session's buffer is then the note's live source. */
+/**
+
+ * Open the note in a pane: the session's buffer is then the note's live source.
+
+ */
 function openNote(content: string, options: { accepts?: boolean } = {}): TestNoteSession {
   const session = createTestNoteSession({ path: PATH, content, accepts: options.accepts ?? true })
   openDocuments.register({ session })
@@ -322,7 +330,13 @@ describe('the enable flow', () => {
   it('requestAccess swallows a failed prompt', async () => {
     const failing = contactSuggestionsOver({
       contacts: {
-        ...contacts,
+        getState: contacts.getState,
+        subscribe: contacts.subscribe,
+        refresh: () => contacts.refresh(),
+        canLookup: (current) => contacts.canLookup(current),
+        lookupPeople: (query) => contacts.lookupPeople(query),
+        lookupByEmail: (email) => contacts.lookupByEmail(email),
+        lookupByName: (name) => contacts.lookupByName(name),
         requestAccess: async () => {
           throw new Error('prompt timed out')
         },
@@ -349,7 +363,16 @@ describe('showsSuggestionFor', () => {
     path: string,
   ): boolean {
     const gated = contactSuggestionsOver({
-      contacts: withContactsLookups({ ...contacts, getState: () => ({ authorization }) }),
+      contacts: {
+        getState: () => ({ authorization }),
+        subscribe: contacts.subscribe,
+        refresh: () => contacts.refresh(),
+        requestAccess: () => contacts.requestAccess(),
+        canLookup: (current) => contactsCanLookup({ authorization }, current),
+        lookupPeople: (query) => contacts.lookupPeople(query),
+        lookupByEmail: (email) => contacts.lookupByEmail(email),
+        lookupByName: (name) => contacts.lookupByName(name),
+      },
     })
     return gated.showsSuggestionFor(settings, path)
   }
