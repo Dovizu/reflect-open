@@ -1100,6 +1100,8 @@ export function composeAppServices(
       noteFile,
       openDocuments,
       indexLifecycle,
+      indexQuery: indexReads.indexQuery,
+      noteRows,
       operations,
       clipboard: adapters.clipboard,
       path,

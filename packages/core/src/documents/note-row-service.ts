@@ -1,16 +1,24 @@
-import type { NoteRow } from '../indexing/index-query-service.ts'
+import type { NoteRow, PinnedNote } from '../indexing/index-query-service.ts'
 import type { Unlisten } from '../ipc/ipc-service.ts'
+import { isValidPinOrder } from './pin-order.ts'
 
 /**
- * Index-row fields an action may assert ahead of the re-index. Publishing
- * yields a concrete `gistUrl` and a fresh `gistStale: false`; unpublishing
- * yields `gistUrl: null`. These overlays are short-lived read-model facts that
- * retire as soon as the index catches up. As a *stored* value every field is
- * concrete: an `undefined` field is stripped before it lands.
+ * Index-row fields an action may assert ahead of the re-index: a pin
+ * (`isPinned`, `pinnedOrder`), a private toggle (`isPrivate`), a publish
+ * (`gistUrl`, `gistStale`), and a trash (`trashed`: the note is gone from
+ * lists until the index drops its row). These overlays are short-lived
+ * read-model facts that retire as soon as the index catches up. As a *stored*
+ * value every field is concrete: an `undefined` field is stripped before it
+ * lands.
  */
 export interface NoteRowOverlay {
+  readonly isPinned?: boolean
+  /** The shelf order a pin wrote; `null` for a bare `pinned: true`. */
+  readonly pinnedOrder?: number | null
+  readonly isPrivate?: boolean
   readonly gistUrl?: string | null
   readonly gistStale?: boolean
+  readonly trashed?: boolean
 }
 
 /**
@@ -19,14 +27,49 @@ export interface NoteRowOverlay {
  * patch). Such fields are dropped, so an all-`undefined` patch is a no-op and
  * `undefined` never reaches a stored {@link NoteRowOverlay}.
  */
-export interface NoteRowOverlayPatch {
-  readonly gistUrl?: string | null | undefined
-  readonly gistStale?: boolean | undefined
+export type NoteRowOverlayPatch = {
+  readonly [Key in keyof NoteRowOverlay]?: NoteRowOverlay[Key] | undefined
+}
+
+/**
+ * What an index read reports for a note: the overlay fields the read carries.
+ * A field the read does not carry (`undefined`) is never compared.
+ */
+export type NoteRowFacts = {
+  readonly [Key in Exclude<keyof NoteRowOverlay, 'trashed'>]?: NoteRowOverlay[Key] | undefined
+}
+
+/** A listed note's {@link NoteRowFacts}, keyed by its path. */
+export type NoteListRowFacts = NoteRowFacts & { readonly path: string }
+
+export interface NoteRowReconcileOptions {
+  /**
+   * The rows are every note a trashed note could be listed under, so a path
+   * missing from them is gone from the index and its `trashed` overlay retires.
+   */
+  readonly complete?: boolean
 }
 
 type MutableNoteRowOverlay = {
   -readonly [Key in keyof NoteRowOverlay]: NoteRowOverlay[Key]
 }
+
+const OVERLAY_KEYS = [
+  'isPinned',
+  'pinnedOrder',
+  'isPrivate',
+  'gistUrl',
+  'gistStale',
+  'trashed',
+] as const satisfies readonly (keyof NoteRowOverlay)[]
+
+const ROW_KEYS = [
+  'isPinned',
+  'pinnedOrder',
+  'isPrivate',
+  'gistUrl',
+  'gistStale',
+] as const satisfies readonly (keyof NoteRowFacts)[]
 
 interface OverlayEntry {
   /** The graph (file) generation this optimism was written under. */
@@ -34,22 +77,24 @@ interface OverlayEntry {
   readonly overlay: NoteRowOverlay
 }
 
+const EMPTY_OVERLAYS: ReadonlyMap<string, NoteRowOverlay> = new Map()
+
 /**
  * The optimistic read overlay for note index rows (Plan 12 follow-up).
  *
  * The index lags an in-app frontmatter write by one watcher round-trip, so a
- * just-published note would briefly read as unpublished. Rather than each
- * surface (the gist action, the published-URL section, …) carrying its own
- * pending-state "bridge", the optimism lives **once, in the read model**: an
- * action records what it just wrote, the reader merges it over the index row,
- * and it retires the moment the index agrees. Every reader sees a single
- * consistent value, so there is no second value to disagree.
+ * just-published, just-pinned, or just-trashed note would briefly read as it
+ * was. Rather than each surface carrying its own pending-state "bridge", the
+ * optimism lives **once, in the read model**: an action records what it just
+ * wrote, the reader merges it over the index row, and it retires the moment
+ * the index agrees. Every reader sees a single consistent value, so there is
+ * no second value to disagree.
  *
  * Each entry is keyed by graph-relative path and stamped with the **graph
  * generation** it was written under. A reader only sees overlays matching its
- * current generation, so a publish that resolves *after* a graph switch can't
+ * current generation, so an action that resolves *after* a graph switch can't
  * surface on the new graph (its generation no longer matches): a path shared
- * across graphs never shows the wrong note's url. {@link NoteRowService.reset}
+ * across graphs never shows the wrong note's state. {@link NoteRowService.reset}
  * on graph teardown is then just memory hygiene, not load-bearing for
  * correctness.
  */
@@ -58,11 +103,19 @@ export interface NoteRowService {
    * Record an optimistic patch for `path` under the `generation` it was written
    * in, reflected by every reader of that path on that graph until the index
    * catches up. Merges with an existing patch from the same generation; a
-   * patch from a newer generation replaces a stale one. An empty patch (or one
-   * that is all `undefined`) is ignored: it would only leave a
-   * non-reconcilable entry and leak `undefined` into merged rows.
+   * patch from a newer generation replaces a stale one. An unpin
+   * (`isPinned: false`) drops a recorded `pinnedOrder`, and any patch without
+   * `trashed` drops a recorded `trashed` (the note is acted on, so it exists).
+   * An empty patch (or one that is all `undefined`) is ignored: it would only
+   * leave a non-reconcilable entry and leak `undefined` into merged rows.
    */
   setOverlay(path: string, generation: number, patch: NoteRowOverlayPatch): void
+  /**
+   * Drop the fields of `patch` that `path` still holds with the same value on
+   * `generation`: a failed action takes back its own optimism, and a later
+   * action's value stays.
+   */
+  dropOverlay(path: string, generation: number, patch: NoteRowOverlayPatch): void
   /**
    * The overlay for `path` on `generation`, or `null` when none applies.
    * Readers accept `undefined` (the graph may not have loaded yet) and report
@@ -73,11 +126,23 @@ export interface NoteRowService {
    */
   getOverlay(path: string, generation: number | undefined): NoteRowOverlay | null
   /**
-   * Drop overlay fields the freshly-read index `row` has caught up to (and the
-   * whole entry once nothing is left). A `null` row (note not indexed yet) or
-   * a mismatched generation has nothing to reconcile, so the overlay is held.
+   * Every overlay on `generation`, by path. The same map is returned until an
+   * overlay changes, so it is a stable snapshot for a store subscription.
    */
-  reconcile(path: string, generation: number, row: NoteRow | null): void
+  getOverlays(generation: number | undefined): ReadonlyMap<string, NoteRowOverlay>
+  /**
+   * Drop overlay fields the freshly-read index `row` has caught up to (and the
+   * whole entry once nothing is left). A `null` row means the index has no
+   * row: a trashed note's entry retires, any other overlay is held (the note
+   * may not be indexed yet). A mismatched generation has nothing to reconcile.
+   */
+  reconcile(path: string, generation: number, row: NoteRowFacts | null): void
+  /** {@link NoteRowService.reconcile} for each listed row. */
+  reconcileRows(
+    generation: number,
+    rows: readonly NoteListRowFacts[],
+    options?: NoteRowReconcileOptions,
+  ): void
   /** Drop every overlay: graph teardown reclaims memory (correctness is by generation). */
   reset(): void
   /** Call `listener` whenever an overlay changes. */
@@ -85,21 +150,33 @@ export interface NoteRowService {
 }
 
 /** Strip `undefined` fields: an all-`undefined` patch must never be stored. */
-function definedFields(patch: NoteRowOverlayPatch): NoteRowOverlay {
-  const result: MutableNoteRowOverlay = {}
-  if (patch.gistUrl !== undefined) {
-    result.gistUrl = patch.gistUrl
+function definedFields(patch: NoteRowOverlayPatch): MutableNoteRowOverlay {
+  const result: Record<string, unknown> = {}
+  for (const key of OVERLAY_KEYS) {
+    if (patch[key] !== undefined) {
+      result[key] = patch[key]
+    }
   }
-  if (patch.gistStale !== undefined) {
-    result.gistStale = patch.gistStale
+  return result as MutableNoteRowOverlay
+}
+
+/** Copy the `overlay` fields that `row` carries onto it; `null` when none changes a value. */
+function mergeOverlay<Row extends object>(row: Row, overlay: NoteRowOverlay): Row | null {
+  let merged: Row | null = null
+  for (const key of ROW_KEYS) {
+    const value = overlay[key]
+    if (value !== undefined && key in row && Reflect.get(row, key) !== value) {
+      merged ??= { ...row }
+      Reflect.set(merged, key, value)
+    }
   }
-  return result
+  return merged
 }
 
 /**
  * Merge an overlay over an index row. The overlay only sharpens an existing
- * row; with no row there is nothing to display yet (a publish targets an
- * already-indexed note), so `null` passes through.
+ * row (only the fields a `NoteRow` has); with no row there is nothing to
+ * display yet, so `null` passes through.
  */
 export function applyNoteRowOverlay(
   row: NoteRow | null,
@@ -108,17 +185,149 @@ export function applyNoteRowOverlay(
   if (row === null || overlay === null) {
     return row
   }
-  return { ...row, ...overlay }
+  return mergeOverlay(row, overlay) ?? row
+}
+
+/**
+ * Merge the overlays over listed rows: a trashed note leaves the list, and a
+ * field the row type carries takes the overlay's value. Returns `rows` itself
+ * when nothing changes.
+ */
+export function applyNoteRowOverlays<Row extends { readonly path: string }>(
+  rows: readonly Row[],
+  overlays: ReadonlyMap<string, NoteRowOverlay>,
+): readonly Row[] {
+  if (overlays.size === 0) {
+    return rows
+  }
+  let changed = false
+  const result: Row[] = []
+  for (const row of rows) {
+    const overlay = overlays.get(row.path)
+    if (overlay === undefined) {
+      result.push(row)
+    } else if (overlay.trashed === true) {
+      changed = true
+    } else {
+      const merged = mergeOverlay(row, overlay)
+      changed ||= merged !== null
+      result.push(merged ?? row)
+    }
+  }
+  return changed ? result : rows
+}
+
+function sortsAfter(order: number | null | undefined, other: number | null | undefined): boolean {
+  if (!isValidPinOrder(other)) {
+    return false
+  }
+  return !isValidPinOrder(order) || order > other
+}
+
+/**
+ * Merge the overlays over the pinned shelf, keeping the index's order: an
+ * unpinned or trashed note leaves it, a changed `pinnedOrder` moves its note,
+ * and a newly pinned note joins where its order sorts (a bare pin goes last).
+ * `preview` builds the shelf entry of a note the index does not list yet.
+ * Returns `pinned` itself when nothing changes.
+ */
+export function applyPinnedNoteOverlays(
+  pinned: readonly PinnedNote[],
+  overlays: ReadonlyMap<string, NoteRowOverlay>,
+  preview: (path: string) => PinnedNote,
+): readonly PinnedNote[] {
+  if (overlays.size === 0) {
+    return pinned
+  }
+  let changed = false
+  const shelf: PinnedNote[] = []
+  for (const note of pinned) {
+    const overlay = overlays.get(note.path)
+    if (overlay?.trashed === true || overlay?.isPinned === false) {
+      changed = true
+    } else if (overlay?.pinnedOrder !== undefined && overlay.pinnedOrder !== note.pinnedOrder) {
+      changed = true
+      shelf.push({ ...note, pinnedOrder: overlay.pinnedOrder })
+    } else {
+      shelf.push(note)
+    }
+  }
+  const listed = new Set(pinned.map((note) => note.path))
+  for (const [path, overlay] of overlays) {
+    if (overlay.isPinned === true && overlay.trashed !== true && !listed.has(path)) {
+      changed = true
+      shelf.push({ ...preview(path), pinnedOrder: overlay.pinnedOrder ?? null })
+    }
+  }
+  if (!changed) {
+    return pinned
+  }
+  // Stable insertion sort: notes the overlays did not move keep the index's order.
+  const sorted: PinnedNote[] = []
+  for (const note of shelf) {
+    const at = sorted.findIndex((placed) => sortsAfter(placed.pinnedOrder, note.pinnedOrder))
+    if (at === -1) {
+      sorted.push(note)
+    } else {
+      sorted.splice(at, 0, note)
+    }
+  }
+  return sorted
+}
+
+/** The overlay with the fields `row` agrees with removed; `null` when none agrees. */
+function retireAgreeing(overlay: NoteRowOverlay, row: NoteRowFacts): MutableNoteRowOverlay | null {
+  const remaining: MutableNoteRowOverlay = { ...overlay }
+  let retired = false
+  for (const key of ROW_KEYS) {
+    const value = row[key]
+    if (value !== undefined && overlay[key] === value) {
+      delete remaining[key]
+      retired = true
+    }
+  }
+  return retired ? remaining : null
 }
 
 export function createNoteRowService(): NoteRowService {
   const overlays = new Map<string, OverlayEntry>()
   const listeners = new Set<() => void>()
+  let snapshot: { generation: number; overlays: ReadonlyMap<string, NoteRowOverlay> } | null = null
 
   function emit(): void {
+    snapshot = null
     for (const listener of listeners) {
       listener()
     }
+  }
+
+  function store(path: string, generation: number, overlay: MutableNoteRowOverlay): void {
+    if (Object.keys(overlay).length === 0) {
+      overlays.delete(path)
+    } else {
+      overlays.set(path, { generation, overlay })
+    }
+  }
+
+  /** Reconcile one entry without emitting; `true` when it changed. */
+  function reconcileEntry(path: string, generation: number, row: NoteRowFacts | null): boolean {
+    const entry = overlays.get(path)
+    if (entry === undefined || entry.generation !== generation) {
+      return false
+    }
+    if (row === null) {
+      if (entry.overlay.trashed !== true) {
+        return false
+      }
+      overlays.delete(path)
+      return true
+    }
+    const remaining = retireAgreeing(entry.overlay, row)
+    if (remaining === null) {
+      return false
+    }
+    store(path, generation, remaining)
+    return true
   }
 
   return {
@@ -129,15 +338,41 @@ export function createNoteRowService(): NoteRowService {
       }
       const existing = overlays.get(path)
       // Never let an older generation's late write clobber a newer graph's overlay.
-      // Rust already rejects stale-generation file writes before a publish reaches
-      // here (the publish throws and never records an overlay), so this is defence
-      // in depth: the store owns the invariant rather than trusting the caller.
+      // Rust already rejects stale-generation file writes before an action reaches
+      // here, so this is defence in depth: the store owns the invariant rather
+      // than trusting the caller.
       if (existing !== undefined && existing.generation > generation) {
         return
       }
-      const base = existing?.generation === generation ? existing.overlay : {}
+      const base: MutableNoteRowOverlay =
+        existing?.generation === generation ? { ...existing.overlay } : {}
+      if (defined.isPinned === false) {
+        delete base.pinnedOrder
+      }
+      if (defined.trashed === undefined) {
+        delete base.trashed
+      }
       overlays.set(path, { generation, overlay: { ...base, ...defined } })
       emit()
+    },
+    dropOverlay(path, generation, patch) {
+      const entry = overlays.get(path)
+      if (entry === undefined || entry.generation !== generation) {
+        return
+      }
+      const remaining: MutableNoteRowOverlay = { ...entry.overlay }
+      let dropped = false
+      for (const [key, value] of Object.entries(definedFields(patch))) {
+        const field = key as keyof NoteRowOverlay
+        if (remaining[field] === value) {
+          delete remaining[field]
+          dropped = true
+        }
+      }
+      if (dropped) {
+        store(path, generation, remaining)
+        emit()
+      }
     },
     getOverlay(path, generation) {
       if (generation === undefined) {
@@ -146,37 +381,42 @@ export function createNoteRowService(): NoteRowService {
       const entry = overlays.get(path)
       return entry !== undefined && entry.generation === generation ? entry.overlay : null
     },
-    reconcile(path, generation, row) {
-      const entry = overlays.get(path)
-      if (entry === undefined || entry.generation !== generation || row === null) {
-        return
+    getOverlays(generation) {
+      if (generation === undefined) {
+        return EMPTY_OVERLAYS
       }
-      const remaining: MutableNoteRowOverlay = {}
-      let retired = false
-      for (const key of Object.keys(entry.overlay) as (keyof NoteRowOverlay)[]) {
-        if (row[key] === entry.overlay[key]) {
-          retired = true
-        } else if (key === 'gistUrl') {
-          const gistUrl = entry.overlay.gistUrl
-          if (gistUrl !== undefined) {
-            remaining.gistUrl = gistUrl
+      if (snapshot?.generation !== generation) {
+        const current = new Map<string, NoteRowOverlay>()
+        for (const [path, entry] of overlays) {
+          if (entry.generation === generation) {
+            current.set(path, entry.overlay)
           }
-        } else {
-          const gistStale = entry.overlay.gistStale
-          if (gistStale !== undefined) {
-            remaining.gistStale = gistStale
+        }
+        snapshot = { generation, overlays: current.size === 0 ? EMPTY_OVERLAYS : current }
+      }
+      return snapshot.overlays
+    },
+    reconcile(path, generation, row) {
+      if (reconcileEntry(path, generation, row)) {
+        emit()
+      }
+    },
+    reconcileRows(generation, rows, options) {
+      let changed = false
+      for (const row of rows) {
+        changed = reconcileEntry(row.path, generation, row) || changed
+      }
+      if (options?.complete === true) {
+        const listed = new Set(rows.map((row) => row.path))
+        for (const [path, entry] of overlays) {
+          if (!listed.has(path) && entry.generation === generation) {
+            changed = reconcileEntry(path, generation, null) || changed
           }
         }
       }
-      if (!retired) {
-        return
+      if (changed) {
+        emit()
       }
-      if (Object.keys(remaining).length === 0) {
-        overlays.delete(path)
-      } else {
-        overlays.set(path, { generation, overlay: remaining })
-      }
-      emit()
     },
     reset() {
       if (overlays.size === 0) {

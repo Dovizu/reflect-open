@@ -4,6 +4,7 @@ import type { NoteFileService } from '../graph/note-file-service.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
+import type { IndexQueryService, NoteRow, PinnedNote } from '../indexing/index-query-service.ts'
 import { createTestNoteSession, type TestNoteSessionOptions } from '../testing/documents.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestIdService } from '../testing/id.ts'
@@ -14,6 +15,7 @@ import { createTestOperationsService } from '../testing/operations.ts'
 import { createTestClipboardService } from '../testing/shell.ts'
 import { canTrashNote, createNoteActionsService } from './note-actions-service.ts'
 import { createNoteDocumentService } from './note-document-service.ts'
+import { createNoteRowService, type NoteRowService } from './note-row-service.ts'
 import { createNoteSessionService } from './note-session.ts'
 import type { NoteSession, NoteSessionSnapshot } from './note-session-types.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
@@ -27,6 +29,8 @@ function createNoteActions(deps: {
   operations?: ReturnType<typeof createTestOperationsService>
   clipboard?: ReturnType<typeof createTestClipboardService>
   indexLifecycle?: Pick<IndexLifecycleService, 'indexNote'>
+  indexQuery?: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
+  noteRows?: NoteRowService
 }) {
   const { noteFile } = deps
   const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
@@ -43,6 +47,11 @@ function createNoteActions(deps: {
         indexLog.push({ path, generation: indexOptions.generation })
       },
     },
+    indexQuery: deps.indexQuery ?? {
+      getPinnedNotes: async () => [],
+      getNote: async () => undefined,
+    },
+    noteRows: deps.noteRows ?? createNoteRowService(),
     operations: deps.operations ?? createTestOperationsService(),
     clipboard: deps.clipboard ?? createTestClipboardService(),
     path: createPathService({ transport: createPosixPathTransport('/home/test') }),
@@ -57,6 +66,10 @@ function setup(options?: {
   /** Wraps the in-memory files, e.g. to make a call fail. */
   wrapNoteFile?: (files: NoteFileService) => NoteFileService
   indexNote?: () => Promise<void>
+  /** The pinned shelf the index lists. */
+  pinned?: readonly PinnedNote[] | (() => Promise<PinnedNote[]>)
+  /** Index rows by path, for the privacy the index reports. */
+  rows?: Readonly<Record<string, NoteRow>>
 }) {
   const files = createTestNoteFileService(
     options?.files === undefined ? {} : { files: options.files },
@@ -64,16 +77,40 @@ function setup(options?: {
   const session = options?.session === undefined ? null : createTestNoteSession(options.session)
   const operations = createTestOperationsService()
   const clipboard = createTestClipboardService()
+  const noteRows = createNoteRowService()
+  const pinned = options?.pinned ?? []
   const { actions, openDocuments } = createNoteActions({
     noteFile: options?.wrapNoteFile?.(files) ?? files,
     sessions: session === null ? [] : [session],
     operations,
     clipboard,
+    noteRows,
+    indexQuery: {
+      getPinnedNotes: typeof pinned === 'function' ? pinned : async () => [...pinned],
+      getNote: async (path) => options?.rows?.[path],
+    },
     ...(options?.indexNote === undefined
       ? {}
       : { indexLifecycle: { indexNote: options.indexNote } }),
   })
-  return { actions, files, session, openDocuments, operations, clipboard }
+  return { actions, files, session, openDocuments, operations, clipboard, noteRows }
+}
+
+function shelfNote(path: string, pinnedOrder: number | null): PinnedNote {
+  return { path, title: path, dailyDate: null, pinnedOrder }
+}
+
+function indexRow(path: string, overrides: Partial<NoteRow> = {}): NoteRow {
+  return {
+    path,
+    title: path,
+    dailyDate: null,
+    isPrivate: false,
+    hasConflict: false,
+    gistUrl: null,
+    gistStale: false,
+    ...overrides,
+  }
 }
 
 function failing(method: 'read' | 'write' | 'delete', error: unknown) {
@@ -86,10 +123,13 @@ function failing(method: 'read' | 'write' | 'delete', error: unknown) {
 }
 
 describe('togglePinned', () => {
-  it('pins an unpinned note with the prepared order', async () => {
-    const { actions, files } = setup({ files: { 'notes/a.md': '# A\n' } })
+  it('pins an unpinned note after the highest order on the shelf', async () => {
+    const { actions, files, noteRows } = setup({
+      files: { 'notes/a.md': '# A\n' },
+      pinned: [shelfNote('notes/b.md', 2048)],
+    })
 
-    await expect(actions.togglePinned('notes/a.md', 3, { prepare: () => 3072 })).resolves.toEqual({
+    await expect(actions.togglePinned('notes/a.md', 3)).resolves.toEqual({
       status: 'done',
       pinned: true,
       pinOrder: 3072,
@@ -98,37 +138,78 @@ describe('togglePinned', () => {
     expect(files.writes()).toEqual([
       { path: 'notes/a.md', contents: '---\npinned: 3072\n---\n\n# A\n', generation: 3 },
     ])
+    expect(noteRows.getOverlay('notes/a.md', 3)).toEqual({ isPinned: true, pinnedOrder: 3072 })
   })
 
-  it('writes a bare `pinned: true` when the prepared order is null', async () => {
-    const { actions, files } = setup({ files: { 'notes/a.md': '# A\n' } })
+  it('writes a bare `pinned: true` when the shelf cannot be read', async () => {
+    const { actions, files, noteRows } = setup({
+      files: { 'notes/a.md': '# A\n' },
+      pinned: async () => {
+        throw new Error('index closed')
+      },
+    })
 
-    await expect(actions.togglePinned('notes/a.md', 3, { prepare: () => null })).resolves.toEqual({
+    await expect(actions.togglePinned('notes/a.md', 3)).resolves.toEqual({
       status: 'done',
       pinned: true,
       pinOrder: null,
     })
 
     expect(files.getWrites('notes/a.md')).toEqual(['---\npinned: true\n---\n\n# A\n'])
+    expect(noteRows.getOverlay('notes/a.md', 3)).toEqual({ isPinned: true, pinnedOrder: null })
   })
 
-  it('unpins a pinned note by removing the key, whatever order was prepared', async () => {
-    const { actions, files } = setup({ files: { 'notes/a.md': '---\npinned: true\n---\n# A\n' } })
+  it('gives two quick pins distinct orders through the overlay', async () => {
+    const { actions, files } = setup({
+      files: { 'notes/a.md': '# A\n', 'notes/b.md': '# B\n' },
+      pinned: [shelfNote('notes/c.md', 1024)],
+    })
 
-    await expect(actions.togglePinned('notes/a.md', 3, { prepare: () => 1024 })).resolves.toEqual({
+    await Promise.all([
+      actions.togglePinned('notes/a.md', 3),
+      actions.togglePinned('notes/b.md', 3),
+    ])
+
+    expect(files.getWrites('notes/a.md')).toEqual(['---\npinned: 2048\n---\n\n# A\n'])
+    expect(files.getWrites('notes/b.md')).toEqual(['---\npinned: 3072\n---\n\n# B\n'])
+  })
+
+  it('unpins a pinned note by removing the key, whatever the shelf says', async () => {
+    const { actions, files, noteRows } = setup({
+      files: { 'notes/a.md': '---\npinned: true\n---\n# A\n' },
+    })
+
+    await expect(actions.togglePinned('notes/a.md', 3)).resolves.toEqual({
       status: 'done',
       pinned: false,
       pinOrder: null,
     })
 
     expect(files.getWrites('notes/a.md')).toEqual(['# A\n'])
+    // The shelf predicted a pin; the note's frontmatter corrected it.
+    expect(noteRows.getOverlay('notes/a.md', 3)).toEqual({ isPinned: false })
+  })
+
+  it('records the predicted pin before the note is read', async () => {
+    const { actions, noteRows, files } = setup({ files: { 'notes/a.md': '# A\n' } })
+    const read = vi.spyOn(files, 'read')
+    let overlayAtRead: unknown = 'unread'
+    read.mockImplementationOnce(async (...args) => {
+      overlayAtRead = noteRows.getOverlay('notes/a.md', 3)
+      read.mockRestore()
+      return await files.read(...args)
+    })
+
+    await actions.togglePinned('notes/a.md', 3)
+
+    expect(overlayAtRead).toEqual({ isPinned: true, pinnedOrder: 1024 })
   })
 
   it('treats an explicit order, including 0, as pinned', async () => {
     // `pinned: 0` is falsy in JS; a truthiness check would re-pin instead.
     const { actions, files } = setup({ files: { 'notes/a.md': '---\npinned: 0\n---\n# A\n' } })
 
-    const outcome = await actions.togglePinned('notes/a.md', 3, { prepare: () => null })
+    const outcome = await actions.togglePinned('notes/a.md', 3)
 
     expect(outcome).toMatchObject({ status: 'done', pinned: false })
     expect(files.getWrites('notes/a.md')).toEqual(['# A\n'])
@@ -139,7 +220,7 @@ describe('togglePinned', () => {
       session: { path: 'notes/a.md', content: '---\npinned: 2\n---\n# A\n' },
     })
 
-    await actions.togglePinned('notes/a.md', 3, { prepare: () => null })
+    await actions.togglePinned('notes/a.md', 3)
 
     expect(session?.getCalls('commitFrontmatter')).toEqual([[{ pinned: false }]])
     expect(files.writes()).toEqual([])
@@ -151,53 +232,56 @@ describe('togglePinned', () => {
     // as empty, and the pin write is what creates it.
     const { actions, files } = setup({
       session: { path: 'daily/2026-06-10.md', loaded: false, accepts: false },
+      pinned: async () => {
+        throw new Error('index closed')
+      },
     })
 
-    await actions.togglePinned('daily/2026-06-10.md', 3, { prepare: () => null })
+    await actions.togglePinned('daily/2026-06-10.md', 3)
 
     expect(files.getWrites('daily/2026-06-10.md')).toEqual(['---\npinned: true\n---\n\n'])
   })
 
-  it('answers `busy` to a second call while the first is in flight, without preparing it', async () => {
-    const { actions, files } = setup({ files: { 'notes/a.md': '# A\n' } })
-    const gate = Promise.withResolvers<number | null>()
-    const first = actions.togglePinned('notes/a.md', 3, { prepare: () => gate.promise })
-    const prepare = vi.fn(() => null)
+  it('answers a second call while the first is in flight with the first result', async () => {
+    const gate = Promise.withResolvers<PinnedNote[]>()
+    const getPinnedNotes = vi.fn(() => gate.promise)
+    const { actions, files } = setup({ files: { 'notes/a.md': '# A\n' }, pinned: getPinnedNotes })
+    const first = actions.togglePinned('notes/a.md', 3)
 
-    await expect(actions.togglePinned('notes/a.md', 3, { prepare })).resolves.toEqual({
-      status: 'busy',
-    })
-    const prepareUnpin = vi.fn<() => void>()
-    await expect(actions.unpin('notes/a.md', 3, { prepare: prepareUnpin })).resolves.toEqual({
-      status: 'busy',
-    })
-    expect(prepare).not.toHaveBeenCalled()
-    expect(prepareUnpin).not.toHaveBeenCalled()
+    const second = actions.togglePinned('notes/a.md', 3)
+    const unpin = actions.unpin('notes/a.md', 3)
+    expect(getPinnedNotes).toHaveBeenCalledOnce()
 
-    gate.resolve(1024)
-    await expect(first).resolves.toMatchObject({ status: 'done', pinOrder: 1024 })
+    gate.resolve([shelfNote('notes/b.md', 1024)])
+    const done = { status: 'done', pinned: true, pinOrder: 2048 }
+    await expect(first).resolves.toEqual(done)
+    await expect(second).resolves.toEqual(done)
+    await expect(unpin).resolves.toEqual(done)
     expect(files.writes()).toHaveLength(1)
   })
 
   it('does not dedupe across notes or generations', async () => {
-    const { actions } = setup({ files: { 'notes/a.md': '# A\n', 'notes/b.md': '# B\n' } })
-    const gate = Promise.withResolvers<number | null>()
-    const first = actions.togglePinned('notes/a.md', 3, { prepare: () => gate.promise })
+    const gate = Promise.withResolvers<PinnedNote[]>()
+    let calls = 0
+    const { actions } = setup({
+      files: { 'notes/a.md': '# A\n', 'notes/b.md': '# B\n' },
+      pinned: async () => {
+        calls += 1
+        return calls === 1 ? await gate.promise : []
+      },
+    })
+    const first = actions.togglePinned('notes/a.md', 3)
 
-    await expect(
-      actions.togglePinned('notes/b.md', 3, { prepare: () => null }),
-    ).resolves.toMatchObject({ status: 'done' })
-    await expect(
-      actions.togglePinned('notes/a.md', 4, { prepare: () => null }),
-    ).resolves.toMatchObject({ status: 'done' })
+    await expect(actions.togglePinned('notes/b.md', 3)).resolves.toMatchObject({ status: 'done' })
+    await expect(actions.togglePinned('notes/a.md', 4)).resolves.toMatchObject({ status: 'done' })
 
-    gate.resolve(null)
+    gate.resolve([])
     await first
   })
 
-  it('reports a failure through operations and accepts a retry', async () => {
+  it('reports a failure through operations, drops its overlay, and accepts a retry', async () => {
     let fail = true
-    const { actions, files, operations } = setup({
+    const { actions, files, operations, noteRows } = setup({
       files: { 'notes/a.md': '# A\n' },
       wrapNoteFile: (inner) => ({
         ...inner,
@@ -210,50 +294,46 @@ describe('togglePinned', () => {
       }),
     })
 
-    await expect(actions.togglePinned('notes/a.md', 3, { prepare: () => null })).resolves.toEqual({
-      status: 'failed',
-    })
+    await expect(actions.togglePinned('notes/a.md', 3)).resolves.toEqual({ status: 'failed' })
     expect(files.writes()).toEqual([])
+    expect(noteRows.getOverlay('notes/a.md', 3)).toBeNull()
     expect(operations.snapshot()).toMatchObject([
       { label: 'Updating pin', status: 'failed', message: 'disk on fire' },
     ])
 
     fail = false
-    await expect(
-      actions.togglePinned('notes/a.md', 3, { prepare: () => null }),
-    ).resolves.toMatchObject({ status: 'done' })
+    await expect(actions.togglePinned('notes/a.md', 3)).resolves.toMatchObject({ status: 'done' })
   })
 
-  it('fails the action when `prepare` throws', async () => {
-    const { actions, files, operations } = setup({ files: { 'notes/a.md': '# A\n' } })
-
-    const outcome = await actions.togglePinned('notes/a.md', 3, {
-      prepare: () => {
-        throw new Error('cache gone')
-      },
+  it("keeps another action's overlay when it fails", async () => {
+    const { actions, noteRows } = setup({
+      files: { 'notes/a.md': '# A\n' },
+      wrapNoteFile: failing('write', new Error('disk full')),
     })
+    noteRows.setOverlay('notes/a.md', 3, { gistUrl: 'https://gist.github.com/alex/g1' })
 
-    expect(outcome).toEqual({ status: 'failed' })
-    expect(files.writes()).toEqual([])
-    expect(operations.snapshot()).toMatchObject([{ label: 'Updating pin', message: 'cache gone' }])
+    await expect(actions.togglePinned('notes/a.md', 3)).resolves.toEqual({ status: 'failed' })
+
+    expect(noteRows.getOverlay('notes/a.md', 3)).toEqual({
+      gistUrl: 'https://gist.github.com/alex/g1',
+    })
   })
 })
 
 describe('unpin', () => {
   it('unpins directly without reading the current pin state', async () => {
-    const { actions, session } = setup({
+    const { actions, session, noteRows } = setup({
       session: { path: 'notes/a.md', content: '---\npinned: 2\n---\n# A\n' },
     })
     const liveContent = vi.spyOn(session!, 'liveContent')
-    const prepare = vi.fn()
 
-    await expect(actions.unpin('notes/a.md', 3, { prepare })).resolves.toEqual({
+    await expect(actions.unpin('notes/a.md', 3)).resolves.toEqual({
       status: 'done',
       pinned: false,
       pinOrder: null,
     })
 
-    expect(prepare).toHaveBeenCalledOnce()
+    expect(noteRows.getOverlay('notes/a.md', 3)).toEqual({ isPinned: false })
     expect(liveContent).not.toHaveBeenCalled()
     expect(session?.getCalls('commitFrontmatter')).toEqual([[{ pinned: false }]])
   })
@@ -292,6 +372,31 @@ describe('reorderPinned', () => {
     expect(files.getWrites('notes/d.md')).toEqual([])
   })
 
+  it('records the orders at once and writes one reorder after another', async () => {
+    const gate = Promise.withResolvers<void>()
+    const { actions, files, noteRows } = setup({
+      files: { 'notes/a.md': '# A\n' },
+      wrapNoteFile: (inner) => ({
+        ...inner,
+        write: async (...args) => {
+          await gate.promise
+          return await inner.write(...args)
+        },
+      }),
+    })
+
+    const first = actions.reorderPinned([{ path: 'notes/a.md', pinnedOrder: 1024 }], 3)
+    const second = actions.reorderPinned([{ path: 'notes/a.md', pinnedOrder: 2048 }], 3)
+    expect(noteRows.getOverlay('notes/a.md', 3)).toEqual({ pinnedOrder: 2048 })
+
+    gate.resolve()
+    await Promise.all([first, second])
+    expect(files.getWrites('notes/a.md')).toEqual([
+      '---\npinned: 1024\n---\n\n# A\n',
+      '---\npinned: 2048\n---\n\n# A\n',
+    ])
+  })
+
   it('routes open notes through their sessions', async () => {
     const { actions, files, session } = setup({ session: { path: 'notes/a.md', content: '# A\n' } })
 
@@ -301,8 +406,8 @@ describe('reorderPinned', () => {
     expect(files.writes()).toEqual([])
   })
 
-  it('rejects when a write fails', async () => {
-    const { actions } = setup({
+  it('rejects and drops its overlay when a write fails', async () => {
+    const { actions, noteRows } = setup({
       files: { 'notes/a.md': '# A\n' },
       wrapNoteFile: failing('write', new Error('disk full')),
     })
@@ -310,17 +415,23 @@ describe('reorderPinned', () => {
     await expect(
       actions.reorderPinned([{ path: 'notes/a.md', pinnedOrder: 1024 }], 3),
     ).rejects.toThrow('disk full')
+    expect(noteRows.getOverlay('notes/a.md', 3)).toBeNull()
+    // A failed reorder does not block the next one.
+    await expect(
+      actions.reorderPinned([{ path: 'notes/a.md', pinnedOrder: 2048 }], 3),
+    ).rejects.toThrow('disk full')
   })
 })
 
 describe('togglePrivate', () => {
   it('marks a note private and returns the new state', async () => {
-    const { actions, files } = setup({ files: { 'notes/a.md': '# A\n' } })
+    const { actions, files, noteRows } = setup({ files: { 'notes/a.md': '# A\n' } })
 
     await expect(actions.togglePrivate('notes/a.md', 3)).resolves.toEqual({
       status: 'done',
       isPrivate: true,
     })
+    expect(noteRows.getOverlay('notes/a.md', 3)).toEqual({ isPrivate: true })
 
     expect(files.writes()).toEqual([
       { path: 'notes/a.md', contents: '---\nprivate: true\n---\n\n# A\n', generation: 3 },
@@ -330,7 +441,10 @@ describe('togglePrivate', () => {
   it('un-marks by removing the key, honouring the YAML 1.1-style `private: yes`', async () => {
     // A 1.2 loader reads `yes` as a string; the schema's coercion still
     // honours it, so the toggle must too: re-marking would be a silent no-op.
-    const { actions, files } = setup({ files: { 'notes/a.md': '---\nprivate: yes\n---\n# A\n' } })
+    const { actions, files } = setup({
+      files: { 'notes/a.md': '---\nprivate: yes\n---\n# A\n' },
+      rows: { 'notes/a.md': indexRow('notes/a.md', { isPrivate: true }) },
+    })
 
     await expect(actions.togglePrivate('notes/a.md', 3)).resolves.toEqual({
       status: 'done',
@@ -349,40 +463,64 @@ describe('togglePrivate', () => {
     expect(files.writes()).toEqual([])
   })
 
-  it('prepares before touching the note and answers `busy` to a duplicate', async () => {
-    const { actions, files } = setup({ files: { 'notes/a.md': '# A\n' } })
-    const gate = Promise.withResolvers<void>()
-    const first = actions.togglePrivate('notes/a.md', 3, { prepare: () => gate.promise })
-    const prepare = vi.fn()
-
-    await expect(actions.togglePrivate('notes/a.md', 3, { prepare })).resolves.toEqual({
-      status: 'busy',
+  it('records the predicted state before the note is read', async () => {
+    const { actions, noteRows, files } = setup({
+      files: { 'notes/a.md': '---\nprivate: true\n---\n# A\n' },
+      rows: { 'notes/a.md': indexRow('notes/a.md', { isPrivate: true }) },
     })
-    expect(prepare).not.toHaveBeenCalled()
-    expect(files.writes()).toEqual([])
+    const read = vi.spyOn(files, 'read')
+    let overlayAtRead: unknown = 'unread'
+    read.mockImplementationOnce(async (...args) => {
+      overlayAtRead = noteRows.getOverlay('notes/a.md', 3)
+      read.mockRestore()
+      return await files.read(...args)
+    })
+
+    await actions.togglePrivate('notes/a.md', 3)
+
+    expect(overlayAtRead).toEqual({ isPrivate: false })
+  })
+
+  it('answers a duplicate while in flight with the first result', async () => {
+    const gate = Promise.withResolvers<void>()
+    const { actions, files } = setup({
+      files: { 'notes/a.md': '# A\n' },
+      wrapNoteFile: (inner) => ({
+        ...inner,
+        read: async (...args) => {
+          await gate.promise
+          return await inner.read(...args)
+        },
+      }),
+    })
+    const first = actions.togglePrivate('notes/a.md', 3)
+    const second = actions.togglePrivate('notes/a.md', 3)
 
     gate.resolve()
     await expect(first).resolves.toEqual({ status: 'done', isPrivate: true })
+    await expect(second).resolves.toEqual({ status: 'done', isPrivate: true })
+    expect(files.writes()).toHaveLength(1)
   })
 
   it('is deduped apart from pin actions on the same note', async () => {
-    const { actions } = setup({ files: { 'notes/a.md': '# A\n' } })
-    const gate = Promise.withResolvers<number | null>()
-    const pin = actions.togglePinned('notes/a.md', 3, { prepare: () => gate.promise })
+    const gate = Promise.withResolvers<PinnedNote[]>()
+    const { actions } = setup({ files: { 'notes/a.md': '# A\n' }, pinned: () => gate.promise })
+    const pin = actions.togglePinned('notes/a.md', 3)
 
     await expect(actions.togglePrivate('notes/a.md', 3)).resolves.toMatchObject({ status: 'done' })
 
-    gate.resolve(null)
+    gate.resolve([])
     await pin
   })
 
-  it('reports a failure through operations and accepts a retry', async () => {
-    const { actions, operations } = setup({
+  it('reports a failure through operations, drops its overlay, and accepts a retry', async () => {
+    const { actions, operations, noteRows } = setup({
       files: { 'notes/a.md': '# A\n' },
       wrapNoteFile: failing('write', new Error('disk full')),
     })
 
     await expect(actions.togglePrivate('notes/a.md', 3)).resolves.toEqual({ status: 'failed' })
+    expect(noteRows.getOverlay('notes/a.md', 3)).toBeNull()
     expect(operations.snapshot()).toMatchObject([
       { label: 'Updating privacy', status: 'failed', message: 'disk full' },
     ])
@@ -423,8 +561,8 @@ function lazySession(
 }
 
 describe('trash', () => {
-  it('trashes a note with no open session', async () => {
-    const { actions, files } = setup({ files: { 'notes/keep.md': '# Keep\n' } })
+  it('trashes a note with no open session and marks it trashed', async () => {
+    const { actions, files, noteRows } = setup({ files: { 'notes/keep.md': '# Keep\n' } })
 
     await expect(actions.trash('notes/keep.md', 7)).resolves.toEqual({
       succeeded: ['notes/keep.md'],
@@ -432,6 +570,7 @@ describe('trash', () => {
     })
 
     expect(files.trashed()).toEqual(['notes/keep.md'])
+    expect(noteRows.getOverlay('notes/keep.md', 7)).toEqual({ trashed: true })
   })
 
   it('trashes the file, then discards its open session so it cannot resurrect', async () => {
@@ -450,7 +589,7 @@ describe('trash', () => {
   })
 
   it('discards a new note that has not reached disk without trashing a file', async () => {
-    const { actions, files, session } = setup({
+    const { actions, files, session, noteRows } = setup({
       session: { path: 'notes/new.md', unpersisted: true },
     })
     const deleteFile = vi.spyOn(files, 'delete')
@@ -461,6 +600,8 @@ describe('trash', () => {
     })
 
     expect(deleteFile).not.toHaveBeenCalled()
+    // No row was ever listed, so there is nothing to hide.
+    expect(noteRows.getOverlay('notes/new.md', 7)).toBeNull()
     expect(session?.getCalls('discard')).toHaveLength(1)
   })
 
@@ -507,7 +648,7 @@ describe('trash', () => {
   })
 
   it('leaves the session intact and resumes persistence when the delete fails', async () => {
-    const { actions, session, openDocuments } = setup({
+    const { actions, session, openDocuments, noteRows } = setup({
       session: { path: 'notes/gone.md', content: '# Gone\n' },
       wrapNoteFile: failing('delete', new Error('disk full')),
     })
@@ -521,6 +662,7 @@ describe('trash', () => {
     expect(session?.getCalls('discard')).toEqual([])
     expect(session?.getCalls('cancelDelete')).toHaveLength(1)
     expect(sessionFor).toHaveBeenCalledOnce()
+    expect(noteRows.getOverlay('notes/gone.md', 3)).toBeNull()
   })
 
   it('refuses a daily note and never touches disk or sessions', async () => {
@@ -580,24 +722,24 @@ describe('trashMany', () => {
   })
 
   it('trashes every note in order under one operation', async () => {
-    const { actions, files, operations } = setup({
+    const { actions, files, operations, noteRows } = setup({
       files: { 'notes/a.md': '# A\n', 'notes/b.md': '# B\n' },
     })
-    const onTrashed = vi.fn()
 
-    await expect(
-      actions.trashMany(['notes/a.md', 'notes/b.md'], 1, { onTrashed }),
-    ).resolves.toEqual({ succeeded: ['notes/a.md', 'notes/b.md'], failed: [] })
+    await expect(actions.trashMany(['notes/a.md', 'notes/b.md'], 1)).resolves.toEqual({
+      succeeded: ['notes/a.md', 'notes/b.md'],
+      failed: [],
+    })
 
     expect(files.trashed()).toEqual(['notes/a.md', 'notes/b.md'])
-    expect(onTrashed.mock.calls).toEqual([['notes/a.md'], ['notes/b.md']])
+    expect([...noteRows.getOverlays(1).keys()]).toEqual(['notes/a.md', 'notes/b.md'])
     expect(operations.snapshot()).toMatchObject([{ label: 'Trashing notes', status: 'running' }])
     await operations.clock.advance(MIN_VISIBLE_MS)
     expect(operations.getAll()).toEqual([])
   })
 
   it('keeps going past a failure and fails the operation with the last error', async () => {
-    const { actions, files, operations } = setup({
+    const { actions, files, operations, noteRows } = setup({
       files: { 'notes/a.md': '# A\n', 'notes/b.md': '# B\n', 'notes/c.md': '# C\n' },
       wrapNoteFile: (inner) => ({
         ...inner,
@@ -609,12 +751,9 @@ describe('trashMany', () => {
         },
       }),
     })
-    const onTrashed = vi.fn()
-
     const result = await actions.trashMany(
       ['notes/a.md', 'notes/b.md', 'daily/2026-06-15.md', 'notes/c.md'],
       1,
-      { onTrashed },
     )
 
     expect(result.succeeded).toEqual(['notes/a.md', 'notes/c.md'])
@@ -623,7 +762,8 @@ describe('trashMany', () => {
       'daily/2026-06-15.md',
     ])
     expect(files.trashed()).toEqual(['notes/a.md', 'notes/c.md'])
-    expect(onTrashed.mock.calls).toEqual([['notes/a.md'], ['notes/c.md']])
+    // A note that failed stays listed.
+    expect([...noteRows.getOverlays(1).keys()]).toEqual(['notes/a.md', 'notes/c.md'])
     expect(operations.snapshot()).toMatchObject([
       { label: 'Trashing notes', status: 'failed', message: 'Daily notes cannot be deleted' },
     ])

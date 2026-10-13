@@ -7,25 +7,27 @@ import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { dateFromDailyPath, isDaily } from '../graph/paths.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
-import type { PinnedNote } from '../indexing/index-query-service.ts'
+import type { IndexQueryService, PinnedNote } from '../indexing/index-query-service.ts'
 import { parseNote } from '../markdown/extract.ts'
 import { dailyDeepLink, noteDeepLink } from '../navigation/deep-link-format.ts'
 import { isPinned } from '../markdown/model.ts'
 import type { NoteDocumentService } from './note-document-service.ts'
+import {
+  applyPinnedNoteOverlays,
+  type NoteRowOverlayPatch,
+  type NoteRowService,
+} from './note-row-service.ts'
 import type { OpenDocumentsService } from './open-documents-service.ts'
-import { isValidPinOrder } from './pin-order.ts'
+import { getNextPinOrder, isValidPinOrder } from './pin-order.ts'
 
 /**
  * How a deduped, self-reporting note action ended:
  *
  * - `done`: the note was written; the result carries what the note now holds.
- * - `busy`: the same action on the same note is still in flight, so this call
- *   did nothing (its `prepare` did not run).
  * - `failed`: the action failed and reported the error through operations.
  */
 export type NoteActionOutcome<Result> =
   | ({ readonly status: 'done' } & Result)
-  | { readonly status: 'busy' }
   | { readonly status: 'failed' }
 
 /** What a pin action left in the note's frontmatter. */
@@ -33,24 +35,6 @@ export interface NotePinResult {
   readonly pinned: boolean
   /** The written shelf order; `null` for an unpinned note and for a bare `pinned: true`. */
   readonly pinOrder: number | null
-}
-
-export interface NotePinToggleOptions {
-  /**
-   * Runs once the call is accepted (not `busy`), before the note is read: the
-   * place for the caller's optimistic feedback. Returns the shelf order the
-   * note takes if the toggle pins it, or `null` to write a bare
-   * `pinned: true`. A throw fails the action.
-   */
-  prepare: () => number | null | Promise<number | null>
-}
-
-export interface NoteActionOptions {
-  /**
-   * Runs once the call is accepted (not `busy`), before the note is touched:
-   * the place for the caller's optimistic feedback. A throw fails the action.
-   */
-  prepare?: () => void | Promise<void>
 }
 
 /** One pin order that {@link NoteActionsService.reorderPinned} wrote. */
@@ -70,11 +54,6 @@ export interface NoteTrashResult {
   readonly failed: readonly NoteTrashFailure[]
 }
 
-export interface NoteTrashManyOptions {
-  /** Called as each note lands in the trash, before the next one starts. */
-  onTrashed?: (path: string) => void
-}
-
 /**
  * Whether a note may be moved to the trash. Daily notes are the app's
  * chronological spine and cannot be deleted.
@@ -85,29 +64,27 @@ export function canTrashNote(path: string): boolean {
 
 /**
  * The user's actions on one note that are not edits: pin, private, trash,
- * copy deep link, copy path. Markdown owns the final state; the caller keeps
- * its own optimistic caches and gets back the data to settle them.
+ * copy deep link, copy path. Markdown owns the final state; pin, private, and
+ * trash record what they write in the note-row overlay ({@link NoteRowService})
+ * so every reader shows it before the index catches up, and a failure drops
+ * that overlay again.
  */
 export interface NoteActionsService {
   /**
-   * Toggle the pin from the state the note's frontmatter holds now. Deduped
-   * with {@link NoteActionsService.unpin} per generation and path; a failure
-   * is reported as an "Updating pin" operation.
+   * Toggle the pin from the state the note's frontmatter holds now. A pin
+   * takes the shelf order after the highest on the shelf (index rows merged
+   * with the overlay), or a bare `pinned: true` when the shelf cannot be read.
+   * Deduped with {@link NoteActionsService.unpin} per generation and path: a
+   * second call while one is in flight returns the first call's result. A
+   * failure is reported as an "Updating pin" operation.
    */
-  togglePinned(
-    path: string,
-    generation: number,
-    options: NotePinToggleOptions,
-  ): Promise<NoteActionOutcome<NotePinResult>>
+  togglePinned(path: string, generation: number): Promise<NoteActionOutcome<NotePinResult>>
   /** Remove a pin directionally, without reading the current pin state. */
-  unpin(
-    path: string,
-    generation: number,
-    options?: NoteActionOptions,
-  ): Promise<NoteActionOutcome<NotePinResult>>
+  unpin(path: string, generation: number): Promise<NoteActionOutcome<NotePinResult>>
   /**
    * Write the shelf order of each note that carries a valid one, and return
-   * the orders written. Rejects when a write fails.
+   * the orders written. Calls write one after another, in call order. Rejects
+   * when a write fails.
    */
   reorderPinned(
     notes: ReadonlyArray<Pick<PinnedNote, 'path' | 'pinnedOrder'>>,
@@ -115,13 +92,12 @@ export interface NoteActionsService {
   ): Promise<NotePinOrderWrite[]>
   /**
    * Toggle `private` from the state the note's frontmatter holds now. Deduped
-   * per generation and path; a failure is reported as an "Updating privacy"
-   * operation.
+   * per generation and path like {@link NoteActionsService.togglePinned}; a
+   * failure is reported as an "Updating privacy" operation.
    */
   togglePrivate(
     path: string,
     generation: number,
-    options?: NoteActionOptions,
   ): Promise<NoteActionOutcome<{ readonly isPrivate: boolean }>>
   /** Whether `path` may be moved to the trash; see {@link canTrashNote}. */
   canTrash(path: string): boolean
@@ -130,9 +106,10 @@ export interface NoteActionsService {
    *
    * The file goes to the trash: the OS-native trash on desktop, the
    * graph-local `.reflect/trash/` on mobile (which has no OS trash). It is
-   * recoverable either way, and sync-ignored. The index and queries drop the
-   * note once the change lands (the desktop watcher's reindex, or the mobile
-   * write echo). Daily notes are intentionally blocked.
+   * recoverable either way, and sync-ignored. Once it is in the trash, the
+   * note-row overlay marks it `trashed` until the index drops it (the desktop
+   * watcher's reindex, or the mobile write echo). Daily notes are
+   * intentionally blocked.
    *
    * The session first pauses persistence and settles its initial load plus any
    * write already in flight. A lazy-created note that still has no backing file
@@ -152,11 +129,7 @@ export interface NoteActionsService {
    * mid-batch, so the remaining notes still trash; the operation then fails
    * with the last error.
    */
-  trashMany(
-    paths: readonly string[],
-    generation: number,
-    options?: NoteTrashManyOptions,
-  ): Promise<NoteTrashResult>
+  trashMany(paths: readonly string[], generation: number): Promise<NoteTrashResult>
   /**
    * The most durable deep link the note can have. A daily note is addressed
    * by its date. A regular note is addressed by its frontmatter `id`, minted
@@ -184,6 +157,8 @@ export function createNoteActionsService(deps: {
   noteFile: Pick<NoteFileService, 'delete'>
   openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
   indexLifecycle: Pick<IndexLifecycleService, 'indexNote'>
+  indexQuery: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
+  noteRows: Pick<NoteRowService, 'setOverlay' | 'dropOverlay' | 'getOverlay' | 'getOverlays'>
   operations: OperationsService
   clipboard: ClipboardService
   path: Pick<PathService, 'join'>
@@ -194,32 +169,100 @@ export function createNoteActionsService(deps: {
     noteFile,
     openDocuments,
     indexLifecycle,
+    indexQuery,
+    noteRows,
     operations,
     clipboard,
     path: pathService,
     id,
   } = deps
-  const pendingPins = new Set<string>()
-  const pendingPrivacy = new Set<string>()
+  const pendingPins = new Map<string, Promise<NoteActionOutcome<NotePinResult>>>()
+  const pendingPrivacy = new Map<string, Promise<NoteActionOutcome<{ isPrivate: boolean }>>>()
+  let reorderChain: Promise<unknown> = Promise.resolve()
+
+  /** Run `action` once per key at a time; a call while it runs gets the same promise. */
+  function dedupe<Result>(
+    pending: Map<string, Promise<Result>>,
+    path: string,
+    generation: number,
+    action: () => Promise<Result>,
+  ): Promise<Result> {
+    const key = JSON.stringify([generation, path])
+    const inFlight = pending.get(key)
+    if (inFlight !== undefined) {
+      return inFlight
+    }
+    const run = action().finally(() => {
+      pending.delete(key)
+    })
+    pending.set(key, run)
+    return run
+  }
+
+  /** The pinned notes the index lists, or `null` when the index cannot say. */
+  async function readIndexedShelf(): Promise<PinnedNote[] | null> {
+    try {
+      return await indexQuery.getPinnedNotes()
+    } catch {
+      return null
+    }
+  }
+
+  /** The privacy readers show for `path` now; `false` when the index cannot say. */
+  async function readPrivacy(path: string, generation: number): Promise<boolean> {
+    const overlaid = noteRows.getOverlay(path, generation)?.isPrivate
+    if (overlaid !== undefined) {
+      return overlaid
+    }
+    try {
+      return (await indexQuery.getNote(path))?.isPrivate ?? false
+    } catch {
+      return false
+    }
+  }
+
+  function pinOverlay(pinned: boolean, order: number | null): NoteRowOverlayPatch {
+    return pinned ? { isPinned: true, pinnedOrder: order } : { isPinned: false }
+  }
 
   async function updatePin(
     path: string,
     generation: number,
-    prepare: () => Promise<number | null | false>,
+    kind: 'toggle' | 'unpin',
   ): Promise<NoteActionOutcome<NotePinResult>> {
-    const key = JSON.stringify([generation, path])
-    if (pendingPins.has(key)) {
-      return { status: 'busy' }
-    }
-    pendingPins.add(key)
+    let written: NoteRowOverlayPatch | null = null
     try {
-      // `false` unpins; a number or `null` is the order a toggle pins with.
-      const order = await prepare()
+      // Predict from what readers show now, so the overlay lands before the note is read.
+      let order: number | null = null
+      let predicted = false
+      if (kind === 'toggle') {
+        const indexed = await readIndexedShelf()
+        // Merged with the overlay after the await, so a concurrent pin's order counts.
+        const shelf =
+          indexed === null
+            ? null
+            : applyPinnedNoteOverlays(indexed, noteRows.getOverlays(generation), (notePath) => ({
+                path: notePath,
+                title: '',
+                dailyDate: null,
+                pinnedOrder: null,
+              }))
+        // A shelf the index cannot read can't say what the next order is. A
+        // bare `pinned: true` still pins; the note sorts last until a reorder numbers it.
+        order = shelf === null ? null : getNextPinOrder(shelf)
+        predicted = shelf?.some((note) => note.path === path) !== true
+      }
+      written = pinOverlay(predicted, order)
+      noteRows.setOverlay(path, generation, written)
       const pinned =
-        order === false
+        kind === 'unpin'
           ? false
           : !isPinned(parseNote({ path, source: await noteDocuments.readSource(path) }).frontmatter)
-      const pinOrder = pinned && order !== false ? order : null
+      const pinOrder = pinned ? order : null
+      if (pinned !== predicted) {
+        written = pinOverlay(pinned, order)
+        noteRows.setOverlay(path, generation, written)
+      }
       await noteDocuments.commitFrontmatter(
         path,
         { pinned: pinned ? (pinOrder ?? true) : false },
@@ -227,10 +270,56 @@ export function createNoteActionsService(deps: {
       )
       return { status: 'done', pinned, pinOrder }
     } catch (cause) {
+      if (written !== null) {
+        noteRows.dropOverlay(path, generation, written)
+      }
       operations.start('Updating pin').fail(errorMessage(cause))
       return { status: 'failed' }
-    } finally {
-      pendingPins.delete(key)
+    }
+  }
+
+  async function togglePrivate(
+    path: string,
+    generation: number,
+  ): Promise<NoteActionOutcome<{ isPrivate: boolean }>> {
+    let written: NoteRowOverlayPatch | null = null
+    try {
+      const predicted = !(await readPrivacy(path, generation))
+      written = { isPrivate: predicted }
+      noteRows.setOverlay(path, generation, written)
+      const source = await noteDocuments.readSource(path)
+      const isPrivate = !parseNote({ path, source }).frontmatter.private
+      if (isPrivate !== predicted) {
+        written = { isPrivate }
+        noteRows.setOverlay(path, generation, written)
+      }
+      await noteDocuments.commitFrontmatter(path, { private: isPrivate }, generation)
+      return { status: 'done', isPrivate }
+    } catch (cause) {
+      if (written !== null) {
+        noteRows.dropOverlay(path, generation, written)
+      }
+      operations.start('Updating privacy').fail(errorMessage(cause))
+      return { status: 'failed' }
+    }
+  }
+
+  async function writePinOrders(
+    writes: readonly NotePinOrderWrite[],
+    generation: number,
+  ): Promise<NotePinOrderWrite[]> {
+    try {
+      await Promise.all(
+        writes.map(async (write) => {
+          await noteDocuments.commitFrontmatter(write.path, { pinned: write.pinOrder }, generation)
+        }),
+      )
+      return [...writes]
+    } catch (cause) {
+      for (const write of writes) {
+        noteRows.dropOverlay(write.path, generation, { pinnedOrder: write.pinOrder })
+      }
+      throw cause
     }
   }
 
@@ -250,6 +339,8 @@ export function createNoteActionsService(deps: {
       session?.cancelDelete()
       throw cause
     }
+    // Marked only once the file is gone: a note that fails stays listed.
+    noteRows.setOverlay(path, generation, { trashed: true })
     session?.discard()
     const currentSession = openDocuments.sessionFor(path)
     if (currentSession !== session) {
@@ -288,46 +379,30 @@ export function createNoteActionsService(deps: {
   }
 
   return {
-    async togglePinned(path, generation, options) {
-      return await updatePin(path, generation, async () => await options.prepare())
+    async togglePinned(path, generation) {
+      return await dedupe(pendingPins, path, generation, () =>
+        updatePin(path, generation, 'toggle'),
+      )
     },
-    async unpin(path, generation, options) {
-      return await updatePin(path, generation, async () => {
-        await options?.prepare?.()
-        return false
-      })
+    async unpin(path, generation) {
+      return await dedupe(pendingPins, path, generation, () => updatePin(path, generation, 'unpin'))
     },
     async reorderPinned(notes, generation) {
-      const written = await Promise.all(
-        notes.map(async (note): Promise<NotePinOrderWrite | null> => {
-          const order = note.pinnedOrder
-          if (!isValidPinOrder(order)) {
-            return null
-          }
-          await noteDocuments.commitFrontmatter(note.path, { pinned: order }, generation)
-          return { path: note.path, pinOrder: order }
-        }),
-      )
-      return written.filter((write) => write !== null)
+      const writes: NotePinOrderWrite[] = []
+      for (const note of notes) {
+        const order = note.pinnedOrder
+        if (isValidPinOrder(order)) {
+          writes.push({ path: note.path, pinOrder: order })
+          noteRows.setOverlay(note.path, generation, { pinnedOrder: order })
+        }
+      }
+      // The overlay shows every reorder at once; the writes land in call order.
+      const run = reorderChain.then(() => writePinOrders(writes, generation))
+      reorderChain = run.catch(() => undefined)
+      return await run
     },
-    async togglePrivate(path, generation, options) {
-      const key = JSON.stringify([generation, path])
-      if (pendingPrivacy.has(key)) {
-        return { status: 'busy' }
-      }
-      pendingPrivacy.add(key)
-      try {
-        await options?.prepare?.()
-        const source = await noteDocuments.readSource(path)
-        const isPrivate = !parseNote({ path, source }).frontmatter.private
-        await noteDocuments.commitFrontmatter(path, { private: isPrivate }, generation)
-        return { status: 'done', isPrivate }
-      } catch (cause) {
-        operations.start('Updating privacy').fail(errorMessage(cause))
-        return { status: 'failed' }
-      } finally {
-        pendingPrivacy.delete(key)
-      }
+    async togglePrivate(path, generation) {
+      return await dedupe(pendingPrivacy, path, generation, () => togglePrivate(path, generation))
     },
     canTrash: canTrashNote,
     async trash(path, generation) {
@@ -339,7 +414,7 @@ export function createNoteActionsService(deps: {
       }
     },
     trashOne,
-    async trashMany(paths, generation, options) {
+    async trashMany(paths, generation) {
       const succeeded: string[] = []
       const failed: NoteTrashFailure[] = []
       if (paths.length === 0) {
@@ -351,7 +426,6 @@ export function createNoteActionsService(deps: {
       for (const path of paths) {
         try {
           await trashOne(path, generation)
-          options?.onTrashed?.(path)
           succeeded.push(path)
         } catch (cause) {
           failed.push({ path, cause })
