@@ -4,6 +4,7 @@ import { createPlatformService, type PlatformFacts } from './platform-service.ts
 const FACTS: PlatformFacts = {
   appPlatform: 'ios',
   isNativeShell: true,
+  buildPlatform: 'ios',
   isMacosDesktop: false,
   isApplePlatform: true,
   hasMacosTitleBarOverlay: false,

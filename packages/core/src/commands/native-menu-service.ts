@@ -191,14 +191,16 @@ class NativeMenuServiceImpl implements NativeMenuService {
   readonly #deps: NativeMenuServiceDeps
   #installed = false
   #current: MenuCommandDispatch | null = null
+  readonly #mainWindow: boolean
 
   constructor(deps: NativeMenuServiceDeps) {
     this.#deps = deps
+    this.#mainWindow = deps.window.isMainWindow()
   }
 
   async install(layout: readonly AppSubmenuLayout[]): Promise<void> {
-    const { window, platform, ipc, logger, host } = this.#deps
-    if (!platform.isMacosDesktop || !window.isMainWindow()) {
+    const { platform, ipc, logger, host } = this.#deps
+    if (!platform.isMacosDesktop || !this.#mainWindow) {
       return
     }
     const menu = await host.buildAppMenu(

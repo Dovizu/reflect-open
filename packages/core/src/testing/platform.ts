@@ -1,6 +1,7 @@
 import type { AppPlatform } from '../app/platform.ts'
 import {
   appleFileSrc,
+  type BuildPlatform,
   type ColorScheme,
   type PlatformFacts,
   type PlatformService,
@@ -32,6 +33,7 @@ class TestPlatformServiceImpl implements TestPlatformService {
 
   readonly appPlatform: AppPlatform
   readonly isNativeShell: boolean
+  readonly buildPlatform: BuildPlatform | null
   readonly isMacosDesktop: boolean
   readonly isApplePlatform: boolean
   readonly hasMacosTitleBarOverlay: boolean
@@ -44,6 +46,7 @@ class TestPlatformServiceImpl implements TestPlatformService {
     this.#colorScheme = options.colorScheme ?? 'light'
     this.appPlatform = options.appPlatform ?? 'desktop'
     this.isNativeShell = options.isNativeShell ?? true
+    this.buildPlatform = options.buildPlatform ?? 'darwin'
     this.isMacosDesktop = options.isMacosDesktop ?? true
     this.isApplePlatform = options.isApplePlatform ?? true
     this.hasMacosTitleBarOverlay = options.hasMacosTitleBarOverlay ?? true

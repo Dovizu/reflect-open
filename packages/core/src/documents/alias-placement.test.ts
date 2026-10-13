@@ -135,6 +135,19 @@ describe('placeOldTitleAlias', () => {
     ])
   })
 
+  it('computes against the disk contents, preserving concurrently-gained aliases', async () => {
+    const { deps, noteFile } = setup({
+      disk: '---\naliases:\n  - Keeper\n---\n# New Title\n',
+    })
+
+    await placeOldTitleAlias(deps, PATH, RENAME, 7)
+
+    const written = noteFile.getWrites(PATH).at(-1) ?? ''
+    expect(written).toContain('Keeper')
+    expect(written).toContain('Old Title')
+    expect(written.endsWith('# New Title\n')).toBe(true)
+  })
+
   it('computes against the session buffer, preserving concurrently-gained aliases', async () => {
     const { deps, session } = setup({
       session: '---\naliases:\n  - Gained Elsewhere\n---\n# Old Title\n',

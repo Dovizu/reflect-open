@@ -73,7 +73,7 @@ export interface AssetDescriptionText {
    * matching the indexer's own note reads (the *write* is generation-pinned,
    * so a graph switch drops the stale row regardless).
    */
-  gatherBodies(assetPaths: readonly string[]): Promise<AssetDescriptionGather>
+  gatherBodies(assetPaths: readonly string[], generation: number): Promise<AssetDescriptionGather>
   /**
    * The combined body text of a note's assets' description files, for
    * folding into its search index: {@link gatherBodies} joined and capped at
@@ -82,7 +82,7 @@ export interface AssetDescriptionText {
    * changes, so the fold catches up once the sidecar is local again. Unlike
    * the embedding pipeline, nothing previously stored is destroyed.
    */
-  gatherText(assetPaths: readonly string[]): Promise<string>
+  gatherText(assetPaths: readonly string[], generation: number): Promise<string>
 }
 
 class AssetDescriptionTextImpl implements AssetDescriptionText {
@@ -92,7 +92,10 @@ class AssetDescriptionTextImpl implements AssetDescriptionText {
     this.#deps = deps
   }
 
-  async gatherBodies(assetPaths: readonly string[]): Promise<AssetDescriptionGather> {
+  async gatherBodies(
+    assetPaths: readonly string[],
+    generation: number,
+  ): Promise<AssetDescriptionGather> {
     const { noteFile } = this.#deps
     const bodies: AssetDescriptionBody[] = []
     const evicted: string[] = []
@@ -108,7 +111,7 @@ class AssetDescriptionTextImpl implements AssetDescriptionText {
       seen.add(assetPath)
       let read: LocalNoteRead
       try {
-        read = await noteFile.readLocal(descriptionPathFor(assetPath))
+        read = await noteFile.readLocal(descriptionPathFor(assetPath), generation)
       } catch (cause) {
         if (isAppError(cause) && cause.kind === 'notFound') {
           continue // no description for this asset (not generated yet, or none)
@@ -132,8 +135,8 @@ class AssetDescriptionTextImpl implements AssetDescriptionText {
     return { bodies, evicted }
   }
 
-  async gatherText(assetPaths: readonly string[]): Promise<string> {
-    const { bodies } = await this.gatherBodies(assetPaths)
+  async gatherText(assetPaths: readonly string[], generation: number): Promise<string> {
+    const { bodies } = await this.gatherBodies(assetPaths, generation)
     return bodies
       .map((entry) => entry.body)
       .join('\n\n')

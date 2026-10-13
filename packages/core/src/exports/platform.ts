@@ -28,6 +28,7 @@ export { parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
   createPlatformService,
+  type BuildPlatform,
   type FileSrcConverter,
   type PlatformFacts,
 } from '../app/platform-service.ts'
@@ -99,7 +100,7 @@ export {
   type ContactEntryCandidate,
   type EntryOptions,
 } from '../search/wiki-autocomplete-entries.ts'
-export { type WikiLinkSuggestionService } from '../search/wiki-link-suggestion-service.ts'
+export { type AutocompleteSuggestionService } from '../search/autocomplete-suggestion-service.ts'
 export {
   buildPaletteSections,
   type NoteEntry,
@@ -230,7 +231,7 @@ export {
 export { type EmbedStatus, type EmbedProgress } from '../embeddings/embedding-runtime-service.ts'
 export { type RetrievalHit, type RetrievalService } from '../embeddings/retrieval-service.ts'
 export { type SemanticSearchService } from '../embeddings/semantic-search-service.ts'
-export { errorMessage, isAppError, toAppError, ReflectError } from '../errors.ts'
+export { errorMessage, toAppError, ReflectError } from '../errors.ts'
 export {
   dailyPath,
   notePath,

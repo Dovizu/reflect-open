@@ -157,7 +157,7 @@ Core, elsewhere:
 
 | File | Owns |
 |---|---|
-| `search/wiki-link-suggestion-service.ts`, `search/wiki-autocomplete-entries.ts` | the `[[` and `#` menus' data; pure row assembly |
+| `search/autocomplete-suggestion-service.ts`, `search/wiki-autocomplete-entries.ts` | the `[[` and `#` menus' data; pure row assembly |
 | `navigation/link-navigation-service.ts` | what a clicked wiki link, Markdown link or deep link does |
 | `commands/keymap-service.ts` | the shortcut registry (rejects duplicate bindings) |
 
@@ -168,7 +168,7 @@ Desktop, `apps/desktop/src/editor/`:
 | `use-note-document.ts` | React adapter: session ↔ state/watcher/editor |
 | `note-editor.tsx` | meowdown composition + our extensions; imperative handle |
 | `roundtrip.ts` | fidelity classification (`exact` / `normalizing` / `lossy`), re-exported from meowdown |
-| `use-editor-autocomplete.ts` | `[[` and `#` search handlers over `WikiLinkSuggestionService` |
+| `use-editor-autocomplete.ts` | `[[` and `#` search handlers over `AutocompleteSuggestionService` |
 | `use-wiki-link-navigation.ts`, `use-markdown-link-navigation.ts`, `use-tag-navigation.ts` | chip click → resolve → navigate or create |
 | `use-wiki-link-hover-preview.tsx` | desktop chip hover → side-effect-free local preview renderer |
 | `use-asset-persistence.ts`, `use-note-attachments.ts` | paste/drop → `assets/`; how images and attachment links render |

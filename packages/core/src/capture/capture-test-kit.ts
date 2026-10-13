@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { vi, type Mock, type MockInstance } from 'vitest'
 import type { CaptureEnvelope } from './capture-envelope.ts'
 import { captureIdentity } from './capture-identity.ts'
@@ -252,7 +253,10 @@ class CaptureTestKitImpl implements CaptureTestKit {
         id: createTestIdService(),
       }),
       aiCredentials: createAiCredentialService({ secretStore: this.#secretStore }),
-      privacy: createPrivacyService({ noteFile: this.noteFile }),
+      privacy: createPrivacyService({
+        noteFile: this.noteFile,
+        graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+      }),
       hash: this.#hash,
     })
     return await enrichment.reconcile({ generation: 3, ...input })

@@ -60,6 +60,10 @@ export interface ChatTurnRequest {
    */
   semanticSearchEnabled: boolean
   /**
+   * The file generation of the graph session the turn runs in; note tools read at it.
+   */
+  generation: number
+  /**
    * User-authored instructions appended to Reflect's built-in system prompt.
    */
   customSystemPrompt: string
@@ -148,7 +152,10 @@ class ChatEngineServiceImpl implements ChatEngineService {
         customSystemPrompt: request.customSystemPrompt,
         context: request.context,
         signal: request.signal,
-        tools: noteTools.build({ semanticSearchEnabled: request.semanticSearchEnabled }),
+        tools: noteTools.build({
+          semanticSearchEnabled: request.semanticSearchEnabled,
+          generation: request.generation,
+        }),
       })
     } catch (cause) {
       yield request.signal?.aborted

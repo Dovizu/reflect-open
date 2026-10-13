@@ -212,7 +212,7 @@ class RenameCoordinatorImpl implements RenameCoordinator {
       try {
         await rewritePathLinksForMove(from, target, {
           pathLinkSources: (targetPathKey) => wikiResolver.getPathLinkSources(targetPathKey),
-          read: (forPath) => noteFile.read(forPath),
+          read: (forPath) => noteFile.read(forPath, gen),
           write: async (forPath, contents) => {
             await noteFile.write(forPath, contents, gen)
           },
@@ -277,7 +277,7 @@ class RenameCoordinatorImpl implements RenameCoordinator {
             io: {
               sources: (targetKey) => wikiResolver.getLinkSources(targetKey),
               backlinks: (forPath) => backlinks.getBacklinks(forPath),
-              read: (forPath) => noteFile.read(forPath),
+              read: (forPath) => noteFile.read(forPath, gen),
               write: async (forPath, contents) => {
                 await noteFile.write(forPath, contents, gen)
               },

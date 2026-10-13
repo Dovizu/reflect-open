@@ -1,5 +1,10 @@
 import type { AppPlatform } from './platform.ts'
 
+/**
+ * The Tauri build targets the app ships for.
+ */
+export type BuildPlatform = 'darwin' | 'windows' | 'linux' | 'ios' | 'android'
+
 export type ColorScheme = 'light' | 'dark'
 
 /**
@@ -28,6 +33,10 @@ export interface PlatformFacts {
    * A real native shell (plugins, OS windows) exists; false in browser dev.
    */
   readonly isNativeShell: boolean
+  /**
+   * The Tauri build target; null outside a Tauri build.
+   */
+  readonly buildPlatform: BuildPlatform | null
   /**
    * The macOS desktop shell (not iPadOS, not browser dev).
    */
@@ -88,6 +97,7 @@ class PlatformServiceImpl implements PlatformService {
 
   readonly appPlatform: AppPlatform
   readonly isNativeShell: boolean
+  readonly buildPlatform: BuildPlatform | null
   readonly isMacosDesktop: boolean
   readonly isApplePlatform: boolean
   readonly hasMacosTitleBarOverlay: boolean
@@ -101,6 +111,7 @@ class PlatformServiceImpl implements PlatformService {
     this.#toFileSrc = fileSrc ?? appleFileSrc
     this.appPlatform = facts.appPlatform
     this.isNativeShell = facts.isNativeShell
+    this.buildPlatform = facts.buildPlatform
     this.isMacosDesktop = facts.isMacosDesktop
     this.isApplePlatform = facts.isApplePlatform
     this.hasMacosTitleBarOverlay = facts.hasMacosTitleBarOverlay

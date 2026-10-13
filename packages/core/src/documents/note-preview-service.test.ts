@@ -46,6 +46,7 @@ function notePreviewOver(
       createNoteDocumentService({
         openDocuments: createOpenDocumentsService({ fileChanges: createTestFileChangeService() }),
         noteFile,
+        graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
       }),
     attachments: options?.attachments ?? createTestAttachmentService(),
     graphSession: options?.graphSession ?? openGraph(),
@@ -100,7 +101,11 @@ describe('previewWikiTarget', () => {
     })
     const notePreview = notePreviewOver({
       noteFile,
-      noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+      noteDocuments: createNoteDocumentService({
+        openDocuments,
+        noteFile,
+        graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+      }),
     })
 
     await expect(notePreview.previewWikiTarget('Alpha')).resolves.toMatchObject({

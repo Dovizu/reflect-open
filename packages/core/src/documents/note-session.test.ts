@@ -27,10 +27,9 @@ function toggleTransform(task: TaskLocator): (source: string) => string {
 }
 
 /**
- * Direct tests of the document state machine, no React. The full pipeline
- * (load, debounce, echo detection, conflict parking, protection) is covered
- * end-to-end through the desktop hook in `use-note-document.test.tsx`; these pin the
- * session-level contracts the hook can't observe directly.
+ * Direct tests of the document state machine, no React. The desktop hook test
+ * in `use-note-document.test.tsx` covers only how the hook binds a session to
+ * the editor.
  */
 
 const PATH = 'notes/a.md'
@@ -70,6 +69,10 @@ function harness(options?: {
   /** Runs before every read resolves (the slow-load seam). */
   beforeRead?: () => Promise<void>
   beforeWrite?: () => Promise<void>
+  /**
+   * Runs after the file holds the new bytes and before the write resolves (the watcher-races-the-promise seam).
+   */
+  afterWrite?: () => Promise<void>
   write?: false
   classify?: (markdown: string) => RoundTripFidelity
   /**
@@ -79,6 +82,10 @@ function harness(options?: {
   createIfMissing?: boolean
   missingSeed?: string
   reconcilePendingEditorInput?: () => void
+  /**
+   * Runs inside `applyContent`, the way an editor reports its serialization while it loads content.
+   */
+  onApply?: (markdown: string) => void
 }): Harness {
   const snapshots: NoteSessionSnapshot[] = []
   const expectedContents: (string | null | undefined)[] = []
@@ -91,9 +98,9 @@ function harness(options?: {
   // its document at the new path, as it does after a real file move.
   const files = createTestNoteFileService(disk === null ? {} : { files: { [PATH]: disk } })
   const noteFile = overrideNoteFileService(files, {
-    read: async () => {
+    read: async (_path, generation) => {
       await options?.beforeRead?.()
-      return await files.read(PATH)
+      return await files.read(PATH, generation)
     },
     write: async (path, contents, generation, expected) => {
       expectedContents.push(expected)
@@ -103,6 +110,7 @@ function harness(options?: {
       }
       const modifiedMs = await files.write(PATH, contents, generation, expected)
       writes.push({ path, contents })
+      await options?.afterWrite?.()
       return modifiedMs
     },
   })
@@ -117,6 +125,7 @@ function harness(options?: {
       },
       applyContent: (markdown) => {
         applied.push(markdown)
+        options?.onApply?.(markdown)
       },
       reconcilePendingEditorInput: options?.reconcilePendingEditorInput,
       onContent: (content, origin) => {
@@ -278,6 +287,168 @@ describe('createNoteSession', () => {
     await settled()
     expect(snapshots.at(-1)?.protected).toBe(true)
     expect(snapshots.at(-1)?.initialContent).toBe('+ [ ] now has tasks\n')
+  })
+})
+
+describe('external changes and saves', () => {
+  const MARKERS = '# Shared\n\n<<<<<<< this device\na\n=======\nb\n>>>>>>> other device\n'
+
+  it('ignores an external event whose content matches the disk state (the echo of its own save)', async () => {
+    const h = harness()
+    h.session.load()
+    await settled()
+
+    h.session.externalChanged()
+    await settled()
+
+    expect(h.applied).toEqual([])
+    expect(h.snapshots.at(-1)?.conflict).toBeNull()
+  })
+
+  it('parks an external change as a conflict when dirty, never touching the editor until loadTheirs', async () => {
+    const h = harness()
+    h.session.load()
+    await settled()
+
+    h.session.editorChanged('# My unsaved edit\n')
+    h.setDisk('# Theirs\n')
+    h.session.externalChanged()
+    await settled()
+    expect(h.snapshots.at(-1)?.conflict).toBe('# Theirs\n')
+    expect(h.applied).toEqual([])
+
+    h.session.loadTheirs()
+    expect(h.applied).toEqual(['# Theirs\n'])
+    expect(h.snapshots.at(-1)?.conflict).toBeNull()
+    expect(h.snapshots.at(-1)?.dirty).toBe(false)
+  })
+
+  it('pauses saves while a conflict is parked, then keepMine writes the latest buffer', async () => {
+    const h = harness()
+    h.session.load()
+    await settled()
+
+    h.session.editorChanged('# Mine\n')
+    h.setDisk('# Theirs\n')
+    h.session.externalChanged()
+    await settled()
+    expect(h.snapshots.at(-1)?.conflict).toBe('# Theirs\n')
+
+    h.session.editorChanged('# Mine v2\n')
+    await clock.advance(5000)
+    expect(h.writes).toEqual([])
+
+    h.session.keepMine()
+    await settled()
+    expect(h.writes).toEqual([{ path: 'notes/a.md', contents: '# Mine v2\n' }])
+  })
+
+  it('treats an external event for an in-flight save as an echo, not a conflict', async () => {
+    const hold = Promise.withResolvers<void>()
+    const h = harness({ afterWrite: () => hold.promise })
+    h.session.load()
+    await settled()
+
+    h.session.editorChanged('# Saved\n')
+    await settled() // the file holds the bytes, the write promise is pending
+
+    // The user keeps typing while the watcher reports our own write.
+    h.session.editorChanged('# Saved and more\n')
+    h.session.externalChanged()
+    await settled()
+    expect(h.snapshots.at(-1)?.conflict).toBeNull()
+
+    hold.resolve()
+    await settled()
+    expect(h.snapshots.at(-1)?.conflict).toBeNull()
+  })
+
+  it('a queued save re-checks the buffer at write time (revert during a slow write)', async () => {
+    const hold = Promise.withResolvers<void>()
+    let writeCount = 0
+    const h = harness({
+      beforeWrite: async () => {
+        writeCount += 1
+        if (writeCount === 1) {
+          await hold.promise
+        }
+      },
+    })
+    h.session.load()
+    await settled()
+
+    h.session.editorChanged('# A\n')
+    await settled() // write 1 (A) is dispatched and held
+    expect(writeCount).toBe(1)
+
+    // A second save queues behind it; the user reverts to A before write 1 settles.
+    h.session.editorChanged('# B\n')
+    await settled()
+    h.session.editorChanged('# A\n')
+    hold.resolve()
+    await settled()
+    await settled()
+
+    expect(h.writes).toEqual([{ path: 'notes/a.md', contents: '# A\n' }])
+    expect(h.snapshots.at(-1)?.dirty).toBe(false)
+  })
+
+  it('an external reload never dirties the buffer, even when the editor reports a normalized serialization', async () => {
+    let target: NoteSession | null = null
+    const h = harness({
+      // The editor's change handler fires synchronously inside applyContent
+      // and reports a normalized serialization (an extra trailing newline).
+      onApply: (markdown) => target?.editorChanged(`${markdown}\n`),
+    })
+    target = h.session
+    h.session.load()
+    await settled()
+
+    h.setDisk('# Changed outside\n')
+    h.session.externalChanged()
+    await settled()
+    expect(h.applied).toEqual(['# Changed outside\n'])
+    expect(h.snapshots.at(-1)?.dirty).toBe(false)
+
+    await clock.advance(5000)
+    await h.session.flush()
+    expect(h.writes).toEqual([])
+  })
+
+  it('an external change that introduces conflict markers flips the note protected', async () => {
+    const h = harness()
+    h.session.load()
+    await settled()
+    expect(h.snapshots.at(-1)?.protected).toBe(false)
+
+    h.setDisk(MARKERS)
+    h.session.externalChanged()
+    await settled()
+
+    expect(h.snapshots.at(-1)?.protected).toBe(true)
+    expect(h.snapshots.at(-1)?.initialContent).toBe(MARKERS)
+    expect(h.applied).toEqual([]) // the conflicted bytes never enter a live editor
+  })
+
+  it('a note that documents a conflict inside a fence stays editable and saves', async () => {
+    const disk =
+      '# How to resolve\n\n```\n<<<<<<< HEAD\nours\n=======\ntheirs\n>>>>>>> branch\n```\n'
+    const h = harness({ disk })
+    h.session.load()
+    await settled()
+    expect(h.snapshots.at(-1)?.protected).toBe(false)
+
+    h.session.editorChanged(`${disk}\nmore\n`)
+    await settled()
+    expect(h.writes).toEqual([{ path: 'notes/a.md', contents: `${disk}\nmore\n` }])
+  })
+
+  it('a missing note without createIfMissing is an error', async () => {
+    const h = harness({ disk: null })
+    h.session.load()
+    await settled()
+
+    expect(h.snapshots.at(-1)?.status).toBe('error')
   })
 })
 

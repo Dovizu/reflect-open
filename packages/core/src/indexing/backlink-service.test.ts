@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { describe, expect, it, vi } from 'vitest'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import {
@@ -32,7 +33,15 @@ describe('getBacklinksWithContext', () => {
       return await readFile(path, generation)
     })
     const noteFile: NoteFileService = files
-    return { database, backlinks: createBacklinkService({ database, noteFile }), reads }
+    return {
+      database,
+      backlinks: createBacklinkService({
+        database,
+        noteFile,
+        graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+      }),
+      reads,
+    }
   }
 
   it('pages complete sources in deterministic recency order and reads only included sources', async () => {
@@ -171,7 +180,11 @@ describe('getBacklinksWithContext', () => {
       { path: 'notes/target.md', markdown: '# target\n' },
       { path: 'notes/gone.md', markdown: 'gone [[target]]\n' },
     ])
-    const backlinks = createBacklinkService({ database, noteFile: createTestNoteFileService() })
+    const backlinks = createBacklinkService({
+      database,
+      noteFile: createTestNoteFileService(),
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    })
 
     const page = await backlinks.getBacklinksWithContext('notes/target.md', {
       cursor: null,
@@ -192,7 +205,11 @@ describe('getBacklinks', () => {
       { path: 'notes/a.md', markdown: 'x [[T|the target]]\n' },
       { path: 'notes/c.md', markdown: '[[Other]]\n' },
     ])
-    const backlinks = createBacklinkService({ database, noteFile: createTestNoteFileService() })
+    const backlinks = createBacklinkService({
+      database,
+      noteFile: createTestNoteFileService(),
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    })
 
     await expect(backlinks.getBacklinks('notes/target.md')).resolves.toEqual([
       { sourcePath: 'notes/a.md', targetRaw: 'T', alias: 'the target', posFrom: 2, posTo: 18 },

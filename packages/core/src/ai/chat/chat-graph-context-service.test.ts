@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../../testing/graph-session.ts'
 import { describe, expect, it } from 'vitest'
 import type { GraphStatsOptions } from '../../indexing/graph-stats-service.ts'
 import { createPrivacyService } from '../../privacy/privacy-service.ts'
@@ -21,7 +22,10 @@ describe('ChatGraphContextService', () => {
           }
         },
       },
-      privacy: createPrivacyService({ noteFile: createTestNoteFileService() }),
+      privacy: createPrivacyService({
+        noteFile: createTestNoteFileService(),
+        graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+      }),
     })
 
     const context = await service.load('atlas-graph')

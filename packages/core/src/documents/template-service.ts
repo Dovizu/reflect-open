@@ -109,7 +109,9 @@ class TemplateServiceImpl implements TemplateService {
   }
 
   async templateBody(path: string): Promise<string> {
-    return splitFrontmatter(await this.#deps.noteFile.read(path)).body
+    const { noteFile, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    return splitFrontmatter(await noteFile.read(path, generation)).body
   }
 
   async insertTemplate(path: string, editor: TemplateInsertTarget | null): Promise<void> {
@@ -168,7 +170,7 @@ class TemplateServiceImpl implements TemplateService {
    */
   async #retitleTemplate(path: string, title: string, generation: number): Promise<void> {
     const { noteFile } = this.#deps
-    const source = await noteFile.read(path)
+    const source = await noteFile.read(path, generation)
     const parsed = parseNote({ path, source })
     const h1 = parsed.headings.find((heading) => heading.level === 1 && heading.text)
     if (h1 !== undefined && h1.text === parsed.title) {

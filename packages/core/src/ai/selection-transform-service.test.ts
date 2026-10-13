@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { describe, expect, it, vi } from 'vitest'
 import type { LanguageModel } from '@reflect/modules/ai'
 import { convertArrayToReadableStream, MockLanguageModelV3 } from '@reflect/modules/ai/test'
@@ -172,7 +173,10 @@ async function createService(
     languageModel,
     providerConfig,
     credentials,
-    privacy: createPrivacyService({ noteFile: createTestNoteFileService() }),
+    privacy: createPrivacyService({
+      noteFile: createTestNoteFileService(),
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }),
   })
   return { service, languageModel }
 }

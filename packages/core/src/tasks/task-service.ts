@@ -170,7 +170,7 @@ export interface TaskService {
    * subscription reads the open tasks; while any listener is subscribed, an
    * index change re-reads them.
    */
-  subscribe(listener: () => void): Unlisten
+  subscribe: (listener: () => void) => Unlisten
   /**
    * Re-read the open tasks, and the completed tasks while
    * {@link TaskService.includeCompleted} holds them, through the database.
@@ -504,7 +504,7 @@ class TaskServiceImpl implements TaskService {
     return this.#state
   }
 
-  subscribe(listener: () => void): Unlisten {
+  readonly subscribe = (listener: () => void): Unlisten => {
     this.#attach()
     this.#stateListeners.add(listener)
     this.#syncSession()

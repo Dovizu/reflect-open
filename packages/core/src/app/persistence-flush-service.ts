@@ -55,9 +55,11 @@ export interface PersistenceFlushServiceDeps {
 class PersistenceFlushServiceImpl implements PersistenceFlushService {
   readonly #deps: PersistenceFlushServiceDeps
   readonly #flushers: Map<PersistenceFlusherKind, PersistenceFlusher>
+  readonly #mainWindow: boolean
 
   constructor(deps: PersistenceFlushServiceDeps) {
     this.#deps = deps
+    this.#mainWindow = deps.window.isMainWindow()
     this.#flushers = new Map<PersistenceFlusherKind, PersistenceFlusher>([
       ['documents', () => deps.openDocuments.flushAll()],
     ])
@@ -87,7 +89,7 @@ class PersistenceFlushServiceImpl implements PersistenceFlushService {
       return () => {}
     }
     const removeClose = window.onCloseRequested(async (event) => {
-      const shouldHide = platform.isMacosDesktop && window.isMainWindow()
+      const shouldHide = platform.isMacosDesktop && this.#mainWindow
       if (shouldHide) {
         // Before any await: AppKit otherwise destroys the last window and the app exits.
         event.preventDefault()

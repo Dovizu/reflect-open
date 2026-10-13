@@ -3,6 +3,7 @@ import { createTestNoteSession, type TestNoteSessionOptions } from '../testing/d
 import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService, type TestNoteFileServiceOptions } from '../testing/graph.ts'
 import { createNoteDocumentService, NoteBusyError } from './note-document-service.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createOpenDocumentsService } from './open-documents-service.ts'
 
 function setup(options?: {
@@ -22,7 +23,11 @@ function setup(options?: {
   if (session !== null) {
     openDocuments.register({ session })
   }
-  const noteDocuments = createNoteDocumentService({ openDocuments, noteFile })
+  const noteDocuments = createNoteDocumentService({
+    openDocuments,
+    noteFile,
+    graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+  })
   return { noteDocuments, noteFile, session }
 }
 

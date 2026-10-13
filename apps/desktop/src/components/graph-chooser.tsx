@@ -20,11 +20,6 @@ import { cn } from '@/lib/utils.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
-/** iCloud is a real option only in the macOS shell. */
-function isIcloudCapablePlatform(): boolean {
-  return import.meta.env.TAURI_ENV_PLATFORM === 'darwin'
-}
-
 /**
  * First-run / no-graph screen (Plan 21 UX pass). One decision, stated
  * plainly: where do your notes live? iCloud is the recommended default —
@@ -39,7 +34,9 @@ function isIcloudCapablePlatform(): boolean {
 export function GraphChooser(): ReactElement {
   const { recents, error, pickAndOpen, openRecent, createAt, forget } = useGraph()
   const { colorFor } = useGraphColors()
-  const icloudCapable = isIcloudCapablePlatform()
+  const { platform } = useAppServices()
+  // iCloud is a real option only in the macOS shell.
+  const icloudCapable = platform.buildPlatform === 'darwin'
 
   return (
     <ChooserShell>

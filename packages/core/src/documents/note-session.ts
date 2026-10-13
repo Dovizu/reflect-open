@@ -1,7 +1,7 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import { writeGenerationFor, type GraphSessionSource } from '../app/graph-session.ts'
 import type { LoggerService } from '../app/logger-service.ts'
-import { errorMessage, isAppError } from '../errors.ts'
+import { errorMessage, isAppError, ReflectError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { appendBlock } from '../markdown/append-section.ts'
 import { detectConflictMarkers } from '../markdown/conflict-markers.ts'
@@ -153,7 +153,12 @@ class NoteSessionImpl implements NoteSession {
     this.#reconcilePendingEditorInput = options.reconcilePendingEditorInput
     const graph = graphSession.getState().session
     this.#io = {
-      read: (forPath) => noteFile.read(forPath),
+      read: async (forPath) => {
+        if (graph === null) {
+          throw new ReflectError('noGraph', 'No graph is open.')
+        }
+        return await noteFile.read(forPath, writeGenerationFor(graphSession, graph))
+      },
       write:
         options.readOnly === true || graph === null
           ? null

@@ -4,6 +4,7 @@ import {
   type OpenDocumentsService,
 } from '../documents/open-documents-service.ts'
 import { createGraphSession, type GraphSession } from '../app/graph-session.ts'
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createNoteDocumentService, NoteBusyError } from '../documents/note-document-service.ts'
 import {
   isSameTaskPath,
@@ -112,7 +113,11 @@ function sessionSource(read: () => GraphSession | null): TaskServiceDeps['graphS
 function createTasks(graphSession: TaskServiceDeps['graphSession']): TaskService {
   return createTaskService({
     database,
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments: createNoteDocumentService({
+      openDocuments,
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+    }),
     operations,
     clock,
     logger,

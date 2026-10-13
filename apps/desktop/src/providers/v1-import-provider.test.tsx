@@ -52,9 +52,9 @@ async function renderProvider(result?: GraphImportSummary | Error) {
       graph_import_cancel: () => null,
     },
   })
-  const refreshIndex = vi.fn()
   const session = createTestGraphSessionService({ state: { status: 'ready', graph: GRAPH } })
-  const app = createTestAppServices({ ipc, graphSession: { ...session, refreshIndex } })
+  const refreshIndex = vi.spyOn(session, 'refreshIndex').mockImplementation(() => {})
+  const app = createTestAppServices({ ipc, graphSession: session })
   const view = await renderInApp(
     <V1ImportProvider>
       <Probe />

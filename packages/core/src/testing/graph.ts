@@ -115,13 +115,13 @@ class TestNoteFileServiceImpl implements TestNoteFileService {
     }
   }
 
-  async read(path: string, pinned?: number): Promise<string> {
+  async read(path: string, pinned: number): Promise<string> {
     this.#readLog.push({ path, generation: pinned })
     checkGeneration(this.#generation, pinned)
     return this.#contentsOf(path)
   }
 
-  async readLocal(path: string, pinned?: number): Promise<LocalNoteRead> {
+  async readLocal(path: string, pinned: number): Promise<LocalNoteRead> {
     checkGeneration(this.#generation, pinned)
     const content = this.#contentsOf(path)
     return this.#evicted.has(path) ? { kind: 'evicted' } : { kind: 'content', content }
@@ -163,12 +163,12 @@ class TestNoteFileServiceImpl implements TestNoteFileService {
     }
   }
 
-  async listNotes(pinned?: number): Promise<FileMeta[]> {
+  async listNotes(pinned: number): Promise<FileMeta[]> {
     checkGeneration(this.#generation, pinned)
     return this.#list(isNotePath)
   }
 
-  async listAttachments(pinned?: number): Promise<FileMeta[]> {
+  async listAttachments(pinned: number): Promise<FileMeta[]> {
     checkGeneration(this.#generation, pinned)
     return this.#list(isAttachmentPath)
   }
@@ -179,7 +179,7 @@ class TestNoteFileServiceImpl implements TestNoteFileService {
     return this.#list((path) => path.startsWith(prefix))
   }
 
-  async vaultScanStats(pinned?: number): Promise<VaultScanStats> {
+  async vaultScanStats(pinned: number): Promise<VaultScanStats> {
     checkGeneration(this.#generation, pinned)
     return {
       notes: this.#list(isNotePath).length,
@@ -267,11 +267,11 @@ class NoteFileOverrideService implements NoteFileService {
     this.#overrides = overrides
   }
 
-  read(path: string, generation?: number): Promise<string> {
+  read(path: string, generation: number): Promise<string> {
     return (this.#overrides.read ?? this.#inner.read.bind(this.#inner))(path, generation)
   }
 
-  readLocal(path: string, generation?: number): Promise<LocalNoteRead> {
+  readLocal(path: string, generation: number): Promise<LocalNoteRead> {
     return (this.#overrides.readLocal ?? this.#inner.readLocal.bind(this.#inner))(path, generation)
   }
 
@@ -305,11 +305,11 @@ class NoteFileOverrideService implements NoteFileService {
     return (this.#overrides.delete ?? this.#inner.delete.bind(this.#inner))(path, generation)
   }
 
-  listNotes(generation?: number): Promise<FileMeta[]> {
+  listNotes(generation: number): Promise<FileMeta[]> {
     return (this.#overrides.listNotes ?? this.#inner.listNotes.bind(this.#inner))(generation)
   }
 
-  listAttachments(generation?: number): Promise<FileMeta[]> {
+  listAttachments(generation: number): Promise<FileMeta[]> {
     return (this.#overrides.listAttachments ?? this.#inner.listAttachments.bind(this.#inner))(
       generation,
     )
@@ -319,7 +319,7 @@ class NoteFileOverrideService implements NoteFileService {
     return (this.#overrides.listDir ?? this.#inner.listDir.bind(this.#inner))(dir, generation)
   }
 
-  vaultScanStats(generation?: number): Promise<VaultScanStats> {
+  vaultScanStats(generation: number): Promise<VaultScanStats> {
     return (this.#overrides.vaultScanStats ?? this.#inner.vaultScanStats.bind(this.#inner))(
       generation,
     )

@@ -109,9 +109,11 @@ export interface SemanticSearchServiceDeps {
 class SemanticSearchServiceImpl implements SemanticSearchService {
   readonly #deps: SemanticSearchServiceDeps
   readonly #stopFollowingRebuilds: () => void
+  readonly #mainWindow: boolean
 
   constructor(deps: SemanticSearchServiceDeps) {
     this.#deps = deps
+    this.#mainWindow = deps.window.isMainWindow()
     const { embeddingRuntime, embeddingIndex, indexLifecycle } = deps
     this.#stopFollowingRebuilds = indexLifecycle.onReconciled(async ({ generation, source }) => {
       if (source !== 'rebuild') {
@@ -125,7 +127,7 @@ class SemanticSearchServiceImpl implements SemanticSearchService {
   }
 
   start(): Unlisten {
-    const { embeddingRuntime, embeddingIndex, settings, window, graphSession, logger } = this.#deps
+    const { embeddingRuntime, embeddingIndex, settings, graphSession, logger } = this.#deps
     if (this.#consumeLegacyOptIn()) {
       settings.update({ semanticSearchEnabled: true })
     }
@@ -141,7 +143,7 @@ class SemanticSearchServiceImpl implements SemanticSearchService {
       if (stopped) {
         return
       }
-      const enabled = settings.get().semanticSearchEnabled && window.isMainWindow()
+      const enabled = settings.get().semanticSearchEnabled && this.#mainWindow
       const status = embeddingRuntime.lastStatus()
 
       const nextLoadGate = `${enabled} ${status.status}`

@@ -141,7 +141,7 @@ export interface NoteIndexer {
   buildNoteProjection(
     path: string,
     content: string,
-    facts: { fileHash: string; mtime: number },
+    facts: { fileHash: string; mtime: number; generation: number },
   ): Promise<IndexedNote>
   /**
    * Re-index every note referencing any of `assetPaths` (Plan 20 search
@@ -218,10 +218,13 @@ class NoteIndexerImpl implements NoteIndexer {
   async buildNoteProjection(
     path: string,
     content: string,
-    facts: { fileHash: string; mtime: number },
+    facts: { fileHash: string; mtime: number; generation: number },
   ): Promise<IndexedNote> {
     const parsed = parseNote({ path, source: content })
-    const text = await this.#assetText.gatherText(parsed.assets.map((asset) => asset.path))
+    const text = await this.#assetText.gatherText(
+      parsed.assets.map((asset) => asset.path),
+      facts.generation,
+    )
     return buildIndexedNote(parsed, {
       fileHash: facts.fileHash,
       mtime: facts.mtime,
@@ -235,11 +238,12 @@ class NoteIndexerImpl implements NoteIndexer {
     options: { generation: number; content?: string | undefined; mtime?: number | undefined },
   ): Promise<void> {
     const { indexStore: store, noteFile, hash, clock } = this.#deps
-    const content = options.content ?? (await noteFile.read(path))
+    const content = options.content ?? (await noteFile.read(path, options.generation))
     const fileHash = await hash.sha256Hex(content)
     const note = await this.buildNoteProjection(path, content, {
       fileHash,
       mtime: options.mtime ?? clock.now(),
+      generation: options.generation,
     })
     await store.apply(note, options.generation)
   }
@@ -288,7 +292,7 @@ class NoteIndexerImpl implements NoteIndexer {
     if (options.signal?.aborted) {
       return
     }
-    const files = await noteFile.listNotes()
+    const files = await noteFile.listNotes(generation)
     const batch = store.createApplyBatch(generation, onSkippedNote)
     const evicted: string[] = []
     let done = 0
@@ -314,11 +318,12 @@ class NoteIndexerImpl implements NoteIndexer {
         continue
       }
       worked += 1
-      const content = await noteFile.read(file.path)
+      const content = await noteFile.read(file.path, generation)
       const fileHash = await hash.sha256Hex(content)
       const projection = await this.buildNoteProjection(file.path, content, {
         fileHash,
         mtime: file.modifiedMs,
+        generation,
       })
       if (options.signal?.aborted) {
         return
@@ -389,6 +394,7 @@ class NoteIndexerImpl implements NoteIndexer {
       const healScan = await this.#moveHealing.detectExternalMoves(
         [...removals.keys()],
         arrivalPaths,
+        generation,
         {
           signal,
         },
@@ -442,7 +448,7 @@ class NoteIndexerImpl implements NoteIndexer {
       let content = arrivalContent.get(candidate.path)
       if (content === undefined) {
         try {
-          content = await noteFile.read(candidate.path)
+          content = await noteFile.read(candidate.path, generation)
         } catch (err) {
           // The file moved/was deleted/locked between the scan and here (TOCTOU).
           // If it's gone and had a row, that row is now a ghost — remove it this
@@ -476,6 +482,7 @@ class NoteIndexerImpl implements NoteIndexer {
       const projection = await this.buildNoteProjection(candidate.path, content, {
         fileHash,
         mtime: candidate.modifiedMs,
+        generation,
       })
       if (signal?.aborted) {
         return

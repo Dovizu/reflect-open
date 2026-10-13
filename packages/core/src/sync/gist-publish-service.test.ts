@@ -92,9 +92,16 @@ function setup(options?: SetupOptions) {
         return token
       },
     },
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments: createNoteDocumentService({
+      openDocuments,
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+    }),
     noteRows,
-    privacy: createPrivacyService({ noteFile }),
+    privacy: createPrivacyService({
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }),
     operations,
     clipboard,
     graphSession: graph,

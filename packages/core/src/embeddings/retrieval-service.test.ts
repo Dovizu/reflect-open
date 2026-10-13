@@ -1,3 +1,4 @@
+import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { describe, expect, it } from 'vitest'
 import {
   createTestDatabaseService,
@@ -77,7 +78,11 @@ async function setup(options?: { status?: EmbedStatus; embedded?: boolean }) {
   })
   const retrieval = createRetrievalService({
     database,
-    search: createIndexReadServices({ database, noteFile }).search,
+    search: createIndexReadServices({
+      database,
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }).search,
     embeddingRuntime: runtime,
     logger,
   })

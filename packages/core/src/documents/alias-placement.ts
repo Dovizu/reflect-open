@@ -76,7 +76,7 @@ export async function placeOldTitleAlias(
     }
   }
   if (!placed) {
-    const content = await noteFile.read(path)
+    const content = await noteFile.read(path, generation)
     const current = aliasesOf(content)
     const aliases = nextAliases(current, rename)
     if (aliases !== null) {
