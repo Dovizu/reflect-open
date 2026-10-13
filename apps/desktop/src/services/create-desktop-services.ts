@@ -1,3 +1,4 @@
+import type { AppHost } from '@reflect/app'
 import {
   createConsoleLogger,
   createBrowserHttpService,
@@ -9,7 +10,6 @@ import {
   type IpcBridge,
   type PlatformFacts,
 } from '@reflect/core'
-import type { AppHost } from '@reflect/app'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import {
   buildExceptionTelemetryDsn,
@@ -47,12 +47,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
     clipboard: createNavigatorClipboardService(),
     lifecycle: createDomLifecycleAdapter(),
     imageCodec: createBrowserImageCodec(),
-    exceptionTelemetry: createExceptionTelemetry({
-      dsn: buildExceptionTelemetryDsn(),
-      release: `reflect@${facts.appVersion}`,
-      sdk: sentryExceptionTelemetrySdk,
-      logger,
-    }),
   }
   if (facts.isNativeShell) {
     return {
@@ -62,7 +56,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
       opener: createTauriOpenerTransport(),
       path: createTauriPathTransport(),
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
-      updater: createTauriUpdaterAdapter(),
       deepLink: createTauriDeepLinkSource(),
       convertFileSrc,
     }
@@ -78,12 +71,23 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
 }
 
 /**
- * The desktop app's host adapters for the app layer: the Tauri ones inside the
- * native shell, none in plain-browser dev.
+ * The desktop app's host for the app layer: the Tauri updater inside the
+ * native shell, and Sentry exception telemetry everywhere.
  */
-export function createDesktopHost(facts: PlatformFacts): AppHost {
+export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost {
+  void ipc
+  const exceptionTelemetry = createExceptionTelemetry({
+    dsn: buildExceptionTelemetryDsn(),
+    release: `reflect@${facts.appVersion}`,
+    sdk: sentryExceptionTelemetrySdk,
+    logger: createConsoleLogger(),
+  })
   if (facts.isNativeShell) {
-    return { nativeMenu: createTauriNativeMenuHost() }
+    return {
+      exceptionTelemetry,
+      updater: createTauriUpdaterAdapter(),
+      nativeMenu: createTauriNativeMenuHost(),
+    }
   }
-  return {}
+  return { exceptionTelemetry }
 }

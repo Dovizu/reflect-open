@@ -29,7 +29,7 @@ if (!rootElement) {
   throw new Error('Root element #root was not found')
 }
 
-const reactRootOptions = coreServices.exceptionTelemetry.reactRootOptions()
+const reactRootOptions = appServices.exceptionTelemetry.reactRootOptions()
 
 // Platform-neutral providers only — everything desktop- or mobile-specific
 // (update checks, drag region, graph bootstrap mode) lives inside the

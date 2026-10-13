@@ -76,6 +76,14 @@ export interface RenderInAppOptions {
    */
   queryClient?: QueryClient
   /**
+   * Replaces fields of the test app-layer services, e.g. `{ update }`.
+   */
+  appServices?: Partial<AppServices>
+  /**
+   * The app layer over `app`, built by the test. Replaces `appServices`.
+   */
+  appLayer?: AppServices
+  /**
    * Wraps `ui` inside every provider, for providers this helper does not mount.
    */
   wrapper?: (children: ReactNode) => ReactNode
@@ -86,10 +94,6 @@ export interface RenderInAppOptions {
    * Not with `graph`, `graphState`, `route` or `sync`.
    */
   servicesOnly?: boolean
-  /**
-   * The app layer over `app`. Defaults to `createTestAppServices(app)`.
-   */
-  appLayer?: AppServices
 }
 
 interface InAppHandles<App extends CoreServices> {
@@ -176,7 +180,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
 
   const queryClient =
     options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const appLayer = options?.appLayer ?? createTestAppServices(app)
+  const appLayer = options?.appLayer ?? createTestAppServices(app, options?.appServices)
   registerAppCommands(appLayer.commands)
 
   const route = options?.route

@@ -6,11 +6,10 @@ import {
   type NoteDocumentService,
 } from '@reflect/core'
 import type { AppServices, NativeMenuService } from '@reflect/app'
-import { createTestAppServices } from '@reflect/app/testing'
+import { createTestAppServices, createTestThemeService } from '@reflect/app/testing'
 import {
   createTestCoreServices,
   createTestPlatformService,
-  createTestThemeService,
   type TestCoreServices,
   type TestOpenGraph,
   type TestPlatformOptions,
@@ -90,7 +89,6 @@ async function shortcutsHook() {
   const readSource = async (): Promise<string> => '# A\n'
   const services = createTestCoreServices({
     platform: createTestPlatformService(platform),
-    theme: createTestThemeService('light'),
     noteDocuments: {
       readSource,
       readExisting: readSource,
@@ -100,7 +98,7 @@ async function shortcutsHook() {
     },
   })
   app = services
-  appLayer = createTestAppServices(services)
+  appLayer = createTestAppServices(services, { theme: createTestThemeService('light') })
   openRecent = vi.spyOn(services.graphSession, 'openRecent').mockResolvedValue(true)
   openRouteInNewWindow = vi
     .spyOn(services.linkNavigation, 'openRouteInNewWindow')

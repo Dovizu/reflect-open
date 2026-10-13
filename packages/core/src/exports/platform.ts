@@ -28,14 +28,16 @@ export {
 } from '../sync/connect-github-wizard-service.ts'
 export { type GistPublishService } from '../sync/gist-publish-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
-export { createSystemClock, type ClockService } from '../app/clock-service.ts'
+export { createSystemClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
 export { localIsoDate, parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
   createPlatformService,
   type BuildPlatform,
+  type ColorScheme,
   type FileSrcConverter,
   type PlatformFacts,
+  type PlatformService,
 } from '../app/platform-service.ts'
 
 export { type DialogService, type PickFilesOptions } from '../app/dialog-service.ts'
@@ -51,11 +53,6 @@ export {
 export { type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export { type DecodedImage, type ImageCodecService } from '../app/image-codec-service.ts'
-export { type UpdaterAdapter, type UpdateService, type UpdateState } from '../app/update-service.ts'
-export {
-  type ExceptionErrorHandler,
-  type ExceptionTelemetryService,
-} from '../app/exception-telemetry-service.ts'
 export { createBrowserHttpService, type HttpService } from '../app/http-service.ts'
 export { type WebFetchService } from '../app/web-fetch-service.ts'
 export { type NoteFileService } from '../graph/note-file-service.ts'
@@ -177,7 +174,7 @@ export { type RenameCoordinator } from '../documents/title-rename-service.ts'
 export { createDocumentBinding, type DocumentBinding } from '../documents/document-binding.ts'
 export { type ResolvedArchivedPost } from '../x-archive.ts'
 export { marketingVersion } from '../app/app-info-service.ts'
-export { reachWebStorage } from '../app/storage-service.ts'
+export { reachWebStorage, type StorageService } from '../app/storage-service.ts'
 export {
   LINGER_MS,
   MIN_VISIBLE_MS,
@@ -317,12 +314,6 @@ export {
   type AiPromptMode,
 } from '../settings/schema.ts'
 export { type SettingsLoadOutcome, type SettingsService } from '../settings/settings-service.ts'
-export {
-  createThemeService,
-  THEME_PREFERENCE_CACHE_KEY,
-  type ResolvedTheme,
-  type ThemeService,
-} from '../settings/theme-service.ts'
 export { type ContactsAuthorization, type ContactMatch } from '../contacts/commands.ts'
 export { type ContactsState } from '../contacts/contacts-service.ts'
 export { type ClassicAccess, type ClassicSignInResult } from '../classic/classic-access-service.ts'

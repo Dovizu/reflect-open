@@ -20,13 +20,14 @@ export const pendingDevIpc = facts.isNativeShell ? null : createDeferredIpcTrans
 /**
  * The app-scoped services of this webview.
  */
-export const coreServices = createCoreServices(
-  createDesktopAdapters(facts, pendingDevIpc?.transport ?? createTauriIpcTransport()),
-)
+const ipc = pendingDevIpc?.transport ?? createTauriIpcTransport()
+
+export const coreServices = createCoreServices(createDesktopAdapters(facts, ipc))
+
+export const appServices = createAppServices(coreServices, createDesktopHost(facts, ipc))
 
 // Runs before every module imported after this one, so exception telemetry
 // exists while the rest of the app's modules evaluate.
-coreServices.exceptionTelemetry.install()
-export const appServices = createAppServices(coreServices, createDesktopHost(facts))
+appServices.exceptionTelemetry.install()
 installQueryInvalidation(coreServices)
 void coreServices.contacts.refresh()

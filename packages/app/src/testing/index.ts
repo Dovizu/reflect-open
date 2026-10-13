@@ -11,3 +11,19 @@ export {
   type TestNativeMenuServiceOptions,
 } from './commands.ts'
 export { createTestAppServices } from './services.ts'
+export {
+  createTestExceptionTelemetry,
+  type ExceptionReport,
+  type ExceptionReportSource,
+  type TestExceptionTelemetryService,
+} from './exception-telemetry.ts'
+export { createTestThemeService, type TestThemeService } from './theme.ts'
+export {
+  createTestUpdateService,
+  createTestUpdaterAdapter,
+  type TestUpdateCall,
+  type TestUpdaterAdapter,
+  type TestUpdaterCall,
+  type TestUpdaterOptions,
+  type TestUpdateService,
+} from './update.ts'
