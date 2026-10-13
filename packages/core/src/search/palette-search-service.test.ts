@@ -3,11 +3,16 @@ import type { Command } from '../commands/command-service.ts'
 import type { RetrieveOptions } from '../embeddings/retrieval-service.ts'
 import type { ParsedSearchQuery } from '../indexing/filter-query.ts'
 import type { FilteredSearchHit } from '../indexing/search-service.ts'
+import { createCommandService } from '../commands/command-service.ts'
+import { createSearchService } from '../indexing/search-service.ts'
+import { createSuggestionService } from '../indexing/suggestion-service.ts'
+import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
 import { createTestClockService } from '../testing/clock.ts'
-import { createTestCommandService } from '../testing/commands.ts'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
 import { createTestRetrievalService } from '../testing/embeddings.ts'
-import { createTestPaletteSearchService } from '../testing/search.ts'
+import { createTestLoggerService } from '../testing/logger.ts'
+import { createTestPlatformService } from '../testing/platform.ts'
+import { createPaletteSearchService } from './palette-search-service.ts'
 
 const NOON_JUNE_9 = new Date(2026, 5, 9, 12).getTime()
 
@@ -46,9 +51,13 @@ function setup() {
       },
     ],
   })
-  const commands = createTestCommandService<string>()
+  const commands = createCommandService<string>({
+    platform: createTestPlatformService(),
+    logger: createTestLoggerService(),
+  })
   const clock = createTestClockService({ now: NOON_JUNE_9 })
-  const service = createTestPaletteSearchService({
+  const service = createPaletteSearchService({
+    suggestions: createSuggestionService({ database: createTestDatabaseService() }),
     search: {
       searchWithFilters: async (parsed) => {
         searches.push(parsed)
@@ -79,7 +88,19 @@ describe('PaletteSearchService', () => {
         markdown: `# Tomorrow plan ${i}\n`,
       })),
     )
-    const service = createTestPaletteSearchService({ database })
+    const service = createPaletteSearchService({
+      suggestions: createSuggestionService({ database }),
+      search: createSearchService({
+        database,
+        wikiResolver: createWikiResolverService({ database }),
+      }),
+      retrieval: createTestRetrievalService(),
+      commands: createCommandService({
+        platform: createTestPlatformService(),
+        logger: createTestLoggerService(),
+      }),
+      clock: createTestClockService(),
+    })
 
     const suggestions = await service.suggestTitles('tomorrow', {
       today: '2026-06-09',

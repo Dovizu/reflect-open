@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GraphStatsOptions } from '../../indexing/graph-stats-service.ts'
-import { createTestPrivacyService } from '../../testing/index.ts'
+import { createPrivacyService } from '../../privacy/privacy-service.ts'
+import { createTestNoteFileService } from '../../testing/index.ts'
 import { createChatGraphContextService, MAX_CONTEXT_TAGS } from './chat-graph-context-service.ts'
 
 describe('ChatGraphContextService', () => {
@@ -20,7 +21,7 @@ describe('ChatGraphContextService', () => {
           }
         },
       },
-      privacy: createTestPrivacyService(),
+      privacy: createPrivacyService({ noteFile: createTestNoteFileService() }),
     })
 
     const context = await service.load('atlas-graph')

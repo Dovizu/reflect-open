@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { createTestKeyboardService } from '../testing/mobile.ts'
 import { createKeyboardService } from './keyboard-service.ts'
 
 describe('KeyboardService', () => {
@@ -47,10 +46,5 @@ describe('KeyboardService', () => {
     keyboard.publish(280)
 
     expect(seen).toEqual(['second'])
-  })
-
-  it('starts the test service at the given height', () => {
-    expect(createTestKeyboardService().getHeight()).toBe(0)
-    expect(createTestKeyboardService({ height: 300 }).isVisible()).toBe(true)
   })
 })

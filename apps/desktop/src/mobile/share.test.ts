@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { NoteSession } from '@reflect/core'
-import { createTestOpenDocumentsService, createTestShareService } from '@reflect/core/testing'
+import { createTestAppServices } from '@reflect/core/testing'
 import { shareNote } from './share.ts'
 
 const shareMock = vi.fn<(data: ShareData) => Promise<void>>()
@@ -14,8 +14,7 @@ beforeEach(() => {
 describe('shareNote', () => {
   // What a note shares is covered with `ShareService` in `@reflect/core`.
   it('hands the live editor buffer body to the OS share sheet', async () => {
-    const openDocuments = createTestOpenDocumentsService()
-    const share = createTestShareService({ openDocuments })
+    const { openDocuments, share } = createTestAppServices()
     // A stand-in implements only what the code under test calls.
     const session: Partial<NoteSession> = {
       path: 'notes/meeting-notes.md',

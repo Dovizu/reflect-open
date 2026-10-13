@@ -5,7 +5,6 @@ import {
   createTestAppServices,
   createTestOperationsService,
   createTestPlatformService,
-  createTestTaskService,
   type TestAppServices,
   type TestHapticsService,
   type TestStorageService,
@@ -232,7 +231,12 @@ beforeEach(async () => {
   const operations = createTestOperationsService()
   await page.viewport(375, 700)
   // A fresh service per test, so its recently-completed set starts empty.
-  const tasks = createTestTaskService({ operations })
+  app = createTestAppServices({
+    operations,
+    // Reduced motion: an instant settle, so row transforms can be asserted synchronously.
+    platform: createTestPlatformService({ reducedMotion: true }),
+  })
+  const { tasks } = app
   getOpenTasks = vi.spyOn(tasks, 'getOpenTasks').mockResolvedValue([])
   getCompletedTasks = vi.spyOn(tasks, 'getCompletedTasks').mockResolvedValue([])
   writeTask = vi.spyOn(tasks, 'writeTask').mockResolvedValue(WRITTEN)
@@ -240,12 +244,6 @@ beforeEach(async () => {
     created: { astPath: [0], markdown: '', breadcrumbs: [], checked: false },
     moved: [],
     updatedAt: 0,
-  })
-  app = createTestAppServices({
-    operations,
-    tasks,
-    // Reduced motion: an instant settle, so row transforms can be asserted synchronously.
-    platform: createTestPlatformService({ reducedMotion: true }),
   })
   storage = app.storage
   haptics = app.mobile.haptics

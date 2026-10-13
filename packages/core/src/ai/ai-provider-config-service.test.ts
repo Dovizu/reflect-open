@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import type { HostedAiProviderConfig, Settings } from '../settings/schema.ts'
 import {
-  createTestAiCredentialService,
   createTestAiKeyValidationService,
   createTestIdService,
   createTestSecretStoreService,
   createTestSettingsService,
 } from '../testing/index.ts'
+import { createAiCredentialService } from './ai-credential-service.ts'
 import { createAiProviderConfigService, type NewAiProvider } from './ai-provider-config-service.ts'
 
 function entry(overrides: Partial<HostedAiProviderConfig>): HostedAiProviderConfig {
@@ -46,7 +46,7 @@ async function createService(
   const id = createTestIdService()
   const service = createAiProviderConfigService({
     settings,
-    credentials: createTestAiCredentialService({ secretStore }),
+    credentials: createAiCredentialService({ secretStore }),
     keyValidation,
     id,
   })

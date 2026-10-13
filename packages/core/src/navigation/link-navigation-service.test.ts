@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { NoteCreationService } from '../graph/note-creation-service.ts'
 import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
-import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import {
+  createWikiResolverService,
+  type WikiResolverService,
+} from '../indexing/wiki-resolver-service.ts'
 import {
   createTestAttachmentService,
+  createTestDatabaseService,
   createTestDeepLinkService,
-  createTestLinkNavigationService,
   createTestLoggerService,
   createTestNavigationService,
   createTestNoteCreationService,
@@ -18,6 +21,7 @@ import {
   type TestPlatformOptions,
 } from '../testing/index.ts'
 import {
+  createLinkNavigationService,
   isOpenableExternalUrl,
   routeForTag,
   type LinkNavigationHost,
@@ -57,10 +61,11 @@ function setup(options?: {
   const operations = createTestOperationsService()
   const logger = createTestLoggerService()
   const navigation = createTestNavigationService()
-  const linkNavigation = createTestLinkNavigationService({
+  const linkNavigation = createLinkNavigationService({
     noteLinkResolver: options?.noteLinkResolver ?? noteLinkResolver,
     noteCreation: options?.noteCreation ?? noteCreation,
-    ...(options?.wikiResolver === undefined ? {} : { wikiResolver: options.wikiResolver }),
+    wikiResolver:
+      options?.wikiResolver ?? createWikiResolverService({ database: createTestDatabaseService() }),
     window,
     platform: createTestPlatformService(options?.platform),
     opener,

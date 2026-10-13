@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { upsertFrontmatter } from '../markdown/frontmatter.ts'
-import { createTestNoteSession, createTestOpenDocumentsService } from '../testing/documents.ts'
+import { createTestNoteSession } from '../testing/documents.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { placeOldTitleAlias } from './alias-placement.ts'
+import { createOpenDocumentsService } from './open-documents-service.ts'
 
 /**
  * The pure helpers (`parseNote`, `nextAliases`, `upsertFrontmatter`) stay real
@@ -31,9 +33,10 @@ function setup(options?: {
           content: options.session,
           accepts: options.takesPatch ?? true,
         })
-  const openDocuments = createTestOpenDocumentsService({
-    sessions: session === null ? [] : [session],
-  })
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  if (session !== null) {
+    openDocuments.register({ session })
+  }
   return { deps: { noteFile, openDocuments }, noteFile, session }
 }
 

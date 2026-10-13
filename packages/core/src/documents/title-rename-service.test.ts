@@ -9,13 +9,14 @@ import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
 import {
   createTestNoteMoveService,
   createTestNoteSession,
-  createTestOpenDocumentsService,
   type TestNoteSession,
 } from '../testing/documents.ts'
+import { createTestFileChangeService } from '../testing/file-change.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIndexStoreService } from '../testing/index-store.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestOperationsService } from '../testing/operations.ts'
+import { createOpenDocumentsService } from './open-documents-service.ts'
 import { createTitleRenameService, type RenameCoordinator } from './title-rename-service.ts'
 
 /**
@@ -87,9 +88,10 @@ function setup(options?: SetupOptions) {
           content: options.session.content,
           accepts: options.session.accepts ?? true,
         })
-  const openDocuments = createTestOpenDocumentsService({
-    sessions: session === null ? [] : [session],
-  })
+  const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  if (session !== null) {
+    openDocuments.register({ session })
+  }
   const indexStore = createTestIndexStoreService({
     database,
     fail: (call) => (call.method === 'moveIndexed' ? options?.moveError : undefined),

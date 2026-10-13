@@ -1,25 +1,31 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
-  createTestContactSuggestionService,
   createTestContactsService,
+  createTestFileChangeService,
   createTestNoteFileService,
   createTestNoteSession,
-  createTestOpenDocumentsService,
   createTestSettingsService,
   type TestContactsService,
   type TestNoteFileService,
   type TestNoteSession,
 } from '../testing/index.ts'
-import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
+import { createNoteDocumentService } from '../documents/note-document-service.ts'
+import {
+  createOpenDocumentsService,
+  type OpenDocumentsService,
+} from '../documents/open-documents-service.ts'
 import type { ContactMatch, ContactsAuthorization } from './commands.ts'
 import {
   canPromptForContacts,
+  createContactSuggestionService,
   contactsAccessNotice,
   isContactsAvailable,
   suggestedContactDetails,
   type ContactSuggestionService,
 } from './contact-suggestion-service.ts'
-import { withContactsLookups } from './contacts-service.ts'
+import { withContactsLookups, type ContactsService } from './contacts-service.ts'
+import type { NoteFileService } from '../graph/note-file-service.ts'
+import type { SettingsService } from '../settings/settings-service.ts'
 
 const PATH = 'notes/Ada Lovelace.md'
 
@@ -38,6 +44,26 @@ let noteFile: TestNoteFileService
 let openDocuments: OpenDocumentsService
 let service: ContactSuggestionService
 
+/** The real service; each dependency left out is a fresh test double. */
+function contactSuggestionsOver(deps?: {
+  contacts?: ContactsService
+  openDocuments?: OpenDocumentsService
+  noteFile?: NoteFileService
+  settings?: SettingsService
+}): ContactSuggestionService {
+  const openDocuments =
+    deps?.openDocuments ??
+    createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  const noteFile = deps?.noteFile ?? createTestNoteFileService()
+  return createContactSuggestionService({
+    contacts: deps?.contacts ?? createTestContactsService(),
+    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    openDocuments,
+    noteFile,
+    settings: deps?.settings ?? createTestSettingsService(),
+  })
+}
+
 /** Open the note in a pane: the session's buffer is then the note's live source. */
 function openNote(content: string, options: { accepts?: boolean } = {}): TestNoteSession {
   const session = createTestNoteSession({ path: PATH, content, accepts: options.accepts ?? true })
@@ -48,8 +74,8 @@ function openNote(content: string, options: { accepts?: boolean } = {}): TestNot
 beforeEach(() => {
   contacts = createTestContactsService({ contacts: [ADA] })
   noteFile = createTestNoteFileService()
-  openDocuments = createTestOpenDocumentsService()
-  service = createTestContactSuggestionService({ contacts, noteFile, openDocuments })
+  openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })
+  service = contactSuggestionsOver({ contacts, noteFile, openDocuments })
 })
 
 describe('suggestionFor', () => {
@@ -82,7 +108,7 @@ describe('suggestionFor', () => {
   })
 
   it('answers null without a lookup for an untitled note', async () => {
-    const untitled = createTestContactSuggestionService({
+    const untitled = contactSuggestionsOver({
       contacts,
       openDocuments,
       noteFile: createTestNoteFileService({ files: { 'notes/.md': '\n' } }),
@@ -255,7 +281,7 @@ describe('the enable flow', () => {
     const settings = createTestSettingsService()
     await settings.whenLoaded()
     contacts.setStatus('notDetermined')
-    const enabling = createTestContactSuggestionService({ contacts, settings })
+    const enabling = contactSuggestionsOver({ contacts, settings })
 
     enabling.setEnabled(true)
     expect(settings.get().contactsEnabled).toBe(true)
@@ -275,7 +301,7 @@ describe('the enable flow', () => {
   })
 
   it('requestAccess swallows a failed prompt', async () => {
-    const failing = createTestContactSuggestionService({
+    const failing = contactSuggestionsOver({
       contacts: {
         ...contacts,
         requestAccess: async () => {
@@ -303,7 +329,7 @@ describe('showsSuggestionFor', () => {
     authorization: ContactsAuthorization | null,
     path: string,
   ): boolean {
-    const gated = createTestContactSuggestionService({
+    const gated = contactSuggestionsOver({
       contacts: withContactsLookups({ ...contacts, getState: () => ({ authorization }) }),
     })
     return gated.showsSuggestionFor(settings, path)

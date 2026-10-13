@@ -18,9 +18,9 @@ import { createTestPlatformService } from './platform.ts'
 import {
   createTestDialogService,
   createTestLifecycleService,
-  createTestPathService,
   createTestWindowService,
 } from './shell.ts'
+import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
 
 /**
  * An open graph as a test names it. The defaults are the graph `test` at
@@ -126,7 +126,7 @@ export function createTestGraphSessionService(
     fileChanges: options?.fileChanges ?? fileChanges,
     window: options?.window ?? createTestWindowService(),
     dialog: options?.dialog ?? createTestDialogService(),
-    path: options?.path ?? createTestPathService(),
+    path: options?.path ?? createPathService({ transport: createPosixPathTransport('/home/test') }),
     platform: options?.platform ?? createTestPlatformService(),
     lifecycle: options?.lifecycle ?? createTestLifecycleService(),
     mobileStorage: options?.mobileStorage ?? createTestMobileStorageService(),

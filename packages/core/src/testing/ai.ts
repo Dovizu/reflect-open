@@ -1,16 +1,10 @@
 import type { LanguageModel } from '@reflect/modules/ai'
 import { MockLanguageModelV3 } from '@reflect/modules/ai/test'
-import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
 import type {
   AiKeyValidationService,
   ApiKeyValidation,
   ApiKeyValidationInput,
 } from '../ai/ai-key-validation-service.ts'
-import { createAiPromptService, type AiPromptService } from '../ai/ai-prompt-service.ts'
-import {
-  createAiProviderConfigService,
-  type AiProviderConfigService,
-} from '../ai/ai-provider-config-service.ts'
 import type { LanguageModelService } from '../ai/language-model-service.ts'
 import type { AssetDescriberService, DescribeAssetRequest } from '../ai/asset-describer-service.ts'
 import type {
@@ -18,26 +12,8 @@ import type {
   PageDescriberService,
   PageEnrichment,
 } from '../ai/page-describer-service.ts'
-import {
-  createSelectionTransformService,
-  type SelectionTransformService,
-} from '../ai/selection-transform-service.ts'
-import {
-  createTranscriptEnrichmentService,
-  type TranscriptEnrichmentService,
-} from '../ai/transcript-enrichment-service.ts'
 import type { TranscriptionRequest, TranscriptionService } from '../ai/transcription-service.ts'
-import type { PrivacyService } from '../privacy/privacy-service.ts'
-import type { IdService } from '../app/id-service.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
-import type { SettingsService } from '../settings/settings-service.ts'
-import { createTestIdService } from './id.ts'
-import { createTestLoggerService } from './logger.ts'
-import { createTestPrivacyService } from './privacy.ts'
-import { createTestSecretStoreService } from './secrets.ts'
-import { createTestSettingsService } from './settings.ts'
 
 /** A model, or a function that answers each `create` call. */
 export type TestLanguageModelSource =
@@ -79,20 +55,6 @@ export function createTestLanguageModelService(
   }
 }
 
-export interface TestAiCredentialServiceOptions {
-  /** The keychain the keys live in; defaults to an empty test secret store. */
-  secretStore?: SecretStoreService
-}
-
-/** The real {@link AiCredentialService} over a test secret store. */
-export function createTestAiCredentialService(
-  options?: TestAiCredentialServiceOptions,
-): AiCredentialService {
-  return createAiCredentialService({
-    secretStore: options?.secretStore ?? createTestSecretStoreService(),
-  })
-}
-
 export interface TestAiKeyValidationService extends AiKeyValidationService {
   /** Every input passed to `validate()`, in order. */
   calls(): readonly ApiKeyValidationInput[]
@@ -116,70 +78,6 @@ export function createTestAiKeyValidationService(
       current = next
     },
   }
-}
-
-export interface TestAiPromptServiceOptions {
-  /** The settings the prompts live in; defaults to an empty test settings service. */
-  settings?: SettingsService
-  /** Mints the prompt ids; defaults to a test id service. */
-  id?: IdService
-}
-
-/** The real {@link AiPromptService} over test settings and deterministic ids. */
-export function createTestAiPromptService(options?: TestAiPromptServiceOptions): AiPromptService {
-  return createAiPromptService({
-    settings: options?.settings ?? createTestSettingsService(),
-    id: options?.id ?? createTestIdService(),
-  })
-}
-
-export interface TestAiProviderConfigServiceOptions {
-  /** The settings the entries live in; defaults to an empty test settings service. */
-  settings?: SettingsService
-  /** Holds the keys; defaults to a credential service over an empty test secret store. */
-  credentials?: AiCredentialService
-  /** Verifies the keys; defaults to a fake that answers `valid`. */
-  keyValidation?: AiKeyValidationService
-  /** Mints the entry ids; defaults to a test id service. */
-  id?: IdService
-}
-
-/** The real {@link AiProviderConfigService} over test settings, credentials, key validation and ids. */
-export function createTestAiProviderConfigService(
-  options?: TestAiProviderConfigServiceOptions,
-): AiProviderConfigService {
-  return createAiProviderConfigService({
-    settings: options?.settings ?? createTestSettingsService(),
-    credentials: options?.credentials ?? createTestAiCredentialService(),
-    keyValidation: options?.keyValidation ?? createTestAiKeyValidationService(),
-    id: options?.id ?? createTestIdService(),
-  })
-}
-
-export interface TestSelectionTransformServiceOptions {
-  /** Receives a failed stream; defaults to a test logger. */
-  logger?: LoggerService
-  /** Builds the model; defaults to a test language model service. */
-  languageModel?: LanguageModelService
-  /** The configured entries; defaults to a provider config service with no entries. */
-  providerConfig?: AiProviderConfigService
-  /** Holds the keys; defaults to a credential service over an empty test secret store. */
-  credentials?: AiCredentialService
-  /** The privacy gate; defaults to a test privacy service. */
-  privacy?: PrivacyService
-}
-
-/** The real {@link SelectionTransformService} over test services. */
-export function createTestSelectionTransformService(
-  options?: TestSelectionTransformServiceOptions,
-): SelectionTransformService {
-  return createSelectionTransformService({
-    logger: options?.logger ?? createTestLoggerService(),
-    languageModel: options?.languageModel ?? createTestLanguageModelService(),
-    providerConfig: options?.providerConfig ?? createTestAiProviderConfigService(),
-    credentials: options?.credentials ?? createTestAiCredentialService(),
-    privacy: options?.privacy ?? createTestPrivacyService(),
-  })
 }
 
 /** A page enrichment, or a function that answers each `describe` call. */
@@ -280,18 +178,4 @@ export function createTestTranscriptionService(
       source = next
     },
   }
-}
-
-export interface TestTranscriptEnrichmentServiceOptions {
-  /** Builds the model; defaults to a test language model service. */
-  languageModel?: LanguageModelService
-}
-
-/** The real {@link TranscriptEnrichmentService} over a test language model service. */
-export function createTestTranscriptEnrichmentService(
-  options?: TestTranscriptEnrichmentServiceOptions,
-): TranscriptEnrichmentService {
-  return createTranscriptEnrichmentService({
-    languageModel: options?.languageModel ?? createTestLanguageModelService(),
-  })
 }

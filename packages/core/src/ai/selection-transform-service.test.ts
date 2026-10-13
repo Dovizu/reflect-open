@@ -6,13 +6,16 @@ import type {
   LanguageModelV3StreamResult,
   LanguageModelV3Usage,
 } from '@ai-sdk/provider'
+import { createPrivacyService } from '../privacy/privacy-service.ts'
 import type { AiProviderConfig } from '../settings/schema.ts'
+import { createAiCredentialService } from './ai-credential-service.ts'
+import { createAiProviderConfigService } from './ai-provider-config-service.ts'
 import {
-  createTestAiCredentialService,
-  createTestAiProviderConfigService,
+  createTestAiKeyValidationService,
+  createTestIdService,
   createTestLanguageModelService,
   createTestLoggerService,
-  createTestPrivacyService,
+  createTestNoteFileService,
   createTestSecretStoreService,
   createTestSettingsService,
   type TestLanguageModelSource,
@@ -148,12 +151,17 @@ async function createService(
     aiProviders: providers,
     defaultAiProviderId: providers[0]?.id ?? null,
   })
-  const credentials = createTestAiCredentialService({
+  const credentials = createAiCredentialService({
     secretStore: createTestSecretStoreService(
       options.secrets ?? { 'ai-api-key:a': 'sk-a', 'ai-api-key:b': 'sk-b' },
     ),
   })
-  const providerConfig = createTestAiProviderConfigService({ settings, credentials })
+  const providerConfig = createAiProviderConfigService({
+    settings,
+    credentials,
+    keyValidation: createTestAiKeyValidationService(),
+    id: createTestIdService(),
+  })
   providerConfig.list()
   await settings.whenLoaded()
   const languageModel = createTestLanguageModelService(
@@ -164,7 +172,7 @@ async function createService(
     languageModel,
     providerConfig,
     credentials,
-    privacy: createTestPrivacyService(),
+    privacy: createPrivacyService({ noteFile: createTestNoteFileService() }),
   })
   return { service, languageModel }
 }

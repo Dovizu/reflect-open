@@ -13,12 +13,9 @@ import {
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestSecretStoreService } from '../testing/secrets.ts'
 import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
-import {
-  createTestGitRepositoryService,
-  createTestGithubAuthService,
-  createTestGithubRepoService,
-  createTestSyncEngineFactory,
-} from '../testing/sync.ts'
+import { createTestGitRepositoryService, createTestGithubAuthService } from '../testing/sync.ts'
+import { createSyncEngineFactory } from './engine.ts'
+import { createGithubRepoService } from './github-repo-service.ts'
 import {
   createBackupServiceFactory,
   type BackupService,
@@ -207,9 +204,9 @@ function fakeServices(options: FakeOptions = {}) {
 
   backups = createBackupServiceFactory({
     git,
-    syncEngines: createTestSyncEngineFactory({ git, clock }),
+    syncEngines: createSyncEngineFactory({ git, clock }),
     githubAuth: createTestGithubAuthService({ secretStore, http, clock }),
-    githubRepos: createTestGithubRepoService({ http }),
+    githubRepos: createGithubRepoService({ http }),
     fileChanges: watchedChanges,
     indexLifecycle: {
       applyChanges: async (changes, generation, canApply) => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { createPathService, createPosixPathTransport } from '../app/path-service.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
@@ -11,7 +12,6 @@ import { createTestPlatformService, type TestPlatformOptions } from '../testing/
 import {
   createTestDialogService,
   createTestLifecycleService,
-  createTestPathService,
   createTestWindowService,
 } from '../testing/shell.ts'
 import type { GraphReleaseReason, GraphSessionState } from './graph-session-service.ts'
@@ -111,7 +111,7 @@ function setup(options?: SetupOptions) {
     fileChanges,
     window: windowService,
     dialog,
-    path: createTestPathService({ home: '/Users/me' }),
+    path: createPathService({ transport: createPosixPathTransport('/Users/me') }),
     platform: createTestPlatformService(options?.platform),
     lifecycle,
     mobileStorage,

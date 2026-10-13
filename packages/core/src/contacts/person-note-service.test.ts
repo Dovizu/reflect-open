@@ -3,14 +3,14 @@ import {
   createTestDatabaseService,
   createTestNoteCreationService,
   createTestNoteFileService,
-  createTestPersonNoteService,
   seedNotes,
   type TestDatabaseService,
   type TestNoteCreationService,
   type TestNoteFileService,
 } from '../testing/index.ts'
 import type { ContactMatch } from './commands.ts'
-import type { PersonNoteService } from './person-note-service.ts'
+import { createWikiResolverService } from '../indexing/wiki-resolver-service.ts'
+import { createPersonNoteService, type PersonNoteService } from './person-note-service.ts'
 
 let database: TestDatabaseService
 let noteFile: TestNoteFileService
@@ -42,7 +42,11 @@ beforeEach(() => {
   database = createTestDatabaseService()
   noteFile = createTestNoteFileService()
   noteCreation = createTestNoteCreationService({ noteFile })
-  personNotes = createTestPersonNoteService({ database, noteCreation })
+  personNotes = createPersonNoteService({
+    database,
+    wikiResolver: createWikiResolverService({ database }),
+    noteCreation,
+  })
 })
 
 describe('resolvePerson', () => {
@@ -106,10 +110,10 @@ describe('resolvePerson', () => {
 
   it('blocks a unique owner without a safe wiki address', async () => {
     seedNotes(database, [personNote('notes/ada.md', 'Ada Lovelace', ['ada@example.com'])])
-    const unaddressable = createTestPersonNoteService({
+    const unaddressable = createPersonNoteService({
       database,
-      noteCreation,
       wikiResolver: { getWikiAddressForPath: async () => null },
+      noteCreation,
     })
 
     await expect(unaddressable.resolvePerson(['ada@example.com'])).resolves.toEqual({

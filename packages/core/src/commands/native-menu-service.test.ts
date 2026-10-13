@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createTestCommandService, createTestNativeMenuService } from '../testing/commands.ts'
+import { createTestNativeMenuService } from '../testing/commands.ts'
+import { createCommandService } from './command-service.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
@@ -22,7 +23,10 @@ const LAYOUT: AppSubmenuLayout[] = [
 
 function setup(options?: { label?: string; platform?: TestPlatformOptions; failPaste?: boolean }) {
   const logger = createTestLoggerService()
-  const commands = createTestCommandService()
+  const commands = createCommandService({
+    platform: createTestPlatformService(),
+    logger: createTestLoggerService(),
+  })
   commands.register([
     { id: 'sidebar.toggle', title: 'Toggle sidebar', keybinding: 'Mod-\\', run: () => {} },
     { id: 'theme.toggle', title: 'Toggle theme', run: () => {} },

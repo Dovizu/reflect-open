@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  createTestAppServices,
   createTestAssetDescriptionService,
   createTestCaptureService,
-  createTestEmbedMediaService,
 } from '@reflect/core/testing'
 import type { XPost } from '@post-embed/types'
 import { createXPostResolver, xPostQueryOptions } from '@/editor/use-x-post-resolver.ts'
 import { queryClient } from './query-client.ts'
 import { installQueryInvalidation } from './query-invalidation.ts'
 
-const app = { embedMedia: createTestEmbedMediaService() }
+const app = { embedMedia: createTestAppServices().embedMedia }
 const url = 'https://x.com/jack/status/123'
 const post: XPost = {
   id: '123',

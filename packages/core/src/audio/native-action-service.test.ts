@@ -3,11 +3,13 @@ import {
   createTestAudioRecorderService,
   createTestClockService,
   createTestLoggerService,
-  createTestNativeActionService,
   createTestPlatformService,
 } from '../testing/index.ts'
 import type { AudioRecorderFinalSegment } from './audio-recorder-service.ts'
-import type { NativeRecordActionHandler } from './native-action-service.ts'
+import {
+  createNativeActionService,
+  type NativeRecordActionHandler,
+} from './native-action-service.ts'
 
 const ORPHANED: AudioRecorderFinalSegment = {
   audio: { kind: 'staged', path: '/staging/recording-1700000050000.part-001-end.m4a' },
@@ -22,7 +24,7 @@ function setup(options?: { isNativeShell?: boolean }) {
   const recorder = createTestAudioRecorderService()
   const clock = createTestClockService()
   const logger = createTestLoggerService()
-  const service = createTestNativeActionService({
+  const service = createNativeActionService({
     audioRecorder: recorder,
     clock,
     logger,

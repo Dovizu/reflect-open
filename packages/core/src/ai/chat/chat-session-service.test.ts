@@ -3,8 +3,7 @@ import type { EmbedStatus } from '../../embeddings/embedding-runtime-service.ts'
 import type { GraphInfo } from '../../graph/schemas.ts'
 import type { AiProviderConfig, Settings } from '../../settings/schema.ts'
 import {
-  createTestAiCredentialService,
-  createTestAiProviderConfigService,
+  createTestAiKeyValidationService,
   createTestChatEngineService,
   createTestChatGraphContextService,
   createTestChatHistoryService,
@@ -18,7 +17,8 @@ import {
   createTestSettingsService,
   type TestChatConversation,
 } from '../../testing/index.ts'
-import { aiKeySecretName } from '../ai-credential-service.ts'
+import { aiKeySecretName, createAiCredentialService } from '../ai-credential-service.ts'
+import { createAiProviderConfigService } from '../ai-provider-config-service.ts'
 import type { ChatStreamEvent } from './chat-engine-service.ts'
 import type { ChatConversation, ChatHistoryService } from './chat-history-service.ts'
 import {
@@ -87,7 +87,7 @@ async function setup(options: SetupOptions = {}) {
   })
   await settings.whenLoaded()
   const apiKey = options.apiKey === undefined ? 'sk-test' : options.apiKey
-  const credentials = createTestAiCredentialService({
+  const credentials = createAiCredentialService({
     secretStore: createTestSecretStoreService(
       apiKey === null ? {} : { [aiKeySecretName(MODEL.id)]: apiKey },
     ),
@@ -113,7 +113,12 @@ async function setup(options: SetupOptions = {}) {
     chatEngine,
     chatHistory: options.history?.(chatHistory) ?? chatHistory,
     chatGraphContext,
-    providerConfig: createTestAiProviderConfigService({ settings, credentials, id }),
+    providerConfig: createAiProviderConfigService({
+      settings,
+      credentials,
+      keyValidation: createTestAiKeyValidationService(),
+      id,
+    }),
     credentials,
     embeddingRuntime,
     settings,
