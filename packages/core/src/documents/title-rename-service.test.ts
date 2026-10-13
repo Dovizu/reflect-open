@@ -160,7 +160,11 @@ function setup(options?: SetupOptions) {
               throw resolveError
             },
           },
-    backlinks: createBacklinkService({ database, noteFile }),
+    backlinks: createBacklinkService({
+      database,
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
+    }),
     notePath: createNotePathService({ database, noteFile }),
     noteMove,
     openDocuments,

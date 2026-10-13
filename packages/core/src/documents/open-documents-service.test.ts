@@ -209,7 +209,7 @@ describe('reloadAll with live sessions', () => {
       noteFile,
       clock: createTestClockService(),
       logger: createTestLoggerService(),
-      graphSession: createTestGraphSessionService(),
+      graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
     }).create({
       path: PATH,
       // Read-only: the session tracks dirtiness but never writes, so a

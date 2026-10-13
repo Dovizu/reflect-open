@@ -20,8 +20,6 @@ export {
   detectConflictMarkers,
   parseConflictMarkers,
   resolveConflictMarkers,
-  conflictMarkerBlockCount,
-  conflictMarkerLabels,
   type ConflictSide,
   displayNoteTitle,
   foldKey,

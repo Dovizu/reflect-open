@@ -138,10 +138,13 @@ class UpdateServiceImpl implements UpdateService {
   #pendingUpdate: AvailableUpdate | null = null
   #timer: TimerHandle | null = null
 
+  readonly #mainWindow: boolean
+
   readonly supported: boolean
 
   constructor(deps: UpdateServiceDeps & { readonly updater: UpdaterAdapter }) {
     this.#deps = deps
+    this.#mainWindow = deps.window.isMainWindow()
     this.supported = deps.platform.isNativeShell && !isMobilePlatform(deps.platform.appPlatform)
   }
 
@@ -155,7 +158,7 @@ class UpdateServiceImpl implements UpdateService {
   }
 
   readonly start = (): void => {
-    if (!this.supported || !this.#deps.window.isMainWindow() || this.#timer !== null) {
+    if (!this.supported || !this.#mainWindow || this.#timer !== null) {
       return
     }
     void this.#runCheck(true)

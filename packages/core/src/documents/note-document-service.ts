@@ -1,3 +1,4 @@
+import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import { isAppError } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { splitFrontmatter, upsertFrontmatter } from '../markdown/frontmatter.ts'
@@ -106,6 +107,7 @@ export function isOstensiblyEmptyNoteSource(source: string): boolean {
 export interface NoteDocumentServiceDeps {
   readonly openDocuments: OpenDocumentsService
   readonly noteFile: NoteFileService
+  readonly graphSession: GraphSessionSource
 }
 
 class NoteDocumentServiceImpl implements NoteDocumentService {
@@ -126,8 +128,10 @@ class NoteDocumentServiceImpl implements NoteDocumentService {
   }
 
   async readSource(path: string): Promise<string> {
+    const { openDocuments, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
     return (
-      this.#deps.openDocuments.sessionFor(path)?.liveContent() ?? (await this.#readOrEmpty(path))
+      openDocuments.sessionFor(path)?.liveContent() ?? (await this.#readOrEmpty(path, generation))
     )
   }
 
@@ -158,7 +162,7 @@ class NoteDocumentServiceImpl implements NoteDocumentService {
     if (owner !== null && (await owner.commitFrontmatter(patch))) {
       return
     }
-    const onDisk = await this.#readOrEmpty(path)
+    const onDisk = await this.#readOrEmpty(path, generation)
     const patched = upsertFrontmatter(onDisk, frontmatterPatchToYaml(patch))
     if (patched !== onDisk) {
       await noteFile.write(path, patched, generation)
@@ -182,7 +186,11 @@ class NoteDocumentServiceImpl implements NoteDocumentService {
         }
         return
       }
-      const source = await this.#readForEdit(path, options.createIfMissing === true)
+      const source = await this.#readForEdit(
+        path,
+        options.createIfMissing === true,
+        options.generation,
+      )
       await noteFile.write(path, transform(source), options.generation)
     })
   }
@@ -199,9 +207,9 @@ class NoteDocumentServiceImpl implements NoteDocumentService {
    * loading) — its post-load reconcile then adopts our write like any external
    * change.
    */
-  async #readOrEmpty(path: string): Promise<string> {
+  async #readOrEmpty(path: string, generation: number): Promise<string> {
     try {
-      return await this.#deps.noteFile.read(path)
+      return await this.#deps.noteFile.read(path, generation)
     } catch (cause) {
       if (isAppError(cause) && cause.kind === 'notFound') {
         return ''
@@ -229,9 +237,9 @@ class NoteDocumentServiceImpl implements NoteDocumentService {
     return result
   }
 
-  async #readForEdit(path: string, createIfMissing: boolean): Promise<string> {
+  async #readForEdit(path: string, createIfMissing: boolean, generation: number): Promise<string> {
     try {
-      return await this.#deps.noteFile.read(path)
+      return await this.#deps.noteFile.read(path, generation)
     } catch (cause) {
       if (createIfMissing && isAppError(cause) && cause.kind === 'notFound') {
         return ''

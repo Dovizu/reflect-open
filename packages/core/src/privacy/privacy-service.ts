@@ -1,3 +1,4 @@
+import type { GraphSessionSource } from '../app/graph-session.ts'
 import type { RetrievalHit } from '../embeddings/retrieve.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { parseFrontmatter, splitFrontmatter } from '../markdown/frontmatter.ts'
@@ -272,6 +273,7 @@ export function cloudSafeSelection(note: CloudSendable, selectedText: string): C
 
 export interface PrivacyServiceDeps {
   readonly noteFile: Pick<NoteFileService, 'read'>
+  readonly graphSession: GraphSessionSource
 }
 
 /**
@@ -348,11 +350,7 @@ class PrivacyServiceImpl implements PrivacyService {
   }
 
   async isPrivateLive(path: string): Promise<boolean> {
-    try {
-      return notePrivate(await this.#deps.noteFile.read(path))
-    } catch {
-      return true
-    }
+    return await this.#isPrivateAt(path, this.#generation())
   }
 
   cloudSafeLinkHref(note: CloudSendable, href: string): CloudSafe<string> {
@@ -360,13 +358,15 @@ class PrivacyServiceImpl implements PrivacyService {
   }
 
   async cloudSafeSearchHits(hits: readonly RetrievalHit[]): Promise<CloudSafe<CloudSearchHit>[]> {
-    return await searchHitsWithProbe(hits, (path) => this.isPrivateLive(path))
+    const generation = this.#generation()
+    return await searchHitsWithProbe(hits, (path) => this.#isPrivateAt(path, generation))
   }
 
   async cloudSafeNoteListings(
     entries: readonly (CloudSendable & Omit<CloudNoteListing, 'path'>)[],
   ): Promise<CloudSafe<CloudNoteListing>[]> {
-    return await noteListingsWithProbe(entries, (path) => this.isPrivateLive(path))
+    const generation = this.#generation()
+    return await noteListingsWithProbe(entries, (path) => this.#isPrivateAt(path, generation))
   }
 
   cloudSafeGraphContext(context: CloudGraphContext): CloudSafe<CloudGraphContext> {
@@ -387,6 +387,21 @@ class PrivacyServiceImpl implements PrivacyService {
 
   cloudSafeSelection(note: CloudSendable, selectedText: string): CloudSafe<string> {
     return cloudSafeSelection(note, selectedText)
+  }
+
+  #generation(): number | null {
+    return this.#deps.graphSession.getState().session?.generation ?? null
+  }
+
+  async #isPrivateAt(path: string, generation: number | null): Promise<boolean> {
+    if (generation === null) {
+      return true
+    }
+    try {
+      return notePrivate(await this.#deps.noteFile.read(path, generation))
+    } catch {
+      return true
+    }
   }
 }
 

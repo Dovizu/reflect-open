@@ -52,6 +52,18 @@ beforeEach(() => {
 })
 
 describe('createConflictResolutionService', () => {
+  it('reads the conflict markers of the file on disk', async () => {
+    await expect(service.conflictMarkers(PATH)).resolves.toEqual({
+      labels: { ours: 'this device', theirs: 'other device' },
+      blocks: 1,
+    })
+  })
+
+  it('rejects reading markers with no graph open', async () => {
+    graphSession.setGraph(null)
+    await expect(service.conflictMarkers(PATH)).rejects.toMatchObject({ kind: 'noGraph' })
+  })
+
   it('writes the spliced side, reindexes, and notifies open sessions', async () => {
     const outcome = await service.resolve(PATH, 'ours')
 
@@ -67,7 +79,7 @@ describe('createConflictResolutionService', () => {
   it('a failed write reports the error and notifies nothing', async () => {
     const outcome = await createConflictResolutionService({
       noteFile: {
-        read: (path) => noteFile.read(path),
+        read: (path, generation) => noteFile.read(path, generation),
         write: async () => {
           throw new ReflectError('io', 'disk full')
         },

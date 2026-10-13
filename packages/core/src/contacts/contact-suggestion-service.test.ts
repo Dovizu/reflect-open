@@ -64,7 +64,11 @@ function contactSuggestionsOver(deps?: {
   const noteFile = deps?.noteFile ?? createTestNoteFileService()
   return createContactSuggestionService({
     contacts: deps?.contacts ?? createTestContactsService(),
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments: createNoteDocumentService({
+      openDocuments,
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+    }),
     openDocuments,
     noteFile,
     settings: deps?.settings ?? createTestSettingsService(),

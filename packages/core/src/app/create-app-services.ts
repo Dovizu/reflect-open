@@ -1,3 +1,4 @@
+import type { GraphSessionSource } from './graph-session.ts'
 import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
 import {
   createAiKeyValidationService,
@@ -477,10 +478,6 @@ export interface AppServices {
    */
   readonly classicAccess: ClassicAccessService
   /**
-   * Reads and writes Markdown notes by graph-relative path.
-   */
-  readonly noteFile: NoteFileService
-  /**
    * Resolves, displays, opens, and saves note attachments.
    */
   readonly attachments: AttachmentService
@@ -673,13 +670,14 @@ export interface IndexReadServices {
 export function createIndexReadServices(deps: {
   database: DatabaseService
   noteFile: NoteFileService
+  graphSession: GraphSessionSource
 }): IndexReadServices {
-  const { database, noteFile } = deps
+  const { database, noteFile, graphSession } = deps
   const wikiResolver = createWikiResolverService({ database })
   return {
     indexQuery: createIndexQueryService({ database }),
     wikiResolver,
-    backlinks: createBacklinkService({ database, noteFile }),
+    backlinks: createBacklinkService({ database, noteFile, graphSession }),
     search: createSearchService({ database, wikiResolver }),
     suggestions: createSuggestionService({ database }),
     noteList: createNoteListService({ database }),
@@ -701,13 +699,14 @@ export function createNoteServices(deps: {
   noteFile: NoteFileService
   wikiResolver: WikiResolverService
   id: IdService
+  graphSession: GraphSessionSource
 }): NoteServices {
-  const { noteFile, wikiResolver, id } = deps
+  const { noteFile, wikiResolver, id, graphSession } = deps
   const noteLinkResolver = createNoteLinkResolverService({ wikiResolver, noteFile })
   return {
     noteLinkResolver,
     noteCreation: createNoteCreationService({ noteFile, noteLinkResolver, id }),
-    privacy: createPrivacyService({ noteFile }),
+    privacy: createPrivacyService({ noteFile, graphSession }),
   }
 }
 
@@ -992,6 +991,10 @@ export interface InternalServices {
    */
   readonly assetStore: AssetStoreService
   /**
+   * Reads and writes Markdown notes by graph-relative path.
+   */
+  readonly noteFile: NoteFileService
+  /**
    * Wiki-target resolution over the index's claims and keys.
    */
   readonly wikiResolver: WikiResolverService
@@ -1157,7 +1160,12 @@ export function composeAppServices(
   const noteFile = create.noteFile({ ipc, clock, fileChanges })
   const assetStore = create.assetStore({ ipc, clock, fileChanges })
   const openDocuments = create.openDocuments({ fileChanges })
-  const indexReads = create.indexReads({ database, noteFile })
+  const indexReads = create.indexReads({
+    database,
+    noteFile,
+    // Read at call time: the graph session is built later.
+    graphSession: { getState: () => graphSession.getState() },
+  })
   const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = create.indexStore({ ipc, database })
   const xArchive = create.xArchive({ ipc })
@@ -1171,7 +1179,13 @@ export function composeAppServices(
     keyValidation: aiKeyValidation,
     id,
   })
-  const noteServices = create.noteServices({ noteFile, wikiResolver: indexReads.wikiResolver, id })
+  const noteServices = create.noteServices({
+    noteFile,
+    wikiResolver: indexReads.wikiResolver,
+    id,
+    // Read at call time: the graph session is built later.
+    graphSession: { getState: () => graphSession.getState() },
+  })
   const calendar = create.calendar({ ipc, logger })
   const contacts = create.contacts({ ipc, logger })
   const personNotes = create.personNotes({
@@ -1181,7 +1195,12 @@ export function composeAppServices(
   })
   const path = create.path({ transport: adapters.path })
   const mobileStorage = create.mobileStorage({ ipc })
-  const noteDocuments = create.noteDocuments({ openDocuments, noteFile })
+  const noteDocuments = create.noteDocuments({
+    openDocuments,
+    noteFile,
+    // Read at call time: the graph session is built later.
+    graphSession: { getState: () => graphSession.getState() },
+  })
   const noteMove = create.noteMove({ ipc, indexStore, openDocuments, logger })
   const captureInbox = create.captureInbox({ ipc })
   const webFetch = create.webFetch({ ipc })
@@ -1483,7 +1502,6 @@ export function composeAppServices(
     }),
     classicAccess,
     fileChanges,
-    noteFile,
     attachments,
     noteSessions: create.noteSessions({ noteFile, clock, logger, graphSession }),
     openDocuments,
@@ -1667,6 +1685,7 @@ export function composeAppServices(
     audioRecorder,
     webAuth,
     assetStore,
+    noteFile,
     wikiResolver: indexReads.wikiResolver,
     suggestions: indexReads.suggestions,
     graphStats: indexReads.graphStats,

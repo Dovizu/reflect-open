@@ -91,9 +91,9 @@ function harness(options?: {
   // its document at the new path, as it does after a real file move.
   const files = createTestNoteFileService(disk === null ? {} : { files: { [PATH]: disk } })
   const noteFile = overrideNoteFileService(files, {
-    read: async () => {
+    read: async (_path, generation) => {
       await options?.beforeRead?.()
-      return await files.read(PATH)
+      return await files.read(PATH, generation)
     },
     write: async (path, contents, generation, expected) => {
       expectedContents.push(expected)

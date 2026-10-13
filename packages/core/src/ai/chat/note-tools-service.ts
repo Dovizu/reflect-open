@@ -58,6 +58,10 @@ export interface BuildNoteToolsOptions {
    * false, `search_notes` stays lexical so disabled semantic search is honored.
    */
   semanticSearchEnabled: boolean
+  /**
+   * The file generation of the graph session the tools read from.
+   */
+  generation: number
 }
 
 export interface SearchNotesOutput {
@@ -175,25 +179,32 @@ export interface NoteToolsServiceDeps {
 
 class NoteToolsServiceImpl implements NoteToolsService {
   readonly #deps: NoteToolsServiceDeps
-  readonly #readOneNote: ReturnType<typeof buildReadOneNote>
-  readonly #readOneAsset: ReturnType<typeof buildReadOneAsset>
 
   constructor(deps: NoteToolsServiceDeps) {
     this.#deps = deps
-    const { noteFile, assetReferences, assetPrivacy, xArchive, privacy } = deps
-    const readNote = async (path: string): Promise<string> => await noteFile.read(path)
-    this.#readOneNote = buildReadOneNote({ readNote, privacy })
-    this.#readOneAsset = buildReadOneAsset({
+  }
+
+  readonly build = (options: BuildNoteToolsOptions): NoteTools => {
+    const {
+      retrieval,
+      noteList,
+      dailyNotes,
+      privacy,
+      noteFile,
+      assetReferences,
+      assetPrivacy,
+      xArchive,
+    } = this.#deps
+    const readNote = async (path: string): Promise<string> =>
+      await noteFile.read(path, options.generation)
+    const readOneNote = buildReadOneNote({ readNote, privacy })
+    const readOneAsset = buildReadOneAsset({
       readNote,
       assetReferences,
       assetPrivacy,
       xArchive,
       privacy,
     })
-  }
-
-  readonly build = (options: BuildNoteToolsOptions): NoteTools => {
-    const { retrieval, noteList, dailyNotes, privacy } = this.#deps
     const searchMode: RetrieveOptions['mode'] = options.semanticSearchEnabled ? 'hybrid' : 'lexical'
 
     return {
@@ -261,7 +272,7 @@ class NoteToolsServiceImpl implements NoteToolsService {
           'rather than reading them one at a time. Private notes cannot be read.',
         inputSchema: readNotesInput,
         execute: async ({ paths }): Promise<ReadNotesOutput> => {
-          return { notes: await Promise.all(paths.map(this.#readOneNote)) }
+          return { notes: await Promise.all(paths.map(readOneNote)) }
         },
       },
 
@@ -274,7 +285,7 @@ class NoteToolsServiceImpl implements NoteToolsService {
           'Attachments of private notes cannot be read.',
         inputSchema: readAssetsInput,
         execute: async ({ paths }): Promise<ReadAssetsOutput> => {
-          return { assets: await Promise.all(paths.map(this.#readOneAsset)) }
+          return { assets: await Promise.all(paths.map(readOneAsset)) }
         },
       },
     }

@@ -54,7 +54,11 @@ function createNoteActions(deps: {
   }
   const indexLog: { path: string; generation: number }[] = []
   const service = createNoteActionsService({
-    noteDocuments: createNoteDocumentService({ openDocuments, noteFile }),
+    noteDocuments: createNoteDocumentService({
+      openDocuments,
+      noteFile,
+      graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
+    }),
     noteFile,
     openDocuments,
     indexLifecycle: deps.indexLifecycle ?? {

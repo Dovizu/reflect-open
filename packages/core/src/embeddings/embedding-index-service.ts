@@ -140,7 +140,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
     if (content === undefined) {
       let read: LocalNoteRead
       try {
-        read = await noteFile.readLocal(path)
+        read = await noteFile.readLocal(path, generation)
       } catch {
         return 0 // deleted between event and read; the remove path handles it
       }
@@ -158,6 +158,7 @@ class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
     const parsed = parseNote({ path, source: content })
     const gathered = await this.#assetDescriptionText.gatherBodies(
       parsed.assets.map((asset) => asset.path),
+      generation,
     )
     if (gathered.evicted.length > 0) {
       // A referenced sidecar is iCloud-evicted. `embed_apply` replaces the

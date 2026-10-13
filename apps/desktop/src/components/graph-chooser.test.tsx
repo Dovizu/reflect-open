@@ -1,10 +1,11 @@
 import { page, userEvent } from 'vitest/browser'
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import type { GraphSessionService, IcloudStatus, Settings } from '@reflect/core'
+import { describe, expect, it, vi, type MockInstance } from 'vitest'
+import type { BuildPlatform, GraphSessionService, IcloudStatus, Settings } from '@reflect/core'
 import {
   createTestAppServices,
   createTestGraphSessionService,
   createTestICloudNativeService,
+  createTestPlatformService,
 } from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -23,8 +24,10 @@ let forgetRecent: MockInstance<GraphSessionService['forgetRecent']>
 async function renderChooser(options?: {
   icloud?: Partial<IcloudStatus>
   settings?: Partial<Settings>
+  buildPlatform?: BuildPlatform
 }): Promise<void> {
   const app = createTestAppServices({
+    platform: createTestPlatformService({ buildPlatform: options?.buildPlatform ?? 'darwin' }),
     graphSession: createTestGraphSessionService({ recents: RECENTS }),
     icloudNative: createTestICloudNativeService(
       options?.icloud === undefined ? undefined : { status: options.icloud },
@@ -41,14 +44,6 @@ async function renderChooser(options?: {
     ...(options?.settings === undefined ? {} : { settings: options.settings }),
   })
 }
-
-beforeEach(() => {
-  vi.stubEnv('TAURI_ENV_PLATFORM', 'darwin')
-})
-
-afterEach(() => {
-  vi.unstubAllEnvs()
-})
 
 describe('GraphChooser', () => {
   it('leads with iCloud (recommended) beside the pick-a-folder path', async () => {
@@ -148,8 +143,7 @@ describe('GraphChooser', () => {
   })
 
   it('hides the iCloud card outside macOS builds and drops the Mac-specific copy', async () => {
-    vi.stubEnv('TAURI_ENV_PLATFORM', 'windows')
-    await renderChooser()
+    await renderChooser({ buildPlatform: 'windows' })
 
     await expect.element(page.getByRole('heading', { name: 'A folder you choose' })).toBeVisible()
     await expect.element(page.getByRole('heading', { name: 'iCloud' })).not.toBeInTheDocument()

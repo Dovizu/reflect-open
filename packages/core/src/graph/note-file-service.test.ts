@@ -27,12 +27,10 @@ describe('createNoteFileService', () => {
       }),
     )
 
-    await expect(noteFile.read('notes/a.md')).resolves.toBe('# A\n')
     await expect(noteFile.read('notes/a.md', 4)).resolves.toBe('# A\n')
     await expect(noteFile.readLocal('notes/a.md', 4)).resolves.toEqual({ kind: 'evicted' })
     await expect(noteFile.exists('notes/a.md')).resolves.toBe(true)
     expect(ipc.calls()).toEqual([
-      { command: 'note_read', args: { path: 'notes/a.md', generation: undefined } },
       { command: 'note_read', args: { path: 'notes/a.md', generation: 4 } },
       { command: 'note_read_local', args: { path: 'notes/a.md', generation: 4 } },
       { command: 'note_exists', args: { path: 'notes/a.md' } },
@@ -152,7 +150,7 @@ describe('createNoteFileService', () => {
       }),
     )
 
-    await expect(noteFile.listNotes()).resolves.toEqual([entry])
+    await expect(noteFile.listNotes(3)).resolves.toEqual([entry])
     await expect(noteFile.listAttachments(3)).resolves.toEqual([])
     await expect(noteFile.listDir('notes', 3)).resolves.toEqual([entry])
     await expect(noteFile.vaultScanStats(3)).resolves.toEqual({
@@ -163,7 +161,7 @@ describe('createNoteFileService', () => {
     expect(ipc.calls()[2]).toEqual({ command: 'dir_list', args: { dir: 'notes', generation: 3 } })
 
     ipc.onCommand('list_files', () => [{ path: 'notes/a.md' }])
-    await expect(noteFile.listNotes()).rejects.toMatchObject({ kind: 'parse' })
+    await expect(noteFile.listNotes(3)).rejects.toMatchObject({ kind: 'parse' })
   })
 })
 describe('createTestNoteFileService', () => {
@@ -192,7 +190,7 @@ describe('createTestNoteFileService', () => {
     })
 
     await expect(noteFile.readLocal('notes/a.md', 2)).resolves.toEqual({ kind: 'evicted' })
-    await expect(noteFile.listNotes()).resolves.toEqual([
+    await expect(noteFile.listNotes(2)).resolves.toEqual([
       { path: 'notes/a.md', size: 1, modifiedMs: 0, placeholder: true },
     ])
     await expect(noteFile.read('notes/a.md', 1)).rejects.toMatchObject({ kind: 'io' })

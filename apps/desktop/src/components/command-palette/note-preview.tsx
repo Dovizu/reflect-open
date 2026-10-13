@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { isAppError, splitFrontmatter, type NoteFileService } from '@reflect/core'
+import { splitFrontmatter } from '@reflect/core'
 import { MarkdownPreview } from '@/editor/markdown-preview.tsx'
 import { useNoteAttachments } from '@/editor/use-note-attachments.ts'
 import { formatDayLabel } from '@/lib/dates.ts'
@@ -24,25 +24,14 @@ interface NotePreviewProps {
   entry: NoteEntry
 }
 
-async function readNoteForPreview(noteFile: NoteFileService, path: string): Promise<string | null> {
-  try {
-    return await noteFile.read(path)
-  } catch (cause) {
-    if (isAppError(cause) && cause.kind === 'notFound') {
-      return null
-    }
-    throw cause
-  }
-}
-
 export function NotePreview({ entry }: NotePreviewProps): ReactElement {
   const { graph } = useGraph()
   const { settings } = useSettings()
-  const { noteFile } = useAppServices()
+  const { noteDocuments } = useAppServices()
   const { resolveImageUrl, resolveWikiEmbed } = useNoteAttachments(entry.path)
   const { data, isError } = useQuery({
     queryKey: queryKeys.index.notePreview(graph?.root, entry.path),
-    queryFn: () => readNoteForPreview(noteFile, entry.path),
+    queryFn: () => noteDocuments.readSource(entry.path),
     enabled: graph !== null,
   })
 

@@ -1,4 +1,17 @@
-import type { AppPlatform, PlatformFacts } from '@reflect/core'
+import type { AppPlatform, BuildPlatform, PlatformFacts } from '@reflect/core'
+
+function buildPlatformFromEnv(env: string): BuildPlatform | null {
+  switch (env) {
+    case 'darwin':
+    case 'windows':
+    case 'linux':
+    case 'ios':
+    case 'android':
+      return env
+    default:
+      return null
+  }
+}
 
 function envPlatform(env: string): AppPlatform {
   switch (env) {
@@ -61,6 +74,7 @@ export function detectPlatformFacts(nativeShell: boolean): PlatformFacts {
   return {
     appPlatform,
     isNativeShell: nativeShell,
+    buildPlatform: buildPlatformFromEnv(env),
     isMacosDesktop: macosDesktop,
     isApplePlatform:
       hasNavigator && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent),
