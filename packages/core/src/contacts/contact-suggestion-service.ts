@@ -61,7 +61,9 @@ export interface ContactSuggestionService {
    * suggestion. Throws when no graph is open.
    */
   ignore(path: string, contact: ContactMatch): Promise<void>
-  /** Switch the integration on or off. Never prompts. */
+  /**
+   * Switch the integration on or off. Never prompts.
+   */
   setEnabled(enabled: boolean): void
   /**
    * Trigger the OS contacts permission prompt and refresh the permission
@@ -71,14 +73,22 @@ export interface ContactSuggestionService {
   requestAccess(): Promise<void>
 }
 
-/** The card's detail line: the contact's primary email and phone. */
+/**
+
+ * The card's detail line: the contact's primary email and phone.
+
+ */
 export function suggestedContactDetails(contact: ContactMatch): string {
   return [contact.emails[0], contact.phones[0]]
     .filter((value): value is string => value !== undefined && value.trim() !== '')
     .join(' · ')
 }
 
-/** Does the Contacts framework exist here? `null` is a read still in flight. */
+/**
+
+ * Does the Contacts framework exist here? `null` is a read still in flight.
+
+ */
 export function isContactsAvailable(authorization: ContactsAuthorization | null): boolean {
   return authorization !== null && authorization !== 'unavailable'
 }
@@ -107,20 +117,106 @@ export function contactsAccessNotice(
   return authorization === 'notDetermined' && !isPrompting ? 'prompt' : null
 }
 
-/** Only an undecided permission can still show the OS prompt. */
+/**
+
+ * Only an undecided permission can still show the OS prompt.
+
+ */
 export function canPromptForContacts(authorization: ContactsAuthorization | null): boolean {
   return authorization === 'notDetermined'
 }
 
-export function createContactSuggestionService(deps: {
-  contacts: ContactsService
-  noteDocuments: Pick<NoteDocumentService, 'readSource' | 'commitFrontmatter'>
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  noteFile: Pick<NoteFileService, 'write'>
-  settings: SettingsService
-  graphSession: Pick<GraphSessionService, 'getState'>
-}): ContactSuggestionService {
-  const { contacts, noteDocuments, openDocuments, noteFile, settings, graphSession } = deps
+export interface ContactSuggestionServiceDeps {
+  readonly contacts: ContactsService
+  readonly noteDocuments: Pick<NoteDocumentService, 'readSource' | 'commitFrontmatter'>
+  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly noteFile: Pick<NoteFileService, 'write'>
+  readonly settings: SettingsService
+  readonly graphSession: Pick<GraphSessionService, 'getState'>
+}
+
+class ContactSuggestionServiceImpl implements ContactSuggestionService {
+  readonly #deps: ContactSuggestionServiceDeps
+
+  constructor(deps: ContactSuggestionServiceDeps) {
+    this.#deps = deps
+  }
+
+  showsSuggestionFor(current: Pick<Settings, 'contactsEnabled'>, path: string): boolean {
+    return this.#deps.contacts.canLookup(current) && !isDaily(path)
+  }
+
+  async suggestionFor(path: string): Promise<ContactMatch | null> {
+    const source = await this.#deps.noteDocuments.readSource(path)
+    if (noteHasContactDetails(splitFrontmatter(source).body)) {
+      return null
+    }
+    const note = parseNote({ path, source })
+    const match = await this.#contactForTitle(note.title)
+    // A match with nothing to add (no email, no phone) has no card to offer.
+    if (match === null || contactDetailsMarkdown(match) === '') {
+      return null
+    }
+    const dismissed = note.frontmatter.ignoredContacts.some((name) =>
+      contactNamesEqual(name, match.fullName),
+    )
+    return dismissed ? null : match
+  }
+
+  async addToNote(path: string, contact: ContactMatch): Promise<void> {
+    const { openDocuments, noteFile, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    const source = await this.#sourceIfStillMatching(path, contact)
+    if (source === null) {
+      throw new Error('The note title no longer matches this contact.')
+    }
+    const body = splitFrontmatter(source).body
+    // The same content gate the card renders through: a body that already
+    // carries contact details — a previous Add's block, or an email the user
+    // typed under a still-cached card — must not get a (second) block. The
+    // body-aware block also drops the `- Type: #person` line when the note was
+    // already typed at creation (meeting flow, link menu).
+    const details = contactDetailsMarkdown(contact, body)
+    if (details === '' || noteHasContactDetails(body)) {
+      return
+    }
+    const owner = openDocuments.sessionFor(path)
+    if (owner !== null) {
+      if (!(await owner.commitBodyAppend(details))) {
+        throw new Error('This note can’t be updated right now — try again in a moment.')
+      }
+      return
+    }
+    // Reuse the validated snapshot — with no session, `source` came from disk.
+    // A second read here would reopen the window between the check and the write.
+    await noteFile.write(path, appendContactDetails(source, contact), generation)
+  }
+
+  async ignore(path: string, contact: ContactMatch): Promise<void> {
+    const { noteDocuments, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    const source = await this.#sourceIfStillMatching(path, contact)
+    if (source === null) {
+      return
+    }
+    const ignored = parseNote({ path, source }).frontmatter.ignoredContacts
+    if (ignored.some((name) => contactNamesEqual(name, contact.fullName))) {
+      return
+    }
+    await noteDocuments.commitFrontmatter(
+      path,
+      { ignoredContacts: [...ignored, contact.fullName] },
+      generation,
+    )
+  }
+
+  setEnabled(enabled: boolean): void {
+    this.#deps.settings.update({ contactsEnabled: enabled })
+  }
+
+  async requestAccess(): Promise<void> {
+    await this.#deps.contacts.requestAccess().catch(() => {})
+  }
 
   /**
    * Action-time revalidation: the card's suggestion is a cached answer, but the
@@ -129,11 +225,8 @@ export function createContactSuggestionService(deps: {
    * a stale card must neither merge the wrong details nor dismiss the new
    * title's own suggestion.
    */
-  async function sourceIfStillMatching(
-    path: string,
-    contact: ContactMatch,
-  ): Promise<string | null> {
-    const source = await noteDocuments.readSource(path)
+  async #sourceIfStillMatching(path: string, contact: ContactMatch): Promise<string | null> {
+    const source = await this.#deps.noteDocuments.readSource(path)
     const title = parseNote({ path, source }).title
     return matchContactForTitle(title, [contact]) === null ? null : source
   }
@@ -142,87 +235,17 @@ export function createContactSuggestionService(deps: {
    * Look up `title` in Apple Contacts and apply the exact-match rule. Answers
    * null for blank titles without a lookup.
    */
-  async function contactForTitle(title: string): Promise<ContactMatch | null> {
+  async #contactForTitle(title: string): Promise<ContactMatch | null> {
     if (title.trim() === '') {
       return null
     }
-    const candidates = await contacts.lookupByName(title.trim())
+    const candidates = await this.#deps.contacts.lookupByName(title.trim())
     return matchContactForTitle(title, candidates)
   }
+}
 
-  return {
-    showsSuggestionFor(current, path) {
-      return contacts.canLookup(current) && !isDaily(path)
-    },
-
-    async suggestionFor(path) {
-      const source = await noteDocuments.readSource(path)
-      if (noteHasContactDetails(splitFrontmatter(source).body)) {
-        return null
-      }
-      const note = parseNote({ path, source })
-      const match = await contactForTitle(note.title)
-      // A match with nothing to add (no email, no phone) has no card to offer.
-      if (match === null || contactDetailsMarkdown(match) === '') {
-        return null
-      }
-      const dismissed = note.frontmatter.ignoredContacts.some((name) =>
-        contactNamesEqual(name, match.fullName),
-      )
-      return dismissed ? null : match
-    },
-
-    async addToNote(path, contact) {
-      const { generation } = requireGraphSession(graphSession)
-      const source = await sourceIfStillMatching(path, contact)
-      if (source === null) {
-        throw new Error('The note title no longer matches this contact.')
-      }
-      const body = splitFrontmatter(source).body
-      // The same content gate the card renders through: a body that already
-      // carries contact details — a previous Add's block, or an email the user
-      // typed under a still-cached card — must not get a (second) block. The
-      // body-aware block also drops the `- Type: #person` line when the note was
-      // already typed at creation (meeting flow, link menu).
-      const details = contactDetailsMarkdown(contact, body)
-      if (details === '' || noteHasContactDetails(body)) {
-        return
-      }
-      const owner = openDocuments.sessionFor(path)
-      if (owner !== null) {
-        if (!(await owner.commitBodyAppend(details))) {
-          throw new Error('This note can’t be updated right now — try again in a moment.')
-        }
-        return
-      }
-      // Reuse the validated snapshot — with no session, `source` came from disk.
-      // A second read here would reopen the window between the check and the write.
-      await noteFile.write(path, appendContactDetails(source, contact), generation)
-    },
-
-    async ignore(path, contact) {
-      const { generation } = requireGraphSession(graphSession)
-      const source = await sourceIfStillMatching(path, contact)
-      if (source === null) {
-        return
-      }
-      const ignored = parseNote({ path, source }).frontmatter.ignoredContacts
-      if (ignored.some((name) => contactNamesEqual(name, contact.fullName))) {
-        return
-      }
-      await noteDocuments.commitFrontmatter(
-        path,
-        { ignoredContacts: [...ignored, contact.fullName] },
-        generation,
-      )
-    },
-
-    setEnabled(enabled) {
-      settings.update({ contactsEnabled: enabled })
-    },
-
-    async requestAccess() {
-      await contacts.requestAccess().catch(() => {})
-    },
-  }
+export function createContactSuggestionService(
+  deps: ContactSuggestionServiceDeps,
+): ContactSuggestionService {
+  return new ContactSuggestionServiceImpl(deps)
 }

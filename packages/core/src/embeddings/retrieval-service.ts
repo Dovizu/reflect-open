@@ -19,7 +19,9 @@ export interface RetrievalHit {
   path: string
   title: string
   score: number
-  /** Chunk text (semantic) or highlight-markered FTS snippet (lexical). */
+  /**
+   * Chunk text (semantic) or highlight-markered FTS snippet (lexical).
+   */
   snippet: string
   heading: string | null
   isPrivate: boolean
@@ -28,7 +30,9 @@ export interface RetrievalHit {
 export interface RetrieveOptions {
   limit?: number
   mode?: 'semantic' | 'lexical' | 'hybrid'
-  /** AI callers set true: private hits keep title/flag but lose content. */
+  /**
+   * AI callers set true: private hits keep title/flag but lose content.
+   */
   excludePrivateContent?: boolean
 }
 
@@ -87,7 +91,11 @@ export function bestChunkPerNote(
   return [...byNote.values()].slice(0, limit)
 }
 
-/** Reciprocal rank fusion: order-based, scale-free, deterministic. */
+/**
+
+ * Reciprocal rank fusion: order-based, scale-free, deterministic.
+
+ */
 export function fuseRanked(lists: RetrievalHit[][], limit: number): RetrievalHit[] {
   const K = 60 // the standard RRF damping constant
   const fused = new Map<string, { hit: RetrievalHit; score: number }>()
@@ -112,7 +120,11 @@ export function fuseRanked(lists: RetrievalHit[][], limit: number): RetrievalHit
     .map(({ hit, score }) => ({ ...hit, score }))
 }
 
-/** Strip private notes' content while keeping the hit + flag. */
+/**
+
+ * Strip private notes' content while keeping the hit + flag.
+
+ */
 function withPrivacy(hits: RetrievalHit[], excludePrivateContent: boolean): RetrievalHit[] {
   if (!excludePrivateContent) {
     return hits
@@ -136,7 +148,11 @@ export function mergeNearestFirst(lists: ReadonlyArray<readonly ChunkHitRow[]>):
  */
 const MAX_RELATED_SEEDS = 16
 
-/** The one retrieval contract that search and AI share (Plan 09). */
+/**
+
+ * The one retrieval contract that search and AI share (Plan 09).
+
+ */
 export interface RetrievalService {
   /**
    * The notes matching `query`. `lexical` is FTS, `semantic` is KNN over the
@@ -162,81 +178,46 @@ export interface RetrievalService {
   relatedNotes(path: string, limit?: number): Promise<RetrievalHit[]>
 }
 
-export function createRetrievalService(deps: {
-  database: DatabaseService
-  search: SearchService
-  embeddingRuntime: EmbeddingRuntimeService
-  logger: LoggerService
-}): RetrievalService {
-  const { database, search, embeddingRuntime, logger } = deps
+export interface RetrievalServiceDeps {
+  readonly database: DatabaseService
+  readonly search: SearchService
+  readonly embeddingRuntime: EmbeddingRuntimeService
+  readonly logger: LoggerService
+}
 
-  async function semanticHits(query: string, limit: number): Promise<RetrievalHit[]> {
-    const [vector] = await embeddingRuntime.embedTexts([query])
-    const result = await sql<ChunkHitRow>`
-      SELECT c.note_path AS path, n.title, c.heading, c.text,
-             n.is_private AS isPrivate, v.distance
-      FROM embedding_vectors v
-      JOIN embedding_chunks c ON c.id = v.rowid
-      JOIN notes n ON n.path = c.note_path
-      WHERE v.embedding MATCH ${JSON.stringify(vector)} AND k = ${KNN_CANDIDATES}
-      ORDER BY v.distance
-    `.execute(database.db)
-    return bestChunkPerNote(result.rows, limit)
+class RetrievalServiceImpl implements RetrievalService {
+  readonly #deps: RetrievalServiceDeps
+
+  constructor(deps: RetrievalServiceDeps) {
+    this.#deps = deps
   }
 
-  async function lexicalHits(query: string, limit: number): Promise<RetrievalHit[]> {
-    // Literal on purpose: retrieve() receives raw text (often from AI callers,
-    // Plan 10) where palette filter tokens like "is:daily" inside a sentence
-    // must stay search terms, not become constraints.
-    const hits = await search.searchWithFilters(literalSearchQuery(query), { limit })
-    if (hits.length === 0) {
-      return []
-    }
-    const flags = await database.db
-      .selectFrom('notes')
-      .where(
-        'path',
-        'in',
-        hits.map((hit) => hit.path),
-      )
-      .select(['path', 'isPrivate'])
-      .execute()
-    const privateByPath = new Map(flags.map((row) => [row.path, row.isPrivate !== 0]))
-    return hits.map((hit, index) => ({
-      path: hit.path,
-      title: hit.title,
-      score: 1 / (1 + index), // FTS rank order; raw bm25 scores are not exposed
-      snippet: hit.snippet ?? '',
-      heading: null,
-      isPrivate: privateByPath.get(hit.path) ?? false,
-    }))
-  }
-
-  async function retrieve(query: string, options?: RetrieveOptions): Promise<RetrievalHit[]> {
+  async retrieve(query: string, options?: RetrieveOptions): Promise<RetrievalHit[]> {
     const limit = options?.limit ?? 12
     const mode = options?.mode ?? 'hybrid'
     const excludePrivateContent = options?.excludePrivateContent ?? false
 
     if (mode === 'lexical') {
-      return withPrivacy(await lexicalHits(query, limit), excludePrivateContent)
+      return withPrivacy(await this.#lexicalHits(query, limit), excludePrivateContent)
     }
     if (mode === 'semantic') {
-      return withPrivacy(await semanticHits(query, limit), excludePrivateContent)
+      return withPrivacy(await this.#semanticHits(query, limit), excludePrivateContent)
     }
     // Hybrid degrades, never breaks: a failing semantic leg (embed error, vec
     // query error — even while the runtime claims ready) must not take lexical
     // search down with it. A failing lexical leg is a real error and throws.
     const [lexical, semantic] = await Promise.all([
-      lexicalHits(query, limit),
-      semanticHits(query, limit).catch((cause): RetrievalHit[] => {
-        logger.error('semantic leg failed; serving lexical only:', cause)
+      this.#lexicalHits(query, limit),
+      this.#semanticHits(query, limit).catch((cause): RetrievalHit[] => {
+        this.#deps.logger.error('semantic leg failed; serving lexical only:', cause)
         return []
       }),
     ])
     return withPrivacy(fuseRanked([lexical, semantic], limit), excludePrivateContent)
   }
 
-  async function relatedNotes(path: string, limit = 10): Promise<RetrievalHit[]> {
+  async relatedNotes(path: string, limit = 10): Promise<RetrievalHit[]> {
+    const { database } = this.#deps
     const seeds = await sql<{ vec: string }>`
       SELECT vec_to_json(v.embedding) AS vec
       FROM embedding_chunks c
@@ -266,5 +247,51 @@ export function createRetrievalService(deps: {
     return bestChunkPerNote(mergeNearestFirst(neighborLists), limit, path)
   }
 
-  return { retrieve, relatedNotes }
+  async #semanticHits(query: string, limit: number): Promise<RetrievalHit[]> {
+    const { database, embeddingRuntime } = this.#deps
+    const [vector] = await embeddingRuntime.embedTexts([query])
+    const result = await sql<ChunkHitRow>`
+      SELECT c.note_path AS path, n.title, c.heading, c.text,
+             n.is_private AS isPrivate, v.distance
+      FROM embedding_vectors v
+      JOIN embedding_chunks c ON c.id = v.rowid
+      JOIN notes n ON n.path = c.note_path
+      WHERE v.embedding MATCH ${JSON.stringify(vector)} AND k = ${KNN_CANDIDATES}
+      ORDER BY v.distance
+    `.execute(database.db)
+    return bestChunkPerNote(result.rows, limit)
+  }
+
+  async #lexicalHits(query: string, limit: number): Promise<RetrievalHit[]> {
+    const { database, search } = this.#deps
+    // Literal on purpose: retrieve() receives raw text (often from AI callers,
+    // Plan 10) where palette filter tokens like "is:daily" inside a sentence
+    // must stay search terms, not become constraints.
+    const hits = await search.searchWithFilters(literalSearchQuery(query), { limit })
+    if (hits.length === 0) {
+      return []
+    }
+    const flags = await database.db
+      .selectFrom('notes')
+      .where(
+        'path',
+        'in',
+        hits.map((hit) => hit.path),
+      )
+      .select(['path', 'isPrivate'])
+      .execute()
+    const privateByPath = new Map(flags.map((row) => [row.path, row.isPrivate !== 0]))
+    return hits.map((hit, index) => ({
+      path: hit.path,
+      title: hit.title,
+      score: 1 / (1 + index), // FTS rank order; raw bm25 scores are not exposed
+      snippet: hit.snippet ?? '',
+      heading: null,
+      isPrivate: privateByPath.get(hit.path) ?? false,
+    }))
+  }
+}
+
+export function createRetrievalService(deps: RetrievalServiceDeps): RetrievalService {
+  return new RetrievalServiceImpl(deps)
 }

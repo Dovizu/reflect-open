@@ -9,12 +9,20 @@ import type { EmbeddingIndexService } from './embedding-index-service.ts'
 import type { EmbeddingRuntimeService, EmbedStatus } from './embedding-runtime-service.ts'
 import type { RetrievalHit, RetrievalService } from './retrieval-service.ts'
 
-/** Where the opt-in lived before it moved into the settings document. */
+/**
+
+ * Where the opt-in lived before it moved into the settings document.
+
+ */
 const LEGACY_ENABLED_KEY = 'reflect.semantic.enabled'
 
 const SIMILAR_NOTES_LIMIT = 6
 
-/** The open graph as {@link SemanticSearchService} reads it; a `GraphSessionService` is one. */
+/**
+
+ * The open graph as {@link SemanticSearchService} reads it; a `GraphSessionService` is one.
+
+ */
 export interface SemanticSearchGraphSource {
   getState: () => Pick<GraphSessionState, 'graph' | 'indexGeneration'>
   subscribe: (listener: () => void) => Unlisten
@@ -62,7 +70,9 @@ export interface SemanticSearchService {
    * search across the move.
    */
   start(): Unlisten
-  /** Load (downloading if needed) the model. Resolves with the outcome. */
+  /**
+   * Load (downloading if needed) the model. Resolves with the outcome.
+   */
   ensureModel(): Promise<EmbedStatus>
   /**
    * Re-kick a `failed` model load; a no-op for every other status. The explicit
@@ -78,70 +88,45 @@ export interface SemanticSearchService {
    * their refresh cadence.
    */
   similarNotes(path: string): Promise<RetrievalHit[]>
-  /** Stop re-embedding after index rebuilds. The service is unusable afterwards. */
+  /**
+   * Stop re-embedding after index rebuilds. The service is unusable afterwards.
+   */
   dispose(): void
 }
 
 export interface SemanticSearchServiceDeps {
-  embeddingRuntime: EmbeddingRuntimeService
-  embeddingIndex: EmbeddingIndexService
-  retrieval: RetrievalService
-  settings: SettingsService
-  storage: StorageService
-  window: WindowService
-  indexLifecycle: IndexLifecycleService
-  graphSession: SemanticSearchGraphSource
-  logger: LoggerService
+  readonly embeddingRuntime: EmbeddingRuntimeService
+  readonly embeddingIndex: EmbeddingIndexService
+  readonly retrieval: RetrievalService
+  readonly settings: SettingsService
+  readonly storage: StorageService
+  readonly window: WindowService
+  readonly indexLifecycle: IndexLifecycleService
+  readonly graphSession: SemanticSearchGraphSource
+  readonly logger: LoggerService
 }
 
-export function createSemanticSearchService(
-  deps: SemanticSearchServiceDeps,
-): SemanticSearchService {
-  const {
-    embeddingRuntime,
-    embeddingIndex,
-    retrieval,
-    settings,
-    storage,
-    window,
-    indexLifecycle,
-    graphSession,
-    logger,
-  } = deps
+class SemanticSearchServiceImpl implements SemanticSearchService {
+  readonly #deps: SemanticSearchServiceDeps
+  readonly #stopFollowingRebuilds: () => void
 
-  const stopFollowingRebuilds = indexLifecycle.onReconciled(async ({ generation, source }) => {
-    if (source !== 'rebuild') {
-      return
-    }
-    const embed = await embeddingRuntime.status()
-    if (embed.status === 'ready') {
-      await embeddingIndex.backfill({ generation, modelId: embed.model })
-    }
-  })
-
-  /**
-   * Read-and-clear the pre-settings localStorage opt-in. Returns true exactly
-   * once for a user who enabled semantic search before the flag moved into
-   * settings — the caller persists it there and the key never matters again.
-   */
-  function consumeLegacyOptIn(): boolean {
-    const local = storage.local
-    const enabled = local.get(LEGACY_ENABLED_KEY) === 'true'
-    local.set(LEGACY_ENABLED_KEY, null)
-    return enabled
+  constructor(deps: SemanticSearchServiceDeps) {
+    this.#deps = deps
+    const { embeddingRuntime, embeddingIndex, indexLifecycle } = deps
+    this.#stopFollowingRebuilds = indexLifecycle.onReconciled(async ({ generation, source }) => {
+      if (source !== 'rebuild') {
+        return
+      }
+      const embed = await embeddingRuntime.status()
+      if (embed.status === 'ready') {
+        await embeddingIndex.backfill({ generation, modelId: embed.model })
+      }
+    })
   }
 
-  async function ensureModel(): Promise<EmbedStatus> {
-    try {
-      return await embeddingRuntime.awaitTerminalStatus(await embeddingRuntime.ensure())
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause)
-      return { status: 'failed', message }
-    }
-  }
-
-  function start(): Unlisten {
-    if (consumeLegacyOptIn()) {
+  start(): Unlisten {
+    const { embeddingRuntime, embeddingIndex, settings, window, graphSession, logger } = this.#deps
+    if (this.#consumeLegacyOptIn()) {
       settings.update({ semanticSearchEnabled: true })
     }
 
@@ -152,7 +137,7 @@ export function createSemanticSearchService(
     let followed: string | null = null
     let stopFollowing: Unlisten | null = null
 
-    function react(): void {
+    const react = (): void => {
       if (stopped) {
         return
       }
@@ -163,7 +148,7 @@ export function createSemanticSearchService(
       if (nextLoadGate !== loadGate) {
         loadGate = nextLoadGate
         if (enabled && status.status === 'uninitialized') {
-          void ensureModel()
+          void this.ensureModel()
         }
       }
 
@@ -208,13 +193,43 @@ export function createSemanticSearchService(
     }
   }
 
-  return {
-    start,
-    ensureModel,
-    async retryFailedModel() {
-      await embeddingRuntime.retry()
-    },
-    similarNotes: (path) => retrieval.relatedNotes(path, SIMILAR_NOTES_LIMIT),
-    dispose: stopFollowingRebuilds,
+  async ensureModel(): Promise<EmbedStatus> {
+    const { embeddingRuntime } = this.#deps
+    try {
+      return await embeddingRuntime.awaitTerminalStatus(await embeddingRuntime.ensure())
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause)
+      return { status: 'failed', message }
+    }
   }
+
+  async retryFailedModel(): Promise<void> {
+    await this.#deps.embeddingRuntime.retry()
+  }
+
+  similarNotes(path: string): Promise<RetrievalHit[]> {
+    return this.#deps.retrieval.relatedNotes(path, SIMILAR_NOTES_LIMIT)
+  }
+
+  dispose(): void {
+    this.#stopFollowingRebuilds()
+  }
+
+  /**
+   * Read-and-clear the pre-settings localStorage opt-in. Returns true exactly
+   * once for a user who enabled semantic search before the flag moved into
+   * settings — the caller persists it there and the key never matters again.
+   */
+  #consumeLegacyOptIn(): boolean {
+    const local = this.#deps.storage.local
+    const enabled = local.get(LEGACY_ENABLED_KEY) === 'true'
+    local.set(LEGACY_ENABLED_KEY, null)
+    return enabled
+  }
+}
+
+export function createSemanticSearchService(
+  deps: SemanticSearchServiceDeps,
+): SemanticSearchService {
+  return new SemanticSearchServiceImpl(deps)
 }

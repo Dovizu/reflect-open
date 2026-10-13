@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  withContactsLookups,
+  contactsCanLookup,
+  lookupContactPeople,
   type ContactMatch,
   type ContactsAuthorization,
 } from '../contacts/contacts-service.ts'
@@ -45,11 +46,17 @@ const ADA: ContactMatch = {
 interface SetupOptions {
   settings?: Partial<Settings>
   wikiLinks?: WikiLinkSuggestionResult
-  /** Answers `resolveOrCreateNoteWithTitle`. */
+  /**
+   * Answers `resolveOrCreateNoteWithTitle`.
+   */
   create?: () => Promise<ResolveOrCreateNoteResult>
-  /** The address book. */
+  /**
+   * The address book.
+   */
   contacts?: readonly ContactMatch[]
-  /** Makes every address-book lookup reject. */
+  /**
+   * Makes every address-book lookup reject.
+   */
   contactsFailure?: Error
   personNotes?: Partial<Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>>
 }
@@ -62,6 +69,12 @@ async function setup(options?: SetupOptions) {
   const clock = createTestClockService({ now: new Date(2026, 5, 9, 12).getTime() })
   const contacts = createTestContactsService({ contacts: options?.contacts ?? [] })
   let authorization: ContactsAuthorization | null = null
+  const lookupByName = async (name: string): Promise<ContactMatch[]> => {
+    if (options?.contactsFailure !== undefined) {
+      throw options.contactsFailure
+    }
+    return await contacts.lookupByName(name)
+  }
   const linkQueries: { query: string; limit?: number; dateGen?: DateSuggestionContext }[] = []
   const tagQueries: string[] = []
   const created: { title: string; generation: number; body?: string }[] = []
@@ -92,16 +105,10 @@ async function setup(options?: SetupOptions) {
           Promise.resolve({ kind: 'created', path: 'notes/created.md' }))
       },
     },
-    contacts: withContactsLookups({
-      ...contacts,
-      getState: () => ({ authorization }),
-      lookupByName: async (name) => {
-        if (options?.contactsFailure !== undefined) {
-          throw options.contactsFailure
-        }
-        return await contacts.lookupByName(name)
-      },
-    }),
+    contacts: {
+      canLookup: (current) => contactsCanLookup({ authorization }, current),
+      lookupPeople: (query) => lookupContactPeople(query, lookupByName),
+    },
     personNotes: {
       resolvePersonContact: async (contact) => ({
         kind: 'new',
@@ -138,7 +145,11 @@ async function setup(options?: SetupOptions) {
   }
 }
 
-/** Let the background work of an `onSelect` settle. */
+/**
+
+ * Let the background work of an `onSelect` settle.
+
+ */
 async function settle(): Promise<void> {
   for (let turn = 0; turn < 20; turn++) {
     await Promise.resolve()
