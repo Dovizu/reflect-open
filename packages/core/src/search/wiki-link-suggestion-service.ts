@@ -51,7 +51,7 @@ export interface TagMenuItem {
  * note pane and the Tasks view's inline editor). The menu UI hands over the
  * raw text typed after `[[` (case preserved, spaces and slashes intact — only
  * `[`, `]`, and newlines close the menu); ranking stays the index's job, so
- * neither menu re-sorts the rows.
+ * neither menu re-sorts the rows. // FIXME: since this service is for both `[[backlink` and `#tag`, let's do not call it "wiki". "Wiki" looks like "Wikilink". "Wikilink" is just another name for "backlink". Find all "wiki" in the codebase, if the code is  not only related to backlink, rename it to something more general. For example, in this file, we could rename it to "autocomplete-suggestion-service", or "menu-suggestion-service", or "suggestion-service".
  */
 export interface WikiLinkSuggestionService {
   /**
