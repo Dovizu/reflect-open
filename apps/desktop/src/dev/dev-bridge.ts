@@ -79,7 +79,7 @@ class DevBridgeImpl implements IpcBridge {
     this.#deps = deps
   }
 
-  readonly invoke = async (command: string, args: Record<string, unknown>): Promise<unknown> => {
+  async invoke(command: string, args: Record<string, unknown>): Promise<unknown> {
     const { files, index } = this.#deps
     switch (command) {
       case 'app_version':
@@ -334,9 +334,11 @@ class DevBridgeImpl implements IpcBridge {
   // refresh the UI through core's in-process local-write echo. Plugin event
   // registrations get the same treatment, so the keyboard and recorder
   // hooks mount cleanly in the harness.
-  readonly listen = async (): Promise<() => void> => () => {}
+  async listen(): Promise<() => void> {
+    return () => {}
+  }
 
-  readonly listenPlugin = async (): Promise<void> => {}
+  async listenPlugin(): Promise<void> {}
 }
 
 /**

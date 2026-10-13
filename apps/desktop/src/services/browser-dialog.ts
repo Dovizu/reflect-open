@@ -1,11 +1,18 @@
 import type { DialogService } from '@reflect/core'
 
+class BrowserDialogServiceImpl implements DialogService {
+  async pickFiles(): Promise<readonly string[] | null> {
+    return null
+  }
+
+  async pickFolder(): Promise<string | null> {
+    return null
+  }
+}
+
 /**
  * Plain-browser dev has no native open panel, so every picker reads as a cancel.
  */
 export function createBrowserDialogService(): DialogService {
-  return {
-    pickFiles: async () => null,
-    pickFolder: async () => null,
-  }
+  return new BrowserDialogServiceImpl()
 }
