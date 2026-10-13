@@ -190,7 +190,7 @@ describe('createTestNoteFileService', () => {
     })
 
     await expect(noteFile.readLocal('notes/a.md', 2)).resolves.toEqual({ kind: 'evicted' })
-    await expect(noteFile.listNotes(3)).resolves.toEqual([
+    await expect(noteFile.listNotes(2)).resolves.toEqual([
       { path: 'notes/a.md', size: 1, modifiedMs: 0, placeholder: true },
     ])
     await expect(noteFile.read('notes/a.md', 1)).rejects.toMatchObject({ kind: 'io' })
