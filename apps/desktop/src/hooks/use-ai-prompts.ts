@@ -19,8 +19,8 @@ export function useAiPrompts(): UseAiPromptsValue {
   const prompts = useServiceState(service, service.list)
   return {
     prompts,
-    addPrompt: service.add,
-    updatePrompt: service.update,
-    removePrompt: service.remove,
+    addPrompt: (draft) => service.add(draft),
+    updatePrompt: (id, draft) => service.update(id, draft),
+    removePrompt: (id) => service.remove(id),
   }
 }

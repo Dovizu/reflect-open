@@ -140,9 +140,6 @@ class TestChatEngineServiceImpl implements TestChatEngineService {
     this.#current = script
   }
 
-  readonly streamTurn = (request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> =>
-    this.#streamTurn(request)
-
   calls(): readonly ChatTurnRequest[] {
     return [...this.#log]
   }
@@ -151,7 +148,7 @@ class TestChatEngineServiceImpl implements TestChatEngineService {
     this.#current = script
   }
 
-  async *#streamTurn(request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> {
+  async *streamTurn(request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> {
     this.#log.push(request)
     const script = this.#current
     yield* typeof script === 'function' ? script(request) : script
@@ -204,7 +201,7 @@ class TestChatGraphContextServiceImpl implements TestChatGraphContextService {
       }))
   }
 
-  readonly load = async (graphName: string): Promise<CloudSafe<CloudGraphContext>> => {
+  async load(graphName: string): Promise<CloudSafe<CloudGraphContext>> {
     this.#log.push(graphName)
     const source = this.#source
     return cloudSafeGraphContext(typeof source === 'function' ? await source(graphName) : source)

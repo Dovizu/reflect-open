@@ -6,7 +6,9 @@ export type { NewAiProvider } from '@reflect/core'
 
 interface UseAiProvidersValue {
   providers: AiProviderConfig[]
-  /** The entry AI features use by default (null only when the list is empty). */
+  /**
+   * The entry AI features use by default (null only when the list is empty).
+   */
   defaultProvider: AiProviderConfig | null
   /**
    * Store the key in the keychain, then add the settings entry. Rejects (and
@@ -16,11 +18,17 @@ interface UseAiProvidersValue {
    * survive a restart.
    */
   addProvider: (draft: NewAiProvider) => Promise<void>
-  /** Delete the key from the keychain, then drop the settings entry. */
+  /**
+   * Delete the key from the keychain, then drop the settings entry.
+   */
   removeProvider: (id: string) => Promise<void>
-  /** Make the entry with `id` the app-wide default. */
+  /**
+   * Make the entry with `id` the app-wide default.
+   */
   makeDefault: (id: string) => void
-  /** Change the default model used by the configured provider entry. */
+  /**
+   * Change the default model used by the configured provider entry.
+   */
   setDefaultModel: (id: string, model: string) => void
 }
 
@@ -34,9 +42,9 @@ export function useAiProviders(): UseAiProvidersValue {
   return {
     providers,
     defaultProvider,
-    addProvider: service.add,
-    removeProvider: service.remove,
-    makeDefault: service.makeDefault,
-    setDefaultModel: service.setDefaultModel,
+    addProvider: (draft) => service.add(draft),
+    removeProvider: (id) => service.remove(id),
+    makeDefault: (id) => service.makeDefault(id),
+    setDefaultModel: (id, model) => service.setDefaultModel(id, model),
   }
 }

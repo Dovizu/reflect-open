@@ -147,7 +147,7 @@ class TestPageDescriberServiceImpl implements TestPageDescriberService {
     this.#source = result
   }
 
-  readonly describe = async (request: DescribePageRequest): Promise<PageEnrichment> => {
+  async describe(request: DescribePageRequest): Promise<PageEnrichment> {
     this.#log.push(request)
     const source = this.#source
     return typeof source === 'function' ? await source(request) : source
@@ -198,7 +198,7 @@ class TestAssetDescriberServiceImpl implements TestAssetDescriberService {
     this.#source = result
   }
 
-  readonly describe = async (request: DescribeAssetRequest): Promise<string> => {
+  async describe(request: DescribeAssetRequest): Promise<string> {
     this.#log.push(request)
     const source = this.#source
     return typeof source === 'function' ? await source(request) : source
@@ -255,14 +255,15 @@ class TestTranscriptionServiceImpl implements TestTranscriptionService {
     })
   }
 
-  readonly transcribe = async (request: TranscriptionRequest): Promise<string> => {
+  async transcribe(request: TranscriptionRequest): Promise<string> {
     this.#log.push(request)
     const source = this.#source
     return typeof source === 'function' ? await source(request) : source
   }
 
-  readonly sessionTranscript = (apiKey: string): string | null =>
-    this.#real.sessionTranscript(apiKey)
+  sessionTranscript(apiKey: string): string | null {
+    return this.#real.sessionTranscript(apiKey)
+  }
 
   calls(): readonly TranscriptionRequest[] {
     return [...this.#log]

@@ -103,7 +103,7 @@ async function shortcutsHook() {
     .spyOn(services.linkNavigation, 'openRouteInNewWindow')
     .mockResolvedValue(true)
   isNativeMenuInstalled = vi.spyOn(services.nativeMenu, 'isInstalled').mockReturnValue(false)
-  const createChatSession = services.chatSessions.create
+  const createChatSession = services.chatSessions.create.bind(services.chatSessions)
   vi.spyOn(services.chatSessions, 'create').mockImplementation((options) => {
     const session = createChatSession(options)
     newChat = vi.spyOn(session, 'newChat')

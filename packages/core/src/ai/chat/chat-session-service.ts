@@ -108,45 +108,45 @@ export interface ChatSession {
    * keep reading whichever graph is open *now* and ship that content to the
    * provider under the old conversation.
    */
-  attach: () => Unlisten
+  attach(): Unlisten
   /**
    * Pick the chat model. Persisted (`chatModelSelection` in the settings
    * document), so later sessions start on it; null returns to the app
    * default.
    */
-  selectModel: (selection: ChatModelSelection | null) => void
+  selectModel(selection: ChatModelSelection | null): void
   /**
    * Replace the composer draft.
    */
-  setDraft: (text: string) => void
+  setDraft(text: string): void
   /**
    * Queue image files for the next message.
    */
-  attachImages: (files: File[]) => Promise<void>
+  attachImages(files: File[]): Promise<void>
   /**
    * Drop one queued image.
    */
-  removeAttachment: (id: string) => void
+  removeAttachment(id: string): void
   /**
    * Send one user message (text, queued images, or both) and stream the turn.
    */
-  send: (text: string) => Promise<void>
+  send(text: string): Promise<void>
   /**
    * Abort the in-flight turn (partial text stays in the transcript).
    */
-  stop: () => void
+  stop(): void
   /**
    * Leave the conversation in the history and start a fresh one.
    */
-  newChat: () => void
+  newChat(): void
   /**
    * Load a past conversation from the history.
    */
-  openConversation: (id: string) => Promise<void>
+  openConversation(id: string): Promise<void>
   /**
    * Delete a conversation; deleting the active one starts a fresh chat.
    */
-  deleteConversation: (id: string) => Promise<void>
+  deleteConversation(id: string): Promise<void>
 }
 
 export interface ChatSessionOptions {
@@ -180,12 +180,12 @@ export interface ChatSessionService {
   /**
    * A fresh session for `options.session`. It does nothing until it is attached.
    */
-  create: (options: ChatSessionOptions) => ChatSession
+  create(options: ChatSessionOptions): ChatSession
   /**
    * Calls `listener` after any session saved a turn or deleted a
    * conversation: the persisted conversation list may have changed.
    */
-  onConversationsChanged: (listener: () => void) => Unlisten
+  onConversationsChanged(listener: () => void): Unlisten
 }
 
 interface LocalState {
@@ -291,7 +291,7 @@ class ChatSessionImpl implements ChatSession {
     }
   }
 
-  readonly attach = (): Unlisten => {
+  attach(): Unlisten {
     const { embeddingRuntime } = this.#deps
     const attempt = { active: true }
     if (this.#generation !== null) {
@@ -308,15 +308,15 @@ class ChatSessionImpl implements ChatSession {
     }
   }
 
-  readonly selectModel = (selection: ChatModelSelection | null): void => {
+  selectModel(selection: ChatModelSelection | null): void {
     this.#deps.providerConfig.selectChatModel(selection)
   }
 
-  readonly setDraft = (text: string): void => {
+  setDraft(text: string): void {
     this.#update({ draft: text })
   }
 
-  readonly attachImages = async (files: File[]): Promise<void> => {
+  async attachImages(files: File[]): Promise<void> {
     const { imageCodec, id } = this.#deps
     // Reading files is async: a drop still in flight when New chat clears
     // the session must not land in the fresh composer afterwards.
@@ -330,13 +330,13 @@ class ChatSessionImpl implements ChatSession {
     this.#update({ attachments: [...this.#local.attachments, ...queued] })
   }
 
-  readonly removeAttachment = (attachmentId: string): void => {
+  removeAttachment(attachmentId: string): void {
     this.#update({
       attachments: this.#local.attachments.filter((attachment) => attachment.id !== attachmentId),
     })
   }
 
-  readonly send = async (text: string): Promise<void> => {
+  async send(text: string): Promise<void> {
     const { chatEngine, chatGraphContext, providerConfig, credentials, embeddingRuntime } =
       this.#deps
     const { settings, clock, id, logger } = this.#deps
@@ -460,17 +460,17 @@ class ChatSessionImpl implements ChatSession {
     }
   }
 
-  readonly stop = (): void => {
+  stop(): void {
     this.#activeSend?.controller.abort()
   }
 
-  readonly newChat = (): void => {
+  newChat(): void {
     this.#activeSend?.controller.abort()
     this.#sessionCounter += 1
     this.#update({ turns: [], attachments: [], conversationId: this.#deps.id.uuid() })
   }
 
-  readonly openConversation = async (conversationId: string): Promise<void> => {
+  async openConversation(conversationId: string): Promise<void> {
     const { chatHistory, logger } = this.#deps
     if (conversationId === this.#local.conversationId) {
       return
@@ -496,7 +496,7 @@ class ChatSessionImpl implements ChatSession {
     }
   }
 
-  readonly deleteConversation = async (conversationId: string): Promise<void> => {
+  async deleteConversation(conversationId: string): Promise<void> {
     const { chatHistory, logger, emitConversationsChanged } = this.#deps
     this.#deletedConversations.add(conversationId)
     const deleteGeneration = this.#generation
@@ -592,13 +592,14 @@ class ChatSessionServiceImpl implements ChatSessionService {
     this.#deps = deps
   }
 
-  readonly create = (options: ChatSessionOptions): ChatSession =>
-    new ChatSessionImpl(
+  create(options: ChatSessionOptions): ChatSession {
+    return new ChatSessionImpl(
       { ...this.#deps, emitConversationsChanged: () => this.#emitConversationsChanged() },
       options,
     )
+  }
 
-  readonly onConversationsChanged = (listener: () => void): Unlisten => {
+  onConversationsChanged(listener: () => void): Unlisten {
     // Wrapped for identity, so one function added twice detaches independently.
     const deliver = (): void => {
       listener()

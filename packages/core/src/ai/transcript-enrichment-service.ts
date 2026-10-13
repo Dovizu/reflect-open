@@ -266,22 +266,20 @@ export interface TranscriptEnrichmentService {
   /**
    * Format and name one session's stitched transcript, or only name it.
    */
-  enrich: (input: EnrichSessionTranscriptInput) => Promise<EnrichedSessionTranscript>
+  enrich(input: EnrichSessionTranscriptInput): Promise<EnrichedSessionTranscript>
   /**
    * Generate a concise, content-derived memo title. Provider failures are
    * non-fatal because the transcript is already durable; callers still get a
    * deterministic title from the transcript before falling back to the timestamp.
    */
-  generateTitle: (request: GenerateAudioMemoTitleRequest) => Promise<string>
+  generateTitle(request: GenerateAudioMemoTitleRequest): Promise<string>
   /**
    * Best-effort transcript cleanup and naming in one small-model call. Formatting
    * is optional enrichment: any model, timeout, or validation failure returns the
    * raw transcript and a deterministic local title so successful transcription
    * is never repeated or billed twice.
    */
-  formatTranscript: (
-    request: FormatAudioMemoTranscriptRequest,
-  ) => Promise<FormattedAudioMemoTranscript>
+  formatTranscript(request: FormatAudioMemoTranscriptRequest): Promise<FormattedAudioMemoTranscript>
 }
 
 class TranscriptEnrichmentServiceImpl implements TranscriptEnrichmentService {
@@ -293,9 +291,7 @@ class TranscriptEnrichmentServiceImpl implements TranscriptEnrichmentService {
 
   // One formatting-and-naming call when formatting is on and the transcript
   // fits, else a title-only call.
-  readonly enrich = async (
-    input: EnrichSessionTranscriptInput,
-  ): Promise<EnrichedSessionTranscript> => {
+  async enrich(input: EnrichSessionTranscriptInput): Promise<EnrichedSessionTranscript> {
     if (
       input.formatTranscript &&
       input.enrichmentCredentials !== null &&
@@ -316,7 +312,7 @@ class TranscriptEnrichmentServiceImpl implements TranscriptEnrichmentService {
     return { title, body: input.transcript }
   }
 
-  readonly generateTitle = async (request: GenerateAudioMemoTitleRequest): Promise<string> => {
+  async generateTitle(request: GenerateAudioMemoTitleRequest): Promise<string> {
     const fallback = transcriptFallbackTitle(request.transcript, request.fallbackTitle)
     if (request.transcript.trim() === '') {
       return request.fallbackTitle
@@ -343,9 +339,9 @@ class TranscriptEnrichmentServiceImpl implements TranscriptEnrichmentService {
     }
   }
 
-  readonly formatTranscript = async (
+  async formatTranscript(
     request: FormatAudioMemoTranscriptRequest,
-  ): Promise<FormattedAudioMemoTranscript> => {
+  ): Promise<FormattedAudioMemoTranscript> {
     const fallbackTitle = transcriptFallbackTitle(request.transcript, request.fallbackTitle)
     const config = audioMemoEnrichmentConfig(request.credentials.config)
     if (request.transcript.trim() === '' || config === null) {

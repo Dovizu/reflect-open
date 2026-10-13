@@ -33,9 +33,9 @@ export interface AiPromptService {
    * Calls `listener` after any settings change.
    */
   subscribe: (listener: () => void) => Unlisten
-  add: (draft: AiPromptDraft) => void
-  update: (id: string, draft: AiPromptDraft) => void
-  remove: (id: string) => void
+  add(draft: AiPromptDraft): void
+  update(id: string, draft: AiPromptDraft): void
+  remove(id: string): void
 }
 
 class AiPromptServiceImpl implements AiPromptService {
@@ -49,19 +49,19 @@ class AiPromptServiceImpl implements AiPromptService {
 
   readonly subscribe = (listener: () => void): Unlisten => this.#deps.settings.subscribe(listener)
 
-  readonly add = (draft: AiPromptDraft): void => {
+  add(draft: AiPromptDraft): void {
     const { settings, id: idService } = this.#deps
     const prompt: AiPrompt = { id: idService.uuid(), ...draft }
     settings.updateWith((current) => ({ aiPrompts: [...current.aiPrompts, prompt] }))
   }
 
-  readonly update = (id: string, draft: AiPromptDraft): void => {
+  update(id: string, draft: AiPromptDraft): void {
     this.#deps.settings.updateWith((current) => ({
       aiPrompts: current.aiPrompts.map((prompt) => (prompt.id === id ? { id, ...draft } : prompt)),
     }))
   }
 
-  readonly remove = (id: string): void => {
+  remove(id: string): void {
     this.#deps.settings.updateWith((current) => ({
       aiPrompts: current.aiPrompts.filter((prompt) => prompt.id !== id),
     }))
