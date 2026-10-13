@@ -51,7 +51,14 @@ async function probeNotePath(
   throw new Error(`no available note path for slug "${slug}" after ${MAX_COLLISION_PROBES} probes`)
 }
 
-/** Readable, collision-free paths for note and template titles. */
+export interface NotePathServiceDeps {
+  readonly database: DatabaseService
+  readonly noteFile: NoteFileService
+}
+
+/**
+ * Readable, collision-free paths for note and template titles.
+ */
 export interface NotePathService {
   /**
    * The first available `templates/…` path for `slug` (template creation) —
@@ -83,16 +90,42 @@ export interface NotePathService {
   ): Promise<string>
 }
 
-export function createNotePathService(deps: {
-  database: DatabaseService
-  noteFile: NoteFileService
-}): NotePathService {
-  const { noteFile } = deps
-  const { db } = deps.database
+class NotePathServiceImpl implements NotePathService {
+  readonly #deps: NotePathServiceDeps
 
-  /** Is `path` already taken — indexed, or present on disk? */
-  async function pathTaken(path: string): Promise<boolean> {
-    const row = await db
+  constructor(deps: NotePathServiceDeps) {
+    this.#deps = deps
+  }
+
+  async availableTemplatePath(
+    slug: string,
+    taken: (path: string) => Promise<boolean> = (path) => this.#pathTaken(path),
+  ): Promise<string> {
+    return await probeNotePath(slug, taken, null, templatePath)
+  }
+
+  async templateSlugPathForTitle(
+    path: string,
+    title: string,
+    taken: (candidate: string) => Promise<boolean> = (candidate) => this.#pathTaken(candidate),
+  ): Promise<string> {
+    return await probeNotePath(slugForTitle(title), taken, path, templatePath)
+  }
+
+  async slugPathForTitle(
+    path: string,
+    title: string,
+    taken: (candidate: string) => Promise<boolean> = (candidate) => this.#pathTaken(candidate),
+  ): Promise<string> {
+    return await probeNotePath(slugForTitle(title), taken, path)
+  }
+
+  /**
+   * Is `path` already taken — indexed, or present on disk?
+   */
+  async #pathTaken(path: string): Promise<boolean> {
+    const { database, noteFile } = this.#deps
+    const row = await database.db
       .selectFrom('notes')
       .where('path', '=', path)
       .select('path')
@@ -102,16 +135,8 @@ export function createNotePathService(deps: {
     }
     return await noteFile.exists(path)
   }
+}
 
-  return {
-    async availableTemplatePath(slug, taken = pathTaken) {
-      return await probeNotePath(slug, taken, null, templatePath)
-    },
-    async templateSlugPathForTitle(path, title, taken = pathTaken) {
-      return await probeNotePath(slugForTitle(title), taken, path, templatePath)
-    },
-    async slugPathForTitle(path, title, taken = pathTaken) {
-      return await probeNotePath(slugForTitle(title), taken, path)
-    },
-  }
+export function createNotePathService(deps: NotePathServiceDeps): NotePathService {
+  return new NotePathServiceImpl(deps)
 }

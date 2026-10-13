@@ -7,7 +7,9 @@ import type { DatabaseService } from './database-service.ts'
 
 import type { IndexedNote } from './indexed-note.ts'
 
-/** Index commands return `()` from Rust, which serializes to `null` over IPC. */
+/**
+ * Index commands return `()` from Rust, which serializes to `null` over IPC.
+ */
 const voidSchema = z.null()
 
 const scanCandidateSchema = z.object({
@@ -38,20 +40,32 @@ export const reconcileScanSchema = z.object({
   stalePlaceholders: z.array(z.string()),
 })
 
-/** One file the reconcile must read; see {@link IndexStoreService.reconcileScan}. */
+/**
+ * One file the reconcile must read; see {@link IndexStoreService.reconcileScan}.
+ */
 export type ScanCandidate = z.infer<typeof scanCandidateSchema>
 
-/** A stored row whose file vanished from disk; see {@link IndexStoreService.reconcileScan}. */
+/**
+ * A stored row whose file vanished from disk; see {@link IndexStoreService.reconcileScan}.
+ */
 export type ScanOrphan = z.infer<typeof scanOrphanSchema>
 
-/** The reconcile delta: what changed on disk relative to the index. */
+/**
+ * The reconcile delta: what changed on disk relative to the index.
+ */
 export type ReconcileScan = z.infer<typeof reconcileScanSchema>
 
-/** One {@link IndexStoreService.touch} entry: re-stamp `path`'s stored mtime. */
+/**
+ * One {@link IndexStoreService.touch} entry: re-stamp `path`'s stored mtime.
+ */
 export interface IndexedNoteTouch {
-  /** Graph-relative markdown path. */
+  /**
+   * Graph-relative markdown path.
+   */
   readonly path: string
-  /** The file's listed on-disk mtime (epoch ms). */
+  /**
+   * The file's listed on-disk mtime (epoch ms).
+   */
   readonly mtime: number
 }
 
@@ -63,31 +77,53 @@ export interface IndexedNoteTouch {
  */
 export const INDEX_APPLY_BATCH_SIZE = 256
 
-/** One note omitted from a bulk write because its projection could not be written. */
+/**
+ * One note omitted from a bulk write because its projection could not be written.
+ */
 export interface SkippedIndexedNote {
-  /** Graph-relative markdown path. */
+  /**
+   * Graph-relative markdown path.
+   */
   path: string
-  /** Displayable reason from the failed write. */
+  /**
+   * Displayable reason from the failed write.
+   */
   message: string
 }
 
-/** A shared accumulator for bulk index writes; see {@link IndexStoreService.createApplyBatch}. */
+/**
+ * A shared accumulator for bulk index writes; see {@link IndexStoreService.createApplyBatch}.
+ */
 export interface IndexApplyBatch {
-  /** Queue a projection; flushes automatically at the transaction cap. */
+  /**
+   * Queue a projection; flushes automatically at the transaction cap.
+   */
   add: (note: IndexedNote) => Promise<void>
-  /** Apply everything still queued. Safe to call repeatedly. */
+  /**
+   * Apply everything still queued. Safe to call repeatedly.
+   */
   flush: () => Promise<void>
-  /** Projections actually written so far (skipped notes excluded). */
+  /**
+   * Projections actually written so far (skipped notes excluded).
+   */
   applied: () => number
 }
 
-/** A shared accumulator for mtime re-stamps; see {@link IndexStoreService.createTouchBatch}. */
+/**
+ * A shared accumulator for mtime re-stamps; see {@link IndexStoreService.createTouchBatch}.
+ */
 export interface MtimeTouchBatch {
-  /** Queue a re-stamp; flushes automatically at the transaction cap. */
+  /**
+   * Queue a re-stamp; flushes automatically at the transaction cap.
+   */
   add: (entry: IndexedNoteTouch) => Promise<void>
-  /** Apply everything still queued. Safe to call repeatedly. */
+  /**
+   * Apply everything still queued. Safe to call repeatedly.
+   */
   flush: () => Promise<void>
-  /** Re-stamps actually written so far. */
+  /**
+   * Re-stamps actually written so far.
+   */
   applied: () => number
 }
 
@@ -98,13 +134,21 @@ export interface MtimeTouchBatch {
  * started for one graph can never mutate a newly-opened index.
  */
 export interface IndexStoreService {
-  /** Open and migrate the index for the active graph; resolves with the new index generation. */
+  /**
+   * Open and migrate the index for the active graph; resolves with the new index generation.
+   */
   open(): Promise<number>
-  /** Apply one note's projection in a single Rust transaction. */
+  /**
+   * Apply one note's projection in a single Rust transaction.
+   */
   apply(note: IndexedNote, generation: number): Promise<void>
-  /** Apply many notes' projections in one Rust transaction. An empty batch never reaches the backend. */
+  /**
+   * Apply many notes' projections in one Rust transaction. An empty batch never reaches the backend.
+   */
   applyBatch(notes: IndexedNote[], generation: number): Promise<void>
-  /** Remove a note (deleted on disk) from the index. */
+  /**
+   * Remove a note (deleted on disk) from the index.
+   */
   remove(path: string, generation: number): Promise<void>
   /**
    * Move a note's index rows only: the file already lives at `to` (an external
@@ -129,11 +173,17 @@ export interface IndexStoreService {
    * Rust transaction per call; an empty batch never reaches the backend.
    */
   touch(entries: readonly IndexedNoteTouch[], generation: number): Promise<void>
-  /** Wipe all derived tables (precedes a full rebuild); `chat_*` and `index_meta` stay. */
+  /**
+   * Wipe all derived tables (precedes a full rebuild); `chat_*` and `index_meta` stay.
+   */
   clear(generation: number): Promise<void>
-  /** One `index_meta` value, or `null` when the key has never been written. */
+  /**
+   * One `index_meta` value, or `null` when the key has never been written.
+   */
   getMeta(key: string): Promise<string | null>
-  /** Upsert one `index_meta` key; a stale generation drops the write. */
+  /**
+   * Upsert one `index_meta` key; a stale generation drops the write.
+   */
   setMeta(key: string, value: string, generation: number): Promise<void>
   /**
    * Accumulate projections and apply them in shared `index_apply_batch`
@@ -145,7 +195,9 @@ export interface IndexStoreService {
     generation: number,
     onSkippedNote?: (note: SkippedIndexedNote) => void,
   ): IndexApplyBatch
-  /** Accumulate mtime re-stamps and apply them in shared `index_touch` transactions. */
+  /**
+   * Accumulate mtime re-stamps and apply them in shared `index_touch` transactions.
+   */
   createTouchBatch(generation: number): MtimeTouchBatch
 }
 
@@ -196,126 +248,162 @@ async function applySplitBatch(
   }
 }
 
-function createBatch<Item>(write: (items: Item[]) => Promise<number>): {
-  add: (item: Item) => Promise<void>
-  flush: () => Promise<void>
-  applied: () => number
-} {
-  let batch: Item[] = []
-  let appliedCount = 0
-  async function flush(): Promise<void> {
-    if (batch.length === 0) {
+class BatchWriter<Item> {
+  readonly #write: (items: Item[]) => Promise<number>
+  #batch: Item[] = []
+  #appliedCount = 0
+
+  constructor(write: (items: Item[]) => Promise<number>) {
+    this.#write = write
+  }
+
+  readonly add = async (item: Item): Promise<void> => {
+    this.#batch.push(item)
+    if (this.#batch.length >= INDEX_APPLY_BATCH_SIZE) {
+      await this.flush()
+    }
+  }
+
+  readonly flush = async (): Promise<void> => {
+    if (this.#batch.length === 0) {
       return
     }
-    const items = batch
-    batch = []
-    appliedCount += await write(items)
+    const items = this.#batch
+    this.#batch = []
+    this.#appliedCount += await this.#write(items)
   }
-  return {
-    add: async (item) => {
-      batch.push(item)
-      if (batch.length >= INDEX_APPLY_BATCH_SIZE) {
-        await flush()
-      }
-    },
-    flush,
-    applied: () => appliedCount,
-  }
+
+  readonly applied = (): number => this.#appliedCount
 }
 
-/** {@link IndexStoreService.createApplyBatch} over any `applyBatch`. */
+/**
+ * {@link IndexStoreService.createApplyBatch} over any `applyBatch`.
+ */
 export function createIndexApplyBatchWriter(
   applyBatch: IndexStoreService['applyBatch'],
   generation: number,
   onSkippedNote?: (note: SkippedIndexedNote) => void,
 ): IndexApplyBatch {
-  return createBatch((notes: IndexedNote[]) =>
+  return new BatchWriter((notes: IndexedNote[]) =>
     applySplitBatch(applyBatch, notes, generation, onSkippedNote),
   )
 }
 
-/** {@link IndexStoreService.createTouchBatch} over any `touch`. */
+/**
+ * {@link IndexStoreService.createTouchBatch} over any `touch`.
+ */
 export function createMtimeTouchBatchWriter(
   touch: IndexStoreService['touch'],
   generation: number,
 ): MtimeTouchBatch {
-  return createBatch(async (entries: IndexedNoteTouch[]) => {
+  return new BatchWriter(async (entries: IndexedNoteTouch[]) => {
     await touch(entries, generation)
     return entries.length
   })
 }
 
-/** An {@link IndexStoreService} over the `index_*` commands, reading `index_meta` through `database`. */
-export function createIndexStoreService(deps: {
-  ipc: IpcBridgeService
-  database: DatabaseService
-}): IndexStoreService {
-  const { ipc, database } = deps
+export interface IndexStoreServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly database: DatabaseService
+}
 
-  const applyBatch: IndexStoreService['applyBatch'] = async (notes, generation) => {
+class IndexStoreServiceImpl implements IndexStoreService {
+  readonly #deps: IndexStoreServiceDeps
+
+  constructor(deps: IndexStoreServiceDeps) {
+    this.#deps = deps
+  }
+
+  open(): Promise<number> {
+    return this.#deps.ipc.call('index_open', {}, z.number())
+  }
+
+  async apply(note: IndexedNote, generation: number): Promise<void> {
+    await this.#deps.ipc.call('index_apply', { note, generation }, voidSchema)
+  }
+
+  async applyBatch(notes: IndexedNote[], generation: number): Promise<void> {
     if (notes.length === 0) {
       return
     }
-    await ipc.call('index_apply_batch', { notes, generation }, voidSchema)
+    await this.#deps.ipc.call('index_apply_batch', { notes, generation }, voidSchema)
   }
 
-  const touch: IndexStoreService['touch'] = async (entries, generation) => {
+  async remove(path: string, generation: number): Promise<void> {
+    await this.#deps.ipc.call('index_remove', { path, generation }, voidSchema)
+  }
+
+  async move(from: string, to: string, generation: number): Promise<void> {
+    await this.#deps.ipc.call(
+      'index_move',
+      { from, to, generation, toAddress: movedNoteAddress(to) },
+      voidSchema,
+    )
+  }
+
+  async moveIndexed(from: string, to: string, fileGeneration: number): Promise<void> {
+    await this.#deps.ipc.call(
+      'note_move_indexed',
+      {
+        request: {
+          from,
+          to,
+          toAddress: movedNoteAddress(to),
+          fromAddress: movedNoteAddress(from),
+        },
+        generation: fileGeneration,
+      },
+      voidSchema,
+    )
+  }
+
+  reconcileScan(generation: number): Promise<ReconcileScan> {
+    return this.#deps.ipc.call('index_reconcile_scan', { generation }, reconcileScanSchema)
+  }
+
+  async touch(entries: readonly IndexedNoteTouch[], generation: number): Promise<void> {
     if (entries.length === 0) {
       return
     }
-    await ipc.call('index_touch', { entries, generation }, voidSchema)
+    await this.#deps.ipc.call('index_touch', { entries, generation }, voidSchema)
   }
 
-  return {
-    open: () => ipc.call('index_open', {}, z.number()),
-    apply: async (note, generation) => {
-      await ipc.call('index_apply', { note, generation }, voidSchema)
-    },
-    applyBatch,
-    remove: async (path, generation) => {
-      await ipc.call('index_remove', { path, generation }, voidSchema)
-    },
-    move: async (from, to, generation) => {
-      await ipc.call(
-        'index_move',
-        { from, to, generation, toAddress: movedNoteAddress(to) },
-        voidSchema,
-      )
-    },
-    moveIndexed: async (from, to, fileGeneration) => {
-      await ipc.call(
-        'note_move_indexed',
-        {
-          request: {
-            from,
-            to,
-            toAddress: movedNoteAddress(to),
-            fromAddress: movedNoteAddress(from),
-          },
-          generation: fileGeneration,
-        },
-        voidSchema,
-      )
-    },
-    reconcileScan: (generation) =>
-      ipc.call('index_reconcile_scan', { generation }, reconcileScanSchema),
-    touch,
-    clear: async (generation) => {
-      await ipc.call('index_clear', { generation }, voidSchema)
-    },
-    getMeta: async (key) => {
-      const row = await database.db
-        .selectFrom('indexMeta')
-        .where('key', '=', key)
-        .select('value')
-        .executeTakeFirst()
-      return row?.value ?? null
-    },
-    setMeta: async (key, value, generation) => {
-      await ipc.call('index_meta_set', { key, value, generation }, voidSchema)
-    },
-    createApplyBatch: (generation, onSkippedNote) =>
-      createIndexApplyBatchWriter(applyBatch, generation, onSkippedNote),
-    createTouchBatch: (generation) => createMtimeTouchBatchWriter(touch, generation),
+  async clear(generation: number): Promise<void> {
+    await this.#deps.ipc.call('index_clear', { generation }, voidSchema)
   }
+
+  async getMeta(key: string): Promise<string | null> {
+    const row = await this.#deps.database.db
+      .selectFrom('indexMeta')
+      .where('key', '=', key)
+      .select('value')
+      .executeTakeFirst()
+    return row?.value ?? null
+  }
+
+  async setMeta(key: string, value: string, generation: number): Promise<void> {
+    await this.#deps.ipc.call('index_meta_set', { key, value, generation }, voidSchema)
+  }
+
+  createApplyBatch(
+    generation: number,
+    onSkippedNote?: (note: SkippedIndexedNote) => void,
+  ): IndexApplyBatch {
+    return createIndexApplyBatchWriter(
+      (notes, gen) => this.applyBatch(notes, gen),
+      generation,
+      onSkippedNote,
+    )
+  }
+
+  createTouchBatch(generation: number): MtimeTouchBatch {
+    return createMtimeTouchBatchWriter((entries, gen) => this.touch(entries, gen), generation)
+  }
+}
+
+/**
+ * An {@link IndexStoreService} over the `index_*` commands, reading `index_meta` through `database`.
+ */
+export function createIndexStoreService(deps: IndexStoreServiceDeps): IndexStoreService {
+  return new IndexStoreServiceImpl(deps)
 }

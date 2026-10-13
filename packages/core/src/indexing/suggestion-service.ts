@@ -16,7 +16,9 @@ import {
 
 export type { WikiLinkSuggestionResult } from './queries-shared.ts'
 
-/** How many ranked-in-SQL rows each candidate query hands to the in-memory ranker. */
+/**
+ * How many ranked-in-SQL rows each candidate query hands to the in-memory ranker.
+ */
 const WIKI_CANDIDATE_LIMIT = 200
 
 /**
@@ -32,7 +34,9 @@ function selectLinkCount() {
   )`.as('linkCount')
 }
 
-/** One `#tag` autocomplete candidate: display casing + how many notes carry it. */
+/**
+ * One `#tag` autocomplete candidate: display casing + how many notes carry it.
+ */
 export interface TagSuggestion {
   tag: string
   count: number
@@ -44,7 +48,13 @@ interface WikiTargetCandidateResult {
   readonly queryReadsAsDate: boolean
 }
 
-/** Autocomplete candidates for `#` tags and `[[` wiki targets. */
+export interface SuggestionServiceDeps {
+  readonly database: DatabaseService
+}
+
+/**
+ * Autocomplete candidates for `#` tags and `[[` wiki targets.
+ */
 export interface SuggestionService {
   /**
    * `#` autocomplete candidates for `query` (Plan 18): tags whose folded key
@@ -74,50 +84,68 @@ export interface SuggestionService {
   ): Promise<WikiLinkSuggestionResult>
 }
 
-export function createSuggestionService(deps: { database: DatabaseService }): SuggestionService {
-  const { db } = deps.database
-  return {
-    async suggestTags(query, limit = 8) {
-      const key = foldTag(query.trim())
-      let candidates = db
-        .selectFrom('tags')
-        .innerJoin('notes', 'notes.path', 'tags.notePath')
-        .where('notes.kind', '!=', 'template')
-        .select([sql<string>`min(tags.tag)`.as('tag'), sql<number>`count(*)`.as('count')])
-        .groupBy('tags.tagKey')
-        .orderBy(sql`count(*)`, 'desc')
-        .orderBy(sql`min(tags.tag)`)
-        .limit(limit)
-      if (key !== '') {
-        candidates = candidates.where(sql<boolean>`tag_key LIKE ${likeContains(key)} ESCAPE '\\'`)
-      }
-      const rows = await candidates.execute()
-      return rows.map((row) => ({ tag: row.tag, count: Number(row.count) }))
-    },
+class SuggestionServiceImpl implements SuggestionService {
+  readonly #deps: SuggestionServiceDeps
 
-    async suggestWikiTargets(query, limit = 8, dateGen) {
-      if (limit <= 0) {
-        return []
-      }
-      const result = await queryWikiTargetCandidates(db, query, dateGen)
-      return result.candidates.slice(0, limit)
-    },
-
-    async suggestWikiLinkTargets(query, limit = 8, dateGen) {
-      if (limit <= 0) {
-        return { suggestions: [], claimedTargetKeys: [], queryReadsAsDate: false }
-      }
-      const result = await queryWikiTargetCandidates(db, query, dateGen)
-      return await verifyWikiSuggestionAddresses(
-        db,
-        result.candidates,
-        result.candidateTargetKeys,
-        limit,
-        normalizeWikiTarget(query).key,
-        result.queryReadsAsDate,
-      )
-    },
+  constructor(deps: SuggestionServiceDeps) {
+    this.#deps = deps
   }
+
+  async suggestTags(query: string, limit = 8): Promise<TagSuggestion[]> {
+    const { db } = this.#deps.database
+    const key = foldTag(query.trim())
+    let candidates = db
+      .selectFrom('tags')
+      .innerJoin('notes', 'notes.path', 'tags.notePath')
+      .where('notes.kind', '!=', 'template')
+      .select([sql<string>`min(tags.tag)`.as('tag'), sql<number>`count(*)`.as('count')])
+      .groupBy('tags.tagKey')
+      .orderBy(sql`count(*)`, 'desc')
+      .orderBy(sql`min(tags.tag)`)
+      .limit(limit)
+    if (key !== '') {
+      candidates = candidates.where(sql<boolean>`tag_key LIKE ${likeContains(key)} ESCAPE '\\'`)
+    }
+    const rows = await candidates.execute()
+    return rows.map((row) => ({ tag: row.tag, count: Number(row.count) }))
+  }
+
+  async suggestWikiTargets(
+    query: string,
+    limit = 8,
+    dateGen?: DateSuggestionContext,
+  ): Promise<WikiSuggestion[]> {
+    const { db } = this.#deps.database
+    if (limit <= 0) {
+      return []
+    }
+    const result = await queryWikiTargetCandidates(db, query, dateGen)
+    return result.candidates.slice(0, limit)
+  }
+
+  async suggestWikiLinkTargets(
+    query: string,
+    limit = 8,
+    dateGen?: DateSuggestionContext,
+  ): Promise<WikiLinkSuggestionResult> {
+    const { db } = this.#deps.database
+    if (limit <= 0) {
+      return { suggestions: [], claimedTargetKeys: [], queryReadsAsDate: false }
+    }
+    const result = await queryWikiTargetCandidates(db, query, dateGen)
+    return await verifyWikiSuggestionAddresses(
+      db,
+      result.candidates,
+      result.candidateTargetKeys,
+      limit,
+      normalizeWikiTarget(query).key,
+      result.queryReadsAsDate,
+    )
+  }
+}
+
+export function createSuggestionService(deps: SuggestionServiceDeps): SuggestionService {
+  return new SuggestionServiceImpl(deps)
 }
 
 async function queryWikiTargetCandidates(
