@@ -54,7 +54,7 @@ describe('NavigationService', () => {
 
   it('advances the synchronous navigation revision for every navigation intent', () => {
     const navigation = createNavigationService()
-    const revision = navigation.navigationRevision
+    const revision = (): number => navigation.navigationRevision()
     const initial = revision()
 
     // Even a same-route re-arrival is an intent (initial route is today).
@@ -70,7 +70,7 @@ describe('NavigationService', () => {
 
   it('boundary back/forward no-ops leave the navigation revision alone', () => {
     const navigation = createNavigationService()
-    const revision = navigation.navigationRevision
+    const revision = (): number => navigation.navigationRevision()
     navigation.navigate({ kind: 'tasks' })
     const settled = revision()
 

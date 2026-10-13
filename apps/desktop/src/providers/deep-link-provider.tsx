@@ -22,7 +22,7 @@ export function DeepLinkProvider({ children }: DeepLinkProviderProps): ReactElem
   const { session } = useGraph()
 
   useEffect(() => {
-    return deepLink.serve({ navigate, beginNavigationIntent: linkNavigation.beginIntent })
+    return deepLink.serve({ navigate, beginNavigationIntent: () => linkNavigation.beginIntent() })
   }, [deepLink, linkNavigation, navigate, session])
 
   return <>{children}</>

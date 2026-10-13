@@ -88,14 +88,14 @@ export interface NavigationService {
   /**
    * The current snapshot; the same object until the next change.
    */
-  getState: () => NavigationState
+  getState(): NavigationState
   /**
    * Hear every state change, synchronously. Scroll bookkeeping does not notify.
    */
-  subscribe: (listener: () => void) => Unlisten
-  navigate: (route: Route, options?: NavigateOptions) => void
-  back: () => void
-  forward: () => void
+  subscribe(listener: () => void): Unlisten
+  navigate(route: Route, options?: NavigateOptions): void
+  back(): void
+  forward(): void
   /**
    * Read the synchronous, monotonic navigation-state revision. It advances on
    * every `navigate`, on every `back` or `forward` that moves, when the
@@ -104,36 +104,36 @@ export interface NavigationService {
    * returned to the same history entry. A back/forward at a history boundary
    * changes nothing and does not advance it.
    */
-  navigationRevision: () => number
+  navigationRevision(): number
   /**
    * Record a view's scroll offset on its history entry (the current one by default).
    */
-  saveScrollState: (offset: number, at?: NavigationPosition) => void
+  saveScrollState(offset: number, at?: NavigationPosition): void
   /**
    * Discard a view's saved scroll offsets — its history entry's and, when the
    * route belongs to a long-lived surface, the surface's too — so the view
    * re-anchors when revisited through **any** door (⌘[ back or a
    * `restoreSurfaceScroll` nav-tab return alike).
    */
-  clearScrollState: (at?: NavigationPosition) => void
+  clearScrollState(at?: NavigationPosition): void
   /**
    * The entry's recorded offset (present when revisited), or `null`.
    */
-  savedScroll: (at?: NavigationPosition) => number | null
+  savedScroll(at?: NavigationPosition): number | null
   /**
    * A note file moved (Plan 17): rewrite every history entry that points at
    * the old path — the current route follows the file without an arrival
    * (same entry ids, so scroll offsets and back/forward stay intact), and a
    * back-nav can never land on a path that no longer exists.
    */
-  noteMoved: (from: string, to: string) => void
+  noteMoved(from: string, to: string): void
   /**
    * Start a fresh history on `initialRoute` (today by default), dropping every
    * entry and scroll offset: switching graphs must not carry the old graph's
    * history. The view tree that mounts for the new history calls this while it
    * renders, so subscribers are not notified; read `getState()` afterwards.
    */
-  reset: (initialRoute?: Route) => void
+  reset(initialRoute?: Route): void
 }
 
 export interface NavigationServiceDeps {
@@ -188,16 +188,18 @@ class NavigationServiceImpl implements NavigationService {
     this.#state = this.#start(deps?.initialRoute ?? { kind: 'today' })
   }
 
-  readonly getState = (): NavigationState => this.#state
+  getState(): NavigationState {
+    return this.#state
+  }
 
-  readonly subscribe = (listener: () => void): Unlisten => {
+  subscribe(listener: () => void): Unlisten {
     this.#listeners.add(listener)
     return () => {
       this.#listeners.delete(listener)
     }
   }
 
-  readonly navigate = (route: Route, options?: NavigateOptions): void => {
+  navigate(route: Route, options?: NavigateOptions): void {
     this.#revision += 1
     const target = normalizeRoute(route)
     const surface = scrollSurfaceForRoute(target)
@@ -243,7 +245,7 @@ class NavigationServiceImpl implements NavigationService {
     this.#publish()
   }
 
-  readonly back = (): void => {
+  back(): void {
     if (this.#index === 0) {
       return // nothing behind us — must not advance the navigation revision
     }
@@ -253,7 +255,7 @@ class NavigationServiceImpl implements NavigationService {
     this.#publish()
   }
 
-  readonly forward = (): void => {
+  forward(): void {
     if (this.#index >= this.#stack.length - 1) {
       return
     }
@@ -263,9 +265,11 @@ class NavigationServiceImpl implements NavigationService {
     this.#publish()
   }
 
-  readonly navigationRevision = (): number => this.#revision
+  navigationRevision(): number {
+    return this.#revision
+  }
 
-  readonly saveScrollState = (offset: number, at: NavigationPosition = this.#state): void => {
+  saveScrollState(offset: number, at: NavigationPosition = this.#state): void {
     this.#scrollById.set(at.entryId, offset)
     const surface = scrollSurfaceForRoute(at.route)
     if (surface !== null) {
@@ -273,7 +277,7 @@ class NavigationServiceImpl implements NavigationService {
     }
   }
 
-  readonly clearScrollState = (at: NavigationPosition = this.#state): void => {
+  clearScrollState(at: NavigationPosition = this.#state): void {
     this.#scrollById.delete(at.entryId)
     const surface = scrollSurfaceForRoute(at.route)
     if (surface !== null) {
@@ -281,10 +285,11 @@ class NavigationServiceImpl implements NavigationService {
     }
   }
 
-  readonly savedScroll = (at: NavigationPosition = this.#state): number | null =>
-    this.#scrollById.get(at.entryId) ?? null
+  savedScroll(at: NavigationPosition = this.#state): number | null {
+    return this.#scrollById.get(at.entryId) ?? null
+  }
 
-  readonly noteMoved = (from: string, to: string): void => {
+  noteMoved(from: string, to: string): void {
     const current = this.#stack[this.#index]!.route
     if (current.kind === 'note' && current.path === from) {
       this.#revision += 1
@@ -303,7 +308,7 @@ class NavigationServiceImpl implements NavigationService {
     }
   }
 
-  readonly reset = (initialRoute?: Route): void => {
+  reset(initialRoute?: Route): void {
     this.#revision += 1
     this.#state = this.#start(initialRoute ?? { kind: 'today' })
   }

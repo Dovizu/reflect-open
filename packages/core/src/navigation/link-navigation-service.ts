@@ -81,7 +81,7 @@ export interface LinkNavigationService {
    * Start a note-link activation. The returned probe is true once a newer
    * activation superseded it or the navigation revision advanced.
    */
-  beginIntent: () => () => boolean
+  beginIntent(): () => boolean
   /**
    * Open `route` in a secondary note window. False — never a throw —
    * when this surface can't (no shell, mobile, a route the
@@ -89,14 +89,14 @@ export interface LinkNavigationService {
    * callers then navigate in place, so the gesture degrades to a plain click
    * instead of doing nothing.
    */
-  openRouteInNewWindow: (route: Route) => Promise<boolean>
+  openRouteInNewWindow(route: Route): Promise<boolean>
   /**
    * Open an in-note `reflect://` link in a secondary window — only links that
    * *address* something (navigate / openNote). Capture links (append, task)
    * are writes, not places: a modifier click still dispatches them normally.
    * Same false-not-throw contract as {@link openRouteInNewWindow}.
    */
-  openDeepLinkInNewWindow: (href: string) => Promise<boolean>
+  openDeepLinkInNewWindow(href: string): Promise<boolean>
   /**
    * Apply the app-wide note-link convention: `openInNewWindow` (decided at
    * the UI boundary from a ⌘/Ctrl click or a spare-`mod` keyboard follow)
@@ -168,7 +168,7 @@ export interface LinkNavigationService {
    * exact or fallback key, or an unavailable collision prevents proving
    * uniqueness. Neither navigation nor creation may guess in those states.
    */
-  reportAmbiguousNoteTitle: (operationLabel: string, title: string) => void
+  reportAmbiguousNoteTitle(operationLabel: string, title: string): void
 }
 
 export interface LinkNavigationServiceDeps {
@@ -200,7 +200,7 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
     this.#deps = deps
   }
 
-  readonly beginIntent = (): (() => boolean) => {
+  beginIntent(): () => boolean {
     const { navigation } = this.#deps
     this.#latestIntent += 1
     const intent = this.#latestIntent
@@ -209,7 +209,7 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
       this.#latestIntent !== intent || navigation.navigationRevision() !== startedAtRevision
   }
 
-  readonly openRouteInNewWindow = async (route: Route): Promise<boolean> => {
+  async openRouteInNewWindow(route: Route): Promise<boolean> {
     if (!this.#canOpenWindows()) {
       return false
     }
@@ -220,7 +220,7 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
     return await this.#deps.window.openNoteWindow(link)
   }
 
-  readonly openDeepLinkInNewWindow = async (href: string): Promise<boolean> => {
+  async openDeepLinkInNewWindow(href: string): Promise<boolean> {
     if (!this.#canOpenWindows()) {
       return false
     }
@@ -231,10 +231,11 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
     return await this.#deps.window.openNoteWindow(href)
   }
 
-  readonly openNoteLink: LinkNavigationService['openNoteLink'] = (
-    { target, openInNewWindow },
-    host,
-  ) => {
+  openNoteLink(
+    options: { target: NoteRoute; openInNewWindow: boolean },
+    host: LinkNavigationHost,
+  ): void {
+    const { target, openInNewWindow } = options
     const isStale = host.beginIntent()
     if (!openInNewWindow) {
       host.navigate(target)
@@ -255,10 +256,11 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
     })()
   }
 
-  readonly followWikiLink: LinkNavigationService['followWikiLink'] = (
-    { target, openInNewWindow, readOnly },
-    host,
-  ) => {
+  followWikiLink(
+    options: { target: string; openInNewWindow: boolean; readOnly?: boolean },
+    host: LinkNavigationHost,
+  ): void {
+    const { target, openInNewWindow, readOnly } = options
     const { noteLinkResolver, noteCreation, wikiResolver, operations, logger } = this.#deps
     const generation = (readOnly ?? false) ? null : this.#currentGeneration()
     const isStale = host.beginIntent()
@@ -335,17 +337,18 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
     })()
   }
 
-  readonly followMarkdownNoteLink: LinkNavigationService['followMarkdownNoteLink'] = (
-    options,
-    host,
-  ) => {
+  followMarkdownNoteLink(
+    options: { href: string; sourcePath: string; openInNewWindow: boolean },
+    host: LinkNavigationHost,
+  ): void {
     this.#followMarkdownNoteLinkAt(options, this.#currentGeneration(), host)
   }
 
-  readonly followMarkdownLink: LinkNavigationService['followMarkdownLink'] = (
-    { href, sourcePath, openInNewWindow },
-    host,
-  ) => {
+  followMarkdownLink(
+    options: { href: string; sourcePath: string | null; openInNewWindow: boolean },
+    host: LinkNavigationHost,
+  ): void {
+    const { href, sourcePath, openInNewWindow } = options
     const { attachments, opener } = this.#deps
     const generation = this.#currentGeneration()
     if (generation !== null && sourcePath !== null) {
@@ -368,10 +371,11 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
     }
   }
 
-  readonly followDeepLink: LinkNavigationService['followDeepLink'] = (
-    { href, openInNewWindow },
-    host,
-  ) => {
+  followDeepLink(
+    options: { href: string; openInNewWindow: boolean },
+    host: Pick<LinkNavigationHost, 'beginIntent'>,
+  ): void {
+    const { href, openInNewWindow } = options
     const { deepLink } = this.#deps
     const link = parseDeepLink(href)
     // A capture or rejected URL still dispatches so the graph-scoped handler
@@ -401,7 +405,7 @@ class LinkNavigationServiceImpl implements LinkNavigationService {
     })()
   }
 
-  readonly reportAmbiguousNoteTitle = (operationLabel: string, title: string): void => {
+  reportAmbiguousNoteTitle(operationLabel: string, title: string): void {
     this.#deps.operations.start(operationLabel).fail(ambiguousNoteTitleMessage(title))
   }
 
