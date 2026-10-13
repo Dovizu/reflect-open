@@ -4,6 +4,11 @@ import { toAppError, type AppError } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
 
 /**
+ * The shell's broadcast after an index write command commits.
+ */
+export const INDEX_WRITTEN_EVENT = 'index:written'
+
+/**
  * The raw transport a host implements: the desktop app adapts Tauri's
  * `invoke`/`listen`, plain-browser dev installs an in-memory bridge, and
  * tests use a fake. {@link createIpcBridgeService} wraps it with validation

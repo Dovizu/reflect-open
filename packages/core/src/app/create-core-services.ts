@@ -1,5 +1,4 @@
 import type { GraphRole, GraphSession, GraphSessionSource } from './graph-session.ts'
-import type { Unlisten } from '../unlisten.ts'
 import { createAiCredentialService, type AiCredentialService } from '../ai/ai-credential-service.ts'
 import {
   createAiKeyValidationService,
@@ -604,10 +603,6 @@ export interface CoreAdapters {
    * Which window this webview is: only the main window opens graphs and runs their indexer.
    */
   readonly role: GraphRole
-  /**
-   * Listen for index writes that another webview committed.
-   */
-  readonly peerIndexWrites: (listener: () => void) => Unlisten
   /**
    * Where business code reports visible background work.
    */
@@ -1317,7 +1312,7 @@ export function composeCoreServices(
       graphSession,
       indexLifecycle,
       role: adapters.role,
-      peerIndexWrites: adapters.peerIndexWrites,
+      ipc,
     }),
     noteActions: create.noteActions({
       noteDocuments,

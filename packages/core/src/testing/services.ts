@@ -1,5 +1,4 @@
 import type { GraphRole, GraphSession, GraphSessionSource } from '../app/graph-session.ts'
-import type { Unlisten } from '../unlisten.ts'
 import {
   composeCoreServices,
   createIndexReadServices,
@@ -121,10 +120,6 @@ export type TestCoreServiceOverrides = Partial<CoreServices & CoreInternalServic
    * Which window the services run in; defaults to the main window.
    */
   readonly role?: GraphRole
-  /**
-   * The index writes of other webviews; defaults to none.
-   */
-  readonly peerIndexWrites?: (listener: () => void) => Unlisten
   /**
    * Builds the graph-scoped services of each session; defaults to
    * {@link createGraphServices} with the lifecycles of {@link testGraphLifecycles}.
@@ -307,15 +302,9 @@ export type TestCoreServices = Override<
 /**
  * The overrides that go to the adapters rather than in place of a service.
  */
-const TEST_ADAPTER_KEYS = new Set([
-  'backup',
-  'progress',
-  'role',
-  'peerIndexWrites',
-  'createGraphServices',
-])
+const TEST_ADAPTER_KEYS = new Set(['backup', 'progress', 'role', 'createGraphServices'])
 
-type TestAdapterKey = 'backup' | 'peerIndexWrites' | 'createGraphServices'
+type TestAdapterKey = 'backup' | 'createGraphServices'
 
 /**
  * {@link createCoreServices} over test adapters, with the test double of each
@@ -334,7 +323,6 @@ export function createTestCoreServices<
     ipc: edge.ipc ?? createTestIpcBridgeService({ logger: edge.logger }),
     platform,
     role: edge.role ?? 'main',
-    peerIndexWrites: edge.peerIndexWrites ?? (() => () => {}),
     progress: edge.progress,
     http: edge.http,
     storage: { local: null, session: null },

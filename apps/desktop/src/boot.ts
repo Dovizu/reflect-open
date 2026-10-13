@@ -39,7 +39,6 @@ export const coreServices = createCoreServices({
   ...createDesktopAdapters(facts, { logger, clock }, role),
   ipc,
   role,
-  peerIndexWrites: (listener) => host.window.subscribeIndexWritten(listener),
   activity: host.lifecycle,
   progress: host.operations,
   // Called when a graph opens, after both layers below exist.

@@ -77,7 +77,7 @@ export interface AutocompleteSuggestionServiceDeps {
   readonly personNotes: Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>
   readonly settings: Pick<SettingsService, 'get'>
   readonly clock: Pick<ClockService, 'now'>
-  readonly operations: Pick<OperationsService, 'start'>
+  readonly operations: Pick<OperationsService, 'fail'>
   readonly logger: LoggerService
   readonly graphSession: Pick<GraphSessionService, 'getState'>
 }
@@ -171,7 +171,7 @@ class AutocompleteSuggestionServiceImpl implements AutocompleteSuggestionService
             void this.#resolveOrCreateFromAutocomplete(entry.title, generation).catch(
               (error: unknown) => {
                 logger.error('create-from-autocomplete failed:', error)
-                operations.start('Creating note').fail(errorMessage(error))
+                operations.fail('Creating note', errorMessage(error))
               },
             )
           },
@@ -200,7 +200,7 @@ class AutocompleteSuggestionServiceImpl implements AutocompleteSuggestionService
               })
               .catch((error: unknown) => {
                 logger.error('create-person-note failed:', error)
-                operations.start('Creating note').fail(errorMessage(error))
+                operations.fail('Creating note', errorMessage(error))
               })
           },
         }
@@ -244,15 +244,14 @@ class AutocompleteSuggestionServiceImpl implements AutocompleteSuggestionService
    * collision prevents proving uniqueness. Creation may not guess then.
    */
   #reportAmbiguousNoteTitle(title: string): void {
-    this.#deps.operations.start('Creating note').fail(ambiguousNoteTitleMessage(title))
+    this.#deps.operations.fail('Creating note', ambiguousNoteTitleMessage(title))
   }
 
   #reportUnavailableNoteTitle(title: string): void {
-    this.#deps.operations
-      .start('Creating note')
-      .fail(
-        `Couldn’t create “${title}” while a potentially matching note is unavailable. Try again when it is available on this device.`,
-      )
+    this.#deps.operations.fail(
+      'Creating note',
+      `Couldn’t create “${title}” while a potentially matching note is unavailable. Try again when it is available on this device.`,
+    )
   }
 
   // The `[[` autocomplete's create row: re-resolve and inspect the title's

@@ -257,7 +257,7 @@ class BackupServiceImpl implements BackupService {
         onLargeFilesSkipped: (files) => {
           // Surface the guardrail loudly: these files are NOT in the backup.
           const names = files.map((file) => file.path).join(', ')
-          progress.start('Backing up').fail(`Too large to back up (kept local): ${names}`)
+          progress.fail('Backing up', `Too large to back up (kept local): ${names}`)
         },
         onRemoteChanges: (changes) => this.#onRemoteChanges(changes),
       })

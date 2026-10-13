@@ -67,6 +67,10 @@ class TestProgressPortImpl implements TestProgressPort {
     }
   }
 
+  fail(label: string, message: string, options?: OperationOptions): void {
+    this.start(label, options).fail(message)
+  }
+
   getAll(): readonly Operation[] {
     return this.#operations
   }

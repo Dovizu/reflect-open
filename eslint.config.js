@@ -216,7 +216,6 @@ const MODULE_LET_SELECTORS = [
   },
 ]
 
-
 const CORE_DYNAMIC_IMPORT_SELECTORS = [
   dynamicImportSelector(
     String.raw`^(?:@tauri-apps\/|@tanstack\/|react(?:-dom)?(?:\/|$))`,

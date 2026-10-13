@@ -568,7 +568,7 @@ class AttachmentServiceImpl implements AttachmentService {
       problems.push(`could not be copied: ${details}`)
     }
     if (problems.length > 0) {
-      progress.start('Attaching file').fail(problems.join('; '))
+      progress.fail('Attaching file', problems.join('; '))
     }
   }
 
@@ -590,7 +590,7 @@ class AttachmentServiceImpl implements AttachmentService {
           .start('Opening attachment')
           .warn('This file type can’t be opened directly, so it was revealed in Finder instead.')
       } catch {
-        progress.start('Opening attachment').fail(errorMessage(openCause))
+        progress.fail('Opening attachment', errorMessage(openCause))
       }
     }
   }

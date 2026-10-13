@@ -56,10 +56,7 @@ export function createDesktopAdapters(
   facts: PlatformFacts,
   { logger, clock }: Omit<DesktopPrimitives, 'ipc'>,
   role: GraphRole,
-): Omit<
-  CoreAdapters,
-  'ipc' | 'activity' | 'progress' | 'role' | 'peerIndexWrites' | 'createGraphServices'
-> {
+): Omit<CoreAdapters, 'ipc' | 'activity' | 'progress' | 'role' | 'createGraphServices'> {
   const common = {
     platform: facts,
     clock,

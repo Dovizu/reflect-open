@@ -41,6 +41,10 @@ class TestOperationsServiceImpl implements TestOperationsService {
     return this.#inner.start(label, options)
   }
 
+  fail(label: string, message: string, options?: OperationOptions): void {
+    this.#inner.fail(label, message, options)
+  }
+
   dismiss(id: number): void {
     this.#inner.dismiss(id)
   }

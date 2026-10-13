@@ -1,5 +1,6 @@
 import {
   errorMessage,
+  INDEX_WRITTEN_EVENT,
   listenNow,
   windowBootstrapSchema,
   type IpcBridgeService,
@@ -18,11 +19,6 @@ export const MAIN_WINDOW_LABEL = 'main'
  * The shell's `emit_to` request that a note window re-navigate to a `reflect://` link.
  */
 export const WINDOW_NAVIGATE_EVENT = 'window:navigate'
-
-/**
- * The shell's broadcast after an index write command commits.
- */
-export const INDEX_WRITTEN_EVENT = 'index:written'
 
 /**
  * The event passed to an {@link WindowService.onCloseRequested} handler.
