@@ -197,7 +197,7 @@ creates one instance per `GraphSession` and disposes it when `session.signal` ab
 | `syncEngines.create(options)` | the git sync engine of one backup | owned by its `BackupService` |
 | `chatSessions.create({ session })` | `ChatSession` | one per graph session, every window (`GraphServices.chat`) |
 | `capture.openSession({ generation })` | the capture drain and enrich loop | one per graph session, main window only |
-| `assetDescription.openSession({ generation })` | the asset description loop | same, desktop, while `describeAssets` is on |
+| `assetDescription.openSession({ generation, indexGeneration })` | the asset description loop | same, desktop, while `describeAssets` is on |
 | `attachments.watchCatalog(generation)` | the attachment catalog watch | one per graph session, every window |
 | `audioMemo.openSession(...)` / `openPipeline(...)` | the recording surface and its transcription pipeline | one per workspace mount (`AudioMemoProvider`: it needs UI callbacks) |
 | `noteSessions.create(options)` | `NoteSession` | one per open note pane |
@@ -225,10 +225,18 @@ for each session and publishes it as `getState().services`; the app reads it wit
 `useGraphServices()`. It holds the per-graph lifecycles above. A background pass that
 must stop with the graph checks `session.signal.aborted` (`indexLifecycle.sync(session)`).
 
-**Ordinary service methods still take `generation` as a parameter**
-(`noteFile.write(path, contents, generation)`). Removing those parameters is future
-work. Until then: thread the generation through, read it at call time, and never
-cache one across a graph switch.
+Who holds the generation depends on the kind of service
+([services.md](../contributing/services.md) §2, "The open graph"):
+
+- **Rust-boundary wrappers** keep an explicit `generation` parameter
+  (`noteFile.write(path, contents, generation)`), so a background pass writes with
+  the session it started with.
+- **User-facing services** take no `generation`. They read the session once at the
+  entry of each public method (`graphSession.getState().session` or
+  `requireGraphSession(graphSession)`) and pass its generations down
+  (`NoteActionsService`). They never read it again after an `await`.
+- **Background loops** get the `GraphSession` or its generations from
+  `createGraphServices`.
 
 ### Events, not query-cache writes
 

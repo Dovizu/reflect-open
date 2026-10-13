@@ -102,8 +102,9 @@ write carries it; Rust silently drops writes whose generation is stale, so a
 pass started for one graph can never corrupt a newly-opened index. If you add
 a write path, thread the generation through — never cache one across a graph
 switch. (File writes carry a second, independent token: the graph's file
-generation from `graph_open`. Service methods take whichever they need as a
-parameter; see "The open graph" below.)
+generation from `graph_open`. Rust-boundary wrappers take whichever they need
+as a parameter; user-facing services read both from the open `GraphSession`;
+see "The open graph" below.)
 
 ## Embeddings
 
@@ -155,8 +156,10 @@ object; its `signal` aborts when the graph closes or another open is requested.
 per-graph lifecycles, disposed when `signal` aborts. The session also reloads
 open documents after a sync pass, follows healed moves, requests iCloud
 downloads for stale placeholders, and drops note-row overlays when a graph is
-released. Ordinary services stay app-scoped, and their methods take
-`generation` as a parameter.
+released. Ordinary services stay app-scoped. Rust-boundary wrappers
+(`NoteFileService`) take `generation` as a parameter; user-facing services
+(`NoteActionsService`) read the session once at method entry through
+`graphSession.getState()` or `requireGraphSession`.
 
 **`MobileOnboardingService`** (`AppServices.mobileOnboarding`) is the mobile
 boot path over that session: `boot()` parks a fresh install on onboarding or
