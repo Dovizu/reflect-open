@@ -114,25 +114,25 @@ export interface NoteSession {
    * right before the file move lands, so a racing save can never resurrect
    * the old path.
    */
-  retarget: (to: string) => void
+  retarget(to: string): void
   /** Read the note and emit `ready` (or `error`). Call once after creation. */
-  load: () => void
+  load(): void
   /** Every editor document change enters the pipeline here. */
-  editorChanged: (markdown: string) => void
+  editorChanged(markdown: string): void
   /** The watcher reported an on-disk change to this note; reconcile. */
-  externalChanged: () => void
+  externalChanged(): void
   /**
    * Persist pending edits now (e.g. on window blur). Resolves once the
    * flushed write has settled — quit-time teardown awaits this so the webview
    * can't die before the bytes land.
    */
-  flush: () => Promise<void>
+  flush(): Promise<void>
   /** Resolve a conflict by keeping the buffer (rewrites the file). */
-  keepMine: () => void
+  keepMine(): void
   /** Resolve a conflict by loading the external content (discards the buffer). */
-  loadTheirs: () => void
+  loadTheirs(): void
   /** The full current document (frontmatter + buffer), as a save would write it. */
-  content: () => string
+  content(): string
   /**
    * The live document **only when the session has loaded** (`status` is
    * `ready`), else `null`. Distinguishes a genuinely-empty loaded note (return
@@ -141,20 +141,20 @@ export interface NoteSession {
    * buffer for an out-of-band use (e.g. sharing) fall back to disk on `null`
    * rather than treating the loading buffer's emptiness as the truth.
    */
-  liveContent: () => string | null
+  liveContent(): string | null
   /**
    * Whether the buffer holds unsaved edits right now. A pull accessor for
    * out-of-band consumers (the iCloud conflict sweep skips dirty notes,
    * Plan 21) — everything reactive should keep using snapshots.
    */
-  isDirty: () => boolean
+  isDirty(): boolean
   /**
    * Whether this lazy-created note still exists only in the editor session.
    * Returns false while loading, once a file is known to exist, or while a
    * first write is already in flight. An unpersisted session can be discarded
    * without issuing a filesystem delete.
    */
-  isUnpersisted: () => boolean
+  isUnpersisted(): boolean
   /**
    * Pause new saves and wait for the initial load plus any write already in
    * flight before deletion chooses between local discard and filesystem
@@ -162,9 +162,9 @@ export interface NoteSession {
    * with {@link NoteSession.discard} on success or
    * {@link NoteSession.cancelDelete} when filesystem deletion fails.
    */
-  prepareDelete: () => Promise<boolean>
+  prepareDelete(): Promise<boolean>
   /** Resume normal persistence after a prepared filesystem deletion fails. */
-  cancelDelete: () => void
+  cancelDelete(): void
   /**
    * Patch frontmatter keys (e.g. `aliases`, Plan 07b) without touching the
    * editor: the header is updated in place and saved through the normal
@@ -174,7 +174,7 @@ export interface NoteSession {
    * (the rename coordinator writes straight to disk, which a live session
    * then reconciles like any external change).
    */
-  updateFrontmatter: (patch: FrontmatterPatch) => boolean
+  updateFrontmatter(patch: FrontmatterPatch): boolean
   /**
    * {@link NoteSession.updateFrontmatter}, but the patch **lands on disk now**
    * regardless of session state. Normally that's a flush; under a parked
@@ -185,7 +185,7 @@ export interface NoteSession {
    * and false-return as `updateFrontmatter`. For patches that should ride the
    * resolution instead (the rename alias), use `updateFrontmatter`.
    */
-  commitFrontmatter: (patch: FrontmatterPatch) => Promise<boolean>
+  commitFrontmatter(patch: FrontmatterPatch): Promise<boolean>
   /**
    * Append a markdown block to the end of the body (own paragraph, blank-line
    * separated — `appendBlock`) from an out-of-editor action like the
@@ -194,7 +194,7 @@ export interface NoteSession {
    * `false`-when-busy, and transactional revert as {@link commitSourceEdit}.
    * A blank block is refused (`false`) — there is nothing to write.
    */
-  commitBodyAppend: (block: string) => Promise<boolean>
+  commitBodyAppend(block: string): Promise<boolean>
   /**
    * Apply a synchronous full-source transform to the live buffer (so unsaved
    * edits survive), reflect it in the open editor, and flush now. The Tasks
@@ -207,16 +207,16 @@ export interface NoteSession {
    * error thrown by `transform` (a stale task locator) propagates untouched,
    * and a failed flush reverts the in-memory edit before rethrowing.
    */
-  commitSourceEdit: (transform: (source: string) => string) => Promise<boolean>
+  commitSourceEdit(transform: (source: string) => string): Promise<boolean>
   /** Flush pending edits and detach: no further snapshots are emitted. */
-  dispose: () => void
+  dispose(): void
   /**
    * Detach **without** flushing — for deleting the note: a final flush (which
    * `dispose` performs) would rewrite the buffer and recreate the file we are
    * removing. After `discard`, a later `dispose` (e.g. on the pane's unmount)
    * is a no-op. Pending saves are cancelled.
    */
-  discard: () => void
+  discard(): void
 }
 
 /**

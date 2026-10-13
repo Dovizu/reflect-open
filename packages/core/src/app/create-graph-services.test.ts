@@ -234,7 +234,9 @@ describe('createGraphServices', () => {
 
     context.app.mobileOnboarding.setState({ kind: 'icloud' })
     expect(context.downloads.map((download) => download.options.root)).toEqual([ICLOUD_ROOT])
-    expect(context.downloads[0]?.options.refreshIndex).toBe(context.app.graphSession.refreshIndex)
+    const refreshIndex = vi.spyOn(context.app.graphSession, 'refreshIndex')
+    context.downloads[0]?.options.refreshIndex()
+    expect(refreshIndex).toHaveBeenCalledTimes(1)
     expect(context.downloads[0]?.calls).toEqual(['start'])
 
     context.controller.abort()

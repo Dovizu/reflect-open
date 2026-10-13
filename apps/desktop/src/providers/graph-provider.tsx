@@ -75,11 +75,15 @@ export function GraphProvider({
 
   const value = useMemo<GraphContextValue>(
     () => ({
-      ...session,
       ...state,
       ...mobile,
-      createAt: session.createGraphAt,
-      forget: session.forgetRecent,
+      pickAndOpen: () => session.pickAndOpen(),
+      chooseGraph: () => session.chooseGraph(),
+      openRecent: (root) => session.openRecent(root),
+      deleteGraph: () => session.deleteGraph(),
+      refreshIndex: () => session.refreshIndex(),
+      createAt: (root) => session.createGraphAt(root),
+      forget: (root) => session.forgetRecent(root),
       platform,
     }),
     [session, state, mobile, platform],

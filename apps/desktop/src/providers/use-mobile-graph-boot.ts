@@ -64,7 +64,7 @@ export function useMobileGraphBoot(): MobileGraphBoot {
       mobileStorageInfo: state.storageInfo,
       mobileStorageResolving: state.resolving,
       mobileStorageKind: state.kind,
-      completeOnboarding: service.completeOnboarding,
+      completeOnboarding: (kind, root) => service.completeOnboarding(kind, root),
     }),
     [state, service],
   )

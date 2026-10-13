@@ -108,7 +108,7 @@ export interface MobileOnboardingService {
    * change across restore/update), so a taken — or never-started — slot just
    * means the boot makes its own fresh call.
    */
-  warm: () => void
+  warm(): void
   /**
    * Run the mobile boot path: a fresh install parks on onboarding (sandbox
    * root seeded instantly, iCloud section pending); an onboarded graph opens
@@ -116,7 +116,7 @@ export interface MobileOnboardingService {
    * reloads them and runs again the next time the app is focused or visible.
    * Inert on desktop. The returned function stops the boot.
    */
-  boot: () => Unlisten
+  boot(): Unlisten
   /**
    * Open a storage choice and persist it (onboarded flag, storage kind, and
    * — for iCloud — the graph *name*, since the container can hold several
@@ -125,7 +125,7 @@ export interface MobileOnboardingService {
    * graph (or a fresh directory to create); omitted, the kind's default
    * root opens.
    */
-  completeOnboarding: (kind: MobileStorageKind, root?: string) => Promise<void>
+  completeOnboarding(kind: MobileStorageKind, root?: string): Promise<void>
 }
 
 export interface MobileOnboardingServiceDeps {
@@ -169,7 +169,7 @@ class MobileOnboardingServiceImpl implements MobileOnboardingService {
    * Rejections are handled by whoever takes the promise; the guard here only
    * silences the unhandled-rejection report when nothing ever does.
    */
-  readonly warm = (): void => {
+  warm(): void {
     if (this.#warmed === null) {
       this.#warmed = this.#deps.mobileStorage.resolve()
       this.#warmed.catch(() => {})
@@ -183,7 +183,7 @@ class MobileOnboardingServiceImpl implements MobileOnboardingService {
    * on work that already happened or could overlap — resolving the container
    * can take a long time on a fresh install.
    */
-  readonly boot = (): Unlisten => {
+  boot(): Unlisten {
     const {
       mobileStorage,
       settings: settingsService,
@@ -365,10 +365,7 @@ class MobileOnboardingServiceImpl implements MobileOnboardingService {
     }
   }
 
-  readonly completeOnboarding = async (
-    kind: MobileStorageKind,
-    chosenRoot?: string,
-  ): Promise<void> => {
+  async completeOnboarding(kind: MobileStorageKind, chosenRoot?: string): Promise<void> {
     const { mobileStorage, settings: settingsService, graphSession } = this.#deps
     const storageInfo = this.#state.storageInfo
     // An explicit root comes from the onboarding graph list or the settings
