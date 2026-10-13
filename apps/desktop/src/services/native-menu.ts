@@ -1,4 +1,4 @@
-import type { NativeMenuHost, NativeMenuItem } from '@reflect/core'
+import type { NativeMenuHost, NativeMenuItem, NativeSubmenu } from '@reflect/core'
 import { Menu, MenuItem, Submenu, type PredefinedMenuItemOptions } from '@tauri-apps/api/menu'
 
 // Inline item options lose their click handler once the submenu is built.
@@ -13,7 +13,42 @@ async function menuEntry(item: NativeMenuItem): Promise<MenuItem | PredefinedMen
     : { item: item.item, ...(item.text !== undefined ? { text: item.text } : {}) }
 }
 
-/** Native menus through Tauri's menu API. Use this adapter only in the native shell. */
+type NativeAppMenu = Awaited<ReturnType<NativeMenuHost['buildAppMenu']>>
+
+class TauriNativeAppMenu implements NativeAppMenu {
+  readonly #menu: Menu
+  readonly #layouts: readonly NativeSubmenu[]
+  readonly #submenus: readonly Submenu[]
+
+  constructor(menu: Menu, layouts: readonly NativeSubmenu[], submenus: readonly Submenu[]) {
+    this.#menu = menu
+    this.#layouts = layouts
+    this.#submenus = submenus
+  }
+
+  async setAsAppMenu(): Promise<void> {
+    await this.#menu.setAsAppMenu()
+  }
+
+  async assignNsAppRoles(): Promise<void> {
+    for (const [index, layout] of this.#layouts.entries()) {
+      const submenu = this.#submenus[index]
+      if (!submenu) {
+        continue
+      }
+      if (layout.nsAppRole === 'windows') {
+        await submenu.setAsWindowsMenuForNSApp()
+      } else if (layout.nsAppRole === 'help') {
+        await submenu.setAsHelpMenuForNSApp()
+      }
+    }
+  }
+}
+
+/**
+ * Native menus through Tauri's menu API. Use this adapter only in the native shell.
+ * It holds no state and takes no dependencies, so it stays a function.
+ */
 export function createTauriNativeMenuHost(): NativeMenuHost {
   return {
     async buildAppMenu(layouts) {
@@ -27,24 +62,7 @@ export function createTauriNativeMenuHost(): NativeMenuHost {
         ),
       )
       const menu = await Menu.new({ items: submenus })
-      return {
-        async setAsAppMenu() {
-          await menu.setAsAppMenu()
-        },
-        async assignNsAppRoles() {
-          for (const [index, layout] of layouts.entries()) {
-            const submenu = submenus[index]
-            if (!submenu) {
-              continue
-            }
-            if (layout.nsAppRole === 'windows') {
-              await submenu.setAsWindowsMenuForNSApp()
-            } else if (layout.nsAppRole === 'help') {
-              await submenu.setAsHelpMenuForNSApp()
-            }
-          }
-        },
-      }
+      return new TauriNativeAppMenu(menu, layouts, submenus)
     },
     async popup(items) {
       const menuItems = await Promise.all(
