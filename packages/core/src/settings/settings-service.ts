@@ -49,7 +49,7 @@ export interface SettingsService {
 const voidSchema = z.null()
 
 export interface SettingsServiceDeps {
-  readonly ipc: Pick<IpcBridgeService, 'call'>
+  readonly ipc: IpcBridgeService
   readonly progress: ProgressPort
 }
 

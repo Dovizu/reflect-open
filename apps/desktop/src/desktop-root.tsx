@@ -45,7 +45,7 @@ export function DesktopRoot(): ReactElement {
   // store is per-webview, matching the per-window mount this replaces). The
   // effect only ties the subscription to the window's lifetime; the toast
   // calls themselves run inside the store mutations that report the work.
-  useEffect(() => attachOperationToasts({ operations, logger }), [operations, logger])
+  useEffect(() => attachOperationToasts(operations, logger), [operations, logger])
 
   return (
     <AppErrorBoundary>

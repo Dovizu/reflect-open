@@ -1,15 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LinkPreviewResolver } from '@meowdown/core'
 import {
-  cloudSafeLinkHref,
   createLinkPreviewService,
-  notePrivate,
   type LinkPreviewSession,
   type NoteDocumentService,
   type parseLinkPreviewMeta,
   type WebFetchService,
 } from '@reflect/core'
-import { createTestGraphSessionService } from '@reflect/core/testing'
+import { createTestCoreServices, createTestGraphSessionService } from '@reflect/core/testing'
 
 /**
  * The boundaries of the resolver pipeline that `useLinkPreview` gets from `LinkPreviewService`.
@@ -41,13 +39,14 @@ function createNoteLinkPreviewResolver(
   currentSession: () => LinkPreviewSession | null,
   dependencies: LinkPreviewResolverDependencies,
 ): LinkPreviewResolver {
+  const { noteDocuments, privacy, webFetch } = createTestCoreServices()
+  vi.spyOn(noteDocuments, 'readExisting').mockImplementation(dependencies.readSource)
+  vi.spyOn(webFetch, 'fetchLinkPreviewHtml').mockImplementation(dependencies.fetchHtml)
+  vi.spyOn(webFetch, 'fetchLinkPreviewIcon').mockImplementation(dependencies.fetchIcon)
   return createLinkPreviewService({
-    noteDocuments: { readExisting: dependencies.readSource },
-    privacy: { notePrivate, cloudSafeLinkHref },
-    webFetch: {
-      fetchLinkPreviewHtml: dependencies.fetchHtml,
-      fetchLinkPreviewIcon: dependencies.fetchIcon,
-    },
+    noteDocuments,
+    privacy,
+    webFetch,
     parseMetadata: dependencies.parseMetadata,
     graphSession: createTestGraphSessionService({ graph: { generation: 7 } }),
   }).createResolver(session, currentSession)

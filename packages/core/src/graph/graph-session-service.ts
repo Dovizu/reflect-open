@@ -139,16 +139,16 @@ export interface GraphSessionServiceDeps<Services = unknown> {
   readonly indexStore: IndexStoreService
   readonly noteFile: NoteFileService
   readonly id: IdService
-  readonly fileChanges: Pick<FileChangeService, 'subscribeReconcile'>
+  readonly fileChanges: FileChangeService
   /**
    * Only the main window opens, creates, deletes, and indexes graphs.
    */
   readonly role: GraphRole
-  readonly mobileStorage: Pick<MobileStorageService, 'createGraph'>
-  readonly noteRows: Pick<NoteRowService, 'reset'>
-  readonly openDocuments: Pick<OpenDocumentsService, 'reloadAll'>
-  readonly noteMove: Pick<NoteMoveService, 'followHealedMove'>
-  readonly icloudNative: Pick<ICloudNativeService, 'requestDownloads'>
+  readonly mobileStorage: MobileStorageService
+  readonly noteRows: NoteRowService
+  readonly openDocuments: OpenDocumentsService
+  readonly noteMove: NoteMoveService
+  readonly icloudNative: ICloudNativeService
   readonly logger: LoggerService
   /**
    * Build the graph-scoped services of a session that just opened. They must

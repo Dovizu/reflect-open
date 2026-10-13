@@ -13,8 +13,8 @@ export interface AiPromptDraft {
 }
 
 export interface AiPromptServiceDeps {
-  readonly settings: Pick<SettingsService, 'get' | 'subscribe' | 'updateWith'>
-  readonly id: Pick<IdService, 'uuid'>
+  readonly settings: SettingsService
+  readonly id: IdService
 }
 
 /**

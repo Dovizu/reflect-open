@@ -280,26 +280,26 @@ export interface AssetDescriptionService {
 }
 
 export interface AssetDescriptionServiceDeps {
-  readonly assetStore: Pick<AssetStoreService, 'readBase64'>
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listDir'>
-  readonly assetPrivacy: Pick<AssetPrivacyService, 'classifyAsset'>
-  readonly assetDescriber: Pick<AssetDescriberService, 'describe'>
-  readonly aiProviderConfig: Pick<AiProviderConfigService, 'defaultProvider'>
-  readonly aiCredentials: Pick<AiCredentialService, 'read'>
-  readonly hash: Pick<HashService, 'sha256Hex'>
-  readonly clock: Pick<ClockService, 'now'>
+  readonly assetStore: AssetStoreService
+  readonly noteFile: NoteFileService
+  readonly assetPrivacy: AssetPrivacyService
+  readonly assetDescriber: AssetDescriberService
+  readonly aiProviderConfig: AiProviderConfigService
+  readonly aiCredentials: AiCredentialService
+  readonly hash: HashService
+  readonly clock: ClockService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'reindexNotesReferencing'>
+  readonly indexLifecycle: IndexLifecycleService
   readonly progress: ProgressPort
   readonly graphSession: GraphSessionSource
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly logger: LoggerService
 }
 
 interface AssetDescriptionSessionDeps {
-  readonly noteFile: Pick<NoteFileService, 'read'>
-  readonly indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'reindexNotesReferencing'>
+  readonly noteFile: NoteFileService
+  readonly indexLifecycle: IndexLifecycleService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly logger: LoggerService
   readonly reconcile: (
     input: ReconcileAssetDescriptionsInput,
   ) => Promise<ReconcileAssetDescriptionsOutcome>

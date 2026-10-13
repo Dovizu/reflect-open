@@ -116,11 +116,11 @@ export interface DeepLinkIntakeService {
 
 export interface DeepLinkIntakeServiceDeps {
   readonly source: DeepLinkSource
-  readonly indexQuery: Pick<IndexQueryService, 'resolveNoteTarget'>
-  readonly captureInbox: Pick<CaptureInboxService, 'spool'>
+  readonly indexQuery: IndexQueryService
+  readonly captureInbox: CaptureInboxService
   readonly progress: ProgressPort
-  readonly id: Pick<IdService, 'uuid'>
-  readonly clock: Pick<ClockService, 'now'>
+  readonly id: IdService
+  readonly clock: ClockService
   readonly graphSession: GraphSessionSource
 }
 

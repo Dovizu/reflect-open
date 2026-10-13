@@ -80,12 +80,12 @@ export interface ICloudSyncServiceDeps {
   /**
    * Applies the notes a sweep rewrote.
    */
-  readonly indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
+  readonly indexLifecycle: IndexLifecycleService
   /**
    * Notes with unsaved edits; their conflicts defer to the next sweep.
    */
-  readonly openDocuments: Pick<OpenDocumentsService, 'dirtyPaths'>
-  readonly activity: Pick<ActivityPort, 'isHidden' | 'subscribeResume'>
+  readonly openDocuments: OpenDocumentsService
+  readonly activity: ActivityPort
   readonly clock: ClockService
   readonly logger: LoggerService
 }

@@ -117,14 +117,11 @@ export function countSelectedCalendars(
 }
 
 export interface CalendarEventsServiceDeps {
-  readonly calendar: Pick<
-    CalendarService,
-    'authorizationStatus' | 'requestAccess' | 'listCalendars' | 'listEvents' | 'subscribeChanged'
-  >
-  readonly settings: Pick<SettingsService, 'update' | 'updateWith'>
-  readonly platform: Pick<PlatformFacts, 'isMacosDesktop'>
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
-  readonly logger: Pick<LoggerService, 'error'>
+  readonly calendar: CalendarService
+  readonly settings: SettingsService
+  readonly platform: PlatformFacts
+  readonly lifecycle: AppLifecycleService
+  readonly logger: LoggerService
 }
 
 class CalendarEventsServiceImpl implements CalendarEventsService {

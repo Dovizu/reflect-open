@@ -72,7 +72,7 @@ export function CalendarStrip({
   const showToday = date !== today
 
   const jumpToToday = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     onSelect(today)
     // Selecting today only moves the strip when `date` changes — re-center
     // explicitly so a browse-away strip snaps back even when already on today.
@@ -80,13 +80,13 @@ export function CalendarStrip({
   }
 
   const openSettings = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     navigate({ kind: 'settings' })
   }
 
   const [monthPickerOpen, setMonthPickerOpen] = useState(false)
   const openMonthPicker = (): void => {
-    hapticImpactLight({ haptics })
+    hapticImpactLight(haptics)
     setMonthPickerOpen(true)
   }
   const pickMonth = (picked: string): void => {

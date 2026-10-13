@@ -128,11 +128,11 @@ export function canPromptForContacts(authorization: ContactsAuthorization | null
 
 export interface ContactSuggestionServiceDeps {
   readonly contacts: ContactsService
-  readonly noteDocuments: Pick<NoteDocumentService, 'readSource' | 'commitFrontmatter'>
-  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  readonly noteFile: Pick<NoteFileService, 'write'>
+  readonly noteDocuments: NoteDocumentService
+  readonly openDocuments: OpenDocumentsService
+  readonly noteFile: NoteFileService
   readonly settings: SettingsService
-  readonly graphSession: Pick<GraphSessionService, 'getState'>
+  readonly graphSession: GraphSessionService
 }
 
 class ContactSuggestionServiceImpl implements ContactSuggestionService {

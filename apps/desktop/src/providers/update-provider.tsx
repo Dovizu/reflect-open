@@ -37,7 +37,7 @@ export function UpdateProvider({ children, autoCheck }: UpdateProviderProps): Re
     if (!supported) {
       return
     }
-    const detachToasts = attachUpdateToasts({ update, logger })
+    const detachToasts = attachUpdateToasts(update, logger)
     if (resolvedAutoCheck) {
       update.start()
     }

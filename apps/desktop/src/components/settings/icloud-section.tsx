@@ -92,11 +92,11 @@ export function IcloudSettingsField(): ReactElement | null {
     },
   })
   const conflicted = useQuery({
-    ...createConflictedNotesQueryOptions({ indexQuery }, graph?.root),
+    ...createConflictedNotesQueryOptions(indexQuery, graph?.root),
     enabled: hosted,
   })
   const duplicateIds = useQuery({
-    ...createDuplicateNoteIdsQueryOptions({ indexQuery }, graph?.root),
+    ...createDuplicateNoteIdsQueryOptions(indexQuery, graph?.root),
     enabled: hosted,
   })
 

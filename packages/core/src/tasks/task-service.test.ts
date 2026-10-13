@@ -28,6 +28,7 @@ import {
 } from '../testing/database.ts'
 import { createTestNoteSession, type TestNoteSession } from '../testing/documents.ts'
 import { createTestFileChangeService } from '../testing/file-change.ts'
+import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
@@ -116,6 +117,19 @@ function createTasks(
   graphSession: TaskServiceDeps['graphSession'],
   role: TaskServiceDeps['role'] = 'main',
 ): TaskService {
+  const indexLifecycle = createTestIndexLifecycleService()
+  vi.spyOn(indexLifecycle, 'onApplied').mockImplementation((listener) => {
+    appliedListeners.add(listener)
+    return () => {
+      appliedListeners.delete(listener)
+    }
+  })
+  vi.spyOn(indexLifecycle, 'onReconciled').mockImplementation((listener) => {
+    reconciledListeners.add(listener)
+    return () => {
+      reconciledListeners.delete(listener)
+    }
+  })
   return createTaskService({
     database,
     noteDocuments: createNoteDocumentService({
@@ -127,20 +141,7 @@ function createTasks(
     clock,
     logger,
     graphSession,
-    indexLifecycle: {
-      onApplied: (listener) => {
-        appliedListeners.add(listener)
-        return () => {
-          appliedListeners.delete(listener)
-        }
-      },
-      onReconciled: (listener) => {
-        reconciledListeners.add(listener)
-        return () => {
-          reconciledListeners.delete(listener)
-        }
-      },
-    },
+    indexLifecycle,
     role,
     ipc,
   })

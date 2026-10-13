@@ -388,14 +388,14 @@ export interface MeetingService {
 
 export interface MeetingServiceDeps {
   readonly noteFile: NoteFileService
-  readonly noteCreation: Pick<NoteCreationService, 'createNoteWithTitle'>
-  readonly wikiResolver: Pick<WikiResolverService, 'resolveWikiTarget'>
-  readonly suggestions: Pick<SuggestionService, 'suggestWikiTargets'>
+  readonly noteCreation: NoteCreationService
+  readonly wikiResolver: WikiResolverService
+  readonly suggestions: SuggestionService
   readonly personNotes: PersonNoteService
   readonly contacts: ContactsService
   readonly settings: SettingsService
   readonly logger: LoggerService
-  readonly graphSession: Pick<GraphSessionService, 'getState'>
+  readonly graphSession: GraphSessionService
 }
 
 class MeetingServiceImpl implements MeetingService {

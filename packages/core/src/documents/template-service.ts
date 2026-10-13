@@ -92,11 +92,11 @@ export interface TemplateService {
 }
 
 export interface TemplateServiceDeps {
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write'>
-  readonly indexQuery: Pick<IndexQueryService, 'listTemplates'>
-  readonly notePath: Pick<NotePathService, 'availableTemplatePath' | 'templateSlugPathForTitle'>
-  readonly noteMove: Pick<NoteMoveService, 'moveNote'>
-  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly noteFile: NoteFileService
+  readonly indexQuery: IndexQueryService
+  readonly notePath: NotePathService
+  readonly noteMove: NoteMoveService
+  readonly openDocuments: OpenDocumentsService
   readonly progress: ProgressPort
   readonly graphSession: GraphSessionSource
 }

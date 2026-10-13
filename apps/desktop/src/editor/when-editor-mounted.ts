@@ -1,4 +1,4 @@
-import type { CoreServices } from '@reflect/core'
+import type { LoggerService } from '@reflect/core'
 
 /** How many animation frames to wait for ProseKit to attach the editor view
  *  before giving up. In practice the view is attached via ref before effects
@@ -18,7 +18,7 @@ const MOUNT_RETRY_FRAMES = 30
  * fired (or after the budget lapsed) is a no-op.
  */
 export function whenEditorMounted(
-  ctx: Pick<CoreServices, 'logger'>,
+  logger: LoggerService,
   editor: { readonly mounted: boolean },
   run: () => void,
 ): () => void {
@@ -32,7 +32,7 @@ export function whenEditorMounted(
     }
     if (attempts === MOUNT_RETRY_FRAMES) {
       frame = null
-      ctx.logger.error(`editor view never mounted; gave up after ${MOUNT_RETRY_FRAMES} frames`)
+      logger.error(`editor view never mounted; gave up after ${MOUNT_RETRY_FRAMES} frames`)
       return
     }
     attempts += 1

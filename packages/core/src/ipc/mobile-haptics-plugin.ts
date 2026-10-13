@@ -27,7 +27,7 @@ export interface HapticsService {
 
 export interface HapticsServiceDeps {
   readonly ipc: IpcBridgeService
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly logger: LoggerService
 }
 
 class HapticsServiceImpl implements HapticsService {

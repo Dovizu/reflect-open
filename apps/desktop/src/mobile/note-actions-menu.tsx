@@ -48,7 +48,7 @@ export function NoteActionsMenu({ path, onDeleted }: NoteActionsMenuProps): Reac
   }
 
   const share = (): void => {
-    void shareNote({ share: shareService }, path).catch((cause) =>
+    void shareNote(shareService, path).catch((cause) =>
       logger.error('share failed:', errorMessage(cause)),
     )
   }

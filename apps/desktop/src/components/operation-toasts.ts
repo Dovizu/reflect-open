@@ -1,5 +1,5 @@
-import type { AppServices } from '@reflect/app'
-import type { CoreServices, LoggerService, Operation } from '@reflect/core'
+import type { OperationsService } from '@reflect/app'
+import type { LoggerService, Operation } from '@reflect/core'
 import { toast } from '@/components/ui/toast.tsx'
 
 /**
@@ -76,9 +76,9 @@ function showOperationToast(operation: Operation, logger: LoggerService): void {
  * Start mirroring `operations` into toasts; returns a detach.
  */
 export function attachOperationToasts(
-  ctx: Pick<AppServices, 'operations'> & Pick<CoreServices, 'logger'>,
+  operations: OperationsService,
+  logger: LoggerService,
 ): () => void {
-  const { operations, logger } = ctx
   let shownIds = new Set<number>()
   const sync = (): void => {
     const current = operations.getAll()

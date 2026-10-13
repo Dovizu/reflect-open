@@ -91,7 +91,7 @@ export function MobileTaskGroup({
             <button
               type="button"
               onClick={() => {
-                hapticImpactLight({ haptics })
+                hapticImpactLight(haptics)
                 onOpen(notePath)
               }}
               className="truncate"

@@ -117,7 +117,7 @@ export interface EmbeddingIndexServiceDeps {
   readonly noteFile: NoteFileService
   readonly database: DatabaseService
   readonly indexLifecycle: IndexLifecycleService
-  readonly hash: Pick<HashService, 'sha256Hex'>
+  readonly hash: HashService
   readonly logger: LoggerService
 }
 

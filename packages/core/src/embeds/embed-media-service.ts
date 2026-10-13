@@ -13,12 +13,12 @@ import { createArchivedPost, type XArchiveService } from '../x-archive.ts'
 const YOUTUBE_VIDEO_DROP_MS = 30 * 60 * 1000
 
 export interface EmbedMediaServiceDeps {
-  readonly xArchive: Pick<XArchiveService, 'resolve' | 'write' | 'fetchSyndication'>
-  readonly webFetch: Pick<WebFetchService, 'fetchOembed'>
+  readonly xArchive: XArchiveService
+  readonly webFetch: WebFetchService
   readonly platform: FileSrcSource
-  readonly clock: Pick<ClockService, 'now' | 'setTimeout' | 'clearTimeout'>
-  readonly logger: Pick<LoggerService, 'error'>
-  readonly graphSession: Pick<GraphSessionService, 'getState'>
+  readonly clock: ClockService
+  readonly logger: LoggerService
+  readonly graphSession: GraphSessionService
 }
 
 /**

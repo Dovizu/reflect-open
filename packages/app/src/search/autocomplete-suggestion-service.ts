@@ -71,15 +71,15 @@ export interface AutocompleteSuggestionService {
 }
 
 export interface AutocompleteSuggestionServiceDeps {
-  readonly suggestions: Pick<SuggestionService, 'suggestWikiLinkTargets' | 'suggestTags'>
-  readonly noteCreation: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-  readonly contacts: Pick<ContactsService, 'canLookup' | 'lookupPeople'>
-  readonly personNotes: Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>
-  readonly settings: Pick<SettingsService, 'get'>
-  readonly clock: Pick<ClockService, 'now'>
-  readonly operations: Pick<OperationsService, 'fail'>
+  readonly suggestions: SuggestionService
+  readonly noteCreation: NoteCreationService
+  readonly contacts: ContactsService
+  readonly personNotes: PersonNoteService
+  readonly settings: SettingsService
+  readonly clock: ClockService
+  readonly operations: OperationsService
   readonly logger: LoggerService
-  readonly graphSession: Pick<GraphSessionService, 'getState'>
+  readonly graphSession: GraphSessionService
 }
 
 class AutocompleteSuggestionServiceImpl implements AutocompleteSuggestionService {

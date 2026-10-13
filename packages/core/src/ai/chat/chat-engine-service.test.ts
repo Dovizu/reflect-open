@@ -1,6 +1,6 @@
 import { createTestGraphSessionService } from '../../testing/graph-session.ts'
 import type { LanguageModel, ModelMessage } from '@reflect/modules/ai'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { convertArrayToReadableStream, MockLanguageModelV3 } from '@reflect/modules/ai/test'
 import type {
   LanguageModelV3StreamPart,
@@ -9,8 +9,10 @@ import type {
 } from '@ai-sdk/provider'
 import type { RetrievalHit } from '../../embeddings/retrieval-service.ts'
 import { createAssetPrivacyService } from '../../assets/asset-privacy-service.ts'
+import { createNoteListService } from '../../indexing/note-list-service.ts'
 import { cloudSafeGraphContext, createPrivacyService } from '../../privacy/privacy-service.ts'
 import {
+  createTestDatabaseService,
   createTestLanguageModelService,
   createTestLoggerService,
   createTestNoteFileService,
@@ -57,17 +59,20 @@ function createNoteTools(effects?: {
   retrieveFn?: () => Promise<RetrievalHit[]>
   readNoteFn?: (path: string) => Promise<string>
 }): NoteToolsService {
-  const noteFile =
-    effects?.readNoteFn === undefined ? createTestNoteFileService() : { read: effects.readNoteFn }
+  const noteFile = createTestNoteFileService()
+  if (effects?.readNoteFn !== undefined) {
+    vi.spyOn(noteFile, 'read').mockImplementation(effects.readNoteFn)
+  }
+  const retrieval = createTestRetrievalService()
+  if (effects?.retrieveFn !== undefined) {
+    vi.spyOn(retrieval, 'retrieve').mockImplementation(effects.retrieveFn)
+  }
   const xArchive = createTestXArchiveService()
   const assetReferences = { notePaths: async () => [] }
   return createNoteToolsService({
-    retrieval:
-      effects?.retrieveFn === undefined
-        ? createTestRetrievalService()
-        : { retrieve: effects.retrieveFn },
+    retrieval,
     noteFile,
-    noteList: { listRecentNotes: async () => [] },
+    noteList: createNoteListService({ database: createTestDatabaseService() }),
     dailyNotes: { listDailyNotes: async () => [] },
     assetReferences,
     assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),

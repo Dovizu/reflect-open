@@ -160,17 +160,14 @@ export interface ChatSessionServiceDeps {
   readonly chatEngine: ChatEngineService
   readonly chatHistory: ChatHistoryService
   readonly chatGraphContext: ChatGraphContextService
-  readonly providerConfig: Pick<
-    AiProviderConfigService,
-    'list' | 'chatModelOptions' | 'chatModel' | 'selectChatModel'
-  >
-  readonly credentials: Pick<AiCredentialService, 'read'>
-  readonly embeddingRuntime: Pick<EmbeddingRuntimeService, 'status' | 'subscribe' | 'lastStatus'>
-  readonly settings: Pick<SettingsService, 'get' | 'subscribe'>
-  readonly clock: Pick<ClockService, 'now' | 'today'>
-  readonly id: Pick<IdService, 'uuid'>
-  readonly imageCodec: Pick<ImageCodecService, 'decode'>
-  readonly logger: Pick<LoggerService, 'error'>
+  readonly providerConfig: AiProviderConfigService
+  readonly credentials: AiCredentialService
+  readonly embeddingRuntime: EmbeddingRuntimeService
+  readonly settings: SettingsService
+  readonly clock: ClockService
+  readonly id: IdService
+  readonly imageCodec: ImageCodecService
+  readonly logger: LoggerService
 }
 
 /**

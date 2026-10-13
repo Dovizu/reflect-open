@@ -18,12 +18,13 @@ import { DeepLinkProvider } from './deep-link-provider.tsx'
 const GRAPH = { root: '/g', name: 'g', generation: 7 }
 
 function setup() {
-  const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
+  const { indexQuery } = createTestCoreServices()
+  const resolveNoteTarget = vi.spyOn(indexQuery, 'resolveNoteTarget')
   const captureInbox = createTestCaptureInboxService()
   const operations = createTestProgressPort()
   const graphSession = createTestGraphSessionService()
   const deepLinkIntake = createTestDeepLinkIntakeService({
-    indexQuery: { resolveNoteTarget },
+    indexQuery,
     captureInbox,
     progress: operations,
     graphSession,

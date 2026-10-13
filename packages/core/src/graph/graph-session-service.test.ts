@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
+import { createOpenDocumentsService } from '../documents/open-documents-service.ts'
+import { createTestNoteMoveService } from '../testing/documents.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
@@ -106,6 +108,14 @@ function setup(options?: SetupOptions) {
   const reloads: number[] = []
   const healedMoves: [string, string][] = []
   const built: { session: GraphSession; role: GraphRole; services: { id: number } }[] = []
+  const openDocuments = createOpenDocumentsService({ fileChanges })
+  vi.spyOn(openDocuments, 'reloadAll').mockImplementation(() => {
+    reloads.push(reloads.length + 1)
+  })
+  const noteMove = createTestNoteMoveService()
+  vi.spyOn(noteMove, 'followHealedMove').mockImplementation((from, to) => {
+    healedMoves.push([from, to])
+  })
   const session = createTestGraphSessionService({
     ipc,
     indexLifecycle,
@@ -115,16 +125,8 @@ function setup(options?: SetupOptions) {
     role: options?.role ?? 'main',
     mobileStorage,
     noteRows,
-    openDocuments: {
-      reloadAll: () => {
-        reloads.push(reloads.length + 1)
-      },
-    },
-    noteMove: {
-      followHealedMove: (from, to) => {
-        healedMoves.push([from, to])
-      },
-    },
+    openDocuments,
+    noteMove,
     icloudNative,
     logger,
     createServices: (opened) => {

@@ -76,11 +76,11 @@ export interface PaletteSearchService<Context = unknown> {
 }
 
 export interface PaletteSearchServiceDeps<Context = unknown> {
-  readonly suggestions: Pick<SuggestionService, 'suggestWikiTargets'>
-  readonly search: Pick<SearchService, 'searchWithFilters'>
-  readonly retrieval: Pick<RetrievalService, 'retrieve'>
-  readonly commands: Pick<CommandService<Context>, 'list'>
-  readonly clock: Pick<ClockService, 'now'>
+  readonly suggestions: SuggestionService
+  readonly search: SearchService
+  readonly retrieval: RetrievalService
+  readonly commands: CommandService<Context>
+  readonly clock: ClockService
 }
 
 class PaletteSearchServiceImpl<Context> implements PaletteSearchService<Context> {

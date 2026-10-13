@@ -117,7 +117,7 @@ export async function lookupContactPeople(
 
 export interface ContactsServiceDeps {
   readonly ipc: IpcBridgeService
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly logger: LoggerService
 }
 
 class ContactsServiceImpl implements ContactsService {

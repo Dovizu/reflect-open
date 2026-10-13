@@ -1,10 +1,14 @@
 import { createTestGraphSessionService } from '../../testing/graph-session.ts'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../../errors.ts'
 import type { ToolExecutionOptions } from '@reflect/modules/ai'
 import type { RetrievalHit, RetrieveOptions } from '../../embeddings/retrieve.ts'
 import type { DailyNoteRow, DailyNotesRange } from '../../daily/daily-note-service.ts'
-import type { RecentNoteRow, RecentNotesOptions } from '../../indexing/note-list-service.ts'
+import {
+  createNoteListService,
+  type RecentNoteRow,
+  type RecentNotesOptions,
+} from '../../indexing/note-list-service.ts'
 import {
   ASSET_UNAVAILABLE_ERROR,
   MAX_ASSET_DESCRIPTION_CHARS,
@@ -16,7 +20,12 @@ import {
 import { MAX_NOTE_CONTENT_CHARS, type ReadNoteResult, type ReadNotesOutput } from './read-notes.ts'
 import { createAssetPrivacyService } from '../../assets/asset-privacy-service.ts'
 import { createPrivacyService } from '../../privacy/privacy-service.ts'
-import { createTestXArchiveService } from '../../testing/index.ts'
+import {
+  createTestDatabaseService,
+  createTestNoteFileService,
+  createTestRetrievalService,
+  createTestXArchiveService,
+} from '../../testing/index.ts'
 import {
   createNoteToolsService,
   INVALID_TAG_ERROR,
@@ -44,14 +53,19 @@ interface ToolEffects {
  * The tool set of a `NoteToolsService` over `effects`, with the real privacy gate.
  */
 function buildNoteTools(effects: ToolEffects = {}): NoteTools {
-  const noteFile = {
-    read: async (path: string): Promise<string> => {
-      if (effects.readNoteFn === undefined) {
-        throw new ReflectError('notFound', `${path} not found`)
-      }
-      return await effects.readNoteFn(path)
-    },
-  }
+  const noteFile = createTestNoteFileService()
+  vi.spyOn(noteFile, 'read').mockImplementation(async (path: string): Promise<string> => {
+    if (effects.readNoteFn === undefined) {
+      throw new ReflectError('notFound', `${path} not found`)
+    }
+    return await effects.readNoteFn(path)
+  })
+  const retrieval = createTestRetrievalService()
+  vi.spyOn(retrieval, 'retrieve').mockImplementation(effects.retrieveFn ?? (async () => []))
+  const noteList = createNoteListService({ database: createTestDatabaseService() })
+  vi.spyOn(noteList, 'listRecentNotes').mockImplementation(
+    effects.listRecentNotesFn ?? (async () => []),
+  )
   const assetReferences = {
     notePaths: effects.assetReferencingNotePathsFn ?? (async () => []),
   }
@@ -59,9 +73,9 @@ function buildNoteTools(effects: ToolEffects = {}): NoteTools {
     effects.xArchiveOwners === undefined ? {} : { owners: effects.xArchiveOwners },
   )
   return createNoteToolsService({
-    retrieval: { retrieve: effects.retrieveFn ?? (async () => []) },
+    retrieval,
     noteFile,
-    noteList: { listRecentNotes: effects.listRecentNotesFn ?? (async () => []) },
+    noteList,
     dailyNotes: { listDailyNotes: effects.listDailyNotesFn ?? (async () => []) },
     assetReferences,
     assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),

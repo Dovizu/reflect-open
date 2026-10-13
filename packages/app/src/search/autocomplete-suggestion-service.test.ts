@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   contactsCanLookup,
   createPersonNoteService,
@@ -57,7 +57,7 @@ interface SetupOptions {
    * Makes every address-book lookup reject.
    */
   contactsFailure?: Error
-  personNotes?: Partial<Pick<PersonNoteService, 'resolvePersonContact' | 'ensurePersonNote'>>
+  personNotes?: Partial<PersonNoteService>
 }
 
 async function setup(options?: SetupOptions) {
@@ -79,47 +79,64 @@ async function setup(options?: SetupOptions) {
   const created: { title: string; generation: number; body?: string }[] = []
   const ensured: EnsurePersonNoteInput[] = []
   const graphSession = createTestGraphSessionService({ graph: { generation: 7 } })
-  const service = createAutocompleteSuggestionService({
-    suggestions: {
-      suggestWikiLinkTargets: async (query, limit, dateGen) => {
-        linkQueries.push({
-          query,
-          ...(limit === undefined ? {} : { limit }),
-          ...(dateGen === undefined ? {} : { dateGen }),
-        })
-        return options?.wikiLinks ?? NO_SUGGESTIONS
-      },
-      suggestTags: async (query) => {
-        tagQueries.push(query)
-        return [
-          { tag: 'work', count: 3 },
-          { tag: 'Home', count: 1 },
-        ]
-      },
+  const database = createTestDatabaseService()
+  const suggestions = createSuggestionService({ database })
+  vi.spyOn(suggestions, 'suggestWikiLinkTargets').mockImplementation(
+    async (query, limit, dateGen) => {
+      linkQueries.push({
+        query,
+        ...(limit === undefined ? {} : { limit }),
+        ...(dateGen === undefined ? {} : { dateGen }),
+      })
+      return options?.wikiLinks ?? NO_SUGGESTIONS
     },
-    noteCreation: {
-      resolveOrCreateNoteWithTitle: async (title, generation, body) => {
-        created.push({ title, generation, ...(body === undefined ? {} : { body }) })
-        return await (options?.create?.() ??
-          Promise.resolve({ kind: 'created', path: 'notes/created.md' }))
-      },
+  )
+  vi.spyOn(suggestions, 'suggestTags').mockImplementation(async (query) => {
+    tagQueries.push(query)
+    return [
+      { tag: 'work', count: 3 },
+      { tag: 'Home', count: 1 },
+    ]
+  })
+  const noteCreation = createTestNoteCreationService()
+  vi.spyOn(noteCreation, 'resolveOrCreateNoteWithTitle').mockImplementation(
+    async (title, generation, body) => {
+      created.push({ title, generation, ...(body === undefined ? {} : { body }) })
+      return await (options?.create?.() ??
+        Promise.resolve({ kind: 'created', path: 'notes/created.md' }))
     },
-    contacts: {
-      canLookup: (current) => contactsCanLookup({ authorization }, current),
-      lookupPeople: (query) => lookupContactPeople(query, lookupByName),
-    },
-    personNotes: {
-      resolvePersonContact: async (contact) => ({
+  )
+  vi.spyOn(contacts, 'canLookup').mockImplementation((current) =>
+    contactsCanLookup({ authorization }, current),
+  )
+  vi.spyOn(contacts, 'lookupPeople').mockImplementation((query) =>
+    lookupContactPeople(query, lookupByName),
+  )
+  const personNotes = createPersonNoteService({
+    database,
+    wikiResolver: createWikiResolverService({ database }),
+    noteCreation,
+  })
+  vi.spyOn(personNotes, 'resolvePersonContact').mockImplementation(
+    options?.personNotes?.resolvePersonContact ??
+      (async (contact) => ({
         kind: 'new',
         contact,
         insertText: contact.fullName,
-      }),
-      ensurePersonNote: async (input) => {
+      })),
+  )
+  vi.spyOn(personNotes, 'ensurePersonNote').mockImplementation(
+    options?.personNotes?.ensurePersonNote ??
+      (async (input) => {
         ensured.push(input)
         return { kind: 'created', path: 'notes/person.md' }
-      },
-      ...options?.personNotes,
-    },
+      }),
+  )
+  const service = createAutocompleteSuggestionService({
+    suggestions,
+    noteCreation,
+    contacts,
+    personNotes,
     settings,
     clock,
     operations,

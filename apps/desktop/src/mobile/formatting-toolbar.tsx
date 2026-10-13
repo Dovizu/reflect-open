@@ -146,7 +146,7 @@ function ToolbarButton({
       onPointerDown={(event) => event.preventDefault()}
       onMouseDown={(event) => event.preventDefault()}
       onClick={() => {
-        hapticImpactLight({ haptics })
+        hapticImpactLight(haptics)
         onPress()
       }}
       className="flex h-11 w-10 shrink-0 items-center justify-center rounded-md text-text-muted disabled:opacity-40"

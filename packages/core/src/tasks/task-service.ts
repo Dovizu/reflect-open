@@ -40,12 +40,12 @@ import { getScheduledMarkdown } from './task-schedule-content.ts'
 
 export interface TaskServiceDeps {
   readonly database: DatabaseService
-  readonly noteDocuments: Pick<NoteDocumentService, 'commitSourceEdit'>
+  readonly noteDocuments: NoteDocumentService
   readonly progress: ProgressPort
-  readonly clock: Pick<ClockService, 'now' | 'monotonicNow' | 'setTimeout'>
-  readonly logger: Pick<LoggerService, 'error' | 'warn'>
+  readonly clock: ClockService
+  readonly logger: LoggerService
   readonly graphSession: GraphSessionSource & { subscribe: (listener: () => void) => Unlisten }
-  readonly indexLifecycle: Pick<IndexLifecycleService, 'onApplied' | 'onReconciled'>
+  readonly indexLifecycle: IndexLifecycleService
   /**
    * Which window this webview is; only a note window follows {@link INDEX_WRITTEN_EVENT}.
    */

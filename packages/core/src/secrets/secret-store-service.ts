@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 export interface SecretStoreServiceDeps {
-  readonly ipc: Pick<IpcBridgeService, 'call'>
+  readonly ipc: IpcBridgeService
 }
 
 /**

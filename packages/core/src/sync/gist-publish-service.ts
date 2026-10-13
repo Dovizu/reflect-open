@@ -53,10 +53,10 @@ export interface GistPublishService {
 
 export interface GistPublishServiceDeps {
   readonly gists: GistService
-  readonly githubAuth: Pick<GithubAuthService, 'getToken'>
-  readonly noteDocuments: Pick<NoteDocumentService, 'readSource' | 'commitFrontmatter'>
-  readonly noteRows: Pick<NoteRowService, 'setOverlay'>
-  readonly privacy: Pick<PrivacyService, 'assertCloudAllowed'>
+  readonly githubAuth: GithubAuthService
+  readonly noteDocuments: NoteDocumentService
+  readonly noteRows: NoteRowService
+  readonly privacy: PrivacyService
   readonly progress: ProgressPort
   readonly graphSession: GraphSessionSource
 }

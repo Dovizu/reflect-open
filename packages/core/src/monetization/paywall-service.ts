@@ -68,16 +68,13 @@ function isAppStoreInstall(environment: AppStoreEnvironment): boolean {
 }
 
 export interface PaywallServiceDeps {
-  readonly subscription: Pick<
-    SubscriptionService,
-    'getState' | 'subscribe' | 'invalidate' | 'refetch'
-  >
-  readonly classicAccess: Pick<ClassicAccessService, 'getState' | 'subscribe'>
-  readonly appStoreEnvironment: Pick<AppStoreEnvironmentService, 'getState' | 'subscribe'>
-  readonly iap: Pick<IapService, 'getProducts' | 'purchase'>
-  readonly appStore: Pick<AppStoreService, 'sync' | 'presentOfferCodeRedeemSheet'>
-  readonly platform: Pick<PlatformFacts, 'appPlatform'>
-  readonly storage: Pick<StorageService, 'session'>
+  readonly subscription: SubscriptionService
+  readonly classicAccess: ClassicAccessService
+  readonly appStoreEnvironment: AppStoreEnvironmentService
+  readonly iap: IapService
+  readonly appStore: AppStoreService
+  readonly platform: PlatformFacts
+  readonly storage: StorageService
 }
 
 class PaywallServiceImpl implements PaywallService {

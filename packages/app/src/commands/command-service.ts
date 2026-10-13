@@ -64,7 +64,7 @@ export interface CommandService<Context = unknown> {
 }
 
 export interface CommandServiceDeps {
-  readonly platform: Pick<PlatformFacts, 'isApplePlatform'>
+  readonly platform: PlatformFacts
   readonly logger: LoggerService
 }
 

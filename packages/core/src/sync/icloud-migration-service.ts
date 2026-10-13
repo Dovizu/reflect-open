@@ -27,7 +27,7 @@ export interface MoveGraphToICloudOptions {
  * The services an {@link ICloudMigrationService} runs on.
  */
 export interface ICloudMigrationServiceDeps {
-  readonly icloudNative: Pick<ICloudNativeService, 'adoptGraph'>
+  readonly icloudNative: ICloudNativeService
   readonly graphSession: GraphSessionSource
 }
 

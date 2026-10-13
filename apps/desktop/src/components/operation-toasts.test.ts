@@ -20,7 +20,7 @@ beforeEach(() => {
   logger = createTestLoggerService()
   toast.add.mockClear()
   toast.close.mockClear()
-  detach = attachOperationToasts({ operations, logger })
+  detach = attachOperationToasts(operations, logger)
 })
 
 afterEach(() => {

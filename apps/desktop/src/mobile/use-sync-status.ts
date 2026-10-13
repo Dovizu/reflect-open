@@ -24,7 +24,7 @@ export function useMobileSyncStatus(): MobileSyncStatus | null {
   const connected = backup !== null && backup.phase === 'connected'
 
   const { data: conflicted, isError: countUnavailable } = useQuery({
-    ...createConflictedNotesQueryOptions({ indexQuery }, graph?.root),
+    ...createConflictedNotesQueryOptions(indexQuery, graph?.root),
     enabled: graph !== null && connected,
   })
 

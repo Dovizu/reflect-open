@@ -11,7 +11,7 @@ export type TestPersistenceFlushService = PersistenceFlushService
 class TestPersistenceFlushServiceImpl implements TestPersistenceFlushService {
   readonly #flushers = new Map<PersistenceFlusherKind, PersistenceFlusher>()
 
-  constructor(openDocuments: Pick<OpenDocumentsService, 'flushAll'> | undefined) {
+  constructor(openDocuments: OpenDocumentsService | undefined) {
     if (openDocuments !== undefined) {
       this.#flushers.set('documents', () => openDocuments.flushAll())
     }
@@ -45,7 +45,7 @@ class TestPersistenceFlushServiceImpl implements TestPersistenceFlushService {
  * An in-memory {@link PersistenceFlushService}.
  */
 export function createTestPersistenceFlushService(deps?: {
-  openDocuments?: Pick<OpenDocumentsService, 'flushAll'>
+  openDocuments?: OpenDocumentsService
 }): TestPersistenceFlushService {
   return new TestPersistenceFlushServiceImpl(deps?.openDocuments)
 }

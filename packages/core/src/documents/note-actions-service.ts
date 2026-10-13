@@ -170,14 +170,14 @@ export interface NoteActionsService {
 
 export interface NoteActionsServiceDeps {
   readonly noteDocuments: NoteDocumentService
-  readonly noteFile: Pick<NoteFileService, 'delete'>
-  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  readonly indexLifecycle: Pick<IndexLifecycleService, 'indexNote'>
-  readonly indexQuery: Pick<IndexQueryService, 'getPinnedNotes' | 'getNote'>
-  readonly noteRows: Pick<NoteRowService, 'setOverlay' | 'dropOverlay' | 'getOverlaysOn'>
+  readonly noteFile: NoteFileService
+  readonly openDocuments: OpenDocumentsService
+  readonly indexLifecycle: IndexLifecycleService
+  readonly indexQuery: IndexQueryService
+  readonly noteRows: NoteRowService
   readonly progress: ProgressPort
-  readonly path: Pick<PathService, 'join'>
-  readonly id: Pick<IdService, 'noteId'>
+  readonly path: PathService
+  readonly id: IdService
   readonly graphSession: GraphSessionSource
 }
 

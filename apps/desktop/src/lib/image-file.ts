@@ -1,4 +1,4 @@
-import type { CoreServices } from '@reflect/core'
+import type { ImageCodecService } from '@reflect/core'
 
 /** JPEG quality for a transcoded photo: visually lossless at a sane size. */
 const JPEG_QUALITY = 0.92
@@ -30,13 +30,13 @@ function withJpegExtension(name: string): string {
  * the format question surfaces where it can be seen.
  */
 export async function toPortableImageFile(
-  ctx: Pick<CoreServices, 'imageCodec'>,
+  imageCodec: ImageCodecService,
   file: File,
 ): Promise<File> {
   if (!isAppleImageFormat(file)) {
     return file
   }
-  const image = await ctx.imageCodec.decode(file)
+  const image = await imageCodec.decode(file)
   if (image === null) {
     return file
   }

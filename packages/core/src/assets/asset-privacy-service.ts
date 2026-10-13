@@ -44,9 +44,9 @@ export interface AssetPrivacyService {
 }
 
 export interface AssetPrivacyServiceDeps {
-  readonly noteFile: Pick<NoteFileService, 'read'>
-  readonly xArchive: Pick<XArchiveService, 'owners'>
-  readonly assetReferences: Pick<AssetReferences, 'notePaths'>
+  readonly noteFile: NoteFileService
+  readonly xArchive: XArchiveService
+  readonly assetReferences: AssetReferences
 }
 
 class AssetPrivacyServiceImpl implements AssetPrivacyService {

@@ -36,7 +36,7 @@ const PROVIDER_SAFE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'i
  * in the transcript if it can't read it either.
  */
 async function downscaledImage(
-  imageCodec: Pick<ImageCodecService, 'decode'>,
+  imageCodec: ImageCodecService,
   file: File,
 ): Promise<{ dataUrl: string; mediaType: string } | null> {
   const image = await imageCodec.decode(file)
@@ -71,7 +71,7 @@ async function dataUrlOf(blob: Blob): Promise<string> {
  * Read an image file into an attachment, bytes inlined as a `data:` URL.
  */
 export async function readChatAttachment(
-  ctx: { imageCodec: Pick<ImageCodecService, 'decode'>; id: Pick<IdService, 'uuid'> },
+  ctx: { imageCodec: ImageCodecService; id: IdService },
   file: File,
 ): Promise<ChatAttachment> {
   const downscaled = await downscaledImage(ctx.imageCodec, file)

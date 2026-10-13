@@ -126,7 +126,7 @@ const CHANGED_EVENT = 'calendar:changed'
 
 export interface CalendarServiceDeps {
   readonly ipc: IpcBridgeService
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly logger: LoggerService
 }
 
 class CalendarServiceImpl implements CalendarService {

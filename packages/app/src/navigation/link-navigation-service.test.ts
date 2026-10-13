@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   type NoteCreationService,
   type NoteLinkResolverService,
@@ -45,9 +45,9 @@ function setup(options?: {
   evicted?: readonly string[]
   platform?: TestPlatformOptions
   openNoteWindow?: (deepLink: string) => boolean | Promise<boolean>
-  noteLinkResolver?: Pick<NoteLinkResolverService, 'resolveWikiTarget' | 'resolveMarkdownHref'>
-  noteCreation?: Pick<NoteCreationService, 'resolveOrCreateNoteWithTitle'>
-  wikiResolver?: Pick<WikiResolverService, 'resolveWikiTarget'>
+  noteLinkResolver?: NoteLinkResolverService
+  resolveOrCreateNoteWithTitle?: NoteCreationService['resolveOrCreateNoteWithTitle']
+  resolveWikiTarget?: WikiResolverService['resolveWikiTarget']
   graph?: TestOpenGraph | null
 }) {
   const noteFile = createTestNoteFileService({
@@ -68,11 +68,19 @@ function setup(options?: {
   const graphSession = createTestGraphSessionService({
     graph: options?.graph === undefined ? { generation: 7 } : options.graph,
   })
+  if (options?.resolveOrCreateNoteWithTitle !== undefined) {
+    vi.spyOn(noteCreation, 'resolveOrCreateNoteWithTitle').mockImplementation(
+      options.resolveOrCreateNoteWithTitle,
+    )
+  }
+  const wikiResolver = createWikiResolverService({ database: createTestDatabaseService() })
+  if (options?.resolveWikiTarget !== undefined) {
+    vi.spyOn(wikiResolver, 'resolveWikiTarget').mockImplementation(options.resolveWikiTarget)
+  }
   const linkNavigation = createLinkNavigationService({
     noteLinkResolver: options?.noteLinkResolver ?? noteLinkResolver,
-    noteCreation: options?.noteCreation ?? noteCreation,
-    wikiResolver:
-      options?.wikiResolver ?? createWikiResolverService({ database: createTestDatabaseService() }),
+    noteCreation,
+    wikiResolver,
     window,
     platform: createTestPlatformService(options?.platform),
     opener,
@@ -338,11 +346,9 @@ describe('followWikiLink', () => {
     const targets: string[] = []
     const { linkNavigation, host, noteLinkResolver } = setup({
       graph: null,
-      wikiResolver: {
-        resolveWikiTarget: async (target) => {
-          targets.push(target)
-          return { kind: 'resolved', ref: 'notes/2026-06-09.md' }
-        },
+      resolveWikiTarget: async (target) => {
+        targets.push(target)
+        return { kind: 'resolved', ref: 'notes/2026-06-09.md' }
       },
     })
     linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
@@ -354,9 +360,7 @@ describe('followWikiLink', () => {
 
   it('opens the lazy daily route for an unindexed ISO date when read-only', async () => {
     const { linkNavigation, host } = setup({
-      wikiResolver: {
-        resolveWikiTarget: async (target) => ({ kind: 'unresolved', text: target }),
-      },
+      resolveWikiTarget: async (target) => ({ kind: 'unresolved', text: target }),
     })
     linkNavigation.followWikiLink(
       { target: '2026-06-09', openInNewWindow: false, readOnly: true },
@@ -404,12 +408,10 @@ describe('followWikiLink', () => {
 
   it('routes a resolved daily alias through the daily view', async () => {
     const { linkNavigation, host } = setup({
-      noteCreation: {
-        resolveOrCreateNoteWithTitle: async () => ({
-          kind: 'resolved',
-          path: 'daily/2026-06-09.md',
-        }),
-      },
+      resolveOrCreateNoteWithTitle: async () => ({
+        kind: 'resolved',
+        path: 'daily/2026-06-09.md',
+      }),
     })
     linkNavigation.followWikiLink({ target: 'Project log', openInNewWindow: false }, host)
     await settle()
@@ -427,9 +429,7 @@ describe('followWikiLink', () => {
 
   it('does not create when read-only', async () => {
     const { linkNavigation, host, noteCreation } = setup({
-      wikiResolver: {
-        resolveWikiTarget: async (target) => ({ kind: 'unresolved', text: target }),
-      },
+      resolveWikiTarget: async (target) => ({ kind: 'unresolved', text: target }),
     })
     linkNavigation.followWikiLink(
       { target: 'Brand New', openInNewWindow: false, readOnly: true },
@@ -443,9 +443,7 @@ describe('followWikiLink', () => {
   it('opens an indexed title with no graph open', async () => {
     const { linkNavigation, host } = setup({
       graph: null,
-      wikiResolver: {
-        resolveWikiTarget: async () => ({ kind: 'resolved', ref: 'notes/target.md' }),
-      },
+      resolveWikiTarget: async () => ({ kind: 'resolved', ref: 'notes/target.md' }),
     })
     linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: false }, host)
     await settle()
@@ -523,10 +521,8 @@ describe('followWikiLink', () => {
   it('surfaces a resolution failure instead of silently doing nothing', async () => {
     const failure = new Error('index unavailable')
     const { linkNavigation, host, operations, logger } = setup({
-      noteCreation: {
-        resolveOrCreateNoteWithTitle: async () => {
-          throw failure
-        },
+      resolveOrCreateNoteWithTitle: async () => {
+        throw failure
       },
     })
     linkNavigation.followWikiLink({ target: 'Business ideas', openInNewWindow: false }, host)
@@ -544,7 +540,7 @@ describe('followWikiLink', () => {
   it('drops a resolution that lands after the host went stale', async () => {
     const pending = Promise.withResolvers<{ kind: 'resolved'; path: string }>()
     const { linkNavigation, host } = setup({
-      noteCreation: { resolveOrCreateNoteWithTitle: () => pending.promise },
+      resolveOrCreateNoteWithTitle: () => pending.promise,
     })
     linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: false }, host)
     host.leave()
@@ -556,12 +552,10 @@ describe('followWikiLink', () => {
   it('drops an older resolution after a newer wiki-link activation', async () => {
     const pendingOlder = Promise.withResolvers<{ kind: 'resolved'; path: string }>()
     const { linkNavigation, host } = setup({
-      noteCreation: {
-        resolveOrCreateNoteWithTitle: (title) =>
-          title === 'Older'
-            ? pendingOlder.promise
-            : Promise.resolve({ kind: 'resolved', path: 'notes/newer.md' }),
-      },
+      resolveOrCreateNoteWithTitle: (title) =>
+        title === 'Older'
+          ? pendingOlder.promise
+          : Promise.resolve({ kind: 'resolved', path: 'notes/newer.md' }),
     })
     linkNavigation.followWikiLink({ target: 'Older', openInNewWindow: false }, host)
     linkNavigation.followWikiLink({ target: 'Newer', openInNewWindow: false }, host)

@@ -25,7 +25,7 @@ describe('shareNote', () => {
     }
     openDocuments.register({ session: session as NoteSession })
 
-    await shareNote({ share }, 'notes/meeting-notes.md')
+    await shareNote(share, 'notes/meeting-notes.md')
 
     expect(shareMock).toHaveBeenCalledWith({
       title: 'meeting-notes',

@@ -15,8 +15,8 @@ import type { CloudGraphContext, CloudSafe, PrivacyService } from '../../privacy
 export const MAX_CONTEXT_TAGS = 40
 
 export interface ChatGraphContextServiceDeps {
-  readonly graphStats: Pick<GraphStatsService, 'loadGraphStats'>
-  readonly privacy: Pick<PrivacyService, 'cloudSafeGraphContext'>
+  readonly graphStats: GraphStatsService
+  readonly privacy: PrivacyService
 }
 
 /**

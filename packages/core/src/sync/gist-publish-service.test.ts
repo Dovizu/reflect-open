@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { overrideNoteFileService } from '../testing/graph.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
@@ -15,6 +15,7 @@ import {
   createTestNoteSession,
   createTestProgressPort,
   type TestHttpReply,
+  createTestGithubAuthService,
 } from '../testing/index.ts'
 import { createGistPublishService } from './gist-publish-service.ts'
 import { createGistService } from './gist-service.ts'
@@ -81,14 +82,14 @@ function setup(options?: SetupOptions) {
   const graph = createTestGraphSessionService({ graph: { generation: 3 } })
   const noteRows = createNoteRowService({ graphSession: graph })
   const progress = createTestProgressPort()
+  const githubAuth = createTestGithubAuthService()
+  vi.spyOn(githubAuth, 'getToken').mockImplementation(async () => {
+    tokenReads.count += 1
+    return token
+  })
   const service = createGistPublishService({
     gists: createGistService({ http }),
-    githubAuth: {
-      getToken: async () => {
-        tokenReads.count += 1
-        return token
-      },
-    },
+    githubAuth,
     noteDocuments: createNoteDocumentService({
       openDocuments,
       noteFile,

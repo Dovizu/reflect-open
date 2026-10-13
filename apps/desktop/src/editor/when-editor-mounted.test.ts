@@ -51,7 +51,7 @@ describe('whenEditorMounted', () => {
   it('runs synchronously when the editor is already mounted', () => {
     fakeFrames()
     const run = vi.fn()
-    whenEditorMounted({ logger: createTestLoggerService() }, { mounted: true }, run)
+    whenEditorMounted(createTestLoggerService(), { mounted: true }, run)
     expect(run).toHaveBeenCalledTimes(1)
   })
 
@@ -59,7 +59,7 @@ describe('whenEditorMounted', () => {
     const frames = fakeFrames()
     const editor = { mounted: false }
     const run = vi.fn()
-    whenEditorMounted({ logger: createTestLoggerService() }, editor, run)
+    whenEditorMounted(createTestLoggerService(), editor, run)
     expect(run).not.toHaveBeenCalled()
 
     frames.step()
@@ -76,7 +76,7 @@ describe('whenEditorMounted', () => {
     const frames = fakeFrames()
     const logger = createTestLoggerService()
     const run = vi.fn()
-    whenEditorMounted({ logger }, { mounted: false }, run)
+    whenEditorMounted(logger, { mounted: false }, run)
 
     let steps = 0
     while (frames.step()) {
@@ -94,7 +94,7 @@ describe('whenEditorMounted', () => {
   it('cancel stops the retry loop', () => {
     const frames = fakeFrames()
     const run = vi.fn()
-    const cancel = whenEditorMounted({ logger: createTestLoggerService() }, { mounted: false }, run)
+    const cancel = whenEditorMounted(createTestLoggerService(), { mounted: false }, run)
     cancel()
     expect(frames.canceled()).toBe(1)
     // The canceled frame is genuinely gone — nothing left to run.

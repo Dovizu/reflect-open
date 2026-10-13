@@ -39,9 +39,9 @@ export interface ThemeService {
 }
 
 export interface ThemeServiceDeps {
-  readonly settings: Pick<SettingsService, 'get' | 'status' | 'subscribe' | 'update' | 'whenLoaded'>
-  readonly storage: Pick<StorageService, 'local'>
-  readonly platform: Pick<PlatformService, 'colorScheme' | 'subscribeColorScheme'>
+  readonly settings: SettingsService
+  readonly storage: StorageService
+  readonly platform: PlatformService
 }
 
 class ThemeServiceImpl implements ThemeService {

@@ -34,7 +34,7 @@ export function TemplatePicker({ context }: TemplatePickerProps): ReactElement {
   const { pickerOpen, closeTemplatePicker, openTemplateCreate } = useNoteTemplates()
   const { graph } = useGraph()
   const { data: templates } = useQuery({
-    ...createTemplatesQueryOptions(context.services, graph?.root),
+    ...createTemplatesQueryOptions(context.services.indexQuery, graph?.root),
     enabled: graph !== null && pickerOpen,
   })
 

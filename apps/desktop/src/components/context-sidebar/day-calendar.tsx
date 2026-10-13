@@ -59,7 +59,7 @@ export function DayCalendar({ selectedDate, today }: DayCalendarProps): ReactEle
 
   const grid = buildMonthGrid(month, weekStartsOn)
   const { data: notedDates } = useQuery({
-    ...createDailyDatesQueryOptions({ dailyNotes }, graph?.root, grid.start, grid.end),
+    ...createDailyDatesQueryOptions(dailyNotes, graph?.root, grid.start, grid.end),
     enabled: graph !== null,
   })
   // The sidebar re-renders as the focused day scrolls through the stream; with

@@ -119,16 +119,13 @@ function parseEnvelope(raw: string): InboxEnvelope | null {
 }
 
 export interface CaptureDrainServiceDeps {
-  readonly captureInbox: Pick<
-    CaptureInboxService,
-    'list' | 'read' | 'remove' | 'reject' | 'promoteScreenshot'
-  >
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write'>
-  readonly xArchive: Pick<XArchiveService, 'write'>
+  readonly captureInbox: CaptureInboxService
+  readonly noteFile: NoteFileService
+  readonly xArchive: XArchiveService
   readonly backlinkTarget: BacklinkTargetService
   readonly hash: HashService
-  readonly clock: Pick<ClockService, 'now'>
-  readonly logger: Pick<LoggerService, 'warn'>
+  readonly clock: ClockService
+  readonly logger: LoggerService
 }
 
 /**

@@ -67,24 +67,24 @@ export interface CaptureSessionOptions {
 
 export interface CaptureServiceDeps {
   readonly captureInbox: CaptureInboxService
-  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listNotes'>
-  readonly assetStore: Pick<AssetStoreService, 'readBase64' | 'writeBase64'>
-  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly noteFile: NoteFileService
+  readonly assetStore: AssetStoreService
+  readonly openDocuments: OpenDocumentsService
   readonly backlinkTarget: BacklinkTargetService
-  readonly xArchive: Pick<XArchiveService, 'write'>
-  readonly webFetch: Pick<WebFetchService, 'fetchMeta' | 'fetchOembed' | 'fetchLinkPreviewImage'>
+  readonly xArchive: XArchiveService
+  readonly webFetch: WebFetchService
   readonly pageDescriber: PageDescriberService
-  readonly aiProviderConfig: Pick<AiProviderConfigService, 'defaultProvider'>
-  readonly aiCredentials: Pick<AiCredentialService, 'read'>
-  readonly privacy: Pick<PrivacyService, 'cloudSafeLinkHref'>
+  readonly aiProviderConfig: AiProviderConfigService
+  readonly aiCredentials: AiCredentialService
+  readonly privacy: PrivacyService
   readonly hash: HashService
-  readonly clock: Pick<ClockService, 'now'>
+  readonly clock: ClockService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
-  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly activity: ActivityPort
+  readonly fileChanges: FileChangeService
   readonly progress: ProgressPort
-  readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
-  readonly logger: Pick<LoggerService, 'error' | 'warn'>
+  readonly platform: PlatformFacts
+  readonly logger: LoggerService
 }
 
 /**
@@ -111,15 +111,15 @@ export interface CaptureService {
 }
 
 interface CaptureSessionDeps {
-  readonly captureInbox: Pick<CaptureInboxService, 'relaySharedInbox' | 'registerHost'>
+  readonly captureInbox: CaptureInboxService
   readonly drain: CaptureDrainService
   readonly enrichment: CaptureEnrichmentService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
-  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly activity: ActivityPort
+  readonly fileChanges: FileChangeService
   readonly progress: ProgressPort
-  readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
-  readonly logger: Pick<LoggerService, 'error'>
+  readonly platform: PlatformFacts
+  readonly logger: LoggerService
   readonly commitXPost: (envelope: XPostEnvelope, path: string, generation: number) => Promise<void>
   readonly notifyXPostsWritten: () => void
 }

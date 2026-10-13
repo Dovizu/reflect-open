@@ -28,9 +28,9 @@ export interface QuitPolicyService {
 
 export interface QuitPolicyServiceDeps {
   readonly lifecycle: AppLifecycleService
-  readonly window: Pick<WindowService, 'isMainWindow' | 'onCloseRequested' | 'hide'>
-  readonly platform: Pick<PlatformFacts, 'isNativeShell' | 'isMacosDesktop'>
-  readonly persistenceFlush: Pick<PersistenceFlushService, 'flushAll' | 'startFlushAll'>
+  readonly window: WindowService
+  readonly platform: PlatformFacts
+  readonly persistenceFlush: PersistenceFlushService
 }
 
 class QuitPolicyServiceImpl implements QuitPolicyService {

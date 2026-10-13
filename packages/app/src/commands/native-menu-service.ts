@@ -174,13 +174,10 @@ export interface NativeMenuService {
 }
 
 export interface NativeMenuServiceDeps {
-  readonly commands: Pick<CommandService, 'list'>
-  readonly window: Pick<
-    WindowService,
-    'isMainWindow' | 'focusedWindowLabel' | 'emitTo' | 'subscribeWindowEvent'
-  >
-  readonly platform: Pick<PlatformFacts, 'isMacosDesktop' | 'isNativeShell'>
-  readonly ipc: Pick<IpcBridgeService, 'call'>
+  readonly commands: CommandService
+  readonly window: WindowService
+  readonly platform: PlatformFacts
+  readonly ipc: IpcBridgeService
   readonly logger: LoggerService
   readonly host: NativeMenuHost
 }

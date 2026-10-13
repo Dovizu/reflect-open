@@ -51,8 +51,8 @@ export interface ICloudDownloadServiceOptions {
  * The services an {@link ICloudDownloadService} runs on.
  */
 export interface ICloudDownloadServiceDeps {
-  readonly icloudNative: Pick<ICloudNativeService, 'downloadPending' | 'pendingCount'>
-  readonly activity: Pick<ActivityPort, 'isHidden' | 'subscribeFocus' | 'subscribeVisible'>
+  readonly icloudNative: ICloudNativeService
+  readonly activity: ActivityPort
   readonly clock: ClockService
   readonly logger: LoggerService
 }

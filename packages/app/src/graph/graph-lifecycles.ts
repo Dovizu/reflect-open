@@ -16,15 +16,15 @@ import type { MobileOnboardingService } from './mobile-onboarding-service.ts'
  * What {@link createAppGraphServices} decides the lifecycles of a session from.
  */
 export interface AppGraphServicesDeps {
-  readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
+  readonly platform: PlatformFacts
   /**
    * Turns the asset description session on and off with `describeAssets`.
    */
-  readonly settings: Pick<SettingsService, 'get' | 'subscribe'>
+  readonly settings: SettingsService
   /**
    * Turns the iCloud download refresh on and off with the iCloud storage choice.
    */
-  readonly mobileOnboarding: Pick<MobileOnboardingService, 'getState' | 'subscribe'>
+  readonly mobileOnboarding: MobileOnboardingService
 }
 
 /**

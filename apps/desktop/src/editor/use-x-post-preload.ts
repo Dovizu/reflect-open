@@ -25,7 +25,7 @@ export function useXPostPreload(markdown: string | null): boolean {
       const id = parseXPostId(url)
       if (id) ids.add(id)
     }
-    return [...ids].map((id) => xPostQueryOptions({ embedMedia }, root, id))
+    return [...ids].map((id) => xPostQueryOptions(embedMedia, root, id))
   }, [embedMedia, markdown, root])
   // The resolver reads the shared client, so the preload must fill that one.
   const loaded = useQueries(

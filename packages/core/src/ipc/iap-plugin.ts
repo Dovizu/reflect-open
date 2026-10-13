@@ -105,7 +105,7 @@ export interface IapService {
 
 export interface IapServiceDeps {
   readonly ipc: IpcBridgeService
-  readonly logger: Pick<LoggerService, 'error'>
+  readonly logger: LoggerService
 }
 
 class IapServiceImpl implements IapService {

@@ -68,9 +68,9 @@ export type TransformStreamEvent =
 export interface SelectionTransformServiceDeps {
   readonly logger: LoggerService
   readonly languageModel: LanguageModelService
-  readonly providerConfig: Pick<AiProviderConfigService, 'list' | 'defaultProvider'>
-  readonly credentials: Pick<AiCredentialService, 'read'>
-  readonly privacy: Pick<PrivacyService, 'cloudSafeSelection'>
+  readonly providerConfig: AiProviderConfigService
+  readonly credentials: AiCredentialService
+  readonly privacy: PrivacyService
 }
 
 /**

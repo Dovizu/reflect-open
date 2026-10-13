@@ -140,10 +140,10 @@ export interface ConnectGithubWizardService {
  */
 export interface ConnectGithubWizardDeps {
   readonly backup: Pick<BackupService, 'connectNewRepo' | 'connectExistingRepo'>
-  readonly githubAuth: Pick<GithubAuthService, 'load'>
-  readonly opener: Pick<OpenerService, 'openUrl'>
-  readonly lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeVisible' | 'subscribeHidden'>
-  readonly clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
+  readonly githubAuth: GithubAuthService
+  readonly opener: OpenerService
+  readonly lifecycle: AppLifecycleService
+  readonly clock: ClockService
 }
 
 /**

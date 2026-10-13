@@ -54,9 +54,7 @@ const NO_LIFECYCLES: GraphLifecycleFlags = {
 /**
  * The deps of the per-session services, taken from the test app.
  */
-function sessionDeps(
-  app: TestCoreServices,
-): Pick<GraphServicesDeps, 'backup' | 'icloudSync' | 'icloudDownload'> {
+function sessionDeps(app: TestCoreServices) {
   const { icloudNative, fileChanges, indexLifecycle, activity, clock, logger } = app
   return {
     backup: {
@@ -107,24 +105,24 @@ function setup(options?: SetupOptions) {
   const chats: { attached: number; detached: number }[] = []
   const icloudSyncs: { options: ICloudSyncServiceOptions; service: TestICloudSyncService }[] = []
   const downloads: { options: ICloudDownloadServiceOptions; calls: string[] }[] = []
+  const createChat = app.chatSessions.create.bind(app.chatSessions)
+  vi.spyOn(app.chatSessions, 'create').mockImplementation((chatOptions) => {
+    const chat = createChat(chatOptions)
+    const record = { attached: 0, detached: 0 }
+    chats.push(record)
+    vi.spyOn(chat, 'attach').mockImplementation(() => {
+      record.attached += 1
+      return () => {
+        record.detached += 1
+      }
+    })
+    return chat
+  })
   const deps: GraphServicesDeps = {
     ...sessionDeps(app),
     capture: app.capture,
     assetDescription: app.assetDescription,
-    chatSessions: {
-      create: (chatOptions) => {
-        const chat = app.chatSessions.create(chatOptions)
-        const record = { attached: 0, detached: 0 }
-        chats.push(record)
-        vi.spyOn(chat, 'attach').mockImplementation(() => {
-          record.attached += 1
-          return () => {
-            record.detached += 1
-          }
-        })
-        return chat
-      },
-    },
+    chatSessions: app.chatSessions,
     attachments: app.attachments,
     graphSession: app.graphSession,
   }

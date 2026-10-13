@@ -78,9 +78,9 @@ export interface DeepLinkRouter {
 }
 
 export interface DeepLinkRouterDeps {
-  readonly intake: Pick<DeepLinkIntakeService, 'dispatch' | 'onUrl' | 'resolve'>
-  readonly logger: Pick<LoggerService, 'error'>
-  readonly graphSession: Pick<GraphSessionService, 'getState'>
+  readonly intake: DeepLinkIntakeService
+  readonly logger: LoggerService
+  readonly graphSession: GraphSessionService
 }
 
 class DeepLinkRouterImpl implements DeepLinkRouter {

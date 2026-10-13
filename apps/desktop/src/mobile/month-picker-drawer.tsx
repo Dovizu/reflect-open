@@ -92,7 +92,7 @@ export function MonthPickerDrawer({
                 aria-pressed={isSelected}
                 aria-current={isThisMonth ? 'date' : undefined}
                 onClick={() => {
-                  hapticImpactLight({ haptics })
+                  hapticImpactLight(haptics)
                   onPick(candidate)
                 }}
                 className={cn(

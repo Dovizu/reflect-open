@@ -35,7 +35,7 @@ export function TemplatesSection(): ReactElement {
   const [renaming, setRenaming] = useState<TemplateEntry | null>(null)
   const [deleting, setDeleting] = useState<TemplateEntry | null>(null)
   const { data: templates } = useQuery({
-    ...createTemplatesQueryOptions({ indexQuery }, graph?.root),
+    ...createTemplatesQueryOptions(indexQuery, graph?.root),
     enabled: graph !== null,
   })
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import { resolveConflictMarkers } from '../markdown/conflict-markers.ts'
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
@@ -6,7 +6,12 @@ import {
   createTestGraphSessionService,
   type TestGraphSessionService,
 } from '../testing/graph-session.ts'
-import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
+import {
+  createTestNoteFileService,
+  overrideNoteFileService,
+  type TestNoteFileService,
+} from '../testing/graph.ts'
+import { createTestIndexLifecycleService } from '../testing/index-lifecycle.ts'
 import {
   createConflictResolutionService,
   type ConflictResolutionService,
@@ -36,16 +41,16 @@ beforeEach(() => {
   graphSession = createTestGraphSessionService({ graph: GRAPH })
   indexed = []
   failIndex = false
+  const indexLifecycle = createTestIndexLifecycleService()
+  vi.spyOn(indexLifecycle, 'indexNote').mockImplementation(async (path, options) => {
+    if (failIndex) {
+      throw new ReflectError('io', 'index closed')
+    }
+    indexed.push({ path, generation: options.generation, content: options.content })
+  })
   service = createConflictResolutionService({
     noteFile,
-    indexLifecycle: {
-      indexNote: async (path, options) => {
-        if (failIndex) {
-          throw new ReflectError('io', 'index closed')
-        }
-        indexed.push({ path, generation: options.generation, content: options.content })
-      },
-    },
+    indexLifecycle,
     fileChanges,
     graphSession,
   })
@@ -77,14 +82,15 @@ describe('createConflictResolutionService', () => {
   })
 
   it('a failed write reports the error and notifies nothing', async () => {
+    const indexLifecycle = createTestIndexLifecycleService()
+    vi.spyOn(indexLifecycle, 'indexNote').mockResolvedValue(undefined)
     const outcome = await createConflictResolutionService({
-      noteFile: {
-        read: (path, generation) => noteFile.read(path, generation),
+      noteFile: overrideNoteFileService(noteFile, {
         write: async () => {
           throw new ReflectError('io', 'disk full')
         },
-      },
-      indexLifecycle: { indexNote: async () => {} },
+      }),
+      indexLifecycle,
       fileChanges,
       graphSession,
     }).resolve(PATH, 'theirs')

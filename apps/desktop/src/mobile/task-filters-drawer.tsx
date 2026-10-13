@@ -77,7 +77,7 @@ function FilterRow({
       role="checkbox"
       aria-checked={checked}
       onClick={() => {
-        hapticImpactLight({ haptics })
+        hapticImpactLight(haptics)
         onToggle()
       }}
       className="flex h-12 items-center gap-3 text-left text-base"

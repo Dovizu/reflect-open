@@ -26,13 +26,10 @@ export interface NativeRecordActionHandler {
 }
 
 export interface NativeActionServiceDeps {
-  readonly audioRecorder: Pick<
-    AudioRecorderService,
-    'status' | 'stop' | 'subscribeNativeAction' | 'actionsReady' | 'actionPerformed'
-  >
-  readonly clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
-  readonly platform: Pick<PlatformFacts, 'isNativeShell'>
-  readonly logger: Pick<LoggerService, 'error' | 'warn'>
+  readonly audioRecorder: AudioRecorderService
+  readonly clock: ClockService
+  readonly platform: PlatformFacts
+  readonly logger: LoggerService
 }
 
 /**

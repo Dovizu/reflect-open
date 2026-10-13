@@ -5,7 +5,7 @@ import { normalizePageMetaValue, parsePageMeta, type PageMeta } from '../link-pr
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 
 export interface PageMetaServiceDeps {
-  readonly webFetch: Pick<WebFetchService, 'fetchMeta' | 'fetchOembed'>
+  readonly webFetch: WebFetchService
 }
 
 /**

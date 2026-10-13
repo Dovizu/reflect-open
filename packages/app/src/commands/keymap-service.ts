@@ -30,7 +30,7 @@ export interface KeymapService {
 }
 
 export interface KeymapServiceDeps {
-  readonly platform: Pick<PlatformFacts, 'isApplePlatform'>
+  readonly platform: PlatformFacts
 }
 
 class KeymapServiceImpl implements KeymapService {

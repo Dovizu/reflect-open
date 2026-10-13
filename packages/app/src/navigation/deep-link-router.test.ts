@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { CaptureInboxService } from '@reflect/core'
 import {
   createTestCaptureInboxService,
+  createTestCoreServices,
   createTestDeepLinkIntakeService,
   createTestGraphSessionService,
   createTestLoggerService,
@@ -11,20 +12,21 @@ import { createDeepLinkRouter, type DeepLinkSession } from './deep-link-router.t
 import type { Route } from './route.ts'
 
 interface SetupOverrides {
-  captureInbox?: Pick<CaptureInboxService, 'spool'>
+  captureInbox?: CaptureInboxService
 }
 
 function setup(overrides?: SetupOverrides) {
   const operations = createTestProgressPort()
   const captureInbox = createTestCaptureInboxService()
   const logger = createTestLoggerService()
-  const resolveNoteTarget = vi.fn<(target: string) => Promise<string | null>>()
+  const { indexQuery } = createTestCoreServices()
+  const resolveNoteTarget = vi.spyOn(indexQuery, 'resolveNoteTarget')
   const navigate = vi.fn<(route: Route) => void>()
   const graphSession = createTestGraphSessionService({ graph: { generation: 3 } })
   const intake = createTestDeepLinkIntakeService({
     progress: operations,
     captureInbox: overrides?.captureInbox ?? captureInbox,
-    indexQuery: { resolveNoteTarget },
+    indexQuery,
     graphSession,
   })
   const service = createDeepLinkRouter({ intake, logger, graphSession })

@@ -17,13 +17,7 @@ import {
  * archived X posts after a capture pass, the chat history after a saved turn,
  * and what the app holds per graph when graphs change.
  */
-export function installQueryInvalidation(
-  app: Pick<
-    CoreServices,
-    'capture' | 'assetDescription' | 'chatSessions' | 'indexLifecycle' | 'graphSession'
-  >,
-  { window }: Pick<AppServices, 'window'>,
-): Unlisten {
+export function installQueryInvalidation(app: CoreServices, { window }: AppServices): Unlisten {
   const unlisteners = [
     app.capture.onXPostsWritten(invalidateXPostQueries),
     app.assetDescription.onDescriptionsIndexed(invalidateIndexQueries),

@@ -32,8 +32,8 @@ export interface SettledRename {
  * What {@link placeOldTitleAlias} reads and writes through.
  */
 export interface AliasPlacementDeps {
-  noteFile: Pick<NoteFileService, 'read' | 'write'>
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  noteFile: NoteFileService
+  openDocuments: OpenDocumentsService
 }
 
 /** The entries of `next` that `current` did not already carry. */

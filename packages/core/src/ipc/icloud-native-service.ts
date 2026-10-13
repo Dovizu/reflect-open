@@ -175,7 +175,7 @@ export interface ICloudNativeService {
 
 export interface ICloudNativeServiceDeps {
   readonly ipc: IpcBridgeService
-  readonly logger: Pick<LoggerService, 'error'>
+  readonly logger: LoggerService
 }
 
 class ICloudNativeServiceImpl implements ICloudNativeService {

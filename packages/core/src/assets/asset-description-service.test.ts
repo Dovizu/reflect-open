@@ -16,13 +16,18 @@ import {
   createTestClockService,
   createTestGraphSessionService,
   createTestActivityPort,
+  createTestAiKeyValidationService,
+  createTestIdService,
+  createTestIndexLifecycleService,
   createTestLoggerService,
   createTestNoteFileService,
   createTestProgressPort,
   createTestSecretStoreService,
+  createTestSettingsService,
   createTestXArchiveService,
 } from '../testing/index.ts'
 import { createAiCredentialService } from '../ai/ai-credential-service.ts'
+import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import { createAssetPrivacyService } from './asset-privacy-service.ts'
 import {
   assetTypeFor,
@@ -144,46 +149,56 @@ function setup(options?: { provider?: AiProviderConfig | null; secretStore?: Sec
   const graphSession = createTestGraphSessionService({
     graph: { generation: GENERATION, indexGeneration: INDEX_GENERATION },
   })
+  const readBase64 = assetStore.readBase64.bind(assetStore)
+  vi.spyOn(assetStore, 'readBase64').mockImplementation(async (path, generation) => {
+    assetReads.push(path)
+    return await readBase64(path, generation)
+  })
+  const classifyAsset = privacy.classifyAsset.bind(privacy)
+  vi.spyOn(privacy, 'classifyAsset').mockImplementation(async (assetPath, generation) => {
+    classified.push(assetPath)
+    return await classifyAsset(assetPath, generation)
+  })
+  const aiCredentials = createAiCredentialService({
+    secretStore:
+      options?.secretStore ??
+      createTestSecretStoreService({ 'ai-api-key:cfg-anthropic': 'sk-live' }),
+  })
+  const aiProviderConfig = createAiProviderConfigService({
+    settings: createTestSettingsService(),
+    credentials: aiCredentials,
+    keyValidation: createTestAiKeyValidationService(),
+    id: createTestIdService(),
+  })
+  vi.spyOn(aiProviderConfig, 'defaultProvider').mockImplementation(() => provider)
+  const indexLifecycle = createTestIndexLifecycleService()
+  vi.spyOn(indexLifecycle, 'onApplied').mockImplementation((listener) => {
+    appliedListeners.add(listener)
+    return () => {
+      appliedListeners.delete(listener)
+    }
+  })
+  vi.spyOn(indexLifecycle, 'reindexNotesReferencing').mockImplementation(
+    async (assetPaths, generation) => {
+      reindexed.push([assetPaths, generation])
+      if (index.reindexError !== null) {
+        const error = index.reindexError
+        index.reindexError = null
+        throw error
+      }
+    },
+  )
   const service = createAssetDescriptionService({
-    assetStore: {
-      readBase64: async (path, generation) => {
-        assetReads.push(path)
-        return await assetStore.readBase64(path, generation)
-      },
-    },
+    assetStore,
     noteFile: files,
-    assetPrivacy: {
-      classifyAsset: async (assetPath, generation) => {
-        classified.push(assetPath)
-        return await privacy.classifyAsset(assetPath, generation)
-      },
-    },
+    assetPrivacy: privacy,
     assetDescriber: describer,
-    aiProviderConfig: { defaultProvider: () => provider },
-    aiCredentials: createAiCredentialService({
-      secretStore:
-        options?.secretStore ??
-        createTestSecretStoreService({ 'ai-api-key:cfg-anthropic': 'sk-live' }),
-    }),
+    aiProviderConfig,
+    aiCredentials,
     hash: hashService,
     clock,
     reconcilers: createBackgroundReconcilerFactory({ activity }),
-    indexLifecycle: {
-      onApplied: (listener) => {
-        appliedListeners.add(listener)
-        return () => {
-          appliedListeners.delete(listener)
-        }
-      },
-      reindexNotesReferencing: async (assetPaths, generation) => {
-        reindexed.push([assetPaths, generation])
-        if (index.reindexError !== null) {
-          const error = index.reindexError
-          index.reindexError = null
-          throw error
-        }
-      },
-    },
+    indexLifecycle,
     progress: operations,
     graphSession,
     logger,

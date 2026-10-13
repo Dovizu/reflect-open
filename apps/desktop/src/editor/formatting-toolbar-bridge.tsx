@@ -62,7 +62,7 @@ export function FormattingToolbarBridge({
 
     // Same mount dance as EditorInputTraits — see `whenEditorMounted` for
     // why the wait is bounded.
-    const cancel = whenEditorMounted({ logger }, editor, () => {
+    const cancel = whenEditorMounted(logger, editor, () => {
       const dom = editor.view.dom
 
       function readCapabilities(): FormattingToolbarCapabilities {
@@ -101,7 +101,7 @@ export function FormattingToolbarBridge({
           }
           const markdown: string[] = []
           for (const picked of files) {
-            const file = await toPortableImageFile({ imageCodec }, picked)
+            const file = await toPortableImageFile(imageCodec, picked)
             // `saveFile` owns its failures (it resolves undefined and the
             // pane raises the banner), so a file that did not land is
             // skipped and the ones that did are still linked.

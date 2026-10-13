@@ -51,13 +51,10 @@ export type AiProviderDraftCheck =
   | { status: 'unreachable' }
 
 export interface AiProviderConfigServiceDeps {
-  readonly settings: Pick<
-    SettingsService,
-    'get' | 'subscribe' | 'update' | 'updateWith' | 'whenLoaded'
-  >
-  readonly credentials: Pick<AiCredentialService, 'store' | 'remove' | 'createPassReader'>
+  readonly settings: SettingsService
+  readonly credentials: AiCredentialService
   readonly keyValidation: AiKeyValidationService
-  readonly id: Pick<IdService, 'uuid'>
+  readonly id: IdService
 }
 
 /**

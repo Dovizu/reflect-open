@@ -47,7 +47,7 @@ function sentenceSpans(text: string, base: number): Array<{ from: number; to: nu
  * The service the chunkers hash chunk text with.
  */
 export interface ChunkContext {
-  readonly hash: Pick<HashService, 'sha256Hex'>
+  readonly hash: HashService
 }
 
 interface Section {
