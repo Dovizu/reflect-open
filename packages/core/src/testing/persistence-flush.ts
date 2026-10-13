@@ -4,7 +4,7 @@ import type {
   PersistenceFlusher,
   PersistenceFlusherKind,
   PersistenceFlushService,
-} from '../app/persistence-flush-service.ts'
+} from '../graph/persistence-flush-service.ts'
 
 export type TestPersistenceFlushService = PersistenceFlushService
 

@@ -1,6 +1,6 @@
 import { isNotNullish } from '@ocavue/utils'
-import type { ClockService } from '../app/clock-service.ts'
-import type { ActivityPort } from '../app/ports.ts'
+import type { ClockService } from '../ports/clock-service.ts'
+import type { ActivityPort } from '../ports/activity-port.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import { localIsoDate } from '../lib/dates.ts'

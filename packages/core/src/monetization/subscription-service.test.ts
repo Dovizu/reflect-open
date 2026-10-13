@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { IAP_PRODUCT_IDS } from '../ipc/iap-plugin.ts'
+import { IAP_PRODUCT_IDS } from '../ipc/iap-service.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'

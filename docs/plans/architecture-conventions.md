@@ -90,7 +90,7 @@ composition roots build every service once and pass each one what it needs.
   (`ensureWelcomeNote(ctx, options)` in `graph/onboarding.ts`).
 
 ```ts
-// packages/core/src/app/app-info-service.ts
+// packages/core/src/ports/app-info-service.ts
 class AppInfoServiceImpl implements AppInfoService {
   readonly #deps: AppInfoServiceDeps
 
@@ -124,10 +124,12 @@ and every provider-bound input requires one.
 ### Three packages and two roots
 
 - `@reflect/core` (`packages/core`): business logic and the interfaces of the
-  platform primitives. `createCoreServices(adapters)` in `app/create-core-services.ts`
+  platform primitives. `createCoreServices(adapters)` in `create-core-services.ts`
   returns `CoreServices`. `CoreAdapters` is what the host supplies, because core never
   imports `@tauri-apps/*`: the IPC bridge, the platform facts, HTTP, Web storage, path,
   and the ports.
+  Core keeps its roots in `src/`, its host ports in `src/ports/`, and the rest in domain
+  directories. A file that exports a service is named after it.
 - `@reflect/app` (`packages/app`): the app layer. `createAppServices(core, host)` in
   `src/create-app-services.ts` returns `AppServices` over the core services. `AppHost`
   is what the host supplies: the window, lifecycle and operations services, dialogs,
@@ -135,7 +137,7 @@ and every provider-bound input requires one.
 - `apps/desktop`: React and the adapters. Lint keeps React, TanStack and Tauri out of
   both packages, and `@reflect/app` out of core.
 
-A **port** is an interface in `packages/core/src/app/ports.ts` that core calls and an
+A **port** is an interface in `packages/core/src/ports/` that core calls and an
 app service implements: `progress` (`ProgressPort`, the app's `OperationsService`) and
 `activity` (`ActivityPort`, the app's `AppLifecycleService`). `role` (`'main'` or
 `'note-window'`) tells core which window it runs in.
@@ -198,8 +200,8 @@ Some work belongs to one graph session, not to the app: it starts when a graph (
 index session) opens and must stop, with its timers and subscriptions, when that graph
 closes. Building it once per app would let a pass or a pending turn of the previous
 graph leak into the next one. For these, a **factory** (in the `graphServiceFactories`
-table of `app/create-graph-services.ts`) or an app-scoped `openSession` method builds the
-instance, and `createGraphServices` (`app/create-graph-services.ts`)
+table of `create-graph-services.ts`) or an app-scoped `openSession` method builds the
+instance, and `createGraphServices` (`create-graph-services.ts`)
 creates one instance per `GraphSession` and disposes it when `session.signal` aborts.
 Its `GraphLifecycleFlags` pick the lifecycles; `createAppGraphServices`
 (`packages/app/src/graph/graph-lifecycles.ts`) decides them from the window role:

@@ -1,4 +1,4 @@
-import type { GraphSessionSource } from '../app/graph-session.ts'
+import type { GraphSessionSource } from '../graph/graph-session.ts'
 import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 import type { AttachmentService, WikiEmbedDisplay } from './attachment-service.ts'

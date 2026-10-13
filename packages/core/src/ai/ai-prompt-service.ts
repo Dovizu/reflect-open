@@ -1,4 +1,4 @@
-import type { IdService } from '../app/id-service.ts'
+import type { IdService } from '../ports/id-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import type { AiPrompt, AiPromptMode } from '../settings/schema.ts'
 import type { SettingsService } from '../settings/settings-service.ts'

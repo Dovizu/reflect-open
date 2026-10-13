@@ -7,7 +7,7 @@ export {
 } from '../ipc/ipc-service.ts'
 export type { Unlisten } from '../unlisten.ts'
 
-export { type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
+export { type HapticsService } from '../ipc/haptics-service.ts'
 export { type AudioRecorderFinalSegment } from '../audio/audio-recorder-service.ts'
 export { type IcloudStatus } from '../ipc/icloud-native-service.ts'
 export {
@@ -25,32 +25,29 @@ export {
 export { isICloudRoot } from '../sync/icloud-sync-service.ts'
 export { type ConflictResolutionService } from '../sync/conflict-resolution-service.ts'
 export { type GistPublishService } from '../sync/gist-publish-service.ts'
-export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
-export { createSystemClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
-export { type IdService } from '../app/id-service.ts'
+export { isMobilePlatform, type AppPlatform } from '../ports/platform-facts.ts'
+export { createSystemClock, type ClockService, type TimerHandle } from '../ports/clock-service.ts'
+export { type IdService } from '../ports/id-service.ts'
 export { localIsoDate, parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
-export {
-  type BuildPlatform,
-  type FileSrcConverter,
-  type PlatformFacts,
-} from '../app/platform-service.ts'
+export { type BuildPlatform, type PlatformFacts } from '../ports/platform-facts.ts'
+export { type FileSrcConverter } from '../ports/file-src.ts'
 
 export {
   createPathService,
   createPosixPathTransport,
   type PathService,
   type PathTransport,
-} from '../app/path-service.ts'
-export { type ActivityPort, type BackgroundTaskToken } from '../app/ports.ts'
+} from '../ports/path-service.ts'
+export { type ActivityPort, type BackgroundTaskToken } from '../ports/activity-port.ts'
 export {
   createPersistenceFlushService,
   type PersistenceFlushService,
-} from '../app/persistence-flush-service.ts'
-export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
-export { type DecodedImage, type ImageCodecService } from '../app/image-codec-service.ts'
-export { createBrowserHttpService, type HttpService } from '../app/http-service.ts'
-export { type WebFetchService } from '../app/web-fetch-service.ts'
+} from '../graph/persistence-flush-service.ts'
+export { createConsoleLogger, type LoggerService } from '../ports/logger-service.ts'
+export { type DecodedImage, type ImageCodecService } from '../ports/image-codec-service.ts'
+export { createBrowserHttpService, type HttpService } from '../ports/http-service.ts'
+export { type WebFetchService } from '../link-preview/web-fetch-service.ts'
 export { type NoteFileService } from '../graph/note-file-service.ts'
 export { type NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 export { type NoteCreationService } from '../graph/note-creation-service.ts'
@@ -82,7 +79,7 @@ export {
   type NoteSessionService,
   type NoteSessionSnapshot,
   type NoteSessionStatus,
-} from '../documents/note-session.ts'
+} from '../documents/note-session-service.ts'
 export {
   UPDATED_PRESETS,
   updatedPresetFilter,
@@ -110,23 +107,23 @@ export { updatePinOrder } from '../documents/pin-order.ts'
 export { type OpenDocumentsService } from '../documents/open-documents-service.ts'
 export { type RenameCoordinator } from '../documents/title-rename-service.ts'
 export { createDocumentBinding, type DocumentBinding } from '../documents/document-binding.ts'
-export { type ResolvedArchivedPost } from '../x-archive.ts'
-export { marketingVersion } from '../app/app-info-service.ts'
-export { reachWebStorage, type StorageService } from '../app/storage-service.ts'
+export { type ResolvedArchivedPost } from '../embeds/x-archive-service.ts'
+export { marketingVersion } from '../ports/app-info-service.ts'
+export { reachWebStorage, type StorageService } from '../ports/storage-service.ts'
 export {
   type Operation,
   type OperationAction,
   type OperationHandle,
   type OperationOptions,
   type ProgressPort,
-} from '../app/ports.ts'
-export { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
+} from '../ports/progress-port.ts'
+export { createGraphSession, type GraphRole, type GraphSession } from '../graph/graph-session.ts'
 export {
   createCoreServices,
   type CoreAdapters,
   type CoreServices,
   type MobileServices,
-} from '../app/create-core-services.ts'
+} from '../create-core-services.ts'
 export {
   createGraphServices,
   openGraphLifecycle,
@@ -134,9 +131,9 @@ export {
   type GraphLifecycleFlags,
   type GraphServices,
   type GraphServicesDeps,
-} from '../app/create-graph-services.ts'
-export { type AgentSkillStatus } from '../app/agent-skill-service.ts'
-export { type AgentSkillService } from '../app/agent-skill-service.ts'
+} from '../create-graph-services.ts'
+export { type AgentSkillStatus } from '../ai/agent-skill-service.ts'
+export { type AgentSkillService } from '../ai/agent-skill-service.ts'
 export { type CalendarService } from '../calendar/calendar-service.ts'
 export {
   canPromptForContacts,
@@ -286,5 +283,5 @@ export {
   createIapService,
   type IapProduct,
   type IapService,
-} from '../ipc/iap-plugin.ts'
-export { createAppStoreService, type AppStoreService } from '../ipc/app-store-plugin.ts'
+} from '../ipc/iap-service.ts'
+export { createAppStoreService, type AppStoreService } from '../ipc/app-store-service.ts'

@@ -478,8 +478,8 @@ export default defineESLintConfig(
     ],
     ignores: [
       // The console implementation of `LoggerService`, and its test.
-      'packages/core/src/app/logger-service.ts',
-      'packages/core/src/app/logger-service.test.ts',
+      'packages/core/src/ports/logger-service.ts',
+      'packages/core/src/ports/logger-service.test.ts',
       // Boot-time: the platform facts are read before any service exists
       // (they decide which services to build).
       'apps/desktop/src/services/detect-platform.ts',

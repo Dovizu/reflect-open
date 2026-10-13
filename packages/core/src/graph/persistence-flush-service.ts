@@ -1,7 +1,7 @@
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
-import type { LoggerService } from './logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 
 /**
  * The dirty state a registered flusher lands. Settings is built in.

@@ -1,4 +1,4 @@
-import type { IdService } from '../app/id-service.ts'
+import type { IdService } from '../ports/id-service.ts'
 import { ReflectError } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import {

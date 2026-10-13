@@ -6,7 +6,7 @@ import { aiKeySecretName, createAiCredentialService } from '../ai/ai-credential-
 import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type { PageDescriberService } from '../ai/page-describer-service.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
-import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { WebFetchService } from '../link-preview/web-fetch-service.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'

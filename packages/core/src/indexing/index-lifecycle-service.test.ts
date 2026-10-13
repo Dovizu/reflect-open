@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
-import type { AppPlatform } from '../app/platform.ts'
+import { createGraphSession, type GraphRole, type GraphSession } from '../graph/graph-session.ts'
+import type { AppPlatform } from '../ports/platform-facts.ts'
 import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes, type TestNote } from '../testing/database.ts'

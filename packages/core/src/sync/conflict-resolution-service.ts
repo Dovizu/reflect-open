@@ -1,4 +1,4 @@
-import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
+import { requireGraphSession, type GraphSessionSource } from '../graph/graph-session.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'

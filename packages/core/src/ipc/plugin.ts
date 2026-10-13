@@ -7,7 +7,7 @@ export type { PluginSubscription } from './ipc-service.ts'
  * Typed bindings for the first-party plugins (`plugins/tauri-plugin-*`).
  * A plugin's commands are declared one per command (args type plus result
  * schema) and its events as schema-carrying subscriptions; per-plugin
- * modules (`recording-plugin.ts`, `mobile-haptics-plugin.ts`) export plain
+ * modules (`recording-plugin.ts`, `haptics-service.ts`) export plain
  * functions on top so callers never see a `plugin:name|command` string or
  * an untyped payload.
  */

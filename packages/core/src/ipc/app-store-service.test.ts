@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { createAppStoreService } from './app-store-plugin.ts'
+import { createAppStoreService } from './app-store-service.ts'
 
 describe('AppStoreService', () => {
   it('environment unwraps the environment field', async () => {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { errorMessage } from '../errors.ts'
-import type { ProgressPort } from '../app/ports.ts'
+import type { ProgressPort } from '../ports/progress-port.ts'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import { DEFAULT_SETTINGS, settingsSchema, type Settings } from './schema.ts'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { createWebAuthService } from './web-auth-plugin.ts'
+import { createWebAuthService } from './web-auth-service.ts'
 
 const options = {
   url: 'https://example.com/oauth?state=1',

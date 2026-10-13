@@ -8,16 +8,17 @@ import type { AiCredentialService } from '../ai/ai-credential-service.ts'
 import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
 import type { TranscriptionService } from '../ai/transcription-service.ts'
-import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
-import type { ClockService } from '../app/clock-service.ts'
+import type { BackgroundReconcilerFactory } from '../reconcile/background-reconciler.ts'
+import type { ClockService } from '../ports/clock-service.ts'
 import {
   requireGraphSession,
   type GraphRole,
   type GraphSessionSource,
-} from '../app/graph-session.ts'
-import type { ActivityPort, ProgressPort } from '../app/ports.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformFacts } from '../app/platform-service.ts'
+} from '../graph/graph-session.ts'
+import type { ActivityPort } from '../ports/activity-port.ts'
+import type { ProgressPort } from '../ports/progress-port.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
+import type { PlatformFacts } from '../ports/platform-facts.ts'
 import type { BacklinkTargetService } from '../capture/backlink-target-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'

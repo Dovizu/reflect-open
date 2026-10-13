@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { GraphRole } from '../app/graph-session.ts'
+import type { GraphRole } from '../graph/graph-session.ts'
 import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
 import type { AiProvidersState } from '../ai/provider-config.ts'
 import { AUDIO_MEMOS_DIR } from '../graph/paths.ts'
 import { createAiCredentialService } from '../ai/ai-credential-service.ts'
 import { createAiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import { createTranscriptEnrichmentService } from '../ai/transcript-enrichment-service.ts'
-import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
+import { createBackgroundReconcilerFactory } from '../reconcile/background-reconciler.ts'
 import { createBacklinkTargetService } from '../capture/backlink-target-service.ts'
 import {
   createTestAiKeyValidationService,

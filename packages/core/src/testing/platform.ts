@@ -1,11 +1,10 @@
-import type { AppPlatform } from '../app/platform.ts'
-import {
-  appleFileSrc,
-  type BuildPlatform,
-  type FileSrcSource,
-  type PlatformFacts,
-  type PlatformSurface,
-} from '../app/platform-service.ts'
+import { appleFileSrc, type FileSrcSource } from '../ports/file-src.ts'
+import type {
+  AppPlatform,
+  BuildPlatform,
+  PlatformFacts,
+  PlatformSurface,
+} from '../ports/platform-facts.ts'
 
 type ColorScheme = 'light' | 'dark'
 

@@ -1,4 +1,4 @@
-import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { ClockService, TimerHandle } from '../ports/clock-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 import type {
   RecordingLevelEvent,

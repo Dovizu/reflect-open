@@ -1,4 +1,4 @@
-import type { GraphSessionSource } from '../app/graph-session.ts'
+import type { GraphSessionSource } from '../graph/graph-session.ts'
 import type { RetrievalHit } from '../embeddings/retrieve.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { parseFrontmatter, splitFrontmatter } from '../markdown/frontmatter.ts'

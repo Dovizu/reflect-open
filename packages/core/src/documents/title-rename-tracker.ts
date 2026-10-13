@@ -1,4 +1,4 @@
-import type { ClockService, TimerHandle } from '../app/clock-service.ts'
+import type { ClockService, TimerHandle } from '../ports/clock-service.ts'
 import { hasAuthoredTitle, parseNote } from '../markdown/extract.ts'
 import { foldKey } from '../markdown/keys.ts'
 

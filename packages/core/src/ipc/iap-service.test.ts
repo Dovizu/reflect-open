@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { createIapService } from './iap-plugin.ts'
+import { createIapService } from './iap-service.ts'
 
 function setup(options?: { pluginEvents?: boolean }) {
   const ipc = createTestIpcBridgeService({ pluginEvents: options?.pluginEvents ?? true })

@@ -13,7 +13,7 @@ import {
   createNoteSessionService,
   type NoteSession,
   type NoteSessionSnapshot,
-} from './note-session.ts'
+} from './note-session-service.ts'
 
 /** The first task's locator as the index records it. */
 function firstTask(source: string): TaskLocator {

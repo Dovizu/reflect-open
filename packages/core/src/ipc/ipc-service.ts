@@ -1,5 +1,5 @@
 import type { ZodType } from 'zod'
-import type { LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import { toAppError, type AppError } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
 

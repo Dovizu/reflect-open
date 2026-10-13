@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { fromSyndication } from '@post-embed/exporter/x/syndication'
 import { parseXPost } from '@post-embed/schema'
 import type { XPost, XPostBase } from '@post-embed/types'
-import type { IpcBridgeService } from './ipc/ipc-service.ts'
+import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 
 export interface ArchivedXPost {
   kind: 'x-post'

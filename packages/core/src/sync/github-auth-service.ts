@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { ClockService } from '../app/clock-service.ts'
-import type { HttpService } from '../app/http-service.ts'
+import type { ClockService } from '../ports/clock-service.ts'
+import type { HttpService } from '../ports/http-service.ts'
 import { isAppError, ReflectError } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'

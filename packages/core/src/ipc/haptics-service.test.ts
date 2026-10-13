@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
-import { createHapticsService } from './mobile-haptics-plugin.ts'
+import { createHapticsService } from './haptics-service.ts'
 
 describe('HapticsService', () => {
   it('fires the plugin impact command on every call while the plugin answers', async () => {

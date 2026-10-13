@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 
 import { createAgentSkillService } from './agent-skill-service.ts'
-import { createGraphSession, type GraphSession } from './graph-session.ts'
+import { createGraphSession, type GraphSession } from '../graph/graph-session.ts'
 
 function graphAt(generation: number): { getState: () => { session: GraphSession | null } } {
   const session = createGraphSession({ root: '/g', name: 'g', generation, indexGeneration: 1 })

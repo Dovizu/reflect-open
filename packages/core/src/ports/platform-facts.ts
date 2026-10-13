@@ -1,4 +1,10 @@
-import type { AppPlatform } from './platform.ts'
+/** Which UI family the app was built for. */
+export type AppPlatform = 'desktop' | 'ios' | 'android'
+
+/** Narrows {@link AppPlatform} to the mobile family. */
+export function isMobilePlatform(platform: AppPlatform): boolean {
+  return platform !== 'desktop'
+}
 
 /**
  * The Tauri build targets the app ships for.
@@ -18,8 +24,6 @@ export interface PlatformSurface {
    */
   readonly mobileApp: boolean
 }
-
-// FIXME 这个文件叫做 platform-service.ts 但是这个文件里面并没有提供一个 service，我怀疑是 packages/core/src/app/platform-service.ts packages/app/src/app/platform-service.ts 这两个文件的迁移过程中出现了一些问题。请你评估一下这个文件适不适合 叫做 platform-service.ts ，如果不适合的话，请你帮我把它改成一个更合适的名字或者放到其他文件里。发散一下，看看整个代码仓库中有没有类似的问题，一起修复了。
 
 /**
  * What the host is and can do, decided once by the app at startup.
@@ -52,27 +56,4 @@ export interface PlatformFacts {
   readonly surface: PlatformSurface
   readonly isDev: boolean
   readonly appVersion: string
-}
-
-/**
- * Maps a file path to the webview URL serving it through a custom URI scheme.
- */
-export type FileSrcConverter = (filePath: string, protocol: string) => string
-
-/**
- * Where a service turns a file path into the webview URL that serves it.
- */
-export interface FileSrcSource {
-  /**
-   * The webview URL that serves `filePath` through the custom URI scheme
-   * `protocol`, such as `reflect-asset`.
-   */
-  convertFileSrc(filePath: string, protocol: string): string
-}
-
-/**
- * The custom-scheme URL shape Tauri uses on macOS and iOS.
- */
-export function appleFileSrc(filePath: string, protocol: string): string {
-  return `${protocol}://localhost/${encodeURIComponent(filePath)}`
 }

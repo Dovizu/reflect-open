@@ -3,9 +3,9 @@
 The rules every change to the sync path must keep. "The sync path" is
 `apps/desktop/src-tauri/src/git/`, `packages/core/src/sync/` (the sync
 engine and the backup service), the backup flusher of
-`packages/core/src/app/persistence-flush-service.ts`, and the
+`packages/core/src/graph/persistence-flush-service.ts`, and the
 note session's external-change handling in
-`packages/core/src/documents/note-session.ts`.
+`packages/core/src/documents/note-session-service.ts`.
 
 Each rule names the test that enforces it. A rule whose test is still
 `#[ignore]` / `test.fails` is a known gap: the test is red on purpose and

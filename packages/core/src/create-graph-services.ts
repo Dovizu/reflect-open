@@ -1,19 +1,19 @@
-import type { ChatSession, ChatSessionService } from '../ai/chat/chat-session-service.ts'
-import type { AssetDescriptionService } from '../assets/asset-description-service.ts'
-import type { CaptureService } from '../capture/capture-service.ts'
-import type { AttachmentService } from '../documents/attachment-service.ts'
-import type { GraphSessionService } from '../graph/graph-session-service.ts'
+import type { ChatSession, ChatSessionService } from './ai/chat/chat-session-service.ts'
+import type { AssetDescriptionService } from './assets/asset-description-service.ts'
+import type { CaptureService } from './capture/capture-service.ts'
+import type { AttachmentService } from './documents/attachment-service.ts'
+import type { GraphSessionService } from './graph/graph-session-service.ts'
 import {
   createBackupService,
   type BackupService,
   type BackupServiceDeps,
-} from '../sync/backup-service.ts'
+} from './sync/backup-service.ts'
 import {
   createICloudDownloadService,
   type ICloudDownloadServiceDeps,
-} from '../sync/icloud-download-service.ts'
-import { createICloudSyncService, type ICloudSyncServiceDeps } from '../sync/icloud-sync-service.ts'
-import type { GraphRole, GraphSession } from './graph-session.ts'
+} from './sync/icloud-download-service.ts'
+import { createICloudSyncService, type ICloudSyncServiceDeps } from './sync/icloud-sync-service.ts'
+import type { GraphRole, GraphSession } from './graph/graph-session.ts'
 
 /**
  * What {@link createGraphServices} builds the lifecycles of one graph session from.

@@ -1,4 +1,9 @@
-import type { Operation, OperationHandle, OperationOptions, ProgressPort } from '../app/ports.ts'
+import type {
+  Operation,
+  OperationHandle,
+  OperationOptions,
+  ProgressPort,
+} from '../ports/progress-port.ts'
 import type { Unlisten } from '../unlisten.ts'
 
 /**

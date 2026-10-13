@@ -1,23 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { parseSearchQuery } from '../indexing/filter-query.ts'
-import { createTestClockService } from '../testing/clock.ts'
-import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
-import { createTestNoteFileService } from '../testing/graph.ts'
-import { createTestHttpService } from '../testing/http.ts'
-import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { createTestLoggerService } from '../testing/logger.ts'
-import { createTestPlatformService } from '../testing/platform.ts'
-import { createTestProgressPort } from '../testing/ports.ts'
-import { createTestCoreServices } from '../testing/services.ts'
-import { createTestActivityPort } from '../testing/shell.ts'
-import { createNoteDocumentService } from '../documents/note-document-service.ts'
+import { parseSearchQuery } from './indexing/filter-query.ts'
+import { createTestClockService } from './testing/clock.ts'
+import { createTestDatabaseService, seedNotes } from './testing/database.ts'
+import { createTestNoteFileService } from './testing/graph.ts'
+import { createTestHttpService } from './testing/http.ts'
+import { createTestIpcBridgeService } from './testing/ipc.ts'
+import { createTestLoggerService } from './testing/logger.ts'
+import { createTestPlatformService } from './testing/platform.ts'
+import { createTestProgressPort } from './testing/ports.ts'
+import { createTestCoreServices } from './testing/services.ts'
+import { createTestActivityPort } from './testing/shell.ts'
+import { createNoteDocumentService } from './documents/note-document-service.ts'
 import {
   composeCoreServices,
   createCoreServices,
   type CoreAdapters,
 } from './create-core-services.ts'
-import { createPosixPathTransport } from './path-service.ts'
+import { createPosixPathTransport } from './ports/path-service.ts'
 
 function requiredAdapters(): CoreAdapters {
   const ipc = createTestIpcBridgeService({ commands: { app_version: () => '1.2.3' } })

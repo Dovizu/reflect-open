@@ -31,7 +31,7 @@ export {
   type TestHttpService,
 } from './http.ts'
 export { createTestStorageService, type TestStorageService } from './storage.ts'
-export type { CoreInternalServices } from '../app/create-core-services.ts'
+export type { CoreInternalServices } from '../create-core-services.ts'
 export {
   createTestCoreServices,
   type TestCoreServiceOverrides,

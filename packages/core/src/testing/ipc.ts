@@ -1,4 +1,4 @@
-import type { LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import { createTestLoggerService } from './logger.ts'
 import { ReflectError } from '../errors.ts'
 import type { ZodType } from 'zod'

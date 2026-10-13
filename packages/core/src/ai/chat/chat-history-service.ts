@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { ModelMessage } from '@reflect/modules/ai'
-import type { LoggerService } from '../../app/logger-service.ts'
+import type { LoggerService } from '../../ports/logger-service.ts'
 import type { DatabaseService } from '../../indexing/database-service.ts'
 import type { IpcBridgeService } from '../../ipc/ipc-service.ts'
 import type { AssistantPart, ChatTurn } from './transcript.ts'

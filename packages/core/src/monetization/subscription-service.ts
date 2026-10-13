@@ -1,9 +1,9 @@
 import { z } from 'zod'
-import type { ClockService } from '../app/clock-service.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { PlatformFacts } from '../app/platform-service.ts'
-import { getJson, setJson, type StorageService } from '../app/storage-service.ts'
-import { IAP_PRODUCT_IDS, type IapService } from '../ipc/iap-plugin.ts'
+import type { ClockService } from '../ports/clock-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
+import type { PlatformFacts } from '../ports/platform-facts.ts'
+import { getJson, setJson, type StorageService } from '../ports/storage-service.ts'
+import { IAP_PRODUCT_IDS, type IapService } from '../ipc/iap-service.ts'
 import type { Unlisten } from '../unlisten.ts'
 
 const activeSubscriptionSchema = z.enum(['yearly', 'monthly']).nullable()

@@ -1,7 +1,7 @@
-import type { LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
-import type { StorageService } from '../app/storage-service.ts'
-import type { GraphRole } from '../app/graph-session.ts'
+import type { StorageService } from '../ports/storage-service.ts'
+import type { GraphRole } from '../graph/graph-session.ts'
 import {
   createEmbeddingIndexService,
   type EmbedChunkPayload,

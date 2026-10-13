@@ -1,4 +1,4 @@
-import { createGraphSession, type GraphRole } from '../app/graph-session.ts'
+import { createGraphSession, type GraphRole } from '../graph/graph-session.ts'
 import { createNoteRowService } from '../documents/note-row-service.ts'
 import {
   createGraphSessionService,

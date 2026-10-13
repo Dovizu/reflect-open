@@ -197,7 +197,7 @@ The short version:
 - Two roots: `createCoreServices(adapters: CoreAdapters)` and
   `createAppServices(core, host: AppHost)`. `apps/desktop/src/boot.ts` builds the
   primitives, the host, core, then app. Core's ports (`progress`, `activity` in
-  `packages/core/src/app/ports.ts`, and `role`) are implemented by app services.
+  `packages/core/src/ports/activity-port.ts`, `progress-port.ts`, and `role`) are implemented by app services.
 - React reads `useCoreServices()` and `useAppServices()`; commands read
   `CommandContext.services` and `.app`. Never import from `boot.ts` outside
   `main.tsx` and the platform roots.

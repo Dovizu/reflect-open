@@ -1,5 +1,5 @@
 import type { XPost } from '@post-embed/types'
-import type { LinkPreviewHtml, WebFetchService } from '../app/web-fetch-service.ts'
+import type { LinkPreviewHtml, WebFetchService } from '../link-preview/web-fetch-service.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import type {
   CaptureService,
@@ -10,7 +10,11 @@ import { ReflectError } from '../errors.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
 import type { FileMeta } from '../graph/schemas.ts'
 import type { Unlisten } from '../unlisten.ts'
-import type { ArchivedXPost, ResolvedArchivedPost, XArchiveService } from '../x-archive.ts'
+import type {
+  ArchivedXPost,
+  ResolvedArchivedPost,
+  XArchiveService,
+} from '../embeds/x-archive-service.ts'
 
 const INBOX_DIR = '.reflect/inbox'
 

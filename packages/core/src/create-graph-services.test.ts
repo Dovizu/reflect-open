@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ICloudDownloadServiceOptions } from '../sync/icloud-download-service.ts'
-import type { ICloudSyncServiceOptions } from '../sync/icloud-sync-service.ts'
-import { trackAssetDescriptionSessions } from '../testing/assets.ts'
-import { createTestCoreServices, type TestCoreServices } from '../testing/services.ts'
+import type { ICloudDownloadServiceOptions } from './sync/icloud-download-service.ts'
+import type { ICloudSyncServiceOptions } from './sync/icloud-sync-service.ts'
+import { trackAssetDescriptionSessions } from './testing/assets.ts'
+import { createTestCoreServices, type TestCoreServices } from './testing/services.ts'
 import {
   createTestBackupService,
   createTestICloudSyncService,
   type TestICloudSyncService,
-} from '../testing/sync.ts'
-import type { BackupServiceOptions } from '../sync/backup-service.ts'
+} from './testing/sync.ts'
+import type { BackupServiceOptions } from './sync/backup-service.ts'
 import {
   createGraphServices,
   openGraphLifecycle,
@@ -16,7 +16,7 @@ import {
   type GraphServiceFactories,
   type GraphServicesDeps,
 } from './create-graph-services.ts'
-import { createGraphSession, type GraphRole } from './graph-session.ts'
+import { createGraphSession, type GraphRole } from './graph/graph-session.ts'
 
 const ICLOUD_ROOT = '/Users/me/Library/Mobile Documents/iCloud~reflect/Documents/notes'
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
-import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { WebFetchService } from '../link-preview/web-fetch-service.ts'
 import { ReflectError } from '../errors.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 import { createTestWebFetchService } from '../testing/index.ts'

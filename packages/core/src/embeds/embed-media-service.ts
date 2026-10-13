@@ -1,13 +1,13 @@
 import { mapXPostMediaUrls, parseYouTubeVideo } from '@post-embed/schema'
 import type { XPost, YouTubeVideo } from '@post-embed/types'
 import { oembedRequestURL } from './oembed.ts'
-import type { ClockService, TimerHandle } from '../app/clock-service.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { FileSrcSource } from '../app/platform-service.ts'
-import type { WebFetchService } from '../app/web-fetch-service.ts'
+import type { ClockService, TimerHandle } from '../ports/clock-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
+import type { FileSrcSource } from '../ports/file-src.ts'
+import type { WebFetchService } from '../link-preview/web-fetch-service.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
-import { createArchivedPost, type XArchiveService } from '../x-archive.ts'
+import { createArchivedPost, type XArchiveService } from './x-archive-service.ts'
 
 // A video no note asked for again is dropped this long after it was fetched.
 const YOUTUBE_VIDEO_DROP_MS = 30 * 60 * 1000

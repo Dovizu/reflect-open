@@ -1,4 +1,4 @@
-import { requireGraphSession } from '../app/graph-session.ts'
+import { requireGraphSession } from '../graph/graph-session.ts'
 import type { NoteDocumentService } from '../documents/note-document-service.ts'
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'

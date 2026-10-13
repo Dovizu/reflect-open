@@ -3,10 +3,10 @@ import {
   requireGraphSession,
   type GraphSession,
   type GraphSessionSource,
-} from '../app/graph-session.ts'
-import type { IdService } from '../app/id-service.ts'
-import type { ProgressPort } from '../app/ports.ts'
-import type { PathService } from '../app/path-service.ts'
+} from '../graph/graph-session.ts'
+import type { IdService } from '../ports/id-service.ts'
+import type { ProgressPort } from '../ports/progress-port.ts'
+import type { PathService } from '../ports/path-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { dateFromDailyPath, isDaily } from '../graph/paths.ts'

@@ -2,8 +2,8 @@ import {
   createGraphSession,
   requireGraphSession,
   type GraphSessionSource,
-} from '../app/graph-session.ts'
-import { appleFileSrc } from '../app/platform-service.ts'
+} from '../graph/graph-session.ts'
+import { appleFileSrc } from '../ports/file-src.ts'
 import {
   createAttachmentSaveScope,
   isManagedAssetPath,

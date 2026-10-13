@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createGraphSession } from '../../app/graph-session.ts'
+import { createGraphSession } from '../../graph/graph-session.ts'
 import type { EmbedStatus } from '../../embeddings/embedding-runtime-service.ts'
 import type { GraphInfo } from '../../graph/schemas.ts'
 import type { AiProviderConfig, Settings } from '../../settings/schema.ts'

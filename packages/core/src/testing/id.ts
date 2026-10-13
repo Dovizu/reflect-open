@@ -1,4 +1,4 @@
-import type { IdService } from '../app/id-service.ts'
+import type { IdService } from '../ports/id-service.ts'
 
 const CROCKFORD = '0123456789abcdefghjkmnpqrstvwxyz'
 

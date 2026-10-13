@@ -1,4 +1,4 @@
-import type { GraphSessionSource } from '../app/graph-session.ts'
+import type { GraphSessionSource } from '../graph/graph-session.ts'
 import { errorMessage } from '../errors.ts'
 import type { ICloudNativeService } from '../ipc/icloud-native-service.ts'
 

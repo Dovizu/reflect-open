@@ -12,7 +12,7 @@ import {
   type MarkdownTableCell,
 } from '@meowdown/markdown'
 import { DefaultMap } from '@ocavue/utils'
-import type { LoggerService } from '../app/logger-service.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
 import { appendBlock } from './append-section.ts'
 import { splitFrontmatter } from './frontmatter.ts'
 import { renderInlineText } from './inline-text.ts'

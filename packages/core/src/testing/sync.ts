@@ -7,8 +7,8 @@ import type {
   IcloudStatus,
   IcloudSweepOutcome,
 } from '../ipc/icloud-native-service.ts'
-import type { ClockService } from '../app/clock-service.ts'
-import type { HttpService } from '../app/http-service.ts'
+import type { ClockService } from '../ports/clock-service.ts'
+import type { HttpService } from '../ports/http-service.ts'
 import type { BackupService, BackupState, ConnectExistingResult } from '../sync/backup-service.ts'
 import type { ICloudSyncService } from '../sync/icloud-sync-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'

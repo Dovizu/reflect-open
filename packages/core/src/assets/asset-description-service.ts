@@ -8,12 +8,12 @@ import {
 import type {
   BackgroundReconciler,
   BackgroundReconcilerFactory,
-} from '../app/background-reconciler.ts'
-import type { ClockService } from '../app/clock-service.ts'
-import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
-import type { LoggerService } from '../app/logger-service.ts'
-import type { ProgressPort } from '../app/ports.ts'
-import { isSilentStop, type ReconcileStop } from '../app/reconcile.ts'
+} from '../reconcile/background-reconciler.ts'
+import type { ClockService } from '../ports/clock-service.ts'
+import type { GraphSession, GraphSessionSource } from '../graph/graph-session.ts'
+import type { LoggerService } from '../ports/logger-service.ts'
+import type { ProgressPort } from '../ports/progress-port.ts'
+import { isSilentStop, type ReconcileStop } from '../reconcile/reconcile.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
 import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'

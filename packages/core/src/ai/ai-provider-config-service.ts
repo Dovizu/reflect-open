@@ -1,4 +1,4 @@
-import type { IdService } from '../app/id-service.ts'
+import type { IdService } from '../ports/id-service.ts'
 import type { AppError } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
 import { isHttpBaseUrl, normalizeOpenAICompatibleBaseUrl } from '../lib/http-url.ts'

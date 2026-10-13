@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
-import { requireGraphSession, type GraphSessionSource } from './graph-session.ts'
+import { requireGraphSession, type GraphSessionSource } from '../graph/graph-session.ts'
 
 const agentSkillInstallStateSchema = z.enum(['missing', 'current', 'stale', 'conflict'])
 

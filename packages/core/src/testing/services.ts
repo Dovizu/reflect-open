@@ -1,4 +1,4 @@
-import type { GraphRole, GraphSession } from '../app/graph-session.ts'
+import type { GraphRole, GraphSession } from '../graph/graph-session.ts'
 import {
   composeCoreServices,
   type CoreAdapters,
@@ -6,18 +6,19 @@ import {
   type CoreInternalServices,
   type MobileServices,
   type ServiceFactories,
-} from '../app/create-core-services.ts'
+} from '../create-core-services.ts'
 import {
   createGraphServices,
   type GraphLifecycleFlags,
   type GraphServices,
   type GraphServicesDeps,
-} from '../app/create-graph-services.ts'
-import { createPosixPathTransport } from '../app/path-service.ts'
-import { isMobilePlatform } from '../app/platform.ts'
-import type { PlatformFacts } from '../app/platform-service.ts'
+} from '../create-graph-services.ts'
+import { createPosixPathTransport } from '../ports/path-service.ts'
+import { isMobilePlatform } from '../ports/platform-facts.ts'
+import type { PlatformFacts } from '../ports/platform-facts.ts'
 import { isICloudRoot } from '../sync/icloud-sync-service.ts'
-import type { ActivityPort, ProgressPort } from '../app/ports.ts'
+import type { ActivityPort } from '../ports/activity-port.ts'
+import type { ProgressPort } from '../ports/progress-port.ts'
 import type { BackupService } from '../sync/backup-service.ts'
 import {
   createTestAiKeyValidationService,
