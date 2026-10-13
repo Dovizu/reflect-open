@@ -1,13 +1,21 @@
-/** Host filesystem path building, in the host platform's path syntax. */
+/**
+ * Host filesystem path building, in the host platform's path syntax.
+ */
 export interface PathService {
   join(...parts: string[]): Promise<string>
-  /** The current user's home directory. */
+  /**
+   * The current user's home directory.
+   */
   homeDir(): Promise<string>
-  /** The macOS iCloud Drive folder under {@link homeDir}. */
+  /**
+   * The macOS iCloud Drive folder under {@link homeDir}.
+   */
   icloudDriveRoot(): Promise<string>
 }
 
-/** The native operations behind a {@link PathService}. */
+/**
+ * The native operations behind a {@link PathService}.
+ */
 export interface PathTransport {
   join(...parts: string[]): Promise<string>
   homeDir(): Promise<string>
@@ -15,22 +23,56 @@ export interface PathTransport {
 
 const ICLOUD_DRIVE_SEGMENTS = ['Library', 'Mobile Documents', 'com~apple~CloudDocs'] as const
 
-export function createPathService(deps: { transport: PathTransport }): PathService {
-  const { transport } = deps
-  return {
-    join: (...parts) => transport.join(...parts),
-    homeDir: () => transport.homeDir(),
-    icloudDriveRoot: async () =>
-      await transport.join(await transport.homeDir(), ...ICLOUD_DRIVE_SEGMENTS),
+export interface PathServiceDeps {
+  readonly transport: PathTransport
+}
+
+class PathServiceImpl implements PathService {
+  readonly #deps: PathServiceDeps
+
+  constructor(deps: PathServiceDeps) {
+    this.#deps = deps
+  }
+
+  join(...parts: string[]): Promise<string> {
+    return this.#deps.transport.join(...parts)
+  }
+
+  homeDir(): Promise<string> {
+    return this.#deps.transport.homeDir()
+  }
+
+  async icloudDriveRoot(): Promise<string> {
+    const { transport } = this.#deps
+    return await transport.join(await transport.homeDir(), ...ICLOUD_DRIVE_SEGMENTS)
   }
 }
 
-/** A {@link PathTransport} with POSIX syntax and a fixed home directory. */
-export function createPosixPathTransport(home: string): PathTransport {
-  return {
-    join: async (...parts) => joinPosix(parts),
-    homeDir: async () => home,
+export function createPathService(deps: PathServiceDeps): PathService {
+  return new PathServiceImpl(deps)
+}
+
+class PosixPathTransportImpl implements PathTransport {
+  readonly #home: string
+
+  constructor(home: string) {
+    this.#home = home
   }
+
+  async join(...parts: string[]): Promise<string> {
+    return joinPosix(parts)
+  }
+
+  async homeDir(): Promise<string> {
+    return this.#home
+  }
+}
+
+/**
+ * A {@link PathTransport} with POSIX syntax and a fixed home directory.
+ */
+export function createPosixPathTransport(home: string): PathTransport {
+  return new PosixPathTransportImpl(home)
 }
 
 function joinPosix(parts: readonly string[]): string {

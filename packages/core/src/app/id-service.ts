@@ -1,29 +1,47 @@
 import pkceChallenge from 'pkce-challenge'
 import { ulid } from 'ulidx'
 
-/** A PKCE verifier and its S256 challenge, in the shape `pkce-challenge` returns. */
+/**
+ * A PKCE verifier and its S256 challenge, in the shape `pkce-challenge` returns.
+ */
 export interface PkcePair {
   code_verifier: string
   code_challenge: string
 }
 
-/** Fresh random identifiers. */
+/**
+ * Fresh random identifiers.
+ */
 export interface IdService {
-  /** A random RFC 4122 version 4 UUID. */
+  /**
+   * A random RFC 4122 version 4 UUID.
+   */
   uuid(): string
-  /** A fresh note `id`: a lowercase Crockford base32 ULID. */
+  /**
+   * A fresh note `id`: a lowercase Crockford base32 ULID.
+   */
   noteId(): string
-  /** A fresh PKCE pair for an OAuth authorization code flow. */
+  /**
+   * A fresh PKCE pair for an OAuth authorization code flow.
+   */
   pkceChallenge(): Promise<PkcePair>
 }
 
-export function createSystemIdService(): IdService {
-  return {
-    uuid: () => crypto.randomUUID(),
-    noteId: () => ulid().toLowerCase(),
-    pkceChallenge: async () => {
-      const { code_verifier, code_challenge } = await pkceChallenge()
-      return { code_verifier, code_challenge }
-    },
+class SystemIdServiceImpl implements IdService {
+  uuid(): string {
+    return crypto.randomUUID()
   }
+
+  noteId(): string {
+    return ulid().toLowerCase()
+  }
+
+  async pkceChallenge(): Promise<PkcePair> {
+    const { code_verifier, code_challenge } = await pkceChallenge()
+    return { code_verifier, code_challenge }
+  }
+}
+
+export function createSystemIdService(): IdService {
+  return new SystemIdServiceImpl()
 }

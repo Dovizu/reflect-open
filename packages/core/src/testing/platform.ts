@@ -1,3 +1,4 @@
+import type { AppPlatform } from '../app/platform.ts'
 import {
   appleFileSrc,
   type ColorScheme,
@@ -13,59 +14,93 @@ export interface TestPlatformOptions extends Partial<Omit<PlatformFacts, 'surfac
 }
 
 export interface TestPlatformService extends PlatformService {
-  /** Change the reduced-motion preference and notify subscribers. */
+  /**
+   * Change the reduced-motion preference and notify subscribers.
+   */
   setReducedMotion(value: boolean): void
-  /** Change the color scheme and notify subscribers. */
+  /**
+   * Change the color scheme and notify subscribers.
+   */
   setColorScheme(value: ColorScheme): void
 }
 
-/** A platform service with fixed facts; defaults to a macOS desktop native shell. */
-export function createTestPlatformService(options: TestPlatformOptions = {}): TestPlatformService {
-  let reducedMotion = options.reducedMotion ?? false
-  let colorScheme = options.colorScheme ?? 'light'
-  const reducedMotionListeners = new Set<(value: boolean) => void>()
-  const colorSchemeListeners = new Set<(value: ColorScheme) => void>()
+class TestPlatformServiceImpl implements TestPlatformService {
+  #reducedMotion: boolean
+  #colorScheme: ColorScheme
+  readonly #reducedMotionListeners = new Set<(value: boolean) => void>()
+  readonly #colorSchemeListeners = new Set<(value: ColorScheme) => void>()
 
-  return {
-    appPlatform: options.appPlatform ?? 'desktop',
-    isNativeShell: options.isNativeShell ?? true,
-    isMacosDesktop: options.isMacosDesktop ?? true,
-    isApplePlatform: options.isApplePlatform ?? true,
-    hasMacosTitleBarOverlay: options.hasMacosTitleBarOverlay ?? true,
-    surface: {
+  readonly appPlatform: AppPlatform
+  readonly isNativeShell: boolean
+  readonly isMacosDesktop: boolean
+  readonly isApplePlatform: boolean
+  readonly hasMacosTitleBarOverlay: boolean
+  readonly surface: PlatformSurface
+  readonly isDev: boolean
+  readonly appVersion: string
+
+  constructor(options: TestPlatformOptions) {
+    this.#reducedMotion = options.reducedMotion ?? false
+    this.#colorScheme = options.colorScheme ?? 'light'
+    this.appPlatform = options.appPlatform ?? 'desktop'
+    this.isNativeShell = options.isNativeShell ?? true
+    this.isMacosDesktop = options.isMacosDesktop ?? true
+    this.isApplePlatform = options.isApplePlatform ?? true
+    this.hasMacosTitleBarOverlay = options.hasMacosTitleBarOverlay ?? true
+    this.surface = {
       touchEditor: options.surface?.touchEditor ?? false,
       mobileApp: options.surface?.mobileApp ?? false,
-    },
-    isDev: options.isDev ?? false,
-    appVersion: options.appVersion ?? '0.0.0-test',
-    convertFileSrc: appleFileSrc,
-    prefersReducedMotion: () => reducedMotion,
-    subscribeReducedMotion(listener) {
-      reducedMotionListeners.add(listener)
-      return () => reducedMotionListeners.delete(listener)
-    },
-    colorScheme: () => colorScheme,
-    subscribeColorScheme(listener) {
-      colorSchemeListeners.add(listener)
-      return () => colorSchemeListeners.delete(listener)
-    },
-    setReducedMotion(value) {
-      if (value === reducedMotion) {
-        return
-      }
-      reducedMotion = value
-      for (const listener of reducedMotionListeners) {
-        listener(value)
-      }
-    },
-    setColorScheme(value) {
-      if (value === colorScheme) {
-        return
-      }
-      colorScheme = value
-      for (const listener of colorSchemeListeners) {
-        listener(value)
-      }
-    },
+    }
+    this.isDev = options.isDev ?? false
+    this.appVersion = options.appVersion ?? '0.0.0-test'
   }
+
+  convertFileSrc(filePath: string, protocol: string): string {
+    return appleFileSrc(filePath, protocol)
+  }
+
+  prefersReducedMotion(): boolean {
+    return this.#reducedMotion
+  }
+
+  subscribeReducedMotion(listener: (value: boolean) => void): () => void {
+    this.#reducedMotionListeners.add(listener)
+    return () => this.#reducedMotionListeners.delete(listener)
+  }
+
+  colorScheme(): ColorScheme {
+    return this.#colorScheme
+  }
+
+  subscribeColorScheme(listener: (value: ColorScheme) => void): () => void {
+    this.#colorSchemeListeners.add(listener)
+    return () => this.#colorSchemeListeners.delete(listener)
+  }
+
+  setReducedMotion(value: boolean): void {
+    if (value === this.#reducedMotion) {
+      return
+    }
+    this.#reducedMotion = value
+    for (const listener of this.#reducedMotionListeners) {
+      listener(value)
+    }
+  }
+
+  setColorScheme(value: ColorScheme): void {
+    if (value === this.#colorScheme) {
+      return
+    }
+    this.#colorScheme = value
+    for (const listener of this.#colorSchemeListeners) {
+      listener(value)
+    }
+  }
+}
+
+/**
+ * A platform service with fixed facts; defaults to a macOS desktop native shell.
+ */
+export function createTestPlatformService(options: TestPlatformOptions = {}): TestPlatformService {
+  return new TestPlatformServiceImpl(options)
 }

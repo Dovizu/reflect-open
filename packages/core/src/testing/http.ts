@@ -1,6 +1,8 @@
 import type { HttpService } from '../app/http-service.ts'
 
-/** A request the fake received. */
+/**
+ * A request the fake received.
+ */
 export interface TestHttpRequest {
   method: string
   url: string
@@ -10,7 +12,9 @@ export interface TestHttpRequest {
 
 export type TestHttpHandler = (request: Request) => Response | Promise<Response>
 
-/** A canned reply: a handler, a `Response`, or a JSON body with a status. */
+/**
+ * A canned reply: a handler, a `Response`, or a JSON body with a status.
+ */
 export type TestHttpReply = TestHttpHandler | Response | { status: number; json?: unknown }
 
 export type TestHttpMatcher = string | RegExp | ((url: string) => boolean)
@@ -22,7 +26,9 @@ export interface TestHttpRoute {
 }
 
 export interface TestHttpService extends HttpService {
-  /** The fake as a `typeof fetch`. */
+  /**
+   * The fake as a `typeof fetch`.
+   */
   readonly fetchFn: typeof fetch
   /**
    * Answers matching requests with `reply`. `method` is case-insensitive;
@@ -57,26 +63,26 @@ async function toResponse(reply: TestHttpReply, request: Request): Promise<Respo
   return Response.json(reply.json, { status: reply.status })
 }
 
-/**
- * An in-memory {@link HttpService}. Requests answer from registered routes;
- * an unmatched request answers `404`.
- */
-export function createTestHttpService(routes: readonly TestHttpRoute[] = []): TestHttpService {
-  const registered: TestHttpRoute[] = [...routes]
-  const log: TestHttpRequest[] = []
+class TestHttpServiceImpl implements TestHttpService {
+  readonly #registered: TestHttpRoute[]
+  readonly #log: TestHttpRequest[] = []
 
-  const send = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+  constructor(routes: readonly TestHttpRoute[]) {
+    this.#registered = [...routes]
+  }
+
+  async fetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
     const request = new Request(input, init)
     const body = request.body === null ? null : await request.clone().text()
-    log.push({
+    this.#log.push({
       method: request.method,
       url: request.url,
       headers: new Headers(request.headers),
       body,
     })
     const method = request.method.toUpperCase()
-    for (let i = registered.length - 1; i >= 0; i--) {
-      const route = registered[i]!
+    for (let i = this.#registered.length - 1; i >= 0; i--) {
+      const route = this.#registered[i]!
       const routeMethod = route.method.toUpperCase()
       if ((routeMethod === '*' || routeMethod === method) && matches(route.url, request.url)) {
         return await toResponse(route.reply, request)
@@ -85,12 +91,21 @@ export function createTestHttpService(routes: readonly TestHttpRoute[] = []): Te
     return new Response(null, { status: 404 })
   }
 
-  return {
-    fetch: send,
-    fetchFn: (input, init) => send(input, init),
-    on(method, url, reply) {
-      registered.push({ method, url, reply })
-    },
-    requests: () => [...log],
+  readonly fetchFn: typeof fetch = (input, init) => this.fetch(input, init)
+
+  on(method: string, url: TestHttpMatcher, reply: TestHttpReply): void {
+    this.#registered.push({ method, url, reply })
   }
+
+  requests(): readonly TestHttpRequest[] {
+    return [...this.#log]
+  }
+}
+
+/**
+ * An in-memory {@link HttpService}. Requests answer from registered routes;
+ * an unmatched request answers `404`.
+ */
+export function createTestHttpService(routes: readonly TestHttpRoute[] = []): TestHttpService {
+  return new TestHttpServiceImpl(routes)
 }

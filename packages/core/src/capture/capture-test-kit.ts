@@ -165,12 +165,9 @@ export function createCaptureTestKit(): CaptureTestKit {
       return store
     },
     installFailingSecrets(error) {
-      secretStore = {
-        ...createTestSecretStoreService(),
-        get: async () => {
-          throw error
-        },
-      }
+      const store = createTestSecretStoreService()
+      vi.spyOn(store, 'get').mockRejectedValue(error)
+      secretStore = store
     },
     addSpool(capture, options = {}) {
       const withRef = {

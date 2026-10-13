@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { AssetDescriptionRejectedError } from '../ai/asset-describer-service.ts'
 import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import { ReflectError } from '../errors.ts'
@@ -473,14 +473,9 @@ describe('AssetDescriptionService.reconcile', () => {
   })
 
   it('stops with a config reason when the API key is missing from the keychain', async () => {
-    const { refs, addAsset, describer, reconcile } = setup({
-      secretStore: {
-        ...createTestSecretStoreService(),
-        get: async () => {
-          throw new Error('no key')
-        },
-      },
-    })
+    const secretStore = createTestSecretStoreService()
+    vi.spyOn(secretStore, 'get').mockRejectedValue(new Error('no key'))
+    const { refs, addAsset, describer, reconcile } = setup({ secretStore })
     await addAsset('assets/a.png', 'aGVsbG8=')
     refs.set('assets/a.png', ['notes/pub.md'])
     const outcome = await reconcile()
