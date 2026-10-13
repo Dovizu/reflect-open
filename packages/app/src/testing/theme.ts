@@ -1,5 +1,4 @@
-import type { Unlisten } from '../unlisten.ts'
-import type { ThemePreference } from '../settings/schema.ts'
+import type { ThemePreference, Unlisten } from '@reflect/core'
 import type { ResolvedTheme, ThemeService } from '../settings/theme-service.ts'
 
 export interface TestThemeService extends ThemeService {

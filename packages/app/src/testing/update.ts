@@ -1,4 +1,4 @@
-import type { Unlisten } from '../unlisten.ts'
+import type { Unlisten } from '@reflect/core'
 import {
   retryUpdate,
   type AvailableUpdate,

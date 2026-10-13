@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { createTestPlatformService } from '../testing/platform.ts'
-import { createTestSettingsService } from '../testing/settings.ts'
-import { createTestStorageService, type TestStorageService } from '../testing/storage.ts'
+import {
+  createTestPlatformService,
+  createTestSettingsService,
+  createTestStorageService,
+  type TestStorageService,
+} from '@reflect/core/testing'
+import type { Settings } from '@reflect/core'
 import { createTestThemeService } from '../testing/theme.ts'
-import type { Settings } from './schema.ts'
 import { createThemeService, THEME_PREFERENCE_CACHE_KEY } from './theme-service.ts'
 
 function setup(stored: Partial<Settings> = {}, options: { gateLoad?: boolean } = {}) {

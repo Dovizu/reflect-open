@@ -98,7 +98,6 @@ import {
   type ICloudMigrationService,
 } from '../sync/icloud-migration-service.ts'
 import type { ICloudSyncServiceDeps } from '../sync/icloud-sync-service.ts'
-import { createSyncStatusService, type SyncStatusService } from '../sync/sync-status-service.ts'
 import { createXArchiveService, type XArchiveService } from '../x-archive.ts'
 import { createEmbedMediaService, type EmbedMediaService } from '../embeds/embed-media-service.ts'
 import {
@@ -148,8 +147,6 @@ import {
   type MobileOnboardingService,
 } from '../graph/mobile-onboarding-service.ts'
 import { createDailyNoteService, type DailyNoteService } from '../daily/daily-note-service.ts'
-import { createKeyboardService, type KeyboardService } from '../mobile/keyboard-service.ts'
-import { createShareService, type ShareService } from '../mobile/share-service.ts'
 import { createAttachmentService, type AttachmentService } from '../documents/attachment-service.ts'
 import { createNoteMoveService, type NoteMoveService } from '../documents/note-move-service.ts'
 import {
@@ -229,17 +226,12 @@ import {
 } from '../secrets/secret-store-service.ts'
 import { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
 import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
-import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
 import type { ClipboardService } from './clipboard-service.ts'
 import { createSystemClock, type ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
-import {
-  createDisabledExceptionTelemetry,
-  type ExceptionTelemetryService,
-} from './exception-telemetry-service.ts'
 import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
@@ -266,7 +258,6 @@ import {
   type PlatformService,
 } from './platform-service.ts'
 import { createWebStorageService, type StorageService } from './storage-service.ts'
-import { createUpdateService, type UpdaterAdapter, type UpdateService } from './update-service.ts'
 import { createWindowService, type WindowHost, type WindowService } from './window-service.ts'
 import { createCommandService, type CommandService } from '../commands/command-service.ts'
 import { createKeymapService, type KeymapService } from '../commands/keymap-service.ts'
@@ -380,10 +371,6 @@ export interface CoreServices {
    */
   readonly imageCodec: ImageCodecService
   /**
-   * Exception-only crash reporting.
-   */
-  readonly exceptionTelemetry: ExceptionTelemetryService
-  /**
    * The app-wide list of visible background operations.
    */
   readonly operations: OperationsService
@@ -391,10 +378,6 @@ export interface CoreServices {
    * The global settings document: loaded once, patched in memory, and saved one write at a time.
    */
   readonly settings: SettingsService
-  /**
-   * The app theme: the `theme` setting resolved against the system color scheme.
-   */
-  readonly theme: ThemeService
   /**
    * Lands dirty state before the app exits or the OS suspends it.
    */
@@ -424,10 +407,6 @@ export interface CoreServices {
    */
   readonly noteLinkResolver: NoteLinkResolverService
   /**
-   * Checks for, downloads, and installs app updates.
-   */
-  readonly update: UpdateService
-  /**
    * The one GitHub sign-in of this machine, kept in the keychain.
    */
   readonly githubAuth: GithubAuthService
@@ -447,10 +426,6 @@ export interface CoreServices {
    * Resolves the sync conflict markers of one note as raw-text surgery.
    */
   readonly conflictResolution: ConflictResolutionService
-  /**
-   * Derives the mobile sync status that the settings sheet and the status pill show.
-   */
-  readonly syncStatus: SyncStatusService
   /**
    * The embedded media of the editor's cards: X posts and YouTube videos.
    */
@@ -551,14 +526,6 @@ export interface CoreServices {
    * The mobile graph bootstrap into one of two fixed roots, the iCloud Drive container or the app sandbox.
    */
   readonly mobileOnboarding: MobileOnboardingService
-  /**
-   * The software keyboard's overlap height, as the UI last measured it.
-   */
-  readonly keyboard: KeyboardService
-  /**
-   * Shares a note through the OS share sheet.
-   */
-  readonly share: ShareService
   /**
    * The saved AI prompts of the editor AI menu's user library.
    */
@@ -761,14 +728,6 @@ export interface CoreAdapters {
    */
   readonly imageCodec?: ImageCodecService
   /**
-   * Defaults to telemetry that reports nothing.
-   */
-  readonly exceptionTelemetry?: ExceptionTelemetryService
-  /**
-   * The native updater; without one, updates are unsupported.
-   */
-  readonly updater?: UpdaterAdapter
-  /**
    * The native menus; without a host, every menu operation rejects.
    */
   readonly nativeMenu?: NativeMenuHost
@@ -871,18 +830,13 @@ export const coreServiceFactories = {
   contactSuggestions: createContactSuggestionService,
   meetings: createMeetingService,
   agentSkill: createAgentSkillService,
-  theme: createThemeService,
-  update: createUpdateService,
   gistPublish: createGistPublishService,
   icloudMigration: createICloudMigrationService,
   conflictResolution: createConflictResolutionService,
-  syncStatus: createSyncStatusService,
   embedMedia: createEmbedMediaService,
   linkPreview: createLinkPreviewService,
   noteSessions: createNoteSessionService,
   titleRename: createTitleRenameService,
-  keyboard: createKeyboardService,
-  share: createShareService,
   notePreview: createNotePreviewService,
   tasks: createTaskService,
   noteActions: createNoteActionsService,
@@ -1396,23 +1350,14 @@ export function composeCoreServices(
     agentSkill: create.agentSkill({ ipc, graphSession }),
     mobileStorage,
     imageCodec,
-    exceptionTelemetry: adapters.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
     operations,
     settings,
-    theme: create.theme({ settings, storage, platform }),
     persistenceFlush,
     embeddingRuntime,
     chatHistory,
     captureInbox,
     wikiResolver: indexReads.wikiResolver,
     noteLinkResolver: noteServices.noteLinkResolver,
-    update: create.update({
-      updater: adapters.updater,
-      clock,
-      logger,
-      platform,
-      window: windowService,
-    }),
     githubAuth,
     gistPublish: create.gistPublish({
       gists,
@@ -1432,7 +1377,6 @@ export function composeCoreServices(
       fileChanges,
       graphSession,
     }),
-    syncStatus: create.syncStatus(),
     embedMedia: create.embedMedia({ xArchive, webFetch, platform, clock, logger, graphSession }),
     linkPreview: create.linkPreview({
       noteDocuments,
@@ -1459,8 +1403,6 @@ export function composeCoreServices(
       logger,
       graphSession,
     }),
-    keyboard: create.keyboard(),
-    share: create.share({ openDocuments }),
     noteDocuments,
     notePreview: create.notePreview({
       noteLinkResolver: noteServices.noteLinkResolver,

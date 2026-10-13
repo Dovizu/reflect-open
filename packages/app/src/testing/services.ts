@@ -1,7 +1,8 @@
 import type { CoreServices } from '@reflect/core'
 import { createTestCoreServices } from '@reflect/core/testing'
-import type { AppServices } from '../create-app-services.ts'
+import { createAppServices, type AppServices } from '../create-app-services.ts'
 import { createLinkNavigationService } from '../navigation/link-navigation-service.ts'
+import { createTestExceptionTelemetry } from './exception-telemetry.ts'
 import {
   createTestDeepLinkService,
   createTestDeepLinkSource,
@@ -9,6 +10,7 @@ import {
   type TestDeepLinkService,
   type TestNavigationService,
 } from './navigation.ts'
+import { createTestUpdaterAdapter } from './update.ts'
 
 /**
  * {@link AppServices} where each service with a test double is that double.
@@ -20,18 +22,16 @@ export type TestAppServices = Omit<AppServices, 'navigation' | 'deepLink'> & {
 
 /**
  * The app layer over test core services. Pass the core services a test built
- * (and observes) to share them with the app layer, and `overrides` in place of
- * the matching app services.
+ * (and observes) to share them with the app layer. `overrides` replace
+ * fields of the result.
  */
-export function createTestAppServices<
-  Overrides extends Partial<AppServices> = Record<never, never>,
->(
+export function createTestAppServices(
   core: CoreServices = createTestCoreServices(),
-  overrides?: Overrides,
-): Omit<TestAppServices, keyof Overrides> & Overrides {
-  const navigation = overrides?.navigation ?? createTestNavigationService()
+  overrides: Partial<AppServices> = {},
+): TestAppServices {
+  const navigation = overrides.navigation ?? createTestNavigationService()
   const deepLink =
-    overrides?.deepLink ??
+    overrides.deepLink ??
     createTestDeepLinkService({
       source: createTestDeepLinkSource(),
       indexQuery: core.indexQuery,
@@ -43,7 +43,7 @@ export function createTestAppServices<
       graphSession: core.graphSession,
     })
   const linkNavigation =
-    overrides?.linkNavigation ??
+    overrides.linkNavigation ??
     createLinkNavigationService({
       noteLinkResolver: core.noteLinkResolver,
       noteCreation: core.noteCreation,
@@ -58,6 +58,14 @@ export function createTestAppServices<
       logger: core.logger,
       graphSession: core.graphSession,
     })
-  return { navigation, deepLink, linkNavigation } as Omit<TestAppServices, keyof Overrides> &
-    Overrides
+  return {
+    ...createAppServices(core, {
+      exceptionTelemetry: createTestExceptionTelemetry(),
+      updater: createTestUpdaterAdapter(),
+    }),
+    ...overrides,
+    navigation,
+    deepLink,
+    linkNavigation,
+  } as TestAppServices
 }

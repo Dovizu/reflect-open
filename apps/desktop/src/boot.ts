@@ -24,9 +24,10 @@ const ipc = pendingDevIpc?.transport ?? createTauriIpcTransport()
  */
 export const coreServices = createCoreServices(createDesktopAdapters(facts, ipc))
 
+export const appServices = createAppServices(coreServices, createDesktopHost(facts, ipc))
+
 // Runs before every module imported after this one, so exception telemetry
 // exists while the rest of the app's modules evaluate.
-coreServices.exceptionTelemetry.install()
-export const appServices = createAppServices(coreServices, createDesktopHost(facts, ipc))
+appServices.exceptionTelemetry.install()
 installQueryInvalidation(coreServices)
 void coreServices.contacts.refresh()

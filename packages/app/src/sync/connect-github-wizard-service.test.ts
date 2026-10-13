@@ -1,23 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ReflectError } from '../errors.ts'
-import { createTestClockService, type TestClockService } from '../testing/clock.ts'
-import {
-  createTestLifecycleService,
-  createTestOpenerService,
-  type TestLifecycleService,
-  type TestOpenerService,
-} from '../testing/shell.ts'
+import { ReflectError, type ConnectExistingResult, type GithubAuth } from '@reflect/core'
 import {
   createTestBackupService,
+  createTestClockService,
   createTestGithubAuthService,
+  createTestLifecycleService,
+  createTestOpenerService,
   type TestBackupService,
-} from '../testing/sync.ts'
-import type { ConnectExistingResult } from './backup-service.ts'
+  type TestClockService,
+  type TestLifecycleService,
+  type TestOpenerService,
+} from '@reflect/core/testing'
 import {
   createConnectGithubWizardService,
   type ConnectGithubWizardService,
 } from './connect-github-wizard-service.ts'
-import type { GithubAuth } from './github-auth-service.ts'
 
 const ALEX = { login: 'alex', avatarUrl: null }
 const PAT: GithubAuth = { kind: 'pat', token: 'ghp_abc' }

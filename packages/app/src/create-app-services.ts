@@ -1,5 +1,18 @@
 import type { CoreServices } from '@reflect/core'
 import {
+  createDisabledExceptionTelemetry,
+  type ExceptionTelemetryService,
+} from './app/exception-telemetry-service.ts'
+import {
+  createUpdateService,
+  type UpdaterAdapter,
+  type UpdateService,
+} from './app/update-service.ts'
+import { createThemeService, type ThemeService } from './settings/theme-service.ts'
+import { createKeyboardService, type KeyboardService } from './mobile/keyboard-service.ts'
+import { createShareService, type ShareService } from './mobile/share-service.ts'
+import { createSyncStatusService, type SyncStatusService } from './sync/sync-status-service.ts'
+import {
   createDeepLinkService,
   createNoDeepLinkSource,
   type DeepLinkService,
@@ -17,6 +30,14 @@ import { createNavigationService, type NavigationService } from './navigation/na
  */
 export interface AppHost {
   /**
+   * Defaults to telemetry that reports nothing.
+   */
+  readonly exceptionTelemetry?: ExceptionTelemetryService
+  /**
+   * The native updater; without one, updates are unsupported.
+   */
+  readonly updater?: UpdaterAdapter
+  /**
    * The system's `reflect://` delivery; without one, no URL arrives.
    */
   readonly deepLink?: DeepLinkSource
@@ -26,6 +47,30 @@ export interface AppHost {
  * The app-layer services of one webview, built over the core services.
  */
 export interface AppServices {
+  /**
+   * Exception-only crash reporting.
+   */
+  readonly exceptionTelemetry: ExceptionTelemetryService
+  /**
+   * The app theme: the `theme` setting resolved against the system color scheme.
+   */
+  readonly theme: ThemeService
+  /**
+   * Checks for, downloads, and installs app updates.
+   */
+  readonly update: UpdateService
+  /**
+   * Derives the mobile sync status that the settings sheet and the status pill show.
+   */
+  readonly syncStatus: SyncStatusService
+  /**
+   * The software keyboard's overlap height, as the UI last measured it.
+   */
+  readonly keyboard: KeyboardService
+  /**
+   * Shares a note through the OS share sheet.
+   */
+  readonly share: ShareService
   /**
    * The webview's navigation history; a note window has its own webview, hence its own.
    */
@@ -70,5 +115,25 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     logger: core.logger,
     graphSession: core.graphSession,
   })
-  return { navigation, deepLink, linkNavigation }
+  return {
+    exceptionTelemetry: host.exceptionTelemetry ?? createDisabledExceptionTelemetry(),
+    theme: createThemeService({
+      settings: core.settings,
+      storage: core.storage,
+      platform: core.platform,
+    }),
+    update: createUpdateService({
+      updater: host.updater,
+      clock: core.clock,
+      logger: core.logger,
+      platform: core.platform,
+      window: core.window,
+    }),
+    syncStatus: createSyncStatusService(),
+    keyboard: createKeyboardService(),
+    share: createShareService({ openDocuments: core.openDocuments }),
+    navigation,
+    deepLink,
+    linkNavigation,
+  }
 }

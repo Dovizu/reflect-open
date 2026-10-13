@@ -443,13 +443,13 @@ not exist in tests) needs an **adapter**, because `@reflect/core` must not impor
 `@tauri-apps/*`:
 
 1. Define the adapter interface in core, next to the service. `UpdaterAdapter`
-   in `app/update-service.ts` is `{ check, relaunch }`.
-2. Take it in the service's `deps`, and add a field to `CoreAdapters` in
-   `create-core-services.ts` (`readonly updater?: UpdaterAdapter`). Make it
+   in `packages/app/src/app/update-service.ts` is `{ check, relaunch }`.
+2. Take it in the service's `deps`, and add a field to `AppHost` in
+   `create-app-services.ts` (`readonly updater?: UpdaterAdapter`). Make it
    optional when a host can lack it, and decide what the service does then.
 3. Implement it in `apps/desktop/src/services/`
    (`tauri-updater.ts` imports `@tauri-apps/plugin-updater`), and pass it in
-   `createDesktopAdapters` (`create-desktop-services.ts`): in the native-shell
+   `createDesktopHost` (`create-desktop-services.ts`): in the native-shell
    branch, and a browser equivalent in the other branch if plain-browser dev
    needs one.
 4. Give the adapter a test double (`createTestUpdaterAdapter`), and build the

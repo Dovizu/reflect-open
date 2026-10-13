@@ -5,7 +5,8 @@ export { type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
 export { type AudioRecorderFinalSegment } from '../audio/audio-recorder-service.ts'
 export { type IcloudStatus } from '../ipc/icloud-native-service.ts'
 export { type MobileStorageInfo, type MobileStorageKind } from '../ipc/mobile-storage-service.ts'
-export { type GithubAuthService } from '../sync/github-auth-service.ts'
+export { githubAppInstallUrl, type GithubAuthService } from '../sync/github-auth-service.ts'
+export { newRepoUrl, parseRepoInput, type GithubRepoRef } from '../sync/github-repo-service.ts'
 export {
   type BackupService,
   type BackupState,
@@ -13,24 +14,16 @@ export {
 } from '../sync/backup-service.ts'
 export { isICloudRoot } from '../sync/icloud-sync-service.ts'
 export { type ConflictResolutionService } from '../sync/conflict-resolution-service.ts'
-export { type MobileSyncStatus, type SyncStatusService } from '../sync/sync-status-service.ts'
-export {
-  createConnectGithubWizardService,
-  type ConnectAuthKind,
-  type ConnectFinishView,
-  type ConnectGithubWizardOptions,
-  type ConnectGithubWizardService,
-  type ConnectWizardStep,
-} from '../sync/connect-github-wizard-service.ts'
 export { type GistPublishService } from '../sync/gist-publish-service.ts'
 export { isMobilePlatform, type AppPlatform } from '../app/platform.ts'
-export { createSystemClock, type ClockService } from '../app/clock-service.ts'
+export { createSystemClock, type ClockService, type TimerHandle } from '../app/clock-service.ts'
 export { type IdService } from '../app/id-service.ts'
 export { parseIsoDate, todayIso } from '../lib/dates.ts'
 export { formatDayLabel, formatMonthDay, formatShortDate } from '../lib/date-labels.ts'
 export {
   createPlatformService,
   type BuildPlatform,
+  type ColorScheme,
   type FileSrcConverter,
   type PlatformFacts,
   type PlatformService,
@@ -46,14 +39,9 @@ export {
   type WindowHost,
   type WindowService,
 } from '../app/window-service.ts'
-export { type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
+export { type AppLifecycleService, type LifecycleDomAdapter } from '../app/lifecycle-service.ts'
 export { createConsoleLogger, type LoggerService } from '../app/logger-service.ts'
 export { type DecodedImage, type ImageCodecService } from '../app/image-codec-service.ts'
-export { type UpdaterAdapter, type UpdateService, type UpdateState } from '../app/update-service.ts'
-export {
-  type ExceptionErrorHandler,
-  type ExceptionTelemetryService,
-} from '../app/exception-telemetry-service.ts'
 export { createBrowserHttpService, type HttpService } from '../app/http-service.ts'
 export { type WebFetchService } from '../app/web-fetch-service.ts'
 export { type NoteFileService } from '../graph/note-file-service.ts'
@@ -164,7 +152,7 @@ export { type RenameCoordinator } from '../documents/title-rename-service.ts'
 export { createDocumentBinding, type DocumentBinding } from '../documents/document-binding.ts'
 export { type ResolvedArchivedPost } from '../x-archive.ts'
 export { marketingVersion } from '../app/app-info-service.ts'
-export { reachWebStorage } from '../app/storage-service.ts'
+export { reachWebStorage, type StorageService } from '../app/storage-service.ts'
 export {
   LINGER_MS,
   MIN_VISIBLE_MS,
@@ -250,8 +238,6 @@ export {
   type GraphSessionState,
   type GraphStatus,
 } from '../graph/graph-session-service.ts'
-export { type KeyboardService } from '../mobile/keyboard-service.ts'
-export { type ShareService } from '../mobile/share-service.ts'
 export {
   createV1ImportService,
   type V1ImportService,
@@ -300,12 +286,6 @@ export {
   type AiPromptMode,
 } from '../settings/schema.ts'
 export { type SettingsLoadOutcome, type SettingsService } from '../settings/settings-service.ts'
-export {
-  createThemeService,
-  THEME_PREFERENCE_CACHE_KEY,
-  type ResolvedTheme,
-  type ThemeService,
-} from '../settings/theme-service.ts'
 export { type ContactsAuthorization, type ContactMatch } from '../contacts/commands.ts'
 export { type ContactsState } from '../contacts/contacts-service.ts'
 export { type ClassicAccess, type ClassicSignInResult } from '../classic/classic-access-service.ts'

@@ -76,13 +76,14 @@ export interface RenderInAppOptions {
    */
   queryClient?: QueryClient
   /**
+   * Replaces fields of the app layer built over `app`, e.g. `{ update }` or a whole
+   * `createTestAppServices(app)` a test must share with the render.
+   */
+  appServices?: Partial<AppServices>
+  /**
    * Wraps `ui` inside every provider, for providers this helper does not mount.
    */
   wrapper?: (children: ReactNode) => ReactNode
-  /**
-   * Replaces fields of the test app-layer services, e.g. `{ linkNavigation }`.
-   */
-  appServices?: Partial<AppServices>
   /**
    * Mount only `CoreServicesProvider` and the query client, for a test of a
    * provider this helper otherwise mounts, or of one that needs no graph.
@@ -179,7 +180,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   registerAppCommands(app.commands)
 
   const route = options?.route
-  const appLayer = createTestAppServices(app, options?.appServices) as TestAppServices
+  const appLayer = createTestAppServices(app, options?.appServices)
   const wrap = (children: ReactNode): ReactElement => {
     const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
     if (servicesOnly) {
