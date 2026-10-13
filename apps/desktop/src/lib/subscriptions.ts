@@ -1,16 +1,12 @@
 /**
- * Collects unlisten/dispose functions — including ones acquired *async* —
- * and guarantees none leak past disposal: a subscription that resolves after
- * {@link SubscriptionTracker.disposeAll} ran is torn down on the spot. Every
- * effect that awaits a `listen(...)` otherwise re-derives this same
- * disposed-flag dance (StrictMode's probe mount makes the race routine).
+ * Collects unlisten/dispose functions and guarantees none leak past disposal:
+ * a subscription tracked after {@link SubscriptionTracker.disposeAll} ran is
+ * torn down on the spot.
  */
 export interface SubscriptionTracker {
-  /** Track an async subscription; resolves once it's tracked (or torn down). */
-  add: (subscription: Promise<() => void>) => Promise<void>
   /** Track an already-acquired dispose function. */
   track: (dispose: () => void) => void
-  /** Tear everything down; late-resolving `add`s dispose immediately. */
+  /** Tear everything down; later `track`s dispose immediately. */
   disposeAll: () => void
 }
 
@@ -18,16 +14,14 @@ export interface SubscriptionTracker {
 export function trackSubscriptions(): SubscriptionTracker {
   let disposed = false
   const disposers: Array<() => void> = []
-  const track = (dispose: () => void): void => {
-    if (disposed) {
-      dispose()
-    } else {
-      disposers.push(dispose)
-    }
-  }
   return {
-    track,
-    add: (subscription) => subscription.then(track),
+    track: (dispose) => {
+      if (disposed) {
+        dispose()
+      } else {
+        disposers.push(dispose)
+      }
+    },
     disposeAll: () => {
       disposed = true
       for (const dispose of disposers) {
