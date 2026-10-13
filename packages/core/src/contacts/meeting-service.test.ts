@@ -597,7 +597,8 @@ describe('attendee identity outcomes', () => {
   it('fails before writing when identity resolution fails', async () => {
     const failing = meetingService({
       personNotes: {
-        ...personNotes,
+        resolvePersonContact: (contact) => personNotes.resolvePersonContact(contact),
+        ensurePersonNote: (input) => personNotes.ensurePersonNote(input),
         resolvePerson: async () => {
           throw new Error('index unavailable')
         },
@@ -622,7 +623,8 @@ describe('attendee identity outcomes', () => {
   it('accepts a race that blocks creation after the daily write', async () => {
     const raced = meetingService({
       personNotes: {
-        ...personNotes,
+        resolvePerson: (values) => personNotes.resolvePerson(values),
+        resolvePersonContact: (contact) => personNotes.resolvePersonContact(contact),
         ensurePersonNote: async () => ({
           kind: 'blocked',
           emails: ['ada@example.com'],

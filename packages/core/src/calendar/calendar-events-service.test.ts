@@ -139,15 +139,9 @@ describe('watchAuthorization', () => {
   it('logs a failed read and keeps the last state', async () => {
     const logger = createTestLoggerService()
     const failure = new Error('EventKit is gone')
-    const service = createService({
-      logger,
-      calendar: {
-        ...createTestCalendarService(),
-        authorizationStatus: async () => {
-          throw failure
-        },
-      },
-    })
+    const calendar = createTestCalendarService()
+    vi.spyOn(calendar, 'authorizationStatus').mockRejectedValue(failure)
+    const service = createService({ logger, calendar })
 
     service.watchAuthorization()
 
@@ -174,15 +168,9 @@ describe('requestAccess', () => {
   it('logs a failed request and still resolves', async () => {
     const logger = createTestLoggerService()
     const failure = new Error('prompt timed out')
-    const service = createService({
-      logger,
-      calendar: {
-        ...createTestCalendarService(),
-        requestAccess: async () => {
-          throw failure
-        },
-      },
-    })
+    const calendar = createTestCalendarService()
+    vi.spyOn(calendar, 'requestAccess').mockRejectedValue(failure)
+    const service = createService({ logger, calendar })
 
     await expect(service.requestAccess()).resolves.toBeUndefined()
     expect(logger.getErrors()).toEqual([

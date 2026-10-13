@@ -34,6 +34,7 @@ import {
 import type { BacklinkTargetService } from './backlink-target-service.ts'
 import {
   createCaptureDrainService,
+  type CaptureDrainService,
   type DrainCaptureInboxInput,
   type DrainCaptureInboxOutcome,
 } from './capture-drain-service.ts'
@@ -58,10 +59,14 @@ export const PROVIDERS: AiProvidersState = {
 }
 export const NO_PROVIDERS: AiProvidersState = { providers: [], defaultProviderId: null }
 
-/** The keychain entry holding the API key of the provider in {@link PROVIDERS}. */
+/**
+ * The keychain entry holding the API key of the provider in {@link PROVIDERS}.
+ */
 export const API_KEY_SECRET = aiKeySecretName('cfg-openai')
 
-/** 2026-06-11 15:30:22.845 local — every derived name is asserted from it. */
+/**
+ * 2026-06-11 15:30:22.845 local. Every derived name is asserted from it.
+ */
 export const CAPTURED_AT = new Date(2026, 5, 11, 15, 30, 22, 845)
 export const IDENTITY = captureIdentity(CAPTURED_AT, '7c9e6679-7425-40de-944b-e07fc1f90ae7')
 export const DAILY = 'daily/2026-06-11.md'
@@ -80,9 +85,13 @@ export function envelope(overrides: Partial<CaptureEnvelope> = {}): CaptureEnvel
 }
 
 export interface CaptureTestKit {
-  /** The in-memory graph notes. */
+  /**
+   * The in-memory graph notes.
+   */
   noteFile: TestNoteFileService
-  /** The in-memory spool (`.reflect/inbox/`). */
+  /**
+   * The in-memory spool (`.reflect/inbox/`).
+   */
   captureInbox: TestCaptureInboxService
   xArchive: TestXArchiveService
   clock: TestClockService
@@ -95,119 +104,164 @@ export interface CaptureTestKit {
   scrapeMock: Mock<PageMetaService['scrape']>
   describeMock: MockInstance<PageDescriberService['describe']>
   ensureBacklinkTargetMock: Mock<BacklinkTargetService['ensure']>
-  /** Replace the keychain with a fresh one holding `initial` and return it. */
+  /**
+   * Replace the keychain with a fresh one holding `initial` and return it.
+   */
   installSecrets(initial?: Record<string, string>): TestSecretStoreService
-  /** Replace the keychain with one whose reads reject with `error`. */
+  /**
+   * Replace the keychain with one whose reads reject with `error`.
+   */
   installFailingSecrets(error: Error): void
-  /** Spool one capture (envelope JSON + screenshot sibling unless disabled). */
+  /**
+   * Spool one capture (envelope JSON + screenshot sibling unless disabled).
+   */
   addSpool(capture: CaptureEnvelope, options?: { screenshot?: boolean; modifiedMs?: number }): void
-  /** Run the drain at generation 3. */
+  /**
+   * Run the drain at generation 3.
+   */
   drain(overrides?: Partial<DrainCaptureInboxInput>): Promise<DrainCaptureInboxOutcome>
-  /** Run the enrichment pass at generation 3, with {@link PROVIDERS} configured unless overridden. */
+  /**
+   * Run the enrichment pass at generation 3, with {@link PROVIDERS} configured unless overridden.
+   */
   reconcile(
     overrides?: Partial<ReconcileCaptureEnrichmentInput> & { providers?: AiProvidersState },
   ): Promise<ReconcileCaptureEnrichmentOutcome>
 }
 
-/** Fresh in-memory services with the capture phases built on them; call from `beforeEach`. */
-export function createCaptureTestKit(): CaptureTestKit {
-  const noteFile = createTestNoteFileService()
-  const captureInbox = createTestCaptureInboxService()
-  const assetStore = createTestAssetStoreService()
-  const webFetch = createTestWebFetchService()
-  const xArchive = createTestXArchiveService()
-  const pageDescriber = createTestPageDescriberService({
-    title: null,
-    description: 'An AI description of the page.',
-  })
-  const hash = createTestHashService()
-  const clock = createTestClockService({ now: Date.now() })
-  let secretStore: SecretStoreService = createTestSecretStoreService({
-    [API_KEY_SECRET]: 'sk-live-key',
-  })
+class CaptureTestKitImpl implements CaptureTestKit {
+  readonly noteFile: TestNoteFileService
+  readonly captureInbox: TestCaptureInboxService
+  readonly xArchive: TestXArchiveService
+  readonly clock: TestClockService
+  readonly writeNoteMock: MockInstance<NoteFileService['write']>
+  readonly inboxRemoveMock: MockInstance<CaptureInboxService['remove']>
+  readonly promoteMock: MockInstance<CaptureInboxService['promoteScreenshot']>
+  readonly readAssetMock: MockInstance<AssetStoreService['readBase64']>
+  readonly writeAssetMock: MockInstance<AssetStoreService['writeBase64']>
+  readonly linkPreviewMock: MockInstance<WebFetchService['fetchLinkPreviewImage']>
+  readonly scrapeMock: Mock<PageMetaService['scrape']>
+  readonly describeMock: MockInstance<PageDescriberService['describe']>
+  readonly ensureBacklinkTargetMock: Mock<BacklinkTargetService['ensure']>
+  readonly #assetStore: AssetStoreService
+  readonly #webFetch: WebFetchService
+  readonly #pageDescriber: PageDescriberService
+  readonly #hash: ReturnType<typeof createTestHashService>
+  readonly #drainService: CaptureDrainService
+  #secretStore: SecretStoreService
 
-  const scrapeMock = vi
-    .fn<PageMetaService['scrape']>()
-    .mockResolvedValue({ title: 'An article', description: null, siteName: null })
-  const ensureBacklinkTargetMock = vi
-    .fn<BacklinkTargetService['ensure']>()
-    .mockResolvedValue('Links')
-  // The inbox fake promotes without writing the asset, so every screenshot reads as these bytes.
-  const readAssetMock = vi.spyOn(assetStore, 'readBase64').mockResolvedValue(btoa('jpeg-bytes'))
+  constructor() {
+    const noteFile = createTestNoteFileService()
+    const captureInbox = createTestCaptureInboxService()
+    const assetStore = createTestAssetStoreService()
+    const webFetch = createTestWebFetchService()
+    const xArchive = createTestXArchiveService()
+    const pageDescriber = createTestPageDescriberService({
+      title: null,
+      description: 'An AI description of the page.',
+    })
+    const hash = createTestHashService()
+    const clock = createTestClockService({ now: Date.now() })
 
-  const drainService = createCaptureDrainService({
-    captureInbox,
-    noteFile,
-    xArchive,
-    backlinkTarget: { ensure: ensureBacklinkTargetMock },
-    hash,
-    clock,
-    logger: createTestLoggerService(),
-  })
+    const scrapeMock = vi
+      .fn<PageMetaService['scrape']>()
+      .mockResolvedValue({ title: 'An article', description: null, siteName: null })
+    const ensureBacklinkTargetMock = vi
+      .fn<BacklinkTargetService['ensure']>()
+      .mockResolvedValue('Links')
 
-  return {
-    noteFile,
-    captureInbox,
-    xArchive,
-    clock,
-    writeNoteMock: vi.spyOn(noteFile, 'write'),
-    inboxRemoveMock: vi.spyOn(captureInbox, 'remove'),
-    promoteMock: vi.spyOn(captureInbox, 'promoteScreenshot'),
-    readAssetMock,
-    writeAssetMock: vi.spyOn(assetStore, 'writeBase64'),
-    linkPreviewMock: vi.spyOn(webFetch, 'fetchLinkPreviewImage'),
-    scrapeMock,
-    describeMock: vi.spyOn(pageDescriber, 'describe'),
-    ensureBacklinkTargetMock,
-    installSecrets(initial = {}) {
-      const store = createTestSecretStoreService(initial)
-      secretStore = store
-      return store
-    },
-    installFailingSecrets(error) {
-      secretStore = {
-        ...createTestSecretStoreService(),
-        get: async () => {
-          throw error
-        },
-      }
-    },
-    addSpool(capture, options = {}) {
-      const withRef = {
-        ...capture,
-        screenshotRef: options.screenshot === false ? undefined : `${capture.id}.jpg`,
-      }
-      const modifiedMs = options.modifiedMs ?? 0
-      captureInbox.add(`${capture.id}.json`, withRef, { modifiedMs })
-      if (options.screenshot !== false) {
-        captureInbox.add(`${capture.id}.jpg`, 'jpeg', { modifiedMs })
-      }
-    },
-    drain: (overrides = {}) => drainService.drain({ generation: 3, ...overrides }),
-    async reconcile(overrides = {}) {
-      const { providers = PROVIDERS, ...input } = overrides
-      const settings = createTestSettingsService({
-        aiProviders: providers.providers,
-        defaultAiProviderId: providers.defaultProviderId,
-      })
-      await settings.whenLoaded()
-      const enrichment = createCaptureEnrichmentService({
-        noteFile,
-        assetStore,
-        webFetch,
-        pageMeta: { scrape: scrapeMock },
-        pageDescriber,
-        aiProviderConfig: createAiProviderConfigService({
-          settings,
-          credentials: createAiCredentialService({ secretStore: createTestSecretStoreService() }),
-          keyValidation: createTestAiKeyValidationService(),
-          id: createTestIdService(),
-        }),
-        aiCredentials: createAiCredentialService({ secretStore }),
-        privacy: createPrivacyService({ noteFile }),
-        hash,
-      })
-      return await enrichment.reconcile({ generation: 3, ...input })
-    },
+    this.noteFile = noteFile
+    this.captureInbox = captureInbox
+    this.xArchive = xArchive
+    this.clock = clock
+    this.writeNoteMock = vi.spyOn(noteFile, 'write')
+    this.inboxRemoveMock = vi.spyOn(captureInbox, 'remove')
+    this.promoteMock = vi.spyOn(captureInbox, 'promoteScreenshot')
+    // The inbox fake promotes without writing the asset, so every screenshot reads as these bytes.
+    this.readAssetMock = vi.spyOn(assetStore, 'readBase64').mockResolvedValue(btoa('jpeg-bytes'))
+    this.writeAssetMock = vi.spyOn(assetStore, 'writeBase64')
+    this.linkPreviewMock = vi.spyOn(webFetch, 'fetchLinkPreviewImage')
+    this.scrapeMock = scrapeMock
+    this.describeMock = vi.spyOn(pageDescriber, 'describe')
+    this.ensureBacklinkTargetMock = ensureBacklinkTargetMock
+    this.#assetStore = assetStore
+    this.#webFetch = webFetch
+    this.#pageDescriber = pageDescriber
+    this.#hash = hash
+    this.#secretStore = createTestSecretStoreService({ [API_KEY_SECRET]: 'sk-live-key' })
+    this.#drainService = createCaptureDrainService({
+      captureInbox,
+      noteFile,
+      xArchive,
+      backlinkTarget: { ensure: ensureBacklinkTargetMock },
+      hash,
+      clock,
+      logger: createTestLoggerService(),
+    })
   }
+
+  installSecrets(initial: Record<string, string> = {}): TestSecretStoreService {
+    const store = createTestSecretStoreService(initial)
+    this.#secretStore = store
+    return store
+  }
+
+  installFailingSecrets(error: Error): void {
+    const store = createTestSecretStoreService()
+    vi.spyOn(store, 'get').mockRejectedValue(error)
+    this.#secretStore = store
+  }
+
+  addSpool(
+    capture: CaptureEnvelope,
+    options: { screenshot?: boolean; modifiedMs?: number } = {},
+  ): void {
+    const withRef = {
+      ...capture,
+      screenshotRef: options.screenshot === false ? undefined : `${capture.id}.jpg`,
+    }
+    const modifiedMs = options.modifiedMs ?? 0
+    this.captureInbox.add(`${capture.id}.json`, withRef, { modifiedMs })
+    if (options.screenshot !== false) {
+      this.captureInbox.add(`${capture.id}.jpg`, 'jpeg', { modifiedMs })
+    }
+  }
+
+  drain(overrides: Partial<DrainCaptureInboxInput> = {}): Promise<DrainCaptureInboxOutcome> {
+    return this.#drainService.drain({ generation: 3, ...overrides })
+  }
+
+  async reconcile(
+    overrides: Partial<ReconcileCaptureEnrichmentInput> & { providers?: AiProvidersState } = {},
+  ): Promise<ReconcileCaptureEnrichmentOutcome> {
+    const { providers = PROVIDERS, ...input } = overrides
+    const settings = createTestSettingsService({
+      aiProviders: providers.providers,
+      defaultAiProviderId: providers.defaultProviderId,
+    })
+    await settings.whenLoaded()
+    const enrichment = createCaptureEnrichmentService({
+      noteFile: this.noteFile,
+      assetStore: this.#assetStore,
+      webFetch: this.#webFetch,
+      pageMeta: { scrape: this.scrapeMock },
+      pageDescriber: this.#pageDescriber,
+      aiProviderConfig: createAiProviderConfigService({
+        settings,
+        credentials: createAiCredentialService({ secretStore: createTestSecretStoreService() }),
+        keyValidation: createTestAiKeyValidationService(),
+        id: createTestIdService(),
+      }),
+      aiCredentials: createAiCredentialService({ secretStore: this.#secretStore }),
+      privacy: createPrivacyService({ noteFile: this.noteFile }),
+      hash: this.#hash,
+    })
+    return await enrichment.reconcile({ generation: 3, ...input })
+  }
+}
+
+/**
+ * Fresh in-memory services with the capture phases built on them; call from `beforeEach`.
+ */
+export function createCaptureTestKit(): CaptureTestKit {
+  return new CaptureTestKitImpl()
 }

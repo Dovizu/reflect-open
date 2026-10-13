@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createICloudNativeService } from './icloud-native-service.ts'
@@ -99,15 +99,8 @@ describe('createICloudNativeService', () => {
   it('logs a failed event registration', async () => {
     const ipc = createTestIpcBridgeService()
     const logger = createTestLoggerService()
-    const icloud = createICloudNativeService({
-      ipc: {
-        ...ipc,
-        listen: async () => {
-          throw new Error('no events')
-        },
-      },
-      logger,
-    })
+    vi.spyOn(ipc, 'listen').mockRejectedValue(new Error('no events'))
+    const icloud = createICloudNativeService({ ipc, logger })
 
     icloud.subscribeWatchFailed(() => {})
 

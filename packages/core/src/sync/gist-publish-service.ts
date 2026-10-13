@@ -17,13 +17,19 @@ import type { GithubAuthService } from './github-auth-service.ts'
  * also recorded in the optimistic row overlay.
  */
 export interface GistPublishResult {
-  /** The gist page url; `null` after an unpublish. */
+  /**
+   * The gist page url; `null` after an unpublish.
+   */
   readonly url: string | null
-  /** Whether the published body lags the note. Fresh after either action. */
+  /**
+   * Whether the published body lags the note. Fresh after either action.
+   */
   readonly stale: boolean
 }
 
-/** Publishing a note as a secret GitHub gist, and taking it down again. */
+/**
+ * Publishing a note as a secret GitHub gist, and taking it down again.
+ */
 export interface GistPublishService {
   /**
    * The publish action as every entry point runs it (Note actions button,
@@ -50,36 +56,90 @@ export interface GistPublishService {
   unpublish(path: string): Promise<GistPublishResult | null>
 }
 
-export function createGistPublishService(deps: {
-  gists: GistService
-  githubAuth: Pick<GithubAuthService, 'getToken'>
-  noteDocuments: Pick<NoteDocumentService, 'readSource' | 'commitFrontmatter'>
-  noteRows: Pick<NoteRowService, 'setOverlay'>
-  privacy: Pick<PrivacyService, 'assertCloudAllowed'>
-  operations: Pick<OperationsService, 'start'>
-  clipboard: ClipboardService
-  graphSession: GraphSessionSource
-}): GistPublishService {
-  const {
-    gists,
-    githubAuth,
-    noteDocuments,
-    noteRows,
-    privacy,
-    operations,
-    clipboard,
-    graphSession,
-  } = deps
-  const active = new Set<string>()
+export interface GistPublishServiceDeps {
+  readonly gists: GistService
+  readonly githubAuth: Pick<GithubAuthService, 'getToken'>
+  readonly noteDocuments: Pick<NoteDocumentService, 'readSource' | 'commitFrontmatter'>
+  readonly noteRows: Pick<NoteRowService, 'setOverlay'>
+  readonly privacy: Pick<PrivacyService, 'assertCloudAllowed'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly clipboard: ClipboardService
+  readonly graphSession: GraphSessionSource
+}
 
-  function claim(path: string): boolean {
-    if (active.has(path)) {
-      operations
+class GistPublishServiceImpl implements GistPublishService {
+  readonly #deps: GistPublishServiceDeps
+  readonly #active = new Set<string>()
+
+  constructor(deps: GistPublishServiceDeps) {
+    this.#deps = deps
+  }
+
+  async publish(path: string): Promise<GistPublishResult | null> {
+    const { noteRows, operations, clipboard, graphSession } = this.#deps
+    const session = graphSession.getState().session
+    if (session === null || !this.#claim(path)) {
+      return null
+    }
+    const { generation } = session
+    try {
+      const operation = operations.start('Publishing gist')
+      let url: string
+      try {
+        url = await this.#publishNote(path, generation)
+      } catch (cause) {
+        operation.fail(errorMessage(cause))
+        return null
+      }
+      operation.done()
+      // Stamp the optimism with the publishing graph's generation, so a publish
+      // that resolves after a graph switch can't surface on the new graph.
+      const result = { url, stale: false }
+      noteRows.setOverlay(path, generation, { gistUrl: result.url, gistStale: result.stale })
+      try {
+        await clipboard.writeText(url)
+        operations.start('Gist link copied').done()
+      } catch (cause) {
+        operations.start('Copying the gist link').fail(errorMessage(cause))
+      }
+      return result
+    } finally {
+      this.#active.delete(path)
+    }
+  }
+
+  async unpublish(path: string): Promise<GistPublishResult | null> {
+    const { noteRows, operations, graphSession } = this.#deps
+    const session = graphSession.getState().session
+    if (session === null || !this.#claim(path)) {
+      return null
+    }
+    const { generation } = session
+    try {
+      const operation = operations.start('Unpublishing gist')
+      try {
+        await this.#unpublishNote(path, generation)
+      } catch (cause) {
+        operation.fail(errorMessage(cause))
+        return null
+      }
+      operation.done()
+      const result = { url: null, stale: false }
+      noteRows.setOverlay(path, generation, { gistUrl: result.url, gistStale: result.stale })
+      return result
+    } finally {
+      this.#active.delete(path)
+    }
+  }
+
+  #claim(path: string): boolean {
+    if (this.#active.has(path)) {
+      this.#deps.operations
         .start('Gist operation already running')
         .fail('Wait for the current gist operation to finish')
       return false
     }
-    active.add(path)
+    this.#active.add(path)
     return true
   }
 
@@ -102,7 +162,8 @@ export function createGistPublishService(deps: {
    * being published (live, not the possibly-lagging index), and it fails
    * closed before any byte leaves the device.
    */
-  async function publishNote(path: string, generation: number): Promise<string> {
+  async #publishNote(path: string, generation: number): Promise<string> {
+    const { gists, githubAuth, noteDocuments, privacy } = this.#deps
     const source = await noteDocuments.readSource(path)
     const parsed = parseNote({ path, source })
     privacy.assertCloudAllowed({ path, isPrivate: parsed.frontmatter.private })
@@ -165,7 +226,8 @@ export function createGistPublishService(deps: {
    * GitHub rejects the delete, the local block is restored before the error
    * is surfaced.
    */
-  async function unpublishNote(path: string, generation: number): Promise<void> {
+  async #unpublishNote(path: string, generation: number): Promise<void> {
+    const { gists, githubAuth, noteDocuments } = this.#deps
     const source = await noteDocuments.readSource(path)
     const parsed = parseNote({ path, source })
     if (parsed.frontmatterWarning !== undefined) {
@@ -193,60 +255,8 @@ export function createGistPublishService(deps: {
       throw cause
     }
   }
+}
 
-  return {
-    async publish(path) {
-      const session = graphSession.getState().session
-      if (session === null || !claim(path)) {
-        return null
-      }
-      const { generation } = session
-      try {
-        const operation = operations.start('Publishing gist')
-        let url: string
-        try {
-          url = await publishNote(path, generation)
-        } catch (cause) {
-          operation.fail(errorMessage(cause))
-          return null
-        }
-        operation.done()
-        // Stamp the optimism with the publishing graph's generation, so a publish
-        // that resolves after a graph switch can't surface on the new graph.
-        const result = { url, stale: false }
-        noteRows.setOverlay(path, generation, { gistUrl: result.url, gistStale: result.stale })
-        try {
-          await clipboard.writeText(url)
-          operations.start('Gist link copied').done()
-        } catch (cause) {
-          operations.start('Copying the gist link').fail(errorMessage(cause))
-        }
-        return result
-      } finally {
-        active.delete(path)
-      }
-    },
-    async unpublish(path) {
-      const session = graphSession.getState().session
-      if (session === null || !claim(path)) {
-        return null
-      }
-      const { generation } = session
-      try {
-        const operation = operations.start('Unpublishing gist')
-        try {
-          await unpublishNote(path, generation)
-        } catch (cause) {
-          operation.fail(errorMessage(cause))
-          return null
-        }
-        operation.done()
-        const result = { url: null, stale: false }
-        noteRows.setOverlay(path, generation, { gistUrl: result.url, gistStale: result.stale })
-        return result
-      } finally {
-        active.delete(path)
-      }
-    },
-  }
+export function createGistPublishService(deps: GistPublishServiceDeps): GistPublishService {
+  return new GistPublishServiceImpl(deps)
 }

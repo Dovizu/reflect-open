@@ -126,43 +126,104 @@ export interface IpcBridgeServiceDeps {
   readonly logger: LoggerService
 }
 
-export function createIpcBridgeService(deps: IpcBridgeServiceDeps): IpcBridgeService {
-  const { transport, logger } = deps
-
+class IpcBridgeServiceImpl implements IpcBridgeService {
+  readonly #deps: IpcBridgeServiceDeps
   // Heterogeneous (each key carries its own payload type), so entries are
   // stored erased; `subscribePlugin` restores the type its schema defines.
-  const pluginListeners = new Map<string, SharedListener<never>>()
+  readonly #pluginListeners = new Map<string, SharedListener<never>>()
 
-  function parseResponse<TOutput>(
+  readonly hasBinaryTransport: boolean
+
+  constructor(deps: IpcBridgeServiceDeps) {
+    this.#deps = deps
+    this.hasBinaryTransport = deps.transport.invokeBinary !== undefined
+  }
+
+  async call<TOutput>(
     command: string,
-    raw: unknown,
+    args: Record<string, unknown>,
     schema: ZodType<TOutput, unknown>,
-  ): TOutput {
-    const result = schema.safeParse(raw)
-    if (!result.success) {
+  ): Promise<TOutput> {
+    let raw: unknown
+    try {
+      raw = await this.#deps.transport.invoke(command, args)
+    } catch (error) {
+      throw toAppError(error)
+    }
+    return parseResponse(command, raw, schema)
+  }
+
+  async callBinary<TOutput>(
+    command: string,
+    body: Uint8Array,
+    headers: Record<string, string>,
+    schema: ZodType<TOutput, unknown>,
+  ): Promise<TOutput> {
+    const { transport } = this.#deps
+    if (transport.invokeBinary === undefined) {
       const appError: AppError = {
-        kind: 'parse',
-        message: `unexpected response shape from "${command}": ${result.error.message}`,
+        kind: 'io',
+        message: `the installed IPC bridge has no binary transport for "${command}"`,
       }
       throw appError
     }
-    return result.data
+    let raw: unknown
+    try {
+      raw = await transport.invokeBinary(command, body, headers)
+    } catch (error) {
+      throw toAppError(error)
+    }
+    return parseResponse(command, raw, schema)
   }
 
-  function noPluginEvents(plugin: string, event: string): AppError {
+  listen(event: string, handler: (payload: unknown) => void): Promise<Unlisten> {
+    return this.#deps.transport.listen(event, handler)
+  }
+
+  async listenPlugin(
+    plugin: string,
+    event: string,
+    handler: (payload: unknown) => void,
+  ): Promise<void> {
+    const { transport } = this.#deps
+    if (transport.listenPlugin === undefined) {
+      throw noPluginEvents(plugin, event)
+    }
+    await transport.listenPlugin(plugin, event, handler)
+  }
+
+  subscribePlugin<Payload>(
+    plugin: string,
+    event: string,
+    schema: ZodType<Payload, unknown>,
+    handler: (payload: Payload) => void,
+  ): PluginSubscription {
+    const key = `${plugin}:${event}`
+    let entry = this.#pluginListeners.get(key) as SharedListener<Payload> | undefined
+    if (entry === undefined) {
+      const fanOut = createFanOut<Payload>()
+      entry = {
+        fanOut,
+        ready: this.#registerSharedListener(key, plugin, event, schema, fanOut.emit),
+      }
+      // A missing `listenPlugin` rejects before this line, so that
+      // rejection stays cached: the transport will never gain plugin events.
+      this.#pluginListeners.set(key, entry as unknown as SharedListener<never>)
+    }
     return {
-      kind: 'io',
-      message: `the installed IPC bridge has no plugin events for "${plugin}:${event}"`,
+      ready: entry.ready,
+      unlisten: entry.fanOut.subscribe(handler),
     }
   }
 
-  async function registerSharedListener<Payload>(
+  async #registerSharedListener<Payload>(
     key: string,
     plugin: string,
     event: string,
     schema: ZodType<Payload, unknown>,
     emit: (payload: Payload) => void,
   ): Promise<void> {
+    const { transport, logger } = this.#deps
     try {
       if (transport.listenPlugin === undefined) {
         throw noPluginEvents(plugin, event)
@@ -176,76 +237,37 @@ export function createIpcBridgeService(deps: IpcBridgeServiceDeps): IpcBridgeSer
         emit(parsed.data)
       })
     } catch (error) {
-      pluginListeners.delete(key)
+      this.#pluginListeners.delete(key)
       throw error
     }
   }
+}
 
-  return {
-    async call(command, args, schema) {
-      let raw: unknown
-      try {
-        raw = await transport.invoke(command, args)
-      } catch (error) {
-        throw toAppError(error)
-      }
-      return parseResponse(command, raw, schema)
-    },
-
-    async callBinary(command, body, headers, schema) {
-      if (transport.invokeBinary === undefined) {
-        const appError: AppError = {
-          kind: 'io',
-          message: `the installed IPC bridge has no binary transport for "${command}"`,
-        }
-        throw appError
-      }
-      let raw: unknown
-      try {
-        raw = await transport.invokeBinary(command, body, headers)
-      } catch (error) {
-        throw toAppError(error)
-      }
-      return parseResponse(command, raw, schema)
-    },
-
-    listen(event, handler) {
-      return transport.listen(event, handler)
-    },
-
-    async listenPlugin(plugin, event, handler) {
-      if (transport.listenPlugin === undefined) {
-        throw noPluginEvents(plugin, event)
-      }
-      await transport.listenPlugin(plugin, event, handler)
-    },
-
-    subscribePlugin<Payload>(
-      plugin: string,
-      event: string,
-      schema: ZodType<Payload, unknown>,
-      handler: (payload: Payload) => void,
-    ): PluginSubscription {
-      const key = `${plugin}:${event}`
-      let entry = pluginListeners.get(key) as SharedListener<Payload> | undefined
-      if (entry === undefined) {
-        const fanOut = createFanOut<Payload>()
-        entry = {
-          fanOut,
-          ready: registerSharedListener(key, plugin, event, schema, fanOut.emit),
-        }
-        // A missing `listenPlugin` rejects before this line, so that
-        // rejection stays cached: the transport will never gain plugin events.
-        pluginListeners.set(key, entry as SharedListener<never>)
-      }
-      return {
-        ready: entry.ready,
-        unlisten: entry.fanOut.subscribe(handler),
-      }
-    },
-
-    hasBinaryTransport: transport.invokeBinary !== undefined,
+function parseResponse<TOutput>(
+  command: string,
+  raw: unknown,
+  schema: ZodType<TOutput, unknown>,
+): TOutput {
+  const result = schema.safeParse(raw)
+  if (!result.success) {
+    const appError: AppError = {
+      kind: 'parse',
+      message: `unexpected response shape from "${command}": ${result.error.message}`,
+    }
+    throw appError
   }
+  return result.data
+}
+
+function noPluginEvents(plugin: string, event: string): AppError {
+  return {
+    kind: 'io',
+    message: `the installed IPC bridge has no plugin events for "${plugin}:${event}"`,
+  }
+}
+
+export function createIpcBridgeService(deps: IpcBridgeServiceDeps): IpcBridgeService {
+  return new IpcBridgeServiceImpl(deps)
 }
 
 /**
@@ -260,7 +282,42 @@ export interface FanOut<T> {
   /**
    * Deliver `value` to every current handler.
    */
-  emit(this: void, value: T): void
+  emit: (value: T) => void
+}
+
+class FanOutImpl<T> implements FanOut<T> {
+  readonly #start: ((emit: (value: T) => void) => Unlisten) | undefined
+  readonly #handlers = new Set<(value: T) => void>()
+  #stop: Unlisten | null = null
+
+  constructor(start: ((emit: (value: T) => void) => Unlisten) | undefined) {
+    this.#start = start
+  }
+
+  subscribe(handler: (value: T) => void): Unlisten {
+    // Wrapped for identity, so one function added twice detaches independently.
+    const deliver = (value: T): void => {
+      handler(value)
+    }
+    this.#handlers.add(deliver)
+    if (this.#stop === null && this.#start !== undefined) {
+      this.#stop = this.#start(this.emit)
+    }
+    return () => {
+      if (!this.#handlers.delete(deliver) || this.#handlers.size > 0 || this.#stop === null) {
+        return
+      }
+      const teardown = this.#stop
+      this.#stop = null
+      teardown()
+    }
+  }
+
+  readonly emit = (value: T): void => {
+    for (const handler of this.#handlers) {
+      handler(value)
+    }
+  }
 }
 
 /**
@@ -269,36 +326,7 @@ export interface FanOut<T> {
  * `emit`.
  */
 export function createFanOut<T>(start?: (emit: (value: T) => void) => Unlisten): FanOut<T> {
-  const handlers = new Set<(value: T) => void>()
-  let stop: Unlisten | null = null
-
-  function emit(value: T): void {
-    for (const handler of handlers) {
-      handler(value)
-    }
-  }
-
-  return {
-    subscribe(handler) {
-      // Wrapped for identity, so one function added twice detaches independently.
-      const deliver = (value: T): void => {
-        handler(value)
-      }
-      handlers.add(deliver)
-      if (stop === null && start !== undefined) {
-        stop = start(emit)
-      }
-      return () => {
-        if (!handlers.delete(deliver) || handlers.size > 0 || stop === null) {
-          return
-        }
-        const teardown = stop
-        stop = null
-        teardown()
-      }
-    },
-    emit,
-  }
+  return new FanOutImpl(start)
 }
 
 /**

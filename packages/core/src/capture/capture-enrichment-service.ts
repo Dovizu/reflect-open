@@ -44,39 +44,73 @@ import {
 import type { PageMetaService } from './page-meta-service.ts'
 
 export interface ReconcileCaptureEnrichmentInput {
-  /** `GraphInfo.generation` — pins every read and write to the issuing graph. */
+  /**
+   * `GraphInfo.generation`, pins every read and write to the issuing graph.
+   */
   generation: number
-  /** Abort gate, checked between notes and after every slow await. */
+  /**
+   * Abort gate, checked between notes and after every slow await.
+   */
   isStale?: () => boolean
-  /** Observes how many captures need enrichment, before work starts. */
+  /**
+   * Observes how many captures need enrichment, before work starts.
+   */
   onPending?: (count: number) => void
 }
 
 export interface ReconcileCaptureEnrichmentOutcome {
-  /** Captures that were pending when the pass started. */
+  /**
+   * Captures that were pending when the pass started.
+   */
   pending: number
-  /** Captures this pass enriched (meta tags, plus AI when configured). */
+  /**
+   * Captures this pass enriched (meta tags, plus AI when configured).
+   */
   enriched: number
-  /** Captures marked skipped (made private, or edited since the raw save). */
+  /**
+   * Captures marked skipped (made private, or edited since the raw save).
+   */
   skipped: number
-  /** Why captures remain pending, or `null` when the pass drained. */
+  /**
+   * Why captures remain pending, or `null` when the pass drained.
+   */
   stopped: ReconcileStop | null
 }
 
 interface GenerateEnrichmentInput {
   config: AiProviderConfig
   apiKey: string
-  /** The pending capture's frontmatter keys (URL, screenshot asset). */
+  /**
+   * The pending capture's frontmatter keys (URL, screenshot asset).
+   */
   meta: CaptureNoteMeta
-  /** The note's current display title. */
+  /**
+   * The note's current display title.
+   */
   title: string
   scraped: PageMeta | null
-  /** The raw drain-written body (page text is extracted from it). */
+  /**
+   * The raw drain-written body (page text is extracted from it).
+   */
   body: string
   screenshotBase64?: string | undefined
 }
 
-/** Phase 2 of link capture: meta scrape plus the optional BYOK description. */
+export interface CaptureEnrichmentServiceDeps {
+  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listNotes'>
+  readonly assetStore: Pick<AssetStoreService, 'readBase64' | 'writeBase64'>
+  readonly webFetch: Pick<WebFetchService, 'fetchLinkPreviewImage'>
+  readonly pageMeta: PageMetaService
+  readonly pageDescriber: PageDescriberService
+  readonly aiProviderConfig: Pick<AiProviderConfigService, 'defaultProvider'>
+  readonly aiCredentials: Pick<AiCredentialService, 'read'>
+  readonly privacy: Pick<PrivacyService, 'cloudSafeLinkHref'>
+  readonly hash: HashService
+}
+
+/**
+ * Phase 2 of link capture: meta scrape plus the optional BYOK description.
+ */
 export interface CaptureEnrichmentService {
   /**
    * Capture notes still awaiting enrichment, oldest first: well-formed capture
@@ -93,45 +127,17 @@ export interface CaptureEnrichmentService {
   reconcile(input: ReconcileCaptureEnrichmentInput): Promise<ReconcileCaptureEnrichmentOutcome>
 }
 
-export function createCaptureEnrichmentService(deps: {
-  noteFile: Pick<NoteFileService, 'read' | 'write' | 'listNotes'>
-  assetStore: Pick<AssetStoreService, 'readBase64' | 'writeBase64'>
-  webFetch: Pick<WebFetchService, 'fetchLinkPreviewImage'>
-  pageMeta: PageMetaService
-  pageDescriber: PageDescriberService
-  aiProviderConfig: Pick<AiProviderConfigService, 'defaultProvider'>
-  aiCredentials: Pick<AiCredentialService, 'read'>
-  privacy: Pick<PrivacyService, 'cloudSafeLinkHref'>
-  hash: HashService
-}): CaptureEnrichmentService {
-  const {
-    noteFile,
-    assetStore,
-    webFetch,
-    pageMeta: pageMetaService,
-    pageDescriber,
-    aiProviderConfig,
-    aiCredentials,
-    privacy,
-    hash,
-  } = deps
-  const writes: CaptureWriteContext = { noteFile, hash }
+class CaptureEnrichmentServiceImpl implements CaptureEnrichmentService {
+  readonly #deps: CaptureEnrichmentServiceDeps
+  readonly #writes: CaptureWriteContext
 
-  /**
-   * The capture's URL as the outbound fetches may see it. Every caller holds a
-   * snapshot that already passed the note and daily privacy checks.
-   */
-  function cloudSafeCaptureUrl(
-    identity: CaptureIdentity,
-    snapshot: PendingCaptureSnapshot,
-  ): CloudSafe<string> {
-    return privacy.cloudSafeLinkHref(
-      { path: identity.notePath, isPrivate: snapshot.isPrivate },
-      snapshot.meta.captureUrl,
-    )
+  constructor(deps: CaptureEnrichmentServiceDeps) {
+    this.#deps = deps
+    this.#writes = { noteFile: deps.noteFile, hash: deps.hash }
   }
 
-  async function listPending(generation: number): Promise<CaptureIdentity[]> {
+  async listPending(generation: number): Promise<CaptureIdentity[]> {
+    const { noteFile } = this.#deps
     const files = await noteFile.listNotes(generation)
     const candidates = files
       .map((file) => captureFromPath(file.path))
@@ -156,71 +162,15 @@ export function createCaptureEnrichmentService(deps: {
     return pending
   }
 
-  /**
-   * The AI leg of one capture's enrichment: make the one-shot provider call and
-   * treat a provider refusal as "no enrichment" (`null`) — the scraped meta is
-   * the fallback. Transient failures (`auth`, `network`) propagate for retry.
-   */
-  async function generateEnrichment(
-    input: GenerateEnrichmentInput,
-  ): Promise<PageEnrichment | null> {
-    try {
-      return await pageDescriber.describe({
-        config: input.config,
-        apiKey: input.apiKey,
-        url: input.meta.captureUrl,
-        title: input.title,
-        metaTitle: input.scraped?.title ?? undefined,
-        siteName: input.scraped?.siteName ?? undefined,
-        metaDescription: input.scraped?.description ?? undefined,
-        contentText: capturePageTextFromBody(input.body),
-        screenshotBase64: input.screenshotBase64,
-      })
-    } catch (cause) {
-      if (!isDescriptionRejected(cause)) {
-        throw cause
-      }
-      return null
-    }
-  }
-
-  async function readCaptureScreenshot(
-    meta: CaptureNoteMeta,
-    generation: number,
-  ): Promise<string | undefined> {
-    if (!meta.captureScreenshot) {
-      return undefined
-    }
-    try {
-      return await assetStore.readBase64(meta.captureScreenshot, generation)
-    } catch (cause) {
-      if (!isAppError(cause) || cause.kind !== 'notFound') {
-        throw cause
-      }
-      return undefined
-    }
-  }
-
-  async function fetchLinkPreviewImage(
-    meta: CaptureNoteMeta,
-    url: CloudSafe<string>,
-  ): Promise<string | null> {
-    if (meta.captureScreenshot) {
-      return null
-    }
-    try {
-      return await webFetch.fetchLinkPreviewImage(url)
-    } catch {
-      return null
-    }
-  }
-
-  async function reconcile(
+  async reconcile(
     input: ReconcileCaptureEnrichmentInput,
   ): Promise<ReconcileCaptureEnrichmentOutcome> {
+    const { noteFile, assetStore, aiProviderConfig, aiCredentials, hash } = this.#deps
+    const pageMetaService = this.#deps.pageMeta
+    const writes = this.#writes
     let pending: CaptureIdentity[]
     try {
-      pending = await listPending(input.generation)
+      pending = await this.listPending(input.generation)
     } catch (cause) {
       return {
         pending: 0,
@@ -362,7 +312,7 @@ export function createCaptureEnrichmentService(deps: {
             siteName: null,
           }
         } else {
-          const captureUrl = cloudSafeCaptureUrl(identity, snapshot)
+          const captureUrl = this.#cloudSafeCaptureUrl(identity, snapshot)
           try {
             pageMeta = await pageMetaService.scrape(captureUrl)
           } catch (cause) {
@@ -386,7 +336,10 @@ export function createCaptureEnrichmentService(deps: {
         }
         const previewImage = metadataComplete
           ? null
-          : await fetchLinkPreviewImage(snapshot.meta, cloudSafeCaptureUrl(identity, snapshot))
+          : await this.#fetchLinkPreviewImage(
+              snapshot.meta,
+              this.#cloudSafeCaptureUrl(identity, snapshot),
+            )
         if (stale()) {
           return outcome({ reason: 'stale', message: 'the graph session ended mid-pass' })
         }
@@ -503,7 +456,7 @@ export function createCaptureEnrichmentService(deps: {
         if (snapshot === null) {
           continue
         }
-        const screenshotBase64 = await readCaptureScreenshot(snapshot.meta, input.generation)
+        const screenshotBase64 = await this.#readCaptureScreenshot(snapshot.meta, input.generation)
         if (stale()) {
           return outcome({ reason: 'stale', message: 'the graph session ended mid-pass' })
         }
@@ -511,7 +464,7 @@ export function createCaptureEnrichmentService(deps: {
         if (snapshot === null) {
           continue
         }
-        const generated: PageEnrichment | null = await generateEnrichment({
+        const generated: PageEnrichment | null = await this.#generateEnrichment({
           config,
           apiKey,
           meta: snapshot.meta,
@@ -576,5 +529,81 @@ export function createCaptureEnrichmentService(deps: {
     return outcome((waitingForKey ? providerStop : null) ?? transientStop)
   }
 
-  return { listPending, reconcile }
+  /**
+   * The capture's URL as the outbound fetches may see it. Every caller holds a
+   * snapshot that already passed the note and daily privacy checks.
+   */
+  #cloudSafeCaptureUrl(
+    identity: CaptureIdentity,
+    snapshot: PendingCaptureSnapshot,
+  ): CloudSafe<string> {
+    const { privacy } = this.#deps
+    return privacy.cloudSafeLinkHref(
+      { path: identity.notePath, isPrivate: snapshot.isPrivate },
+      snapshot.meta.captureUrl,
+    )
+  }
+
+  /**
+   * The AI leg of one capture's enrichment: make the one-shot provider call and
+   * treat a provider refusal as "no enrichment" (`null`) — the scraped meta is
+   * the fallback. Transient failures (`auth`, `network`) propagate for retry.
+   */
+  async #generateEnrichment(input: GenerateEnrichmentInput): Promise<PageEnrichment | null> {
+    try {
+      return await this.#deps.pageDescriber.describe({
+        config: input.config,
+        apiKey: input.apiKey,
+        url: input.meta.captureUrl,
+        title: input.title,
+        metaTitle: input.scraped?.title ?? undefined,
+        siteName: input.scraped?.siteName ?? undefined,
+        metaDescription: input.scraped?.description ?? undefined,
+        contentText: capturePageTextFromBody(input.body),
+        screenshotBase64: input.screenshotBase64,
+      })
+    } catch (cause) {
+      if (!isDescriptionRejected(cause)) {
+        throw cause
+      }
+      return null
+    }
+  }
+
+  async #readCaptureScreenshot(
+    meta: CaptureNoteMeta,
+    generation: number,
+  ): Promise<string | undefined> {
+    if (!meta.captureScreenshot) {
+      return undefined
+    }
+    try {
+      return await this.#deps.assetStore.readBase64(meta.captureScreenshot, generation)
+    } catch (cause) {
+      if (!isAppError(cause) || cause.kind !== 'notFound') {
+        throw cause
+      }
+      return undefined
+    }
+  }
+
+  async #fetchLinkPreviewImage(
+    meta: CaptureNoteMeta,
+    url: CloudSafe<string>,
+  ): Promise<string | null> {
+    if (meta.captureScreenshot) {
+      return null
+    }
+    try {
+      return await this.#deps.webFetch.fetchLinkPreviewImage(url)
+    } catch {
+      return null
+    }
+  }
+}
+
+export function createCaptureEnrichmentService(
+  deps: CaptureEnrichmentServiceDeps,
+): CaptureEnrichmentService {
+  return new CaptureEnrichmentServiceImpl(deps)
 }

@@ -26,7 +26,9 @@ const linkPreviewIconSchema = z
   .regex(/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/u)
   .refine((value) => value.slice(PNG_DATA_URL_PREFIX.length).length % 4 === 0)
 
-/** Bounded, public-network-only HTML returned for editor link metadata. */
+/**
+ * Bounded, public-network-only HTML returned for editor link metadata.
+ */
 export type LinkPreviewHtml = z.infer<typeof linkPreviewHtmlSchema>
 
 /**
@@ -35,28 +37,60 @@ export type LinkPreviewHtml = z.infer<typeof linkPreviewHtmlSchema>
  * widens. Every URL must have passed the privacy gate.
  */
 export interface WebFetchService {
-  /** A captured page's HTML, for meta-tag scraping. */
+  /**
+   * A captured page's HTML, for meta-tag scraping.
+   */
   fetchMeta(url: CloudSafe<string>): Promise<string>
-  /** An oEmbed endpoint's JSON answer as text. Only `https` JSON answers without redirects. */
+  /**
+   * An oEmbed endpoint's JSON answer as text. Only `https` JSON answers without redirects.
+   */
   fetchOembed(url: CloudSafe<string>): Promise<string>
-  /** One representative image for a captured URL as a base64 JPEG, or `null` when unavailable. */
+  /**
+   * One representative image for a captured URL as a base64 JPEG, or `null` when unavailable.
+   */
   fetchLinkPreviewImage(url: CloudSafe<string>): Promise<string | null>
-  /** An HTTP(S) page for an editor link preview. Non-public destinations are refused. */
+  /**
+   * An HTTP(S) page for an editor link preview. Non-public destinations are refused.
+   */
   fetchLinkPreviewHtml(url: CloudSafe<string>): Promise<LinkPreviewHtml>
-  /** A public raster favicon, normalized into a small PNG data URL. */
+  /**
+   * A public raster favicon, normalized into a small PNG data URL.
+   */
   fetchLinkPreviewIcon(url: CloudSafe<string>): Promise<string>
 }
 
-export function createWebFetchService(deps: { ipc: IpcBridgeService }): WebFetchService {
-  const { ipc } = deps
-  return {
-    fetchMeta: async (url) => await ipc.call('capture_meta_fetch', { url }, z.string()),
-    fetchOembed: async (url) => await ipc.call('capture_oembed_fetch', { url }, z.string()),
-    fetchLinkPreviewImage: async (url) =>
-      await ipc.call('capture_link_preview', { url }, z.string().nullable()),
-    fetchLinkPreviewHtml: async (url) =>
-      await ipc.call('link_preview_fetch_html', { url }, linkPreviewHtmlSchema),
-    fetchLinkPreviewIcon: async (url) =>
-      await ipc.call('link_preview_fetch_icon', { url }, linkPreviewIconSchema),
+export interface WebFetchServiceDeps {
+  readonly ipc: IpcBridgeService
+}
+
+class WebFetchServiceImpl implements WebFetchService {
+  readonly #deps: WebFetchServiceDeps
+
+  constructor(deps: WebFetchServiceDeps) {
+    this.#deps = deps
   }
+
+  async fetchMeta(url: CloudSafe<string>): Promise<string> {
+    return await this.#deps.ipc.call('capture_meta_fetch', { url }, z.string())
+  }
+
+  async fetchOembed(url: CloudSafe<string>): Promise<string> {
+    return await this.#deps.ipc.call('capture_oembed_fetch', { url }, z.string())
+  }
+
+  async fetchLinkPreviewImage(url: CloudSafe<string>): Promise<string | null> {
+    return await this.#deps.ipc.call('capture_link_preview', { url }, z.string().nullable())
+  }
+
+  async fetchLinkPreviewHtml(url: CloudSafe<string>): Promise<LinkPreviewHtml> {
+    return await this.#deps.ipc.call('link_preview_fetch_html', { url }, linkPreviewHtmlSchema)
+  }
+
+  async fetchLinkPreviewIcon(url: CloudSafe<string>): Promise<string> {
+    return await this.#deps.ipc.call('link_preview_fetch_icon', { url }, linkPreviewIconSchema)
+  }
+}
+
+export function createWebFetchService(deps: WebFetchServiceDeps): WebFetchService {
+  return new WebFetchServiceImpl(deps)
 }

@@ -56,15 +56,8 @@ describe('createEmbeddingRuntimeService', () => {
 
   it('logs a failed event subscription', async () => {
     const { ipc, logger } = setup()
-    const runtime = createEmbeddingRuntimeService({
-      ipc: {
-        ...ipc,
-        listen: async () => {
-          throw new Error('no events')
-        },
-      },
-      logger,
-    })
+    vi.spyOn(ipc, 'listen').mockRejectedValue(new Error('no events'))
+    const runtime = createEmbeddingRuntimeService({ ipc, logger })
     runtime.subscribe(() => {})
     await vi.waitFor(() => expect(logger.getWarnings()).toHaveLength(1))
   })

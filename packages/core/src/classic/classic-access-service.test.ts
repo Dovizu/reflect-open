@@ -406,10 +406,8 @@ describe('read', () => {
   })
 
   it('stops loading and rethrows when the keychain fails', async () => {
-    secrets = {
-      ...createTestSecretStoreService(),
-      get: () => Promise.reject(new Error('locked')),
-    }
+    secrets = createTestSecretStoreService()
+    vi.spyOn(secrets, 'get').mockRejectedValue(new Error('locked'))
     const classic = service()
     const notified: boolean[] = []
     classic.subscribe(() => {
@@ -593,10 +591,8 @@ describe('start', () => {
   })
 
   it('logs a failed keychain read', async () => {
-    secrets = {
-      ...createTestSecretStoreService(),
-      get: () => Promise.reject(new Error('locked')),
-    }
+    secrets = createTestSecretStoreService()
+    vi.spyOn(secrets, 'get').mockRejectedValue(new Error('locked'))
     service().start()
 
     await vi.waitFor(() =>

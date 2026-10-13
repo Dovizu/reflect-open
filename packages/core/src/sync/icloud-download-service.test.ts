@@ -208,13 +208,11 @@ describe('createICloudDownloadService', () => {
   it('a failed nudge never starts the bulk download', async () => {
     // `pending` defaulting to 0 on error must not read as "notes are in".
     const requested: string[] = []
-    start({
-      ...icloud,
-      downloadPending: async (_root, scope) => {
-        requested.push(scope)
-        throw new ReflectError('io', 'container hiccup')
-      },
+    vi.spyOn(icloud, 'downloadPending').mockImplementation(async (_root, scope) => {
+      requested.push(scope)
+      throw new ReflectError('io', 'container hiccup')
     })
+    start()
     await flush()
 
     expect(requested).toEqual(['notes'])
@@ -225,12 +223,8 @@ describe('createICloudDownloadService', () => {
 
   it('a failed poll is logged and reconciles what landed', async () => {
     icloud.setPendingCount(3)
-    start({
-      ...icloud,
-      pendingCount: async () => {
-        throw new ReflectError('io', 'container hiccup')
-      },
-    })
+    vi.spyOn(icloud, 'pendingCount').mockRejectedValue(new ReflectError('io', 'container hiccup'))
+    start()
     await flush()
     await clock.advance(1000)
 

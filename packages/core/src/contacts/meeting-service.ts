@@ -48,7 +48,11 @@ import { pickContactForEmail } from './resolve.ts'
  * lazy-daily contract), so writing one would just be normalized away.
  */
 
-/** Where the daily-note entry lands (`appendListItem` creates it). */
+/**
+
+ * Where the daily-note entry lands (`appendListItem` creates it).
+
+ */
 export const MEETINGS_HEADING = 'Meetings'
 const MEETINGS_SECTION: SectionTarget = { titles: [MEETINGS_HEADING], linked: false }
 
@@ -58,11 +62,17 @@ const MEETING_NOTE_BODY = '- Type: #meeting'
 const PERSON_NOTE_BODY = '- Type: #person'
 
 export interface AddMeetingInput {
-  /** ISO `YYYY-MM-DD` day of the daily note receiving the entry. */
+  /**
+   * ISO `YYYY-MM-DD` day of the daily note receiving the entry.
+   */
   date: string
-  /** Meeting name — becomes the `[[Meeting]]` link text and note title. */
+  /**
+   * Meeting name — becomes the `[[Meeting]]` link text and note title.
+   */
   title: string
-  /** Attendees — each becomes a `[[Person]]` link and (maybe) a note. */
+  /**
+   * Attendees — each becomes a `[[Person]]` link and (maybe) a note.
+   */
   attendees: MeetingAttendee[]
   /**
    * The dialog's "Create backlinked note?" choice (v1's `backlinkMeeting`):
@@ -91,17 +101,27 @@ export interface AddMeetingOutcome {
    * already linked on that day (re-adding is idempotent).
    */
   appended: boolean
-  /** Titles that got a fresh note in this call. */
+  /**
+   * Titles that got a fresh note in this call.
+   */
   createdNotes: string[]
 }
 
-/** One attendee entering the flow: a display name and every known email. */
+/**
+
+ * One attendee entering the flow: a display name and every known email.
+
+ */
 export interface MeetingAttendee {
   name: string
   emails?: readonly string[] | undefined
 }
 
-/** An attendee classified for linked or plain-text meeting serialization. */
+/**
+
+ * An attendee classified for linked or plain-text meeting serialization.
+
+ */
 export type ResolvedMeetingAttendee =
   | {
       readonly kind: 'existing'
@@ -158,9 +178,13 @@ function targetFromPerson(
 }
 
 export interface AttendeeSuggestions {
-  /** Ranked note titles, without the daily notes: an attendee is a person, not a date. */
+  /**
+   * Ranked note titles, without the daily notes: an attendee is a person, not a date.
+   */
   readonly suggestions: WikiSuggestion[]
-  /** Apple Contacts whose name matches; empty when contacts are off or the lookup failed. */
+  /**
+   * Apple Contacts whose name matches; empty when contacts are off or the lookup failed.
+   */
   readonly contacts: ContactMatch[]
 }
 
@@ -202,7 +226,11 @@ function meetingAlreadyLinked(source: string, title: string): boolean {
   })
 }
 
-/** Attendees with sanitized names, case-insensitively name-deduplicated, order kept. */
+/**
+
+ * Attendees with sanitized names, case-insensitively name-deduplicated, order kept.
+
+ */
 function normalizeAttendees(
   attendees: readonly ResolvedMeetingAttendee[],
 ): ResolvedMeetingAttendee[] {
@@ -222,7 +250,11 @@ function normalizeAttendees(
   return normalized
 }
 
-/** One attendee fragment ready for daily-note Markdown serialization. */
+/**
+
+ * One attendee fragment ready for daily-note Markdown serialization.
+
+ */
 export type MeetingLineAttendee =
   | { readonly kind: 'linked'; readonly insertText: string }
   | { readonly kind: 'plain'; readonly text: string }
@@ -284,7 +316,11 @@ export function mergeAttendeeUpgrades(
   return merged
 }
 
-/** `current` plus `attendee`, or `current` itself when the name is already there (case-insensitive). */
+/**
+
+ * `current` plus `attendee`, or `current` itself when the name is already there (case-insensitive).
+
+ */
 export function withAttendee(
   current: MeetingAttendee[],
   attendee: MeetingAttendee,
@@ -294,7 +330,11 @@ export function withAttendee(
     : [...current, attendee]
 }
 
-/** Adds a calendar event to its daily note, with the attendee resolution around it. */
+/**
+
+ * Adds a calendar event to its daily note, with the attendee resolution around it.
+
+ */
 export interface MeetingService {
   /**
    * The contacts gate: the integration is enabled and the permission, as
@@ -346,33 +386,153 @@ export interface MeetingService {
   addMeetingToDaily(input: AddMeetingInput): Promise<AddMeetingOutcome>
 }
 
-export function createMeetingService(deps: {
-  noteFile: NoteFileService
-  noteCreation: Pick<NoteCreationService, 'createNoteWithTitle'>
-  wikiResolver: Pick<WikiResolverService, 'resolveWikiTarget'>
-  suggestions: Pick<SuggestionService, 'suggestWikiTargets'>
-  personNotes: PersonNoteService
-  contacts: ContactsService
-  settings: SettingsService
-  logger: LoggerService
-  graphSession: Pick<GraphSessionService, 'getState'>
-}): MeetingService {
-  const {
-    noteFile,
-    noteCreation,
-    wikiResolver,
-    suggestions,
-    personNotes,
-    contacts,
-    settings,
-    logger,
-    graphSession,
-  } = deps
+export interface MeetingServiceDeps {
+  readonly noteFile: NoteFileService
+  readonly noteCreation: Pick<NoteCreationService, 'createNoteWithTitle'>
+  readonly wikiResolver: Pick<WikiResolverService, 'resolveWikiTarget'>
+  readonly suggestions: Pick<SuggestionService, 'suggestWikiTargets'>
+  readonly personNotes: PersonNoteService
+  readonly contacts: ContactsService
+  readonly settings: SettingsService
+  readonly logger: LoggerService
+  readonly graphSession: Pick<GraphSessionService, 'getState'>
+}
 
-  /** A note's source at `generation`, where "no note yet" reads as empty. */
-  async function noteSource(path: string, generation: number): Promise<string> {
+class MeetingServiceImpl implements MeetingService {
+  readonly #deps: MeetingServiceDeps
+
+  constructor(deps: MeetingServiceDeps) {
+    this.#deps = deps
+  }
+
+  canLookupContacts(): boolean {
+    const { contacts, settings } = this.#deps
+    return contacts.canLookup(settings.get())
+  }
+
+  async resolveAttendeeTargets(
+    attendees: readonly MeetingAttendee[],
+    lookupContacts: boolean,
+  ): Promise<ResolvedMeetingAttendee[]> {
+    return await Promise.all(
+      attendees.map((attendee) => this.#resolveMeetingAttendee(attendee, lookupContacts)),
+    )
+  }
+
+  async resolveAttendees(
+    attendees: readonly MeetingAttendee[],
+    lookupContacts: boolean,
+  ): Promise<MeetingAttendee[]> {
+    const resolved = await this.resolveAttendeeTargets(attendees, lookupContacts)
+    return resolved.map(({ attendee }) => attendee)
+  }
+
+  async resolvePrefilledAttendees(
+    prefilled: readonly MeetingAttendee[],
+  ): Promise<Map<string, MeetingAttendee>> {
+    await this.#deps.contacts.refresh()
+    const lookupContacts = this.canLookupContacts()
+    const resolved = await this.resolveAttendees(prefilled, lookupContacts)
+    return new Map(prefilled.map((original, index) => [original.name, resolved[index] ?? original]))
+  }
+
+  async attendeeSuggestions(
+    query: string,
+    limit: number,
+    lookupContacts: boolean,
+  ): Promise<AttendeeSuggestions> {
+    const { suggestions, contacts, logger } = this.#deps
+    const [notes, matches] = await Promise.all([
+      suggestions.suggestWikiTargets(query, limit),
+      // A contacts hiccup must cost only its own rows, never the note
+      // suggestions (the same containment as the editor's `[[` menu).
+      lookupContacts
+        ? contacts.lookupPeople(query).catch((error: unknown) => {
+            logger.error('contact link suggestions failed:', error)
+            return []
+          })
+        : Promise.resolve([]),
+    ])
+    return {
+      suggestions: notes.filter((suggestion) => suggestion.date === null),
+      contacts: matches,
+    }
+  }
+
+  async addMeetingToDaily(input: AddMeetingInput): Promise<AddMeetingOutcome> {
+    const { noteFile, noteCreation, personNotes, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    const title = wikiLinkSafe(input.title)
+    if (title === '') {
+      throw new Error('a meeting needs a name')
+    }
+    const lookupContacts = input.lookupContacts ?? false
+
+    const daily = dailyPath(input.date)
+    const source = await this.#noteSource(daily, generation)
+    // An already-linked meeting makes the whole call a no-op — appending
+    // nothing but still creating notes would be surprising. A run that failed
+    // between the append and note creation still heals: the line's unresolved
+    // links create their notes on click. (A plain-text line — backlink off —
+    // carries no link to match against, so, like v1, it always appends.)
+    if (input.backlinkMeeting && meetingAlreadyLinked(source, title)) {
+      return { appended: false, createdNotes: [] }
+    }
+    // Canonicalize by invite email before deduplicating: an attendee whose
+    // address an existing note owns takes that note's title, so two spellings
+    // of one person collapse here and the link below lands on their note. An
+    // attendee spelled like the meeting itself (a shared mailbox, a 1:1 named
+    // after the person) would just duplicate the link — drop it.
+    const attendees = normalizeAttendees(
+      await this.resolveAttendeeTargets(input.attendees, lookupContacts),
+    ).filter(({ attendee }) => attendee.name.toLowerCase() !== title.toLowerCase())
+    const line = meetingLine({
+      title,
+      attendees: attendees.map((resolved) =>
+        resolved.kind === 'plain'
+          ? { kind: 'plain', text: resolved.attendee.name }
+          : { kind: 'linked', insertText: resolved.insertText },
+      ),
+      backlinkMeeting: input.backlinkMeeting,
+      startTime: input.startTime,
+    })
+    await noteFile.write(
+      daily,
+      appendListItem(source, { kind: 'bullet', markdown: line, section: MEETINGS_SECTION }),
+      generation,
+    )
+
+    const createdNotes: string[] = []
+    if (input.backlinkMeeting && !(await this.#titleHasNote(title))) {
+      await noteCreation.createNoteWithTitle(title, generation, MEETING_NOTE_BODY)
+      createdNotes.push(title)
+    }
+    for (const resolved of attendees) {
+      if (resolved.kind !== 'new') {
+        continue
+      }
+      const { attendee } = resolved
+      const body = await this.#personNoteBody(attendee, lookupContacts)
+      const outcome = await personNotes.ensurePersonNote({
+        title: attendee.name,
+        emails: attendee.emails ?? [],
+        body,
+        generation: generation,
+      })
+      if (outcome.kind === 'created') {
+        createdNotes.push(attendee.name)
+      }
+    }
+
+    return { appended: true, createdNotes }
+  }
+
+  /**
+   * A note's source at `generation`, where "no note yet" reads as empty.
+   */
+  async #noteSource(path: string, generation: number): Promise<string> {
     try {
-      return await noteFile.read(path, generation)
+      return await this.#deps.noteFile.read(path, generation)
     } catch (cause) {
       if (isAppError(cause) && cause.kind === 'notFound') {
         return ''
@@ -386,7 +546,8 @@ export function createMeetingService(deps: {
    * title/alias; the slug-path check backstops it for notes written moments ago
    * that the watcher → index pipeline has not caught up with.
    */
-  async function titleHasNote(title: string): Promise<boolean> {
+  async #titleHasNote(title: string): Promise<boolean> {
+    const { wikiResolver, noteFile } = this.#deps
     const resolution = await wikiResolver.resolveWikiTarget(title)
     if (resolution.kind === 'resolved') {
       return true
@@ -398,11 +559,11 @@ export function createMeetingService(deps: {
    * Look up an attendee email in Apple Contacts. A null answer is the expected
    * miss: the flow still creates a person note from the bare email.
    */
-  async function attendeeContact(email: string): Promise<ContactMatch | null> {
+  async #attendeeContact(email: string): Promise<ContactMatch | null> {
     if (email.trim() === '') {
       return null
     }
-    const candidates = await contacts.lookupByEmail(email.trim())
+    const candidates = await this.#deps.contacts.lookupByEmail(email.trim())
     return pickContactForEmail(email, candidates)
   }
 
@@ -411,13 +572,10 @@ export function createMeetingService(deps: {
    * When Contacts is readable, phone details from the same Contact are included
    * without adding emails that ownership resolution did not already inspect.
    */
-  async function personNoteBody(
-    attendee: MeetingAttendee,
-    lookupContacts: boolean,
-  ): Promise<string> {
+  async #personNoteBody(attendee: MeetingAttendee, lookupContacts: boolean): Promise<string> {
     const emails = canonicalEmails(attendee.emails ?? [])
     if (lookupContacts && emails[0] !== undefined) {
-      const contact = await attendeeContact(emails[0])
+      const contact = await this.#attendeeContact(emails[0])
       if (contact !== null) {
         const details = contactDetailsMarkdown({ ...contact, emails })
         if (details !== '') {
@@ -428,10 +586,11 @@ export function createMeetingService(deps: {
     return [PERSON_NOTE_BODY, ...emails.map((email) => `- Email: ${email}`)].join('\n')
   }
 
-  async function resolveMeetingAttendee(
+  async #resolveMeetingAttendee(
     attendee: MeetingAttendee,
     lookupContacts: boolean,
   ): Promise<ResolvedMeetingAttendee> {
+    const { personNotes } = this.#deps
     const emails = canonicalEmails(attendee.emails ?? [])
     let resolution = await personNotes.resolvePerson(emails)
     if (resolution.kind !== 'missing') {
@@ -440,7 +599,7 @@ export function createMeetingService(deps: {
 
     const nameEmail = canonicalEmail(attendee.name)
     if (lookupContacts && emails[0] !== undefined) {
-      const contact = await attendeeContact(emails[0])
+      const contact = await this.#attendeeContact(emails[0])
       if (contact !== null) {
         const contactAttendee = {
           name:
@@ -455,125 +614,8 @@ export function createMeetingService(deps: {
     }
     return targetFromPerson(normalizedAttendee(attendee, emails), resolution)
   }
+}
 
-  async function resolveAttendeeTargets(
-    attendees: readonly MeetingAttendee[],
-    lookupContacts: boolean,
-  ): Promise<ResolvedMeetingAttendee[]> {
-    return await Promise.all(
-      attendees.map((attendee) => resolveMeetingAttendee(attendee, lookupContacts)),
-    )
-  }
-
-  async function resolveAttendees(
-    attendees: readonly MeetingAttendee[],
-    lookupContacts: boolean,
-  ): Promise<MeetingAttendee[]> {
-    const resolved = await resolveAttendeeTargets(attendees, lookupContacts)
-    return resolved.map(({ attendee }) => attendee)
-  }
-
-  function canLookupContacts(): boolean {
-    return contacts.canLookup(settings.get())
-  }
-
-  return {
-    canLookupContacts,
-    resolveAttendeeTargets,
-    resolveAttendees,
-
-    async resolvePrefilledAttendees(prefilled) {
-      await contacts.refresh()
-      const lookupContacts = canLookupContacts()
-      const resolved = await resolveAttendees(prefilled, lookupContacts)
-      return new Map(
-        prefilled.map((original, index) => [original.name, resolved[index] ?? original]),
-      )
-    },
-
-    async attendeeSuggestions(query, limit, lookupContacts) {
-      const [notes, matches] = await Promise.all([
-        suggestions.suggestWikiTargets(query, limit),
-        // A contacts hiccup must cost only its own rows, never the note
-        // suggestions (the same containment as the editor's `[[` menu).
-        lookupContacts
-          ? contacts.lookupPeople(query).catch((error: unknown) => {
-              logger.error('contact link suggestions failed:', error)
-              return []
-            })
-          : Promise.resolve([]),
-      ])
-      return {
-        suggestions: notes.filter((suggestion) => suggestion.date === null),
-        contacts: matches,
-      }
-    },
-
-    async addMeetingToDaily(input) {
-      const { generation } = requireGraphSession(graphSession)
-      const title = wikiLinkSafe(input.title)
-      if (title === '') {
-        throw new Error('a meeting needs a name')
-      }
-      const lookupContacts = input.lookupContacts ?? false
-
-      const daily = dailyPath(input.date)
-      const source = await noteSource(daily, generation)
-      // An already-linked meeting makes the whole call a no-op — appending
-      // nothing but still creating notes would be surprising. A run that failed
-      // between the append and note creation still heals: the line's unresolved
-      // links create their notes on click. (A plain-text line — backlink off —
-      // carries no link to match against, so, like v1, it always appends.)
-      if (input.backlinkMeeting && meetingAlreadyLinked(source, title)) {
-        return { appended: false, createdNotes: [] }
-      }
-      // Canonicalize by invite email before deduplicating: an attendee whose
-      // address an existing note owns takes that note's title, so two spellings
-      // of one person collapse here and the link below lands on their note. An
-      // attendee spelled like the meeting itself (a shared mailbox, a 1:1 named
-      // after the person) would just duplicate the link — drop it.
-      const attendees = normalizeAttendees(
-        await resolveAttendeeTargets(input.attendees, lookupContacts),
-      ).filter(({ attendee }) => attendee.name.toLowerCase() !== title.toLowerCase())
-      const line = meetingLine({
-        title,
-        attendees: attendees.map((resolved) =>
-          resolved.kind === 'plain'
-            ? { kind: 'plain', text: resolved.attendee.name }
-            : { kind: 'linked', insertText: resolved.insertText },
-        ),
-        backlinkMeeting: input.backlinkMeeting,
-        startTime: input.startTime,
-      })
-      await noteFile.write(
-        daily,
-        appendListItem(source, { kind: 'bullet', markdown: line, section: MEETINGS_SECTION }),
-        generation,
-      )
-
-      const createdNotes: string[] = []
-      if (input.backlinkMeeting && !(await titleHasNote(title))) {
-        await noteCreation.createNoteWithTitle(title, generation, MEETING_NOTE_BODY)
-        createdNotes.push(title)
-      }
-      for (const resolved of attendees) {
-        if (resolved.kind !== 'new') {
-          continue
-        }
-        const { attendee } = resolved
-        const body = await personNoteBody(attendee, lookupContacts)
-        const outcome = await personNotes.ensurePersonNote({
-          title: attendee.name,
-          emails: attendee.emails ?? [],
-          body,
-          generation: generation,
-        })
-        if (outcome.kind === 'created') {
-          createdNotes.push(attendee.name)
-        }
-      }
-
-      return { appended: true, createdNotes }
-    },
-  }
+export function createMeetingService(deps: MeetingServiceDeps): MeetingService {
+  return new MeetingServiceImpl(deps)
 }

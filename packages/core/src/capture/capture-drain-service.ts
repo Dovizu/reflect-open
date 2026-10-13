@@ -40,28 +40,44 @@ import {
 import { createArchivedPost, type XArchiveService } from '../x-archive.ts'
 import type { BacklinkTargetService } from './backlink-target-service.ts'
 
-/** The category note every captured-link section backlinks. */
+/**
+ * The category note every captured-link section backlinks.
+ */
 const LINKS_NOTE_TITLE = 'Links'
 
-/** Long-edge cap for promoted screenshots (the Rust side re-encodes JPEG). */
+/**
+ * Long-edge cap for promoted screenshots (the Rust side re-encodes JPEG).
+ */
 const SCREENSHOT_MAX_DIM = 1600
 
-/** Spool `.jpg`s with no sibling `.json` older than this are host-crash debris. */
+/**
+ * Spool `.jpg`s with no sibling `.json` older than this are host-crash debris.
+ */
 const ORPHAN_SPOOL_MAX_AGE_MS = 60 * 60 * 1000
 
 export interface DrainCaptureInboxInput {
-  /** `GraphInfo.generation` — pins every read and write to the issuing graph. */
+  /**
+   * `GraphInfo.generation`, pins every read and write to the issuing graph.
+   */
   generation: number
-  /** Appends an X post to the daily note at `path`, merging with a live editor when open. */
+  /**
+   * Appends an X post to the daily note at `path`, merging with a live editor when open.
+   */
   writeXPost?: (envelope: XPostEnvelope, path: string) => Promise<void>
-  /** Abort gate, checked between spool files (graph switch / unmount). */
+  /**
+   * Abort gate, checked between spool files (graph switch / unmount).
+   */
   isStale?: () => boolean
 }
 
 export interface DrainCaptureInboxOutcome {
-  /** Spooled envelopes present when the pass started. */
+  /**
+   * Spooled envelopes present when the pass started.
+   */
   pending: number
-  /** Captures written (fresh notes plus dedup refreshes). */
+  /**
+   * Captures written (fresh notes plus dedup refreshes).
+   */
   drained: number
   /**
    * Of `drained`, how many link captures refreshed an existing same-day
@@ -69,15 +85,21 @@ export interface DrainCaptureInboxOutcome {
    * by design (Plan 24), so every text envelope appends.
    */
   deduped: number
-  /** Unparseable spool files quarantined under `.reflect/inbox-rejected/`. */
+  /**
+   * Unparseable spool files quarantined under `.reflect/inbox-rejected/`.
+   */
   invalid: number
-  /** Why spool files remain, or `null` when the inbox drained. */
+  /**
+   * Why spool files remain, or `null` when the inbox drained.
+   */
   stopped: ReconcileStop | null
 }
 
 interface SameDayCapture {
   identity: CaptureIdentity
-  /** The existing note's display title — what the daily's link text mirrors. */
+  /**
+   * The existing note's display title, what the daily's link text mirrors.
+   */
   title: string
 }
 
@@ -96,78 +118,38 @@ function parseEnvelope(raw: string): InboxEnvelope | null {
   return parsed.success ? parsed.data : null
 }
 
-/** Phase 1 of link capture: the durable raw save of every spooled envelope. */
-export interface CaptureDrainService {
-  /** Drain every spooled capture into the graph. Never throws. */
-  drain(input: DrainCaptureInboxInput): Promise<DrainCaptureInboxOutcome>
-}
-
-export function createCaptureDrainService(deps: {
-  captureInbox: Pick<
+export interface CaptureDrainServiceDeps {
+  readonly captureInbox: Pick<
     CaptureInboxService,
     'list' | 'read' | 'remove' | 'reject' | 'promoteScreenshot'
   >
-  noteFile: Pick<NoteFileService, 'read' | 'write'>
-  xArchive: Pick<XArchiveService, 'write'>
-  backlinkTarget: BacklinkTargetService
-  hash: HashService
-  clock: Pick<ClockService, 'now'>
-  logger: Pick<LoggerService, 'warn'>
-}): CaptureDrainService {
-  const { captureInbox, noteFile, xArchive, backlinkTarget, hash, clock, logger } = deps
+  readonly noteFile: Pick<NoteFileService, 'read' | 'write'>
+  readonly xArchive: Pick<XArchiveService, 'write'>
+  readonly backlinkTarget: BacklinkTargetService
+  readonly hash: HashService
+  readonly clock: Pick<ClockService, 'now'>
+  readonly logger: Pick<LoggerService, 'warn'>
+}
 
+/**
+ * Phase 1 of link capture: the durable raw save of every spooled envelope.
+ */
+export interface CaptureDrainService {
   /**
-   * The capture note this day's Links sections already hold for `url`, or `null`.
-   * The scan spans each whole section, deliberately wider than where a new entry
-   * would land (the section's first bullet list), so a link an older build
-   * appended below the user's own prose is still recognized instead of captured
-   * a second time.
+   * Drain every spooled capture into the graph. Never throws.
    */
-  async function findSameDayCapture(
-    dailySource: string,
-    sectionTitles: readonly string[],
-    url: string,
-    selectionHash: string | undefined,
-    generation: number,
-  ): Promise<SameDayCapture | null> {
-    const { headings, wikiLinks } = parseNote({ path: '', source: dailySource })
-    const sectionHeadings = topLevelHeadings(headings)
-    const linkSections = sectionHeadings.filter(
-      (heading) => heading.level <= 2 && headingNamesSection(heading, wikiLinks, sectionTitles),
-    )
-    if (linkSections.length === 0) {
-      return null
-    }
-    const ranges = linkSections.map((section) => ({
-      from: section.to,
-      to: sectionEnd(sectionHeadings, section, dailySource.length),
-    }))
-    const targets = wikiLinks
-      .filter((link) => ranges.some((range) => link.from >= range.from && link.from < range.to))
-      .map((link) => link.target)
-    for (const target of targets) {
-      const identity = captureFromPath(notePath(target))
-      if (identity === null) {
-        continue
-      }
-      let source: string
-      try {
-        source = await noteFile.read(identity.notePath, generation)
-      } catch (cause) {
-        if (isAppError(cause) && cause.kind === 'notFound') {
-          continue
-        }
-        throw cause
-      }
-      const meta = captureNoteMeta(parseFrontmatter(splitFrontmatter(source).raw).data)
-      if (meta && meta.captureUrl === url && meta.captureSelectionHash === selectionHash) {
-        return { identity, title: parseNote({ path: identity.notePath, source }).title }
-      }
-    }
-    return null
+  drain(input: DrainCaptureInboxInput): Promise<DrainCaptureInboxOutcome>
+}
+
+class CaptureDrainServiceImpl implements CaptureDrainService {
+  readonly #deps: CaptureDrainServiceDeps
+
+  constructor(deps: CaptureDrainServiceDeps) {
+    this.#deps = deps
   }
 
-  async function drain(input: DrainCaptureInboxInput): Promise<DrainCaptureInboxOutcome> {
+  async drain(input: DrainCaptureInboxInput): Promise<DrainCaptureInboxOutcome> {
+    const { captureInbox, noteFile, xArchive, backlinkTarget, hash } = this.#deps
     let entries
     try {
       entries = await captureInbox.list(input.generation)
@@ -239,7 +221,7 @@ export function createCaptureDrainService(deps: {
           continue
         }
         if (envelope.kind !== undefined) {
-          await drainTextCapture(envelope, input.generation)
+          await this.#drainTextCapture(envelope, input.generation)
           await captureInbox.remove(name, input.generation)
           drained += 1
           continue
@@ -250,7 +232,7 @@ export function createCaptureDrainService(deps: {
         const dailySource = await noteSource(noteFile, daily, input.generation)
         const selection = envelope.selection?.trim()
         const selectionHash = selection ? await hash.sha256Hex(selection) : undefined
-        const existing = await findSameDayCapture(
+        const existing = await this.#findSameDayCapture(
           dailySource,
           [linksNoteTitle, LINKS_NOTE_TITLE],
           envelope.url,
@@ -320,11 +302,63 @@ export function createCaptureDrainService(deps: {
     }
 
     try {
-      await sweepOrphanSpools(entries, input)
+      await this.#sweepOrphanSpools(entries, input)
     } catch (cause) {
       return outcome({ reason: toAppError(cause).kind, message: errorMessage(cause) })
     }
     return outcome(xPostStop)
+  }
+
+  /**
+   * The capture note this day's Links sections already hold for `url`, or `null`.
+   * The scan spans each whole section, deliberately wider than where a new entry
+   * would land (the section's first bullet list), so a link an older build
+   * appended below the user's own prose is still recognized instead of captured
+   * a second time.
+   */
+  async #findSameDayCapture(
+    dailySource: string,
+    sectionTitles: readonly string[],
+    url: string,
+    selectionHash: string | undefined,
+    generation: number,
+  ): Promise<SameDayCapture | null> {
+    const { noteFile } = this.#deps
+    const { headings, wikiLinks } = parseNote({ path: '', source: dailySource })
+    const sectionHeadings = topLevelHeadings(headings)
+    const linkSections = sectionHeadings.filter(
+      (heading) => heading.level <= 2 && headingNamesSection(heading, wikiLinks, sectionTitles),
+    )
+    if (linkSections.length === 0) {
+      return null
+    }
+    const ranges = linkSections.map((section) => ({
+      from: section.to,
+      to: sectionEnd(sectionHeadings, section, dailySource.length),
+    }))
+    const targets = wikiLinks
+      .filter((link) => ranges.some((range) => link.from >= range.from && link.from < range.to))
+      .map((link) => link.target)
+    for (const target of targets) {
+      const identity = captureFromPath(notePath(target))
+      if (identity === null) {
+        continue
+      }
+      let source: string
+      try {
+        source = await noteFile.read(identity.notePath, generation)
+      } catch (cause) {
+        if (isAppError(cause) && cause.kind === 'notFound') {
+          continue
+        }
+        throw cause
+      }
+      const meta = captureNoteMeta(parseFrontmatter(splitFrontmatter(source).raw).data)
+      if (meta && meta.captureUrl === url && meta.captureSelectionHash === selectionHash) {
+        return { identity, title: parseNote({ path: identity.notePath, source }).title }
+      }
+    }
+    return null
   }
 
   /**
@@ -333,10 +367,8 @@ export function createCaptureDrainService(deps: {
    * duplication risk left is a crash between this write and the spool removal,
    * which re-appends one line once on retry.
    */
-  async function drainTextCapture(
-    envelope: TextCaptureEnvelope,
-    generation: number,
-  ): Promise<void> {
+  async #drainTextCapture(envelope: TextCaptureEnvelope, generation: number): Promise<void> {
+    const { noteFile, logger } = this.#deps
     const daily = dailyPath(captureLocalDate(new Date(envelope.capturedAt)))
     const dailySource = await noteSource(noteFile, daily, generation)
     // `task` is Reflect's round `+` checkbox, the only marker the Tasks
@@ -354,10 +386,11 @@ export function createCaptureDrainService(deps: {
     await noteFile.write(daily, next, generation)
   }
 
-  async function sweepOrphanSpools(
+  async #sweepOrphanSpools(
     entries: Array<{ path: string; modifiedMs: number }>,
     input: DrainCaptureInboxInput,
   ): Promise<void> {
+    const { captureInbox, clock } = this.#deps
     const jsonStems = new Set(
       entries
         .filter((entry) => entry.path.endsWith('.json'))
@@ -373,6 +406,8 @@ export function createCaptureDrainService(deps: {
       await captureInbox.remove(captureSpoolName(orphan.path), input.generation)
     }
   }
+}
 
-  return { drain }
+export function createCaptureDrainService(deps: CaptureDrainServiceDeps): CaptureDrainService {
+  return new CaptureDrainServiceImpl(deps)
 }

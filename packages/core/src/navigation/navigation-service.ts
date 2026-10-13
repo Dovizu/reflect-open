@@ -39,10 +39,16 @@ export interface NavigateOptions {
   focusEditor?: boolean
 }
 
-/** An immutable snapshot of the history position; replaced on every change. */
+/**
+
+ * An immutable snapshot of the history position; replaced on every change.
+
+ */
 export interface NavigationState {
   readonly route: Route
-  /** Stable identity of the current history entry (changes on back/forward). */
+  /**
+   * Stable identity of the current history entry (changes on back/forward).
+   */
   readonly entryId: number
   /**
    * Increments on every `navigate` call — including a no-op re-navigation to
@@ -79,9 +85,13 @@ export interface NavigationState {
 export type NavigationPosition = Pick<NavigationState, 'entryId' | 'route'>
 
 export interface NavigationService {
-  /** The current snapshot; the same object until the next change. */
+  /**
+   * The current snapshot; the same object until the next change.
+   */
   getState: () => NavigationState
-  /** Hear every state change, synchronously. Scroll bookkeeping does not notify. */
+  /**
+   * Hear every state change, synchronously. Scroll bookkeeping does not notify.
+   */
   subscribe: (listener: () => void) => Unlisten
   navigate: (route: Route, options?: NavigateOptions) => void
   back: () => void
@@ -95,7 +105,9 @@ export interface NavigationService {
    * changes nothing and does not advance it.
    */
   navigationRevision: () => number
-  /** Record a view's scroll offset on its history entry (the current one by default). */
+  /**
+   * Record a view's scroll offset on its history entry (the current one by default).
+   */
   saveScrollState: (offset: number, at?: NavigationPosition) => void
   /**
    * Discard a view's saved scroll offsets — its history entry's and, when the
@@ -104,7 +116,9 @@ export interface NavigationService {
    * `restoreSurfaceScroll` nav-tab return alike).
    */
   clearScrollState: (at?: NavigationPosition) => void
-  /** The entry's recorded offset (present when revisited), or `null`. */
+  /**
+   * The entry's recorded offset (present when revisited), or `null`.
+   */
   savedScroll: (at?: NavigationPosition) => number | null
   /**
    * A note file moved (Plan 17): rewrite every history entry that points at
@@ -123,8 +137,10 @@ export interface NavigationService {
 }
 
 export interface NavigationServiceDeps {
-  /** The launch route; defaults to today (the daily note is the spine). */
-  initialRoute?: Route | undefined
+  /**
+   * The launch route; defaults to today (the daily note is the spine).
+   */
+  readonly initialRoute?: Route | undefined
 }
 
 /**
@@ -143,176 +159,187 @@ function scrollSurfaceForRoute(route: Route): string | null {
 }
 
 interface HistoryEntry {
-  /** Stable identity for scroll bookkeeping (indices shift on truncation). */
+  /**
+   * Stable identity for scroll bookkeeping (indices shift on truncation).
+   */
   id: number
   route: Route
 }
 
-export function createNavigationService(deps?: NavigationServiceDeps): NavigationService {
-  let stack: HistoryEntry[] = []
-  let index = 0
-  let arrivalSeq = 0
-  let arrivalFocusEditor = false
-  let nextId = 0
-  let revision = 0
-  /** Scroll offsets by entry id. */
-  const scrollById = new Map<number, number>()
-  /** Last offset per long-lived surface, independent of history entries. */
-  const scrollBySurface = new Map<string, number>()
-  const listeners = new Set<() => void>()
-  let state: NavigationState
+class NavigationServiceImpl implements NavigationService {
+  #stack: HistoryEntry[] = []
+  #index = 0
+  #arrivalSeq = 0
+  #arrivalFocusEditor = false
+  #nextId = 0
+  #revision = 0
+  /**
+   * Scroll offsets by entry id.
+   */
+  readonly #scrollById = new Map<number, number>()
+  /**
+   * Last offset per long-lived surface, independent of history entries.
+   */
+  readonly #scrollBySurface = new Map<string, number>()
+  readonly #listeners = new Set<() => void>()
+  #state: NavigationState
 
-  function snapshot(): NavigationState {
-    const entry = stack[index]!
+  constructor(deps?: NavigationServiceDeps) {
+    this.#state = this.#start(deps?.initialRoute ?? { kind: 'today' })
+  }
+
+  readonly getState = (): NavigationState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly navigate = (route: Route, options?: NavigateOptions): void => {
+    this.#revision += 1
+    const target = normalizeRoute(route)
+    const surface = scrollSurfaceForRoute(target)
+    const currentEntry = this.#stack[this.#index]!
+    // A surface restore only means something when coming from OFF the surface;
+    // the Daily tab clicked while already on the stream is an explicit
+    // re-anchor request, exactly like ⌘D.
+    const returning =
+      options?.restoreSurfaceScroll === true &&
+      surface !== null &&
+      scrollSurfaceForRoute(currentEntry.route) !== surface
+    const restored = returning ? this.#scrollBySurface.get(surface) : undefined
+    if (surface !== null && restored === undefined) {
+      // An explicit arrival re-anchors the surface, making its saved offset
+      // stale — drop it so a later nav-tab return re-anchors too instead of
+      // resurrecting the pre-arrival position. Scrolling after the arrival
+      // repopulates it.
+      this.#scrollBySurface.delete(surface)
+    }
+    if (routesEqual(currentEntry.route, target)) {
+      if (restored !== undefined) {
+        this.#scrollById.set(currentEntry.id, restored)
+      } else {
+        // No stack growth — but this is still an explicit arrival: forget the
+        // entry's saved offset so the view re-anchors to its target instead of
+        // restoring the old scroll position.
+        this.#scrollById.delete(currentEntry.id)
+      }
+    } else {
+      const dropped = this.#stack.slice(this.#index + 1)
+      for (const entry of dropped) {
+        this.#scrollById.delete(entry.id) // truncated branch — free its offsets
+      }
+      const id = this.#nextId++
+      if (restored !== undefined) {
+        this.#scrollById.set(id, restored) // seed the fresh entry with the surface offset
+      }
+      this.#stack = [...this.#stack.slice(0, this.#index + 1), { id, route: target }]
+      this.#index = this.#stack.length - 1
+    }
+    this.#arrivalSeq += 1
+    this.#arrivalFocusEditor = options?.focusEditor === true
+    this.#publish()
+  }
+
+  readonly back = (): void => {
+    if (this.#index === 0) {
+      return // nothing behind us — must not advance the navigation revision
+    }
+    this.#revision += 1
+    this.#arrivalFocusEditor = false // history moves are never focus arrivals
+    this.#index -= 1
+    this.#publish()
+  }
+
+  readonly forward = (): void => {
+    if (this.#index >= this.#stack.length - 1) {
+      return
+    }
+    this.#revision += 1
+    this.#arrivalFocusEditor = false
+    this.#index += 1
+    this.#publish()
+  }
+
+  readonly navigationRevision = (): number => this.#revision
+
+  readonly saveScrollState = (offset: number, at: NavigationPosition = this.#state): void => {
+    this.#scrollById.set(at.entryId, offset)
+    const surface = scrollSurfaceForRoute(at.route)
+    if (surface !== null) {
+      this.#scrollBySurface.set(surface, offset)
+    }
+  }
+
+  readonly clearScrollState = (at: NavigationPosition = this.#state): void => {
+    this.#scrollById.delete(at.entryId)
+    const surface = scrollSurfaceForRoute(at.route)
+    if (surface !== null) {
+      this.#scrollBySurface.delete(surface)
+    }
+  }
+
+  readonly savedScroll = (at: NavigationPosition = this.#state): number | null =>
+    this.#scrollById.get(at.entryId) ?? null
+
+  readonly noteMoved = (from: string, to: string): void => {
+    const current = this.#stack[this.#index]!.route
+    if (current.kind === 'note' && current.path === from) {
+      this.#revision += 1
+    }
+    let changed = false
+    const moved = this.#stack.map((entry) => {
+      if (entry.route.kind === 'note' && entry.route.path === from) {
+        changed = true
+        return { ...entry, route: { kind: 'note' as const, path: to } }
+      }
+      return entry
+    })
+    if (changed) {
+      this.#stack = moved
+      this.#publish()
+    }
+  }
+
+  readonly reset = (initialRoute?: Route): void => {
+    this.#revision += 1
+    this.#state = this.#start(initialRoute ?? { kind: 'today' })
+  }
+
+  #snapshot(): NavigationState {
+    const entry = this.#stack[this.#index]!
     return {
       route: entry.route,
       entryId: entry.id,
-      arrivalSeq,
-      arrivalFocusEditor,
-      canBack: index > 0,
-      canForward: index < stack.length - 1,
-      backRoute: index > 0 ? stack[index - 1]!.route : null,
+      arrivalSeq: this.#arrivalSeq,
+      arrivalFocusEditor: this.#arrivalFocusEditor,
+      canBack: this.#index > 0,
+      canForward: this.#index < this.#stack.length - 1,
+      backRoute: this.#index > 0 ? this.#stack[this.#index - 1]!.route : null,
     }
   }
 
-  function start(initialRoute: Route): void {
-    nextId = 0
-    stack = [{ id: nextId++, route: normalizeRoute(initialRoute) }]
-    index = 0
-    arrivalSeq = 0
-    arrivalFocusEditor = false
-    scrollById.clear()
-    scrollBySurface.clear()
-    state = snapshot()
+  #start(initialRoute: Route): NavigationState {
+    this.#nextId = 0
+    this.#stack = [{ id: this.#nextId++, route: normalizeRoute(initialRoute) }]
+    this.#index = 0
+    this.#arrivalSeq = 0
+    this.#arrivalFocusEditor = false
+    this.#scrollById.clear()
+    this.#scrollBySurface.clear()
+    return this.#snapshot()
   }
 
-  function publish(): void {
-    state = snapshot()
-    for (const listener of listeners) {
+  #publish(): void {
+    this.#state = this.#snapshot()
+    for (const listener of this.#listeners) {
       listener()
     }
   }
+}
 
-  start(deps?.initialRoute ?? { kind: 'today' })
-
-  return {
-    getState: () => state,
-
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-
-    navigate: (route, options) => {
-      revision += 1
-      const target = normalizeRoute(route)
-      const surface = scrollSurfaceForRoute(target)
-      const currentEntry = stack[index]!
-      // A surface restore only means something when coming from OFF the surface;
-      // the Daily tab clicked while already on the stream is an explicit
-      // re-anchor request, exactly like ⌘D.
-      const returning =
-        options?.restoreSurfaceScroll === true &&
-        surface !== null &&
-        scrollSurfaceForRoute(currentEntry.route) !== surface
-      const restored = returning ? scrollBySurface.get(surface) : undefined
-      if (surface !== null && restored === undefined) {
-        // An explicit arrival re-anchors the surface, making its saved offset
-        // stale — drop it so a later nav-tab return re-anchors too instead of
-        // resurrecting the pre-arrival position. Scrolling after the arrival
-        // repopulates it.
-        scrollBySurface.delete(surface)
-      }
-      if (routesEqual(currentEntry.route, target)) {
-        if (restored !== undefined) {
-          scrollById.set(currentEntry.id, restored)
-        } else {
-          // No stack growth — but this is still an explicit arrival: forget the
-          // entry's saved offset so the view re-anchors to its target instead of
-          // restoring the old scroll position.
-          scrollById.delete(currentEntry.id)
-        }
-      } else {
-        const dropped = stack.slice(index + 1)
-        for (const entry of dropped) {
-          scrollById.delete(entry.id) // truncated branch — free its offsets
-        }
-        const id = nextId++
-        if (restored !== undefined) {
-          scrollById.set(id, restored) // seed the fresh entry with the surface offset
-        }
-        stack = [...stack.slice(0, index + 1), { id, route: target }]
-        index = stack.length - 1
-      }
-      arrivalSeq += 1
-      arrivalFocusEditor = options?.focusEditor === true
-      publish()
-    },
-
-    back: () => {
-      if (index === 0) {
-        return // nothing behind us — must not advance the navigation revision
-      }
-      revision += 1
-      arrivalFocusEditor = false // history moves are never focus arrivals
-      index -= 1
-      publish()
-    },
-
-    forward: () => {
-      if (index >= stack.length - 1) {
-        return
-      }
-      revision += 1
-      arrivalFocusEditor = false
-      index += 1
-      publish()
-    },
-
-    navigationRevision: () => revision,
-
-    saveScrollState: (offset, at = state) => {
-      scrollById.set(at.entryId, offset)
-      const surface = scrollSurfaceForRoute(at.route)
-      if (surface !== null) {
-        scrollBySurface.set(surface, offset)
-      }
-    },
-
-    clearScrollState: (at = state) => {
-      scrollById.delete(at.entryId)
-      const surface = scrollSurfaceForRoute(at.route)
-      if (surface !== null) {
-        scrollBySurface.delete(surface)
-      }
-    },
-
-    savedScroll: (at = state) => scrollById.get(at.entryId) ?? null,
-
-    noteMoved: (from, to) => {
-      const current = stack[index]!.route
-      if (current.kind === 'note' && current.path === from) {
-        revision += 1
-      }
-      let changed = false
-      const moved = stack.map((entry) => {
-        if (entry.route.kind === 'note' && entry.route.path === from) {
-          changed = true
-          return { ...entry, route: { kind: 'note' as const, path: to } }
-        }
-        return entry
-      })
-      if (changed) {
-        stack = moved
-        publish()
-      }
-    },
-
-    reset: (initialRoute) => {
-      revision += 1
-      start(initialRoute ?? { kind: 'today' })
-    },
-  }
+export function createNavigationService(deps?: NavigationServiceDeps): NavigationService {
+  return new NavigationServiceImpl(deps)
 }

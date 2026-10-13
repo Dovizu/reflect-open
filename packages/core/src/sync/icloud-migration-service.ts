@@ -2,7 +2,9 @@ import type { GraphSessionSource } from '../app/graph-session.ts'
 import { errorMessage } from '../errors.ts'
 import type { ICloudNativeService } from '../ipc/icloud-native-service.ts'
 
-/** One move of the open graph into iCloud Drive. */
+/**
+ * One move of the open graph into iCloud Drive.
+ */
 export interface MoveGraphToICloudOptions {
   /**
    * `BackupService.disconnectGraph` of the open graph when its backup is
@@ -21,10 +23,12 @@ export interface MoveGraphToICloudOptions {
   onCopied?: (failure: string | null) => void
 }
 
-/** The services an {@link ICloudMigrationService} runs on. */
+/**
+ * The services an {@link ICloudMigrationService} runs on.
+ */
 export interface ICloudMigrationServiceDeps {
-  icloudNative: Pick<ICloudNativeService, 'adoptGraph'>
-  graphSession: GraphSessionSource
+  readonly icloudNative: Pick<ICloudNativeService, 'adoptGraph'>
+  readonly graphSession: GraphSessionSource
 }
 
 /**
@@ -44,48 +48,59 @@ export interface ICloudMigrationService {
   moveGraph: (options: MoveGraphToICloudOptions) => Promise<string | null>
 }
 
+class ICloudMigrationServiceImpl implements ICloudMigrationService {
+  readonly #deps: ICloudMigrationServiceDeps
+
+  constructor(deps: ICloudMigrationServiceDeps) {
+    this.#deps = deps
+  }
+
+  readonly moveGraph = async ({
+    disconnectBackup,
+    openGraph,
+    onCopied,
+  }: MoveGraphToICloudOptions): Promise<string | null> => {
+    const { icloudNative, graphSession } = this.#deps
+    const { session } = graphSession.getState()
+    if (session === null) {
+      return 'No graph is open.'
+    }
+    let failure: string | null = null
+    try {
+      // Copy first: if it fails, nothing changed — the backup is still
+      // connected and the graph untouched.
+      const newRoot = await icloudNative.adoptGraph(session.generation)
+      if (disconnectBackup !== null) {
+        try {
+          await disconnectBackup()
+        } catch (caught) {
+          // The iCloud copy has no .git, so exclusivity holds for the new
+          // graph regardless; the original folder keeping its backup is the
+          // recovery copy working as intended. Tell the user, don't block.
+          failure = `The graph moved to iCloud, but GitHub sync could not be disconnected from the original folder: ${errorMessage(caught)}`
+        }
+      }
+      onCopied?.(failure)
+      const opened = await openGraph(newRoot)
+      if (!opened) {
+        // Append rather than replace: a disconnect failure above must stay
+        // visible alongside this one — both tell the user something distinct.
+        failure = [
+          failure,
+          'The copy landed in iCloud but could not be opened — open it from Saved graphs.',
+        ]
+          .filter(Boolean)
+          .join(' ')
+      }
+      return failure
+    } catch (caught) {
+      return errorMessage(caught)
+    }
+  }
+}
+
 export function createICloudMigrationService(
   deps: ICloudMigrationServiceDeps,
 ): ICloudMigrationService {
-  const { icloudNative, graphSession } = deps
-
-  return {
-    moveGraph: async ({ disconnectBackup, openGraph, onCopied }) => {
-      const { session } = graphSession.getState()
-      if (session === null) {
-        return 'No graph is open.'
-      }
-      let failure: string | null = null
-      try {
-        // Copy first: if it fails, nothing changed — the backup is still
-        // connected and the graph untouched.
-        const newRoot = await icloudNative.adoptGraph(session.generation)
-        if (disconnectBackup !== null) {
-          try {
-            await disconnectBackup()
-          } catch (caught) {
-            // The iCloud copy has no .git, so exclusivity holds for the new
-            // graph regardless; the original folder keeping its backup is the
-            // recovery copy working as intended. Tell the user, don't block.
-            failure = `The graph moved to iCloud, but GitHub sync could not be disconnected from the original folder: ${errorMessage(caught)}`
-          }
-        }
-        onCopied?.(failure)
-        const opened = await openGraph(newRoot)
-        if (!opened) {
-          // Append rather than replace: a disconnect failure above must stay
-          // visible alongside this one — both tell the user something distinct.
-          failure = [
-            failure,
-            'The copy landed in iCloud but could not be opened — open it from Saved graphs.',
-          ]
-            .filter(Boolean)
-            .join(' ')
-        }
-        return failure
-      } catch (caught) {
-        return errorMessage(caught)
-      }
-    },
-  }
+  return new ICloudMigrationServiceImpl(deps)
 }

@@ -4,6 +4,10 @@ import { toAppError } from '../errors.ts'
 import { normalizePageMetaValue, parsePageMeta, type PageMeta } from '../link-preview/metadata.ts'
 import type { CloudSafe } from '../privacy/cloud-safe.ts'
 
+export interface PageMetaServiceDeps {
+  readonly webFetch: Pick<WebFetchService, 'fetchMeta' | 'fetchOembed'>
+}
+
 /**
  * Meta-tag scraping for link capture (Plan 11) — the no-AI half of
  * enrichment: fetch the captured page (through the hard-capped Rust
@@ -23,15 +27,30 @@ export interface PageMetaService {
   scrape(url: CloudSafe<string>): Promise<PageMeta>
 }
 
-export function createPageMetaService(deps: {
-  webFetch: Pick<WebFetchService, 'fetchMeta' | 'fetchOembed'>
-}): PageMetaService {
-  const { webFetch } = deps
+class PageMetaServiceImpl implements PageMetaService {
+  readonly #deps: PageMetaServiceDeps
 
-  async function scrapeOEmbed(requestURL: CloudSafe<string>): Promise<PageMeta | null> {
+  constructor(deps: PageMetaServiceDeps) {
+    this.#deps = deps
+  }
+
+  async scrape(url: CloudSafe<string>): Promise<PageMeta> {
+    const { webFetch } = this.#deps
+    const requestURL = oembedRequestURL(url)
+    if (requestURL !== null) {
+      // The request URL only wraps the gated page URL in the provider's endpoint.
+      const meta = await this.#scrapeOEmbed(requestURL as CloudSafe<string>)
+      if (meta !== null) {
+        return meta
+      }
+    }
+    return parsePageMeta(await webFetch.fetchMeta(url))
+  }
+
+  async #scrapeOEmbed(requestURL: CloudSafe<string>): Promise<PageMeta | null> {
     let json: string
     try {
-      json = await webFetch.fetchOembed(requestURL)
+      json = await this.#deps.webFetch.fetchOembed(requestURL)
     } catch (cause) {
       const kind = toAppError(cause).kind
       if (kind === 'network' || kind === 'auth') {
@@ -54,18 +73,8 @@ export function createPageMetaService(deps: {
     // unless) the AI leg writes one, now grounded in this real title.
     return { title, description: null, siteName: normalizePageMetaValue(answer.providerName) }
   }
+}
 
-  return {
-    async scrape(url) {
-      const requestURL = oembedRequestURL(url)
-      if (requestURL !== null) {
-        // The request URL only wraps the gated page URL in the provider's endpoint.
-        const meta = await scrapeOEmbed(requestURL as CloudSafe<string>)
-        if (meta !== null) {
-          return meta
-        }
-      }
-      return parsePageMeta(await webFetch.fetchMeta(url))
-    },
-  }
+export function createPageMetaService(deps: PageMetaServiceDeps): PageMetaService {
+  return new PageMetaServiceImpl(deps)
 }

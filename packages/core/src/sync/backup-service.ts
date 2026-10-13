@@ -37,7 +37,9 @@ export type BackupState =
   | { phase: 'disconnected' }
   | { phase: 'connected'; remoteUrl: string; repo: GithubRepoRef | null; status: SyncStatus }
 
-/** Outcome of connecting to an existing repo (the public case needs consent). */
+/**
+ * Outcome of connecting to an existing repo (the public case needs consent).
+ */
 export type ConnectExistingResult = 'connected' | 'needsPublicConfirm' | 'notFound'
 
 /**
@@ -50,28 +52,38 @@ export type ConnectExistingResult = 'connected' | 'needsPublicConfirm' | 'notFou
  */
 const MOBILE_IDLE_MS = 10_000
 
-/** The (graph, index session) pair one {@link BackupService} backs up. */
+/**
+ * The (graph, index session) pair one {@link BackupService} backs up.
+ */
 export interface BackupServiceOptions {
-  /** The open graph's generation — every git command is pinned to it. */
-  generation: number
-  /** The open index session's generation — index writes are pinned to it. */
-  indexGeneration: number | null
+  /**
+   * The open graph's generation — every git command is pinned to it.
+   */
+  readonly generation: number
+  /**
+   * The open index session's generation — index writes are pinned to it.
+   */
+  readonly indexGeneration: number | null
 }
 
-/** The services a {@link BackupService} runs on. */
+/**
+ * The services a {@link BackupService} runs on.
+ */
 export interface BackupServiceDeps {
-  git: GitRepositoryService
-  syncEngines: SyncEngineFactory
-  githubAuth: GithubAuthService
-  githubRepos: GithubRepoService
-  fileChanges: FileChangeService
-  /** Applies the notes a pull changed. */
-  indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
-  operations: OperationsService
-  lifecycle: AppLifecycleService
-  platform: PlatformFacts
-  persistenceFlush: PersistenceFlushService
-  logger: LoggerService
+  readonly git: GitRepositoryService
+  readonly syncEngines: SyncEngineFactory
+  readonly githubAuth: GithubAuthService
+  readonly githubRepos: GithubRepoService
+  readonly fileChanges: FileChangeService
+  /**
+   * Applies the notes a pull changed.
+   */
+  readonly indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
+  readonly operations: OperationsService
+  readonly lifecycle: AppLifecycleService
+  readonly platform: PlatformFacts
+  readonly persistenceFlush: PersistenceFlushService
+  readonly logger: LoggerService
 }
 
 /**
@@ -89,10 +101,14 @@ export interface BackupServiceDeps {
  * hook, and the connect / disconnect / sign-out / back-up-now actions.
  */
 export interface BackupService {
-  /** Probe the graph and start the engine if fully connected. Idempotent. */
+  /**
+   * Probe the graph and start the engine if fully connected. Idempotent.
+   */
   start: () => Promise<void>
   getState: () => BackupState
-  /** Subscribe to state changes; returns the unsubscribe. */
+  /**
+   * Subscribe to state changes; returns the unsubscribe.
+   */
   subscribe: (listener: () => void) => Unlisten
   /**
    * Create a new **private** repo for the signed-in user and connect it.
@@ -115,15 +131,23 @@ export interface BackupService {
    * machine-level GitHub credential stay — other graphs keep syncing).
    */
   disconnectGraph: () => Promise<void>
-  /** Sign this machine out of GitHub — every connected graph stops syncing. */
+  /**
+   * Sign this machine out of GitHub — every connected graph stops syncing.
+   */
   signOut: () => Promise<void>
-  /** Full cycle now: commit, pull/merge, push. */
+  /**
+   * Full cycle now: commit, pull/merge, push.
+   */
   backUpNow: () => Promise<void>
-  /** Tear everything down; the service is unusable afterwards. */
+  /**
+   * Tear everything down; the service is unusable afterwards.
+   */
   dispose: () => void
 }
 
-/** Builds the {@link BackupService} of one (graph, index session) pair. */
+/**
+ * Builds the {@link BackupService} of one (graph, index session) pair.
+ */
 export interface BackupServiceFactory {
   create(options: BackupServiceOptions): BackupService
 }
@@ -132,70 +156,237 @@ export function createBackupServiceFactory(deps: BackupServiceDeps): BackupServi
   return { create: (options) => createBackupService(deps, options) }
 }
 
-export function createBackupService(
-  deps: BackupServiceDeps,
-  options: BackupServiceOptions,
-): BackupService {
-  const {
-    git,
-    syncEngines,
-    githubAuth,
-    githubRepos,
-    fileChanges,
-    indexLifecycle,
-    operations,
-    lifecycle,
-    platform,
-    persistenceFlush,
-    logger,
-  } = deps
-  const generation = options.generation
-  const indexGeneration = options.indexGeneration
-  const mobile = isMobilePlatform(platform.appPlatform) || platform.surface.mobileApp
+class BackupServiceImpl implements BackupService {
+  readonly #deps: BackupServiceDeps
+  readonly #generation: number
+  readonly #indexGeneration: number | null
+  readonly #mobile: boolean
+  readonly #listeners = new Set<() => void>()
+  readonly #resumeDisposers: Array<() => void> = []
+  #state: BackupState = { phase: 'loading' }
+  #disposed = false
+  #engine: SyncEngine | null = null
+  #unlisten: Unlisten | null = null
+  #unregisterBackupFlusher: (() => void) | null = null
+  /**
+   * Serializes direct index writes without delaying synchronous file-change fanout.
+   */
+  #remoteIndexTail: Promise<void> = Promise.resolve()
+  /**
+   * Invalidates index work that was queued before a service teardown/restart.
+   */
+  #remoteIndexEpoch = 0
 
-  let state: BackupState = { phase: 'loading' }
-  const listeners = new Set<() => void>()
-  let disposed = false
-  let engine: SyncEngine | null = null
-  let unlisten: Unlisten | null = null
-  const resumeDisposers: Array<() => void> = []
-  let unregisterBackupFlusher: (() => void) | null = null
-  /** Serializes direct index writes without delaying synchronous file-change fanout. */
-  let remoteIndexTail: Promise<void> = Promise.resolve()
-  /** Invalidates index work that was queued before a service teardown/restart. */
-  let remoteIndexEpoch = 0
+  constructor(deps: BackupServiceDeps, options: BackupServiceOptions) {
+    this.#deps = deps
+    this.#generation = options.generation
+    this.#indexGeneration = options.indexGeneration
+    this.#mobile = isMobilePlatform(deps.platform.appPlatform) || deps.platform.surface.mobileApp
+  }
 
-  function setState(next: BackupState): void {
-    if (disposed) {
+  readonly start = async (): Promise<void> => {
+    const { git, syncEngines, githubAuth, operations, lifecycle, logger } = this.#deps
+    this.#teardown()
+    if (this.#disposed) {
       return
     }
-    state = next
-    for (const listener of listeners) {
+    this.#setState({ phase: 'loading' })
+    try {
+      const [status, auth] = await Promise.all([
+        git.status(this.#generation),
+        // A keychain the app can't read is indistinguishable from a signed-out
+        // one as far as backup is concerned, and must not cost the graph its
+        // history: degrade to the signed-out path below rather than failing
+        // the whole start into the engine-less catch.
+        githubAuth.load().catch((error: unknown) => {
+          logger.error('reading the GitHub credential failed:', errorMessage(error))
+          return null
+        }),
+      ])
+      if (this.#disposed) {
+        return
+      }
+      if (!status.initialized || status.remoteUrl === null) {
+        this.#setState({ phase: 'disconnected' })
+        await this.#startLocalHistory(status.initialized)
+        return
+      }
+      const remoteUrl = status.remoteUrl
+      const repo = parseGithubRemote(remoteUrl)
+      if (repo !== null && auth === null) {
+        // A GitHub remote needs the managed sign-in; the wizard is the fix.
+        // Generic remotes adopt without it — their credentials live with the
+        // user's own git tooling (ssh agent), not in our keychain.
+        this.#setState({ phase: 'disconnected' })
+        await this.#startLocalHistory(status.initialized)
+        return
+      }
+      // The app has no sign-in for a non-GitHub HTTPS host (SSH and path
+      // remotes need none: the agent or the filesystem answers). Fail at
+      // adoption, not at the first push: a *public* HTTPS remote would pull
+      // anonymously and only 401 on push, so the other device's edits arrive
+      // while this one's silently never leave. `rejected` = acting (not
+      // retrying) is the fix.
+      const host = repo === null ? remoteHost(remoteUrl) : null
+      if (host !== null) {
+        this.#setState({
+          phase: 'connected',
+          remoteUrl,
+          repo: null,
+          status: {
+            state: 'error',
+            errorKind: 'rejected',
+            message: `Backup cannot sign in to ${host} over HTTPS. Switch the remote to its SSH form: git remote set-url origin git@${host}:<owner>/<repo>.git`,
+          },
+        })
+        await this.#startLocalHistory(status.initialized)
+        return
+      }
+      const next = syncEngines.create({
+        generation: this.#generation,
+        ...(this.#mobile ? { idleMs: MOBILE_IDLE_MS } : {}),
+        // iOS can suspend us at any await. Do not begin a launch, online, or
+        // debounced Git cycle after the document is hidden; the existing
+        // visible/focus trigger below replays a full cycle on foreground.
+        // The background flusher's protected local commit bypasses this
+        // engine deliberately.
+        canStartCycle: () => !this.#mobile || !lifecycle.isHidden(),
+        // The managed sign-in is for github.com only; SSH and path remotes
+        // get none and Rust resolves them locally.
+        getCredential:
+          repo !== null
+            ? async () => {
+                const token = await githubAuth.getToken()
+                return token === null ? null : githubCredential(token)
+              }
+            : async () => null,
+        onStatus: (engineStatus) => {
+          this.#setState({ phase: 'connected', remoteUrl, repo, status: engineStatus })
+          if (repo !== null && isForbidden(engineStatus)) {
+            void this.#classifyForbidden(engineStatus, remoteUrl, repo)
+          }
+        },
+        onLargeFilesSkipped: (files) => {
+          // Surface the guardrail loudly: these files are NOT in the backup.
+          const names = files.map((file) => file.path).join(', ')
+          operations.start('Backing up').fail(`Too large to back up (kept local): ${names}`)
+        },
+        onRemoteChanges: (changes) => this.#onRemoteChanges(changes),
+      })
+      this.#setState({ phase: 'connected', remoteUrl, repo, status: { state: 'idle' } })
+      this.#adoptEngine(next)
+
+      this.#resumeDisposers.push(lifecycle.subscribeResume(() => void next.syncNow()))
+
+      void next.syncNow() // launch pull: pick up other devices' changes
+    } catch (error) {
+      // Any partially-built lifecycle is torn down whole — no zombie engine
+      // keeps timers or git work running behind a disconnected UI.
+      this.#teardown()
+      if (!this.#disposed) {
+        logger.error('backup start failed:', errorMessage(error))
+        this.#setState({ phase: 'disconnected' })
+      }
+    }
+  }
+
+  readonly getState = (): BackupState => this.#state
+
+  readonly subscribe = (listener: () => void): Unlisten => {
+    this.#listeners.add(listener)
+    return () => {
+      this.#listeners.delete(listener)
+    }
+  }
+
+  readonly connectNewRepo = async (name: string): Promise<'connected' | 'manualCreateNeeded'> => {
+    const { githubRepos } = this.#deps
+    const token = await this.#requireToken()
+    const repo = await githubRepos.createRepo(token, name, { isPrivate: true })
+    if (repo === null) {
+      return 'manualCreateNeeded' // fine-grained PATs can't create repos
+    }
+    const [owner, repoName, ...rest] = repo.fullName.split('/')
+    if (owner === undefined || repoName === undefined || rest.length > 0) {
+      throw new ReflectError('parse', `unexpected repository name from GitHub: ${repo.fullName}`)
+    }
+    // Align with the account's default branch for new repos so the first
+    // push creates the branch GitHub already considers the default.
+    await this.#connectRemote(githubRemoteUrl({ owner, name: repoName }), repo.defaultBranch)
+    return 'connected'
+  }
+
+  readonly connectExistingRepo = async (
+    ref: GithubRepoRef,
+    connectOptions: { allowPublic?: boolean } = {},
+  ): Promise<ConnectExistingResult> => {
+    const { githubRepos } = this.#deps
+    const token = await this.#requireToken()
+    const repo = await githubRepos.getRepo(token, ref)
+    if (repo === null) {
+      return 'notFound'
+    }
+    if (!repo.isPrivate && connectOptions.allowPublic !== true) {
+      return 'needsPublicConfirm'
+    }
+    // The repo's default branch is where its existing backup history lives —
+    // the local branch must match or sync would fork a parallel branch.
+    await this.#connectRemote(githubRemoteUrl(ref), repo.defaultBranch)
+    return 'connected'
+  }
+
+  readonly disconnectGraph = async (): Promise<void> => {
+    await this.#deps.git.disconnect(this.#generation)
+    await this.start()
+  }
+
+  readonly signOut = async (): Promise<void> => {
+    await this.#deps.githubAuth.clear()
+    await this.start()
+  }
+
+  readonly backUpNow = async (): Promise<void> => {
+    await this.#engine?.syncNow()
+  }
+
+  readonly dispose = (): void => {
+    this.#disposed = true
+    this.#teardown()
+    this.#listeners.clear()
+  }
+
+  #setState(next: BackupState): void {
+    if (this.#disposed) {
+      return
+    }
+    this.#state = next
+    for (const listener of this.#listeners) {
       listener()
     }
   }
 
   /** The single teardown path — every exit (failure, dispose, restart) takes it. */
-  function teardown(): void {
-    remoteIndexEpoch += 1
-    engine?.stop()
-    engine = null
-    unlisten?.()
-    unlisten = null
-    for (const dispose of resumeDisposers.splice(0)) {
+  #teardown(): void {
+    this.#remoteIndexEpoch += 1
+    this.#engine?.stop()
+    this.#engine = null
+    this.#unlisten?.()
+    this.#unlisten = null
+    for (const dispose of this.#resumeDisposers.splice(0)) {
       dispose()
     }
-    unregisterBackupFlusher?.()
-    unregisterBackupFlusher = null
+    this.#unregisterBackupFlusher?.()
+    this.#unregisterBackupFlusher = null
   }
 
-  function onRemoteChanges(changes: ChangedFile[]): void | Promise<void> {
+  #onRemoteChanges(changes: ChangedFile[]): void | Promise<void> {
+    const { fileChanges, indexLifecycle, lifecycle, logger } = this.#deps
     if (changes.length === 0) {
       return
     }
     // Capture before fanout: a synchronous subscriber can tear down/restart
     // the service, and work from this old merge must remain invalidated.
-    const notificationEpoch = remoteIndexEpoch
+    const notificationEpoch = this.#remoteIndexEpoch
     // Pull-applied writes must not depend on the file watcher being up (the
     // launch pull can land before watch start), so consumers are notified
     // directly. The whole batch goes to the local file-changes channel —
@@ -205,27 +396,28 @@ export function createBackupService(
     // direct apply (idempotent if a live watcher subscription double-applies).
     fileChanges.emit({ changes, source: 'pull' })
     const indexable = changes.filter((change) => isNotePath(change.path))
+    const indexGeneration = this.#indexGeneration
     if (indexGeneration !== null && indexable.length > 0) {
-      const task = remoteIndexTail.then(async () => {
+      const task = this.#remoteIndexTail.then(async () => {
         // Teardown stops the engine and invalidates work that has not begun.
         // A landed merge was already fanned out synchronously above; the next
         // watcher/reconcile pass can rebuild this disposable projection.
-        if (disposed || notificationEpoch !== remoteIndexEpoch) {
+        if (this.#disposed || notificationEpoch !== this.#remoteIndexEpoch) {
           return
         }
         await indexLifecycle.applyChanges(
           indexable,
           indexGeneration,
-          () => !mobile || !lifecycle.isHidden(),
+          () => !this.#mobile || !lifecycle.isHidden(),
         )
       })
       // Direct index writes remain ordered across retry merges. Their handled
       // promise is what the engine joins before idle; failure is logged but
       // never prevents the already-concurrent Git push of Markdown truth.
-      remoteIndexTail = task.catch((cause) => {
+      this.#remoteIndexTail = task.catch((cause) => {
         logger.error('pulled-note direct index apply failed:', cause)
       })
-      return remoteIndexTail
+      return this.#remoteIndexTail
     }
   }
 
@@ -233,12 +425,13 @@ export function createBackupService(
    * Wire an engine into the watcher (which feeds its debounce) and the
    * quit-time flusher.
    */
-  function adoptEngine(next: SyncEngine): void {
-    engine = next
+  #adoptEngine(next: SyncEngine): void {
+    const { fileChanges, persistenceFlush } = this.#deps
+    this.#engine = next
     // Spooled capture envelopes (`.reflect/inbox/`) are git-ignored and
     // drained within seconds — they must not tick the commit debounce. The
     // drain's own note writes arrive as ordinary changes right after.
-    unlisten = fileChanges.subscribe(({ changes }) => {
+    this.#unlisten = fileChanges.subscribe(({ changes }) => {
       if (changes.some((change) => !isCaptureSpoolPath(change.path))) {
         next.noteChanged()
       }
@@ -246,7 +439,9 @@ export function createBackupService(
     // Quit-time commit (local only — never a network push on the way out),
     // queued behind any running cycle so it can never land between a pull's
     // ref move and its checkout.
-    unregisterBackupFlusher = persistenceFlush.registerFlusher('backup', () => next.commitNow())
+    this.#unregisterBackupFlusher = persistenceFlush.registerFlusher('backup', () =>
+      next.commitNow(),
+    )
   }
 
   /**
@@ -270,18 +465,19 @@ export function createBackupService(
    * instruction for fixing that remote, and losing it to a watcher that
    * happened not to come up would be the worse trade.
    */
-  async function startLocalHistory(initialized: boolean): Promise<void> {
+  async #startLocalHistory(initialized: boolean): Promise<void> {
+    const { git, syncEngines, platform, logger } = this.#deps
     // Real git on a real folder — a shell capability the browser-dev bridge
     // honestly lacks, so don't start (and noisily fail) the commit loop there.
-    if (mobile || !platform.isNativeShell) {
+    if (this.#mobile || !platform.isNativeShell) {
       return
     }
     try {
       if (!initialized) {
-        await git.setup(null, null, generation)
+        await git.setup(null, null, this.#generation)
       }
       const next = syncEngines.create({
-        generation,
+        generation: this.#generation,
         localOnly: true,
         getCredential: async () => null,
         onStatus: (engineStatus) => {
@@ -292,119 +488,14 @@ export function createBackupService(
           }
         },
       })
-      adoptEngine(next)
+      this.#adoptEngine(next)
       void next.syncNow() // first snapshot: commit whatever is already pending
     } catch (error) {
       // `adoptEngine` assigns the engine before it subscribes, so a
       // half-built lifecycle takes the same teardown as every other failure.
       // No zombie engine keeps timers alive behind the caller's state.
-      teardown()
+      this.#teardown()
       logger.error('local history failed to start:', errorMessage(error))
-    }
-  }
-
-  async function start(): Promise<void> {
-    teardown()
-    if (disposed) {
-      return
-    }
-    setState({ phase: 'loading' })
-    try {
-      const [status, auth] = await Promise.all([
-        git.status(generation),
-        // A keychain the app can't read is indistinguishable from a signed-out
-        // one as far as backup is concerned, and must not cost the graph its
-        // history: degrade to the signed-out path below rather than failing
-        // the whole start into the engine-less catch.
-        githubAuth.load().catch((error: unknown) => {
-          logger.error('reading the GitHub credential failed:', errorMessage(error))
-          return null
-        }),
-      ])
-      if (disposed) {
-        return
-      }
-      if (!status.initialized || status.remoteUrl === null) {
-        setState({ phase: 'disconnected' })
-        await startLocalHistory(status.initialized)
-        return
-      }
-      const remoteUrl = status.remoteUrl
-      const repo = parseGithubRemote(remoteUrl)
-      if (repo !== null && auth === null) {
-        // A GitHub remote needs the managed sign-in; the wizard is the fix.
-        // Generic remotes adopt without it — their credentials live with the
-        // user's own git tooling (ssh agent), not in our keychain.
-        setState({ phase: 'disconnected' })
-        await startLocalHistory(status.initialized)
-        return
-      }
-      // The app has no sign-in for a non-GitHub HTTPS host (SSH and path
-      // remotes need none: the agent or the filesystem answers). Fail at
-      // adoption, not at the first push: a *public* HTTPS remote would pull
-      // anonymously and only 401 on push, so the other device's edits arrive
-      // while this one's silently never leave. `rejected` = acting (not
-      // retrying) is the fix.
-      const host = repo === null ? remoteHost(remoteUrl) : null
-      if (host !== null) {
-        setState({
-          phase: 'connected',
-          remoteUrl,
-          repo: null,
-          status: {
-            state: 'error',
-            errorKind: 'rejected',
-            message: `Backup cannot sign in to ${host} over HTTPS. Switch the remote to its SSH form: git remote set-url origin git@${host}:<owner>/<repo>.git`,
-          },
-        })
-        await startLocalHistory(status.initialized)
-        return
-      }
-      const next = syncEngines.create({
-        generation,
-        ...(mobile ? { idleMs: MOBILE_IDLE_MS } : {}),
-        // iOS can suspend us at any await. Do not begin a launch, online, or
-        // debounced Git cycle after the document is hidden; the existing
-        // visible/focus trigger below replays a full cycle on foreground.
-        // The background flusher's protected local commit bypasses this
-        // engine deliberately.
-        canStartCycle: () => !mobile || !lifecycle.isHidden(),
-        // The managed sign-in is for github.com only; SSH and path remotes
-        // get none and Rust resolves them locally.
-        getCredential:
-          repo !== null
-            ? async () => {
-                const token = await githubAuth.getToken()
-                return token === null ? null : githubCredential(token)
-              }
-            : async () => null,
-        onStatus: (engineStatus) => {
-          setState({ phase: 'connected', remoteUrl, repo, status: engineStatus })
-          if (repo !== null && isForbidden(engineStatus)) {
-            void classifyForbidden(engineStatus, remoteUrl, repo)
-          }
-        },
-        onLargeFilesSkipped: (files) => {
-          // Surface the guardrail loudly: these files are NOT in the backup.
-          const names = files.map((file) => file.path).join(', ')
-          operations.start('Backing up').fail(`Too large to back up (kept local): ${names}`)
-        },
-        onRemoteChanges,
-      })
-      setState({ phase: 'connected', remoteUrl, repo, status: { state: 'idle' } })
-      adoptEngine(next)
-
-      resumeDisposers.push(lifecycle.subscribeResume(() => void next.syncNow()))
-
-      void next.syncNow() // launch pull: pick up other devices' changes
-    } catch (error) {
-      // Any partially-built lifecycle is torn down whole — no zombie engine
-      // keeps timers or git work running behind a disconnected UI.
-      teardown()
-      if (!disposed) {
-        logger.error('backup start failed:', errorMessage(error))
-        setState({ phase: 'disconnected' })
-      }
     }
   }
 
@@ -415,11 +506,12 @@ export function createBackupService(
    * fixes neither. Ask GitHub whether the token itself is good: when it is,
    * the push was refused for another reason and the status names it.
    */
-  async function classifyForbidden(
+  async #classifyForbidden(
     status: SyncStatus,
     remoteUrl: string,
     repo: GithubRepoRef,
   ): Promise<void> {
+    const { githubAuth } = this.#deps
     let next: SyncStatus
     try {
       const token = await githubAuth.getToken()
@@ -446,12 +538,13 @@ export function createBackupService(
       }
     }
     // Only replace the exact status this probe was asked about.
-    if (state.phase === 'connected' && state.status === status) {
-      setState({ phase: 'connected', remoteUrl, repo, status: next })
+    if (this.#state.phase === 'connected' && this.#state.status === status) {
+      this.#setState({ phase: 'connected', remoteUrl, repo, status: next })
     }
   }
 
-  async function requireToken(): Promise<string> {
+  async #requireToken(): Promise<string> {
+    const { githubAuth } = this.#deps
     const token = await githubAuth.getToken()
     if (token === null) {
       throw new ReflectError('auth', 'Connect GitHub first (no credential stored)')
@@ -459,69 +552,23 @@ export function createBackupService(
     return token
   }
 
-  async function connectRemote(remoteUrl: string, branch: string): Promise<void> {
-    await git.setup(remoteUrl, branch, generation)
-    await start()
-  }
-
-  return {
-    start,
-    getState: () => state,
-    subscribe: (listener) => {
-      listeners.add(listener)
-      return () => {
-        listeners.delete(listener)
-      }
-    },
-    connectNewRepo: async (name) => {
-      const token = await requireToken()
-      const repo = await githubRepos.createRepo(token, name, { isPrivate: true })
-      if (repo === null) {
-        return 'manualCreateNeeded' // fine-grained PATs can't create repos
-      }
-      const [owner, repoName, ...rest] = repo.fullName.split('/')
-      if (owner === undefined || repoName === undefined || rest.length > 0) {
-        throw new ReflectError('parse', `unexpected repository name from GitHub: ${repo.fullName}`)
-      }
-      // Align with the account's default branch for new repos so the first
-      // push creates the branch GitHub already considers the default.
-      await connectRemote(githubRemoteUrl({ owner, name: repoName }), repo.defaultBranch)
-      return 'connected'
-    },
-    connectExistingRepo: async (ref, connectOptions = {}) => {
-      const token = await requireToken()
-      const repo = await githubRepos.getRepo(token, ref)
-      if (repo === null) {
-        return 'notFound'
-      }
-      if (!repo.isPrivate && connectOptions.allowPublic !== true) {
-        return 'needsPublicConfirm'
-      }
-      // The repo's default branch is where its existing backup history lives —
-      // the local branch must match or sync would fork a parallel branch.
-      await connectRemote(githubRemoteUrl(ref), repo.defaultBranch)
-      return 'connected'
-    },
-    disconnectGraph: async () => {
-      await git.disconnect(generation)
-      await start()
-    },
-    signOut: async () => {
-      await githubAuth.clear()
-      await start()
-    },
-    backUpNow: async () => {
-      await engine?.syncNow()
-    },
-    dispose: () => {
-      disposed = true
-      teardown()
-      listeners.clear()
-    },
+  async #connectRemote(remoteUrl: string, branch: string): Promise<void> {
+    const { git } = this.#deps
+    await git.setup(remoteUrl, branch, this.#generation)
+    await this.start()
   }
 }
 
-/** An `auth` error that is really an HTTP 403 (libgit2 phrases it `status code: 403`). */
+export function createBackupService(
+  deps: BackupServiceDeps,
+  options: BackupServiceOptions,
+): BackupService {
+  return new BackupServiceImpl(deps, options)
+}
+
+/**
+ * An `auth` error that is really an HTTP 403 (libgit2 phrases it `status code: 403`).
+ */
 function isForbidden(status: SyncStatus): boolean {
   return isSyncError(status) && status.errorKind === 'auth' && status.message.includes('403')
 }

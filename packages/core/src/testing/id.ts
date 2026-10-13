@@ -13,7 +13,9 @@ function crockford(value: number, length: number): string {
   return out
 }
 
-/** FNV-1a, so each seed gets its own id space. */
+/**
+ * FNV-1a, so each seed gets its own id space.
+ */
 function seedNumber(seed: string): number {
   let hash = 0x811c9dc5
   for (let i = 0; i < seed.length; i++) {
@@ -23,8 +25,48 @@ function seedNumber(seed: string): number {
 }
 
 export interface TestIdService extends IdService {
-  /** Every `uuid()` and `noteId()` value, in issue order. */
+  /**
+   * Every `uuid()` and `noteId()` value, in issue order.
+   */
   issued(): readonly string[]
+}
+
+class TestIdServiceImpl implements TestIdService {
+  readonly #uuidPrefix: string
+  readonly #ulidTime: string
+  readonly #issued: string[] = []
+  #uuidCount = 0
+  #noteIdCount = 0
+
+  constructor(seed: number) {
+    this.#uuidPrefix = seed.toString(16).padStart(8, '0')
+    this.#ulidTime = crockford(seed, 10)
+  }
+
+  uuid(): string {
+    this.#uuidCount += 1
+    const value = `${this.#uuidPrefix}-0000-4000-8000-${this.#uuidCount.toString(16).padStart(12, '0')}`
+    this.#issued.push(value)
+    return value
+  }
+
+  noteId(): string {
+    this.#noteIdCount += 1
+    const value = this.#ulidTime + crockford(this.#noteIdCount, 16)
+    this.#issued.push(value)
+    return value
+  }
+
+  pkceChallenge(): Promise<PkcePair> {
+    return Promise.resolve({
+      code_verifier: 'test-code-verifier',
+      code_challenge: 'test-code-challenge',
+    })
+  }
+
+  issued(): readonly string[] {
+    return [...this.#issued]
+  }
 }
 
 /**
@@ -33,48 +75,36 @@ export interface TestIdService extends IdService {
  * UUID group and the ULID timestamp.
  */
 export function createTestIdService(options?: { seed?: string }): TestIdService {
-  const seed = seedNumber(options?.seed ?? '')
-  const uuidPrefix = seed.toString(16).padStart(8, '0')
-  const ulidTime = crockford(seed, 10)
-  const issued: string[] = []
-  let uuidCount = 0
-  let noteIdCount = 0
-  return {
-    uuid: () => {
-      uuidCount += 1
-      const value = `${uuidPrefix}-0000-4000-8000-${uuidCount.toString(16).padStart(12, '0')}`
-      issued.push(value)
-      return value
-    },
-    noteId: () => {
-      noteIdCount += 1
-      const value = ulidTime + crockford(noteIdCount, 16)
-      issued.push(value)
-      return value
-    },
-    pkceChallenge: (): Promise<PkcePair> =>
-      Promise.resolve({
-        code_verifier: 'test-code-verifier',
-        code_challenge: 'test-code-challenge',
-      }),
-    issued: () => [...issued],
-  }
+  return new TestIdServiceImpl(seedNumber(options?.seed ?? ''))
 }
 
 export interface TestHashService extends HashService {
-  /** Every input passed to `sha256Hex()`, in call order. */
+  /**
+   * Every input passed to `sha256Hex()`, in call order.
+   */
   hashed(): readonly string[]
 }
 
-/** The real Web Crypto hash, which is deterministic, plus call recording. */
-export function createTestHashService(): TestHashService {
-  const inner = createWebCryptoHashService()
-  const hashed: string[] = []
-  return {
-    sha256Hex: async (text) => {
-      hashed.push(text)
-      return await inner.sha256Hex(text)
-    },
-    hashed: () => [...hashed],
+/**
+ * Forwards to the real Web Crypto hash and records each input.
+ */
+class TestHashServiceImpl implements TestHashService {
+  readonly #inner: HashService = createWebCryptoHashService()
+  readonly #hashed: string[] = []
+
+  async sha256Hex(text: string): Promise<string> {
+    this.#hashed.push(text)
+    return await this.#inner.sha256Hex(text)
   }
+
+  hashed(): readonly string[] {
+    return [...this.#hashed]
+  }
+}
+
+/**
+ * The real Web Crypto hash, which is deterministic, plus call recording.
+ */
+export function createTestHashService(): TestHashService {
+  return new TestHashServiceImpl()
 }

@@ -1,17 +1,29 @@
 import { todayIso } from '../lib/dates.ts'
 
-/** An opaque timer handle owned by a {@link ClockService}. */
+/**
+ * An opaque timer handle owned by a {@link ClockService}.
+ */
 export type TimerHandle = { readonly id: number }
 
-/** Wall time, monotonic time, the local date, and timers. */
+/**
+ * Wall time, monotonic time, the local date, and timers.
+ */
 export interface ClockService {
-  /** Epoch milliseconds, like `Date.now()`. */
+  /**
+   * Epoch milliseconds, like `Date.now()`.
+   */
   now(): number
-  /** Monotonic milliseconds, like `performance.now()`. */
+  /**
+   * Monotonic milliseconds, like `performance.now()`.
+   */
   monotonicNow(): number
-  /** The local calendar date as `YYYY-MM-DD`. */
+  /**
+   * The local calendar date as `YYYY-MM-DD`.
+   */
   today(): string
-  /** Calls `listener` with the new date whenever the local date changes. */
+  /**
+   * Calls `listener` with the new date whenever the local date changes.
+   */
   subscribeToday(listener: (today: string) => void): () => void
   setTimeout(fn: () => void, ms: number): TimerHandle
   clearTimeout(handle: TimerHandle): void
@@ -23,123 +35,141 @@ export interface ClockService {
 const HEARTBEAT_MS = 60_000
 const MIDNIGHT_PAD_MS = 250
 
-/** The clock backed by the platform's `Date`, `performance`, and timers. */
-export function createSystemClock(): ClockService {
-  const timers = new Map<number, ReturnType<typeof globalThis.setTimeout>>()
-  let nextId = 1
+class SystemClockImpl implements ClockService {
+  readonly #timers = new Map<number, ReturnType<typeof globalThis.setTimeout>>()
+  #nextId = 1
+  #today = todayIso()
+  readonly #listeners = new Set<(today: string) => void>()
+  #midnightTimer: ReturnType<typeof globalThis.setTimeout> | null = null
+  #heartbeat: ReturnType<typeof globalThis.setInterval> | null = null
 
-  let today = todayIso()
-  const listeners = new Set<(today: string) => void>()
-  let midnightTimer: ReturnType<typeof globalThis.setTimeout> | null = null
-  let heartbeat: ReturnType<typeof globalThis.setInterval> | null = null
-
-  const syncToday = (): void => {
+  readonly #syncToday = (): void => {
     const next = todayIso()
-    if (next === today) {
+    if (next === this.#today) {
       return
     }
-    today = next
-    for (const listener of listeners) {
+    this.#today = next
+    for (const listener of this.#listeners) {
       listener(next)
     }
   }
 
+  now(): number {
+    return Date.now()
+  }
+
+  monotonicNow(): number {
+    return performance.now()
+  }
+
+  today(): string {
+    // While nothing is subscribed, no timer keeps the cached date fresh.
+    if (this.#listeners.size === 0) {
+      this.#today = todayIso()
+    }
+    return this.#today
+  }
+
+  subscribeToday(listener: (today: string) => void): () => void {
+    const first = this.#listeners.size === 0
+    this.#listeners.add(listener)
+    if (first) {
+      this.#start()
+    }
+    return () => {
+      if (!this.#listeners.delete(listener)) {
+        return
+      }
+      if (this.#listeners.size === 0) {
+        this.#stop()
+      }
+    }
+  }
+
+  setTimeout(fn: () => void, ms: number): TimerHandle {
+    const id = this.#nextId++
+    this.#timers.set(
+      id,
+      globalThis.setTimeout(() => {
+        this.#timers.delete(id)
+        fn()
+      }, ms),
+    )
+    return { id }
+  }
+
+  clearTimeout(handle: TimerHandle): void {
+    this.#clearTimer(handle)
+  }
+
+  setInterval(fn: () => void, ms: number): TimerHandle {
+    const id = this.#nextId++
+    this.#timers.set(id, globalThis.setInterval(fn, ms))
+    return { id }
+  }
+
+  clearInterval(handle: TimerHandle): void {
+    this.#clearTimer(handle)
+  }
+
+  sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.setTimeout(resolve, ms)
+    })
+  }
+
   // DOM timers pause while the machine sleeps, so the heartbeat and the
   // visibility listener catch a midnight that this timer misses.
-  const scheduleMidnightRollover = (): void => {
+  #scheduleMidnightRollover(): void {
     const now = new Date()
     const midnight = new Date(now)
     midnight.setDate(midnight.getDate() + 1)
     midnight.setHours(0, 0, 0, 0)
-    midnightTimer = globalThis.setTimeout(
+    this.#midnightTimer = globalThis.setTimeout(
       () => {
-        syncToday()
-        scheduleMidnightRollover()
+        this.#syncToday()
+        this.#scheduleMidnightRollover()
       },
       midnight.getTime() - now.getTime() + MIDNIGHT_PAD_MS,
     )
   }
 
-  const start = (): void => {
-    syncToday()
-    scheduleMidnightRollover()
-    heartbeat = globalThis.setInterval(syncToday, HEARTBEAT_MS)
+  #start(): void {
+    this.#syncToday()
+    this.#scheduleMidnightRollover()
+    this.#heartbeat = globalThis.setInterval(this.#syncToday, HEARTBEAT_MS)
     if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', syncToday)
+      document.addEventListener('visibilitychange', this.#syncToday)
     }
   }
 
-  const stop = (): void => {
-    if (midnightTimer !== null) {
-      globalThis.clearTimeout(midnightTimer)
-      midnightTimer = null
+  #stop(): void {
+    if (this.#midnightTimer !== null) {
+      globalThis.clearTimeout(this.#midnightTimer)
+      this.#midnightTimer = null
     }
-    if (heartbeat !== null) {
-      globalThis.clearInterval(heartbeat)
-      heartbeat = null
+    if (this.#heartbeat !== null) {
+      globalThis.clearInterval(this.#heartbeat)
+      this.#heartbeat = null
     }
     if (typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', syncToday)
+      document.removeEventListener('visibilitychange', this.#syncToday)
     }
   }
 
-  const clearTimer = (handle: TimerHandle): void => {
-    const timer = timers.get(handle.id)
+  #clearTimer(handle: TimerHandle): void {
+    const timer = this.#timers.get(handle.id)
     if (timer === undefined) {
       return
     }
-    timers.delete(handle.id)
+    this.#timers.delete(handle.id)
     globalThis.clearTimeout(timer)
   }
+}
 
-  const clock: ClockService = {
-    now: () => Date.now(),
-    monotonicNow: () => performance.now(),
-    today() {
-      // While nothing is subscribed, no timer keeps the cached date fresh.
-      if (listeners.size === 0) {
-        today = todayIso()
-      }
-      return today
-    },
-    subscribeToday(listener) {
-      const first = listeners.size === 0
-      listeners.add(listener)
-      if (first) {
-        start()
-      }
-      return () => {
-        if (!listeners.delete(listener)) {
-          return
-        }
-        if (listeners.size === 0) {
-          stop()
-        }
-      }
-    },
-    setTimeout(fn, ms) {
-      const id = nextId++
-      timers.set(
-        id,
-        globalThis.setTimeout(() => {
-          timers.delete(id)
-          fn()
-        }, ms),
-      )
-      return { id }
-    },
-    clearTimeout: clearTimer,
-    setInterval(fn, ms) {
-      const id = nextId++
-      timers.set(id, globalThis.setInterval(fn, ms))
-      return { id }
-    },
-    clearInterval: clearTimer,
-    sleep(ms) {
-      return new Promise((resolve) => {
-        clock.setTimeout(resolve, ms)
-      })
-    },
-  }
-  return clock
+/**
+ * The clock backed by the platform's `Date`, `performance`, and timers.
+ */
+export function createSystemClock(): ClockService {
+  return new SystemClockImpl()
 }

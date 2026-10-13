@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService, type TestPlatformOptions } from '../testing/platform.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
@@ -82,44 +82,55 @@ function setup(options?: {
   windowLabel?: string
   hidden?: boolean
   failHide?: boolean
-  lifecycle?: (base: TestLifecycleService, log: string[]) => Partial<AppLifecycleService>
+  lifecycle?: (
+    base: Pick<AppLifecycleService, 'beginBackgroundTask' | 'endBackgroundTask'>,
+    log: string[],
+  ) => Partial<AppLifecycleService>
 }): Setup {
   const log: string[] = []
   const documents = createStep('documents', log)
   const settings = createStep('settings', log)
   const backup = createStep('backup', log)
-  const base = createTestLifecycleService({
+  const lifecycle = createTestLifecycleService({
     hidden: options?.hidden ?? false,
     backgroundTasks: true,
   })
-  const lifecycle: TestLifecycleService = { ...base, ...options?.lifecycle?.(base, log) }
+  const original = {
+    beginBackgroundTask: lifecycle.beginBackgroundTask.bind(lifecycle),
+    endBackgroundTask: lifecycle.endBackgroundTask.bind(lifecycle),
+  }
+  Object.assign(lifecycle, options?.lifecycle?.(original, log))
   const closeHandlers = new Set<CloseRequestedHandler>()
   let hides = 0
-  const window = {
-    ...createTestWindowService(
+  const window = Object.assign(
+    createTestWindowService(
       options?.windowLabel === undefined ? undefined : { label: options.windowLabel },
     ),
-    onCloseRequested(handler: CloseRequestedHandler): Unlisten {
-      closeHandlers.add(handler)
-      return () => {
-        closeHandlers.delete(handler)
-      }
+    {
+      onCloseRequested(handler: CloseRequestedHandler): Unlisten {
+        closeHandlers.add(handler)
+        return () => {
+          closeHandlers.delete(handler)
+        }
+      },
+      async hide() {
+        hides += 1
+        log.push('hide')
+        if (options?.failHide ?? false) {
+          throw new Error('hide failed')
+        }
+      },
+      hideCalls: () => hides,
     },
-    async hide() {
-      hides += 1
-      log.push('hide')
-      if (options?.failHide ?? false) {
-        throw new Error('hide failed')
-      }
-    },
-    hideCalls: () => hides,
-  }
+  )
   const logger = createTestLoggerService()
+  const settingsService = createTestSettingsService()
+  vi.spyOn(settingsService, 'flush').mockImplementation(settings.fn)
   const service = createPersistenceFlushService({
     lifecycle,
     window,
     platform: createTestPlatformService(options?.platform),
-    settings: { ...createTestSettingsService(), flush: settings.fn },
+    settings: settingsService,
     openDocuments: { flushAll: documents.fn },
     logger,
   })

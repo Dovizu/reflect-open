@@ -16,7 +16,9 @@ import { definePluginCommand, definePluginEvent, ignoredResult } from './plugin.
  * https://github.com/Choochmeque/tauri-plugin-iap/blob/v0.9.1/src/models.rs
  */
 
-/** The two auto-renewable subscription products (App Store Connect owns them). */
+/**
+ * The two auto-renewable subscription products (App Store Connect owns them).
+ */
 export const IAP_PRODUCT_IDS = {
   monthly: 'app.reflect.ios.pro.monthly',
   yearly: 'app.reflect.ios.pro.yearly',
@@ -64,7 +66,9 @@ const getProductStatusCommand = definePluginCommand<
  */
 const purchaseUpdatedEvent = definePluginEvent('iap', 'purchaseUpdated', z.unknown())
 
-/** StoreKit subscriptions. */
+/**
+ * StoreKit subscriptions.
+ */
 export interface IapService {
   /**
    * The store's localized offers for `productIds` (get_products:
@@ -98,35 +102,48 @@ export interface IapService {
   subscribePurchaseUpdated(listener: () => void): Unlisten
 }
 
-export function createIapService(deps: {
-  ipc: IpcBridgeService
-  logger: LoggerService
-}): IapService {
-  const { ipc, logger } = deps
-  return {
-    async getProducts(productIds) {
-      const { products } = await getProductsCommand(ipc, {
-        payload: { productIds, productType: 'subs' },
-      })
-      return products
-    },
-    async purchase(productId) {
-      await purchaseCommand(ipc, { payload: { productId, productType: 'subs' } })
-    },
-    async isOwned(productId) {
-      const { isOwned } = await getProductStatusCommand(ipc, {
-        payload: { productId, productType: 'subs' },
-      })
-      return isOwned
-    },
-    subscribePurchaseUpdated(listener) {
-      const subscription = purchaseUpdatedEvent(ipc, () => {
-        listener()
-      })
-      subscription.ready.catch((error: unknown) => {
-        logger.error('subscribing to purchaseUpdated failed', error)
-      })
-      return subscription.unlisten
-    },
+export interface IapServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly logger: Pick<LoggerService, 'error'>
+}
+
+class IapServiceImpl implements IapService {
+  readonly #deps: IapServiceDeps
+
+  constructor(deps: IapServiceDeps) {
+    this.#deps = deps
   }
+
+  async getProducts(productIds: string[]): Promise<IapProduct[]> {
+    const { products } = await getProductsCommand(this.#deps.ipc, {
+      payload: { productIds, productType: 'subs' },
+    })
+    return products
+  }
+
+  async purchase(productId: string): Promise<void> {
+    await purchaseCommand(this.#deps.ipc, { payload: { productId, productType: 'subs' } })
+  }
+
+  async isOwned(productId: string): Promise<boolean> {
+    const { isOwned } = await getProductStatusCommand(this.#deps.ipc, {
+      payload: { productId, productType: 'subs' },
+    })
+    return isOwned
+  }
+
+  subscribePurchaseUpdated(listener: () => void): Unlisten {
+    const { ipc, logger } = this.#deps
+    const subscription = purchaseUpdatedEvent(ipc, () => {
+      listener()
+    })
+    subscription.ready.catch((error: unknown) => {
+      logger.error('subscribing to purchaseUpdated failed', error)
+    })
+    return subscription.unlisten
+  }
+}
+
+export function createIapService(deps: IapServiceDeps): IapService {
+  return new IapServiceImpl(deps)
 }

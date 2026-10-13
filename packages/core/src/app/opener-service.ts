@@ -1,22 +1,36 @@
 import { errorMessage } from '../errors.ts'
 import type { LoggerService } from './logger-service.ts'
 
-/** A macOS System Settings privacy pane. */
+/**
+ * A macOS System Settings privacy pane.
+ */
 export type SystemSettingsPane = 'calendar' | 'contacts'
 
-/** Hands URLs and paths to the operating system. */
+/**
+ * Hands URLs and paths to the operating system.
+ */
 export interface OpenerService {
-  /** Open `url` with its default handler. */
+  /**
+   * Open `url` with its default handler.
+   */
   openUrl(url: string): Promise<void>
-  /** {@link openUrl} without a promise; a failure is logged. */
+  /**
+   * {@link openUrl} without a promise; a failure is logged.
+   */
   openUrlSync(url: string): void
-  /** Show `path` in the system file manager. */
+  /**
+   * Show `path` in the system file manager.
+   */
   revealInFileManager(path: string): Promise<void>
-  /** Open a System Settings privacy pane; a failure is logged. */
+  /**
+   * Open a System Settings privacy pane; a failure is logged.
+   */
   openSystemSettings(pane: SystemSettingsPane): void
 }
 
-/** The native operations behind an {@link OpenerService}. */
+/**
+ * The native operations behind an {@link OpenerService}.
+ */
 export interface OpenerTransport {
   openUrl(url: string): Promise<void>
   revealItemInDir(path: string): Promise<void>
@@ -27,24 +41,38 @@ const SYSTEM_SETTINGS_URLS: Record<SystemSettingsPane, string> = {
   contacts: 'x-apple.systempreferences:com.apple.preference.security?Privacy_Contacts',
 }
 
-export function createOpenerService(deps: {
-  transport: OpenerTransport
-  logger: LoggerService
-}): OpenerService {
-  const { transport, logger } = deps
+export interface OpenerServiceDeps {
+  readonly transport: OpenerTransport
+  readonly logger: LoggerService
+}
 
-  const openUrlSync = (url: string): void => {
+class OpenerServiceImpl implements OpenerService {
+  readonly #deps: OpenerServiceDeps
+
+  constructor(deps: OpenerServiceDeps) {
+    this.#deps = deps
+  }
+
+  openUrl(url: string): Promise<void> {
+    return this.#deps.transport.openUrl(url)
+  }
+
+  openUrlSync(url: string): void {
+    const { transport, logger } = this.#deps
     void transport.openUrl(url).catch((cause: unknown) => {
       logger.error(`failed to open ${url}:`, errorMessage(cause))
     })
   }
 
-  return {
-    openUrl: (url) => transport.openUrl(url),
-    openUrlSync,
-    revealInFileManager: (path) => transport.revealItemInDir(path),
-    openSystemSettings: (pane) => {
-      openUrlSync(SYSTEM_SETTINGS_URLS[pane])
-    },
+  revealInFileManager(path: string): Promise<void> {
+    return this.#deps.transport.revealItemInDir(path)
   }
+
+  openSystemSettings(pane: SystemSettingsPane): void {
+    this.openUrlSync(SYSTEM_SETTINGS_URLS[pane])
+  }
+}
+
+export function createOpenerService(deps: OpenerServiceDeps): OpenerService {
+  return new OpenerServiceImpl(deps)
 }

@@ -2,18 +2,56 @@ import type { GraphInfo } from '../graph/schemas.ts'
 import type { MobileStorageInfo, MobileStorageService } from '../ipc/mobile-storage-service.ts'
 
 export interface TestMobileStorageServiceOptions {
-  /** What `resolve` answers. Defaults to a local-only device. */
+  /**
+   * What `resolve` answers. Defaults to a local-only device.
+   */
   storage?: MobileStorageInfo
 }
 
 export interface TestMobileStorageService extends MobileStorageService {
   setStorage(storage: MobileStorageInfo): void
-  /** The path of every `createGraph`, in order. */
+  /**
+   * The path of every `createGraph`, in order.
+   */
   createdGraphs(): readonly string[]
 }
 
 function baseName(path: string): string {
   return path.split('/').findLast((segment) => segment !== '') ?? path
+}
+
+class TestMobileStorageServiceImpl implements TestMobileStorageService {
+  #storage: MobileStorageInfo
+  readonly #created: string[] = []
+
+  constructor(options?: TestMobileStorageServiceOptions) {
+    this.#storage = options?.storage ?? {
+      localRoot: '/local/Documents',
+      icloudDocumentsRoot: null,
+      icloudGraphRoots: [],
+    }
+  }
+
+  async resolve(): Promise<MobileStorageInfo> {
+    return { ...this.#storage, icloudGraphRoots: [...this.#storage.icloudGraphRoots] }
+  }
+
+  async resolveLocal(): Promise<string> {
+    return this.#storage.localRoot
+  }
+
+  async createGraph(path: string): Promise<GraphInfo> {
+    this.#created.push(path)
+    return { root: path, name: baseName(path), generation: 1 }
+  }
+
+  setStorage(next: MobileStorageInfo): void {
+    this.#storage = next
+  }
+
+  createdGraphs(): readonly string[] {
+    return [...this.#created]
+  }
 }
 
 /**
@@ -23,23 +61,5 @@ function baseName(path: string): string {
 export function createTestMobileStorageService(
   options?: TestMobileStorageServiceOptions,
 ): TestMobileStorageService {
-  let storage: MobileStorageInfo = options?.storage ?? {
-    localRoot: '/local/Documents',
-    icloudDocumentsRoot: null,
-    icloudGraphRoots: [],
-  }
-  const created: string[] = []
-
-  return {
-    resolve: async () => ({ ...storage, icloudGraphRoots: [...storage.icloudGraphRoots] }),
-    resolveLocal: async () => storage.localRoot,
-    createGraph: async (path): Promise<GraphInfo> => {
-      created.push(path)
-      return { root: path, name: baseName(path), generation: 1 }
-    },
-    setStorage(next) {
-      storage = next
-    },
-    createdGraphs: () => [...created],
-  }
+  return new TestMobileStorageServiceImpl(options)
 }

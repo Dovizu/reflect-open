@@ -11,7 +11,9 @@ export interface GitCredential {
   secret: string
 }
 
-/** Snapshot of the graph's backup repository (cheap — no working-tree scan). */
+/**
+ * Snapshot of the graph's backup repository (cheap — no working-tree scan).
+ */
 export const gitStatusSchema = z.object({
   initialized: z.boolean(),
   branch: z.string().nullable(),
@@ -22,7 +24,9 @@ export const gitStatusSchema = z.object({
 })
 export type GitStatus = z.infer<typeof gitStatusSchema>
 
-/** A file excluded from backup by the size guardrail (GitHub hard-fails >100 MB). */
+/**
+ * A file excluded from backup by the size guardrail (GitHub hard-fails >100 MB).
+ */
 export const skippedFileSchema = z.object({
   path: z.string(),
   size: z.number(),
@@ -30,11 +34,17 @@ export const skippedFileSchema = z.object({
 export type SkippedFile = z.infer<typeof skippedFileSchema>
 
 export const commitOutcomeSchema = z.object({
-  /** False when the tree already matched HEAD — nothing new to back up. */
+  /**
+   * False when the tree already matched HEAD — nothing new to back up.
+   */
   committed: z.boolean(),
-  /** The new commit, or `null` when `committed` is false. */
+  /**
+   * The new commit, or `null` when `committed` is false.
+   */
   sha: z.string().nullable(),
-  /** Unpushed local commits (vs the last fetch) — the engine's skip-push gate. */
+  /**
+   * Unpushed local commits (vs the last fetch) — the engine's skip-push gate.
+   */
   ahead: z.number(),
   skippedLargeFiles: z.array(skippedFileSchema),
 })
@@ -51,11 +61,15 @@ export const remoteDeltaSchema = z.object({
 })
 export type RemoteDelta = z.infer<typeof remoteDeltaSchema>
 
-/** A file a merge rewrote on disk — same shape as the watcher's FileChange. */
+/**
+ * A file a merge rewrote on disk — same shape as the watcher's FileChange.
+ */
 export const changedFileSchema = z.object({
   path: z.string(),
   kind: z.enum(['upsert', 'remove']),
-  /** Last-modified time (epoch ms; upserts only) — real mtime for the reindex. */
+  /**
+   * Last-modified time (epoch ms; upserts only) — real mtime for the reindex.
+   */
   modifiedMs: z.number().optional(),
 })
 export type ChangedFile = z.infer<typeof changedFileSchema>
@@ -87,7 +101,9 @@ export type PushOutcome = z.infer<typeof pushOutcomeSchema>
  * touching the wrong repository.
  */
 export interface GitRepositoryService {
-  /** Snapshot the backup repository (cheap, no network). */
+  /**
+   * Snapshot the backup repository (cheap, no network).
+   */
   status(generation: number): Promise<GitStatus>
   /**
    * Initialize (or adopt) the graph repository; `remoteUrl` points `origin` at
@@ -106,9 +122,13 @@ export interface GitRepositoryService {
    * is used only when Rust cannot derive a clearer subject from staged paths.
    */
   commitAll(fallbackMessage: string, generation: number): Promise<CommitOutcome>
-  /** Fetch `origin`; returns ahead/behind for the current branch. */
+  /**
+   * Fetch `origin`; returns ahead/behind for the current branch.
+   */
   fetch(credential: GitCredential | null, generation: number): Promise<RemoteDelta>
-  /** Push to `origin`; rejections come back as data, not thrown errors. */
+  /**
+   * Push to `origin`; rejections come back as data, not thrown errors.
+   */
   push(credential: GitCredential | null, generation: number): Promise<PushOutcome>
   /**
    * Merge the fetched remote branch. Conflicts are committed into the notes as
@@ -118,19 +138,50 @@ export interface GitRepositoryService {
   mergeRemote(generation: number): Promise<MergeOutcome>
 }
 
-export function createGitRepositoryService(deps: { ipc: IpcBridgeService }): GitRepositoryService {
-  const { ipc } = deps
-  return {
-    status: (generation) => ipc.call('git_status', { generation }, gitStatusSchema),
-    setup: (remoteUrl, branch, generation) =>
-      ipc.call('git_setup', { remoteUrl, branch, generation }, gitStatusSchema),
-    disconnect: (generation) => ipc.call('git_disconnect', { generation }, gitStatusSchema),
-    commitAll: (fallbackMessage, generation) =>
-      ipc.call('git_commit_all', { message: fallbackMessage, generation }, commitOutcomeSchema),
-    fetch: (credential, generation) =>
-      ipc.call('git_fetch', { credential, generation }, remoteDeltaSchema),
-    push: (credential, generation) =>
-      ipc.call('git_push', { credential, generation }, pushOutcomeSchema),
-    mergeRemote: (generation) => ipc.call('git_merge_remote', { generation }, mergeOutcomeSchema),
+export interface GitRepositoryServiceDeps {
+  readonly ipc: IpcBridgeService
+}
+
+class GitRepositoryServiceImpl implements GitRepositoryService {
+  readonly #deps: GitRepositoryServiceDeps
+
+  constructor(deps: GitRepositoryServiceDeps) {
+    this.#deps = deps
   }
+
+  status(generation: number): Promise<GitStatus> {
+    return this.#deps.ipc.call('git_status', { generation }, gitStatusSchema)
+  }
+
+  setup(remoteUrl: string | null, branch: string | null, generation: number): Promise<GitStatus> {
+    return this.#deps.ipc.call('git_setup', { remoteUrl, branch, generation }, gitStatusSchema)
+  }
+
+  disconnect(generation: number): Promise<GitStatus> {
+    return this.#deps.ipc.call('git_disconnect', { generation }, gitStatusSchema)
+  }
+
+  commitAll(fallbackMessage: string, generation: number): Promise<CommitOutcome> {
+    return this.#deps.ipc.call(
+      'git_commit_all',
+      { message: fallbackMessage, generation },
+      commitOutcomeSchema,
+    )
+  }
+
+  fetch(credential: GitCredential | null, generation: number): Promise<RemoteDelta> {
+    return this.#deps.ipc.call('git_fetch', { credential, generation }, remoteDeltaSchema)
+  }
+
+  push(credential: GitCredential | null, generation: number): Promise<PushOutcome> {
+    return this.#deps.ipc.call('git_push', { credential, generation }, pushOutcomeSchema)
+  }
+
+  mergeRemote(generation: number): Promise<MergeOutcome> {
+    return this.#deps.ipc.call('git_merge_remote', { generation }, mergeOutcomeSchema)
+  }
+}
+
+export function createGitRepositoryService(deps: GitRepositoryServiceDeps): GitRepositoryService {
+  return new GitRepositoryServiceImpl(deps)
 }

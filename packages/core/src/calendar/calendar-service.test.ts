@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createCalendarService, type CalendarEvent } from './calendar-service.ts'
@@ -73,15 +73,8 @@ describe('createCalendarService', () => {
 
   it('logs a failed change subscription', async () => {
     const { ipc, logger } = setup()
-    const calendar = createCalendarService({
-      ipc: {
-        ...ipc,
-        listen: async () => {
-          throw new Error('no events')
-        },
-      },
-      logger,
-    })
+    vi.spyOn(ipc, 'listen').mockRejectedValue(new Error('no events'))
+    const calendar = createCalendarService({ ipc, logger })
     calendar.subscribeChanged(() => {})
     await Promise.resolve()
     await Promise.resolve()

@@ -13,21 +13,33 @@ const agentSkillInstallStateSchema = z.enum(['missing', 'current', 'stale', 'con
 export type AgentSkillInstallState = z.infer<typeof agentSkillInstallStateSchema>
 
 const agentSkillStatusSchema = z.object({
-  /** The skill's directory name, derived from the graph (`reflect-<slug>`). */
+  /**
+   * The skill's directory name, derived from the graph (`reflect-<slug>`).
+   */
   skillName: z.string(),
-  /** Absolute path of the target `SKILL.md` under `~/.agents/skills/`. */
+  /**
+   * Absolute path of the target `SKILL.md` under `~/.agents/skills/`.
+   */
   skillPath: z.string(),
-  /** Absolute path of the bundled `reflect` CLI the skill references. */
+  /**
+   * Absolute path of the bundled `reflect` CLI the skill references.
+   */
   cliPath: z.string(),
   installState: agentSkillInstallStateSchema,
 })
 
-/** Install status of the open graph's agent skill. */
+/**
+ * Install status of the open graph's agent skill.
+ */
 export type AgentSkillStatus = z.infer<typeof agentSkillStatusSchema>
 
-/** Manages the open graph's agent skill file under `~/.agents/skills/`. */
+/**
+ * Manages the open graph's agent skill file under `~/.agents/skills/`.
+ */
 export interface AgentSkillService {
-  /** The open graph's agent-skill install status. Read-only. */
+  /**
+   * The open graph's agent-skill install status. Read-only.
+   */
   status(): Promise<AgentSkillStatus>
   /**
    * Write (or refresh) the open graph's `SKILL.md`. Pinned to the open
@@ -35,24 +47,41 @@ export interface AgentSkillService {
    * and rejects when no graph is open.
    */
   install(): Promise<AgentSkillStatus>
-  /** Remove the open graph's managed skill file. Rejects `conflict` files. */
+  /**
+   * Remove the open graph's managed skill file. Rejects `conflict` files.
+   */
   uninstall(): Promise<AgentSkillStatus>
 }
 
-export function createAgentSkillService(deps: {
-  ipc: IpcBridgeService
-  graphSession: GraphSessionSource
-}): AgentSkillService {
-  const { ipc, graphSession } = deps
-  return {
-    status: () => ipc.call('skill_status', {}, agentSkillStatusSchema),
-    install: async () => {
-      const { generation } = requireGraphSession(graphSession)
-      return await ipc.call('skill_install', { generation }, agentSkillStatusSchema)
-    },
-    uninstall: async () => {
-      const { generation } = requireGraphSession(graphSession)
-      return await ipc.call('skill_uninstall', { generation }, agentSkillStatusSchema)
-    },
+export interface AgentSkillServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly graphSession: GraphSessionSource
+}
+
+class AgentSkillServiceImpl implements AgentSkillService {
+  readonly #deps: AgentSkillServiceDeps
+
+  constructor(deps: AgentSkillServiceDeps) {
+    this.#deps = deps
   }
+
+  status(): Promise<AgentSkillStatus> {
+    return this.#deps.ipc.call('skill_status', {}, agentSkillStatusSchema)
+  }
+
+  async install(): Promise<AgentSkillStatus> {
+    const { ipc, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    return await ipc.call('skill_install', { generation }, agentSkillStatusSchema)
+  }
+
+  async uninstall(): Promise<AgentSkillStatus> {
+    const { ipc, graphSession } = this.#deps
+    const { generation } = requireGraphSession(graphSession)
+    return await ipc.call('skill_uninstall', { generation }, agentSkillStatusSchema)
+  }
+}
+
+export function createAgentSkillService(deps: AgentSkillServiceDeps): AgentSkillService {
+  return new AgentSkillServiceImpl(deps)
 }

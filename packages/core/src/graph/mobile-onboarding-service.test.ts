@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { MobileStorageInfo } from '../ipc/mobile-storage-service.ts'
 import type { Settings } from '../settings/schema.ts'
 import { createTestClockService } from '../testing/clock.ts'
@@ -56,15 +56,12 @@ function setup(options?: SetupOptions) {
   const storage = createTestMobileStorageService({ storage: options?.storage ?? STORAGE })
   let resolveCalls = 0
   const customResolve = options?.resolve
-  const mobileStorage = {
-    ...storage,
-    resolve: async (): Promise<MobileStorageInfo> => {
-      resolveCalls += 1
-      return customResolve === undefined
-        ? await storage.resolve()
-        : await customResolve(resolveCalls)
-    },
-  }
+  const resolveStorage = storage.resolve.bind(storage)
+  vi.spyOn(storage, 'resolve').mockImplementation(async (): Promise<MobileStorageInfo> => {
+    resolveCalls += 1
+    return customResolve === undefined ? await resolveStorage() : await customResolve(resolveCalls)
+  })
+  const mobileStorage = storage
   const settings = createTestSettingsService(options?.settings)
   const graphSession = createTestGraphSessionService({ ipc, platform, mobileStorage, logger })
   const lifecycle = createTestLifecycleService()

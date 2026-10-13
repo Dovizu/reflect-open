@@ -6,8 +6,53 @@ import type {
 
 export interface TestAgentSkillService extends AgentSkillService {
   setInstallState(state: AgentSkillInstallState): void
-  /** Every `install` and `uninstall`, in order. */
+  /**
+   * Every `install` and `uninstall`, in order.
+   */
   calls(): readonly { readonly method: 'install' | 'uninstall' }[]
+}
+
+class TestAgentSkillServiceImpl implements TestAgentSkillService {
+  #status: AgentSkillStatus
+  readonly #log: { method: 'install' | 'uninstall' }[] = []
+
+  constructor(options: Partial<AgentSkillStatus> | undefined) {
+    this.#status = {
+      skillName: options?.skillName ?? 'reflect-test',
+      skillPath: options?.skillPath ?? '/home/.agents/skills/reflect-test/SKILL.md',
+      cliPath: options?.cliPath ?? '/app/reflect',
+      installState: options?.installState ?? 'missing',
+    }
+  }
+
+  async status(): Promise<AgentSkillStatus> {
+    return { ...this.#status }
+  }
+
+  async install(): Promise<AgentSkillStatus> {
+    return this.#transition('install', 'current')
+  }
+
+  async uninstall(): Promise<AgentSkillStatus> {
+    return this.#transition('uninstall', 'missing')
+  }
+
+  setInstallState(state: AgentSkillInstallState): void {
+    this.#status = { ...this.#status, installState: state }
+  }
+
+  calls(): readonly { readonly method: 'install' | 'uninstall' }[] {
+    return [...this.#log]
+  }
+
+  #transition(method: 'install' | 'uninstall', next: AgentSkillInstallState): AgentSkillStatus {
+    this.#log.push({ method })
+    if (this.#status.installState === 'conflict') {
+      throw new Error(`test agent skill: cannot ${method} over a conflicting file`)
+    }
+    this.#status = { ...this.#status, installState: next }
+    return { ...this.#status }
+  }
 }
 
 /**
@@ -17,33 +62,5 @@ export interface TestAgentSkillService extends AgentSkillService {
 export function createTestAgentSkillService(
   options?: Partial<AgentSkillStatus>,
 ): TestAgentSkillService {
-  let status: AgentSkillStatus = {
-    skillName: options?.skillName ?? 'reflect-test',
-    skillPath: options?.skillPath ?? '/home/.agents/skills/reflect-test/SKILL.md',
-    cliPath: options?.cliPath ?? '/app/reflect',
-    installState: options?.installState ?? 'missing',
-  }
-  const log: { method: 'install' | 'uninstall' }[] = []
-
-  function transition(
-    method: 'install' | 'uninstall',
-    next: AgentSkillInstallState,
-  ): AgentSkillStatus {
-    log.push({ method })
-    if (status.installState === 'conflict') {
-      throw new Error(`test agent skill: cannot ${method} over a conflicting file`)
-    }
-    status = { ...status, installState: next }
-    return { ...status }
-  }
-
-  return {
-    status: async () => ({ ...status }),
-    install: async () => transition('install', 'current'),
-    uninstall: async () => transition('uninstall', 'missing'),
-    setInstallState(state) {
-      status = { ...status, installState: state }
-    },
-    calls: () => [...log],
-  }
+  return new TestAgentSkillServiceImpl(options)
 }

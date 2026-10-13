@@ -1,14 +1,20 @@
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import { splitFrontmatter } from '../markdown/frontmatter.ts'
 
-/** What a note hands to the OS share sheet. */
+/**
+ * What a note hands to the OS share sheet.
+ */
 export interface NoteShareContent {
-  /** The subject, for targets that use one (Mail). */
+  /**
+   * The subject, for targets that use one (Mail).
+   */
   title: string
   text: string
 }
 
-/** The basename without its `.md` — the note's working title (Plan 17). */
+/**
+ * The basename without its `.md` — the note's working title (Plan 17).
+ */
 function noteTitle(path: string): string {
   const base = path.slice(path.lastIndexOf('/') + 1)
   return base.endsWith('.md') ? base.slice(0, -'.md'.length) : base
@@ -23,7 +29,9 @@ export function noteShareContent(markdown: string, path: string): NoteShareConte
   return { title: noteTitle(path), text: splitFrontmatter(markdown).body.trimStart() }
 }
 
-/** What the app shares of a note through the OS share sheet (Plan 19, V1 parity). */
+/**
+ * What the app shares of a note through the OS share sheet (Plan 19, V1 parity).
+ */
 export interface ShareService {
   /**
    * The share content of the note at `path`, read **synchronously** from the
@@ -37,12 +45,21 @@ export interface ShareService {
   noteContent: (path: string) => NoteShareContent
 }
 
-export function createShareService(deps: {
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-}): ShareService {
-  const { openDocuments } = deps
-  return {
-    noteContent: (path) =>
-      noteShareContent(openDocuments.sessionFor(path)?.liveContent() ?? '', path),
+export interface ShareServiceDeps {
+  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+}
+
+class ShareServiceImpl implements ShareService {
+  readonly #deps: ShareServiceDeps
+
+  constructor(deps: ShareServiceDeps) {
+    this.#deps = deps
   }
+
+  readonly noteContent = (path: string): NoteShareContent =>
+    noteShareContent(this.#deps.openDocuments.sessionFor(path)?.liveContent() ?? '', path)
+}
+
+export function createShareService(deps: ShareServiceDeps): ShareService {
+  return new ShareServiceImpl(deps)
 }

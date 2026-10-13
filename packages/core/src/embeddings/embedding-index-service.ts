@@ -26,13 +26,21 @@ import type { EmbeddingRuntimeService } from './embedding-runtime-service.ts'
 export interface EmbedNoteOptions {
   path: string
   generation: number
-  /** The model recorded per vector (from the runtime's `ready` status). */
+  /**
+   * The model recorded per vector (from the runtime's `ready` status).
+   */
   modelId: string
-  /** Pre-loaded content (the watcher path has it); read from disk if absent. */
+  /**
+   * Pre-loaded content (the watcher path has it); read from disk if absent.
+   */
   content?: string
 }
 
-/** One chunk in the `embed_apply` payload; `vector` only for new/changed. */
+/**
+
+ * One chunk in the `embed_apply` payload; `vector` only for new/changed.
+
+ */
 export interface EmbedChunkPayload {
   heading: string | null
   posFrom: number
@@ -43,25 +51,37 @@ export interface EmbedChunkPayload {
   vector: number[] | null
 }
 
-/** How a backfill ended: every note visited, stopped by `signal`, or the note list unreadable. */
+/**
+
+ * How a backfill ended: every note visited, stopped by `signal`, or the note list unreadable.
+
+ */
 export type EmbeddingBackfillResult = 'completed' | 'aborted' | 'failed'
 
 export interface EmbeddingBackfillOptions {
   generation: number
   modelId: string
   onProgress?: (done: number, total: number) => void
-  /** Abort between notes (e.g. graph switch). */
+  /**
+   * Abort between notes (e.g. graph switch).
+   */
   signal?: AbortSignal
 }
 
-/** Keeps each note's chunk vectors current (Plan 09). */
+/**
+
+ * Keeps each note's chunk vectors current (Plan 09).
+
+ */
 export interface EmbeddingIndexService {
   /**
    * Bring one note's embeddings up to date. Returns the number of chunks that
    * were (re)embedded — 0 means the hash-skip caught everything.
    */
   embedNote(options: EmbedNoteOptions): Promise<number>
-  /** Drop a deleted note's chunks + vectors (generation-pinned). */
+  /**
+   * Drop a deleted note's chunks + vectors (generation-pinned).
+   */
   removeNote(path: string, generation: number): Promise<void>
   /**
    * Backfill every indexed note (initial enable, repair). Serialized; the
@@ -90,33 +110,28 @@ export interface EmbeddingIndexService {
 
 const voidSchema = z.null()
 
-export function createEmbeddingIndexService(deps: {
-  ipc: IpcBridgeService
-  embeddingRuntime: EmbeddingRuntimeService
-  noteFile: NoteFileService
-  database: DatabaseService
-  indexLifecycle: IndexLifecycleService
-  hash: Pick<HashService, 'sha256Hex'>
-  logger: LoggerService
-}): EmbeddingIndexService {
-  const { ipc, embeddingRuntime, noteFile, database, indexLifecycle, hash, logger } = deps
-  const assetDescriptionText = createAssetDescriptionText({ noteFile })
-  let queue: Promise<void> = Promise.resolve()
+export interface EmbeddingIndexServiceDeps {
+  readonly ipc: IpcBridgeService
+  readonly embeddingRuntime: EmbeddingRuntimeService
+  readonly noteFile: NoteFileService
+  readonly database: DatabaseService
+  readonly indexLifecycle: IndexLifecycleService
+  readonly hash: Pick<HashService, 'sha256Hex'>
+  readonly logger: LoggerService
+}
 
-  /** Replace a note's chunk set (hash-diff applied in Rust; generation-pinned). */
-  async function applyChunks(
-    path: string,
-    chunks: EmbedChunkPayload[],
-    generation: number,
-  ): Promise<void> {
-    await ipc.call('embed_apply', { path, chunks, generation }, voidSchema)
+class EmbeddingIndexServiceImpl implements EmbeddingIndexService {
+  readonly #deps: EmbeddingIndexServiceDeps
+  readonly #assetDescriptionText: ReturnType<typeof createAssetDescriptionText>
+  #queue: Promise<void> = Promise.resolve()
+
+  constructor(deps: EmbeddingIndexServiceDeps) {
+    this.#deps = deps
+    this.#assetDescriptionText = createAssetDescriptionText({ noteFile: deps.noteFile })
   }
 
-  async function removeNote(path: string, generation: number): Promise<void> {
-    await ipc.call('embed_remove', { path, generation }, voidSchema)
-  }
-
-  async function embedNote(options: EmbedNoteOptions): Promise<number> {
+  async embedNote(options: EmbedNoteOptions): Promise<number> {
+    const { embeddingRuntime, noteFile, database, hash } = this.#deps
     const { path, generation, modelId } = options
     if (isTemplatePath(path)) {
       return 0 // templates are boilerplate — never embedded, never retrieved
@@ -141,7 +156,7 @@ export function createEmbeddingIndexService(deps: {
     }
 
     const parsed = parseNote({ path, source: content })
-    const gathered = await assetDescriptionText.gatherBodies(
+    const gathered = await this.#assetDescriptionText.gatherBodies(
       parsed.assets.map((asset) => asset.path),
     )
     if (gathered.evicted.length > 0) {
@@ -158,7 +173,7 @@ export function createEmbeddingIndexService(deps: {
       ...(await chunkAssetDescriptions({ hash }, gathered.bodies, content.length + 1)),
     ]
     if (chunks.length === 0) {
-      await removeNote(path, generation)
+      await this.removeNote(path, generation)
       return 0
     }
 
@@ -205,54 +220,33 @@ export function createEmbeddingIndexService(deps: {
       // exactly as long as the non-skipped chunks, consumed in order here.
       vector: skip[i] ? null : vectors[vectorAt++]!,
     }))
-    await applyChunks(path, payload, generation)
+    await this.#applyChunks(path, payload, generation)
     return toEmbed.length
   }
 
-  async function backfillNotes(
-    options: EmbeddingBackfillOptions,
-  ): Promise<'completed' | 'aborted'> {
-    const { generation, modelId, onProgress, signal } = options
-    const rows = await database.db
-      .selectFrom('notes')
-      .where('kind', '!=', 'template')
-      .select('path')
-      .orderBy('path')
-      .execute()
-    let done = 0
-    for (const row of rows) {
-      if (signal?.aborted === true) {
-        return 'aborted'
-      }
-      try {
-        await embedNote({ path: row.path, generation, modelId })
-      } catch (cause) {
-        logger.error(`embedding backfill failed for ${row.path}:`, cause)
-      }
-      done += 1
-      onProgress?.(done, rows.length)
-    }
-    return 'completed'
+  async removeNote(path: string, generation: number): Promise<void> {
+    await this.#deps.ipc.call('embed_remove', { path, generation }, voidSchema)
   }
 
-  async function backfill(options: EmbeddingBackfillOptions): Promise<EmbeddingBackfillResult> {
+  async backfill(options: EmbeddingBackfillOptions): Promise<EmbeddingBackfillResult> {
     try {
-      return await backfillNotes(options)
+      return await this.#backfillNotes(options)
     } catch {
       return 'failed'
     }
   }
 
-  function follow(options: { generation: number; modelId: string }): Unlisten {
+  follow(options: { generation: number; modelId: string }): Unlisten {
+    const { indexLifecycle, logger } = this.#deps
     const { generation, modelId } = options
     const stopped = new AbortController()
 
-    queue = queue
+    this.#queue = this.#queue
       .then(() => {
         if (stopped.signal.aborted) {
           return
         }
-        return backfill({ generation, modelId, signal: stopped.signal }).then(() => {})
+        return this.backfill({ generation, modelId, signal: stopped.signal }).then(() => {})
       })
       .catch((cause: unknown) => {
         // A rejection here must not poison the queue (later change items
@@ -268,14 +262,14 @@ export function createEmbeddingIndexService(deps: {
         if (!isNotePath(change.path)) {
           continue // asset-file changes ride the same batches — never embedded
         }
-        queue = queue
+        this.#queue = this.#queue
           .then(() => {
             if (stopped.signal.aborted) {
               return
             }
             return change.kind === 'remove'
-              ? removeNote(change.path, generation)
-              : embedNote({ path: change.path, generation, modelId }).then(() => {})
+              ? this.removeNote(change.path, generation)
+              : this.embedNote({ path: change.path, generation, modelId }).then(() => {})
           })
           .catch((cause: unknown) => {
             logger.error(`embedding sync failed for ${change.path}:`, cause)
@@ -289,5 +283,41 @@ export function createEmbeddingIndexService(deps: {
     }
   }
 
-  return { embedNote, removeNote, backfill, follow }
+  /**
+   * Replace a note's chunk set (hash-diff applied in Rust; generation-pinned).
+   */
+  async #applyChunks(path: string, chunks: EmbedChunkPayload[], generation: number): Promise<void> {
+    await this.#deps.ipc.call('embed_apply', { path, chunks, generation }, voidSchema)
+  }
+
+  async #backfillNotes(options: EmbeddingBackfillOptions): Promise<'completed' | 'aborted'> {
+    const { database, logger } = this.#deps
+    const { generation, modelId, onProgress, signal } = options
+    const rows = await database.db
+      .selectFrom('notes')
+      .where('kind', '!=', 'template')
+      .select('path')
+      .orderBy('path')
+      .execute()
+    let done = 0
+    for (const row of rows) {
+      if (signal?.aborted === true) {
+        return 'aborted'
+      }
+      try {
+        await this.embedNote({ path: row.path, generation, modelId })
+      } catch (cause) {
+        logger.error(`embedding backfill failed for ${row.path}:`, cause)
+      }
+      done += 1
+      onProgress?.(done, rows.length)
+    }
+    return 'completed'
+  }
+}
+
+export function createEmbeddingIndexService(
+  deps: EmbeddingIndexServiceDeps,
+): EmbeddingIndexService {
+  return new EmbeddingIndexServiceImpl(deps)
 }

@@ -4,9 +4,13 @@ import type { IpcBridgeService } from './ipc-service.ts'
 
 const mobileStorageInfoSchema = z.object({
   localRoot: z.string(),
-  /** The container's `Documents/` dir when iCloud is usable; new graphs are created inside it. */
+  /**
+   * The container's `Documents/` dir when iCloud is usable; new graphs are created inside it.
+   */
   icloudDocumentsRoot: z.string().nullable(),
-  /** Every graph already in the container (name-sorted); onboarding and the switcher list them. */
+  /**
+   * Every graph already in the container (name-sorted); onboarding and the switcher list them.
+   */
   icloudGraphRoots: z.array(z.string()),
 })
 
@@ -18,7 +22,9 @@ const mobileStorageInfoSchema = z.object({
  */
 export type MobileStorageInfo = z.infer<typeof mobileStorageInfoSchema>
 
-/** Which of the {@link MobileStorageInfo} roots the graph lives in. */
+/**
+ * Which of the {@link MobileStorageInfo} roots the graph lives in.
+ */
 export type MobileStorageKind = 'icloud' | 'local'
 
 /**
@@ -26,22 +32,45 @@ export type MobileStorageKind = 'icloud' | 'local'
  * restore and update: resolve them fresh every launch and never persist them.
  */
 export interface MobileStorageService {
-  /** Resolve every mobile storage root. Mobile only; the desktop shell rejects it. */
+  /**
+   * Resolve every mobile storage root. Mobile only; the desktop shell rejects it.
+   */
   resolve(): Promise<MobileStorageInfo>
   /**
    * The app-sandbox `Documents/` root alone: the cheap half of {@link resolve},
    * available before the iCloud container resolves. Mobile only.
    */
   resolveLocal(): Promise<string>
-  /** Create a new graph at `path` and open it. */
+  /**
+   * Create a new graph at `path` and open it.
+   */
   createGraph(path: string): Promise<GraphInfo>
 }
 
-export function createMobileStorageService(deps: { ipc: IpcBridgeService }): MobileStorageService {
-  const { ipc } = deps
-  return {
-    resolve: () => ipc.call('mobile_storage', {}, mobileStorageInfoSchema),
-    resolveLocal: () => ipc.call('mobile_storage_local', {}, z.string()),
-    createGraph: (path) => ipc.call('graph_create', { path }, graphInfoSchema),
+export interface MobileStorageServiceDeps {
+  readonly ipc: IpcBridgeService
+}
+
+class MobileStorageServiceImpl implements MobileStorageService {
+  readonly #deps: MobileStorageServiceDeps
+
+  constructor(deps: MobileStorageServiceDeps) {
+    this.#deps = deps
   }
+
+  resolve(): Promise<MobileStorageInfo> {
+    return this.#deps.ipc.call('mobile_storage', {}, mobileStorageInfoSchema)
+  }
+
+  resolveLocal(): Promise<string> {
+    return this.#deps.ipc.call('mobile_storage_local', {}, z.string())
+  }
+
+  createGraph(path: string): Promise<GraphInfo> {
+    return this.#deps.ipc.call('graph_create', { path }, graphInfoSchema)
+  }
+}
+
+export function createMobileStorageService(deps: MobileStorageServiceDeps): MobileStorageService {
+  return new MobileStorageServiceImpl(deps)
 }

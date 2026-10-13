@@ -31,11 +31,17 @@ export interface BackgroundReconcilerOptions {
 }
 
 export interface BackgroundReconciler {
-  /** Request a pass; if one is running, queue exactly one follow-up after it. */
-  schedule(this: void): void
-  /** True once {@link dispose} has run: the `pass` body's `isStale` gate. */
+  /**
+   * Request a pass; if one is running, queue exactly one follow-up after it.
+   */
+  schedule: () => void
+  /**
+   * True once {@link dispose} has run: the `pass` body's `isStale` gate.
+   */
   isStale(): boolean
-  /** Retry the loop on window `focus` / `online` (the network's natural signals). */
+  /**
+   * Retry the loop on window `focus` / `online` (the network's natural signals).
+   */
   retryOnWake(): void
   /**
    * Register a teardown to run on {@link dispose} (an `unlisten`, etc.). Runs
@@ -43,11 +49,15 @@ export interface BackgroundReconciler {
    * teardown is still cleaned up.
    */
   onDispose(teardown: () => void): void
-  /** Stop the loop (its next gate aborts the in-flight pass) and run teardowns. */
-  dispose(this: void): void
+  /**
+   * Stop the loop (its next gate aborts the in-flight pass) and run teardowns.
+   */
+  dispose: () => void
 }
 
-/** Builds {@link BackgroundReconciler} loops. */
+/**
+ * Builds {@link BackgroundReconciler} loops.
+ */
 export interface BackgroundReconcilerFactory {
   /**
    * Build a single-flight background reconcile loop. `dispose()` is terminal:
@@ -57,63 +67,89 @@ export interface BackgroundReconcilerFactory {
   create(options: BackgroundReconcilerOptions): BackgroundReconciler
 }
 
-export function createBackgroundReconcilerFactory(deps: {
-  lifecycle: AppLifecycleService
-}): BackgroundReconcilerFactory {
-  const { lifecycle } = deps
-  return {
-    create(options) {
-      let disposed = false
-      let running = false
-      /** A trigger landed mid-pass; run exactly one follow-up after it. */
-      let queued = false
-      const disposers: Array<() => void> = []
+export interface BackgroundReconcilerFactoryDeps {
+  readonly lifecycle: AppLifecycleService
+}
 
-      async function run(): Promise<void> {
-        if (running) {
-          queued = true
-          return
-        }
-        running = true
-        try {
-          do {
-            queued = false
-            if ((await options.pass(() => disposed)) === 'stop') {
-              break // keep any queued follow-up for the next external trigger
-            }
-          } while (queued && !disposed)
-        } finally {
-          running = false
-          options.onSettled?.()
-        }
-      }
+class BackgroundReconcilerImpl implements BackgroundReconciler {
+  readonly #lifecycle: AppLifecycleService
+  readonly #options: BackgroundReconcilerOptions
+  #disposed = false
+  #running = false
+  /**
+   * A trigger landed mid-pass; run exactly one follow-up after it.
+   */
+  #queued = false
+  readonly #disposers: Array<() => void> = []
 
-      function schedule(): void {
-        if (!disposed) {
-          void run()
-        }
-      }
-
-      return {
-        schedule,
-        isStale: () => disposed,
-        retryOnWake() {
-          disposers.push(lifecycle.subscribeWake(schedule))
-        },
-        onDispose(teardown) {
-          if (disposed) {
-            teardown()
-            return
-          }
-          disposers.push(teardown)
-        },
-        dispose() {
-          disposed = true
-          for (const teardown of disposers.splice(0)) {
-            teardown()
-          }
-        },
-      }
-    },
+  constructor(lifecycle: AppLifecycleService, options: BackgroundReconcilerOptions) {
+    this.#lifecycle = lifecycle
+    this.#options = options
   }
+
+  readonly schedule = (): void => {
+    if (!this.#disposed) {
+      void this.#run()
+    }
+  }
+
+  isStale(): boolean {
+    return this.#disposed
+  }
+
+  retryOnWake(): void {
+    this.#disposers.push(this.#lifecycle.subscribeWake(this.schedule))
+  }
+
+  onDispose(teardown: () => void): void {
+    if (this.#disposed) {
+      teardown()
+      return
+    }
+    this.#disposers.push(teardown)
+  }
+
+  readonly dispose = (): void => {
+    this.#disposed = true
+    for (const teardown of this.#disposers.splice(0)) {
+      teardown()
+    }
+  }
+
+  async #run(): Promise<void> {
+    if (this.#running) {
+      this.#queued = true
+      return
+    }
+    this.#running = true
+    try {
+      do {
+        this.#queued = false
+        if ((await this.#options.pass(() => this.#disposed)) === 'stop') {
+          break // keep any queued follow-up for the next external trigger
+        }
+      } while (this.#queued && !this.#disposed)
+    } finally {
+      this.#running = false
+      this.#options.onSettled?.()
+    }
+  }
+}
+
+class BackgroundReconcilerFactoryImpl implements BackgroundReconcilerFactory {
+  readonly #deps: BackgroundReconcilerFactoryDeps
+
+  constructor(deps: BackgroundReconcilerFactoryDeps) {
+    this.#deps = deps
+  }
+
+  create(options: BackgroundReconcilerOptions): BackgroundReconciler {
+    return new BackgroundReconcilerImpl(this.#deps.lifecycle, options)
+  }
+}
+
+export function createBackgroundReconcilerFactory(
+  deps: BackgroundReconcilerFactoryDeps,
+): BackgroundReconcilerFactory {
+  return new BackgroundReconcilerFactoryImpl(deps)
 }
