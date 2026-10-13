@@ -19,6 +19,7 @@ export default defineDesktopProject({
     // Real keyboard focus is a per-page global; parallel test files
     // would steal it from each other.
     fileParallelism: false,
+    maxConcurrency: 1,
     browser: {
       enabled: true,
       // Vitest 5 defaults locators.exact to true; keep v4 substring matching.

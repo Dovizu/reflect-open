@@ -31,7 +31,6 @@ export function defineDesktopProject(project: {
     },
     test: {
       globals: false,
-      maxConcurrency: 1,
       restoreMocks: true,
       retry: process.env.CI ? 3 : 0,
       setupFiles: ['./src/test-utils/setup-console.ts'],
