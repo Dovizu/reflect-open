@@ -40,32 +40,76 @@ import { wikiLinkSafe } from '../markdown/edit.ts'
 import { appendListItem } from '../markdown/task-ast.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 
-/** The category note every audio-memo section backlinks. */
+/**
+ * The category note every audio-memo section backlinks.
+ */
 const MEMOS_NOTE_TITLE = 'Audio memos'
 
-/** One reconcile pass of {@link AudioMemoTranscriptionService}. */
+/**
+ * One reconcile pass of {@link AudioMemoTranscriptionService}.
+ */
 export interface ReconcileAudioMemosInput {
-  /** `GraphInfo.generation` — pins every write to the issuing graph. */
+  /**
+   * `GraphInfo.generation`, pins every write to the issuing graph.
+   */
   generation: number
-  /** Whether a best-effort text-model pass formats each fresh transcript. */
+  /**
+   * Whether a best-effort text-model pass formats each fresh transcript.
+   */
   formatTranscript: boolean
-  /** User transcription hint, sent with every segment. */
+  /**
+   * User transcription hint, sent with every segment.
+   */
   transcriptionPrompt: string
-  /** Abort gate, checked between memos (graph switch / unmount). */
+  /**
+   * Abort gate, checked between memos (graph switch / unmount).
+   */
   isStale?: () => boolean
-  /** Observes how many memos need transcription, before work starts. */
+  /**
+   * Observes how many memos need transcription, before work starts.
+   */
   onPending?: (count: number) => void
 }
 
 export interface ReconcileAudioMemosOutcome {
-  /** Memos that had no transcription when the pass started. */
+  /**
+   * Memos that had no transcription when the pass started.
+   */
   pending: number
-  /** Memos this pass transcribed and backlinked. */
+  /**
+   * Memos this pass transcribed and backlinked.
+   */
   transcribed: number
-  /** Memos whose recording the provider refused — tombstoned with a failure note. */
+  /**
+   * Memos whose recording the provider refused — tombstoned with a failure note.
+   */
   rejected: number
-  /** Why memos remain pending, or `null` when the pass drained. */
+  /**
+   * Why memos remain pending, or `null` when the pass drained.
+   */
   stopped: ReconcileStop | null
+}
+
+export interface AudioMemoTranscriptionServiceDeps {
+  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listDir' | 'listNotes'>
+  readonly assetStore: Pick<
+    AssetStoreService,
+    'readBytes' | 'readTranscriptCache' | 'writeTranscriptCache'
+  >
+  readonly backlinkTarget: BacklinkTargetService
+  readonly transcription: TranscriptionService
+  readonly transcriptEnrichment: Pick<TranscriptEnrichmentService, 'enrich'>
+  readonly aiProviderConfig: Pick<
+    AiProviderConfigService,
+    'transcriptionConfig' | 'resolveTranscriptionTarget' | 'audioMemoEnrichmentConfig'
+  >
+  readonly aiCredentials: Pick<AiCredentialService, 'read' | 'createPassReader'>
+  readonly settings: Pick<SettingsService, 'get'>
+  readonly reconcilers: BackgroundReconcilerFactory
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly clock: Pick<ClockService, 'now'>
 }
 
 /**
@@ -77,20 +121,32 @@ export interface ReconcileAudioMemosOutcome {
  * reads.
  */
 export interface AudioMemoTranscriptionSession {
-  /** Attach the triggers (focus, online, visible, file changes) and run the launch pass. */
+  /**
+   * Attach the triggers (focus, online, visible, file changes) and run the launch pass.
+   */
   start(): void
-  /** Request a pass; coalesces while one runs (at most one follow-up). */
+  /**
+   * Request a pass; coalesces while one runs (at most one follow-up).
+   */
   schedule(): void
-  /** True while a pass has memos to transcribe — drives the mic spinner. */
+  /**
+   * True while a pass has memos to transcribe, drives the mic spinner.
+   */
   getTranscribing(): boolean
-  /** Subscribe to `transcribing` changes. */
+  /**
+   * Subscribe to `transcribing` changes.
+   */
   subscribe(listener: () => void): Unlisten
-  /** Tear down triggers and abort an in-flight pass at its next gate. */
+  /**
+   * Tear down triggers and abort an in-flight pass at its next gate.
+   */
   dispose(): void
 }
 
 export interface AudioMemoTranscriptionSessionOptions {
-  /** The open graph's generation — every pass's reads and writes pin to it. */
+  /**
+   * The open graph's generation. Every pass's reads and writes pin to it.
+   */
   generation: number
 }
 
@@ -148,7 +204,9 @@ export interface AudioMemoTranscriptionService {
    * call, and no cache write.
    */
   reconcile(input: ReconcileAudioMemosInput): Promise<ReconcileAudioMemosOutcome>
-  /** Build the lifecycle for one graph session. `dispose()` is terminal. */
+  /**
+   * Build the lifecycle for one graph session. `dispose()` is terminal.
+   */
   openSession(options: AudioMemoTranscriptionSessionOptions): AudioMemoTranscriptionSession
 }
 
@@ -175,7 +233,9 @@ function transcriptionNote(
   return `---\naliases: [${memo.base}]\n---\n\n# ${title}\n\n${recordings}\n\n${body}\n`
 }
 
-/** The note's link line: every segment stays reachable from the transcript. */
+/**
+ * The note's link line: every segment stays reachable from the transcript.
+ */
 function recordingLinks(session: AudioMemoSession): string {
   return session.parts
     .map((part, index) =>
@@ -188,237 +248,188 @@ interface TranscribeSessionPartsInput {
   session: AudioMemoSession
   provider: TranscriptionProvider
   apiKey: string
-  /** User transcription hint, if any. */
+  /**
+   * User transcription hint, if any.
+   */
   prompt: string
   generation: number
-  /** Abort gate, consulted before and after every slow await. */
+  /**
+   * Abort gate, consulted before and after every slow await.
+   */
   isStale: () => boolean
 }
 
 type TranscribeSessionPartsOutcome =
-  /** Every segment has a terminal result, in part order. */
+  /**
+   * Every segment has a terminal result, in part order.
+   */
   | { status: 'done'; results: AudioMemoPartResult[] }
-  /** A segment's bytes aren't locally readable yet; assembly must wait. */
+  /**
+   * A segment's bytes aren't locally readable yet; assembly must wait.
+   */
   | { status: 'partial' }
   | { status: 'stale' }
-  /** A segment tripped the size guard — skip the session, never tombstone. */
+  /**
+   * A segment tripped the size guard — skip the session, never tombstone.
+   */
   | { status: 'oversize' }
 
-export function createAudioMemoTranscriptionService(deps: {
-  noteFile: Pick<NoteFileService, 'read' | 'write' | 'listDir' | 'listNotes'>
-  assetStore: Pick<AssetStoreService, 'readBytes' | 'readTranscriptCache' | 'writeTranscriptCache'>
-  backlinkTarget: BacklinkTargetService
-  transcription: TranscriptionService
-  transcriptEnrichment: Pick<TranscriptEnrichmentService, 'enrich'>
-  aiProviderConfig: Pick<
-    AiProviderConfigService,
-    'transcriptionConfig' | 'resolveTranscriptionTarget' | 'audioMemoEnrichmentConfig'
-  >
-  aiCredentials: Pick<AiCredentialService, 'read' | 'createPassReader'>
-  settings: Pick<SettingsService, 'get'>
-  reconcilers: BackgroundReconcilerFactory
-  lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
-  fileChanges: Pick<FileChangeService, 'subscribe'>
-  operations: Pick<OperationsService, 'start'>
-  clock: Pick<ClockService, 'now'>
-}): AudioMemoTranscriptionService {
-  const {
-    noteFile,
-    assetStore,
-    backlinkTarget,
-    transcription,
-    transcriptEnrichment,
-    aiProviderConfig,
-    aiCredentials,
-    settings,
-    reconcilers,
-    lifecycle,
-    fileChanges,
-    operations,
-    clock,
-  } = deps
+interface AudioMemoTranscriptionSessionDeps {
+  readonly aiProviderConfig: Pick<AiProviderConfigService, 'transcriptionConfig'>
+  readonly settings: Pick<SettingsService, 'get'>
+  readonly reconcilers: BackgroundReconcilerFactory
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly reconcile: (input: ReconcileAudioMemosInput) => Promise<ReconcileAudioMemosOutcome>
+}
 
-  /** The day's note source at `generation`, where "no note yet" reads as empty. */
-  async function dailyNoteSource(date: string, generation: number): Promise<string> {
-    try {
-      return await noteFile.read(dailyPath(date), generation)
-    } catch (cause) {
-      if (isAppError(cause) && cause.kind === 'notFound') {
-        return ''
-      }
-      throw cause
-    }
+class AudioMemoTranscriptionSessionImpl implements AudioMemoTranscriptionSession {
+  readonly #deps: AudioMemoTranscriptionSessionDeps
+  readonly #generation: number
+  #transcribing = false
+  readonly #listeners = new Set<() => void>()
+  /**
+   * Last surfaced stop message. Focus/online retries must not re-toast it.
+   */
+  #surfacedStop: string | null = null
+  readonly #loop: ReturnType<BackgroundReconcilerFactory['create']>
+
+  constructor(
+    deps: AudioMemoTranscriptionSessionDeps,
+    options: AudioMemoTranscriptionSessionOptions,
+  ) {
+    this.#deps = deps
+    this.#generation = options.generation
+    this.#loop = deps.reconcilers.create({
+      pass: (isStale) => this.#pass(isStale),
+      onSettled: () => {
+        this.#setTranscribing(false)
+      },
+    })
   }
 
-  /**
-   * Sessions awaiting transcription, oldest first: recordings under
-   * `audio-memos/` grouped by session base, with no same-named transcription
-   * note and no daily-note backlink (the backlink is the tombstone — see the
-   * service doc). Every read is pinned to `generation` — recordings, notes, and
-   * daily-note tombstones must come from one graph session, never a mix across
-   * a switch.
-   */
-  async function listPendingSessions(generation: number): Promise<AudioMemoSession[]> {
-    const [recordings, notes] = await Promise.all([
-      noteFile.listDir(AUDIO_MEMOS_DIR, generation),
-      noteFile.listNotes(generation),
-    ])
-    const existingNotes = new Set(notes.map((file) => file.path))
-    const parts = recordings
-      .map((file): AudioMemoPart | null => {
-        const parsed = audioMemoPartFromPath(file.path)
-        if (parsed === null) {
-          return null
-        }
-        return {
-          memo: parsed.memo,
-          path: file.path,
-          part: parsed.part,
-          end: parsed.end,
-          placeholder: file.placeholder === true,
-          sizeBytes: file.size,
-          modifiedMs: file.modifiedMs,
-        }
-      })
-      .filter((part): part is AudioMemoPart => part !== null)
-    const sessions = groupAudioMemoSessions(parts).filter(
-      (session) => !existingNotes.has(session.memo.notePath),
-    )
-    const pending: AudioMemoSession[] = []
-    for (const session of sessions) {
-      if (!hasBacklink(await dailyNoteSource(session.memo.date, generation), session.memo)) {
-        pending.push(session)
-      }
-    }
-    return pending
-  }
-
-  /**
-   * Append the memo's wikilink once under `## [[Audio memos]]`, creating the
-   * heading and daily file as needed. The watcher reindexes the direct write;
-   * open dirty editors park a conflict instead of being clobbered.
-   */
-  async function ensureDailyBacklink(
-    memo: AudioMemoIdentity,
-    title: string,
-    memosNoteTitle: string,
-    generation: number,
-  ): Promise<void> {
-    const source = await dailyNoteSource(memo.date, generation)
-    if (hasBacklink(source, memo)) {
+  start(): void {
+    const { lifecycle, fileChanges } = this.#deps
+    const loop = this.#loop
+    if (loop.isStale()) {
       return
     }
-    const displayTitle = wikiLinkSafe(title) || memo.title
-    const entry = `[[${memo.base}|${displayTitle}]]`
-    const updated = appendListItem(source, {
-      kind: 'bullet',
-      markdown: entry,
-      section: { titles: [memosNoteTitle, MEMOS_NOTE_TITLE], linked: true },
+    loop.schedule() // the launch pass: memos left pending by earlier sessions
+    loop.retryOnWake() // the network's natural retry signals (focus/online)
+    loop.onDispose(() => {
+      this.#listeners.clear()
     })
-    await noteFile.write(dailyPath(memo.date), updated, generation)
-  }
-
-  /** Read a segment's cached result, or `null` when none is stored yet. */
-  async function readPartTranscript(
-    part: AudioMemoPart,
-    generation: number,
-  ): Promise<AudioMemoPartResult | null> {
-    let raw: string
-    try {
-      raw = await assetStore.readTranscriptCache(partTranscriptName(part), generation)
-    } catch (cause) {
-      if (isAppError(cause) && cause.kind === 'notFound') {
-        return null
-      }
-      throw cause
-    }
-    return decodePartResult(raw)
-  }
-
-  async function writePartTranscript(
-    part: AudioMemoPart,
-    result: AudioMemoPartResult,
-    generation: number,
-  ): Promise<void> {
-    await assetStore.writeTranscriptCache(
-      partTranscriptName(part),
-      encodePartResult(result),
-      generation,
+    // Foregrounding on iOS doesn't reliably fire `focus`/`online` on the
+    // webview, becoming visible does. A memo captured (or its
+    // transcription failed offline) while backgrounded gets its retry when
+    // the app comes back.
+    loop.onDispose(lifecycle.subscribeVisible(loop.schedule))
+    loop.onDispose(
+      fileChanges.subscribe(({ changes }) => {
+        const hasNewRecording = changes.some(
+          (change) => change.kind === 'upsert' && audioMemoFromPath(change.path) !== null,
+        )
+        if (hasNewRecording) {
+          loop.schedule()
+        }
+      }),
     )
   }
 
-  /**
-   * Transcribe every uncached segment of one session, caching each result as
-   * it lands. Cached segments cost nothing, so retries after a mid-session
-   * failure only pay for what is still missing — and a session that is still
-   * recording gets its finished segments transcribed while it grows. Throws on
-   * unexpected provider errors (network, auth); the caller classifies them.
-   */
-  async function transcribeSessionParts(
-    input: TranscribeSessionPartsInput,
-  ): Promise<TranscribeSessionPartsOutcome> {
-    const results: AudioMemoPartResult[] = []
-    for (const part of input.session.parts) {
-      if (input.isStale()) {
-        return { status: 'stale' }
-      }
-      const cached = await readPartTranscript(part, input.generation)
-      if (cached !== null) {
-        results.push(cached)
-        continue
-      }
-      if (part.placeholder) {
-        return { status: 'partial' }
-      }
-      if (part.sizeBytes > TRANSCRIPTION_MAX_SEGMENT_BYTES) {
-        return { status: 'oversize' }
-      }
-      if (part.sizeBytes === 0) {
-        // A stop can flush an empty final segment purely as the end marker —
-        // there is nothing to send a provider.
-        await writePartTranscript(part, { text: '' }, input.generation)
-        results.push({ text: '' })
-        continue
-      }
-      const bytes = await assetStore.readBytes(part.path, input.generation)
-      if (input.isStale()) {
-        return { status: 'stale' }
-      }
-      let result: AudioMemoPartResult
-      try {
-        const text = await transcription.transcribe({
-          provider: input.provider,
-          apiKey: input.apiKey,
-          prompt: input.prompt,
-          audio: new Blob([bytes], { type: part.memo.mimeType }),
-          mimeType: part.memo.mimeType,
-          isStale: input.isStale,
-        })
-        result = { text }
-      } catch (cause) {
-        if (isTranscriptionOversize(cause)) {
-          return { status: 'oversize' }
-        }
-        if (!isTranscriptionRejected(cause)) {
-          throw cause
-        }
-        // Terminal for these bytes: cache the refusal so it is one failure
-        // line in the note, not a retry loop.
-        result = { rejected: errorMessage(cause) }
-      }
-      if (input.isStale()) {
-        return { status: 'stale' }
-      }
-      await writePartTranscript(part, result, input.generation)
-      results.push(result)
-    }
-    return { status: 'done', results }
+  schedule(): void {
+    this.#loop.schedule()
   }
 
-  async function reconcile(input: ReconcileAudioMemosInput): Promise<ReconcileAudioMemosOutcome> {
+  getTranscribing(): boolean {
+    return this.#transcribing
+  }
+
+  subscribe(listener: () => void): Unlisten {
+    const entry = (): void => {
+      listener()
+    }
+    this.#listeners.add(entry)
+    return () => {
+      this.#listeners.delete(entry)
+    }
+  }
+
+  dispose(): void {
+    this.#loop.dispose()
+  }
+
+  #setTranscribing(next: boolean): void {
+    if (this.#transcribing === next) {
+      return
+    }
+    this.#transcribing = next
+    for (const listener of this.#listeners) {
+      listener()
+    }
+  }
+
+  #surfaceStop(stopped: ReconcileStop | null): void {
+    if (stopped === null) {
+      this.#surfacedStop = null
+      return
+    }
+    // Expected, self-healing stops (network/config/stale) stay silent: offline
+    // retries on the next trigger, and a missing provider/key already disables
+    // the mic with the reason as its tooltip.
+    if (isSilentStop(stopped) || this.#surfacedStop === stopped.message) {
+      return
+    }
+    this.#surfacedStop = stopped.message
+    this.#deps.operations.start('Transcribing audio memo').fail(stopped.message)
+  }
+
+  /**
+   * One pass: transcribe pending memos, gated behind a transcription-capable model.
+   */
+  async #pass(isStale: () => boolean): Promise<void> {
+    const { aiProviderConfig, settings, reconcile } = this.#deps
+    // Gate before any IO: without a transcription-capable model every pass
+    // would list the graph just to stop on `config`.
+    if (aiProviderConfig.transcriptionConfig() === null) {
+      return
+    }
+    // The settings are read at the start of every pass rather than captured
+    // once: a toggle or a hint edit applies to the very next pass.
+    const current = settings.get()
+    const outcome = await reconcile({
+      generation: this.#generation,
+      formatTranscript: current.transcriptionFormat,
+      transcriptionPrompt: current.transcriptionPrompt,
+      isStale,
+      onPending: (count) => {
+        this.#setTranscribing(count > 0)
+      },
+    })
+    this.#surfaceStop(outcome.stopped)
+  }
+}
+
+class AudioMemoTranscriptionServiceImpl implements AudioMemoTranscriptionService {
+  readonly #deps: AudioMemoTranscriptionServiceDeps
+
+  constructor(deps: AudioMemoTranscriptionServiceDeps) {
+    this.#deps = deps
+  }
+
+  async reconcile(input: ReconcileAudioMemosInput): Promise<ReconcileAudioMemosOutcome> {
+    const {
+      backlinkTarget,
+      noteFile,
+      transcription,
+      transcriptEnrichment,
+      aiProviderConfig,
+      aiCredentials,
+      clock,
+    } = this.#deps
     let sessions: AudioMemoSession[]
     try {
-      sessions = await listPendingSessions(input.generation)
+      sessions = await this.#listPendingSessions(input.generation)
     } catch (cause) {
       return {
         pending: 0,
@@ -513,11 +524,11 @@ export function createAudioMemoTranscriptionService(deps: {
             recordingLinks(session),
           )
           await noteFile.write(memo.notePath, note, input.generation)
-          await ensureDailyBacklink(memo, memo.title, memosNoteTitle, input.generation)
+          await this.#ensureDailyBacklink(memo, memo.title, memosNoteTitle, input.generation)
           transcribed += 1
           continue
         }
-        const parts = await transcribeSessionParts({
+        const parts = await this.#transcribeSessionParts({
           session,
           provider: config.provider,
           apiKey,
@@ -566,7 +577,7 @@ export function createAudioMemoTranscriptionService(deps: {
           transcriptionNote(memo, title, body, recordingLinks(session)),
           input.generation,
         )
-        await ensureDailyBacklink(memo, title, memosNoteTitle, input.generation)
+        await this.#ensureDailyBacklink(memo, title, memosNoteTitle, input.generation)
         if (allRejected) {
           rejected += 1
         } else {
@@ -601,111 +612,213 @@ export function createAudioMemoTranscriptionService(deps: {
     }
   }
 
-  function openSession(
-    options: AudioMemoTranscriptionSessionOptions,
-  ): AudioMemoTranscriptionSession {
-    const { generation } = options
-    let transcribing = false
-    const listeners = new Set<() => void>()
-    /** Last surfaced stop message — focus/online retries must not re-toast it. */
-    let surfacedStop: string | null = null
-
-    function setTranscribing(next: boolean): void {
-      if (transcribing === next) {
-        return
-      }
-      transcribing = next
-      for (const listener of listeners) {
-        listener()
-      }
-    }
-
-    function surfaceStop(stopped: ReconcileStop | null): void {
-      if (stopped === null) {
-        surfacedStop = null
-        return
-      }
-      // Expected, self-healing stops (network/config/stale) stay silent: offline
-      // retries on the next trigger, and a missing provider/key already disables
-      // the mic with the reason as its tooltip.
-      if (isSilentStop(stopped) || surfacedStop === stopped.message) {
-        return
-      }
-      surfacedStop = stopped.message
-      operations.start('Transcribing audio memo').fail(stopped.message)
-    }
-
-    /** One pass: transcribe pending memos, gated behind a transcription-capable model. */
-    const pass = async (isStale: () => boolean): Promise<void> => {
-      // Gate before any IO: without a transcription-capable model every pass
-      // would list the graph just to stop on `config`.
-      if (aiProviderConfig.transcriptionConfig() === null) {
-        return
-      }
-      // The settings are read at the start of every pass rather than captured
-      // once: a toggle or a hint edit applies to the very next pass.
-      const current = settings.get()
-      const outcome = await reconcile({
-        generation,
-        formatTranscript: current.transcriptionFormat,
-        transcriptionPrompt: current.transcriptionPrompt,
-        isStale,
-        onPending: (count) => {
-          setTranscribing(count > 0)
-        },
-      })
-      surfaceStop(outcome.stopped)
-    }
-
-    const loop = reconcilers.create({
-      pass,
-      onSettled: () => {
-        setTranscribing(false)
+  openSession(options: AudioMemoTranscriptionSessionOptions): AudioMemoTranscriptionSession {
+    const { aiProviderConfig, settings, reconcilers, lifecycle, fileChanges, operations } =
+      this.#deps
+    return new AudioMemoTranscriptionSessionImpl(
+      {
+        aiProviderConfig,
+        settings,
+        reconcilers,
+        lifecycle,
+        fileChanges,
+        operations,
+        reconcile: (input) => this.reconcile(input),
       },
-    })
+      options,
+    )
+  }
 
-    function start(): void {
-      if (loop.isStale()) {
-        return
+  /**
+   * The day's note source at `generation`, where "no note yet" reads as empty.
+   */
+  async #dailyNoteSource(date: string, generation: number): Promise<string> {
+    const { noteFile } = this.#deps
+    try {
+      return await noteFile.read(dailyPath(date), generation)
+    } catch (cause) {
+      if (isAppError(cause) && cause.kind === 'notFound') {
+        return ''
       }
-      loop.schedule() // the launch pass: memos left pending by earlier sessions
-      loop.retryOnWake() // the network's natural retry signals (focus/online)
-      loop.onDispose(() => {
-        listeners.clear()
-      })
-      // Foregrounding on iOS doesn't reliably fire `focus`/`online` on the
-      // webview — becoming visible does. A memo captured (or its
-      // transcription failed offline) while backgrounded gets its retry when
-      // the app comes back.
-      loop.onDispose(lifecycle.subscribeVisible(loop.schedule))
-      loop.onDispose(
-        fileChanges.subscribe(({ changes }) => {
-          const hasNewRecording = changes.some(
-            (change) => change.kind === 'upsert' && audioMemoFromPath(change.path) !== null,
-          )
-          if (hasNewRecording) {
-            loop.schedule()
-          }
-        }),
-      )
-    }
-
-    return {
-      start,
-      schedule: loop.schedule,
-      getTranscribing: () => transcribing,
-      subscribe(listener) {
-        const entry = (): void => {
-          listener()
-        }
-        listeners.add(entry)
-        return () => {
-          listeners.delete(entry)
-        }
-      },
-      dispose: loop.dispose,
+      throw cause
     }
   }
 
-  return { reconcile, openSession }
+  /**
+   * Sessions awaiting transcription, oldest first: recordings under
+   * `audio-memos/` grouped by session base, with no same-named transcription
+   * note and no daily-note backlink (the backlink is the tombstone — see the
+   * service doc). Every read is pinned to `generation` — recordings, notes, and
+   * daily-note tombstones must come from one graph session, never a mix across
+   * a switch.
+   */
+  async #listPendingSessions(generation: number): Promise<AudioMemoSession[]> {
+    const { noteFile } = this.#deps
+    const [recordings, notes] = await Promise.all([
+      noteFile.listDir(AUDIO_MEMOS_DIR, generation),
+      noteFile.listNotes(generation),
+    ])
+    const existingNotes = new Set(notes.map((file) => file.path))
+    const parts = recordings
+      .map((file): AudioMemoPart | null => {
+        const parsed = audioMemoPartFromPath(file.path)
+        if (parsed === null) {
+          return null
+        }
+        return {
+          memo: parsed.memo,
+          path: file.path,
+          part: parsed.part,
+          end: parsed.end,
+          placeholder: file.placeholder === true,
+          sizeBytes: file.size,
+          modifiedMs: file.modifiedMs,
+        }
+      })
+      .filter((part): part is AudioMemoPart => part !== null)
+    const sessions = groupAudioMemoSessions(parts).filter(
+      (session) => !existingNotes.has(session.memo.notePath),
+    )
+    const pending: AudioMemoSession[] = []
+    for (const session of sessions) {
+      if (!hasBacklink(await this.#dailyNoteSource(session.memo.date, generation), session.memo)) {
+        pending.push(session)
+      }
+    }
+    return pending
+  }
+
+  /**
+   * Append the memo's wikilink once under `## [[Audio memos]]`, creating the
+   * heading and daily file as needed. The watcher reindexes the direct write;
+   * open dirty editors park a conflict instead of being clobbered.
+   */
+  async #ensureDailyBacklink(
+    memo: AudioMemoIdentity,
+    title: string,
+    memosNoteTitle: string,
+    generation: number,
+  ): Promise<void> {
+    const { noteFile } = this.#deps
+    const source = await this.#dailyNoteSource(memo.date, generation)
+    if (hasBacklink(source, memo)) {
+      return
+    }
+    const displayTitle = wikiLinkSafe(title) || memo.title
+    const entry = `[[${memo.base}|${displayTitle}]]`
+    const updated = appendListItem(source, {
+      kind: 'bullet',
+      markdown: entry,
+      section: { titles: [memosNoteTitle, MEMOS_NOTE_TITLE], linked: true },
+    })
+    await noteFile.write(dailyPath(memo.date), updated, generation)
+  }
+
+  /**
+   * Read a segment's cached result, or `null` when none is stored yet.
+   */
+  async #readPartTranscript(
+    part: AudioMemoPart,
+    generation: number,
+  ): Promise<AudioMemoPartResult | null> {
+    const { assetStore } = this.#deps
+    let raw: string
+    try {
+      raw = await assetStore.readTranscriptCache(partTranscriptName(part), generation)
+    } catch (cause) {
+      if (isAppError(cause) && cause.kind === 'notFound') {
+        return null
+      }
+      throw cause
+    }
+    return decodePartResult(raw)
+  }
+
+  async #writePartTranscript(
+    part: AudioMemoPart,
+    result: AudioMemoPartResult,
+    generation: number,
+  ): Promise<void> {
+    const { assetStore } = this.#deps
+    await assetStore.writeTranscriptCache(
+      partTranscriptName(part),
+      encodePartResult(result),
+      generation,
+    )
+  }
+
+  /**
+   * Transcribe every uncached segment of one session, caching each result as
+   * it lands. Cached segments cost nothing, so retries after a mid-session
+   * failure only pay for what is still missing — and a session that is still
+   * recording gets its finished segments transcribed while it grows. Throws on
+   * unexpected provider errors (network, auth); the caller classifies them.
+   */
+  async #transcribeSessionParts(
+    input: TranscribeSessionPartsInput,
+  ): Promise<TranscribeSessionPartsOutcome> {
+    const { assetStore, transcription } = this.#deps
+    const results: AudioMemoPartResult[] = []
+    for (const part of input.session.parts) {
+      if (input.isStale()) {
+        return { status: 'stale' }
+      }
+      const cached = await this.#readPartTranscript(part, input.generation)
+      if (cached !== null) {
+        results.push(cached)
+        continue
+      }
+      if (part.placeholder) {
+        return { status: 'partial' }
+      }
+      if (part.sizeBytes > TRANSCRIPTION_MAX_SEGMENT_BYTES) {
+        return { status: 'oversize' }
+      }
+      if (part.sizeBytes === 0) {
+        // A stop can flush an empty final segment purely as the end marker —
+        // there is nothing to send a provider.
+        await this.#writePartTranscript(part, { text: '' }, input.generation)
+        results.push({ text: '' })
+        continue
+      }
+      const bytes = await assetStore.readBytes(part.path, input.generation)
+      if (input.isStale()) {
+        return { status: 'stale' }
+      }
+      let result: AudioMemoPartResult
+      try {
+        const text = await transcription.transcribe({
+          provider: input.provider,
+          apiKey: input.apiKey,
+          prompt: input.prompt,
+          audio: new Blob([bytes], { type: part.memo.mimeType }),
+          mimeType: part.memo.mimeType,
+          isStale: input.isStale,
+        })
+        result = { text }
+      } catch (cause) {
+        if (isTranscriptionOversize(cause)) {
+          return { status: 'oversize' }
+        }
+        if (!isTranscriptionRejected(cause)) {
+          throw cause
+        }
+        // Terminal for these bytes: cache the refusal so it is one failure
+        // line in the note, not a retry loop.
+        result = { rejected: errorMessage(cause) }
+      }
+      if (input.isStale()) {
+        return { status: 'stale' }
+      }
+      await this.#writePartTranscript(part, result, input.generation)
+      results.push(result)
+    }
+    return { status: 'done', results }
+  }
+}
+
+export function createAudioMemoTranscriptionService(
+  deps: AudioMemoTranscriptionServiceDeps,
+): AudioMemoTranscriptionService {
+  return new AudioMemoTranscriptionServiceImpl(deps)
 }

@@ -24,8 +24,11 @@ import type { Unlisten } from '../ipc/ipc-service.ts'
 import type { PrivacyService } from '../privacy/privacy-service.ts'
 import type { XArchiveService } from '../x-archive.ts'
 import type { BacklinkTargetService } from './backlink-target-service.ts'
-import { createCaptureDrainService } from './capture-drain-service.ts'
-import { createCaptureEnrichmentService } from './capture-enrichment-service.ts'
+import { createCaptureDrainService, type CaptureDrainService } from './capture-drain-service.ts'
+import {
+  createCaptureEnrichmentService,
+  type CaptureEnrichmentService,
+} from './capture-enrichment-service.ts'
 import { createPageMetaService } from './page-meta-service.ts'
 
 /**
@@ -46,15 +49,43 @@ export interface CaptureSession {
    * (watcher, focus, online) and run the launch pass.
    */
   start(): void
-  /** Request a pass; coalesces while one runs (at most one follow-up). */
+  /**
+   * Request a pass; coalesces while one runs (at most one follow-up).
+   */
   schedule(): void
-  /** Tear down triggers and abort an in-flight pass at its next gate. */
+  /**
+   * Tear down triggers and abort an in-flight pass at its next gate.
+   */
   dispose(): void
 }
 
 export interface CaptureSessionOptions {
-  /** The open graph's generation — every pass's reads and writes pin to it. */
+  /**
+   * The open graph's generation. Every pass's reads and writes pin to it.
+   */
   generation: number
+}
+
+export interface CaptureServiceDeps {
+  readonly captureInbox: CaptureInboxService
+  readonly noteFile: Pick<NoteFileService, 'read' | 'write' | 'listNotes'>
+  readonly assetStore: Pick<AssetStoreService, 'readBase64' | 'writeBase64'>
+  readonly openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
+  readonly backlinkTarget: BacklinkTargetService
+  readonly xArchive: Pick<XArchiveService, 'write'>
+  readonly webFetch: Pick<WebFetchService, 'fetchMeta' | 'fetchOembed' | 'fetchLinkPreviewImage'>
+  readonly pageDescriber: PageDescriberService
+  readonly aiProviderConfig: Pick<AiProviderConfigService, 'defaultProvider'>
+  readonly aiCredentials: Pick<AiCredentialService, 'read'>
+  readonly privacy: Pick<PrivacyService, 'cloudSafeLinkHref'>
+  readonly hash: HashService
+  readonly clock: Pick<ClockService, 'now'>
+  readonly reconcilers: BackgroundReconcilerFactory
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
+  readonly logger: Pick<LoggerService, 'error' | 'warn'>
 }
 
 /**
@@ -70,83 +101,235 @@ export interface CaptureSessionOptions {
  * extension spools into, and the session re-runs on app resume.
  */
 export interface CaptureService {
-  /** Build the lifecycle for one graph session. `dispose()` is terminal. */
+  /**
+   * Build the lifecycle for one graph session. `dispose()` is terminal.
+   */
   openSession(options: CaptureSessionOptions): CaptureSession
-  /** Fires after a pass may have written X post archives, even when it stopped partway. */
+  /**
+   * Fires after a pass may have written X post archives, even when it stopped partway.
+   */
   onXPostsWritten(listener: () => void): Unlisten
 }
 
-export function createCaptureService(deps: {
-  captureInbox: CaptureInboxService
-  noteFile: Pick<NoteFileService, 'read' | 'write' | 'listNotes'>
-  assetStore: Pick<AssetStoreService, 'readBase64' | 'writeBase64'>
-  openDocuments: Pick<OpenDocumentsService, 'sessionFor'>
-  backlinkTarget: BacklinkTargetService
-  xArchive: Pick<XArchiveService, 'write'>
-  webFetch: Pick<WebFetchService, 'fetchMeta' | 'fetchOembed' | 'fetchLinkPreviewImage'>
-  pageDescriber: PageDescriberService
-  aiProviderConfig: Pick<AiProviderConfigService, 'defaultProvider'>
-  aiCredentials: Pick<AiCredentialService, 'read'>
-  privacy: Pick<PrivacyService, 'cloudSafeLinkHref'>
-  hash: HashService
-  clock: Pick<ClockService, 'now'>
-  reconcilers: BackgroundReconcilerFactory
-  lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
-  fileChanges: Pick<FileChangeService, 'subscribe'>
-  operations: Pick<OperationsService, 'start'>
-  platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
-  logger: Pick<LoggerService, 'error' | 'warn'>
-}): CaptureService {
-  const {
-    captureInbox,
-    noteFile,
-    assetStore,
-    openDocuments,
-    backlinkTarget,
-    xArchive,
-    webFetch,
-    pageDescriber,
-    aiProviderConfig,
-    aiCredentials,
-    privacy,
-    hash,
-    clock,
-    reconcilers,
-    lifecycle,
-    fileChanges,
-    operations,
-    platform,
-    logger,
-  } = deps
+interface CaptureSessionDeps {
+  readonly captureInbox: Pick<CaptureInboxService, 'relaySharedInbox' | 'registerHost'>
+  readonly drain: CaptureDrainService
+  readonly enrichment: CaptureEnrichmentService
+  readonly reconcilers: BackgroundReconcilerFactory
+  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly fileChanges: Pick<FileChangeService, 'subscribe'>
+  readonly operations: Pick<OperationsService, 'start'>
+  readonly platform: Pick<PlatformFacts, 'appPlatform' | 'surface'>
+  readonly logger: Pick<LoggerService, 'error'>
+  readonly commitXPost: (envelope: XPostEnvelope, path: string, generation: number) => Promise<void>
+  readonly notifyXPostsWritten: () => void
+}
 
-  const drainService = createCaptureDrainService({
-    captureInbox,
-    noteFile,
-    xArchive,
-    backlinkTarget,
-    hash,
-    clock,
-    logger,
-  })
-  const enrichment = createCaptureEnrichmentService({
-    noteFile,
-    assetStore,
-    webFetch,
-    pageMeta: createPageMetaService({ webFetch }),
-    pageDescriber,
-    aiProviderConfig,
-    aiCredentials,
-    privacy,
-    hash,
-  })
-  const xPostListeners = new Set<() => void>()
+class CaptureSessionImpl implements CaptureSession {
+  readonly #deps: CaptureSessionDeps
+  readonly #generation: number
+  // The mobile shell has no file watcher, so returning to the app is the
+  // arrival signal for captures shared while it was backgrounded.
+  readonly #mobile: boolean
+  /**
+   * Last surfaced stop message per phase label. Retries must not re-toast
+   * it. Keyed by label so one phase succeeding (which clears its own entry)
+   * cannot make another phase's persistent failure re-toast every pass.
+   */
+  readonly #surfacedStops = new Map<string, string>()
+  readonly #loop: ReturnType<BackgroundReconcilerFactory['create']>
 
-  /** Route an X post through the live daily document, or a revision-checked file write. */
-  async function commitXPost(
-    envelope: XPostEnvelope,
-    path: string,
-    generation: number,
-  ): Promise<void> {
+  constructor(deps: CaptureSessionDeps, options: CaptureSessionOptions) {
+    this.#deps = deps
+    this.#generation = options.generation
+    this.#mobile = isMobilePlatform(deps.platform.appPlatform) || deps.platform.surface.mobileApp
+    this.#loop = deps.reconcilers.create({ pass: (isStale) => this.#reconcile(isStale) })
+  }
+
+  start(): void {
+    const { captureInbox, logger } = this.#deps
+    // Registration (the pointer-file rewrite) completes BEFORE the first
+    // drain: on a graph switch this repoints the host at the new graph as
+    // early as possible, instead of draining here while the pointer still
+    // names the old one. (The host reads the pointer per capture in its own
+    // process, so a capture racing the rewrite can still spool to the
+    // previous graph's inbox, it drains when that graph next opens.)
+    // Best-effort: a failed registration must not block the drain. Captures
+    // already spooled must land regardless, and the extension surfaces
+    // "host not found" with install guidance on its side. Mobile has no host
+    // process at all: the share extension finds the App Group inbox itself.
+    const registered = this.#mobile
+      ? Promise.resolve()
+      : captureInbox.registerHost().catch((cause: unknown) => {
+          logger.error('capture host registration failed:', cause)
+        })
+    void registered.then(() => {
+      this.#launch() // a no-op if the session was disposed while registering
+    })
+  }
+
+  schedule(): void {
+    this.#loop.schedule()
+  }
+
+  dispose(): void {
+    this.#loop.dispose()
+  }
+
+  #launch(): void {
+    const { lifecycle, fileChanges } = this.#deps
+    const loop = this.#loop
+    if (loop.isStale()) {
+      return
+    }
+    loop.schedule() // the launch pass: captures spooled while the app was closed
+    loop.retryOnWake() // the network's natural retry signals (enrichment)
+    if (this.#mobile) {
+      // Mobile resume: `focus` alone is unreliable in the iOS webview (the
+      // iCloud refresh hook listens to both for the same reason).
+      loop.onDispose(lifecycle.subscribeVisible(loop.schedule))
+    }
+    loop.onDispose(
+      fileChanges.subscribe(({ changes }) => {
+        const hasNewCapture = changes.some(
+          (change) => change.kind === 'upsert' && isCaptureSpoolPath(change.path),
+        )
+        if (hasNewCapture) {
+          loop.schedule()
+        }
+      }),
+    )
+  }
+
+  #surfaceStop(label: string, stopped: ReconcileStop | null): void {
+    if (stopped === null) {
+      this.#surfacedStops.delete(label)
+      return
+    }
+    // Self-healing stops (network/config/stale) stay silent: offline retries on
+    // the next trigger, config means no provider/key (enrichment waits; the raw
+    // save is done), stale is a graph switch tearing the pass down.
+    if (isSilentStop(stopped) || this.#surfacedStops.get(label) === stopped.message) {
+      return
+    }
+    this.#surfacedStops.set(label, stopped.message)
+    this.#deps.operations.start(label).fail(stopped.message)
+  }
+
+  /**
+   * One pass: drain the spool inbox (no AI needed), then enrich pending captures.
+   */
+  async #reconcile(isStale: () => boolean): Promise<void> {
+    const { captureInbox, drain, enrichment, commitXPost, notifyXPostsWritten } = this.#deps
+    const generation = this.#generation
+    if (this.#mobile) {
+      let relayStop: ReconcileStop | null = null
+      try {
+        // Move envelopes the iOS share extension spooled into the App Group
+        // inbox into the graph's capture inbox, ahead of every drain.
+        await captureInbox.relaySharedInbox(generation)
+      } catch (cause) {
+        // Already-relayed envelopes must still drain, so a relay failure
+        // surfaces like a drain stop instead of aborting the pass.
+        relayStop = { reason: toAppError(cause).kind, message: errorMessage(cause) }
+      }
+      this.#surfaceStop('Saving shared capture', relayStop)
+      if (isStale()) {
+        return
+      }
+    }
+    const drained = await drain.drain({
+      generation,
+      isStale,
+      writeXPost: (envelope, path) => commitXPost(envelope, path, generation),
+    })
+    // A bookmark pass may have written X post archives, even when it stopped partway.
+    if (drained.drained > 0 || drained.stopped !== null) {
+      notifyXPostsWritten()
+    }
+    this.#surfaceStop('Saving link capture', drained.stopped)
+    if (isStale()) {
+      return
+    }
+    // The provider entry and its key are read at the start of every
+    // enrichment pass. A key added in Settings mid-session must be seen by
+    // the very next pass.
+    const enriched = await enrichment.reconcile({ generation, isStale })
+    this.#surfaceStop('Enriching link capture', enriched.stopped)
+  }
+}
+
+class CaptureServiceImpl implements CaptureService {
+  readonly #deps: CaptureServiceDeps
+  readonly #drain: CaptureDrainService
+  readonly #enrichment: CaptureEnrichmentService
+  readonly #xPostListeners = new Set<() => void>()
+
+  constructor(deps: CaptureServiceDeps) {
+    const { captureInbox, noteFile, assetStore, xArchive, backlinkTarget, webFetch } = deps
+    this.#deps = deps
+    this.#drain = createCaptureDrainService({
+      captureInbox,
+      noteFile,
+      xArchive,
+      backlinkTarget,
+      hash: deps.hash,
+      clock: deps.clock,
+      logger: deps.logger,
+    })
+    this.#enrichment = createCaptureEnrichmentService({
+      noteFile,
+      assetStore,
+      webFetch,
+      pageMeta: createPageMetaService({ webFetch }),
+      pageDescriber: deps.pageDescriber,
+      aiProviderConfig: deps.aiProviderConfig,
+      aiCredentials: deps.aiCredentials,
+      privacy: deps.privacy,
+      hash: deps.hash,
+    })
+  }
+
+  openSession(options: CaptureSessionOptions): CaptureSession {
+    const { captureInbox, reconcilers, lifecycle, fileChanges, operations, platform, logger } =
+      this.#deps
+    return new CaptureSessionImpl(
+      {
+        captureInbox,
+        drain: this.#drain,
+        enrichment: this.#enrichment,
+        reconcilers,
+        lifecycle,
+        fileChanges,
+        operations,
+        platform,
+        logger,
+        commitXPost: (envelope, path, generation) => this.#commitXPost(envelope, path, generation),
+        notifyXPostsWritten: () => {
+          for (const listener of this.#xPostListeners) {
+            listener()
+          }
+        },
+      },
+      options,
+    )
+  }
+
+  onXPostsWritten(listener: () => void): Unlisten {
+    const deliver = (): void => {
+      listener()
+    }
+    this.#xPostListeners.add(deliver)
+    return () => {
+      this.#xPostListeners.delete(deliver)
+    }
+  }
+
+  /**
+   * Route an X post through the live daily document, or a revision-checked file write.
+   */
+  async #commitXPost(envelope: XPostEnvelope, path: string, generation: number): Promise<void> {
+    const { openDocuments, noteFile } = this.#deps
     const owner = openDocuments.sessionFor(path)
     if (owner !== null) {
       if (!(await owner.commitSourceEdit((source) => appendXPost(source, envelope)))) {
@@ -172,134 +355,8 @@ export function createCaptureService(deps: {
     const next = appendXPost(source ?? '', envelope)
     if (next !== source) await noteFile.write(path, next, generation, source)
   }
+}
 
-  function openSession(options: CaptureSessionOptions): CaptureSession {
-    const { generation } = options
-    // The mobile shell has no file watcher, so returning to the app is the
-    // arrival signal for captures shared while it was backgrounded.
-    const mobile = isMobilePlatform(platform.appPlatform) || platform.surface.mobileApp
-
-    /**
-     * Last surfaced stop message per phase label — retries must not re-toast
-     * it. Keyed by label so one phase succeeding (which clears its own entry)
-     * cannot make another phase's persistent failure re-toast every pass.
-     */
-    const surfacedStops = new Map<string, string>()
-
-    function surfaceStop(label: string, stopped: ReconcileStop | null): void {
-      if (stopped === null) {
-        surfacedStops.delete(label)
-        return
-      }
-      // Self-healing stops (network/config/stale) stay silent: offline retries on
-      // the next trigger, config means no provider/key (enrichment waits; the raw
-      // save is done), stale is a graph switch tearing the pass down.
-      if (isSilentStop(stopped) || surfacedStops.get(label) === stopped.message) {
-        return
-      }
-      surfacedStops.set(label, stopped.message)
-      operations.start(label).fail(stopped.message)
-    }
-
-    /** One pass: drain the spool inbox (no AI needed), then enrich pending captures. */
-    const reconcile = async (isStale: () => boolean): Promise<void> => {
-      if (mobile) {
-        let relayStop: ReconcileStop | null = null
-        try {
-          // Move envelopes the iOS share extension spooled into the App Group
-          // inbox into the graph's capture inbox, ahead of every drain.
-          await captureInbox.relaySharedInbox(generation)
-        } catch (cause) {
-          // Already-relayed envelopes must still drain, so a relay failure
-          // surfaces like a drain stop instead of aborting the pass.
-          relayStop = { reason: toAppError(cause).kind, message: errorMessage(cause) }
-        }
-        surfaceStop('Saving shared capture', relayStop)
-        if (isStale()) {
-          return
-        }
-      }
-      const drained = await drainService.drain({
-        generation,
-        isStale,
-        writeXPost: (envelope, path) => commitXPost(envelope, path, generation),
-      })
-      // A bookmark pass may have written X post archives, even when it stopped partway.
-      if (drained.drained > 0 || drained.stopped !== null) {
-        for (const listener of xPostListeners) {
-          listener()
-        }
-      }
-      surfaceStop('Saving link capture', drained.stopped)
-      if (isStale()) {
-        return
-      }
-      // The provider entry and its key are read at the start of every
-      // enrichment pass — a key added in Settings mid-session must be seen by
-      // the very next pass.
-      const enriched = await enrichment.reconcile({ generation, isStale })
-      surfaceStop('Enriching link capture', enriched.stopped)
-    }
-
-    const loop = reconcilers.create({ pass: reconcile })
-
-    function launch(): void {
-      if (loop.isStale()) {
-        return
-      }
-      loop.schedule() // the launch pass: captures spooled while the app was closed
-      loop.retryOnWake() // the network's natural retry signals (enrichment)
-      if (mobile) {
-        // Mobile resume: `focus` alone is unreliable in the iOS webview (the
-        // iCloud refresh hook listens to both for the same reason).
-        loop.onDispose(lifecycle.subscribeVisible(loop.schedule))
-      }
-      loop.onDispose(
-        fileChanges.subscribe(({ changes }) => {
-          const hasNewCapture = changes.some(
-            (change) => change.kind === 'upsert' && isCaptureSpoolPath(change.path),
-          )
-          if (hasNewCapture) {
-            loop.schedule()
-          }
-        }),
-      )
-    }
-
-    function start(): void {
-      // Registration (the pointer-file rewrite) completes BEFORE the first
-      // drain: on a graph switch this repoints the host at the new graph as
-      // early as possible, instead of draining here while the pointer still
-      // names the old one. (The host reads the pointer per capture in its own
-      // process, so a capture racing the rewrite can still spool to the
-      // previous graph's inbox — it drains when that graph next opens.)
-      // Best-effort: a failed registration must not block the drain — captures
-      // already spooled must land regardless, and the extension surfaces
-      // "host not found" with install guidance on its side. Mobile has no host
-      // process at all: the share extension finds the App Group inbox itself.
-      const registered = mobile
-        ? Promise.resolve()
-        : captureInbox.registerHost().catch((cause: unknown) => {
-            logger.error('capture host registration failed:', cause)
-          })
-      void registered.then(() => {
-        launch() // a no-op if the session was disposed while registering
-      })
-    }
-
-    return { start, schedule: loop.schedule, dispose: loop.dispose }
-  }
-
-  return {
-    openSession,
-    onXPostsWritten(listener) {
-      const deliver = (): void => {
-        listener()
-      }
-      xPostListeners.add(deliver)
-      return () => {
-        xPostListeners.delete(deliver)
-      }
-    },
-  }
+export function createCaptureService(deps: CaptureServiceDeps): CaptureService {
+  return new CaptureServiceImpl(deps)
 }
