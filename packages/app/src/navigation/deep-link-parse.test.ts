@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEEP_LINK_TEXT_MAX_LENGTH } from './deep-link.ts'
+import { DEEP_LINK_TEXT_MAX_LENGTH } from '@reflect/core'
 import { initialRouteForDeepLink, isDeepLinkUrl, parseDeepLink } from './deep-link-parse.ts'
 
 describe('parseDeepLink', () => {

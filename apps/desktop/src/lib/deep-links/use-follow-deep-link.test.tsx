@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement, ReactNode } from 'react'
+import { createTestAppServices } from '@reflect/app/testing'
 import { createTestCoreServices, createTestWindowService } from '@reflect/core/testing'
 import { useNoteLinkNavigation } from '@/hooks/use-note-link-navigation.ts'
 import { useRouter } from '@/routing/router.tsx'
@@ -15,8 +16,9 @@ const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
  */
 async function render(ui: ReactNode) {
   const app = createTestCoreServices({ window: createTestWindowService({ openNoteWindow }) })
-  vi.spyOn(app.deepLink, 'dispatch').mockImplementation(dispatchDeepLink)
-  return await renderInApp(ui, { app })
+  const appServices = createTestAppServices(app)
+  vi.spyOn(appServices.deepLink, 'dispatch').mockImplementation(dispatchDeepLink)
+  return await renderInApp(ui, { app, appServices })
 }
 
 const OLDER_LINK = 'reflect://note/older'

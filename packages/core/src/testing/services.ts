@@ -76,7 +76,6 @@ import {
   createTestPaywallService,
   createTestSubscriptionService,
 } from './monetization.ts'
-import { createTestDeepLinkService, createTestNavigationService } from './navigation.ts'
 import { createTestOperationsService } from './operations.ts'
 import { createTestPersistenceFlushService } from './persistence-flush.ts'
 import { createTestPlatformService, type TestPlatformService } from './platform.ts'
@@ -216,8 +215,6 @@ function createTestServiceFactories(
         overrides?.ipc === undefined ? deps : { ...deps, ipc: overrides.ipc },
       ),
     opener: ({ logger }) => createTestOpenerService({ logger }),
-    navigation: () => createTestNavigationService(),
-    deepLink: (deps) => createTestDeepLinkService(deps),
     attachments: ({ graphSession }) => createTestAttachmentService({ graphSession }),
     persistenceFlush: ({ openDocuments }) => createTestPersistenceFlushService({ openDocuments }),
     gitRepository: () => createTestGitRepositoryService(),

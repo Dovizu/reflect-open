@@ -1,7 +1,8 @@
 import { page } from 'vitest/browser'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ReactElement } from 'react'
-import type { GraphInfo, Route } from '@reflect/core'
+import type { Route } from '@reflect/app'
+import type { GraphInfo } from '@reflect/core'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 

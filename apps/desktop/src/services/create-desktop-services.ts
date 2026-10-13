@@ -1,3 +1,4 @@
+import type { AppHost } from '@reflect/app'
 import {
   createConsoleLogger,
   createBrowserHttpService,
@@ -63,7 +64,6 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
       window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
       updater: createTauriUpdaterAdapter(),
       nativeMenu: createTauriNativeMenuHost(),
-      deepLink: createTauriDeepLinkSource(),
       convertFileSrc,
     }
   }
@@ -75,4 +75,16 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
     path: createPosixPathTransport('/'),
     window: createSingleWindowHost(),
   }
+}
+
+/**
+ * The desktop app's host for the app layer: the Tauri deep-link source inside
+ * the native shell, nothing in plain-browser dev.
+ */
+export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost {
+  void ipc
+  if (facts.isNativeShell) {
+    return { deepLink: createTauriDeepLinkSource() }
+  }
+  return {}
 }

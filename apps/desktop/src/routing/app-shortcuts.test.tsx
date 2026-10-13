@@ -1,8 +1,9 @@
+import type { LinkNavigationService } from '@reflect/app'
+import { createTestAppServices } from '@reflect/app/testing'
 import {
   isOstensiblyEmptyNoteSource,
   type ChatSession,
   type GraphSessionService,
-  type LinkNavigationService,
   type NativeMenuService,
   type NoteDocumentService,
 } from '@reflect/core'
@@ -98,9 +99,10 @@ async function shortcutsHook() {
     },
   })
   app = services
+  const appServices = createTestAppServices(services)
   openRecent = vi.spyOn(services.graphSession, 'openRecent').mockResolvedValue(true)
   openRouteInNewWindow = vi
-    .spyOn(services.linkNavigation, 'openRouteInNewWindow')
+    .spyOn(appServices.linkNavigation, 'openRouteInNewWindow')
     .mockResolvedValue(true)
   isNativeMenuInstalled = vi.spyOn(services.nativeMenu, 'isInstalled').mockReturnValue(false)
   const createChatSession = services.chatSessions.create.bind(services.chatSessions)
@@ -124,6 +126,7 @@ async function shortcutsHook() {
     },
     {
       app: services,
+      appServices,
       graph: GRAPH,
       graphState: {
         recents: [

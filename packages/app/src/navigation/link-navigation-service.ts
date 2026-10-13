@@ -1,16 +1,18 @@
-import type { LoggerService } from '../app/logger-service.ts'
-import type { OpenerService } from '../app/opener-service.ts'
-import type { OperationsService } from '../app/operations-service.ts'
-import type { PlatformService } from '../app/platform-service.ts'
-import type { WindowService } from '../app/window-service.ts'
-import type { AttachmentService } from '../documents/attachment-service.ts'
-import { errorMessage } from '../errors.ts'
-import type { GraphSessionService } from '../graph/graph-session-service.ts'
-import type { NoteCreationService } from '../graph/note-creation-service.ts'
-import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
-import { ambiguousNoteTitleMessage } from '../graph/note-reference.ts'
-import type { WikiResolverService } from '../indexing/wiki-resolver-service.ts'
-import { normalizeWikiTarget } from '../markdown/resolve.ts'
+import {
+  type LoggerService,
+  type OpenerService,
+  type OperationsService,
+  type PlatformService,
+  type WindowService,
+  type AttachmentService,
+  errorMessage,
+  type GraphSessionService,
+  type NoteCreationService,
+  type NoteLinkResolverService,
+  ambiguousNoteTitleMessage,
+  type WikiResolverService,
+  normalizeWikiTarget,
+} from '@reflect/core'
 import { deepLinkForRoute } from './deep-link-format.ts'
 import { isDeepLinkUrl, parseDeepLink } from './deep-link-parse.ts'
 import type { DeepLinkService } from './deep-link-service.ts'

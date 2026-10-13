@@ -1,9 +1,8 @@
-import { TEXT_CAPTURE_MAX_LENGTH, type TextCaptureKind } from '../capture/capture-envelope.ts'
-import type { Route } from './route.ts'
+import { TEXT_CAPTURE_MAX_LENGTH } from '../capture/capture-envelope.ts'
 
 /**
  * The `reflect://` deep-link vocabulary (docs/deep-links.md). URLs are a codec
- * over the existing {@link Route} union plus two capture verbs — never a
+ * over the existing `Route` union plus two capture verbs — never a
  * second navigation grammar. `deep-link-parse.ts` and `deep-link-format.ts` are the only modules
  * that read or write this syntax.
  */
@@ -17,19 +16,3 @@ export const DEEP_LINK_SCHEME = 'reflect'
  * built; the Rust spool command adds a byte cap behind both.
  */
 export const DEEP_LINK_TEXT_MAX_LENGTH = TEXT_CAPTURE_MAX_LENGTH
-
-/**
- * A parsed deep link:
- *
- * - `navigate` — self-contained routes (`today`, `daily/<date>`, `search`,
- *   `tasks`) that map straight onto {@link Route}.
- * - `openNote` — `note/<target>`, where `<target>` still needs resolution
- *   (frontmatter id → date → title → alias) against the open graph's index.
- * - `capture` — `append`/`checkbox`/`task` write links, spooled into `.reflect/inbox/`.
- *   The capture kind is core's {@link TextCaptureKind} — the URL verb, the
- *   envelope kind, and the drain behavior share the one vocabulary.
- */
-export type DeepLink =
-  | { kind: 'navigate'; route: Route }
-  | { kind: 'openNote'; target: string }
-  | { kind: 'capture'; capture: TextCaptureKind; text: string }

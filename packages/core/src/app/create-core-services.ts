@@ -227,20 +227,6 @@ import {
   createSecretStoreService,
   type SecretStoreService,
 } from '../secrets/secret-store-service.ts'
-import {
-  createDeepLinkService,
-  createNoDeepLinkSource,
-  type DeepLinkService,
-  type DeepLinkSource,
-} from '../navigation/deep-link-service.ts'
-import {
-  createLinkNavigationService,
-  type LinkNavigationService,
-} from '../navigation/link-navigation-service.ts'
-import {
-  createNavigationService,
-  type NavigationService,
-} from '../navigation/navigation-service.ts'
 import { createPrivacyService, type PrivacyService } from '../privacy/privacy-service.ts'
 import { createSettingsService, type SettingsService } from '../settings/settings-service.ts'
 import { createThemeService, type ThemeService } from '../settings/theme-service.ts'
@@ -426,21 +412,21 @@ export interface CoreServices {
    */
   readonly chatHistory: ChatHistoryService
   /**
+   * The capture inbox of envelopes that the browser extension, the iOS share extension, and deep links spool.
+   */
+  readonly captureInbox: CaptureInboxService
+  /**
+   * Wiki-target resolution over the index's claims and keys.
+   */
+  readonly wikiResolver: WikiResolverService
+  /**
+   * Decides which existing note a `[[wiki link]]` or Markdown href points at.
+   */
+  readonly noteLinkResolver: NoteLinkResolverService
+  /**
    * Checks for, downloads, and installs app updates.
    */
   readonly update: UpdateService
-  /**
-   * The webview's navigation history; a note window has its own webview, hence its own.
-   */
-  readonly navigation: NavigationService
-  /**
-   * The `reflect://` intake of this webview and the handler behind it.
-   */
-  readonly deepLink: DeepLinkService
-  /**
-   * Turns an activated link into a navigation, a new window, or a refusal.
-   */
-  readonly linkNavigation: LinkNavigationService
   /**
    * The one GitHub sign-in of this machine, kept in the keychain.
    */
@@ -790,10 +776,6 @@ export interface CoreAdapters {
    * Defaults to the URL shape of Apple webviews.
    */
   readonly convertFileSrc?: FileSrcConverter
-  /**
-   * The system's `reflect://` delivery; without one, no URL arrives.
-   */
-  readonly deepLink?: DeepLinkSource
 }
 
 /**
@@ -863,8 +845,6 @@ export const coreServiceFactories = {
   graphSession: createGraphSessionService<GraphServices>,
   graphServices: createGraphServices,
   opener: createOpenerService,
-  navigation: createNavigationService,
-  deepLink: createDeepLinkService,
   attachments: createAttachmentService,
   persistenceFlush: createPersistenceFlushService,
   gitRepository: createGitRepositoryService,
@@ -892,7 +872,6 @@ export const coreServiceFactories = {
   meetings: createMeetingService,
   agentSkill: createAgentSkillService,
   theme: createThemeService,
-  linkNavigation: createLinkNavigationService,
   update: createUpdateService,
   gistPublish: createGistPublishService,
   icloudMigration: createICloudMigrationService,
@@ -967,10 +946,6 @@ export interface CoreInternalServices {
    */
   readonly syncEngines: SyncEngineFactory
   /**
-   * The capture inbox of envelopes that the browser extension, the iOS share extension, and deep links spool.
-   */
-  readonly captureInbox: CaptureInboxService
-  /**
    * Bounded outbound web fetches that the native side performs.
    */
   readonly webFetch: WebFetchService
@@ -995,10 +970,6 @@ export interface CoreInternalServices {
    */
   readonly noteFile: NoteFileService
   /**
-   * Wiki-target resolution over the index's claims and keys.
-   */
-  readonly wikiResolver: WikiResolverService
-  /**
    * Autocomplete candidates for `#` tags and `[[` wiki targets.
    */
   readonly suggestions: SuggestionService
@@ -1006,10 +977,6 @@ export interface CoreInternalServices {
    * Graph-level aggregates over the non-private notes.
    */
   readonly graphStats: GraphStatsService
-  /**
-   * Decides which existing note a `[[wiki link]]` or Markdown href points at.
-   */
-  readonly noteLinkResolver: NoteLinkResolverService
   /**
    * The `private: true` gate that every outbound payload passes through.
    */
@@ -1272,19 +1239,6 @@ export function composeCoreServices(
       }),
   })
   const opener = create.opener({ transport: adapters.opener, logger })
-  const navigation = create.navigation()
-  const deepLink = create.deepLink({
-    // The OS delivers deep links to every webview; only the main window takes them.
-    source:
-      (windowService.isMainWindow() ? adapters.deepLink : undefined) ?? createNoDeepLinkSource(),
-    indexQuery: indexReads.indexQuery,
-    captureInbox,
-    operations,
-    id,
-    clock,
-    logger,
-    graphSession,
-  })
   const attachments = create.attachments({
     assetStore,
     noteFile,
@@ -1449,22 +1403,9 @@ export function composeCoreServices(
     persistenceFlush,
     embeddingRuntime,
     chatHistory,
-    navigation,
-    deepLink,
-    linkNavigation: create.linkNavigation({
-      noteLinkResolver: noteServices.noteLinkResolver,
-      noteCreation: noteServices.noteCreation,
-      wikiResolver: indexReads.wikiResolver,
-      window: windowService,
-      platform,
-      opener,
-      deepLink,
-      navigation,
-      attachments,
-      operations,
-      logger,
-      graphSession,
-    }),
+    captureInbox,
+    wikiResolver: indexReads.wikiResolver,
+    noteLinkResolver: noteServices.noteLinkResolver,
     update: create.update({
       updater: adapters.updater,
       clock,
@@ -1688,17 +1629,14 @@ export function composeCoreServices(
     githubRepos,
     gists,
     syncEngines,
-    captureInbox,
     webFetch,
     xArchive,
     audioRecorder,
     webAuth,
     assetStore,
     noteFile,
-    wikiResolver: indexReads.wikiResolver,
     suggestions: indexReads.suggestions,
     graphStats: indexReads.graphStats,
-    noteLinkResolver: noteServices.noteLinkResolver,
     privacy: noteServices.privacy,
     retrieval,
     embeddingIndex,

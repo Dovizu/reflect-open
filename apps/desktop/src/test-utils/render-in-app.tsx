@@ -2,7 +2,8 @@ import type { ReactElement, ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { onTestFinished } from 'vitest'
 import { render, renderHook, type RenderHookResult, type RenderResult } from 'vitest-browser-react'
-import { createAppServices } from '@reflect/app'
+import type { AppServices } from '@reflect/app'
+import { createTestAppServices, type TestAppServices } from '@reflect/app/testing'
 import type {
   CoreServices,
   BackupState,
@@ -79,6 +80,10 @@ export interface RenderInAppOptions {
    */
   wrapper?: (children: ReactNode) => ReactNode
   /**
+   * Replaces fields of the test app-layer services, e.g. `{ linkNavigation }`.
+   */
+  appServices?: Partial<AppServices>
+  /**
    * Mount only `CoreServicesProvider` and the query client, for a test of a
    * provider this helper otherwise mounts, or of one that needs no graph.
    * `app` keeps its own graph session, and the settings load is not awaited.
@@ -89,6 +94,10 @@ export interface RenderInAppOptions {
 
 interface InAppHandles<App extends CoreServices> {
   readonly app: App
+  /**
+   * The app layer built over `app`.
+   */
+  readonly appServices: TestAppServices
   readonly queryClient: QueryClient
   /**
    * The scripted backup when `sync` was a `BackupState`, else `null`.
@@ -170,7 +179,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   registerAppCommands(app.commands)
 
   const route = options?.route
-  const appLayer = createAppServices(app, {})
+  const appLayer = createTestAppServices(app, options?.appServices) as TestAppServices
   const wrap = (children: ReactNode): ReactElement => {
     const wrapped = options?.wrapper === undefined ? children : options.wrapper(children)
     if (servicesOnly) {
@@ -204,6 +213,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   }
   return {
     app,
+    appServices: appLayer,
     queryClient,
     backup,
     wrap,
@@ -218,7 +228,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
  * client, and the real `GraphProvider` (which provides
  * the graph services) and `RouterProvider`. All of them read `app`, which defaults to test doubles. Tests drive and observe
  * the app through the returned `app`: `app.graphSession.setGraph()`,
- * `app.settings.get()`, `app.navigation.navigations()`,
+ * `app.settings.get()`, `appServices.navigation.navigations()`,
  * `app.operations.getAll()`.
  *
  * Pass your own `app` to replace or spy on a service before the first render.

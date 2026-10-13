@@ -1,17 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import type { NoteCreationService } from '../graph/note-creation-service.ts'
-import type { NoteLinkResolverService } from '../graph/note-link-resolver-service.ts'
 import {
+  type NoteCreationService,
+  type NoteLinkResolverService,
   createWikiResolverService,
   type WikiResolverService,
-} from '../indexing/wiki-resolver-service.ts'
+} from '@reflect/core'
 import {
   createTestAttachmentService,
   createTestDatabaseService,
-  createTestDeepLinkService,
   createTestGraphSessionService,
   createTestLoggerService,
-  createTestNavigationService,
   createTestNoteCreationService,
   createTestNoteFileService,
   createTestNoteLinkResolverService,
@@ -21,7 +19,8 @@ import {
   createTestWindowService,
   type TestOpenGraph,
   type TestPlatformOptions,
-} from '../testing/index.ts'
+} from '@reflect/core/testing'
+import { createTestDeepLinkService, createTestNavigationService } from '../testing/navigation.ts'
 import {
   createLinkNavigationService,
   isOpenableExternalUrl,

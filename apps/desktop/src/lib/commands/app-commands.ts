@@ -92,7 +92,7 @@ const APP_COMMANDS: AppCommand[] = [
       if (path === null) {
         return
       }
-      await context.services.linkNavigation.openRouteInNewWindow(routeForPath(path))
+      await context.app.linkNavigation.openRouteInNewWindow(routeForPath(path))
     },
   },
   {

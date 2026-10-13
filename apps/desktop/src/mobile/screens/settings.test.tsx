@@ -116,7 +116,7 @@ describe('MobileSettings', () => {
     await expect.element(graphRow).toMatchTextContent('iCloud Drive')
     await user.click(graphRow)
 
-    expect(view.app.navigation.navigations()).toEqual([
+    expect(view.appServices.navigation.navigations()).toEqual([
       { route: { kind: 'graphs' }, options: undefined },
     ])
   })

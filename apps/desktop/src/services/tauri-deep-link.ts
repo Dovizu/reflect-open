@@ -1,5 +1,5 @@
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link'
-import type { DeepLinkSource } from '@reflect/core'
+import type { DeepLinkSource } from '@reflect/app'
 
 /**
  * `reflect://` delivery through `@tauri-apps/plugin-deep-link`.

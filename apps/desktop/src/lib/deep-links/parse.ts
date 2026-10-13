@@ -1,1 +1,1 @@
-export { isDeepLinkUrl, parseDeepLink } from '@reflect/core'
+export { isDeepLinkUrl, parseDeepLink } from '@reflect/app'

@@ -1,5 +1,5 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
-import type { LinkNavigationHost } from '@reflect/core'
+import type { LinkNavigationHost } from '@reflect/app'
 import { useLinkIntentGuard } from '@/lib/windows/use-link-intent-guard.ts'
 import { useRouter } from '@/routing/router.tsx'
 
