@@ -99,7 +99,7 @@ export interface MobileAudioMemoSession {
    * The current state. The same object until something changes.
    */
   getState: () => MobileAudioMemoSessionState
-  subscribe: (listener: () => void) => Unlisten
+  subscribe(listener: () => void): Unlisten
   /**
    * Audio action tap: idle → record (or key setup); recording → stop & save; error → show it.
    */
@@ -285,7 +285,7 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
 
   readonly getState = (): MobileAudioMemoSessionState => this.#state
 
-  readonly subscribe = (listener: () => void): Unlisten => {
+  subscribe(listener: () => void): Unlisten {
     const entry = (): void => {
       listener()
     }

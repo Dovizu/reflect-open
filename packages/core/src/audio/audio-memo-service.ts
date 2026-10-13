@@ -259,7 +259,7 @@ export interface AudioMemoSession {
    * The current state. The same object until something changes.
    */
   getState: () => AudioMemoSessionState
-  subscribe: (listener: () => void) => Unlisten
+  subscribe(listener: () => void): Unlisten
   /**
    * Idle → start recording (revealing a hidden UI); recording → stop & save.
    */
@@ -686,7 +686,7 @@ class AudioMemoSessionImpl implements AudioMemoSession {
 
   readonly getState = (): AudioMemoSessionState => this.#state
 
-  readonly subscribe = (listener: () => void): Unlisten => {
+  subscribe(listener: () => void): Unlisten {
     const entry = (): void => {
       listener()
     }

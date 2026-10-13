@@ -71,7 +71,7 @@ class PluginEventFanOut<Payload, Value> {
     this.#handle = handle
   }
 
-  readonly subscribe = (listener: (value: Value) => void): Unlisten => {
+  subscribe(listener: (value: Value) => void): Unlisten {
     const { ipc, logger } = this.#deps
     const entry = (value: Value): void => {
       listener(value)
