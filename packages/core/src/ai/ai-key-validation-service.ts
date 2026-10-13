@@ -22,7 +22,9 @@ export type ApiKeyValidation = 'valid' | 'invalid' | 'unreachable'
 interface KeyProbe {
   url: string
   headers: (key: string) => Record<string, string>
-  /** Statuses that mean "the provider rejected this key" (vs. can't tell). */
+  /**
+   * Statuses that mean "the provider rejected this key" (vs. can't tell).
+   */
   invalidStatuses: number[]
 }
 
@@ -79,39 +81,56 @@ function keyProbe(input: ApiKeyValidationInput): KeyProbe | null {
   return PROBES[input.provider]
 }
 
-/** Checks a BYOK key with one cheap authenticated probe before it is saved. */
+/**
+ * Checks a BYOK key with one cheap authenticated probe before it is saved.
+ */
 export interface AiKeyValidationService {
-  /** Probe `input.provider` with `input.apiKey`. The App Review demo key is valid without a probe. */
+  /**
+   * Probe `input.provider` with `input.apiKey`. The App Review demo key is valid without a probe.
+   */
   validate(input: ApiKeyValidationInput): Promise<ApiKeyValidation>
 }
 
-export function createAiKeyValidationService(deps: { http: HttpService }): AiKeyValidationService {
-  const { http } = deps
-  return {
-    async validate(input) {
-      // Providers know nothing about the App Review demo key, so a probe would
-      // reject it; accept it here so it can be saved and reach the canned
-      // transcription path.
-      if (input.apiKey === APP_REVIEW_STUB_KEY) {
-        return 'valid'
-      }
-      const probe = keyProbe(input)
-      if (probe === null) {
-        return 'invalid'
-      }
-      let response: Response
-      try {
-        response = await http.fetch(probe.url, {
-          method: 'GET',
-          headers: probe.headers(input.apiKey),
-        })
-      } catch {
-        return 'unreachable'
-      }
-      if (response.ok) {
-        return 'valid'
-      }
-      return probe.invalidStatuses.includes(response.status) ? 'invalid' : 'unreachable'
-    },
+export interface AiKeyValidationServiceDeps {
+  readonly http: HttpService
+}
+
+class AiKeyValidationServiceImpl implements AiKeyValidationService {
+  readonly #deps: AiKeyValidationServiceDeps
+
+  constructor(deps: AiKeyValidationServiceDeps) {
+    this.#deps = deps
   }
+
+  async validate(input: ApiKeyValidationInput): Promise<ApiKeyValidation> {
+    // Providers know nothing about the App Review demo key, so a probe would
+    // reject it; accept it here so it can be saved and reach the canned
+    // transcription path.
+    if (input.apiKey === APP_REVIEW_STUB_KEY) {
+      return 'valid'
+    }
+    const probe = keyProbe(input)
+    if (probe === null) {
+      return 'invalid'
+    }
+    let response: Response
+    try {
+      response = await this.#deps.http.fetch(probe.url, {
+        method: 'GET',
+        headers: probe.headers(input.apiKey),
+      })
+    } catch {
+      return 'unreachable'
+    }
+    if (response.ok) {
+      return 'valid'
+    }
+    return probe.invalidStatuses.includes(response.status) ? 'invalid' : 'unreachable'
+  }
+}
+
+export function createAiKeyValidationService(
+  deps: AiKeyValidationServiceDeps,
+): AiKeyValidationService {
+  return new AiKeyValidationServiceImpl(deps)
 }

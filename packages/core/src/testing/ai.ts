@@ -45,6 +45,29 @@ export interface TestLanguageModelService extends LanguageModelService {
   setModel(model: TestLanguageModelSource): void
 }
 
+class TestLanguageModelServiceImpl implements TestLanguageModelService {
+  #source: TestLanguageModelSource
+  readonly #log: TestLanguageModelCall[] = []
+
+  constructor(source: TestLanguageModelSource) {
+    this.#source = source
+  }
+
+  async create(config: AiProviderConfig, apiKey: string): Promise<LanguageModel> {
+    this.#log.push({ config, apiKey })
+    const source = this.#source
+    return typeof source === 'function' ? await source(config, apiKey) : source
+  }
+
+  calls(): readonly TestLanguageModelCall[] {
+    return [...this.#log]
+  }
+
+  setModel(model: TestLanguageModelSource): void {
+    this.#source = model
+  }
+}
+
 /**
  * A {@link LanguageModelService} that answers every `create` call with
  * `model`, an empty `MockLanguageModelV3` by default. No provider SDK loads
@@ -53,18 +76,7 @@ export interface TestLanguageModelService extends LanguageModelService {
 export function createTestLanguageModelService(
   model: TestLanguageModelSource = new MockLanguageModelV3(),
 ): TestLanguageModelService {
-  let source = model
-  const log: TestLanguageModelCall[] = []
-  return {
-    async create(config, apiKey) {
-      log.push({ config, apiKey })
-      return typeof source === 'function' ? await source(config, apiKey) : source
-    },
-    calls: () => [...log],
-    setModel(next) {
-      source = next
-    },
-  }
+  return new TestLanguageModelServiceImpl(model)
 }
 
 export interface TestAiKeyValidationService extends AiKeyValidationService {
@@ -78,24 +90,35 @@ export interface TestAiKeyValidationService extends AiKeyValidationService {
   setResult(result: ApiKeyValidation): void
 }
 
+class TestAiKeyValidationServiceImpl implements TestAiKeyValidationService {
+  #current: ApiKeyValidation
+  readonly #log: ApiKeyValidationInput[] = []
+
+  constructor(result: ApiKeyValidation) {
+    this.#current = result
+  }
+
+  async validate(input: ApiKeyValidationInput): Promise<ApiKeyValidation> {
+    this.#log.push(input)
+    return this.#current
+  }
+
+  calls(): readonly ApiKeyValidationInput[] {
+    return [...this.#log]
+  }
+
+  setResult(result: ApiKeyValidation): void {
+    this.#current = result
+  }
+}
+
 /**
  * An {@link AiKeyValidationService} that answers `result` without any request.
  */
 export function createTestAiKeyValidationService(
   result: ApiKeyValidation = 'valid',
 ): TestAiKeyValidationService {
-  let current = result
-  const log: ApiKeyValidationInput[] = []
-  return {
-    async validate(input) {
-      log.push(input)
-      return current
-    },
-    calls: () => [...log],
-    setResult(next) {
-      current = next
-    },
-  }
+  return new TestAiKeyValidationServiceImpl(result)
 }
 
 /**
@@ -116,6 +139,29 @@ export interface TestPageDescriberService extends PageDescriberService {
   setResult(result: TestPageDescriberSource): void
 }
 
+class TestPageDescriberServiceImpl implements TestPageDescriberService {
+  #source: TestPageDescriberSource
+  readonly #log: DescribePageRequest[] = []
+
+  constructor(result: TestPageDescriberSource) {
+    this.#source = result
+  }
+
+  readonly describe = async (request: DescribePageRequest): Promise<PageEnrichment> => {
+    this.#log.push(request)
+    const source = this.#source
+    return typeof source === 'function' ? await source(request) : source
+  }
+
+  calls(): readonly DescribePageRequest[] {
+    return [...this.#log]
+  }
+
+  setResult(result: TestPageDescriberSource): void {
+    this.#source = result
+  }
+}
+
 /**
  * A {@link PageDescriberService} that answers `result` without any provider
  * call: no title and an empty description by default.
@@ -123,18 +169,7 @@ export interface TestPageDescriberService extends PageDescriberService {
 export function createTestPageDescriberService(
   result: TestPageDescriberSource = { title: null, description: '' },
 ): TestPageDescriberService {
-  let source = result
-  const log: DescribePageRequest[] = []
-  return {
-    describe: async (request) => {
-      log.push(request)
-      return typeof source === 'function' ? await source(request) : source
-    },
-    calls: () => [...log],
-    setResult(next) {
-      source = next
-    },
-  }
+  return new TestPageDescriberServiceImpl(result)
 }
 
 /**
@@ -155,6 +190,29 @@ export interface TestAssetDescriberService extends AssetDescriberService {
   setResult(result: TestAssetDescriberSource): void
 }
 
+class TestAssetDescriberServiceImpl implements TestAssetDescriberService {
+  #source: TestAssetDescriberSource
+  readonly #log: DescribeAssetRequest[] = []
+
+  constructor(result: TestAssetDescriberSource) {
+    this.#source = result
+  }
+
+  readonly describe = async (request: DescribeAssetRequest): Promise<string> => {
+    this.#log.push(request)
+    const source = this.#source
+    return typeof source === 'function' ? await source(request) : source
+  }
+
+  calls(): readonly DescribeAssetRequest[] {
+    return [...this.#log]
+  }
+
+  setResult(result: TestAssetDescriberSource): void {
+    this.#source = result
+  }
+}
+
 /**
  * An {@link AssetDescriberService} that answers `result` without any provider
  * call: an empty description by default.
@@ -162,18 +220,7 @@ export interface TestAssetDescriberService extends AssetDescriberService {
 export function createTestAssetDescriberService(
   result: TestAssetDescriberSource = '',
 ): TestAssetDescriberService {
-  let source = result
-  const log: DescribeAssetRequest[] = []
-  return {
-    describe: async (request) => {
-      log.push(request)
-      return typeof source === 'function' ? await source(request) : source
-    },
-    calls: () => [...log],
-    setResult(next) {
-      source = next
-    },
-  }
+  return new TestAssetDescriberServiceImpl(result)
 }
 
 /**
@@ -194,6 +241,38 @@ export interface TestTranscriptionService extends TranscriptionService {
   setResult(result: TestTranscriptionSource): void
 }
 
+class TestTranscriptionServiceImpl implements TestTranscriptionService {
+  #source: TestTranscriptionSource
+  readonly #log: TranscriptionRequest[] = []
+  readonly #real: TranscriptionService
+
+  constructor(result: TestTranscriptionSource) {
+    this.#source = result
+    this.#real = createTranscriptionService({
+      http: {
+        fetch: () => Promise.reject(new Error('The test transcription service has no network')),
+      },
+    })
+  }
+
+  readonly transcribe = async (request: TranscriptionRequest): Promise<string> => {
+    this.#log.push(request)
+    const source = this.#source
+    return typeof source === 'function' ? await source(request) : source
+  }
+
+  readonly sessionTranscript = (apiKey: string): string | null =>
+    this.#real.sessionTranscript(apiKey)
+
+  calls(): readonly TranscriptionRequest[] {
+    return [...this.#log]
+  }
+
+  setResult(result: TestTranscriptionSource): void {
+    this.#source = result
+  }
+}
+
 /**
  * A {@link TranscriptionService} that answers `result` without any request:
  * an empty transcript by default. `sessionTranscript` is the real one, so the
@@ -202,22 +281,5 @@ export interface TestTranscriptionService extends TranscriptionService {
 export function createTestTranscriptionService(
   result: TestTranscriptionSource = '',
 ): TestTranscriptionService {
-  let source = result
-  const log: TranscriptionRequest[] = []
-  const real = createTranscriptionService({
-    http: {
-      fetch: () => Promise.reject(new Error('The test transcription service has no network')),
-    },
-  })
-  return {
-    transcribe: async (request) => {
-      log.push(request)
-      return typeof source === 'function' ? await source(request) : source
-    },
-    sessionTranscript: (apiKey) => real.sessionTranscript(apiKey),
-    calls: () => [...log],
-    setResult(next) {
-      source = next
-    },
-  }
+  return new TestTranscriptionServiceImpl(result)
 }

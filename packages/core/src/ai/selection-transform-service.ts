@@ -34,26 +34,48 @@ const TRANSFORM_SYSTEM_PROMPT = [
 ].join(' ')
 
 export interface SelectionTransformRequest {
-  /** The note the selection comes from, with its live privacy flag (the privacy subject). */
+  /**
+   * The note the selection comes from, with its live privacy flag (the privacy subject).
+   */
   note: CloudSendable
-  /** The selected text. It reaches the provider only through the privacy gate. */
+  /**
+   * The selected text. It reaches the provider only through the privacy gate.
+   */
   selectedText: string
-  /** The prompt body (may contain `{{selectedText}}`). */
+  /**
+   * The prompt body (may contain `{{selectedText}}`).
+   */
   promptBody: string
-  /** The entry and model to call instead of the default entry; `null` uses the default. */
+  /**
+   * The entry and model to call instead of the default entry; `null` uses the default.
+   */
   model: ChatModelOption | null
-  /** Aborts the provider call mid-stream (discard/retry while streaming). */
+  /**
+   * Aborts the provider call mid-stream (discard/retry while streaming).
+   */
   signal?: AbortSignal
 }
 
-/** One normalized event in a selection transform's stream. */
+/**
+ * One normalized event in a selection transform's stream.
+ */
 export type TransformStreamEvent =
   | { type: 'text-delta'; text: string }
   | { type: 'complete'; text: string }
   | { type: 'aborted' }
   | { type: 'error'; message: string }
 
-/** Runs a prompt on an editor selection and streams the replacement text. */
+export interface SelectionTransformServiceDeps {
+  readonly logger: LoggerService
+  readonly languageModel: LanguageModelService
+  readonly providerConfig: Pick<AiProviderConfigService, 'list' | 'defaultProvider'>
+  readonly credentials: Pick<AiCredentialService, 'read'>
+  readonly privacy: Pick<PrivacyService, 'cloudSafeSelection'>
+}
+
+/**
+ * Runs a prompt on an editor selection and streams the replacement text.
+ */
 export interface SelectionTransformService {
   /**
    * Stream a selection transform from the user's configured provider, yielding
@@ -65,74 +87,85 @@ export interface SelectionTransformService {
   transform: (request: SelectionTransformRequest) => AsyncGenerator<TransformStreamEvent>
 }
 
-export function createSelectionTransformService(deps: {
-  logger: LoggerService
-  languageModel: LanguageModelService
-  providerConfig: Pick<AiProviderConfigService, 'list' | 'defaultProvider'>
-  credentials: Pick<AiCredentialService, 'read'>
-  privacy: Pick<PrivacyService, 'cloudSafeSelection'>
-}): SelectionTransformService {
-  const { logger, languageModel, providerConfig, credentials, privacy } = deps
-  return {
-    async *transform(request) {
-      const { model: modelOverride, signal } = request
-      const base =
-        modelOverride === null
-          ? providerConfig.defaultProvider()
-          : (providerConfig.list().find((entry) => entry.id === modelOverride.configId) ?? null)
-      if (base === null) {
-        yield { type: 'error', message: 'Add an AI provider in Settings to use AI prompts.' }
-        return
-      }
-      const config = modelOverride === null ? base : { ...base, model: modelOverride.modelId }
+class SelectionTransformServiceImpl implements SelectionTransformService {
+  readonly #deps: SelectionTransformServiceDeps
 
-      // The privacy gate: the selection is note content, so it only leaves the
-      // device as a CloudSafe value minted against the note's privacy flag.
-      let selection: CloudSafe<string>
-      try {
-        selection = privacy.cloudSafeSelection(request.note, request.selectedText)
-      } catch (cause) {
-        if (isPrivateNoteError(cause)) {
-          yield {
-            type: 'error',
-            message: 'This note is marked private, so its content is never sent to an AI provider.',
-          }
-          return
-        }
-        throw cause
-      }
+  constructor(deps: SelectionTransformServiceDeps) {
+    this.#deps = deps
+  }
 
-      const apiKey = await credentials.read(config).catch(() => null)
-      if (apiKey === null) {
+  readonly transform = (request: SelectionTransformRequest): AsyncGenerator<TransformStreamEvent> =>
+    this.#transform(request)
+
+  async *#transform(request: SelectionTransformRequest): AsyncGenerator<TransformStreamEvent> {
+    const { logger, languageModel, providerConfig, credentials, privacy } = this.#deps
+    const { model: modelOverride, signal } = request
+    const base =
+      modelOverride === null
+        ? providerConfig.defaultProvider()
+        : (providerConfig.list().find((entry) => entry.id === modelOverride.configId) ?? null)
+    if (base === null) {
+      yield { type: 'error', message: 'Add an AI provider in Settings to use AI prompts.' }
+      return
+    }
+    const config = modelOverride === null ? base : { ...base, model: modelOverride.modelId }
+
+    // The privacy gate: the selection is note content, so it only leaves the
+    // device as a CloudSafe value minted against the note's privacy flag.
+    let selection: CloudSafe<string>
+    try {
+      selection = privacy.cloudSafeSelection(request.note, request.selectedText)
+    } catch (cause) {
+      if (isPrivateNoteError(cause)) {
         yield {
           type: 'error',
-          message: 'No API key found for this provider — re-add it in Settings → AI providers.',
+          message: 'This note is marked private, so its content is never sent to an AI provider.',
         }
         return
       }
+      throw cause
+    }
 
-      try {
-        signal?.throwIfAborted()
-        const model = await languageModel.create(config, apiKey)
-        signal?.throwIfAborted()
-        yield* streamTransformTurn({ logger }, model, {
-          prompt: renderSelectionPrompt(request.promptBody, selection),
-          signal,
-        })
-      } catch (cause) {
-        yield signal?.aborted
-          ? { type: 'aborted' }
-          : { type: 'error', message: errorMessage(cause) }
+    const apiKey = await credentials.read(config).catch(() => null)
+    if (apiKey === null) {
+      yield {
+        type: 'error',
+        message: 'No API key found for this provider — re-add it in Settings → AI providers.',
       }
-    },
+      return
+    }
+
+    try {
+      signal?.throwIfAborted()
+      const model = await languageModel.create(config, apiKey)
+      signal?.throwIfAborted()
+      yield* streamTransformTurn({ logger }, model, {
+        prompt: renderSelectionPrompt(request.promptBody, selection),
+        signal,
+      })
+    } catch (cause) {
+      yield signal?.aborted ? { type: 'aborted' } : { type: 'error', message: errorMessage(cause) }
+    }
   }
 }
 
-/** {@link streamTransformTurn}'s options: the rendered prompt plus the abort signal. */
+export function createSelectionTransformService(
+  deps: SelectionTransformServiceDeps,
+): SelectionTransformService {
+  return new SelectionTransformServiceImpl(deps)
+}
+
+/**
+ * {@link streamTransformTurn}'s options: the rendered prompt plus the abort signal.
+ */
 export interface TransformTurnOptions {
-  /** The fully rendered, model-facing prompt. */
+  /**
+   * The fully rendered, model-facing prompt.
+   */
   prompt: string
-  /** Aborts the provider call mid-stream. */
+  /**
+   * Aborts the provider call mid-stream.
+   */
   signal?: AbortSignal | undefined
 }
 

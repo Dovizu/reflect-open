@@ -35,19 +35,33 @@ import { chatSystemPrompt } from './system-prompt.ts'
  */
 export const MAX_STEPS = 12
 
-/** One chat turn for {@link ChatEngineService.streamTurn}. */
+/**
+ * One chat turn for {@link ChatEngineService.streamTurn}.
+ */
 export interface ChatTurnRequest {
-  /** The provider entry to call, with `model` set to the model id to use. */
+  /**
+   * The provider entry to call, with `model` set to the model id to use.
+   */
   config: AiProviderConfig
-  /** The BYOK API key, or an empty string for no-key compatible endpoints. */
+  /**
+   * The BYOK API key, or an empty string for no-key compatible endpoints.
+   */
   apiKey: string
-  /** Full model-facing history including the new user message. */
+  /**
+   * Full model-facing history including the new user message.
+   */
   messages: ModelMessage[]
-  /** Local ISO date for the system prompt (daily-note key space). */
+  /**
+   * Local ISO date for the system prompt (daily-note key space).
+   */
   today: string
-  /** Whether note search can use embeddings for meaning-based recall. */
+  /**
+   * Whether note search can use embeddings for meaning-based recall.
+   */
   semanticSearchEnabled: boolean
-  /** User-authored instructions appended to Reflect's built-in system prompt. */
+  /**
+   * User-authored instructions appended to Reflect's built-in system prompt.
+   */
   customSystemPrompt: string
   /**
    * Graph overview for the system prompt (`ChatGraphContextService.load`), or
@@ -55,11 +69,15 @@ export interface ChatTurnRequest {
    * the degraded mode explicitly rather than forgetting the block.
    */
   context: CloudSafe<CloudGraphContext> | null
-  /** Aborts the provider call mid-stream (the UI's stop button). */
+  /**
+   * Aborts the provider call mid-stream (the UI's stop button).
+   */
   signal?: AbortSignal
 }
 
-/** One normalized event in a chat turn's stream. */
+/**
+ * One normalized event in a chat turn's stream.
+ */
 export type ChatStreamEvent =
   | { type: 'text-delta'; text: string }
   | { type: 'tool-call'; call: NoteToolCall }
@@ -69,13 +87,24 @@ export type ChatStreamEvent =
   | { type: 'aborted'; messages: ModelMessage[] }
   | { type: 'complete'; messages: ModelMessage[] }
 
-/** Fits a model-facing history into a context budget; see `fitToContextWindow`. */
+/**
+ * Fits a model-facing history into a context budget; see `fitToContextWindow`.
+ */
 export type FitToContextWindow = (
   messages: ModelMessage[],
   options: ContextWindowOptions,
 ) => ModelMessage[]
 
-/** Runs tool-grounded chat turns against the user's provider. */
+export interface ChatEngineServiceDeps {
+  readonly logger: LoggerService
+  readonly languageModel: LanguageModelService
+  readonly noteTools: NoteToolsService
+  readonly fitToContextWindow: FitToContextWindow
+}
+
+/**
+ * Runs tool-grounded chat turns against the user's provider.
+ */
 export interface ChatEngineService {
   /**
    * Run one chat turn against the user's configured provider, yielding
@@ -87,61 +116,83 @@ export interface ChatEngineService {
   streamTurn: (request: ChatTurnRequest) => AsyncGenerator<ChatStreamEvent>
 }
 
-export function createChatEngineService(deps: {
-  logger: LoggerService
-  languageModel: LanguageModelService
-  noteTools: NoteToolsService
-  fitToContextWindow: FitToContextWindow
-}): ChatEngineService {
-  const { logger, languageModel, noteTools, fitToContextWindow } = deps
-  return {
-    async *streamTurn(request) {
-      try {
-        request.signal?.throwIfAborted()
-        const messages = fitToContextWindow(request.messages, {
-          contextWindow: modelContextWindow(request.config.provider, request.config.model),
-          systemPrompt: chatSystemPrompt({
-            today: request.today,
-            context: request.context,
-            semanticSearchEnabled: request.semanticSearchEnabled,
-            customSystemPrompt: request.customSystemPrompt,
-          }),
-        })
-        const model = await languageModel.create(request.config, request.apiKey)
-        request.signal?.throwIfAborted()
-        yield* streamChatTurn({ logger }, model, {
-          messages,
+class ChatEngineServiceImpl implements ChatEngineService {
+  readonly #deps: ChatEngineServiceDeps
+
+  constructor(deps: ChatEngineServiceDeps) {
+    this.#deps = deps
+  }
+
+  readonly streamTurn = (request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> =>
+    this.#streamTurn(request)
+
+  async *#streamTurn(request: ChatTurnRequest): AsyncGenerator<ChatStreamEvent> {
+    const { logger, languageModel, noteTools, fitToContextWindow } = this.#deps
+    try {
+      request.signal?.throwIfAborted()
+      const messages = fitToContextWindow(request.messages, {
+        contextWindow: modelContextWindow(request.config.provider, request.config.model),
+        systemPrompt: chatSystemPrompt({
           today: request.today,
+          context: request.context,
           semanticSearchEnabled: request.semanticSearchEnabled,
           customSystemPrompt: request.customSystemPrompt,
-          context: request.context,
-          signal: request.signal,
-          tools: noteTools.build({ semanticSearchEnabled: request.semanticSearchEnabled }),
-        })
-      } catch (cause) {
-        yield request.signal?.aborted
-          ? { type: 'aborted', messages: [] }
-          : { type: 'error', message: errorMessage(cause), messages: [] }
-      }
-    },
+        }),
+      })
+      const model = await languageModel.create(request.config, request.apiKey)
+      request.signal?.throwIfAborted()
+      yield* streamChatTurn({ logger }, model, {
+        messages,
+        today: request.today,
+        semanticSearchEnabled: request.semanticSearchEnabled,
+        customSystemPrompt: request.customSystemPrompt,
+        context: request.context,
+        signal: request.signal,
+        tools: noteTools.build({ semanticSearchEnabled: request.semanticSearchEnabled }),
+      })
+    } catch (cause) {
+      yield request.signal?.aborted
+        ? { type: 'aborted', messages: [] }
+        : { type: 'error', message: errorMessage(cause), messages: [] }
+    }
   }
 }
 
-/** {@link streamChatTurn}'s options: {@link ChatTurnRequest} minus provider wiring, plus the tools. */
+export function createChatEngineService(deps: ChatEngineServiceDeps): ChatEngineService {
+  return new ChatEngineServiceImpl(deps)
+}
+
+/**
+ * {@link streamChatTurn}'s options: {@link ChatTurnRequest} minus provider wiring, plus the tools.
+ */
 export interface ChatTurnOptions {
-  /** Full model-facing history including the new user message. */
+  /**
+   * Full model-facing history including the new user message.
+   */
   messages: ModelMessage[]
-  /** Local ISO date for the system prompt (daily-note key space). */
+  /**
+   * Local ISO date for the system prompt (daily-note key space).
+   */
   today: string
-  /** Whether note search can use embeddings for meaning-based recall. */
+  /**
+   * Whether note search can use embeddings for meaning-based recall.
+   */
   semanticSearchEnabled: boolean
-  /** User-authored instructions appended to Reflect's built-in system prompt. */
+  /**
+   * User-authored instructions appended to Reflect's built-in system prompt.
+   */
   customSystemPrompt: string
-  /** Graph overview for the system prompt, or `null` to omit the block. */
+  /**
+   * Graph overview for the system prompt, or `null` to omit the block.
+   */
   context: CloudSafe<CloudGraphContext> | null
-  /** Aborts the provider call mid-stream (the UI's stop button). */
+  /**
+   * Aborts the provider call mid-stream (the UI's stop button).
+   */
   signal?: AbortSignal | undefined
-  /** The tools the model can call (`NoteToolsService.build`). */
+  /**
+   * The tools the model can call (`NoteToolsService.build`).
+   */
   tools: NoteTools
 }
 

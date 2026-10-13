@@ -9,24 +9,42 @@ import type { CloudGraphContext, CloudSafe, PrivacyService } from '../../privacy
  * are three local SQLite reads), computed over non-private rows only.
  */
 
-/** Most tags the prompt lists (token budget — the most-used tags win). */
+/**
+ * Most tags the prompt lists (token budget — the most-used tags win).
+ */
 export const MAX_CONTEXT_TAGS = 40
 
-/** Loads the graph overview that a chat turn's system prompt carries. */
+export interface ChatGraphContextServiceDeps {
+  readonly graphStats: Pick<GraphStatsService, 'loadGraphStats'>
+  readonly privacy: Pick<PrivacyService, 'cloudSafeGraphContext'>
+}
+
+/**
+ * Loads the graph overview that a chat turn's system prompt carries.
+ */
 export interface ChatGraphContextService {
-  /** Load the prompt context for the open graph, named `graphName`. */
+  /**
+   * Load the prompt context for the open graph, named `graphName`.
+   */
   load: (graphName: string) => Promise<CloudSafe<CloudGraphContext>>
 }
 
-export function createChatGraphContextService(deps: {
-  graphStats: Pick<GraphStatsService, 'loadGraphStats'>
-  privacy: Pick<PrivacyService, 'cloudSafeGraphContext'>
-}): ChatGraphContextService {
-  const { graphStats, privacy } = deps
-  return {
-    load: async (graphName) => {
-      const stats = await graphStats.loadGraphStats({ tagLimit: MAX_CONTEXT_TAGS })
-      return privacy.cloudSafeGraphContext({ graphName, ...stats })
-    },
+class ChatGraphContextServiceImpl implements ChatGraphContextService {
+  readonly #deps: ChatGraphContextServiceDeps
+
+  constructor(deps: ChatGraphContextServiceDeps) {
+    this.#deps = deps
   }
+
+  readonly load = async (graphName: string): Promise<CloudSafe<CloudGraphContext>> => {
+    const { graphStats, privacy } = this.#deps
+    const stats = await graphStats.loadGraphStats({ tagLimit: MAX_CONTEXT_TAGS })
+    return privacy.cloudSafeGraphContext({ graphName, ...stats })
+  }
+}
+
+export function createChatGraphContextService(
+  deps: ChatGraphContextServiceDeps,
+): ChatGraphContextService {
+  return new ChatGraphContextServiceImpl(deps)
 }
