@@ -1,5 +1,5 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { ICloudNativeService } from '../ipc/icloud-native-service.ts'
@@ -52,7 +52,7 @@ export interface ICloudDownloadServiceOptions {
  */
 export interface ICloudDownloadServiceDeps {
   readonly icloudNative: Pick<ICloudNativeService, 'downloadPending' | 'pendingCount'>
-  readonly lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeFocus' | 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'isHidden' | 'subscribeFocus' | 'subscribeVisible'>
   readonly clock: ClockService
   readonly logger: LoggerService
 }
@@ -113,7 +113,7 @@ class ICloudDownloadServiceImpl implements ICloudDownloadService {
   }
 
   start(): void {
-    const { lifecycle, clock } = this.#deps
+    const { activity, clock } = this.#deps
     if (this.#disposed) {
       return
     }
@@ -123,8 +123,8 @@ class ICloudDownloadServiceImpl implements ICloudDownloadService {
     this.#lastRefreshAt = clock.now()
     void this.#refresh({ reconcile: false })
     this.#disposers.push(
-      lifecycle.subscribeFocus(this.#onResume),
-      lifecycle.subscribeVisible(this.#onResume),
+      activity.subscribeFocus(this.#onResume),
+      activity.subscribeVisible(this.#onResume),
     )
   }
 
@@ -153,7 +153,7 @@ class ICloudDownloadServiceImpl implements ICloudDownloadService {
   }
 
   #pollPending(startedAt: number, attempt: number): void {
-    const { icloudNative, lifecycle, clock, logger } = this.#deps
+    const { icloudNative, activity, clock, logger } = this.#deps
     const { root, refreshIndex } = this.#options
     if (this.#retryTimer !== null) {
       return
@@ -164,7 +164,7 @@ class ICloudDownloadServiceImpl implements ICloudDownloadService {
       if (this.#disposed) {
         return
       }
-      if (lifecycle.isHidden()) {
+      if (activity.isHidden()) {
         // Backgrounded mid-drain: stop rather than keep walking the graph
         // behind a hidden webview (every sibling service suspends on
         // hidden). The next resume restarts the whole sequence — clear the

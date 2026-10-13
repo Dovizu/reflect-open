@@ -18,11 +18,12 @@ export {
 } from './ipc.ts'
 export {
   createTestDialogService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestWindowService,
   type DialogCall,
   type TestDialogService,
-  type TestLifecycleService,
+  type TestActivityPort,
+  type TestActivityPortOptions,
   type TestWindowService,
 } from './shell.ts'
 export {

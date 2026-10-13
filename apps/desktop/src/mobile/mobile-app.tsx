@@ -15,7 +15,7 @@ import { usePaywallGate } from '@/mobile/use-paywall-gate.ts'
 import { useTaskCheckboxHaptics } from '@/mobile/use-task-haptics.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { RouterProvider } from '@/routing/router.tsx'
-import { useCoreServices } from '@/services/services-provider.tsx'
+import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * Mobile root component (Plan 19): the graph provider bootstraps the fixed
@@ -30,7 +30,7 @@ import { useCoreServices } from '@/services/services-provider.tsx'
  * checkbox-haptic listener mount here so they cover every screen's inputs.
  */
 export function MobileApp(): ReactElement {
-  const services = useCoreServices()
+  const { quitPolicy } = useAppServices()
   const { status, graph, error, needsOnboarding } = useGraph()
   const paywallGate = usePaywallGate()
   useKeyboardHeightVar()
@@ -44,8 +44,8 @@ export function MobileApp(): ReactElement {
   // (each flush is a no-op with nothing open) — the mobile leg of desktop's
   // quit-flush.
   useEffect(() => {
-    return services.persistenceFlush.installMobileBackgroundPolicy()
-  }, [services])
+    return quitPolicy.installMobileBackgroundPolicy()
+  }, [quitPolicy])
 
   // Subscription verification runs beside startup, never in its critical
   // path: while StoreKit or settings are unresolved the gate stays hidden and

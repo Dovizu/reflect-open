@@ -28,9 +28,9 @@ describe('useWakeToToday', () => {
     const view = await mountOn('2026-06-10')
     await expect.element(view.getByRole('status')).toMatchTextContent('daily:2026-06-10')
 
-    view.app.lifecycle.emitHidden()
+    view.app.activity.emitHidden()
     view.app.clock.setNow(new Date(2026, 5, 13, 8, 0, 0).getTime()) // overnight in the background
-    view.app.lifecycle.emitVisible()
+    view.app.activity.emitVisible()
 
     await expect.element(view.getByRole('status')).toMatchTextContent('today')
   })
@@ -38,9 +38,9 @@ describe('useWakeToToday', () => {
   it('stays put when the app foregrounds on the same date', async () => {
     const view = await mountOn('2026-06-10')
 
-    view.app.lifecycle.emitHidden()
+    view.app.activity.emitHidden()
     view.app.clock.setNow(new Date(2026, 5, 12, 23, 30, 0).getTime()) // later the same evening
-    view.app.lifecycle.emitVisible()
+    view.app.activity.emitVisible()
 
     await new Promise((resolve) => setTimeout(resolve, 50))
     await expect.element(view.getByRole('status')).toMatchTextContent('daily:2026-06-10')

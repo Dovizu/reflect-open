@@ -1,5 +1,5 @@
 import type { CoreServices } from '@reflect/core'
-import { createTestCoreServices } from '@reflect/core/testing'
+import { createTestCoreServices, type TestActivityPort } from '@reflect/core/testing'
 import { createAppServices, type AppHost, type AppServices } from '../create-app-services.ts'
 import { createTestClipboardService, type TestClipboardService } from './clipboard.ts'
 import { createTestNativeMenuHost } from './commands.ts'
@@ -8,23 +8,29 @@ import { createLinkNavigationService } from '../navigation/link-navigation-servi
 import { createTestExceptionTelemetry } from './exception-telemetry.ts'
 import { createDeepLinkRouter } from '../navigation/deep-link-router.ts'
 import { createTestNavigationService, type TestNavigationService } from './navigation.ts'
+import { createTestLifecycleService, type TestLifecycleService } from './lifecycle.ts'
 import { createTestUpdaterAdapter } from './update.ts'
 
 /**
  * {@link AppServices} where each service with a test double is that double.
  */
-export type TestAppServices = Omit<AppServices, 'navigation' | 'clipboard' | 'opener'> & {
+export type TestAppServices = Omit<
+  AppServices,
+  'navigation' | 'clipboard' | 'opener' | 'lifecycle'
+> & {
   readonly clipboard: TestClipboardService
   readonly opener: TestOpenerService
   readonly navigation: TestNavigationService
+  readonly lifecycle: TestLifecycleService
 }
 
 /**
- * A host of silent doubles: a recording clipboard and an opener that opens
- * nothing. `overrides` replace fields of the result.
+ * A host of silent doubles: a recording clipboard, an opener that opens
+ * nothing, and a test lifecycle. `overrides` replace fields of the result.
  */
 export function createTestAppHost(overrides: Partial<AppHost> = {}): AppHost {
   return {
+    lifecycle: createTestLifecycleService(),
     clipboard: createTestClipboardService(),
     opener: { openUrl: async () => {}, revealItemInDir: async () => {} },
     ...overrides,
@@ -43,6 +49,11 @@ export function createTestAppServices(
   const clipboard = overrides.clipboard ?? createTestClipboardService()
   const opener = overrides.opener ?? createTestOpenerService({ logger: core.logger })
   const navigation = overrides.navigation ?? createTestNavigationService()
+  // Over the core's test activity port, so one emit reaches both layers.
+  const activity = (core as { activity?: TestActivityPort }).activity
+  const lifecycle =
+    overrides.lifecycle ??
+    createTestLifecycleService(activity === undefined ? undefined : { activity })
   const deepLinkRouter =
     overrides.deepLinkRouter ??
     createDeepLinkRouter({
@@ -68,7 +79,7 @@ export function createTestAppServices(
     })
   return {
     ...createAppServices(core, {
-      ...createTestAppHost({ clipboard }),
+      ...createTestAppHost({ clipboard, lifecycle }),
       exceptionTelemetry: createTestExceptionTelemetry(),
       updater: createTestUpdaterAdapter(),
       nativeMenu: createTestNativeMenuHost(),
@@ -76,6 +87,7 @@ export function createTestAppServices(
     ...overrides,
     clipboard,
     opener,
+    lifecycle,
     navigation,
     deepLinkRouter,
     linkNavigation,

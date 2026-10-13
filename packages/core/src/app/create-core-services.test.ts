@@ -9,7 +9,7 @@ import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestCoreServices } from '../testing/services.ts'
-import { createTestDialogService } from '../testing/shell.ts'
+import { createTestActivityPort, createTestDialogService } from '../testing/shell.ts'
 import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import {
   composeCoreServices,
@@ -17,7 +17,6 @@ import {
   type CoreAdapters,
   type CoreServices,
 } from './create-core-services.ts'
-import { createDetachedLifecycleDom } from './lifecycle-service.ts'
 import { createPosixPathTransport } from './path-service.ts'
 import { createSingleWindowHost } from './window-service.ts'
 
@@ -32,7 +31,6 @@ const SERVICE_KEYS = [
   'dialog',
   'path',
   'window',
-  'lifecycle',
   'appInfo',
   'calendar',
   'contacts',
@@ -97,23 +95,21 @@ const SERVICE_KEYS = [
 function requiredAdapters(): CoreAdapters {
   const ipc = createTestIpcBridgeService({ commands: { app_version: () => '1.2.3' } })
   return {
-    ipc: ipc.transport,
+    ipc,
     platform: createTestPlatformService(),
     http: createTestHttpService(),
     storage: { local: null, session: null },
     dialog: createTestDialogService(),
     path: createPosixPathTransport('/home/test'),
     window: createSingleWindowHost(),
-    lifecycle: createDetachedLifecycleDom(),
+    activity: createTestActivityPort(),
+    logger: createTestLoggerService(),
+    clock: createTestClockService({ now: 5 }),
   }
 }
 
 function setup() {
-  const adapters: CoreAdapters = {
-    ...requiredAdapters(),
-    logger: createTestLoggerService(),
-    clock: createTestClockService({ now: 5 }),
-  }
+  const adapters = requiredAdapters()
   return { adapters, services: createCoreServices(adapters) }
 }
 
@@ -137,11 +133,9 @@ describe('createCoreServices', () => {
     expect(services.window.isMainWindow()).toBe(true)
   })
 
-  it('defaults the logger, clock, id, and hash', () => {
+  it('defaults the id and hash', () => {
     const services = createCoreServices(requiredAdapters())
-    expect(services.clock.now()).toBeGreaterThan(5)
     expect(services.id.noteId()).toMatch(/^[0-9a-z]{26}$/)
-    expect(typeof services.logger.warn).toBe('function')
   })
 
   it('composes the mobile services on mobile only', () => {
@@ -187,7 +181,7 @@ describe('createCoreServices', () => {
     })
     const { services, internal } = composeCoreServices({
       ...requiredAdapters(),
-      ipc: ipc.transport,
+      ipc,
       logger: createTestLoggerService(),
       clock: createTestClockService({ now: 5 }),
     })
@@ -205,7 +199,7 @@ describe('createCoreServices', () => {
     })
     const services = createCoreServices({
       ...requiredAdapters(),
-      ipc: ipc.transport,
+      ipc,
       logger: createTestLoggerService(),
     })
     await expect(services.indexQuery.randomNotePath()).resolves.toBe('notes/a.md')

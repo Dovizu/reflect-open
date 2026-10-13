@@ -208,7 +208,7 @@ ends without touching the network.)
 Editing makes suspension a data-loss class: saves debounce (800ms default) and
 iOS both suspends the process soon after backgrounding and may kill the
 WebContent process outright. Contract, extending the quit-flush trio
-(today `PersistenceFlushService.installDesktopQuitPolicy`) with a mobile leg:
+(today `QuitPolicyService.installDesktopQuitPolicy`) with a mobile leg:
 
 - **On background** (visibility/pause): flush open documents + settings, then
   a local commit (never a push — same as desktop quit; the next resume cycle

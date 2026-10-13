@@ -28,7 +28,7 @@ interface SetupOptions {
 function sessionDeps(
   app: TestCoreServices,
 ): Pick<GraphServicesDeps, 'backup' | 'icloudSync' | 'icloudDownload'> {
-  const { icloudNative, fileChanges, indexLifecycle, lifecycle, clock, logger } = app
+  const { icloudNative, fileChanges, indexLifecycle, activity, clock, logger } = app
   return {
     backup: {
       git: app.gitRepository,
@@ -38,7 +38,7 @@ function sessionDeps(
       fileChanges,
       indexLifecycle,
       operations: app.operations,
-      lifecycle,
+      activity,
       platform: app.platform,
       persistenceFlush: app.persistenceFlush,
       logger,
@@ -48,11 +48,11 @@ function sessionDeps(
       fileChanges,
       indexLifecycle,
       openDocuments: app.openDocuments,
-      lifecycle,
+      activity,
       clock,
       logger,
     },
-    icloudDownload: { icloudNative, lifecycle, clock, logger },
+    icloudDownload: { icloudNative, activity, clock, logger },
   }
 }
 

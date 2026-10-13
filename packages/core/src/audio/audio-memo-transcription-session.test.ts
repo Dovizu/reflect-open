@@ -92,7 +92,7 @@ describe('AudioMemoTranscriptionService.openSession', () => {
     subject.start()
     await flush()
 
-    kit.lifecycle.emitWake()
+    kit.activity.emitWake()
     kit.fileChanges.emit({
       changes: [{ path: MEMO.audioPath, kind: 'upsert' }],
       source: 'external',
@@ -115,7 +115,7 @@ describe('AudioMemoTranscriptionService.openSession', () => {
     // Three triggers while the pass runs — one follow-up, not three.
     subject.schedule()
     subject.schedule()
-    kit.lifecycle.emitWake()
+    kit.activity.emitWake()
     pending.resolve([])
     await flush()
 
@@ -128,7 +128,7 @@ describe('AudioMemoTranscriptionService.openSession', () => {
     await flush()
     expect(passes()).toBe(1)
 
-    kit.lifecycle.emitWake()
+    kit.activity.emitWake()
     await flush()
     expect(passes()).toBe(2)
 
@@ -158,12 +158,12 @@ describe('AudioMemoTranscriptionService.openSession', () => {
     await flush()
     expect(passes()).toBe(1)
 
-    kit.lifecycle.emitVisible()
+    kit.activity.emitVisible()
     await flush()
     expect(passes()).toBe(2)
 
     subject.dispose()
-    kit.lifecycle.emitVisible()
+    kit.activity.emitVisible()
     await flush()
     expect(passes()).toBe(2) // listener removed on dispose
   })
@@ -200,7 +200,7 @@ describe('AudioMemoTranscriptionService.openSession', () => {
       message: 'openai rejected the API key (401)',
     })
 
-    kit.lifecycle.emitWake()
+    kit.activity.emitWake()
     await flush()
     expect(kit.transcription.calls()).toHaveLength(2)
     expect(kit.operations.getAll()).toHaveLength(1)
@@ -230,7 +230,7 @@ describe('AudioMemoTranscriptionService.openSession', () => {
     expect(kit.fileChanges.listenerCount().changes).toBe(0)
     expect(staleGate?.()).toBe(true)
 
-    kit.lifecycle.emitWake()
+    kit.activity.emitWake()
     kit.fileChanges.emit({
       changes: [{ path: MEMO.audioPath, kind: 'upsert' }],
       source: 'external',

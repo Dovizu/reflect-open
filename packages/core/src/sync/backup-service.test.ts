@@ -12,7 +12,7 @@ import {
 } from '../testing/persistence-flush.ts'
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestSecretStoreService } from '../testing/secrets.ts'
-import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
+import { createTestActivityPort, type TestActivityPort } from '../testing/shell.ts'
 import { createTestGitRepositoryService, createTestGithubAuthService } from '../testing/sync.ts'
 import { createSyncEngineFactory } from './engine.ts'
 import { createGithubRepoService } from './github-repo-service.ts'
@@ -31,7 +31,7 @@ import type {
 
 let http: TestHttpService
 let clock: TestClockService
-let lifecycle: TestLifecycleService
+let activity: TestActivityPort
 let logger: TestLoggerService
 let fileChanges: TestFileChangeService
 let persistenceFlush: TestPersistenceFlushService
@@ -40,7 +40,7 @@ let backupDeps: BackupServiceDeps
 beforeEach(() => {
   http = createTestHttpService()
   clock = createTestClockService()
-  lifecycle = createTestLifecycleService()
+  activity = createTestActivityPort()
   logger = createTestLoggerService()
   fileChanges = createTestFileChangeService()
   persistenceFlush = createTestPersistenceFlushService()
@@ -245,7 +245,7 @@ function fakeServices(options: FakeOptions = {}) {
       },
     },
     operations: createTestOperationsService(clock),
-    lifecycle,
+    activity,
     platform: createTestPlatformService({ surface: { mobileApp: options.mobile ?? false } }),
     persistenceFlush,
     logger,
@@ -404,7 +404,7 @@ describe('createBackupService', () => {
     await vi.waitFor(() => {
       expect(commitCount(calls)).toBe(1)
     })
-    lifecycle.emitResume()
+    activity.emitResume()
     await flush()
     expect(commitCount(calls)).toBe(1)
     expect(calls).not.toContain('fetch')
@@ -773,7 +773,7 @@ describe('createBackupService', () => {
       })
       const before = commitCount(calls)
 
-      lifecycle.setHidden(true)
+      activity.setHidden(true)
       await persistenceFlush.flushAll()
       expect(commitCount(calls)).toBe(before + 1)
     } finally {
@@ -790,7 +790,7 @@ describe('createBackupService', () => {
         expect(commitCount(calls)).toBe(1) // the launch pull's commit
       })
 
-      lifecycle.emitResume()
+      activity.emitResume()
       await vi.waitFor(() => {
         expect(commitCount(calls)).toBe(2)
       })
@@ -808,21 +808,21 @@ describe('createBackupService', () => {
     })
 
     backup.dispose()
-    lifecycle.emitResume()
+    activity.emitResume()
     await flush()
     expect(commitCount(calls)).toBe(1)
   })
 
   it('going hidden does not trigger a cycle (backgrounding is the flush path)', async () => {
     const { calls } = fakeServices()
-    lifecycle.setHidden(true)
+    activity.setHidden(true)
     const backup = createBackup({ indexGeneration: 1 })
     await backup.start()
     await vi.waitFor(() => {
       expect(calls.filter((command) => command === 'commitAll')).toHaveLength(1)
     })
 
-    lifecycle.emitHidden()
+    activity.emitHidden()
     await flush()
     expect(calls.filter((command) => command === 'commitAll')).toHaveLength(1)
 
@@ -831,7 +831,7 @@ describe('createBackupService', () => {
 
   it('defers mobile launch, online, and debounce cycles until foreground', async () => {
     const { calls } = fakeServices({ mobile: true })
-    lifecycle.setHidden(true)
+    activity.setHidden(true)
     const backup = createBackup({ indexGeneration: 1 })
     try {
       await backup.start()
@@ -842,19 +842,19 @@ describe('createBackupService', () => {
       expect(calls).not.toContain('commitAll')
       expect(calls).not.toContain('fetch')
 
-      lifecycle.emitVisible()
-      lifecycle.emitResume()
+      activity.emitVisible()
+      activity.emitResume()
       await vi.waitFor(() => {
         expect(calls.filter((command) => command === 'commitAll')).toHaveLength(1)
         expect(calls.filter((command) => command === 'fetch')).toHaveLength(1)
       })
 
-      lifecycle.emitHidden()
+      activity.emitHidden()
       fileChanges.emit({
         changes: [{ path: 'notes/edited.md', kind: 'upsert', modifiedMs: 1 }],
         source: 'external',
       })
-      lifecycle.emitResume() // the network came back while hidden
+      activity.emitResume() // the network came back while hidden
       await advance(10_000)
 
       // Both the immediate online trigger and the edit's 10s mobile debounce
@@ -862,8 +862,8 @@ describe('createBackupService', () => {
       expect(calls.filter((command) => command === 'commitAll')).toHaveLength(1)
       expect(calls.filter((command) => command === 'fetch')).toHaveLength(1)
 
-      lifecycle.emitVisible()
-      lifecycle.emitResume()
+      activity.emitVisible()
+      activity.emitResume()
       await flush()
       expect(calls.filter((command) => command === 'commitAll')).toHaveLength(2)
       // Foreground replay is full, so it fetches rather than merely pushing
@@ -1099,7 +1099,7 @@ describe('createBackupService', () => {
         changedFiles: [{ path: 'notes/from-remote.md', kind: 'upsert', modifiedMs: 123 }],
       },
     })
-    lifecycle.setHidden(true)
+    activity.setHidden(true)
     const backup = createBackup({ indexGeneration: 1 })
     await backup.start()
     await flush()
@@ -1128,7 +1128,7 @@ describe('createBackupService', () => {
       expect(calls).toContain('mergeRemote')
     })
 
-    lifecycle.setHidden(true)
+    activity.setHidden(true)
     releaseMerge()
     await vi.waitFor(() => {
       expect(batches).toHaveLength(1) // the landed merge still fans out

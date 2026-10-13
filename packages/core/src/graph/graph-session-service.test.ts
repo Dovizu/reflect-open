@@ -14,7 +14,7 @@ import { createTestPlatformService, type TestPlatformOptions } from '../testing/
 import { createTestICloudNativeService } from '../testing/sync.ts'
 import {
   createTestDialogService,
-  createTestLifecycleService,
+  createTestActivityPort,
   createTestWindowService,
 } from '../testing/shell.ts'
 import type { GraphReleaseReason, GraphSessionState } from './graph-session-service.ts'
@@ -111,7 +111,7 @@ function setup(options?: SetupOptions) {
     ...(options?.bootstrap === undefined ? {} : { bootstrap: options.bootstrap }),
   })
   const dialog = createTestDialogService()
-  const lifecycle = createTestLifecycleService({ hidden: options?.hidden ?? false })
+  const activity = createTestActivityPort({ hidden: options?.hidden ?? false })
   const mobileStorage = createTestMobileStorageService()
   const noteRows = createNoteRowService({
     graphSession: {
@@ -133,7 +133,7 @@ function setup(options?: SetupOptions) {
     dialog,
     path: createPathService({ transport: createPosixPathTransport('/Users/me') }),
     platform: createTestPlatformService(options?.platform),
-    lifecycle,
+    activity,
     mobileStorage,
     noteRows,
     openDocuments: {
@@ -177,7 +177,7 @@ function setup(options?: SetupOptions) {
     fileChanges,
     windowService,
     dialog,
-    lifecycle,
+    activity,
     mobileStorage,
     noteRows,
     icloudNative,
@@ -757,7 +757,7 @@ describe('GraphSessionService mobile suspension', () => {
 
     // Resume performs a full sync, which catches files and local events the
     // intentionally absent live subscription could not observe while hidden.
-    context.lifecycle.emitVisible()
+    context.activity.emitVisible()
     await expect.poll(() => passes(context)).toBe(1)
   })
 
@@ -768,7 +768,7 @@ describe('GraphSessionService mobile suspension', () => {
 
     // The app foregrounds while onboarding still has no graph/index. This
     // must clear the sticky suspension even though there is nothing to sync.
-    context.lifecycle.emitVisible()
+    context.activity.emitVisible()
     await settleIndex(context)
     expect(passes(context)).toBe(0)
 
@@ -783,7 +783,7 @@ describe('GraphSessionService mobile suspension', () => {
     await context.session.openRecent('/Documents')
     await expect.poll(() => context.fileChanges.listenerCount().changes).toBe(1)
 
-    context.lifecycle.emitHidden()
+    context.activity.emitHidden()
 
     expect(context.fileChanges.listenerCount().changes).toBe(0)
     context.session.refreshIndex()
@@ -795,7 +795,7 @@ describe('GraphSessionService mobile suspension', () => {
     const context = await bootDesktop({ hidden: true })
     await context.session.openRecent('/a')
     await expect.poll(() => passes(context)).toBe(1)
-    context.lifecycle.emitHidden()
+    context.activity.emitHidden()
     await settleIndex(context)
     expect(context.fileChanges.listenerCount().changes).toBe(1)
   })
@@ -804,7 +804,7 @@ describe('GraphSessionService mobile suspension', () => {
     const context = setup({ platform: ios })
     const stop = context.session.boot()
     stop()
-    context.lifecycle.setHidden(true)
+    context.activity.setHidden(true)
 
     context.indexLifecycle.sync(
       createGraphSession({ root: '/a', name: 'a', generation: 1, indexGeneration: 1 }),

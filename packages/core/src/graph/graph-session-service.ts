@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { DialogService } from '../app/dialog-service.ts'
 import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
 import type { IdService } from '../app/id-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PathService } from '../app/path-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
@@ -167,7 +167,7 @@ export interface GraphSessionServiceDeps<Services = unknown> {
   readonly dialog: Pick<DialogService, 'pickFolder'>
   readonly path: Pick<PathService, 'icloudDriveRoot'>
   readonly platform: Pick<PlatformFacts, 'appPlatform' | 'isMacosDesktop'>
-  readonly lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeHidden' | 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'isHidden' | 'subscribeHidden' | 'subscribeVisible'>
   readonly mobileStorage: Pick<MobileStorageService, 'createGraph'>
   readonly noteRows: Pick<NoteRowService, 'reset'>
   readonly openDocuments: Pick<OpenDocumentsService, 'reloadAll'>
@@ -250,11 +250,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     }
     const indexGenerationChanged = next.indexGeneration !== this.#state.indexGeneration
     this.#state = next
-    if (
-      indexGenerationChanged &&
-      this.#suspensionFollowers > 0 &&
-      this.#deps.lifecycle.isHidden()
-    ) {
+    if (indexGenerationChanged && this.#suspensionFollowers > 0 && this.#deps.activity.isHidden()) {
       this.#deps.indexLifecycle.suspend()
     }
     for (const listener of this.#listeners) {
@@ -600,15 +596,15 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
       return () => {}
     }
     this.#suspensionFollowers += 1
-    if (this.#deps.lifecycle.isHidden()) {
+    if (this.#deps.activity.isHidden()) {
       this.#deps.indexLifecycle.suspend()
     }
     // Synchronous teardown prevents a locally emitted or metadata-watcher
     // batch from entering the index queue after iOS begins suspension.
-    const stopHidden = this.#deps.lifecycle.subscribeHidden(() => {
+    const stopHidden = this.#deps.activity.subscribeHidden(() => {
       this.#deps.indexLifecycle.suspend()
     })
-    const stopVisible = this.#deps.lifecycle.subscribeVisible(() => {
+    const stopVisible = this.#deps.activity.subscribeVisible(() => {
       // A null session still clears suspension: mobile can foreground
       // before onboarding/open has produced an index session. With a session,
       // the full pass recovers every event missed while hidden; stacked
@@ -628,7 +624,7 @@ class GraphSessionServiceImpl<Services = unknown> implements GraphSessionService
     // also closes the launch race where the first sync is scheduled after iOS
     // has already hidden the webview.
     this.#deps.indexLifecycle.setSuspendGuard(
-      () => this.#isMobile() && this.#deps.lifecycle.isHidden(),
+      () => this.#isMobile() && this.#deps.activity.isHidden(),
     )
     const unlisteners = [
       this.#deps.indexLifecycle.onProgress((progress) => {

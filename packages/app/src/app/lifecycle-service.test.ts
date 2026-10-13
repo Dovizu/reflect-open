@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createTestClockService } from '../testing/clock.ts'
-import { createTestIpcBridgeService } from '../testing/ipc.ts'
-import { createTestLoggerService } from '../testing/logger.ts'
+import {
+  createTestClockService,
+  createTestIpcBridgeService,
+  createTestLoggerService,
+} from '@reflect/core/testing'
 import {
   createLifecycleService,
   RESUME_THROTTLE_MS,

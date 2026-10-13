@@ -9,7 +9,7 @@ import { createTestLoggerService, type TestLoggerService } from '../testing/logg
 import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestWebAuthService, type TestWebAuthService } from '../testing/plugins.ts'
 import { createTestSecretStoreService, type TestSecretStoreService } from '../testing/secrets.ts'
-import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
+import { createTestActivityPort, type TestActivityPort } from '../testing/shell.ts'
 import {
   CLASSIC_ACCESS_SECRET,
   classicAccessUntil,
@@ -74,10 +74,10 @@ let clock: TestClockService
 let http: TestHttpService
 let secrets: TestSecretStoreService
 let webAuth: TestWebAuthService
-let lifecycle: TestLifecycleService
+let activity: TestActivityPort
 
 beforeEach(() => {
-  lifecycle = createTestLifecycleService()
+  activity = createTestActivityPort()
   logger = createTestLoggerService()
   clock = createTestClockService({ now: NOW })
   http = createTestHttpService()
@@ -117,7 +117,7 @@ function service(options?: {
       : webAuth,
     clock,
     id: options?.id ?? createTestIdService(),
-    lifecycle,
+    activity,
     platform: createTestPlatformService({ appPlatform: options?.appPlatform ?? 'ios' }),
     logger,
   })
@@ -550,7 +550,7 @@ describe('start', () => {
     expect(classic.getState().access?.checkedAt).toBe(NOW)
 
     await clock.advance(DAY_MS)
-    lifecycle.emitVisible()
+    activity.emitVisible()
     await vi.waitFor(() => expect(paths()).toEqual(['/api/users/me', '/api/users/me']))
   })
 
@@ -561,7 +561,7 @@ describe('start', () => {
     classic.start()
     await vi.waitFor(() => expect(classic.getState().isLoading).toBe(false))
     const reads = vi.spyOn(secrets, 'get')
-    lifecycle.emitVisible()
+    activity.emitVisible()
 
     expect(reads).not.toHaveBeenCalled()
   })
@@ -575,7 +575,7 @@ describe('start', () => {
 
     await classic.signOut()
     const reads = vi.spyOn(secrets, 'get')
-    lifecycle.emitVisible()
+    activity.emitVisible()
 
     expect(reads).not.toHaveBeenCalled()
   })
@@ -589,7 +589,7 @@ describe('start', () => {
 
     stop()
     const reads = vi.spyOn(secrets, 'get')
-    lifecycle.emitVisible()
+    activity.emitVisible()
 
     expect(reads).not.toHaveBeenCalled()
   })
@@ -612,7 +612,7 @@ describe('start', () => {
     const classic = service({ appPlatform: 'desktop' })
 
     classic.start()
-    lifecycle.emitVisible()
+    activity.emitVisible()
 
     expect(reads).not.toHaveBeenCalled()
   })

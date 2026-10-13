@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import type { CalendarEvent, CalendarInfo } from '@reflect/core'
 import {
   createTestCalendarService,
-  createTestLifecycleService,
   createTestLoggerService,
   createTestPlatformService,
   createTestSettingsService,
 } from '@reflect/core/testing'
+import { createTestLifecycleService } from '../testing/lifecycle.ts'
 import {
   countSelectedCalendars,
   createCalendarEventsService,

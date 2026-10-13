@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import { createTestClockService, type TestClockService } from '../testing/clock.ts'
 import { createTestLoggerService, type TestLoggerService } from '../testing/logger.ts'
-import { createTestLifecycleService, type TestLifecycleService } from '../testing/shell.ts'
+import { createTestActivityPort, type TestActivityPort } from '../testing/shell.ts'
 import { createTestICloudNativeService, type TestICloudNativeService } from '../testing/sync.ts'
 import {
   createICloudDownloadService,
@@ -12,7 +12,7 @@ import {
 const ROOT = '/iCloud/Documents'
 
 let clock: TestClockService
-let lifecycle: TestLifecycleService
+let activity: TestActivityPort
 let logger: TestLoggerService
 let icloud: TestICloudNativeService
 let refreshIndex: ReturnType<typeof vi.fn<() => void>>
@@ -20,7 +20,7 @@ let active: ICloudDownloadService | null = null
 
 beforeEach(() => {
   clock = createTestClockService({ now: Date.UTC(2026, 6, 4) })
-  lifecycle = createTestLifecycleService()
+  activity = createTestActivityPort()
   logger = createTestLoggerService()
   icloud = createTestICloudNativeService()
   refreshIndex = vi.fn<() => void>()
@@ -33,7 +33,7 @@ afterEach(() => {
 
 function start(native: TestICloudNativeService = icloud): ICloudDownloadService {
   active = createICloudDownloadService(
-    { icloudNative: native, lifecycle, clock, logger },
+    { icloudNative: native, activity, clock, logger },
     { root: ROOT, refreshIndex },
   )
   active.start()
@@ -73,8 +73,8 @@ async function flush(): Promise<void> {
  * WKWebView fires `visibilitychange` and `focus` together on resume.
  */
 function resumeBurst(): void {
-  lifecycle.emitVisible()
-  lifecycle.emitFocus()
+  activity.emitVisible()
+  activity.emitFocus()
 }
 
 describe('createICloudDownloadService', () => {
@@ -157,14 +157,14 @@ describe('createICloudDownloadService', () => {
     await flush()
     expect(downloadCalls()).toBe(1)
 
-    lifecycle.setHidden(true)
+    activity.setHidden(true)
     await clock.advance(1000)
     expect(countCalls()).toBe(0) // the armed tick bailed hidden
 
     await clock.advance(60_000)
     expect(countCalls()).toBe(0) // and nothing re-armed behind the webview
 
-    lifecycle.emitVisible()
+    activity.emitVisible()
     await flush()
     expect(downloadCalls()).toBe(2) // the resume renudges...
     await clock.advance(1000)
@@ -178,14 +178,14 @@ describe('createICloudDownloadService', () => {
     expect(downloadCalls()).toBe(1)
 
     // Hide and let the armed tick bail — the poll is now abandoned…
-    lifecycle.setHidden(true)
+    activity.setHidden(true)
     await clock.advance(1000)
     expect(countCalls()).toBe(0)
 
     // …and a return to visible only 200ms later (inside the 1.5s resume
     // dedupe) must not be swallowed, or nothing would be scheduled at all.
     await clock.advance(200)
-    lifecycle.emitVisible()
+    activity.emitVisible()
     await flush()
     expect(downloadCalls()).toBe(2)
     await clock.advance(1000)

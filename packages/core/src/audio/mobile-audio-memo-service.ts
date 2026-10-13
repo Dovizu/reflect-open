@@ -1,6 +1,6 @@
 import { AUDIO_MEMO_REMINDER_MS, AUDIO_MEMO_SEGMENT_MS } from './audio-memo-session.ts'
 import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import { errorMessage } from '../errors.ts'
@@ -60,7 +60,7 @@ export interface MobileAudioMemoServiceDeps {
   readonly audioMemo: Pick<AudioMemoService, 'openPipeline'>
   readonly audioRecorder: AudioRecorderService
   readonly nativeAction: NativeActionService
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly haptics: Pick<HapticsService, 'impactLight'>
   readonly platform: Pick<PlatformFacts, 'isNativeShell'>
   readonly logger: Pick<LoggerService, 'error' | 'warn'>
@@ -231,7 +231,7 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
   #state: MobileAudioMemoSessionState
 
   constructor(deps: MobileAudioMemoServiceDeps) {
-    const { audioMemo, audioRecorder, nativeAction, lifecycle, platform } = deps
+    const { audioMemo, audioRecorder, nativeAction, activity, platform } = deps
     this.#deps = deps
     // The pump consults the drawer the instant a capture fails.
     this.#pipeline = audioMemo.openPipeline({
@@ -279,7 +279,7 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
     ]
     if (platform.isNativeShell) {
       void this.#scan()
-      this.#unlisten.push(lifecycle.subscribeVisible(() => void this.#scan()))
+      this.#unlisten.push(activity.subscribeVisible(() => void this.#scan()))
     }
   }
 

@@ -14,6 +14,11 @@ export { createTestClipboardService, type TestClipboardService } from './clipboa
 export { createTestOpenerService, type TestOpenerService } from './opener.ts'
 export { createTestAppHost, createTestAppServices, type TestAppServices } from './services.ts'
 export {
+  createTestLifecycleService,
+  type TestLifecycleService,
+  type TestLifecycleServiceOptions,
+} from './lifecycle.ts'
+export {
   createTestExceptionTelemetry,
   type ExceptionReport,
   type ExceptionReportSource,

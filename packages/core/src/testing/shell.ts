@@ -1,5 +1,5 @@
 import type { DialogService, PickFilesOptions, PickFolderOptions } from '../app/dialog-service.ts'
-import type { AppLifecycleService, BackgroundTaskToken } from '../app/lifecycle-service.ts'
+import type { ActivityPort, BackgroundTaskToken } from '../app/ports.ts'
 import {
   MAIN_WINDOW_LABEL,
   type CloseRequestedHandler,
@@ -268,43 +268,35 @@ export function createTestWindowService(options?: TestWindowServiceOptions): Tes
   return new TestWindowServiceImpl(options)
 }
 
-export interface TestLifecycleService extends AppLifecycleService {
+export interface TestActivityPort extends ActivityPort {
   emitResume(): void
   emitWake(): void
   emitFocus(): void
   emitVisible(): void
   emitHidden(): void
-  emitPageHide(): void
-  emitBeforeUnload(): void
-  emitQuitRequested(): void
   setHidden(hidden: boolean): void
-  confirmQuitCalls(): number
   /**
    * Every background task begun, in order.
    */
   backgroundTasks(): readonly { token: BackgroundTaskToken; ended: boolean }[]
 }
 
-interface TestLifecycleServiceOptions {
+export interface TestActivityPortOptions {
   hidden?: boolean
   backgroundTasks?: boolean
 }
 
-class TestLifecycleServiceImpl implements TestLifecycleService {
-  readonly #options: TestLifecycleServiceOptions | undefined
+class TestActivityPortImpl implements TestActivityPort {
+  readonly #options: TestActivityPortOptions | undefined
   readonly #resume = new Listeners()
   readonly #wake = new Listeners()
   readonly #focus = new Listeners()
   readonly #visible = new Listeners()
   readonly #hiddenListeners = new Listeners()
-  readonly #pageHide = new Listeners()
-  readonly #beforeUnload = new Listeners()
-  readonly #quitRequested = new Listeners()
   readonly #tasks: { token: BackgroundTaskToken; ended: boolean }[] = []
   #isHidden: boolean
-  #confirmCalls = 0
 
-  constructor(options: TestLifecycleServiceOptions | undefined) {
+  constructor(options: TestActivityPortOptions | undefined) {
     this.#options = options
     this.#isHidden = options?.hidden ?? false
   }
@@ -329,24 +321,8 @@ class TestLifecycleServiceImpl implements TestLifecycleService {
     return this.#hiddenListeners.add(listener)
   }
 
-  subscribePageHide(listener: () => void): Unlisten {
-    return this.#pageHide.add(listener)
-  }
-
-  subscribeBeforeUnload(listener: () => void): Unlisten {
-    return this.#beforeUnload.add(listener)
-  }
-
   isHidden(): boolean {
     return this.#isHidden
-  }
-
-  subscribeQuitRequested(listener: () => void): Unlisten {
-    return this.#quitRequested.add(listener)
-  }
-
-  async confirmQuit(): Promise<void> {
-    this.#confirmCalls += 1
   }
 
   async beginBackgroundTask(): Promise<BackgroundTaskToken | null> {
@@ -387,24 +363,8 @@ class TestLifecycleServiceImpl implements TestLifecycleService {
     this.#hiddenListeners.emit()
   }
 
-  emitPageHide(): void {
-    this.#pageHide.emit()
-  }
-
-  emitBeforeUnload(): void {
-    this.#beforeUnload.emit()
-  }
-
-  emitQuitRequested(): void {
-    this.#quitRequested.emit()
-  }
-
   setHidden(hidden: boolean): void {
     this.#isHidden = hidden
-  }
-
-  confirmQuitCalls(): number {
-    return this.#confirmCalls
   }
 
   backgroundTasks(): readonly { token: BackgroundTaskToken; ended: boolean }[] {
@@ -413,12 +373,10 @@ class TestLifecycleServiceImpl implements TestLifecycleService {
 }
 
 /**
- * An {@link AppLifecycleService} driven by its `emit*` methods. `emitVisible`
- * and `emitHidden` also update {@link AppLifecycleService.isHidden}. Without
+ * An {@link ActivityPort} driven by its `emit*` methods. `emitVisible` and
+ * `emitHidden` also update {@link ActivityPort.isHidden}. Without
  * `backgroundTasks`, `beginBackgroundTask` resolves `null`.
  */
-export function createTestLifecycleService(
-  options?: TestLifecycleServiceOptions,
-): TestLifecycleService {
-  return new TestLifecycleServiceImpl(options)
+export function createTestActivityPort(options?: TestActivityPortOptions): TestActivityPort {
+  return new TestActivityPortImpl(options)
 }

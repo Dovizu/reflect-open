@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
-import { createTestLifecycleService } from '../testing/shell.ts'
+import { createTestActivityPort } from '../testing/shell.ts'
 import { createDailyNoteService, type DailyNoteService } from './daily-note-service.ts'
 
 function createTestDailyNoteService(
@@ -10,7 +10,7 @@ function createTestDailyNoteService(
   return createDailyNoteService({
     database: deps?.database ?? createTestDatabaseService(),
     clock: deps?.clock ?? createTestClockService(),
-    lifecycle: deps?.lifecycle ?? createTestLifecycleService(),
+    activity: deps?.activity ?? createTestActivityPort(),
   })
 }
 
@@ -99,69 +99,69 @@ describe('subscribeWakeOnNewDay', () => {
 
   function setup() {
     const clock = createTestClockService({ now: evening })
-    const lifecycle = createTestLifecycleService()
-    const dailyNotes = createTestDailyNoteService({ clock, lifecycle })
+    const activity = createTestActivityPort()
+    const dailyNotes = createTestDailyNoteService({ clock, activity })
     const days: string[] = []
     const unsubscribe = dailyNotes.subscribeWakeOnNewDay((today) => {
       days.push(today)
     })
-    return { clock, lifecycle, days, unsubscribe }
+    return { clock, activity, days, unsubscribe }
   }
 
   it('reports today when the app foregrounds on a new date', () => {
-    const { clock, lifecycle, days } = setup()
-    lifecycle.emitHidden()
+    const { clock, activity, days } = setup()
+    activity.emitHidden()
     clock.setNow(new Date(2026, 5, 13, 8, 0, 0).getTime())
-    lifecycle.emitVisible()
+    activity.emitVisible()
     expect(days).toEqual(['2026-06-13'])
   })
 
   it('stays quiet when the app foregrounds on the same date', () => {
-    const { clock, lifecycle, days } = setup()
-    lifecycle.emitHidden()
+    const { clock, activity, days } = setup()
+    activity.emitHidden()
     clock.setNow(new Date(2026, 5, 12, 23, 30, 0).getTime())
-    lifecycle.emitVisible()
+    activity.emitVisible()
     expect(days).toEqual([])
   })
 
   it('counts from the date the app was hidden on, not the date it subscribed on', () => {
-    const { clock, lifecycle, days } = setup()
+    const { clock, activity, days } = setup()
     // Left open across midnight: the clock's own rollover covers this day.
     clock.setNow(new Date(2026, 5, 13, 8, 0, 0).getTime())
-    lifecycle.emitHidden()
-    lifecycle.emitVisible()
+    activity.emitHidden()
+    activity.emitVisible()
     expect(days).toEqual([])
   })
 
   it('reports each new day once', () => {
-    const { clock, lifecycle, days } = setup()
-    lifecycle.emitHidden()
+    const { clock, activity, days } = setup()
+    activity.emitHidden()
     clock.setNow(new Date(2026, 5, 13, 8, 0, 0).getTime())
-    lifecycle.emitVisible()
-    lifecycle.emitVisible()
+    activity.emitVisible()
+    activity.emitVisible()
     expect(days).toEqual(['2026-06-13'])
   })
 
   it('reads the wall clock, so a stale cached `today()` cannot hide the new day', () => {
     const clock = createTestClockService({ now: evening, today: '2026-06-12' })
-    const lifecycle = createTestLifecycleService()
-    const dailyNotes = createTestDailyNoteService({ clock, lifecycle })
+    const activity = createTestActivityPort()
+    const dailyNotes = createTestDailyNoteService({ clock, activity })
     const days: string[] = []
     dailyNotes.subscribeWakeOnNewDay((today) => {
       days.push(today)
     })
-    lifecycle.emitHidden()
+    activity.emitHidden()
     clock.setNow(new Date(2026, 5, 13, 8, 0, 0).getTime())
-    lifecycle.emitVisible()
+    activity.emitVisible()
     expect(days).toEqual(['2026-06-13'])
   })
 
   it('stops after unsubscribing', () => {
-    const { clock, lifecycle, days, unsubscribe } = setup()
+    const { clock, activity, days, unsubscribe } = setup()
     unsubscribe()
-    lifecycle.emitHidden()
+    activity.emitHidden()
     clock.setNow(new Date(2026, 5, 13, 8, 0, 0).getTime())
-    lifecycle.emitVisible()
+    activity.emitVisible()
     expect(days).toEqual([])
   })
 })

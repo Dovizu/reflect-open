@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HttpService } from '../app/http-service.ts'
 import type { IdService } from '../app/id-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import { ReflectError } from '../errors.ts'
@@ -86,7 +86,7 @@ export interface ClassicAccessServiceDeps {
   readonly webAuth: WebAuthService
   readonly clock: ClockService
   readonly id: IdService
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly platform: Pick<PlatformFacts, 'appPlatform'>
   readonly logger: LoggerService
 }
@@ -248,7 +248,7 @@ class ClassicAccessServiceImpl implements ClassicAccessService {
   }
 
   start(): Unlisten {
-    const { lifecycle, platform, logger } = this.#deps
+    const { activity, platform, logger } = this.#deps
     if (platform.appPlatform !== 'ios') return () => {}
     this.read().catch((error: unknown) => {
       logger.error('Reading the Reflect Classic access failed', error)
@@ -263,7 +263,7 @@ class ClassicAccessServiceImpl implements ClassicAccessService {
           })
         }
         recheckNow()
-        stopRechecks = lifecycle.subscribeVisible(recheckNow)
+        stopRechecks = activity.subscribeVisible(recheckNow)
       } else if (!hasToken && stopRechecks !== null) {
         stopRechecks()
         stopRechecks = null

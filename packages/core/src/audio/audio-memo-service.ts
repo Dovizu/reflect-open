@@ -11,7 +11,7 @@ import type { TranscriptionService } from '../ai/transcription-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
 import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
@@ -311,7 +311,7 @@ export interface AudioMemoServiceDeps {
   readonly aiCredentials: Pick<AiCredentialService, 'read' | 'createPassReader'>
   readonly audioRecorder: AudioRecorderService
   readonly reconcilers: BackgroundReconcilerFactory
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'subscribeVisible'>
   readonly fileChanges: Pick<FileChangeService, 'subscribe'>
   readonly settings: Pick<SettingsService, 'get'>
   readonly operations: Pick<OperationsService, 'start'>
@@ -941,7 +941,7 @@ class AudioMemoServiceImpl implements AudioMemoService {
       aiCredentials: deps.aiCredentials,
       settings: deps.settings,
       reconcilers: deps.reconcilers,
-      lifecycle: deps.lifecycle,
+      activity: deps.activity,
       fileChanges: deps.fileChanges,
       operations: deps.operations,
       clock: deps.clock,

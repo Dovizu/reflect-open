@@ -1,5 +1,5 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
@@ -137,7 +137,7 @@ export interface MobileOnboardingServiceDeps {
   readonly graphSession: Pick<GraphSessionService, 'openRecent' | 'park'>
   readonly platform: Pick<PlatformFacts, 'appPlatform'>
   readonly clock: Pick<ClockService, 'setTimeout' | 'clearTimeout'>
-  readonly lifecycle: Pick<AppLifecycleService, 'subscribeFocus' | 'subscribeVisible'>
+  readonly activity: Pick<ActivityPort, 'subscribeFocus' | 'subscribeVisible'>
   readonly logger: LoggerService
 }
 
@@ -190,7 +190,7 @@ class MobileOnboardingServiceImpl implements MobileOnboardingService {
       graphSession,
       platform,
       clock,
-      lifecycle,
+      activity,
       logger,
     } = this.#deps
     if (!isMobilePlatform(platform.appPlatform)) {
@@ -232,8 +232,8 @@ class MobileOnboardingServiceImpl implements MobileOnboardingService {
           run(() => settingsService.reload())
         }
       }
-      const removeFocus = lifecycle.subscribeFocus(retry)
-      const removeVisible = lifecycle.subscribeVisible(retry)
+      const removeFocus = activity.subscribeFocus(retry)
+      const removeVisible = activity.subscribeVisible(retry)
       removeSettingsRetry = () => {
         removeFocus()
         removeVisible()

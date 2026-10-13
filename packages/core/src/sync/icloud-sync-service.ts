@@ -1,5 +1,5 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
 import { isNotePath } from '../graph/paths.ts'
@@ -85,7 +85,7 @@ export interface ICloudSyncServiceDeps {
    * Notes with unsaved edits; their conflicts defer to the next sweep.
    */
   readonly openDocuments: Pick<OpenDocumentsService, 'dirtyPaths'>
-  readonly lifecycle: Pick<AppLifecycleService, 'isHidden' | 'subscribeResume'>
+  readonly activity: Pick<ActivityPort, 'isHidden' | 'subscribeResume'>
   readonly clock: ClockService
   readonly logger: LoggerService
 }
@@ -182,7 +182,7 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
   }
 
   async start(): Promise<void> {
-    const { icloudNative, fileChanges, lifecycle, clock, logger } = this.#deps
+    const { icloudNative, fileChanges, activity, clock, logger } = this.#deps
     const { root, metadataWatch } = this.#options
     if (this.#disposed) {
       return
@@ -260,7 +260,7 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
       logger.error('iCloud change subscriptions failed to start:', err)
     }
     this.#disposers.push(
-      lifecycle.subscribeResume(() => {
+      activity.subscribeResume(() => {
         if (metadataWatch) {
           void this.#restartWatch()
         }
@@ -290,9 +290,9 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
   }
 
   #scanSuspended(): boolean {
-    const { lifecycle } = this.#deps
+    const { activity } = this.#deps
     const { metadataWatch } = this.#options
-    return metadataWatch && lifecycle.isHidden()
+    return metadataWatch && activity.isHidden()
   }
 
   #scheduleScan(delayMs: number = SCAN_DEBOUNCE_MS, scope: IcloudSweepScope = 'full'): void {
@@ -404,7 +404,7 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
    * wait on the watcher to notice its own writes.
    */
   #applySweepChanges(changes: FileChange[]): void {
-    const { fileChanges, indexLifecycle, lifecycle, clock } = this.#deps
+    const { fileChanges, indexLifecycle, activity, clock } = this.#deps
     const { indexGeneration, metadataWatch } = this.#options
     // Sweep rewrites ARE this device's writes, but they don't route through
     // the note file service, so no own-write echo fires — and
@@ -428,7 +428,7 @@ class ICloudSyncServiceImpl implements ICloudSyncService {
       void indexLifecycle.applyChanges(
         indexable,
         indexGeneration,
-        () => !metadataWatch || !lifecycle.isHidden(),
+        () => !metadataWatch || !activity.isHidden(),
       )
     }
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createTestLifecycleService } from '../testing/shell.ts'
+import { createTestActivityPort } from '../testing/shell.ts'
 import {
   createBackgroundReconcilerFactory,
   type BackgroundReconciler,
@@ -16,9 +16,7 @@ async function tick(): Promise<void> {
 }
 
 function createBackgroundReconciler(options: BackgroundReconcilerOptions): BackgroundReconciler {
-  return createBackgroundReconcilerFactory({ lifecycle: createTestLifecycleService() }).create(
-    options,
-  )
+  return createBackgroundReconcilerFactory({ activity: createTestActivityPort() }).create(options)
 }
 
 describe('createBackgroundReconcilerFactory', () => {
@@ -117,25 +115,25 @@ describe('createBackgroundReconcilerFactory', () => {
   })
 
   it('retries on wake and stops listening on dispose', async () => {
-    const lifecycle = createTestLifecycleService()
+    const activity = createTestActivityPort()
     let calls = 0
-    const reconciler = createBackgroundReconcilerFactory({ lifecycle }).create({
+    const reconciler = createBackgroundReconcilerFactory({ activity }).create({
       pass: async () => {
         calls += 1
       },
     })
     reconciler.retryOnWake()
 
-    lifecycle.emitWake()
+    activity.emitWake()
     await tick()
     expect(calls).toBe(1)
 
-    lifecycle.emitWake()
+    activity.emitWake()
     await tick()
     expect(calls).toBe(2)
 
     reconciler.dispose()
-    lifecycle.emitWake()
+    activity.emitWake()
     await tick()
     expect(calls).toBe(2) // listener removed on dispose
   })

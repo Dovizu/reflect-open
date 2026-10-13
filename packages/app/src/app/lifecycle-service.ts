@@ -1,8 +1,14 @@
+import {
+  listenNow,
+  type ActivityPort,
+  type BackgroundTaskToken,
+  type ClockService,
+  type IpcBridgeService,
+  type LoggerService,
+  type TimerHandle,
+  type Unlisten,
+} from '@reflect/core'
 import { z } from 'zod'
-import { listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
-import type { Unlisten } from '../unlisten.ts'
-import type { ClockService, TimerHandle } from './clock-service.ts'
-import type { LoggerService } from './logger-service.ts'
 
 /**
  * The shell's notice that it deferred an app exit so the frontend can flush.
@@ -15,11 +21,6 @@ export const QUIT_REQUESTED_EVENT = 'app:quit-requested'
 export const RESUME_THROTTLE_MS = 1_500
 
 const backgroundTaskTokenSchema = z.string()
-
-/**
- * Opaque handle for one finite-length native background execution assertion.
- */
-export type BackgroundTaskToken = z.infer<typeof backgroundTaskTokenSchema>
 
 /**
  * The page events an {@link AppLifecycleService} observes.
@@ -44,24 +45,9 @@ export interface LifecycleDomAdapter {
 /**
  * Application lifecycle signals and the shell's quit and background-task handshakes.
  */
-export interface AppLifecycleService {
-  /**
-   * Window focus, network back, or the page turning visible; throttled per subscription.
-   */
-  subscribeResume(listener: () => void): Unlisten
-  /**
-   * Window focus or network back, unthrottled.
-   */
-  subscribeWake(listener: () => void): Unlisten
-  /**
-   * Window focus alone, unthrottled.
-   */
-  subscribeFocus(listener: () => void): Unlisten
-  subscribeVisible(listener: () => void): Unlisten
-  subscribeHidden(listener: () => void): Unlisten
+export interface AppLifecycleService extends ActivityPort {
   subscribePageHide(listener: () => void): Unlisten
   subscribeBeforeUnload(listener: () => void): Unlisten
-  isHidden(): boolean
   /**
    * Listen for an exit the shell deferred until the frontend flushes.
    */
@@ -70,14 +56,6 @@ export interface AppLifecycleService {
    * Confirm a deferred quit. The app exits inside this call, so the promise may never settle.
    */
   confirmQuit(): Promise<void>
-  /**
-   * Ask the shell to keep running after the OS backgrounds the app; `null` when unavailable.
-   */
-  beginBackgroundTask(): Promise<BackgroundTaskToken | null>
-  /**
-   * Balance {@link beginBackgroundTask}. Expired or repeated tokens are no-ops.
-   */
-  endBackgroundTask(token: BackgroundTaskToken): Promise<void>
 }
 
 export interface LifecycleServiceDeps {

@@ -211,11 +211,7 @@ import {
 import { createIndexStoreService, type IndexStoreService } from '../indexing/index-store-service.ts'
 import { createAppStoreService } from '../ipc/app-store-plugin.ts'
 import { createIapService } from '../ipc/iap-plugin.ts'
-import {
-  createIpcBridgeService,
-  type IpcBridge,
-  type IpcBridgeService,
-} from '../ipc/ipc-service.ts'
+import type { IpcBridgeService } from '../ipc/ipc-service.ts'
 import {
   createMobileStorageService,
   type MobileStorageService,
@@ -231,22 +227,18 @@ import { createSettingsService, type SettingsService } from '../settings/setting
 import { createAgentSkillService, type AgentSkillService } from './agent-skill-service.ts'
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import { createBackgroundReconcilerFactory } from './background-reconciler.ts'
-import { createSystemClock, type ClockService } from './clock-service.ts'
+import type { ClockService } from './clock-service.ts'
 import type { DialogService } from './dialog-service.ts'
 import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
 import { isMobilePlatform } from './platform.ts'
 import { createUnavailableImageCodec, type ImageCodecService } from './image-codec-service.ts'
-import {
-  createLifecycleService,
-  type AppLifecycleService,
-  type LifecycleDomAdapter,
-} from './lifecycle-service.ts'
-import { createConsoleLogger, type LoggerService } from './logger-service.ts'
+import type { LoggerService } from './logger-service.ts'
 import { createOperationsService, type OperationsService } from './operations-service.ts'
 import { createTaskService, type TaskService } from '../tasks/task-service.ts'
 import { createPathService, type PathService, type PathTransport } from './path-service.ts'
+import type { ActivityPort } from './ports.ts'
 import {
   createPersistenceFlushService,
   type PersistenceFlushService,
@@ -306,10 +298,6 @@ export interface CoreServices {
    * Facts about this webview's window and the actions that span windows.
    */
   readonly window: WindowService
-  /**
-   * Application lifecycle signals and the shell's quit and background-task handshakes.
-   */
-  readonly lifecycle: AppLifecycleService
   /**
    * Facts about the running application build.
    */
@@ -639,9 +627,9 @@ export function createNoteServices(deps: {
  */
 export interface CoreAdapters {
   /**
-   * The raw IPC transport that the host implements.
+   * The typed IPC bridge over the host's transport, shared with the app layer.
    */
-  readonly ipc: IpcBridge
+  readonly ipc: IpcBridgeService
   /**
    * What the host is and can do, decided once at startup.
    */
@@ -667,17 +655,11 @@ export interface CoreAdapters {
    */
   readonly window: WindowHost
   /**
-   * The DOM behind the lifecycle service.
+   * The app activity signals that business services follow.
    */
-  readonly lifecycle: LifecycleDomAdapter
-  /**
-   * Defaults to the console.
-   */
-  readonly logger?: LoggerService
-  /**
-   * Defaults to the system clock.
-   */
-  readonly clock?: ClockService
+  readonly activity: ActivityPort
+  readonly logger: LoggerService
+  readonly clock: ClockService
   /**
    * Defaults to the system `IdService`.
    */
@@ -716,14 +698,12 @@ function createMobileServices(deps: {
  * The factory of every service {@link createCoreServices} builds, by key.
  */
 export const coreServiceFactories = {
-  ipc: createIpcBridgeService,
   database: createDatabaseService,
   platform: createPlatformService,
   window: createWindowService,
   operations: createOperationsService,
   settings: createSettingsService,
   storage: createWebStorageService,
-  lifecycle: createLifecycleService,
   fileChanges: createFileChangeService,
   secretStore: createSecretStoreService,
   webAuth: createWebAuthService,
@@ -961,9 +941,7 @@ export function composeCoreServices(
   factories?: Partial<ServiceFactories>,
 ): { services: CoreServices; internal: CoreInternalServices } {
   const create: ServiceFactories = { ...coreServiceFactories, ...factories }
-  const logger = adapters.logger ?? createConsoleLogger()
-  const clock = adapters.clock ?? createSystemClock()
-  const ipc = create.ipc({ transport: adapters.ipc, logger })
+  const { logger, clock, ipc, activity } = adapters
   const database = create.database({ ipc })
   const platform = create.platform({ facts: adapters.platform, fileSrc: adapters.convertFileSrc })
   const windowService = create.window({ ipc, host: adapters.window, logger })
@@ -974,7 +952,6 @@ export function composeCoreServices(
     localStorage: adapters.storage.local,
     sessionStorage: adapters.storage.session,
   })
-  const lifecycle = create.lifecycle({ ipc, dom: adapters.lifecycle, clock, logger })
   const fileChanges = create.fileChanges({
     ipc,
     logger,
@@ -990,7 +967,7 @@ export function composeCoreServices(
     webAuth,
     clock,
     id,
-    lifecycle,
+    activity,
     platform,
     logger,
   })
@@ -1024,7 +1001,7 @@ export function composeCoreServices(
         audioMemo,
         audioRecorder,
         nativeAction,
-        lifecycle,
+        activity,
         haptics,
         platform,
         logger,
@@ -1078,7 +1055,7 @@ export function composeCoreServices(
   const captureInbox = create.captureInbox({ ipc })
   const webFetch = create.webFetch({ ipc })
   const pageDescriber = create.pageDescriber({ languageModel })
-  const reconcilers = create.reconcilers({ lifecycle })
+  const reconcilers = create.reconcilers({ activity })
   const assetPrivacy = create.assetPrivacy({
     noteFile,
     xArchive,
@@ -1122,7 +1099,7 @@ export function composeCoreServices(
     dialog: adapters.dialog,
     path,
     platform,
-    lifecycle,
+    activity,
     mobileStorage,
     noteRows,
     openDocuments,
@@ -1154,9 +1131,6 @@ export function composeCoreServices(
     graphSession,
   })
   const persistenceFlush = create.persistenceFlush({
-    lifecycle,
-    window: windowService,
-    platform,
     settings,
     openDocuments,
     logger,
@@ -1194,7 +1168,7 @@ export function composeCoreServices(
     aiCredentials,
     audioRecorder,
     reconcilers,
-    lifecycle,
+    activity,
     fileChanges,
     settings,
     operations,
@@ -1209,7 +1183,7 @@ export function composeCoreServices(
     build: buildMobileServices,
   })
   const chatHistory = create.chatHistory({ ipc, database, logger })
-  const dailyNotes = create.dailyNotes({ database, clock, lifecycle })
+  const dailyNotes = create.dailyNotes({ database, clock, activity })
   const noteTools = create.noteTools({
     retrieval,
     noteFile,
@@ -1239,7 +1213,7 @@ export function composeCoreServices(
     fileChanges,
     indexLifecycle,
     operations,
-    lifecycle,
+    activity,
     platform,
     persistenceFlush,
     logger,
@@ -1249,11 +1223,11 @@ export function composeCoreServices(
     fileChanges,
     indexLifecycle,
     openDocuments,
-    lifecycle,
+    activity,
     clock,
     logger,
   }
-  const icloudDownloadDeps: ICloudDownloadServiceDeps = { icloudNative, lifecycle, clock, logger }
+  const icloudDownloadDeps: ICloudDownloadServiceDeps = { icloudNative, activity, clock, logger }
   const services: CoreServices = {
     ipc,
     logger,
@@ -1265,7 +1239,6 @@ export function composeCoreServices(
     dialog: adapters.dialog,
     path,
     window: windowService,
-    lifecycle,
     appInfo: create.appInfo({ ipc }),
     calendar,
     contacts,
@@ -1417,7 +1390,7 @@ export function composeCoreServices(
       graphSession,
       platform,
       clock,
-      lifecycle,
+      activity,
       logger,
     }),
     aiPrompts: create.aiPrompts({ settings, id }),
@@ -1457,7 +1430,7 @@ export function composeCoreServices(
       hash,
       clock,
       reconcilers,
-      lifecycle,
+      activity,
       fileChanges,
       operations,
       platform,

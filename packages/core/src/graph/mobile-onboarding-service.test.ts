@@ -8,7 +8,7 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestMobileStorageService } from '../testing/mobile-storage.ts'
 import { createTestPlatformService, type TestPlatformOptions } from '../testing/platform.ts'
 import { createTestSettingsService } from '../testing/settings.ts'
-import { createTestLifecycleService } from '../testing/shell.ts'
+import { createTestActivityPort } from '../testing/shell.ts'
 import { createMobileOnboardingService } from './mobile-onboarding-service.ts'
 
 /**
@@ -72,10 +72,10 @@ function setup(options?: SetupOptions) {
   const mobileStorage = storage
   const settings = createTestSettingsService(options?.settings)
   const graphSession = createTestGraphSessionService({ ipc, platform, mobileStorage, logger })
-  const lifecycle = createTestLifecycleService()
+  const activity = createTestActivityPort()
   let focusSubscriptions = 0
-  const subscribeFocus = lifecycle.subscribeFocus.bind(lifecycle)
-  lifecycle.subscribeFocus = (listener) => {
+  const subscribeFocus = activity.subscribeFocus.bind(activity)
+  activity.subscribeFocus = (listener) => {
     focusSubscriptions += 1
     return subscribeFocus(listener)
   }
@@ -85,14 +85,14 @@ function setup(options?: SetupOptions) {
     graphSession,
     platform,
     clock,
-    lifecycle,
+    activity,
     logger,
   })
   return {
     service,
     graphSession,
     settings,
-    lifecycle,
+    activity,
     focusSubscriptions: () => focusSubscriptions,
     storage,
     clock,
@@ -337,7 +337,7 @@ describe('MobileOnboardingService boot', () => {
       .toBe('Couldn’t load your settings.')
 
     context.settings.ipc.onCommand('settings_load', () => ({}))
-    context.lifecycle.emitFocus()
+    context.activity.emitFocus()
 
     await expect.poll(() => context.service.getState().needsOnboarding).toBe(true)
     expect(context.settings.status()).toBe('loaded')
@@ -355,8 +355,8 @@ describe('MobileOnboardingService boot', () => {
       mobileOnboarded: true,
       mobileStorage: 'local',
     }))
-    context.lifecycle.emitVisible()
-    context.lifecycle.emitFocus()
+    context.activity.emitVisible()
+    context.activity.emitFocus()
 
     await expect.poll(() => context.opened).toEqual([MOBILE_ROOT])
     expect(context.service.getState().kind).toBe('local')
@@ -371,9 +371,9 @@ describe('MobileOnboardingService boot', () => {
     await expect.poll(context.focusSubscriptions).toBe(1)
     expect(loads()).toBe(1)
 
-    context.lifecycle.emitFocus()
+    context.activity.emitFocus()
     await expect.poll(context.focusSubscriptions).toBe(2)
-    context.lifecycle.emitFocus()
+    context.activity.emitFocus()
     await expect.poll(context.focusSubscriptions).toBe(3)
     expect(loads()).toBe(3)
     expect(context.graphSession.getState().error).toBe('Couldn’t load your settings.')
@@ -389,7 +389,7 @@ describe('MobileOnboardingService boot', () => {
     stop()
 
     context.settings.ipc.onCommand('settings_load', () => ({}))
-    context.lifecycle.emitFocus()
+    context.activity.emitFocus()
     await context.clock.advance(0)
 
     expect(context.settings.status()).toBe('failed')

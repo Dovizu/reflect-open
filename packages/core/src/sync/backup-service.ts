@@ -1,5 +1,5 @@
 import { isCaptureSpoolPath } from '../capture/capture-identity.ts'
-import type { AppLifecycleService } from '../app/lifecycle-service.ts'
+import type { ActivityPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import type { PersistenceFlushService } from '../app/persistence-flush-service.ts'
@@ -80,7 +80,7 @@ export interface BackupServiceDeps {
    */
   readonly indexLifecycle: Pick<IndexLifecycleService, 'applyChanges'>
   readonly operations: OperationsService
-  readonly lifecycle: AppLifecycleService
+  readonly activity: ActivityPort
   readonly platform: PlatformFacts
   readonly persistenceFlush: PersistenceFlushService
   readonly logger: LoggerService
@@ -174,7 +174,7 @@ class BackupServiceImpl implements BackupService {
   }
 
   async start(): Promise<void> {
-    const { git, syncEngines, githubAuth, operations, lifecycle, logger } = this.#deps
+    const { git, syncEngines, githubAuth, operations, activity, logger } = this.#deps
     this.#teardown()
     if (this.#disposed) {
       return
@@ -239,7 +239,7 @@ class BackupServiceImpl implements BackupService {
         // visible/focus trigger below replays a full cycle on foreground.
         // The background flusher's protected local commit bypasses this
         // engine deliberately.
-        canStartCycle: () => !this.#mobile || !lifecycle.isHidden(),
+        canStartCycle: () => !this.#mobile || !activity.isHidden(),
         // The managed sign-in is for github.com only; SSH and path remotes
         // get none and Rust resolves them locally.
         getCredential:
@@ -265,7 +265,7 @@ class BackupServiceImpl implements BackupService {
       this.#setState({ phase: 'connected', remoteUrl, repo, status: { state: 'idle' } })
       this.#adoptEngine(next)
 
-      this.#resumeDisposers.push(lifecycle.subscribeResume(() => void next.syncNow()))
+      this.#resumeDisposers.push(activity.subscribeResume(() => void next.syncNow()))
 
       void next.syncNow() // launch pull: pick up other devices' changes
     } catch (error) {
@@ -371,7 +371,7 @@ class BackupServiceImpl implements BackupService {
   }
 
   #onRemoteChanges(changes: ChangedFile[]): void | Promise<void> {
-    const { fileChanges, indexLifecycle, lifecycle, logger } = this.#deps
+    const { fileChanges, indexLifecycle, activity, logger } = this.#deps
     if (changes.length === 0) {
       return
     }
@@ -399,7 +399,7 @@ class BackupServiceImpl implements BackupService {
         await indexLifecycle.applyChanges(
           indexable,
           indexGeneration,
-          () => !this.#mobile || !lifecycle.isHidden(),
+          () => !this.#mobile || !activity.isHidden(),
         )
       })
       // Direct index writes remain ordered across retry merges. Their handled
