@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { parseSearchQuery } from '../indexing/filter-query.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestDatabaseService, seedNotes } from '../testing/database.ts'
+import { createTestNoteFileService } from '../testing/graph.ts'
 import { createTestHttpService } from '../testing/http.ts'
 import { createTestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
@@ -10,6 +11,7 @@ import { createTestPlatformService } from '../testing/platform.ts'
 import { createTestAppServices } from '../testing/services.ts'
 import { createTestClipboardService, createTestDialogService } from '../testing/shell.ts'
 import { createTestUpdaterAdapter } from '../testing/update.ts'
+import { createNoteDocumentService } from '../documents/note-document-service.ts'
 import { createAppServices, type AppAdapters, type AppServices } from './create-app-services.ts'
 import { createDetachedLifecycleDom } from './lifecycle-service.ts'
 import { createPosixPathTransport } from './path-service.ts'
@@ -230,6 +232,20 @@ describe('createAppServices', () => {
     })
     await expect(services.indexQuery.randomNotePath()).resolves.toBe('notes/a.md')
     expect(ipc.calls().map((call) => call.command)).toEqual(['db_query'])
+  })
+
+  it('builds each replaced service with its factory over the same dependencies', () => {
+    const noteFile = createTestNoteFileService()
+    const received: unknown[] = []
+    const services = createAppServices(requiredAdapters(), {
+      noteFile: () => noteFile,
+      noteDocuments: (deps) => {
+        received.push(deps.noteFile)
+        return createNoteDocumentService(deps)
+      },
+    })
+    expect(services.noteFile).toBe(noteFile)
+    expect(received).toEqual([noteFile])
   })
 })
 
