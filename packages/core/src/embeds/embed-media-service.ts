@@ -12,7 +12,18 @@ import { createArchivedPost, type XArchiveService } from '../x-archive.ts'
 // A video no note asked for again is dropped this long after it was fetched.
 const YOUTUBE_VIDEO_DROP_MS = 30 * 60 * 1000
 
-/** The embedded media of the editor's cards: X posts and YouTube videos. */
+export interface EmbedMediaServiceDeps {
+  readonly xArchive: Pick<XArchiveService, 'resolve' | 'write' | 'fetchSyndication'>
+  readonly webFetch: Pick<WebFetchService, 'fetchOembed'>
+  readonly platform: Pick<PlatformService, 'convertFileSrc'>
+  readonly clock: Pick<ClockService, 'now' | 'setTimeout' | 'clearTimeout'>
+  readonly logger: Pick<LoggerService, 'error'>
+  readonly graphSession: Pick<GraphSessionService, 'getState'>
+}
+
+/**
+ * The embedded media of the editor's cards: X posts and YouTube videos.
+ */
 export interface EmbedMediaService {
   /**
    * The archived X post `postId` of the open graph, with each media URL that
@@ -32,49 +43,76 @@ export interface EmbedMediaService {
   resolveYouTubeVideo(url: string): YouTubeVideo | Promise<YouTubeVideo | undefined>
 }
 
-export function createEmbedMediaService(deps: {
-  xArchive: Pick<XArchiveService, 'resolve' | 'write' | 'fetchSyndication'>
-  webFetch: Pick<WebFetchService, 'fetchOembed'>
-  platform: Pick<PlatformService, 'convertFileSrc'>
-  clock: Pick<ClockService, 'now' | 'setTimeout' | 'clearTimeout'>
-  logger: Pick<LoggerService, 'error'>
-  graphSession: Pick<GraphSessionService, 'getState'>
-}): EmbedMediaService {
-  const { xArchive, webFetch, platform, clock, logger, graphSession } = deps
+class EmbedMediaServiceImpl implements EmbedMediaService {
+  readonly #deps: EmbedMediaServiceDeps
   // What X answered for each post id; a failed request leaves no entry.
-  const syndication = new Map<string, Promise<XPost | null>>()
-  const videos = new Map<string, YouTubeVideo>()
-  const videoFetches = new Map<string, Promise<YouTubeVideo | null>>()
-  const videoDrops = new Map<string, TimerHandle>()
+  readonly #syndication = new Map<string, Promise<XPost | null>>()
+  readonly #videos = new Map<string, YouTubeVideo>()
+  readonly #videoFetches = new Map<string, Promise<YouTubeVideo | null>>()
+  readonly #videoDrops = new Map<string, TimerHandle>()
 
-  function fetchSyndicationOnce(postId: string): Promise<XPost | null> {
-    let pending = syndication.get(postId)
+  constructor(deps: EmbedMediaServiceDeps) {
+    this.#deps = deps
+  }
+
+  async loadXPost(postId: string): Promise<XPost | null> {
+    const { xArchive, platform, graphSession } = this.#deps
+    const session = graphSession.getState().session
+    if (session === null) return null
+    const { generation } = session
+    const result =
+      (await xArchive.resolve(generation, postId)) ??
+      (await this.#fetchAndArchiveXPost(generation, postId))
+    if (!result) return null
+    const local = new Map(
+      result.resources.map((resource) => [
+        resource.url,
+        platform.convertFileSrc(
+          generation + '/x-media/' + postId + '/' + resource.hash,
+          'reflect-asset',
+        ),
+      ]),
+    )
+    return mapXPostMediaUrls(result.archive.data, (source) => local.get(source))
+  }
+
+  resolveYouTubeVideo(url: string): YouTubeVideo | Promise<YouTubeVideo | undefined> {
+    return this.#videos.get(url) ?? this.#loadYouTubeVideo(url)
+  }
+
+  #fetchSyndicationOnce(postId: string): Promise<XPost | null> {
+    let pending = this.#syndication.get(postId)
     if (pending === undefined) {
-      const request = xArchive.fetchSyndication(postId)
+      const request = this.#deps.xArchive.fetchSyndication(postId)
       pending = request
-      syndication.set(postId, request)
+      this.#syndication.set(postId, request)
       request.catch(() => {
-        if (syndication.get(postId) === request) {
-          syndication.delete(postId)
+        if (this.#syndication.get(postId) === request) {
+          this.#syndication.delete(postId)
         }
       })
     }
     return pending
   }
 
-  async function fetchAndArchiveXPost(generation: number, postId: string) {
-    const post = await fetchSyndicationOnce(postId)
+  async #fetchAndArchiveXPost(generation: number, postId: string) {
+    const { xArchive, clock } = this.#deps
+    const post = await this.#fetchSyndicationOnce(postId)
     if (!post) return null
     await xArchive.write(generation, createArchivedPost(post, new Date(clock.now()).toISOString()))
     return await xArchive.resolve(generation, postId)
   }
 
-  /** The card snapshot for a YouTube video URL, or `null` when the URL is not one. */
-  async function fetchYouTubeVideo(url: string): Promise<YouTubeVideo | null> {
+  /**
+   * The card snapshot for a YouTube video URL, or `null` when the URL is not one.
+   */
+  async #fetchYouTubeVideo(url: string): Promise<YouTubeVideo | null> {
     const requestURL = oembedRequestURL(url)
     if (requestURL === null) return null
     // The URL is one the user put on a card, which loads from YouTube anyway.
-    const answer: unknown = JSON.parse(await webFetch.fetchOembed(requestURL as CloudSafe<string>))
+    const answer: unknown = JSON.parse(
+      await this.#deps.webFetch.fetchOembed(requestURL as CloudSafe<string>),
+    )
     const result = parseYouTubeVideo(answer)
     if (result.issues) {
       throw new Error(`invalid oEmbed answer for ${url}: ${JSON.stringify(result.issues)}`)
@@ -82,70 +120,52 @@ export function createEmbedMediaService(deps: {
     return { ...result.value, url }
   }
 
-  function scheduleVideoDrop(url: string): void {
-    const scheduled = videoDrops.get(url)
+  #scheduleVideoDrop(url: string): void {
+    const { clock } = this.#deps
+    const scheduled = this.#videoDrops.get(url)
     if (scheduled !== undefined) {
       clock.clearTimeout(scheduled)
     }
-    videoDrops.set(
+    this.#videoDrops.set(
       url,
       clock.setTimeout(() => {
-        videoDrops.delete(url)
-        videos.delete(url)
+        this.#videoDrops.delete(url)
+        this.#videos.delete(url)
       }, YOUTUBE_VIDEO_DROP_MS),
     )
   }
 
-  function fetchYouTubeVideoOnce(url: string): Promise<YouTubeVideo | null> {
-    let pending = videoFetches.get(url)
+  #fetchYouTubeVideoOnce(url: string): Promise<YouTubeVideo | null> {
+    let pending = this.#videoFetches.get(url)
     if (pending === undefined) {
       pending = (async () => {
         try {
-          const video = await fetchYouTubeVideo(url)
+          const video = await this.#fetchYouTubeVideo(url)
           // A found video stays for the session; a missing one is asked again.
           if (video !== null) {
-            videos.set(url, video)
-            scheduleVideoDrop(url)
+            this.#videos.set(url, video)
+            this.#scheduleVideoDrop(url)
           }
           return video
         } finally {
-          videoFetches.delete(url)
+          this.#videoFetches.delete(url)
         }
       })()
-      videoFetches.set(url, pending)
+      this.#videoFetches.set(url, pending)
     }
     return pending
   }
 
-  async function loadYouTubeVideo(url: string): Promise<YouTubeVideo | undefined> {
+  async #loadYouTubeVideo(url: string): Promise<YouTubeVideo | undefined> {
     try {
-      return (await fetchYouTubeVideoOnce(url)) ?? undefined
+      return (await this.#fetchYouTubeVideoOnce(url)) ?? undefined
     } catch (cause) {
-      logger.error(`YouTube video fetch failed: ${url}`, cause)
+      this.#deps.logger.error(`YouTube video fetch failed: ${url}`, cause)
       return
     }
   }
+}
 
-  return {
-    async loadXPost(postId) {
-      const session = graphSession.getState().session
-      if (session === null) return null
-      const { generation } = session
-      const result =
-        (await xArchive.resolve(generation, postId)) ??
-        (await fetchAndArchiveXPost(generation, postId))
-      if (!result) return null
-      const local = new Map(
-        result.resources.map((resource) => [
-          resource.url,
-          platform.convertFileSrc(
-            generation + '/x-media/' + postId + '/' + resource.hash,
-            'reflect-asset',
-          ),
-        ]),
-      )
-      return mapXPostMediaUrls(result.archive.data, (source) => local.get(source))
-    },
-    resolveYouTubeVideo: (url) => videos.get(url) ?? loadYouTubeVideo(url),
-  }
+export function createEmbedMediaService(deps: EmbedMediaServiceDeps): EmbedMediaService {
+  return new EmbedMediaServiceImpl(deps)
 }
