@@ -162,11 +162,11 @@ The services only a mobile platform builds (`haptics`, `iap`, `subscription`,
   passes `useAppServices()`:
 
   ```ts
-  // apps/desktop/src/lib/note-pin.ts
-  export async function toggleNotePinned(
-    ctx: Pick<AppServices, 'noteActions'>,
-    input: NoteActionInput,
-  ): Promise<void>
+  // apps/desktop/src/lib/query-options.ts
+  export function createConflictedNotesQueryOptions(
+    ctx: Pick<AppServices, 'indexQuery'>,
+    root: string | undefined,
+  )
   ```
 
 - **Commands:** `CommandContext` (`apps/desktop/src/lib/commands/types.ts`) has a
@@ -247,9 +247,12 @@ maps events to cache invalidation in a few small adapters:
 | `chatSessions.onConversationsChanged` | `lib/query-invalidation.ts` | invalidate chat history queries |
 | `noteMove.onMoved` | `routing/router.tsx` | rewrite history entries to the new path |
 
-Optimistic cache updates stay in the desktop hook or `lib/` function that wraps the
-core call (`lib/note-pin.ts`). The core method returns the data the patch needs
-(`noteActions.togglePinned` resolves with the new `pinned` and `pinOrder`).
+Optimistic state is a core overlay (`NoteRowService`); the app only invalidates
+queries. An action records what it writes (`noteActions.togglePinned` records
+`isPinned` and `pinnedOrder`, `trash` records `trashed`), the desktop readers merge the
+overlay over the index rows (`useNoteRow`, `useNoteRows`, `usePinnedNotes` in
+`hooks/`), and each field retires once the index row agrees. A failed action drops
+its overlay, so the index row is the truth again.
 
 ### Tests
 
@@ -279,7 +282,8 @@ shape of the data:
   `apps/desktop/src/lib/query-options.ts` and take the service as `ctx`. Core services
   emit events when the index changes, and the desktop adapters of §3 turn them into
   **targeted `queryClient.invalidateQueries`** (`apps/desktop/src/lib/query-client.ts`).
-  A hook that wraps a markdown write does the optimistic update. SQLite stays the single
+  Optimistic state is a core overlay (`NoteRowService`) that readers merge over the
+  cached rows; the app only invalidates queries, it never patches them. SQLite stays the single
   source of truth — **the frontend caches the projection, it never holds a second copy of it.**
 - **Service-owned state** (settings, theme, the active graph and its recents, navigation
   history, backup status, operations, the chat session) → lives **in the core service**

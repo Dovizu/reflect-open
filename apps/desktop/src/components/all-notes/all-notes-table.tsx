@@ -8,7 +8,7 @@ import { ALL_NOTES_GRID, AllNotesRow } from './all-notes-row.tsx'
 
 interface AllNotesTableProps {
   /** `undefined` while the index query settles (renders nothing, not "empty"). */
-  notes: NoteListEntry[] | undefined
+  notes: readonly NoteListEntry[] | undefined
   /** The active tag filter, for the empty state's wording. */
   tag: string | null
   /** The shared row selection (click/keyboard); rows read their selected state from it. */

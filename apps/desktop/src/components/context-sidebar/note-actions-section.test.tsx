@@ -7,7 +7,6 @@ import {
   type NoteActionsService,
   type NoteDocumentService,
   type NoteRow,
-  type PinnedNote,
 } from '@reflect/core'
 import {
   createTestAppServices,
@@ -15,7 +14,7 @@ import {
   type TestOperationsService,
 } from '@reflect/core/testing'
 import { frontmatterPatchToYaml } from '@/editor/note-session.ts'
-import { queryKeys } from '@/lib/query-client.ts'
+import { usePinnedNotes } from '@/hooks/use-pinned-notes.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { NoteActionsSection } from './note-actions-section.tsx'
 
@@ -29,6 +28,16 @@ let noteSource: string
 // The services of the rendered app; set by `renderSection`.
 let operations: TestOperationsService
 let trash: MockInstance<NoteActionsService['trashOne']>
+
+/** The shelf as the sidebar reads it, as comma-joined titles. */
+function PinnedTitles() {
+  const titles = usePinnedNotes().map((note) => note.title)
+  return <output data-testid="pinned" data-titles={titles.join(',')} />
+}
+
+function pinnedTitles(): string | null {
+  return page.getByTestId('pinned').element().getAttribute('data-titles')
+}
 
 async function renderSection(path: string, showTrash = false, copies = 1) {
   const app = createTestAppServices({
@@ -51,11 +60,14 @@ async function renderSection(path: string, showTrash = false, copies = 1) {
   trash = vi.spyOn(app.noteActions, 'trashOne').mockResolvedValue()
   operations = app.operations
   const view = await renderInApp(
-    Array.from({ length: copies }, (_, copy) => (
-      <div key={copy} data-testid={`copy-${copy}`}>
-        <NoteActionsSection path={path} showTrash={showTrash} />
-      </div>
-    )),
+    <>
+      {Array.from({ length: copies }, (_, copy) => (
+        <div key={copy} data-testid={`copy-${copy}`}>
+          <NoteActionsSection path={path} showTrash={showTrash} />
+        </div>
+      ))}
+      <PinnedTitles />
+    </>,
     {
       app,
       graph: { root: '/g', name: 'g', generation: 7 },
@@ -127,9 +139,7 @@ describe('NoteActionsSection pin toggle', () => {
     await vi.waitFor(() => expect(getPinnedNotes).toHaveBeenCalledTimes(1))
     await userEvent.click(view.getByRole('button', { name: /Pin this note/ }))
     await expect.element(view.getByText('Un-pin this note')).toBeInTheDocument()
-    expect(
-      view.client.getQueryData<PinnedNote[]>(queryKeys.index.pinnedNotes('/g'))?.[0]?.path,
-    ).toBe('notes/a.md')
+    expect(pinnedTitles()).toBe('A')
     write.resolve()
     await write.promise
   })
@@ -141,26 +151,14 @@ describe('NoteActionsSection pin toggle', () => {
     ])
     getNote.mockResolvedValue(noteRow('notes/mid.md', false, 'Mid'))
     const view = await renderSection('notes/mid.md')
-    const queryKey = queryKeys.index.pinnedNotes('/g')
-    await vi.waitFor(() =>
-      expect(view.client.getQueryData<PinnedNote[]>(queryKey)?.map((note) => note.title)).toEqual([
-        'Zeta',
-        'Alpha',
-      ]),
-    )
+    await vi.waitFor(() => expect(pinnedTitles()).toBe('Zeta,Alpha'))
 
     await userEvent.click(view.getByRole('button', { name: /Pin this note/ }))
 
-    await vi.waitFor(() =>
-      expect(view.client.getQueryData<PinnedNote[]>(queryKey)?.map((note) => note.title)).toEqual([
-        'Zeta',
-        'Alpha',
-        'Mid',
-      ]),
-    )
+    await vi.waitFor(() => expect(pinnedTitles()).toBe('Zeta,Alpha,Mid'))
   })
 
-  it('invalidates pinned notes when an optimistic pin fails', async () => {
+  it('reverts the pin when the write fails', async () => {
     let rejectToggle!: (cause: unknown) => void
     commitNoteFrontmatter.mockImplementationOnce(
       () =>
@@ -176,7 +174,7 @@ describe('NoteActionsSection pin toggle', () => {
     rejectToggle({ kind: 'io', message: 'disk on fire' })
 
     await expect.element(view.getByText('Pin this note', { exact: true })).toBeInTheDocument()
-    await vi.waitFor(() => expect(getPinnedNotes).toHaveBeenCalledTimes(2))
+    expect(pinnedTitles()).toBe('')
     expect(operations.findByLabel('Updating pin')?.status).toBe('failed')
   })
 })

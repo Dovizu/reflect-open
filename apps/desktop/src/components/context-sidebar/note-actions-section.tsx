@@ -1,14 +1,11 @@
 import type { ReactElement } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { Lock } from 'lucide-react'
 import { PinIcon } from '@/components/icons/pin-icon.tsx'
 import { useNoteRow } from '@/hooks/use-note-row.ts'
 import { usePinnedNotes } from '@/hooks/use-pinned-notes.ts'
 import { keybindingFor } from '@/lib/commands/app-commands.ts'
-import { toggleNotePinned } from '@/lib/note-pin.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
-import { toggleNotePrivate } from '@/lib/note-private.ts'
 import { NoteActionButton } from './note-action-button.tsx'
 import { NoteGistAction } from './note-gist-action.tsx'
 import { NoteTrashAction } from './note-trash-action.tsx'
@@ -31,8 +28,8 @@ const GIST_KEYBINDING = keybindingFor('note.publishGist')
  * "Note actions" as a context-sidebar section: mouse-reachable counterparts
  * to the note-scoped commands — pin/unpin and the `private` flag. Shared by
  * the daily and note context sidebars; dailies are valid targets for both.
- * Pin reads the shared shelf cache, updated immediately by every pin entrypoint.
- * Privacy reads the note row cache shared by the palette and mobile actions.
+ * Pin reads the pinned shelf and privacy reads the note row, both with the
+ * note-row overlay every entrypoint writes merged over them.
  */
 export function NoteActionsSection({
   path,
@@ -43,27 +40,15 @@ export function NoteActionsSection({
   const isPrivate = noteRow?.isPrivate ?? false
   const { graph } = useGraph()
   const { noteActions } = useAppServices()
-  const queryClient = useQueryClient()
   const togglePin = async (): Promise<void> => {
     if (graph !== null) {
-      await toggleNotePinned(
-        { noteActions },
-        {
-          queryClient,
-          root: graph.root,
-          generation: graph.generation,
-          path,
-        },
-      )
+      await noteActions.togglePinned(path, graph.generation)
     }
   }
 
   const togglePrivate = async (): Promise<void> => {
     if (graph !== null) {
-      await toggleNotePrivate(
-        { noteActions },
-        { queryClient, root: graph.root, generation: graph.generation, path },
-      )
+      await noteActions.togglePrivate(path, graph.generation)
     }
   }
 

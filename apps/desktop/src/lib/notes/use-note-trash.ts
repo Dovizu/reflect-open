@@ -1,7 +1,4 @@
 import { useCallback, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import type { NoteListEntry } from '@reflect/core'
-import { queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 
@@ -19,17 +16,13 @@ export interface NoteTrash {
 }
 
 /**
- * Bulk-trash for the All Notes screen: send a selection of notes to the trash
- * and drop them from the list immediately.
+ * Bulk-trash for the All Notes screen: send a selection of notes to the trash.
  *
- * - **Optimistic removal is required, not cosmetic.** On desktop the list only
- *   refreshes when the file watcher's reindex batch applies — a visible beat
- *   after the delete. The single-note action sidesteps this by navigating away;
- *   the bulk action stays on the screen, so it drops each row from every cached
- *   list variant (the `all-notes` key prefix — a trashed note leaves every tag
- *   view) as that note's delete lands. Removing per-success, not all up front,
- *   keeps a failed note in the list — and therefore in the selection, which
- *   prunes only vanished rows — so the user can retry it without re-selecting.
+ * - **Each row leaves the list as its delete lands.** `trashMany` marks each
+ *   trashed note in the note-row overlay, which the list merges, so the row
+ *   goes before the watcher's reindex. A failed note stays in the list, and
+ *   therefore in the selection (which prunes only vanished rows), so the user
+ *   can retry it without re-selecting.
  * - **`NoteActionsService.trashMany`, not raw `deleteNote`.** It discards any
  *   open editor session for the note after the file is gone, so a teardown
  *   flush can't recreate the file. It also guards daily notes as defense in
@@ -42,7 +35,6 @@ export interface NoteTrash {
 export function useNoteTrash(): NoteTrash {
   const { graph } = useGraph()
   const { noteActions, operations } = useAppServices()
-  const queryClient = useQueryClient()
   const [isTrashing, setIsTrashing] = useState(false)
 
   const trash = useCallback(
@@ -51,38 +43,20 @@ export function useNoteTrash(): NoteTrash {
         return true
       }
       const generation = graph?.generation
-      const root = graph?.root
-      if (generation === undefined || root === undefined) {
+      if (generation === undefined) {
         // No graph to trash into — report it; never a silent success.
         operations.start('Trashing notes').fail('No graph is open.')
         return false
       }
       setIsTrashing(true)
       try {
-        const { failed } = await noteActions.trashMany(paths, generation, {
-          // Drop the row the moment it's actually gone — the desktop list
-          // otherwise waits on the watcher's reindex. Crucially, a note that
-          // *fails* is left in the list, so it keeps its place in the
-          // selection (which prunes only vanished rows) for an immediate retry.
-          onTrashed: (path) => {
-            queryClient.setQueriesData<NoteListEntry[]>(
-              { queryKey: queryKeys.index.allNotes(root) },
-              (rows) => rows?.filter((row) => row.path !== path),
-            )
-          },
-        })
-        // Deliberately no invalidate on failure: the index still lists the
-        // notes that *did* trash (their reindex hasn't run yet), so a refetch
-        // would resurrect them in the list. The per-row cache removal above is
-        // already truth; the watcher reconciles the index — and the rare
-        // half-succeeded edge (file trashed but its session discard threw) —
-        // on its own.
+        const { failed } = await noteActions.trashMany(paths, generation)
         return failed.length === 0
       } finally {
         setIsTrashing(false)
       }
     },
-    [graph, noteActions, operations, queryClient],
+    [graph, noteActions, operations],
   )
 
   return { trash, isTrashing }

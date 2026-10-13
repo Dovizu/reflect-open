@@ -3,11 +3,11 @@ import {
   type AppServices,
   type FilteredSearchHit,
   type NoteDocumentService,
-  type PinnedNote,
 } from '@reflect/core'
 import { createTestAppServices, createTestPlatformService } from '@reflect/core/testing'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useQuery } from '@tanstack/react-query'
+import { useNoteRows } from '@/hooks/note-row-overlay.ts'
 import { useState, type ReactElement, type ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderInApp, type InAppRenderResult } from '@/test-utils/render-in-app.tsx'
@@ -74,18 +74,13 @@ function SwipeHarness({ note = row() }: { note?: NoteRowModel }): ReactElement {
 const mobileKey = queryKeys.index.mobileAllNotesWithSearch('/g', { text: '' })
 
 function CachedNoteList(): ReactElement {
-  const { data = [] } = useQuery<FilteredSearchHit[]>({
+  const { data } = useQuery<FilteredSearchHit[]>({
     queryKey: mobileKey,
     queryFn: async () => [],
     enabled: false,
   })
-  return (
-    <NoteRowList
-      rows={data.map((hit) => row({ isPinned: hit.isPinned }))}
-      onOpen={onOpen}
-      onDeleted={onDelete}
-    />
-  )
+  const hits = useNoteRows(data) ?? []
+  return <NoteRowList rows={hits.map((hit) => row({ isPinned: hit.isPinned }))} onOpen={onOpen} />
 }
 
 beforeEach(() => {
@@ -96,7 +91,7 @@ beforeEach(() => {
 })
 
 describe('NoteRowList', () => {
-  it('a swipe pin updates the cached row marker while persistence is pending', async () => {
+  it('a swipe pin updates the row marker through the overlay while persistence is pending', async () => {
     const write = Promise.withResolvers<void>()
     commitNoteFrontmatter.mockReturnValueOnce(write.promise)
     const view = await mount(
@@ -128,12 +123,11 @@ describe('NoteRowList', () => {
       { x: rect.right - 120, y: rect.top + 32 },
     )
     await view.getByRole('button', { name: 'Pin Alpha', exact: true }).click()
-    expect(client.getQueryData<FilteredSearchHit[]>(mobileKey)?.[0]?.isPinned).toBe(true)
-    expect(client.getQueryData<PinnedNote[]>(queryKeys.index.pinnedNotes('/g'))?.[0]?.path).toBe(
-      'notes/alpha.md',
+    await vi.waitFor(() =>
+      expect(view.app.noteRows.getOverlay('notes/alpha.md', 1)).toMatchObject({ isPinned: true }),
     )
     await expect.element(view.getByText('Pinned', { exact: true })).toBeInTheDocument()
-    expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/alpha.md', { pinned: true }, 1)
+    expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/alpha.md', { pinned: 1024 }, 1)
     write.resolve()
     await write.promise
   })
@@ -151,7 +145,7 @@ describe('NoteRowList', () => {
       snippet: [],
     }
 
-    const view = await mount(<NoteRowList rows={[row]} onOpen={() => {}} onDeleted={() => {}} />)
+    const view = await mount(<NoteRowList rows={[row]} onOpen={() => {}} />)
     const match = view.getByText('Tim Mac')
 
     await expect.element(match).toBeInTheDocument()

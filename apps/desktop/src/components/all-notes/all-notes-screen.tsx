@@ -4,6 +4,7 @@ import { canTrashNote, foldTag } from '@reflect/core'
 import { Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button.tsx'
 import { useNoteLinkNavigation, type ModClickEvent } from '@/hooks/use-note-link-navigation.ts'
+import { useNoteRows } from '@/hooks/note-row-overlay.ts'
 import { queryKeys } from '@/lib/query-client.ts'
 import { useListSelection } from '@/lib/selection/use-list-selection.ts'
 import { useScrollRestoration } from '@/lib/use-scroll-restoration.ts'
@@ -56,11 +57,13 @@ export function AllNotesScreen({ tag }: AllNotesScreenProps): ReactElement {
 
   const enabled = graph !== null
 
-  const { data: notes } = useQuery({
+  const { data: indexedNotes } = useQuery({
     queryKey: queryKeys.index.allNotesWithTag(graph?.root, tag === null ? null : foldTag(tag)),
     queryFn: () => noteList.listNotes({ tag }),
     enabled,
   })
+  // Unfiltered, the list holds every note that can be trashed.
+  const notes = useNoteRows(indexedNotes, { complete: tag === null })
   const { data: facets } = useQuery({
     queryKey: queryKeys.index.allNotesTags(graph?.root),
     queryFn: () => noteList.listNoteTags(),
