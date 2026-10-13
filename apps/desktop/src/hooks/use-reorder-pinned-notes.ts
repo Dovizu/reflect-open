@@ -1,43 +1,14 @@
-import {
-  invalidatePinnedNotesCache,
-  updatePinnedNotesCache,
-} from '@/lib/notes/pinned-notes-cache.ts'
-import { mutationKeys, mutationScopeIds, queryKeys } from '@/lib/query-client.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useAppServices } from '@/services/services-provider.tsx'
 import { arrayMove } from '@dnd-kit/sortable'
 import { updatePinOrder, type PinnedNote } from '@reflect/core'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
-
-interface ReorderPinnedNotesVariables {
-  generation: number
-  root: string
-  notes: readonly PinnedNote[]
-}
 
 export function useReorderPinnedNotes(
   pinned: readonly PinnedNote[],
 ): (activePath: string, overPath: string) => void {
   const { graph } = useGraph()
   const { noteActions } = useAppServices()
-  const queryClient = useQueryClient()
-  const { mutate } = useMutation({
-    mutationKey: mutationKeys.pinnedNotes.reorder(graph?.root),
-    scope: { id: mutationScopeIds.pinnedNotesReorder(graph?.root) },
-    mutationFn: (variables: ReorderPinnedNotesVariables) =>
-      noteActions.reorderPinned(variables.notes, variables.generation),
-    onError: (_error, variables) => {
-      if (
-        queryClient.isMutating({
-          exact: true,
-          mutationKey: mutationKeys.pinnedNotes.reorder(variables.root),
-        }) === 1
-      ) {
-        invalidatePinnedNotesCache(queryClient, variables.root)
-      }
-    },
-  })
 
   return useCallback(
     (activePath: string, overPath: string): void => {
@@ -63,10 +34,9 @@ export function useReorderPinnedNotes(
         return a && b && a.pinnedOrder !== b.pinnedOrder
       })
 
-      void queryClient.cancelQueries({ queryKey: queryKeys.index.pinnedNotes(graph.root) })
-      updatePinnedNotesCache(queryClient, graph.root, () => renumbered)
-      mutate({ generation: graph.generation, root: graph.root, notes: updated })
+      // A failed write drops its overlay, so the shelf shows the index again.
+      noteActions.reorderPinned(updated, graph.generation).catch(() => {})
     },
-    [graph, mutate, pinned, queryClient],
+    [graph, noteActions, pinned],
   )
 }

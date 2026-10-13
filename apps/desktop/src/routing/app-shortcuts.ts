@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { toggleNotePinned } from '@/lib/note-pin.ts'
-import { toggleNotePrivate } from '@/lib/note-private.ts'
 import { getIsComposing } from '@meowdown/core'
 import { usePalette } from '@/components/command-palette/palette-provider.tsx'
 import { todayIso } from '@/lib/dates.ts'
@@ -54,7 +51,6 @@ export function useAppShortcuts(): CommandContext {
   const services = useAppServices()
   const { route, navigate, back, forward, clearScrollState } = useRouter()
   const { commands, nativeMenu, platform, semanticSearch } = useAppServices()
-  const queryClient = useQueryClient()
   const focusedDailyDate = useFocusedDailyDate()
   const { resolvedTheme, setTheme } = useTheme()
   const { graph, recents, openRecent } = useGraph()
@@ -119,27 +115,25 @@ export function useAppShortcuts(): CommandContext {
       notePath: () =>
         focusedNotePathForRoute(routeRef.current, todayIso(), focusedDailyDateRef.current),
       togglePin: async () => {
-        const root = graphRootRef.current
         const generation = generationRef.current
         const path = focusedNotePathForRoute(
           routeRef.current,
           todayIso(),
           focusedDailyDateRef.current,
         )
-        if (root !== null && generation !== null && path !== null) {
-          await toggleNotePinned(services, { queryClient, root, generation, path })
+        if (generation !== null && path !== null) {
+          await services.noteActions.togglePinned(path, generation)
         }
       },
       togglePrivate: async () => {
-        const root = graphRootRef.current
         const generation = generationRef.current
         const path = focusedNotePathForRoute(
           routeRef.current,
           todayIso(),
           focusedDailyDateRef.current,
         )
-        if (root !== null && generation !== null && path !== null) {
-          await toggleNotePrivate(services, { queryClient, root, generation, path })
+        if (generation !== null && path !== null) {
+          await services.noteActions.togglePrivate(path, generation)
         }
       },
       back,
@@ -178,7 +172,6 @@ export function useAppShortcuts(): CommandContext {
     }),
     [
       services,
-      queryClient,
       navigate,
       back,
       forward,

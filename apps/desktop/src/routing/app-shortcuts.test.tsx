@@ -5,8 +5,6 @@ import {
   type LinkNavigationService,
   type NativeMenuService,
   type NoteDocumentService,
-  type NoteRow,
-  type PinnedNote,
 } from '@reflect/core'
 import {
   createTestAppServices,
@@ -16,13 +14,11 @@ import {
   type TestOpenGraph,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
-import { queryKeys } from '@/lib/query-client.ts'
 import {
   FocusedDailyProvider,
   useSetFocusedDailyDate,
 } from '@/providers/focused-daily-provider.tsx'
 import { isModEvent } from '@meowdown/core'
-import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { PaletteProvider, usePalette } from '@/components/command-palette/palette-provider.tsx'
 import {
@@ -86,7 +82,7 @@ beforeEach(() => {
   commitNoteFrontmatter.mockReset().mockResolvedValue(undefined)
 })
 
-async function shortcutsHook(client?: QueryClient) {
+async function shortcutsHook() {
   const readSource = async (): Promise<string> => '# A\n'
   const services = createTestAppServices({
     platform: createTestPlatformService(platform),
@@ -135,7 +131,6 @@ async function shortcutsHook(client?: QueryClient) {
         ],
       },
       settings: { editorMarkdownSyntax: 'hide', semanticSearchEnabled: false, theme: 'system' },
-      ...(client === undefined ? {} : { queryClient: client }),
       wrapper: (children) => (
         <PaletteProvider>
           <ShortcutsProvider>
@@ -175,16 +170,15 @@ function pressFrom(target: EventTarget, key: string, options: KeyboardEventInit 
 
 describe('app shortcuts', () => {
   it('CMD+O updates the shelf before the file write resolves', async () => {
-    const client = new QueryClient()
-    const key = queryKeys.index.pinnedNotes('/g')
-    client.setQueryData(key, [])
     const write = Promise.withResolvers<void>()
     commitNoteFrontmatter.mockReturnValueOnce(write.promise)
-    const { result, act } = await shortcutsHook(client)
+    const { result, act } = await shortcutsHook()
     await act(() => result.current.router.navigate({ kind: 'note', path: 'notes/a.md' }))
     await act(() => press('o'))
-    expect(client.getQueryData<PinnedNote[]>(key)?.map((note) => note.path)).toEqual(['notes/a.md'])
-    expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/a.md', { pinned: 1024 }, 1)
+    await vi.waitFor(() =>
+      expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/a.md', { pinned: 1024 }, 1),
+    )
+    expect(app.noteRows.getOverlay('notes/a.md', 1)).toEqual({ isPinned: true, pinnedOrder: 1024 })
     await act(() => press('o'))
     expect(commitNoteFrontmatter).toHaveBeenCalledTimes(1)
     write.resolve()
@@ -194,32 +188,18 @@ describe('app shortcuts', () => {
   })
 
   it('palette pin targets the focused daily note through the same context', async () => {
-    const client = new QueryClient()
-    const { result, act } = await shortcutsHook(client)
+    const { result, act } = await shortcutsHook()
     await act(() => result.current.router.navigate({ kind: 'daily', date: '2026-09-08' }))
     await act(() => result.current.setFocusedDailyDate('2026-09-07'))
     await act(() => result.current.context.togglePin())
-    expect(commitNoteFrontmatter).toHaveBeenCalledWith('daily/2026-09-07.md', { pinned: true }, 1)
-    expect(
-      client.getQueryData<PinnedNote[]>(queryKeys.index.pinnedNotes('/g'))?.[0]?.dailyDate,
-    ).toBe('2026-09-07')
+    expect(commitNoteFrontmatter).toHaveBeenCalledWith('daily/2026-09-07.md', { pinned: 1024 }, 1)
+    expect(app.noteRows.getOverlay('daily/2026-09-07.md', 1)).toMatchObject({ isPinned: true })
   })
 
-  it('palette privacy updates the focused daily note cache before the write resolves', async () => {
-    const client = new QueryClient()
-    const queryKey = queryKeys.index.note('/g', 'daily/2026-09-07.md')
-    client.setQueryData<NoteRow>(queryKey, {
-      path: 'daily/2026-09-07.md',
-      title: 'Daily',
-      dailyDate: '2026-09-07',
-      isPrivate: false,
-      hasConflict: false,
-      gistUrl: null,
-      gistStale: false,
-    })
+  it('palette privacy updates the focused daily note row before the write resolves', async () => {
     const write = Promise.withResolvers<void>()
     commitNoteFrontmatter.mockReturnValueOnce(write.promise)
-    const { result, act } = await shortcutsHook(client)
+    const { result, act } = await shortcutsHook()
     await act(() => result.current.router.navigate({ kind: 'daily', date: '2026-09-08' }))
     await act(() => result.current.setFocusedDailyDate('2026-09-07'))
     const action = result.current.context.togglePrivate()
@@ -230,7 +210,7 @@ describe('app shortcuts', () => {
         1,
       ),
     )
-    expect(client.getQueryData<NoteRow>(queryKey)?.isPrivate).toBe(true)
+    expect(app.noteRows.getOverlay('daily/2026-09-07.md', 1)).toEqual({ isPrivate: true })
     write.resolve()
     await action
   })

@@ -5,11 +5,9 @@ import {
   type NoteActionsService,
   type NoteDocumentService,
   type NoteRow,
-  type PinnedNote,
 } from '@reflect/core'
 import { createTestAppServices, type TestAppServices } from '@reflect/core/testing'
 import { frontmatterPatchToYaml } from '@/editor/note-session.ts'
-import { queryKeys } from '@/lib/query-client.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import type { ReactElement, ReactNode } from 'react'
 import { act } from '@/test-utils/act.ts'
@@ -269,11 +267,11 @@ describe('NoteActionsMenu', () => {
   it('shows Unpin on reopening while the pin write is still pending', async () => {
     const write = Promise.withResolvers<void>()
     commitNoteFrontmatter.mockReturnValueOnce(write.promise)
-    const { view, client } = await mount()
+    const { view } = await mount()
     await openActions()
     await view.getByRole('button', { name: 'Pin', exact: true }).click()
-    expect(client.getQueryData<PinnedNote[]>(queryKeys.index.pinnedNotes('/g'))?.[0]?.path).toBe(
-      'notes/meeting.md',
+    await vi.waitFor(() =>
+      expect(view.app.noteRows.getOverlay('notes/meeting.md', 7)).toMatchObject({ isPinned: true }),
     )
     await openActions()
     await expect

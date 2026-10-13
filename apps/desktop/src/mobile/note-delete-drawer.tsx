@@ -17,7 +17,7 @@ interface NoteDeleteDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Called after the note is safely in trash. */
-  onDeleted: () => void
+  onDeleted?: () => void
 }
 
 /**
@@ -58,7 +58,7 @@ export function NoteDeleteDrawer({
     try {
       await noteActions.trashOne(path, graph.generation)
       onOpenChange(false)
-      onDeleted()
+      onDeleted?.()
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {

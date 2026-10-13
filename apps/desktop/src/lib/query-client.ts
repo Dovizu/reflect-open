@@ -187,12 +187,6 @@ export const mutationKeys = {
       return [...this.graph(root), 'snippet-toggle'] as const
     },
   },
-  pinnedNotes: {
-    all: ['pinned-notes'] as const,
-    reorder(root: GraphRoot) {
-      return [...this.all, root, 'reorder'] as const
-    },
-  },
   agentSkill: {
     all: ['agent-skill'] as const,
     write(root: GraphRoot) {
@@ -223,7 +217,6 @@ export const mutationKeys = {
 } as const
 
 export const mutationScopeIds = {
-  pinnedNotesReorder: (root: GraphRoot) => `pinned-notes:reorder:${root ?? 'none'}`,
   agentSkillWrite: (root: GraphRoot) => `agent-skill:write:${root ?? 'none'}`,
   iapAction: 'iap:action',
 } as const

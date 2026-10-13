@@ -84,7 +84,6 @@ export {
 } from '../documents/attachment-service.ts'
 export {
   INITIAL_NOTE_SNAPSHOT,
-  createNoteSessionService,
   frontmatterPatchToYaml,
   type FrontmatterPatch,
   type NoteContentOrigin,
@@ -162,18 +161,17 @@ export {
   type NoteDocumentService,
 } from '../documents/note-document-service.ts'
 export { type NotePreview, type NotePreviewService } from '../documents/note-preview-service.ts'
-export {
-  canTrashNote,
-  type NoteActionsService,
-  type NotePinOrderWrite,
-} from '../documents/note-actions-service.ts'
+export { canTrashNote, type NoteActionsService } from '../documents/note-actions-service.ts'
 export {
   applyNoteRowOverlay,
+  applyNoteRowOverlays,
+  applyPinnedNoteOverlays,
+  type NoteListRowFacts,
   type NoteRowOverlay,
   type NoteRowOverlayPatch,
   type NoteRowService,
 } from '../documents/note-row-service.ts'
-export { getNextPinOrder, isValidPinOrder, updatePinOrder } from '../documents/pin-order.ts'
+export { updatePinOrder } from '../documents/pin-order.ts'
 export { type OpenDocumentsService } from '../documents/open-documents-service.ts'
 export { type RenameCoordinator } from '../documents/title-rename-service.ts'
 export { createDocumentBinding, type DocumentBinding } from '../documents/document-binding.ts'

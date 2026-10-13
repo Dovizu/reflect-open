@@ -132,8 +132,11 @@ others care about **emits an event** instead of writing to a cache:
 - Isolate listeners. `emitMoved` in the example wraps each call in `try` /
   `catch` and logs, because a throwing subscriber must not turn a move that
   landed into a reported failure.
-- Return from a method the data an optimistic UI update needs
-  (`noteActions.togglePinned` resolves with the new `pinned` and `pinOrder`).
+- Optimistic state is a core overlay (`NoteRowService`); the app only
+  invalidates queries. A note action records what it writes there
+  (`noteActions.togglePinned` records `isPinned` and `pinnedOrder`), readers
+  merge it over the index rows, and it retires when the index agrees. Do not
+  add a callback for the UI to patch its cache.
 
 The desktop app subscribes and decides what an event means for it: the router
 rewrites its history on `noteMove.onMoved`, and `lib/query-invalidation.ts`
