@@ -113,6 +113,7 @@ export interface ICloudSyncServiceFactory {
   create(options: ICloudSyncServiceOptions): ICloudSyncService
 }
 
+// FIXME: I do not understand why do we need two layers of factory here (createICloudSyncServiceFactory+createICloudSyncService). if we remove "icloudSyncs" in `const appServiceFactories`, and just make it as a sub-detail of the graph service. in another world, the create-app-services.ts does not touch `icloudSyncs` directly. If we do this, can we make it simpler? The same question applied to all graph-owned services.
 export function createICloudSyncServiceFactory(
   deps: ICloudSyncServiceDeps,
 ): ICloudSyncServiceFactory {
