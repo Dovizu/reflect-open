@@ -566,6 +566,10 @@ class TestBackupServiceImpl implements TestBackupService {
     this.#log.push({ method: 'signOut' })
   }
 
+  // FIXME: it seems that `backUpNow` DO NOT need to be a lambda function. It can just be a normal method. We only want to write `readonly method = () => { ... } ` and ` interface XXXService { method : () => void } ` if we really need to bind `this` to the method. A good example is `getState`. Because we need to write `return useServiceState(contacts, contacts.getState)`, so `getState` in `ContactsService` should be a lambda function. But as far as I can tell, `backUpNow` does not need to be a lambda function. Before finish all work, do a full scan in the codebase to see if we can remove all unnecessary lambda functions in XXXService. This will make the code cleaner and easier to read.
+  // FIXME GOOD: async backUpNow(): Promise<void> { ... }
+  // FIXME BAD: readonly backUpNow = async (): Promise<void> => { ... }
+  // FIXME it's clear that the GOOD one is shorter and easier to read.
   readonly backUpNow = async (): Promise<void> => {
     this.#log.push({ method: 'backUpNow' })
   }
