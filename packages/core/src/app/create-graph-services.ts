@@ -41,7 +41,7 @@ export interface GraphServicesDeps {
  * lifecycles that no surface reads run inside and have no field.
  */
 export interface GraphServices<App = unknown> {
-  readonly app: App
+  readonly app: App // FIXME: question: WHY GraphServices.app is needed? Where is it used? Can we remove it?
   readonly session: GraphSession
   readonly role: GraphRole
   /** The chat session of this graph. */
