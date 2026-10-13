@@ -257,14 +257,14 @@ class BatchWriter<Item> {
     this.#write = write
   }
 
-  readonly add = async (item: Item): Promise<void> => {
+  async add(item: Item): Promise<void> {
     this.#batch.push(item)
     if (this.#batch.length >= INDEX_APPLY_BATCH_SIZE) {
       await this.flush()
     }
   }
 
-  readonly flush = async (): Promise<void> => {
+  async flush(): Promise<void> {
     if (this.#batch.length === 0) {
       return
     }
@@ -273,7 +273,9 @@ class BatchWriter<Item> {
     this.#appliedCount += await this.#write(items)
   }
 
-  readonly applied = (): number => this.#appliedCount
+  applied(): number {
+    return this.#appliedCount
+  }
 }
 
 /**
