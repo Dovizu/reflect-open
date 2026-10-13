@@ -20,12 +20,6 @@ describe('createSystemIdService', () => {
     expect(a).toMatch(NOTE_ID_RE)
     expect(id.noteId()).not.toBe(a)
   })
-
-  it('returns a PKCE pair', async () => {
-    const pair = await createSystemIdService().pkceChallenge()
-    expect(Object.keys(pair).toSorted()).toEqual(['code_challenge', 'code_verifier'])
-    expect(pair.code_verifier).toHaveLength(43)
-  })
 })
 describe('createTestIdService', () => {
   it('counts UUIDs up from one', () => {
@@ -57,11 +51,10 @@ describe('createTestIdService', () => {
     expect(isValid(a.noteId())).toBe(true)
   })
 
-  it('records issued ids and returns a fixed PKCE pair', async () => {
+  it('records issued ids', () => {
     const id = createTestIdService()
     const uuid = id.uuid()
     const noteId = id.noteId()
     expect(id.issued()).toEqual([uuid, noteId])
-    await expect(id.pkceChallenge()).resolves.toEqual(await id.pkceChallenge())
   })
 })

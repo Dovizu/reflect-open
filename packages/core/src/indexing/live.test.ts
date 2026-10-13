@@ -1,4 +1,3 @@
-import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
@@ -65,7 +64,6 @@ function setup(options?: {
     indexQuery: createIndexQueryService({ database }),
     database,
     xArchive: createTestXArchiveService(),
-    hash: createWebCryptoHashService(),
     clock: createTestClockService({ now: 1_750_000_000_000 }),
     logger,
   })

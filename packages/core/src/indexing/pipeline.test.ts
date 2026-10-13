@@ -1,5 +1,5 @@
-import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { sha256Hex } from '@reflect/utils'
 import { parseNote } from '../markdown/index.ts'
 import { createTestXArchiveService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
@@ -30,7 +30,6 @@ const DEFAULT_SCAN = {
   stalePlaceholders: [],
 }
 
-const hash = createWebCryptoHashService()
 const databases: { close(): void }[] = []
 
 afterEach(() => {
@@ -116,7 +115,6 @@ function setup(options?: {
     indexQuery: createIndexQueryService({ database }),
     database,
     xArchive: createTestXArchiveService(),
-    hash,
     clock,
     logger,
   }
@@ -437,7 +435,7 @@ describe('LiveIndex.apply (watcher dispatch)', () => {
         {
           path: 'notes/a.md',
           markdown: content,
-          fileHash: await hash.sha256Hex(content),
+          fileHash: await sha256Hex(content),
           mtime: 1_000,
         },
       ],
@@ -501,7 +499,7 @@ describe('reconcile move healing (Plan 17)', () => {
   }
 
   it('moves the rows and skips the re-index when content is unchanged', async () => {
-    const { indexer, store, findCall } = setupRename({ storedHash: await hash.sha256Hex(CONTENT) })
+    const { indexer, store, findCall } = setupRename({ storedHash: await sha256Hex(CONTENT) })
 
     await indexer.reconcile({ generation: 4 })
 
@@ -513,7 +511,7 @@ describe('reconcile move healing (Plan 17)', () => {
   })
 
   it('announces the heal via onMoved so the app can follow', async () => {
-    const { indexer } = setupRename({ storedHash: await hash.sha256Hex(CONTENT) })
+    const { indexer } = setupRename({ storedHash: await sha256Hex(CONTENT) })
     const moves: Array<[string, string]> = []
 
     await indexer.reconcile({
@@ -602,7 +600,7 @@ describe('reconcile over the native scan delta', () => {
 
   it('reads (and hash-skips) a candidate whose stored mtime differs — providers rewrite mtimes', async () => {
     const content = '# Hello\n'
-    const storedHash = await hash.sha256Hex(content)
+    const storedHash = await sha256Hex(content)
     const { indexer, reads, methods, findCall } = setup({
       files: { 'notes/a.md': { contents: content, modifiedMs: 2_000 } },
       store: {

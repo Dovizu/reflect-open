@@ -1,4 +1,3 @@
-import { createWebCryptoHashService } from '../app/hash-service.ts'
 import type { GraphRole, GraphSession } from '../app/graph-session.ts'
 import {
   composeCoreServices,
@@ -145,7 +144,6 @@ function createTestEdgeServices() {
     logger: createTestLoggerService(),
     clock: createTestClockService(),
     id: createTestIdService(),
-    hash: createWebCryptoHashService(),
     http: createTestHttpService(),
     imageCodec: createTestImageCodec(),
     activity: createTestActivityPort(),
@@ -282,7 +280,6 @@ export function createTestCoreServices<
     logger: edge.logger,
     clock: edge.clock,
     id: edge.id,
-    hash: edge.hash,
     imageCodec: edge.imageCodec,
     createGraphServices:
       edge.createGraphServices ??

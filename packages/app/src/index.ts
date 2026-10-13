@@ -37,7 +37,11 @@ export {
 } from './app/opener-service.ts'
 export { type KeyboardService } from './mobile/keyboard-service.ts'
 export { type ShareService } from './mobile/share-service.ts'
-export { type MobileSyncStatus, type SyncStatusService } from './sync/sync-status-service.ts'
+export {
+  mobileSyncStatus,
+  type MobileSyncStatus,
+  type SyncStatusInput,
+} from './sync/mobile-sync-status.ts'
 export {
   createConnectGithubWizardService,
   type ConnectAuthKind,

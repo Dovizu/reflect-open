@@ -1,5 +1,5 @@
 import { parseNote, splitFrontmatter } from '../markdown/index.ts'
-import type { HashService } from '../app/hash-service.ts'
+import { sha256Hex } from '@reflect/utils'
 import {
   MAX_ASSET_TEXT_CHARS,
   type AssetDescriptionBody,
@@ -43,13 +43,6 @@ function sentenceSpans(text: string, base: number): Array<{ from: number; to: nu
   return spans
 }
 
-/**
- * The service the chunkers hash chunk text with.
- */
-export interface ChunkContext {
-  readonly hash: HashService
-}
-
 interface Section {
   heading: string | null
   from: number
@@ -62,12 +55,7 @@ interface Section {
  * document. No runt-tail merging here — each caller owns its own merge rule
  * (the note merges only its final chunk, asset bodies merge per body).
  */
-async function chunkRun(
-  ctx: ChunkContext,
-  text: string,
-  base: number,
-  heading: string | null,
-): Promise<NoteChunk[]> {
+async function chunkRun(text: string, base: number, heading: string | null): Promise<NoteChunk[]> {
   const chunks: NoteChunk[] = []
   let chunkFrom = -1
   let chunkTo = -1
@@ -85,7 +73,7 @@ async function chunkRun(
       posFrom: chunkFrom,
       posTo: chunkTo,
       text: chunkText,
-      contentHash: await ctx.hash.sha256Hex(chunkText),
+      contentHash: await sha256Hex(chunkText),
     })
     chunkFrom = -1
   }
@@ -109,7 +97,6 @@ async function chunkRun(
  * source the positions index into.
  */
 async function mergeRuntTail(
-  ctx: ChunkContext,
   chunks: NoteChunk[],
   sliceText: (from: number, to: number) => string,
 ): Promise<NoteChunk[]> {
@@ -129,7 +116,7 @@ async function mergeRuntTail(
       posFrom: prev.posFrom,
       posTo: last.posTo,
       text,
-      contentHash: await ctx.hash.sha256Hex(text),
+      contentHash: await sha256Hex(text),
     },
   ]
 }
@@ -140,7 +127,6 @@ async function mergeRuntTail(
  * pipeline does, for the asset list) to avoid a second parse.
  */
 export async function chunkNote(
-  ctx: ChunkContext,
   path: string,
   source: string,
   parsed = parseNote({ path, source }),
@@ -166,12 +152,12 @@ export async function chunkNote(
     if (text.trim() === '') {
       continue
     }
-    chunks.push(...(await chunkRun(ctx, text, section.from, section.heading)))
+    chunks.push(...(await chunkRun(text, section.from, section.heading)))
   }
 
   // Only the note's final chunk merges — mid-note section tails keep their
   // historical shape, so existing chunk hashes (and the re-embed skip) hold.
-  return await mergeRuntTail(ctx, chunks, (from, to) => source.slice(from, to))
+  return await mergeRuntTail(chunks, (from, to) => source.slice(from, to))
 }
 
 /** `assets/graphs/q4.png` → `q4.png` — the chunk heading for an asset body. */
@@ -191,7 +177,6 @@ function assetBasename(assetPath: string): string {
  * mirroring the FTS fold.
  */
 export async function chunkAssetDescriptions(
-  ctx: ChunkContext,
   bodies: readonly AssetDescriptionBody[],
   baseOffset: number,
 ): Promise<NoteChunk[]> {
@@ -208,10 +193,8 @@ export async function chunkAssetDescriptions(
     const text = body.slice(0, budget)
     budget -= text.length
     const heading = assetBasename(assetPath)
-    const bodyChunks = await mergeRuntTail(
-      ctx,
-      await chunkRun(ctx, text, offset, heading),
-      (from, to) => text.slice(from - offset, to - offset),
+    const bodyChunks = await mergeRuntTail(await chunkRun(text, offset, heading), (from, to) =>
+      text.slice(from - offset, to - offset),
     )
     chunks.push(...bodyChunks)
     offset += text.length + 2 // as if joined by the FTS fold's blank line

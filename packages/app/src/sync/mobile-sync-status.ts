@@ -33,10 +33,7 @@ export interface MobileSyncStatus {
  * across idle cycles — conflicts never block other notes from syncing, so
  * the engine alone would happily report all-clear); errors and offline last.
  */
-export function mobileSyncStatus(
-  backup: BackupState,
-  conflictCount: number,
-): MobileSyncStatus | null {
+function statusForBackup(backup: BackupState, conflictCount: number): MobileSyncStatus | null {
   if (backup.phase !== 'connected') {
     return null
   }
@@ -64,7 +61,7 @@ export function mobileSyncStatus(
 }
 
 /**
- * What a {@link SyncStatusService} derives the status from.
+ * What {@link mobileSyncStatus} derives the status from.
  */
 export interface SyncStatusInput {
   /**
@@ -82,42 +79,26 @@ export interface SyncStatusInput {
 }
 
 /**
- * The derivation behind the mobile sync status surfaces (settings sheet, status pill).
+ * The mobile sync status, ready to display — engine state joined with the
+ * graph's conflicted-note count (which outlives any one cycle). `null` when
+ * there is nothing truthful to say: no backup configured, no sync lifecycle
+ * mounted (dev harness, tests), or the conflict count still loading — a
+ * status shown before the count is known could claim `Backed up` over
+ * conflict markers already on disk, then flip.
  */
-export interface SyncStatusService {
-  /**
-   * The mobile sync status, ready to display — engine state joined with the
-   * graph's conflicted-note count (which outlives any one cycle). `null` when
-   * there is nothing truthful to say: no backup configured, no sync lifecycle
-   * mounted (dev harness, tests), or the conflict count still loading — a
-   * status shown before the count is known could claim `Backed up` over
-   * conflict markers already on disk, then flip.
-   */
-  status(input: SyncStatusInput): MobileSyncStatus | null
-}
-
-class SyncStatusServiceImpl implements SyncStatusService {
-  status({
-    backup,
-    conflictCount,
-    conflictCountUnavailable,
-  }: SyncStatusInput): MobileSyncStatus | null {
-    const connected = backup !== null && backup.phase === 'connected'
-    // Loading hides the status (no flip); a *failed* count must not — the
-    // engine-driven states (Syncing, Offline, Needs attention) don't depend on
-    // it, and blanking them over an unreadable index would hide real signal.
-    // The degradation is losing the Needs-review headline until the index
-    // recovers.
-    if (
-      backup === null ||
-      (connected && conflictCount === undefined && !conflictCountUnavailable)
-    ) {
-      return null
-    }
-    return mobileSyncStatus(backup, conflictCount ?? 0)
+export function mobileSyncStatus({
+  backup,
+  conflictCount,
+  conflictCountUnavailable,
+}: SyncStatusInput): MobileSyncStatus | null {
+  const connected = backup !== null && backup.phase === 'connected'
+  // Loading hides the status (no flip); a *failed* count must not — the
+  // engine-driven states (Syncing, Offline, Needs attention) don't depend on
+  // it, and blanking them over an unreadable index would hide real signal.
+  // The degradation is losing the Needs-review headline until the index
+  // recovers.
+  if (backup === null || (connected && conflictCount === undefined && !conflictCountUnavailable)) {
+    return null
   }
-}
-
-export function createSyncStatusService(): SyncStatusService {
-  return new SyncStatusServiceImpl()
+  return statusForBackup(backup, conflictCount ?? 0)
 }

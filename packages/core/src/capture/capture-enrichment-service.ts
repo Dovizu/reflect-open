@@ -1,4 +1,5 @@
 import { captureFromPath, type CaptureIdentity } from './capture-identity.ts'
+import { sha256Hex } from '@reflect/utils'
 import {
   captureDescriptionFromBody,
   captureNoteMeta,
@@ -21,7 +22,6 @@ import {
   type PageDescriberService,
   type PageEnrichment,
 } from '../ai/page-describer-service.ts'
-import type { HashService } from '../app/hash-service.ts'
 import type { ReconcileStop } from '../app/reconcile.ts'
 import type { WebFetchService } from '../app/web-fetch-service.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
@@ -105,7 +105,6 @@ export interface CaptureEnrichmentServiceDeps {
   readonly aiProviderConfig: AiProviderConfigService
   readonly aiCredentials: AiCredentialService
   readonly privacy: PrivacyService
-  readonly hash: HashService
 }
 
 /**
@@ -133,7 +132,7 @@ class CaptureEnrichmentServiceImpl implements CaptureEnrichmentService {
 
   constructor(deps: CaptureEnrichmentServiceDeps) {
     this.#deps = deps
-    this.#writes = { noteFile: deps.noteFile, hash: deps.hash }
+    this.#writes = { noteFile: deps.noteFile }
   }
 
   async listPending(generation: number): Promise<CaptureIdentity[]> {
@@ -165,7 +164,7 @@ class CaptureEnrichmentServiceImpl implements CaptureEnrichmentService {
   async reconcile(
     input: ReconcileCaptureEnrichmentInput,
   ): Promise<ReconcileCaptureEnrichmentOutcome> {
-    const { noteFile, assetStore, aiProviderConfig, aiCredentials, hash } = this.#deps
+    const { noteFile, assetStore, aiProviderConfig, aiCredentials } = this.#deps
     const pageMetaService = this.#deps.pageMeta
     const writes = this.#writes
     let pending: CaptureIdentity[]
@@ -240,7 +239,7 @@ class CaptureEnrichmentServiceImpl implements CaptureEnrichmentService {
         return null
       }
       const dailySource = await noteSource(noteFile, dailyPath(identity.date), input.generation)
-      const bodyHash = await hash.sha256Hex(snapshot.body)
+      const bodyHash = await sha256Hex(snapshot.body)
       if (
         snapshot.isPrivate ||
         notePrivate(dailySource) ||

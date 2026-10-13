@@ -1,3 +1,4 @@
+import pkceChallenge from 'pkce-challenge'
 import { z } from 'zod'
 import type { ClockService } from '../app/clock-service.ts'
 import type { HttpService } from '../app/http-service.ts'
@@ -210,7 +211,7 @@ class ClassicAccessServiceImpl implements ClassicAccessService {
 
   async signIn(options: ClassicSignInOptions): Promise<ClassicSignInResult> {
     const { webAuth, clock, id } = this.#deps
-    const { code_verifier: verifier, code_challenge: challenge } = await id.pkceChallenge()
+    const { code_verifier: verifier, code_challenge: challenge } = await pkceChallenge()
     const oauthState = id.uuid()
     const params = new URLSearchParams({
       client_id: CLASSIC_OAUTH_CLIENT_ID,

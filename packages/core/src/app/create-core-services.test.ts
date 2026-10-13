@@ -54,7 +54,7 @@ describe('createCoreServices', () => {
     await expect(services.path.homeDir()).resolves.toBe('/home/test')
   })
 
-  it('defaults the id and hash', () => {
+  it('defaults the id', () => {
     const services = createCoreServices(requiredAdapters())
     expect(services.id.noteId()).toMatch(/^[0-9a-z]{26}$/)
   })

@@ -1,4 +1,4 @@
-import type { IdService, PkcePair } from '../app/id-service.ts'
+import type { IdService } from '../app/id-service.ts'
 
 const CROCKFORD = '0123456789abcdefghjkmnpqrstvwxyz'
 
@@ -54,13 +54,6 @@ class TestIdServiceImpl implements TestIdService {
     const value = this.#ulidTime + crockford(this.#noteIdCount, 16)
     this.#issued.push(value)
     return value
-  }
-
-  pkceChallenge(): Promise<PkcePair> {
-    return Promise.resolve({
-      code_verifier: 'test-code-verifier',
-      code_challenge: 'test-code-challenge',
-    })
   }
 
   issued(): readonly string[] {

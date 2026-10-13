@@ -224,7 +224,6 @@ import { createAgentSkillService, type AgentSkillService } from './agent-skill-s
 import { createAppInfoService, type AppInfoService } from './app-info-service.ts'
 import { createBackgroundReconcilerFactory } from './background-reconciler.ts' // FIXME: 我感觉这里的代码组织很有问题。1: it's accetable that packages/app/ contains src/app/. But it's weird that packages/core/ also cntains src/app/. Why does the "core" package include an "app" folder?  2: Some service are placed directly in src/app/, like createSystemIdService (very basic and common-used feature) and createAgentSkillService (very high-level and less used feature), while some services are placed in subfolders like createWebAuthService in '../ipc/web-auth-plugin.ts'. I feel like the code organization is not very clear. try to improve it. notice that this is not a task for this create-core-services.ts file only, it's a task that requires you to look at the all changed files in this PR and stand in a higher position and think if there is any better way to organizate files.
 import type { ClockService } from './clock-service.ts'
-import { createWebCryptoHashService, type HashService } from './hash-service.ts'
 import type { HttpService } from './http-service.ts'
 import { createSystemIdService, type IdService } from './id-service.ts'
 import { isMobilePlatform } from './platform.ts'
@@ -262,10 +261,6 @@ export interface CoreServices {
    * Fresh random identifiers.
    */
   readonly id: IdService
-  /**
-   * Content hashing.
-   */
-  readonly hash: HashService
   /**
    * What the host is and can do, decided once at startup.
    */
@@ -572,10 +567,6 @@ export interface CoreAdapters {
    * Defaults to the system `IdService`.
    */
   readonly id?: IdService
-  /**
-   * Defaults to Web Crypto.
-   */
-  readonly hash?: HashService
   /**
    * Defaults to a codec that cannot decode.
    */
@@ -935,7 +926,6 @@ export function composeCoreServices(
   const noteList = create.noteList({ database })
   const graphStats = create.graphStats({ database })
   const notePath = create.notePath({ database, noteFile })
-  const hash = adapters.hash ?? createWebCryptoHashService()
   const indexStore = create.indexStore({ ipc, database })
   const xArchive = create.xArchive({ ipc })
   const aiCredentials = create.aiCredentials({ secretStore })
@@ -987,7 +977,6 @@ export function composeCoreServices(
     indexQuery,
     database,
     xArchive,
-    hash,
     clock,
     logger,
     progress,
@@ -1066,7 +1055,6 @@ export function composeCoreServices(
     noteFile,
     database,
     indexLifecycle,
-    hash,
     logger,
   })
   const transcription = create.transcription({ http: adapters.http })
@@ -1148,7 +1136,6 @@ export function composeCoreServices(
     logger,
     clock,
     id,
-    hash,
     platform,
     storage,
     path,
@@ -1337,7 +1324,6 @@ export function composeCoreServices(
       aiProviderConfig,
       aiCredentials,
       privacy,
-      hash,
       clock,
       reconcilers,
       activity,
@@ -1354,7 +1340,6 @@ export function composeCoreServices(
       assetDescriber,
       aiProviderConfig,
       aiCredentials,
-      hash,
       clock,
       reconcilers,
       indexLifecycle,

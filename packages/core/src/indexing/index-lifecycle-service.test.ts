@@ -1,4 +1,3 @@
-import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createGraphSession, type GraphRole, type GraphSession } from '../app/graph-session.ts'
 import type { AppPlatform } from '../app/platform.ts'
@@ -129,7 +128,6 @@ function setup(options?: {
     indexQuery: createIndexQueryService({ database }),
     database,
     xArchive: createTestXArchiveService(),
-    hash: createWebCryptoHashService(),
     clock,
     logger,
     progress: operations,

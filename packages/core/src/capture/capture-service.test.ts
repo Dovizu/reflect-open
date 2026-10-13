@@ -1,4 +1,3 @@
-import { createWebCryptoHashService } from '../app/hash-service.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { describe, expect, it, vi } from 'vitest'
 import type { XPostEnvelope } from './bookmark-envelope.ts'
@@ -85,7 +84,6 @@ function setup(options: { mobile?: boolean } = {}) {
       noteFile,
       graphSession: createTestGraphSessionService({ graph: { generation: 1 } }),
     }),
-    hash: createWebCryptoHashService(),
     clock: createTestClockService(),
     reconcilers: createBackgroundReconcilerFactory({ activity }),
     activity,

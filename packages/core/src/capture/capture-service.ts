@@ -6,7 +6,6 @@ import type { AiProviderConfigService } from '../ai/ai-provider-config-service.t
 import type { PageDescriberService } from '../ai/page-describer-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
-import type { HashService } from '../app/hash-service.ts'
 import type { ActivityPort, ProgressPort } from '../app/ports.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
@@ -77,7 +76,6 @@ export interface CaptureServiceDeps {
   readonly aiProviderConfig: AiProviderConfigService
   readonly aiCredentials: AiCredentialService
   readonly privacy: PrivacyService
-  readonly hash: HashService
   readonly clock: ClockService
   readonly reconcilers: BackgroundReconcilerFactory
   readonly activity: ActivityPort
@@ -276,7 +274,6 @@ class CaptureServiceImpl implements CaptureService {
       noteFile,
       xArchive,
       backlinkTarget,
-      hash: deps.hash,
       clock: deps.clock,
       logger: deps.logger,
     })
@@ -289,7 +286,6 @@ class CaptureServiceImpl implements CaptureService {
       aiProviderConfig: deps.aiProviderConfig,
       aiCredentials: deps.aiCredentials,
       privacy: deps.privacy,
-      hash: deps.hash,
     })
   }
 

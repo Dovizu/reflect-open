@@ -241,7 +241,7 @@ describe('signIn', () => {
     })
   })
 
-  it('takes the PKCE pair and `state` from the `IdService`', async () => {
+  it('takes `state` from the `IdService` and sends a matching PKCE pair', async () => {
     const id = createTestIdService()
     let verifier = ''
     routes({
@@ -256,10 +256,11 @@ describe('signIn', () => {
     await service({ id }).signIn({ ephemeral: false })
 
     const authorizeUrl = new URL(webAuth.starts()[0]?.url ?? 'https://invalid')
-    const pair = await id.pkceChallenge()
     expect(authorizeUrl.searchParams.get('state')).toBe(id.issued()[0])
-    expect(authorizeUrl.searchParams.get('code_challenge')).toBe(pair.code_challenge)
-    expect(verifier).toBe(pair.code_verifier)
+    expect(verifier).toHaveLength(43)
+    await expect(
+      verifyChallenge(verifier, authorizeUrl.searchParams.get('code_challenge') ?? ''),
+    ).resolves.toBe(true)
   })
 
   it('reports an account that never paid without storing anything', async () => {

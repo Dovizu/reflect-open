@@ -1,4 +1,5 @@
 import type { XPostEnvelope } from './bookmark-envelope.ts'
+import { sha256Hex } from '@reflect/utils'
 import {
   inboxEnvelopeSchema,
   type InboxEnvelope,
@@ -21,7 +22,6 @@ import {
   type CaptureStatus,
 } from './capture-note.ts'
 import type { ClockService } from '../app/clock-service.ts'
-import type { HashService } from '../app/hash-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { ReconcileStop } from '../app/reconcile.ts'
 import { errorMessage, isAppError, toAppError } from '../errors.ts'
@@ -123,7 +123,6 @@ export interface CaptureDrainServiceDeps {
   readonly noteFile: NoteFileService
   readonly xArchive: XArchiveService
   readonly backlinkTarget: BacklinkTargetService
-  readonly hash: HashService
   readonly clock: ClockService
   readonly logger: LoggerService
 }
@@ -146,7 +145,7 @@ class CaptureDrainServiceImpl implements CaptureDrainService {
   }
 
   async drain(input: DrainCaptureInboxInput): Promise<DrainCaptureInboxOutcome> {
-    const { captureInbox, noteFile, xArchive, backlinkTarget, hash } = this.#deps
+    const { captureInbox, noteFile, xArchive, backlinkTarget } = this.#deps
     let entries
     try {
       entries = await captureInbox.list(input.generation)
@@ -228,7 +227,7 @@ class CaptureDrainServiceImpl implements CaptureDrainService {
         const linksNoteTitle = await backlinkTarget.ensure(LINKS_NOTE_TITLE, input.generation)
         const dailySource = await noteSource(noteFile, daily, input.generation)
         const selection = envelope.selection?.trim()
-        const selectionHash = selection ? await hash.sha256Hex(selection) : undefined
+        const selectionHash = selection ? await sha256Hex(selection) : undefined
         const existing = await this.#findSameDayCapture(
           dailySource,
           [linksNoteTitle, LINKS_NOTE_TITLE],
@@ -259,7 +258,7 @@ class CaptureDrainServiceImpl implements CaptureDrainService {
 
         await noteFile.write(
           identity.notePath,
-          await captureNoteSource(hash, envelope, identity, {
+          await captureNoteSource(envelope, identity, {
             hasScreenshot,
             status,
             selectionHash,
