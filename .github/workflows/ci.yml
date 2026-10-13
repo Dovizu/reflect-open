@@ -67,6 +67,7 @@ jobs:
           # less free space than this threshold; an unreachable threshold makes
           # it collect every time (about 60 ms per file).
           VITEST_CHROMIUM_GC_DISK_THRESHOLD_GB: '100000'
+          # FIXME: is VITEST_CHROMIUM_GC_DISK_THRESHOLD_GB still needed? I don't see any code that uses it. If it's still used, add a github permalink in the comment
 
   # Not part of `all-green`: a WebKit failure does not block merging.
   test-webkit:
