@@ -1,5 +1,5 @@
 import { sha256Hex } from '@reflect/utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AssetDescriptionRejectedError } from '../ai/asset-describer-service.ts'
 import { createBackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import { ReflectError } from '../errors.ts'
@@ -52,13 +52,13 @@ const INDEX_GENERATION = 11
 const NOW = Date.parse('2026-06-16T00:00:00.000Z')
 
 let hashing = 0
+const subtle = globalThis.crypto.subtle
+const digest = subtle.digest.bind(subtle)
 
 /**
  * Count the digests in flight so {@link flush} can wait for them.
  */
 beforeEach(() => {
-  const subtle = globalThis.crypto.subtle
-  const digest = subtle.digest.bind(subtle)
   vi.spyOn(subtle, 'digest').mockImplementation(async (...args) => {
     hashing += 1
     try {
@@ -67,6 +67,10 @@ beforeEach(() => {
       hashing -= 1
     }
   })
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 /**
