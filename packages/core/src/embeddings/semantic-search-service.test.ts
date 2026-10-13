@@ -44,9 +44,11 @@ async function setup(options?: {
       : { local: { 'reflect.semantic.enabled': options.legacyOptIn } },
   )
   const runtime = createTestEmbeddingRuntimeService({ status: options?.status ?? READY })
+  const session = createGraphSession({ ...GRAPH, indexGeneration: 7 })
   const indexLifecycle = createTestIndexLifecycleService({
     logger,
     operations,
+    graphSession: { getState: () => ({ session }) },
     indexStore: createTestIndexStoreService({
       fail: (call) =>
         options?.failClear === true && call.method === 'clear'
@@ -338,7 +340,7 @@ describe('after an index rebuild', () => {
   it('re-embeds nothing while the model is not ready', async () => {
     const { indexLifecycle, embeddingIndex } = await setup({ status: { status: 'uninitialized' } })
 
-    await indexLifecycle.rebuildVisibly(7)
+    await indexLifecycle.rebuildVisibly()
 
     expect(indexLifecycle.rebuilds()).toEqual([7])
     expect(embeddingIndex.backfills()).toEqual([])
@@ -347,8 +349,8 @@ describe('after an index rebuild', () => {
   it('re-runs the embedding backfill when the model is ready', async () => {
     const { indexLifecycle, embeddingIndex } = await setup()
 
-    await indexLifecycle.rebuildVisibly(7)
-    await indexLifecycle.rebuildVisibly(7)
+    await indexLifecycle.rebuildVisibly()
+    await indexLifecycle.rebuildVisibly()
 
     // index_clear wiped the embedding tables; each rebuild repopulates them once.
     expect(embeddingIndex.backfills()).toEqual([
@@ -362,12 +364,12 @@ describe('after an index rebuild', () => {
     const { indexLifecycle, embeddingIndex } = await setup({ backfill: () => backfill.promise })
 
     let settled = false
-    const first = indexLifecycle.rebuildVisibly(7).then(() => {
+    const first = indexLifecycle.rebuildVisibly().then(() => {
       settled = true
     })
     await vi.waitFor(() => expect(embeddingIndex.backfills()).toHaveLength(1))
     // A request made meanwhile coalesces onto the pass, its re-embed included.
-    const second = indexLifecycle.rebuildVisibly(7)
+    const second = indexLifecycle.rebuildVisibly()
     await flush()
     expect(settled).toBe(false)
 
@@ -379,7 +381,7 @@ describe('after an index rebuild', () => {
   it('re-embeds nothing after a failed rebuild', async () => {
     const { indexLifecycle, embeddingIndex, operations } = await setup({ failClear: true })
 
-    await expect(indexLifecycle.rebuildVisibly(7)).resolves.toBeUndefined()
+    await expect(indexLifecycle.rebuildVisibly()).resolves.toBeUndefined()
 
     expect(operations.findByLabel('Rebuilding search index')?.status).toBe('failed')
     expect(embeddingIndex.backfills()).toEqual([])
@@ -401,7 +403,7 @@ describe('after an index rebuild', () => {
     const { semanticSearch, indexLifecycle, embeddingIndex } = await setup()
     semanticSearch.dispose()
 
-    await indexLifecycle.rebuildVisibly(7)
+    await indexLifecycle.rebuildVisibly()
 
     expect(embeddingIndex.backfills()).toEqual([])
   })

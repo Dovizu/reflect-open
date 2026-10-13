@@ -1,4 +1,4 @@
-import type { GraphSession } from '../app/graph-session.ts'
+import type { GraphSession, GraphSessionSource } from '../app/graph-session.ts'
 import type { OperationsService } from '../app/operations-service.ts'
 import { errorMessage } from '../errors.ts'
 import { isNotePath } from '../graph/paths.ts'
@@ -209,13 +209,15 @@ export interface IndexLifecycleService {
    * touches the notes themselves. A failed rebuild fails its operation and
    * resolves without reporting.
    *
-   * Requests coalesce while a rebuild runs: a second call at the same
-   * generation (a double-click, or the palette and the settings button racing)
-   * returns the in-flight pass instead of starting an overlapping wipe. A call
-   * at a *different* generation starts fresh: the graph changed, and Rust's
+   * The rebuild is pinned to the index generation of the open graph, and does
+   * nothing when no graph is open or its index failed to open. Requests
+   * coalesce while a rebuild runs: a second call at the same generation (a
+   * double-click, or the palette and the settings button racing) returns the
+   * in-flight pass instead of starting an overlapping wipe. A call at a
+   * *different* generation starts fresh: the graph changed, and Rust's
    * generation gate drops the superseded pass's writes anyway.
    */
-  rebuildVisibly: (generation: number) => Promise<void>
+  rebuildVisibly: () => Promise<void>
   /**
    * Read, parse, and index one note now, without waiting for the watcher. For
    * an in-app write whose row must be readable at once.
@@ -237,6 +239,7 @@ export interface IndexLifecycleService {
 export interface IndexLifecycleDeps extends IndexingDeps {
   readonly fileChanges: FileChangeService
   readonly operations: OperationsService
+  readonly graphSession: GraphSessionSource
 }
 
 /**
@@ -245,7 +248,7 @@ export interface IndexLifecycleDeps extends IndexingDeps {
  * internally; one instance lives across graph switches.
  */
 export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLifecycleService {
-  const { indexStore, fileChanges, operations, clock, logger } = deps
+  const { indexStore, fileChanges, operations, graphSession, clock, logger } = deps
   const progressListeners = new Set<(progress: IndexLifecycleProgress) => void>()
   const appliedListeners = new Set<(event: IndexAppliedEvent) => void>()
   const reconciledListeners = new Set<(event: IndexReconciledEvent) => void | Promise<void>>()
@@ -535,7 +538,11 @@ export function createIndexLifecycleService(deps: IndexLifecycleDeps): IndexLife
     }
   }
 
-  function rebuildVisibly(generation: number): Promise<void> {
+  function rebuildVisibly(): Promise<void> {
+    const generation = graphSession.getState().session?.indexGeneration ?? null
+    if (generation === null) {
+      return Promise.resolve()
+    }
     if (rebuildInFlight !== null && rebuildInFlight.generation === generation) {
       return rebuildInFlight.promise
     }

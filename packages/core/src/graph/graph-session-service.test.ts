@@ -98,6 +98,7 @@ function setup(options?: SetupOptions) {
     noteFile,
     fileChanges,
     logger,
+    graphSession: { getState: () => session.getState() },
   })
   const windowService = createTestWindowService({
     ...(options?.windowLabel === undefined ? {} : { label: options.windowLabel }),
@@ -853,7 +854,7 @@ describe('GraphSessionService index reactions', () => {
     await context.session.openRecent('/a')
     await expect.poll(() => context.reloads).toHaveLength(1)
 
-    await context.indexLifecycle.rebuildVisibly(1)
+    await context.indexLifecycle.rebuildVisibly()
     expect(context.reloads).toHaveLength(1)
   })
 

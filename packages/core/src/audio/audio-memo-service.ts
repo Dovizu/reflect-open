@@ -10,6 +10,7 @@ import type { TranscriptEnrichmentService } from '../ai/transcript-enrichment-se
 import type { TranscriptionService } from '../ai/transcription-service.ts'
 import type { BackgroundReconcilerFactory } from '../app/background-reconciler.ts'
 import type { ClockService } from '../app/clock-service.ts'
+import { requireGraphSession, type GraphSessionSource } from '../app/graph-session.ts'
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { OperationsService } from '../app/operations-service.ts'
@@ -45,8 +46,6 @@ export interface CaptureAudioMemoPartInput {
   part: number
   /** True on the session's final segment. */
   end: boolean
-  /** `GraphInfo.generation` — pins the write to the issuing graph. */
-  generation: number
 }
 
 /** Expected failures are data: the caller retries with the same recording. */
@@ -87,8 +86,6 @@ export interface AudioMemoPipelineState {
 }
 
 export interface AudioMemoPipelineOptions {
-  /** The open graph's generation — pins captures and transcription to it. */
-  generation: number
   /**
    * Whether the capture-error UI (popover, drawer) is on screen. When it is
    * not, a failed capture is also surfaced as a failed operation so the
@@ -124,6 +121,14 @@ export interface AudioMemoPipeline {
   retry(): void
   /** Drop the failed memo (or clear a recorder error) and continue. */
   discard(): void
+  /**
+   * Graph paths of every segment of one recording, in listing order. The
+   * cancel sweep's account of what a recording wrote: an in-memory ledger
+   * cannot see segments a previous webview ingested for the same recording.
+   */
+  listSegments(memo: AudioMemoIdentity): Promise<string[]>
+  /** Delete one segment from the graph. Idempotent. */
+  deleteSegment(path: string): Promise<void>
   /** Stop the transcription lifecycle. Queued captures still drain. */
   dispose(): void
 }
@@ -145,8 +150,6 @@ export interface AudioMemoSurface {
 }
 
 export interface AudioMemoSessionOptions {
-  /** The open graph's generation — pins captures and transcription to it. */
-  generation: number
   surface: AudioMemoSurface
   /** Whether the recording UI is hidden when the session opens. */
   surfaceHidden: boolean
@@ -211,28 +214,22 @@ export interface AudioMemoSession {
  */
 export interface AudioMemoService {
   /**
-   * Persist one session segment at its exact part path — the durable step, no
-   * network. Rotation calls this as each segment finishes, so a crash loses at
-   * most the segment still being recorded.
+   * Persist one session segment at its exact part path into the open graph —
+   * the durable step, no network. Rotation calls this as each segment
+   * finishes, so a crash loses at most the segment still being recorded.
    */
   capturePart(input: CaptureAudioMemoPartInput): Promise<CaptureAudioMemoOutcome>
   /**
-   * Graph paths of every segment of one session, in listing order. The cancel
-   * sweep's account of what a session wrote: an in-memory ledger cannot see
-   * segments a previous webview ingested for the same recording.
-   */
-  listSegments(memo: AudioMemoIdentity, generation: number): Promise<string[]>
-  /** Delete one segment from the graph. Idempotent. */
-  deleteSegment(path: string, generation: number): Promise<void>
-  /**
    * Open the capture queue and, in the main window, the transcription
-   * lifecycle of one graph session. Two lifecycles would double-transcribe
+   * lifecycle of the open graph's session; throws when no graph is open.
+   * Everything the pipeline writes is pinned to that session. Two lifecycles
+   * would double-transcribe
    * (and double-bill) the same memos, so a note window gets the queue only:
    * its saved memo is transcribed by the main window, which sees it arrive on
    * the watcher stream.
    */
   openPipeline(options: AudioMemoPipelineOptions): AudioMemoPipeline
-  /** Open the desktop recording surface of one graph session. */
+  /** Open the desktop recording surface of the open graph's session; throws when no graph is open. */
   openSession(options: AudioMemoSessionOptions): AudioMemoSession
 }
 
@@ -276,6 +273,7 @@ export function createAudioMemoService(deps: {
   clock: Pick<ClockService, 'now'>
   platform: Pick<PlatformFacts, 'isMacosDesktop'>
   window: Pick<WindowService, 'isMainWindow'>
+  graphSession: GraphSessionSource
   logger: Pick<LoggerService, 'error'>
 }): AudioMemoService {
   const {
@@ -295,6 +293,7 @@ export function createAudioMemoService(deps: {
     clock,
     platform,
     window: windowService,
+    graphSession,
     logger,
   } = deps
 
@@ -332,13 +331,16 @@ export function createAudioMemoService(deps: {
     await assetStore.uploadToPath(path, audio.blob, generation)
   }
 
-  async function capturePart(input: CaptureAudioMemoPartInput): Promise<CaptureAudioMemoOutcome> {
+  async function capturePartAt(
+    input: CaptureAudioMemoPartInput,
+    generation: number,
+  ): Promise<CaptureAudioMemoOutcome> {
     const memo = audioMemoIdentity(input.recordedAt, input.mimeType)
     try {
       await writeAudioMemoAsset(
         audioMemoPartPath(memo, input.part, input.end),
         input.audio,
-        input.generation,
+        generation,
       )
     } catch (cause) {
       return { ok: false, message: errorMessage(cause) }
@@ -346,12 +348,28 @@ export function createAudioMemoService(deps: {
     return { ok: true, memo }
   }
 
+  async function capturePart(input: CaptureAudioMemoPartInput): Promise<CaptureAudioMemoOutcome> {
+    const { session } = graphSession.getState()
+    if (session === null) {
+      return { ok: false, message: 'No graph is open.' }
+    }
+    return await capturePartAt(input, session.generation)
+  }
+
+  async function listSegments(memo: AudioMemoIdentity, generation: number): Promise<string[]> {
+    const files = await noteFile.listDir(AUDIO_MEMOS_DIR, generation)
+    return files
+      .filter((file) => audioMemoPartFromPath(file.path)?.memo.base === memo.base)
+      .map((file) => file.path)
+  }
+
   async function deleteSegment(path: string, generation: number): Promise<void> {
     await assetStore.deleteAudioMemo(path, generation)
   }
 
   function openPipeline(options: AudioMemoPipelineOptions): AudioMemoPipeline {
-    const { generation, isErrorSurfaceVisible } = options
+    const { isErrorSurfaceVisible } = options
+    const { generation } = requireGraphSession(graphSession)
     const listeners = new Set<() => void>()
 
     let pendingCount = 0
@@ -429,14 +447,16 @@ export function createAudioMemoService(deps: {
           }
           let outcome: CaptureAudioMemoOutcome
           try {
-            outcome = await capturePart({
-              audio: capture.audio,
-              mimeType: capture.mimeType,
-              recordedAt: capture.recordedAt,
-              part: capture.segment.part,
-              end: capture.segment.end,
+            outcome = await capturePartAt(
+              {
+                audio: capture.audio,
+                mimeType: capture.mimeType,
+                recordedAt: capture.recordedAt,
+                part: capture.segment.part,
+                end: capture.segment.end,
+              },
               generation,
-            })
+            )
           } catch (cause) {
             outcome = { ok: false, message: errorMessage(cause) }
           } finally {
@@ -526,6 +546,8 @@ export function createAudioMemoService(deps: {
         }
         void pump()
       },
+      listSegments: (memo) => listSegments(memo, generation),
+      deleteSegment: (path) => deleteSegment(path, generation),
       dispose() {
         stopConfig()
         stopTranscribing?.()
@@ -543,7 +565,7 @@ export function createAudioMemoService(deps: {
   }
 
   function openSession(options: AudioMemoSessionOptions): AudioMemoSession {
-    const { generation, surface } = options
+    const { surface } = options
     const listeners = new Set<() => void>()
     let surfaceHidden = options.surfaceHidden
     /** True from the stop click until the recorder hands over the blob. */
@@ -560,7 +582,6 @@ export function createAudioMemoService(deps: {
     // The mic button (and its popover) unmount with the sidebar — while
     // hidden, a capture failure must surface as an operation instead.
     const pipeline = openPipeline({
-      generation,
       isErrorSurfaceVisible: () => !surfaceHidden,
     })
 
@@ -636,7 +657,7 @@ export function createAudioMemoService(deps: {
           // A cancel may land while this segment's write is in flight — its
           // bytes are durable by now, so the cancel cleanup runs here.
           if (session.cancelled) {
-            return deleteSegment(path, generation).catch(() => {})
+            return pipeline.deleteSegment(path).catch(() => {})
           }
           session.captured.push(path)
         },
@@ -776,7 +797,7 @@ export function createAudioMemoService(deps: {
           // whose write is still in flight delete themselves via onCaptured.
           session.cancelled = true
           for (const path of session.captured) {
-            void deleteSegment(path, generation).catch(() => {})
+            void pipeline.deleteSegment(path).catch(() => {})
           }
           session.captured = []
         }
@@ -813,13 +834,6 @@ export function createAudioMemoService(deps: {
 
   return {
     capturePart,
-    async listSegments(memo, generation) {
-      const files = await noteFile.listDir(AUDIO_MEMOS_DIR, generation)
-      return files
-        .filter((file) => audioMemoPartFromPath(file.path)?.memo.base === memo.base)
-        .map((file) => file.path)
-    },
-    deleteSegment,
     openPipeline,
     openSession,
   }

@@ -4,8 +4,7 @@ import type { ImageCodecService } from '../../app/image-codec-service.ts'
 import type { LoggerService } from '../../app/logger-service.ts'
 import type { EmbeddingRuntimeService } from '../../embeddings/embedding-runtime-service.ts'
 import { errorMessage } from '../../errors.ts'
-import type { GraphSessionService } from '../../graph/graph-session-service.ts'
-import type { GraphInfo } from '../../graph/schemas.ts'
+import type { GraphSession } from '../../app/graph-session.ts'
 import type { Unlisten } from '../../ipc/ipc-service.ts'
 import type { AiProviderConfig, ChatModelSelection, Settings } from '../../settings/schema.ts'
 import type { SettingsService } from '../../settings/settings-service.ts'
@@ -89,7 +88,7 @@ export interface ChatSession {
   subscribe: (listener: () => void) => Unlisten
   /**
    * Start the session's background work: resume the latest conversation of
-   * the graph (again whenever its index generation changes) and follow the
+   * the graph (when its index is open) and follow the
    * embedding runtime status. The returned function stops both and aborts
    * the in-flight turn — a turn must die with its graph, or its tools would
    * keep reading whichever graph is open *now* and ship that content to the
@@ -121,13 +120,13 @@ export interface ChatSession {
 }
 
 export interface ChatSessionOptions {
-  /** The open graph: `name` titles the prompt's overview block, `root` identifies it. */
-  graph: Pick<GraphInfo, 'root' | 'name'>
+  /** The graph session: `name` titles the prompt's overview block; chat writes pin to its index generation. */
+  session: GraphSession
 }
 
 /** Creates the chat session of an open graph and reports history changes. */
 export interface ChatSessionService {
-  /** A fresh session for `options.graph`. It does nothing until it is attached. */
+  /** A fresh session for `options.session`. It does nothing until it is attached. */
   create: (options: ChatSessionOptions) => ChatSession
   /**
    * Calls `listener` after any session saved a turn or deleted a
@@ -154,7 +153,6 @@ export function createChatSessionService(deps: {
   credentials: Pick<AiCredentialService, 'read'>
   embeddingRuntime: Pick<EmbeddingRuntimeService, 'status' | 'subscribe' | 'lastStatus'>
   settings: Pick<SettingsService, 'get' | 'subscribe'>
-  graphSession: Pick<GraphSessionService, 'getState' | 'subscribe'>
   clock: Pick<ClockService, 'now' | 'today'>
   id: Pick<IdService, 'uuid'>
   imageCodec: Pick<ImageCodecService, 'decode'>
@@ -168,7 +166,6 @@ export function createChatSessionService(deps: {
     credentials,
     embeddingRuntime,
     settings,
-    graphSession,
     clock,
     id,
     imageCodec,
@@ -183,7 +180,7 @@ export function createChatSessionService(deps: {
   }
 
   function create(options: ChatSessionOptions): ChatSession {
-    const { graph } = options
+    const { session: graph } = options
 
     let local: LocalState = {
       turns: [],
@@ -257,14 +254,10 @@ export function createChatSessionService(deps: {
       }
     }
 
-    // The graph's index session generation, echoed by every chat write. Only
-    // states of this session's graph are followed, and only while attached:
-    // a session winding down after its graph was replaced keeps the old
-    // generation, so its late saves no-op in Rust instead of landing in the
-    // graph that is open now.
-    const initialGraphState = graphSession.getState()
-    let generation: number | null =
-      initialGraphState.graph?.root === graph.root ? initialGraphState.indexGeneration : null
+    // The graph's index session generation, echoed by every chat write: a
+    // session winding down after its graph was replaced keeps it, so its late
+    // saves no-op in Rust instead of landing in the graph that is open now.
+    const generation = graph.indexGeneration
 
     // The in-flight send, tracked synchronously — the no-concurrent-sends
     // guard can't ride on published state. `session` ties a send to its
@@ -335,39 +328,17 @@ export function createChatSessionService(deps: {
     }
 
     const attach = (): Unlisten => {
-      let attempt: { active: boolean } | null = null
-      let followed: { generation: number | null } | null = null
-      const follow = (): void => {
-        const state = graphSession.getState()
-        if (state.graph?.root !== graph.root) {
-          return
-        }
-        generation = state.indexGeneration
-        if (followed?.generation === generation) {
-          return
-        }
-        followed = { generation }
-        if (attempt !== null) {
-          attempt.active = false
-          attempt = null
-        }
-        if (generation !== null) {
-          attempt = { active: true }
-          void resume(attempt)
-        }
+      const attempt = { active: true }
+      if (generation !== null) {
+        void resume(attempt)
       }
-      const stopGraph = graphSession.subscribe(follow)
-      follow()
       // Without a loaded embedding model the search tool must *say* it is
       // lexical, so the runtime status is kept fresh while the session lives.
       const stopEmbed = embeddingRuntime.subscribe(() => {})
       void embeddingRuntime.status()
       return () => {
-        stopGraph()
         stopEmbed()
-        if (attempt !== null) {
-          attempt.active = false
-        }
+        attempt.active = false
         activeSend?.controller.abort()
       }
     }

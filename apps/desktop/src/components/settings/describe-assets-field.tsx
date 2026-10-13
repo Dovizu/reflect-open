@@ -29,16 +29,15 @@ export function DescribeAssetsField(): ReactElement {
   const [running, setRunning] = useState(false)
 
   const hasProvider = settings.aiProviders.length > 0
-  const generation = graph?.generation ?? null
 
   const runBackfill = async (): Promise<void> => {
     setConfirming(false)
-    if (generation === null || running) {
+    if (running) {
       return
     }
     setRunning(true)
     try {
-      await assetDescription.backfillVisibly(generation)
+      await assetDescription.backfillVisibly()
     } finally {
       setRunning(false)
     }
@@ -62,7 +61,7 @@ export function DescribeAssetsField(): ReactElement {
           type="button"
           variant="outline"
           size="sm"
-          disabled={generation === null || !hasProvider || running}
+          disabled={graph === null || !hasProvider || running}
           onClick={() => setConfirming(true)}
           className="text-text-secondary"
         >

@@ -13,6 +13,7 @@ import {
   createTestAudioRecorderService,
   createTestClockService,
   createTestFileChangeService,
+  createTestGraphSessionService,
   createTestIdService,
   createTestLanguageModelService,
   createTestLifecycleService,
@@ -87,6 +88,7 @@ async function setup(options?: SetupOptions) {
   const listDirMock = vi.spyOn(noteFile, 'listDir')
   const aiCredentials = createAiCredentialService({ secretStore: createTestSecretStoreService() })
   const lifecycle = createTestLifecycleService()
+  const graphSession = createTestGraphSessionService({ graph: { generation: 3 } })
   const service = createAudioMemoService({
     assetStore,
     noteFile,
@@ -116,9 +118,11 @@ async function setup(options?: SetupOptions) {
     window: createTestWindowService(
       options?.windowLabel === undefined ? {} : { label: options.windowLabel },
     ),
+    graphSession,
     logger,
   })
   return {
+    graphSession,
     settings,
     noteFile,
     assetStore,
@@ -139,7 +143,6 @@ async function openSession(options?: SetupOptions) {
     dismissReminder: vi.fn<AudioMemoSurface['dismissReminder']>(),
   }
   const session = kit.service.openSession({
-    generation: 3,
     surface,
     surfaceHidden: options?.surfaceHidden ?? false,
   })
@@ -157,7 +160,7 @@ function blobText(bytes: Uint8Array | undefined): string {
 }
 
 describe('AudioMemoService.capturePart', () => {
-  it('writes the segment under audio-memos/, pinned to the generation', async () => {
+  it('writes the segment under audio-memos/, pinned to the open graph generation', async () => {
     const { service, assetStore } = await setup()
     const memo = audioMemoIdentity(RECORDED_AT, 'audio/webm;codecs=opus')
 
@@ -167,7 +170,6 @@ describe('AudioMemoService.capturePart', () => {
       recordedAt: RECORDED_AT,
       part: 1,
       end: false,
-      generation: 3,
     })
 
     expect(outcome).toEqual({ ok: true, memo })
@@ -185,7 +187,6 @@ describe('AudioMemoService.capturePart', () => {
       recordedAt: RECORDED_AT,
       part: 2,
       end: true,
-      generation: 3,
     })
 
     expect(outcome.ok).toBe(true)
@@ -198,6 +199,22 @@ describe('AudioMemoService.capturePart', () => {
     ])
   })
 
+  it('reports a missing graph as data without writing', async () => {
+    const { service, graphSession, assetStore } = await setup()
+    graphSession.setGraph(null)
+
+    const outcome = await service.capturePart({
+      audio: { kind: 'blob', blob: new Blob(['audio'], { type: 'audio/webm' }) },
+      mimeType: 'audio/webm',
+      recordedAt: RECORDED_AT,
+      part: 1,
+      end: true,
+    })
+
+    expect(outcome).toEqual({ ok: false, message: 'No graph is open.' })
+    expect(assetStore.uploads()).toEqual([])
+  })
+
   it('reports a write failure as data — the caller retries with the same recording', async () => {
     const { service, assetStore } = await setup()
     vi.spyOn(assetStore, 'uploadToPath').mockRejectedValue({ kind: 'io', message: 'disk full' })
@@ -208,23 +225,23 @@ describe('AudioMemoService.capturePart', () => {
       recordedAt: RECORDED_AT,
       part: 1,
       end: true,
-      generation: 3,
     })
 
     expect(outcome).toEqual({ ok: false, message: 'disk full' })
   })
 })
 
-describe('AudioMemoService.listSegments', () => {
+describe('AudioMemoPipeline.listSegments', () => {
   it('lists every segment of one session and nothing else', async () => {
     const { service, noteFile } = await setup()
+    const pipeline = service.openPipeline({ isErrorSurfaceVisible: () => true })
     const other = audioMemoIdentity(new Date(2026, 5, 10, 9, 0, 0, 0), 'audio/mp4')
     noteFile.set(audioMemoPartPath(MEMO, 1, false), 'x')
     noteFile.set(audioMemoPartPath(MEMO, 2, true), 'x')
     noteFile.set(audioMemoPartPath(other, 1, true), 'x')
     noteFile.set('audio-memos/voice-note.mp3', 'x')
 
-    expect(await service.listSegments(MEMO, 3)).toEqual([
+    expect(await pipeline.listSegments(MEMO)).toEqual([
       audioMemoPartPath(MEMO, 1, false),
       audioMemoPartPath(MEMO, 2, true),
     ])
@@ -232,9 +249,35 @@ describe('AudioMemoService.listSegments', () => {
 })
 
 describe('AudioMemoService.openPipeline', () => {
+  it('throws when no graph is open', async () => {
+    const { service, graphSession } = await setup()
+    graphSession.setGraph(null)
+
+    expect(() => service.openPipeline({ isErrorSurfaceVisible: () => true })).toThrow(
+      'No graph is open.',
+    )
+  })
+
+  it('keeps writing to the graph it opened for after a graph switch', async () => {
+    const { service, graphSession, assetStore } = await setup()
+    const pipeline = service.openPipeline({ isErrorSurfaceVisible: () => true })
+    graphSession.setGraph({ generation: 4 })
+
+    pipeline.enqueue({
+      audio: RECORDING.audio,
+      mimeType: 'audio/mp4',
+      recordedAt: RECORDED_AT,
+      segment: { part: 1, end: true },
+    })
+    await flush()
+
+    expect(assetStore.uploads()).toEqual([{ kind: 'path', path: FINAL_PATH, generation: 3 }])
+    pipeline.dispose()
+  })
+
   it('a note window gets the capture queue but no transcription lifecycle', async () => {
     const { service, assetStore, passes } = await setup({ windowLabel: 'note-1' })
-    const pipeline = service.openPipeline({ generation: 3, isErrorSurfaceVisible: () => true })
+    const pipeline = service.openPipeline({ isErrorSurfaceVisible: () => true })
     await flush()
 
     pipeline.enqueue({
@@ -252,7 +295,7 @@ describe('AudioMemoService.openPipeline', () => {
 
   it('a failing post-capture cleanup is logged, never parked', async () => {
     const { service, logger } = await setup()
-    const pipeline = service.openPipeline({ generation: 3, isErrorSurfaceVisible: () => true })
+    const pipeline = service.openPipeline({ isErrorSurfaceVisible: () => true })
     const cause = new Error('staged file is gone')
 
     pipeline.enqueue({
@@ -275,7 +318,7 @@ describe('AudioMemoService.openPipeline', () => {
   it('discarding a parked capture runs its discard cleanup', async () => {
     const { service, assetStore } = await setup()
     vi.spyOn(assetStore, 'uploadToPath').mockRejectedValue({ kind: 'io', message: 'disk full' })
-    const pipeline = service.openPipeline({ generation: 3, isErrorSurfaceVisible: () => true })
+    const pipeline = service.openPipeline({ isErrorSurfaceVisible: () => true })
     const onDiscarded = vi.fn()
 
     pipeline.enqueue({

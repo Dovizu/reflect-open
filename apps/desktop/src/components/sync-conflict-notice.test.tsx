@@ -58,13 +58,13 @@ describe('SyncConflictNotice', () => {
     await expect.element(page.getByText(/edited on two devices/i)).toBeInTheDocument()
 
     await page.getByRole('button', { name: /keep this device’s version/i }).click()
-    expect(resolve).toHaveBeenCalledWith('notes/clash.md', 'ours', SESSION)
+    expect(resolve).toHaveBeenCalledWith('notes/clash.md', 'ours')
 
     await page.getByRole('button', { name: /keep the other device’s/i }).click()
-    expect(resolve).toHaveBeenCalledWith('notes/clash.md', 'theirs', SESSION)
+    expect(resolve).toHaveBeenCalledWith('notes/clash.md', 'theirs')
 
     await page.getByRole('button', { name: /keep both/i }).click()
-    expect(resolve).toHaveBeenCalledWith('notes/clash.md', 'both', SESSION)
+    expect(resolve).toHaveBeenCalledWith('notes/clash.md', 'both')
   })
 
   it('offers the same resolution actions on mobile', async () => {
@@ -73,7 +73,7 @@ describe('SyncConflictNotice', () => {
     await expect.element(page.getByText(/choose what to keep/i)).toBeInTheDocument()
 
     await page.getByRole('button', { name: /keep this device’s version/i }).click()
-    expect(resolve).toHaveBeenCalledWith('notes/clash.md', 'ours', SESSION)
+    expect(resolve).toHaveBeenCalledWith('notes/clash.md', 'ours')
   })
 
   it('pluralizes the buttons for a stacked three-plus-way conflict', async () => {

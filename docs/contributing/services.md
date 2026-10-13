@@ -355,7 +355,7 @@ stop with something shorter-lived**:
 - it runs a loop, timers or subscriptions for one open graph or one index
   session (`backups.create({ generation, indexGeneration })`,
   `capture.openSession({ generation })`);
-- its state must not survive a graph switch (`chatSessions.create({ graph })`:
+- its state must not survive a graph switch (`chatSessions.create({ session })`:
   a pending turn of the previous graph must not be saved into the next one);
 - there is one per UI surface (`noteSessions.create(options)` per note pane).
 

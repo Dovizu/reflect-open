@@ -319,11 +319,7 @@ const APP_COMMANDS: AppCommand[] = [
     title: 'Rebuild search index',
     keywords: ['reindex', 'refresh'],
     run: async (context) => {
-      const generation = context.generation()
-      if (generation === null) {
-        return
-      }
-      await context.services.indexLifecycle.rebuildVisibly(generation)
+      await context.services.indexLifecycle.rebuildVisibly()
     },
   },
   {

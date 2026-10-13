@@ -11,7 +11,6 @@ import { useAppServices } from '@/services/services-provider.tsx'
 
 interface AgentSkillAction {
   action: 'install' | 'uninstall'
-  generation: number
   root: string
 }
 
@@ -36,9 +35,7 @@ export function AgentsSection(): ReactElement | null {
     mutationKey: mutationKeys.agentSkill.write(graph?.root),
     scope: { id: mutationScopeIds.agentSkillWrite(graph?.root) },
     mutationFn: (variables: AgentSkillAction): Promise<AgentSkillStatus> =>
-      variables.action === 'uninstall'
-        ? agentSkill.uninstall(variables.generation)
-        : agentSkill.install(variables.generation),
+      variables.action === 'uninstall' ? agentSkill.uninstall() : agentSkill.install(),
     onSuccess: (nextStatus, variables) => {
       queryClient.setQueryData(queryKeys.agentSkill.status(variables.root), nextStatus)
     },
@@ -54,7 +51,7 @@ export function AgentsSection(): ReactElement | null {
   const actionError =
     isCurrentMutation && mutation.error !== null ? errorMessage(mutation.error) : null
   const mutate = (action: AgentSkillAction['action']): void =>
-    mutation.mutate({ action, generation: graph.generation, root: graph.root })
+    mutation.mutate({ action, root: graph.root })
   return (
     <SettingsSection id="agents">
       <SettingsField

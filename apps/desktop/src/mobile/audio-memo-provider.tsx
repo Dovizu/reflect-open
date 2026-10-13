@@ -62,7 +62,7 @@ export function MobileAudioMemoProvider({
   // Opened before paint, so the mic action never shows the closed state.
   const [session, setSession] = useState<MobileAudioMemoSession | null>(null)
   useLayoutEffect(() => {
-    const next = mobileAudioMemo.openSession({ generation: graph.generation })
+    const next = mobileAudioMemo.openSession()
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the session is an external resource that this effect opens and disposes
     setSession(next)
     return () => {

@@ -6,8 +6,8 @@ import type {
 
 export interface TestAgentSkillService extends AgentSkillService {
   setInstallState(state: AgentSkillInstallState): void
-  /** The `generation` of every `install` and `uninstall`, in order. */
-  calls(): readonly { readonly method: 'install' | 'uninstall'; readonly generation: number }[]
+  /** Every `install` and `uninstall`, in order. */
+  calls(): readonly { readonly method: 'install' | 'uninstall' }[]
 }
 
 /**
@@ -23,14 +23,13 @@ export function createTestAgentSkillService(
     cliPath: options?.cliPath ?? '/app/reflect',
     installState: options?.installState ?? 'missing',
   }
-  const log: { method: 'install' | 'uninstall'; generation: number }[] = []
+  const log: { method: 'install' | 'uninstall' }[] = []
 
   function transition(
     method: 'install' | 'uninstall',
-    generation: number,
     next: AgentSkillInstallState,
   ): AgentSkillStatus {
-    log.push({ method, generation })
+    log.push({ method })
     if (status.installState === 'conflict') {
       throw new Error(`test agent skill: cannot ${method} over a conflicting file`)
     }
@@ -40,8 +39,8 @@ export function createTestAgentSkillService(
 
   return {
     status: async () => ({ ...status }),
-    install: async (generation) => transition('install', generation, 'current'),
-    uninstall: async (generation) => transition('uninstall', generation, 'missing'),
+    install: async () => transition('install', 'current'),
+    uninstall: async () => transition('uninstall', 'missing'),
     setInstallState(state) {
       status = { ...status, installState: state }
     },

@@ -195,7 +195,7 @@ creates one instance per `GraphSession` and disposes it when `session.signal` ab
 | `icloudSyncs.create(...)` | `ICloudSyncService` | one per iCloud graph session, main window only |
 | `icloudDownloads.create(...)` | `ICloudDownloadService` | while the mobile graph is stored in iCloud |
 | `syncEngines.create(options)` | the git sync engine of one backup | owned by its `BackupService` |
-| `chatSessions.create({ graph })` | `ChatSession` | one per graph session, every window (`GraphServices.chat`) |
+| `chatSessions.create({ session })` | `ChatSession` | one per graph session, every window (`GraphServices.chat`) |
 | `capture.openSession({ generation })` | the capture drain and enrich loop | one per graph session, main window only |
 | `assetDescription.openSession({ generation })` | the asset description loop | same, desktop, while `describeAssets` is on |
 | `attachments.watchCatalog(generation)` | the attachment catalog watch | one per graph session, every window |
@@ -226,8 +226,7 @@ for each session and publishes it as `getState().services`; the app reads it wit
 must stop with the graph checks `session.signal.aborted` (`indexLifecycle.sync(session)`).
 
 **Ordinary service methods still take `generation` as a parameter**
-(`noteFile.write(path, contents, generation)`,
-`indexLifecycle.rebuildVisibly(generation)`). Removing those parameters is future
+(`noteFile.write(path, contents, generation)`). Removing those parameters is future
 work. Until then: thread the generation through, read it at call time, and never
 cache one across a graph switch.
 

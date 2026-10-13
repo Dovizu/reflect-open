@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { IpcBridgeService } from '../ipc/ipc-service.ts'
+import { requireGraphSession, type GraphSessionSource } from './graph-session.ts'
 
 const agentSkillInstallStateSchema = z.enum(['missing', 'current', 'stale', 'conflict'])
 
@@ -29,19 +30,29 @@ export interface AgentSkillService {
   /** The open graph's agent-skill install status. Read-only. */
   status(): Promise<AgentSkillStatus>
   /**
-   * Write (or refresh) the open graph's `SKILL.md`. Pinned to the graph
-   * `generation` like every mutating command; rejects `conflict` files.
+   * Write (or refresh) the open graph's `SKILL.md`. Pinned to the open
+   * graph's generation like every mutating command; rejects `conflict` files
+   * and rejects when no graph is open.
    */
-  install(generation: number): Promise<AgentSkillStatus>
+  install(): Promise<AgentSkillStatus>
   /** Remove the open graph's managed skill file. Rejects `conflict` files. */
-  uninstall(generation: number): Promise<AgentSkillStatus>
+  uninstall(): Promise<AgentSkillStatus>
 }
 
-export function createAgentSkillService(deps: { ipc: IpcBridgeService }): AgentSkillService {
-  const { ipc } = deps
+export function createAgentSkillService(deps: {
+  ipc: IpcBridgeService
+  graphSession: GraphSessionSource
+}): AgentSkillService {
+  const { ipc, graphSession } = deps
   return {
     status: () => ipc.call('skill_status', {}, agentSkillStatusSchema),
-    install: (generation) => ipc.call('skill_install', { generation }, agentSkillStatusSchema),
-    uninstall: (generation) => ipc.call('skill_uninstall', { generation }, agentSkillStatusSchema),
+    install: async () => {
+      const { generation } = requireGraphSession(graphSession)
+      return await ipc.call('skill_install', { generation }, agentSkillStatusSchema)
+    },
+    uninstall: async () => {
+      const { generation } = requireGraphSession(graphSession)
+      return await ipc.call('skill_uninstall', { generation }, agentSkillStatusSchema)
+    },
   }
 }

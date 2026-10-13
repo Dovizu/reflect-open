@@ -16,6 +16,7 @@ import {
   createTestAudioRecorderService,
   createTestClockService,
   createTestFileChangeService,
+  createTestGraphSessionService,
   createTestHapticsService,
   createTestIdService,
   createTestLanguageModelService,
@@ -138,6 +139,7 @@ async function setup(options?: SetupOptions) {
     clock,
     platform,
     window: createTestWindowService(),
+    graphSession: createTestGraphSessionService({ graph: { generation: 3 } }),
     logger,
   })
   const service = createMobileAudioMemoService({
@@ -181,7 +183,7 @@ async function setup(options?: SetupOptions) {
     /** How many transcription passes got past the config gate. */
     passes: () => listDirMock.mock.calls.filter(([dir]) => dir === AUDIO_MEMOS_DIR).length,
     async open() {
-      const session = service.openSession({ generation: 3 })
+      const session = service.openSession()
       await flush()
       return session
     },

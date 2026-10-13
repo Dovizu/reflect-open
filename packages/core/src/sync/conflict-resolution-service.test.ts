@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { ReflectError } from '../errors.ts'
 import { resolveConflictMarkers } from '../markdown/conflict-markers.ts'
 import { createTestFileChangeService, type TestFileChangeService } from '../testing/file-change.ts'
+import {
+  createTestGraphSessionService,
+  type TestGraphSessionService,
+} from '../testing/graph-session.ts'
 import { createTestNoteFileService, type TestNoteFileService } from '../testing/graph.ts'
 import {
   createConflictResolutionService,
@@ -17,10 +21,11 @@ const SOURCE = [
   '>>>>>>> other device',
   '',
 ].join('\n')
-const SESSION = { generation: 3, indexGeneration: 7 }
+const GRAPH = { generation: 3, indexGeneration: 7 }
 
 let noteFile: TestNoteFileService
 let fileChanges: TestFileChangeService
+let graphSession: TestGraphSessionService
 let indexed: Array<{ path: string; generation: number; content: string | undefined }>
 let failIndex: boolean
 let service: ConflictResolutionService
@@ -28,6 +33,7 @@ let service: ConflictResolutionService
 beforeEach(() => {
   noteFile = createTestNoteFileService({ files: { [PATH]: SOURCE } })
   fileChanges = createTestFileChangeService()
+  graphSession = createTestGraphSessionService({ graph: GRAPH })
   indexed = []
   failIndex = false
   service = createConflictResolutionService({
@@ -41,12 +47,13 @@ beforeEach(() => {
       },
     },
     fileChanges,
+    graphSession,
   })
 })
 
 describe('createConflictResolutionService', () => {
   it('writes the spliced side, reindexes, and notifies open sessions', async () => {
-    const outcome = await service.resolve(PATH, 'ours', SESSION)
+    const outcome = await service.resolve(PATH, 'ours')
 
     const resolved = resolveConflictMarkers(SOURCE, 'ours')
     expect(outcome).toEqual({ wrote: true, error: null })
@@ -67,14 +74,15 @@ describe('createConflictResolutionService', () => {
       },
       indexLifecycle: { indexNote: async () => {} },
       fileChanges,
-    }).resolve(PATH, 'theirs', SESSION)
+      graphSession,
+    }).resolve(PATH, 'theirs')
 
     expect(outcome).toEqual({ wrote: false, error: 'disk full' })
     expect(fileChanges.batches()).toEqual([])
   })
 
   it('a missing note reports the error and writes nothing', async () => {
-    const outcome = await service.resolve('notes/missing.md', 'ours', SESSION)
+    const outcome = await service.resolve('notes/missing.md', 'ours')
 
     expect(outcome.wrote).toBe(false)
     expect(outcome.error).not.toBeNull()
@@ -85,7 +93,7 @@ describe('createConflictResolutionService', () => {
   it('a failed reindex still notifies — the file on disk did change', async () => {
     failIndex = true
 
-    const outcome = await service.resolve(PATH, 'both', SESSION)
+    const outcome = await service.resolve(PATH, 'both')
 
     expect(outcome).toEqual({ wrote: true, error: 'index closed' })
     expect(noteFile.getWrites(PATH)).toEqual([resolveConflictMarkers(SOURCE, 'both')])
@@ -93,10 +101,22 @@ describe('createConflictResolutionService', () => {
   })
 
   it('skips the reindex without an open index session', async () => {
-    const outcome = await service.resolve(PATH, 'ours', { generation: 3, indexGeneration: null })
+    graphSession.setGraph({ generation: 3, indexGeneration: null })
+
+    const outcome = await service.resolve(PATH, 'ours')
 
     expect(outcome).toEqual({ wrote: true, error: null })
     expect(indexed).toEqual([])
     expect(fileChanges.batches()).toHaveLength(1)
+  })
+
+  it('does nothing when no graph is open', async () => {
+    graphSession.setGraph(null)
+
+    const outcome = await service.resolve(PATH, 'ours')
+
+    expect(outcome).toEqual({ wrote: false, error: null })
+    expect(noteFile.writes()).toEqual([])
+    expect(fileChanges.batches()).toEqual([])
   })
 })
