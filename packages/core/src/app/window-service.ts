@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { errorMessage } from '../errors.ts'
 import { windowBootstrapSchema, type WindowBootstrap } from '../graph/schemas.ts'
-import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
+import { listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { LoggerService } from './logger-service.ts'
 
 /**

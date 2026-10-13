@@ -3,7 +3,7 @@ import type {
   FileChangeBatch,
   FileChangeService,
 } from '../indexing/file-change-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 export interface TestFileChangeServiceOptions {
   /**

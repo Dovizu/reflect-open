@@ -1,5 +1,5 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type {
   RecordingLevelEvent,
   RecordingSessionStart,

@@ -1,6 +1,6 @@
 import type { IdService } from '../app/id-service.ts'
 import type { AppError } from '../errors.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { isHttpBaseUrl, normalizeOpenAICompatibleBaseUrl } from '../lib/http-url.ts'
 import type { AiProviderConfig, AiProviderId, ChatModelSelection } from '../settings/schema.ts'
 import type { SettingsService } from '../settings/settings-service.ts'

@@ -1,4 +1,5 @@
-export { createIpcBridgeService, type IpcBridge, type Unlisten } from '../ipc/ipc-service.ts'
+export { createIpcBridgeService, type IpcBridge } from '../ipc/ipc-service.ts'
+export type { Unlisten } from '../unlisten.ts'
 
 export { type HapticsService } from '../ipc/mobile-haptics-plugin.ts'
 export { type AudioRecorderFinalSegment } from '../audio/audio-recorder-service.ts'

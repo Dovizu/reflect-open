@@ -7,7 +7,7 @@ import {
   createTestWindowService,
   type TestLifecycleService,
 } from '../testing/shell.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { AppLifecycleService } from './lifecycle-service.ts'
 import {
   createPersistenceFlushService,

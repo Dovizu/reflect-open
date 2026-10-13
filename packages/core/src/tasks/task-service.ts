@@ -13,7 +13,7 @@ import type { DatabaseService } from '../indexing/database-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import { decodeTaskBreadcrumbs } from '../indexing/indexed-note.ts'
 import type { SnippetTask } from '../indexing/snippet-tasks.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import {
   applyTaskEdits,
   decodeTaskPath,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { textCaptureEnvelopeSchema } from '../capture/capture-envelope.ts'
 import { MIN_VISIBLE_MS } from '../app/operations-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { createTestCaptureInboxService } from '../testing/capture.ts'
 import { createTestClockService } from '../testing/clock.ts'
 import { createTestGraphSessionService } from '../testing/graph-session.ts'

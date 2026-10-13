@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { LoggerService } from '../app/logger-service.ts'
-import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
+import type { IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 /**
 

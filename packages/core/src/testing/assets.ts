@@ -6,7 +6,7 @@ import type {
   ReconcileAssetDescriptionsOutcome,
 } from '../assets/asset-description-service.ts'
 import type { AssetReferences } from '../indexing/asset-refs.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 export interface TestAssetReferences extends AssetReferences {
   /**

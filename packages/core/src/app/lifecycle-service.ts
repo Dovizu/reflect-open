@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
+import { listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { ClockService, TimerHandle } from './clock-service.ts'
 import type { LoggerService } from './logger-service.ts'
 

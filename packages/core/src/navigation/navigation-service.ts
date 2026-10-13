@@ -1,4 +1,4 @@
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { normalizeRoute, routesEqual, type Route } from './route.ts'
 
 /**

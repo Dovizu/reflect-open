@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { createTestIpcBridgeService, type TestIpcBridgeService } from '../testing/ipc.ts'
 import { createTestLoggerService } from '../testing/logger.ts'
 import {

@@ -3,7 +3,7 @@ import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { ICloudNativeService } from '../ipc/icloud-native-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 /**
  * A resume transition fires `visibilitychange` and `focus` together in

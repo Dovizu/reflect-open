@@ -9,7 +9,7 @@ import type {
 import { ReflectError } from '../errors.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
 import type { FileMeta } from '../graph/schemas.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { ArchivedXPost, ResolvedArchivedPost, XArchiveService } from '../x-archive.ts'
 
 const INBOX_DIR = '.reflect/inbox'

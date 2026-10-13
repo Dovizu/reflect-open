@@ -6,7 +6,7 @@ import {
   type ContactsService,
   type ContactsState,
 } from '../contacts/contacts-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { Settings } from '../settings/schema.ts'
 
 export interface TestContactsServiceOptions {

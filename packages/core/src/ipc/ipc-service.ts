@@ -1,12 +1,7 @@
 import type { ZodType } from 'zod'
 import type { LoggerService } from '../app/logger-service.ts'
 import { toAppError, type AppError } from '../errors.ts'
-
-/**
- * Tears down a subscription created by {@link IpcBridge.listen}.
- * FIXME: move `type Unlisten` to a more general location. It's clear that `Unlisten` is not specific to IPC.
- */
-export type Unlisten = () => void
+import type { Unlisten } from '../unlisten.ts'
 
 /**
  * The raw transport a host implements: the desktop app adapts Tauri's

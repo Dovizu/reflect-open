@@ -4,7 +4,7 @@ import type { LoggerService } from '../app/logger-service.ts'
 import { isMobilePlatform } from '../app/platform.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import { errorMessage } from '../errors.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type {
   MobileStorageInfo,
   MobileStorageKind,

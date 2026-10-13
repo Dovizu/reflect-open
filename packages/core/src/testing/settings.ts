@@ -1,6 +1,6 @@
 import type { OperationsService } from '../app/operations-service.ts'
 import { ReflectError } from '../errors.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { Settings } from '../settings/schema.ts'
 import {
   createSettingsService,

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { LoggerService } from '../app/logger-service.ts'
-import { listenNow, type IpcBridgeService, type Unlisten } from './ipc-service.ts'
+import { listenNow, type IpcBridgeService } from './ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 const countSchema = z.number().int().nonnegative()
 

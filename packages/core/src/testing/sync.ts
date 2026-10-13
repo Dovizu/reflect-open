@@ -1,5 +1,5 @@
 import { ReflectError } from '../errors.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type {
   ICloudNativeService,
   IcloudDownloadScope,

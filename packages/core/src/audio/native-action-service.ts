@@ -1,7 +1,7 @@
 import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { AudioRecorderFinalSegment, AudioRecorderService } from './audio-recorder-service.ts'
 
 /**

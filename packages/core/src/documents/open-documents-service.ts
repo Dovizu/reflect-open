@@ -1,5 +1,5 @@
 import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { NoteSession } from './note-session-types.ts'
 
 export interface OpenDocument {

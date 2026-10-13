@@ -5,7 +5,7 @@ import type {
   CalendarRange,
   CalendarService,
 } from '../calendar/calendar-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 export interface TestCalendarServiceOptions {
   /**

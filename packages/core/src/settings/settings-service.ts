@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { errorMessage } from '../errors.ts'
 import type { OperationsService } from '../app/operations-service.ts'
-import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
+import type { IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { DEFAULT_SETTINGS, settingsSchema, type Settings } from './schema.ts'
 
 /**

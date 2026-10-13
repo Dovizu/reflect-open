@@ -26,7 +26,7 @@ import {
   type SemanticSearchService,
 } from '../embeddings/semantic-search-service.ts'
 import { ReflectError } from '../errors.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'

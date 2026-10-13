@@ -3,7 +3,7 @@ import type { StorageService } from '../app/storage-service.ts'
 import type { ClassicAccessService } from '../classic/classic-access-service.ts'
 import type { AppStoreService } from '../ipc/app-store-plugin.ts'
 import { IAP_PRODUCT_IDS, type IapProduct, type IapService } from '../ipc/iap-plugin.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type {
   AppStoreEnvironment,
   AppStoreEnvironmentService,

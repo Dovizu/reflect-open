@@ -1,7 +1,7 @@
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformService } from '../app/platform-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { Settings } from '../settings/schema.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import type {

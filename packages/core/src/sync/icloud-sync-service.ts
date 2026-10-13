@@ -6,7 +6,7 @@ import { isNotePath } from '../graph/paths.ts'
 import type { FileChange, FileChangeService } from '../indexing/file-change-service.ts'
 import type { IndexLifecycleService } from '../indexing/index-lifecycle-service.ts'
 import type { ICloudNativeService, IcloudSweepScope } from '../ipc/icloud-native-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 /**
  * Whether a graph root lives under iCloud Drive: the app's container and the

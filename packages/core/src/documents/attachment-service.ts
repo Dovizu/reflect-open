@@ -16,7 +16,7 @@ import type { NoteFileService } from '../graph/note-file-service.ts'
 import { isAttachmentPath, isSafeVisibleGraphPath } from '../graph/paths.ts'
 import type { FileMeta } from '../graph/schemas.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { formatBytes } from '../lib/format-bytes.ts'
 
 /**

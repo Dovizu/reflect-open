@@ -6,7 +6,7 @@ import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformFacts } from '../app/platform-service.ts'
 import { ReflectError } from '../errors.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { WebAuthService } from '../ipc/web-auth-plugin.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 

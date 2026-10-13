@@ -1,6 +1,6 @@
 import type { GraphSessionSource } from '../app/graph-session.ts'
 import type { NoteRow, PinnedNote } from '../indexing/index-query-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { isValidPinOrder } from './pin-order.ts'
 
 /**

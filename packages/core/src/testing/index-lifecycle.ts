@@ -16,7 +16,7 @@ import {
 } from '../indexing/index-lifecycle-service.ts'
 import { createIndexQueryService, type IndexQueryService } from '../indexing/index-query-service.ts'
 import type { IndexStoreService } from '../indexing/index-store-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { XArchiveService } from '../x-archive.ts'
 import { createTestXArchiveService } from './capture.ts'
 import { createTestClockService } from './clock.ts'

@@ -2,7 +2,7 @@ import type { ClockService, TimerHandle } from '../app/clock-service.ts'
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { OpenerService } from '../app/opener-service.ts'
 import { errorMessage } from '../errors.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { BackupService } from './backup-service.ts'
 import {
   githubAppInstallUrl,

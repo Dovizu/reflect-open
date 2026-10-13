@@ -1,5 +1,5 @@
 import type { OpenDocumentsService } from '../documents/open-documents-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import type { AppLifecycleService, BackgroundTaskToken } from './lifecycle-service.ts'
 import type { LoggerService } from './logger-service.ts'

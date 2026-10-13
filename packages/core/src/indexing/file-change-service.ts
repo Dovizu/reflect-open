@@ -1,12 +1,7 @@
 import { z } from 'zod'
 import type { LoggerService } from '../app/logger-service.ts'
-import {
-  createFanOut,
-  listenNow,
-  type FanOut,
-  type IpcBridgeService,
-  type Unlisten,
-} from '../ipc/ipc-service.ts'
+import { createFanOut, listenNow, type FanOut, type IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 /**
  * Event name the Rust watcher emits tracked-file changes on.

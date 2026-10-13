@@ -6,7 +6,7 @@ import type {
   ClassicSignInResult,
 } from '../classic/classic-access-service.ts'
 import type { IapProduct } from '../ipc/iap-plugin.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type {
   AppStoreEnvironment,
   AppStoreEnvironmentService,

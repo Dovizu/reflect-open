@@ -11,7 +11,7 @@ import {
   type AttachmentService,
   type WikiEmbedDisplay,
 } from '../documents/attachment-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { assetFileName } from '../graph/asset-names.ts'
 import {
   createAttachmentCatalog,

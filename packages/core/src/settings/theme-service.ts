@@ -1,6 +1,6 @@
 import type { ColorScheme, PlatformService } from '../app/platform-service.ts'
 import type { StorageService } from '../app/storage-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { ThemePreference } from './schema.ts'
 import type { SettingsService } from './settings-service.ts'
 

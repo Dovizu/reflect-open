@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import type { LoggerService } from '../app/logger-service.ts'
 import type { IndexStoreService } from '../indexing/index-store-service.ts'
-import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
+import { listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { OpenDocumentsService } from './open-documents-service.ts'
 
 /**

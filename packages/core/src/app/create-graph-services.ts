@@ -4,7 +4,7 @@ import type { CaptureService } from '../capture/capture-service.ts'
 import type { AttachmentService } from '../documents/attachment-service.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { MobileOnboardingService } from '../graph/mobile-onboarding-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import {
   createBackupService,

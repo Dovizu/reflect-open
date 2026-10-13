@@ -1,4 +1,4 @@
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { ThemePreference } from '../settings/schema.ts'
 import type { ResolvedTheme, ThemeService } from '../settings/theme-service.ts'
 

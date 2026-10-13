@@ -7,8 +7,8 @@ import {
   type IpcBridge,
   type IpcBridgeService,
   type PluginSubscription,
-  type Unlisten,
 } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 type CommandHandler = (args: Record<string, unknown>) => unknown
 type BinaryCommandHandler = (body: Uint8Array, headers: Record<string, string>) => unknown

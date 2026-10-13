@@ -3,7 +3,8 @@ import type { ClockService } from '../app/clock-service.ts'
 import type { LoggerService } from '../app/logger-service.ts'
 import { errorMessage } from '../errors.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
-import { listenNow, type IpcBridgeService, type Unlisten } from '../ipc/ipc-service.ts'
+import { listenNow, type IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { GraphSessionService } from './graph-session-service.ts'
 import {
   graphImportProgressSchema,

@@ -9,7 +9,7 @@ import {
   type GraphSessionState,
 } from '../graph/graph-session-service.ts'
 import type { WindowService } from '../app/window-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { RecentGraph } from '../graph/schemas.ts'
 import { createTestFileChangeService } from './file-change.ts'
 import { createOpenDocumentsService } from '../documents/open-documents-service.ts'

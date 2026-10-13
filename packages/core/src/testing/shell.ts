@@ -13,7 +13,7 @@ import {
   type WindowService,
 } from '../app/window-service.ts'
 import type { WindowBootstrap } from '../graph/schemas.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { createTestLoggerService } from './logger.ts'
 
 type Listener<Args extends unknown[] = []> = (...args: Args) => void

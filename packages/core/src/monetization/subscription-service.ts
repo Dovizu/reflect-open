@@ -4,7 +4,7 @@ import type { LoggerService } from '../app/logger-service.ts'
 import type { PlatformService } from '../app/platform-service.ts'
 import { getJson, setJson, type StorageService } from '../app/storage-service.ts'
 import { IAP_PRODUCT_IDS, type IapService } from '../ipc/iap-plugin.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 const activeSubscriptionSchema = z.enum(['yearly', 'monthly']).nullable()
 

@@ -8,7 +8,7 @@ import { errorMessage } from '../errors.ts'
 import type { CaptureInboxService } from '../graph/capture-inbox-service.ts'
 import type { GraphSessionService } from '../graph/graph-session-service.ts'
 import type { IndexQueryService } from '../indexing/index-query-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { parseDeepLink } from './deep-link-parse.ts'
 import { routeForPath, type Route } from './route.ts'
 

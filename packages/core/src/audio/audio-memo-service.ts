@@ -22,7 +22,7 @@ import type { AssetStoreService } from '../graph/asset-store-service.ts'
 import type { NoteFileService } from '../graph/note-file-service.ts'
 import { AUDIO_MEMOS_DIR } from '../graph/paths.ts'
 import type { FileChangeService } from '../indexing/file-change-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import type { SettingsService } from '../settings/settings-service.ts'
 import {
   createAudioMemoTranscriptionService,

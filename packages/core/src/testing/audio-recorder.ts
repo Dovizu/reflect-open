@@ -11,7 +11,7 @@ import type {
   StagedRecordingFile,
   StartRecordingOptions,
 } from '../audio/audio-recorder-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 
 export type AudioRecorderCall =
   | { method: 'start'; options: StartRecordingOptions }

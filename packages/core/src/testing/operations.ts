@@ -5,7 +5,7 @@ import {
   type OperationOptions,
   type OperationsService,
 } from '../app/operations-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { createTestClockService, type TestClockService } from './clock.ts'
 
 /**

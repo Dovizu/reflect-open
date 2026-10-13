@@ -14,7 +14,8 @@ import {
   type NativeMenuService,
   type NativeSubmenu,
 } from '../commands/native-menu-service.ts'
-import type { IpcBridgeService, Unlisten } from '../ipc/ipc-service.ts'
+import type { IpcBridgeService } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { createTestIpcBridgeService } from './ipc.ts'
 import { createTestLoggerService } from './logger.ts'
 import { createTestPlatformService } from './platform.ts'

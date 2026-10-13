@@ -2,7 +2,7 @@ import { isNotNullish } from '@ocavue/utils'
 import type { ClockService } from '../app/clock-service.ts'
 import type { AppLifecycleService } from '../app/lifecycle-service.ts'
 import type { DatabaseService } from '../indexing/database-service.ts'
-import type { Unlisten } from '../ipc/ipc-service.ts'
+import type { Unlisten } from '../unlisten.ts'
 import { localIsoDate } from '../lib/dates.ts'
 
 /**
