@@ -12,7 +12,7 @@ describe('createAppServices', () => {
       'calendarEvents',
       'clipboard',
       'commands',
-      'deepLink',
+      'deepLinkRouter',
       'exceptionTelemetry',
       'keyboard',
       'keymap',

@@ -9,10 +9,10 @@ import { trackSubscriptions } from '@/lib/subscriptions.ts'
  */
 export function bootGraphSession(
   core: Pick<CoreServices, 'graphSession' | 'window'>,
-  app: Pick<AppServices, 'deepLink'>,
+  app: Pick<AppServices, 'deepLinkRouter'>,
 ): Unlisten {
   const { graphSession: session, window } = core
-  const { deepLink } = app
+  const { deepLinkRouter } = app
   const subscriptions = trackSubscriptions()
   subscriptions.track(
     session.boot({
@@ -25,9 +25,9 @@ export function bootGraphSession(
       onWindowBootstrap: (boot) => {
         const seeded = initialRouteForDeepLink(boot.initialDeepLink)
         if (seeded !== null) {
-          deepLink.setInitialWindowRoute(seeded)
+          deepLinkRouter.setInitialWindowRoute(seeded)
         } else if (boot.initialDeepLink !== null) {
-          deepLink.dispatch(boot.initialDeepLink)
+          deepLinkRouter.dispatch(boot.initialDeepLink)
         }
         // (Rename follow-through lives in desktop-root: every window needs
         // it, not just this one.)
@@ -35,7 +35,7 @@ export function bootGraphSession(
         // there (it may have navigated elsewhere since it opened).
         subscriptions.track(
           window.subscribeNavigate((url) => {
-            deepLink.dispatch(url)
+            deepLinkRouter.dispatch(url)
           }),
         )
       },

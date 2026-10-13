@@ -38,12 +38,7 @@ import {
   createCalendarEventsService,
   type CalendarEventsService,
 } from './calendar/calendar-events-service.ts'
-import {
-  createDeepLinkService,
-  createNoDeepLinkSource,
-  type DeepLinkService,
-  type DeepLinkSource,
-} from './navigation/deep-link-service.ts'
+import { createDeepLinkRouter, type DeepLinkRouter } from './navigation/deep-link-router.ts'
 import {
   createLinkNavigationService,
   type LinkNavigationService,
@@ -75,10 +70,6 @@ export interface AppHost {
    * The native menus; without a host, every menu operation rejects.
    */
   readonly nativeMenu?: NativeMenuHost
-  /**
-   * The system's `reflect://` delivery; without one, no URL arrives.
-   */
-  readonly deepLink?: DeepLinkSource
 }
 
 /**
@@ -146,9 +137,9 @@ export interface AppServices {
    */
   readonly navigation: NavigationService
   /**
-   * The `reflect://` intake of this webview and the handler behind it.
+   * Turns the `reflect://` URLs of this webview into navigations.
    */
-  readonly deepLink: DeepLinkService
+  readonly deepLinkRouter: DeepLinkRouter
   /**
    * Turns an activated link into a navigation, a new window, or a refusal.
    */
@@ -178,14 +169,8 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
   })
   const opener = createOpenerService({ transport: host.opener, logger: core.logger })
   const navigation = createNavigationService()
-  const deepLink = createDeepLinkService({
-    // The OS delivers deep links to every webview; only the main window takes them.
-    source: (core.window.isMainWindow() ? host.deepLink : undefined) ?? createNoDeepLinkSource(),
-    indexQuery: core.indexQuery,
-    captureInbox: core.captureInbox,
-    operations: core.operations,
-    id: core.id,
-    clock: core.clock,
+  const deepLinkRouter = createDeepLinkRouter({
+    intake: core.deepLinkIntake,
     logger: core.logger,
     graphSession: core.graphSession,
   })
@@ -196,7 +181,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
     window: core.window,
     platform: core.platform,
     opener,
-    deepLink,
+    deepLinkRouter,
     navigation,
     attachments: core.attachments,
     operations: core.operations,
@@ -245,7 +230,7 @@ export function createAppServices(core: CoreServices, host: AppHost): AppService
       logger: core.logger,
     }),
     navigation,
-    deepLink,
+    deepLinkRouter,
     linkNavigation,
   }
 }

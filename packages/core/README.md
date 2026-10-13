@@ -68,7 +68,7 @@ Every native call goes through one seam:
 | `daily/` | The date questions about notes: `DailyNoteService` (today, which days have a daily note, the wake onto a new day) and the pure day-window, week-window and month-grid arithmetic of the daily surfaces. |
 | `tasks/` | Round-checkbox tasks across notes (Plan 18): `TaskService` (open and completed reads, session-aware writes through `NoteDocumentService.commitSourceEdit`, the session's recently-completed set) and the pure Tasks-view model (grouping, visibility, cache transforms). |
 | `search/` | The data layer of the `[[` and `#` menus (`AutocompleteSuggestionService`) and of the command palette (`PaletteSearchService`), plus their pure row assembly. |
-| `navigation/` | `NavigationService` (the webview's history), `DeepLinkService` (`reflect://` intake and handling), `LinkNavigationService` (what an activated link does), and the pure `Route` and deep-link modules. |
+| `navigation/` | `NavigationService` (the webview's history), `DeepLinkIntakeService` (`reflect://` intake and resolution), `LinkNavigationService` (what an activated link does), and the pure `Route` and deep-link modules. |
 | `commands/` | `CommandService` (the command registry), `KeymapService`, `NativeMenuService`, and the pure keybinding and accelerator rules. |
 | `ai/` | BYOK providers (`AiProviderConfigService`, `AiCredentialService`, `LanguageModelService`), the one-shot tasks (selection transform, page and asset describers, transcription), and `ai/chat/` (`ChatEngineService`, `NoteToolsService`, `ChatSessionService`, `ChatHistoryService`). |
 | `privacy/` | The `private: true` gate: `PrivacyService` and the `CloudSafe<T>` brand that every provider-bound input requires. |

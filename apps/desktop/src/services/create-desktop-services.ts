@@ -1,7 +1,9 @@
 import type { AppHost } from '@reflect/app'
 import {
+  MAIN_WINDOW_LABEL,
   createConsoleLogger,
   createBrowserHttpService,
+  createNoDeepLinkSource,
   createPosixPathTransport,
   createSingleWindowHost,
   isMobilePlatform,
@@ -48,13 +50,20 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
     imageCodec: createBrowserImageCodec(),
   }
   if (facts.isNativeShell) {
+    const window = createTauriWindowHost({
+      multiWindow: !isMobilePlatform(facts.appPlatform),
+      logger,
+    })
     return {
       ...common,
       http: createTauriHttpService(),
       dialog: createTauriDialogService(),
       path: createTauriPathTransport(),
-      window: createTauriWindowHost({ multiWindow: !isMobilePlatform(facts.appPlatform), logger }),
+      window,
       convertFileSrc,
+      // The OS delivers deep links to every webview; only the main window takes them.
+      deepLink:
+        window.label === MAIN_WINDOW_LABEL ? createTauriDeepLinkSource() : createNoDeepLinkSource(),
     }
   }
   return {
@@ -67,8 +76,8 @@ export function createDesktopAdapters(facts: PlatformFacts, ipc: IpcBridge): Cor
 }
 
 /**
- * The desktop app's host for the app layer: the Tauri updater and deep-link
- * source inside the native shell, and Sentry exception telemetry everywhere.
+ * The desktop app's host for the app layer: the Tauri updater and native
+ * menus inside the native shell, and Sentry exception telemetry everywhere.
  */
 export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost {
   void ipc
@@ -86,7 +95,6 @@ export function createDesktopHost(facts: PlatformFacts, ipc: IpcBridge): AppHost
       exceptionTelemetry,
       updater: createTauriUpdaterAdapter(),
       nativeMenu: createTauriNativeMenuHost(),
-      deepLink: createTauriDeepLinkSource(),
     }
   }
   return { ...common, opener: createBrowserOpenerTransport(), exceptionTelemetry }

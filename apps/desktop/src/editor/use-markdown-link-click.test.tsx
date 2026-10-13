@@ -45,7 +45,9 @@ async function mount(sourcePath: string | null): Promise<void> {
     }),
     {
       opener,
-      deepLink: Object.assign(createTestAppServices().deepLink, { dispatch: dispatchDeepLink }),
+      deepLinkRouter: Object.assign(createTestAppServices().deepLinkRouter, {
+        dispatch: dispatchDeepLink,
+      }),
     },
   ).linkNavigation
   const { result } = await renderHookInApp(() => useMarkdownLinkClick(sourcePath), {

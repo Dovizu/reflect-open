@@ -30,12 +30,7 @@ export {
   type TestUpdateService,
 } from './update.ts'
 export {
-  createTestDeepLinkService,
-  createTestDeepLinkSource,
   createTestNavigationService,
-  type TestDeepLinkService,
-  type TestDeepLinkServiceOptions,
-  type TestDeepLinkSource,
   type TestNavigateCall,
   type TestNavigationService,
   type TestNavigationServiceOptions,

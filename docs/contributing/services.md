@@ -423,7 +423,7 @@ caller passes `useCoreServices()`:
 // apps/desktop/src/providers/graph-session.ts
 export function bootGraphSession(
   core: Pick<CoreServices, 'graphSession' | 'window'>,
-  app: Pick<AppServices, 'deepLink'>,
+  app: Pick<AppServices, 'deepLinkRouter'>,
 ): Unlisten
 ```
 

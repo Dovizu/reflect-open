@@ -17,7 +17,7 @@ const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 async function render(ui: ReactNode) {
   const app = createTestCoreServices({ window: createTestWindowService({ openNoteWindow }) })
   const appServices = createTestAppServices(app)
-  vi.spyOn(appServices.deepLink, 'dispatch').mockImplementation(dispatchDeepLink)
+  vi.spyOn(appServices.deepLinkRouter, 'dispatch').mockImplementation(dispatchDeepLink)
   return await renderInApp(ui, { app, appServices })
 }
 

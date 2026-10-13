@@ -75,6 +75,12 @@ import {
   type CaptureInboxService,
 } from '../graph/capture-inbox-service.ts'
 import {
+  createDeepLinkIntakeService,
+  createNoDeepLinkSource,
+  type DeepLinkIntakeService,
+  type DeepLinkSource,
+} from '../navigation/deep-link-intake-service.ts'
+import {
   createICloudNativeService,
   type ICloudNativeService,
 } from '../ipc/icloud-native-service.ts'
@@ -367,6 +373,10 @@ export interface CoreServices {
    * The capture inbox of envelopes that the browser extension, the iOS share extension, and deep links spool.
    */
   readonly captureInbox: CaptureInboxService
+  /**
+   * The `reflect://` intake of this webview: buffers incoming URLs and resolves them.
+   */
+  readonly deepLinkIntake: DeepLinkIntakeService
   /**
    * Wiki-target resolution over the index's claims and keys.
    */
@@ -684,6 +694,10 @@ export interface CoreAdapters {
    * Defaults to the URL shape of Apple webviews.
    */
   readonly convertFileSrc?: FileSrcConverter
+  /**
+   * The system's `reflect://` delivery; without one, no URL arrives.
+   */
+  readonly deepLink?: DeepLinkSource
 }
 
 /**
@@ -742,6 +756,7 @@ export const coreServiceFactories = {
   noteDocuments: createNoteDocumentService,
   noteMove: createNoteMoveService,
   captureInbox: createCaptureInboxService,
+  deepLinkIntake: createDeepLinkIntakeService,
   webFetch: createWebFetchService,
   pageDescriber: createPageDescriberService,
   reconcilers: createBackgroundReconcilerFactory,
@@ -1282,6 +1297,15 @@ export function composeCoreServices(
     embeddingRuntime,
     chatHistory,
     captureInbox,
+    deepLinkIntake: create.deepLinkIntake({
+      source: adapters.deepLink ?? createNoDeepLinkSource(),
+      indexQuery: indexReads.indexQuery,
+      captureInbox,
+      operations,
+      id,
+      clock,
+      graphSession,
+    }),
     wikiResolver: indexReads.wikiResolver,
     noteLinkResolver: noteServices.noteLinkResolver,
     githubAuth,

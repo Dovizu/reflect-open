@@ -124,12 +124,8 @@ export {
 } from './search/palette-entries.ts'
 export { type PaletteSearchService } from './search/palette-search-service.ts'
 export { deepLinkForRoute } from './navigation/deep-link-format.ts'
-export {
-  initialRouteForDeepLink,
-  isDeepLinkUrl,
-  parseDeepLink,
-} from './navigation/deep-link-parse.ts'
-export { type DeepLinkService, type DeepLinkSource } from './navigation/deep-link-service.ts'
+export { initialRouteForDeepLink } from './navigation/deep-link-route.ts'
+export { type DeepLinkRouter } from './navigation/deep-link-router.ts'
 export {
   routeForTag,
   type LinkNavigationHost,
