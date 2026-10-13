@@ -361,7 +361,7 @@ export const architectureConfigs = [
     files: [
       `packages/core/src/**/*.${SOURCE_EXTENSIONS}`,
       `apps/desktop/src/**/*.${SOURCE_EXTENSIONS}`,
-    ],
+    ], // FIXME: double check wether @ocavue/eslint-config already has this rule enabled, if so remove it from here. Notice that we have "--max-warnings 0" in the lint command
     rules: { '@typescript-eslint/unbound-method': 'error' },
   },
 
