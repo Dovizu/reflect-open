@@ -104,10 +104,9 @@ export function useTaskActions(): TaskActions {
    */
   function writeEach(
     tasks: readonly OpenTask[],
-    generation: number,
     actionsFor: (task: OpenTask) => readonly TaskAction[],
   ): Promise<void> {
-    return taskService.writeTasks(tasks, actionsFor, generation, (task, result) => {
+    return taskService.writeTasks(tasks, actionsFor, (task, result) => {
       relocate(task.notePath, result.moved)
     })
   }
@@ -115,11 +114,7 @@ export function useTaskActions(): TaskActions {
   const completeMutation = useMutation({
     mutationKey: mutationKeys.tasks.complete(graph?.root),
     mutationFn: async (tasks: OpenTask[]) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
-      await writeEach(tasks, generation, () => [{ kind: 'toggle' }])
+      await writeEach(tasks, () => [{ kind: 'toggle' }])
     },
     onMutate: async (tasks: OpenTask[]) => {
       const snapshot = await cache.snapshot()
@@ -144,11 +139,7 @@ export function useTaskActions(): TaskActions {
   const reopenMutation = useMutation({
     mutationKey: mutationKeys.tasks.reopen(graph?.root),
     mutationFn: async (tasks: OpenTask[]) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
-      await writeEach(tasks, generation, () => [{ kind: 'toggle' }]) // [x] → [ ]
+      await writeEach(tasks, () => [{ kind: 'toggle' }]) // [x] → [ ]
     },
     onMutate: async (tasks: OpenTask[]) => {
       const snapshot = await cache.snapshot()
@@ -167,11 +158,7 @@ export function useTaskActions(): TaskActions {
   const deleteMutation = useMutation({
     mutationKey: mutationKeys.tasks.delete(graph?.root),
     mutationFn: async (tasks: OpenTask[]) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
-      await writeEach(tasks, generation, () => [{ kind: 'remove' }])
+      await writeEach(tasks, () => [{ kind: 'remove' }])
     },
     onMutate: async (tasks: OpenTask[]) => {
       const snapshot = await cache.snapshot()
@@ -199,11 +186,7 @@ export function useTaskActions(): TaskActions {
   const editMutation = useMutation({
     mutationKey: mutationKeys.tasks.edit(graph?.root),
     mutationFn: ({ task, content }: { task: OpenTask; content: string }) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
-      return taskService.writeTask(task, [{ kind: 'setMarkdown', markdown: content }], generation)
+      return taskService.writeTask(task, [{ kind: 'setMarkdown', markdown: content }])
     },
     onMutate: async ({ task, content }: { task: OpenTask; content: string }) => {
       const snapshot = await cache.snapshot()
@@ -221,11 +204,7 @@ export function useTaskActions(): TaskActions {
   const scheduleMutation = useMutation({
     mutationKey: mutationKeys.tasks.schedule(graph?.root),
     mutationFn: async ({ tasks, isoDate }: { tasks: OpenTask[]; isoDate: string | null }) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
-      await writeEach(tasks, generation, (task) => [
+      await writeEach(tasks, (task) => [
         { kind: 'setMarkdown', markdown: getScheduledMarkdown(task, isoDate) },
       ])
     },
@@ -247,11 +226,7 @@ export function useTaskActions(): TaskActions {
   const convertMutation = useMutation({
     mutationKey: mutationKeys.tasks.convert(graph?.root),
     mutationFn: async (tasks: OpenTask[]) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
-      await writeEach(tasks, generation, () => [{ kind: 'toBullet' }])
+      await writeEach(tasks, () => [{ kind: 'toBullet' }])
     },
     onMutate: async (tasks: OpenTask[]) => {
       const snapshot = await cache.snapshot()
@@ -280,15 +255,10 @@ export function useTaskActions(): TaskActions {
   const editAndConvertMutation = useMutation({
     mutationKey: mutationKeys.tasks.editAndConvert(graph?.root),
     mutationFn: async ({ task, content }: { task: OpenTask; content: string }) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
-      const result = await taskService.writeTask(
-        task,
-        [{ kind: 'setMarkdown', markdown: content }, { kind: 'toBullet' }],
-        generation,
-      )
+      const result = await taskService.writeTask(task, [
+        { kind: 'setMarkdown', markdown: content },
+        { kind: 'toBullet' },
+      ])
       relocate(task.notePath, result.moved)
     },
     onMutate: async ({ task }: { task: OpenTask; content: string }) => {
@@ -313,13 +283,9 @@ export function useTaskActions(): TaskActions {
   const insertMutation = useMutation({
     mutationKey: mutationKeys.tasks.insert(graph?.root),
     mutationFn: ({ target, after }: InsertInput) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
       return after === undefined
-        ? taskService.insertTask(target.notePath, generation)
-        : taskService.continueTaskInContext(after.task, after.content, generation)
+        ? taskService.insertTask(target.notePath)
+        : taskService.continueTaskInContext(after.task, after.content)
     },
     onMutate: async ({ after }: InsertInput): Promise<TaskCacheSnapshot | undefined> => {
       if (after === undefined) {
@@ -349,16 +315,11 @@ export function useTaskActions(): TaskActions {
   const editAndToggleMutation = useMutation({
     mutationKey: mutationKeys.tasks.editAndToggle(graph?.root),
     mutationFn: async ({ task, content }: { task: OpenTask; content: string | null }) => {
-      const generation = graph?.generation
-      if (generation === undefined) {
-        throw new Error('No graph is open.')
-      }
       await taskService.writeTask(
         task,
         content === null
           ? [{ kind: 'toggle' }]
           : [{ kind: 'setMarkdown', markdown: content }, { kind: 'toggle' }],
-        generation,
       )
     },
     onMutate: async ({ task, content }: { task: OpenTask; content: string | null }) => {
@@ -441,12 +402,12 @@ export function useTaskActions(): TaskActions {
       // ⌘↵ *completes*; with archived rows in the selection, toggling an
       // already-checked task would reopen it on disk. Only act on open rows.
       const open = tasks.filter((task) => !task.checked)
-      if (open.length > 0 && graph?.generation !== undefined && !completeMutation.isPending) {
+      if (open.length > 0 && !completeMutation.isPending) {
         completeMutation.mutate(open)
       }
     },
     toggle: (tasks) => {
-      if (tasks.length === 0 || graph?.generation === undefined) {
+      if (tasks.length === 0) {
         return
       }
       // V1: all checked → reopen them all; otherwise complete the open ones.
@@ -462,30 +423,18 @@ export function useTaskActions(): TaskActions {
       }
     },
     remove: (tasks) => {
-      if (tasks.length > 0 && graph?.generation !== undefined && !deleteMutation.isPending) {
+      if (tasks.length > 0 && !deleteMutation.isPending) {
         deleteMutation.mutate(tasks)
       }
     },
     edit: (task, content) => {
-      if (graph?.generation !== undefined) {
-        editMutation.mutate({ task, content })
-      }
+      editMutation.mutate({ task, content })
     },
     checkboxToggle: (task) => {
-      if (graph?.generation !== undefined) {
-        editAndToggleMutation.mutate({ task, content: null })
-      }
+      editAndToggleMutation.mutate({ task, content: null })
     },
-    insert: async (target) => {
-      if (graph?.generation === undefined) {
-        return null
-      }
-      return await insertInto(target)
-    },
+    insert: (target) => insertInto(target),
     insertAfter: async (task, content) => {
-      if (graph?.generation === undefined) {
-        return null
-      }
       const created = await insertInto(task, { task, content })
       if (created !== null) {
         return created
@@ -495,22 +444,20 @@ export function useTaskActions(): TaskActions {
       return null
     },
     editAndToggle: (task, content) => {
-      if (graph?.generation !== undefined) {
-        editAndToggleMutation.mutate({ task, content })
-      }
+      editAndToggleMutation.mutate({ task, content })
     },
     schedule: (tasks, isoDate) => {
-      if (tasks.length > 0 && graph?.generation !== undefined && !scheduleMutation.isPending) {
+      if (tasks.length > 0 && !scheduleMutation.isPending) {
         scheduleMutation.mutate({ tasks, isoDate })
       }
     },
     convertToBullet: (tasks) => {
-      if (tasks.length > 0 && graph?.generation !== undefined && !convertMutation.isPending) {
+      if (tasks.length > 0 && !convertMutation.isPending) {
         convertMutation.mutate(tasks)
       }
     },
     editAndConvertToBullet: (task, content) => {
-      if (graph?.generation !== undefined && !editAndConvertMutation.isPending) {
+      if (!editAndConvertMutation.isPending) {
         editAndConvertMutation.mutate({ task, content })
       }
     },

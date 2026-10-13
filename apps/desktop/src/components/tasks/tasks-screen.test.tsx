@@ -631,7 +631,6 @@ describe('TasksScreen', () => {
       expect(writeTask).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/p.md', astPath: [2] }),
         [{ kind: 'setMarkdown', markdown: 'edited content' }],
-        1,
       ),
     )
     await waitFor(() => expect(view.queryByTestId('task-editor')).toBeNull())
@@ -666,7 +665,6 @@ describe('TasksScreen', () => {
       expect(writeTask).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/p.md', astPath: [2] }),
         [{ kind: 'setMarkdown', markdown: 'edited content' }],
-        1,
       ),
     )
     // The selection (and so the inline editor) is left intact — flush never clears.
@@ -693,7 +691,6 @@ describe('TasksScreen', () => {
       expect(writeTask).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/p.md', astPath: [2] }),
         [{ kind: 'setMarkdown', markdown: 'edited content' }, { kind: 'toggle' }],
-        1,
       ),
     )
     await view.unmount()
@@ -867,7 +864,7 @@ describe('TasksScreen', () => {
 
     await view.findByText('a')
     await userEvent.click(await view.findByRole('button', { name: 'Add a task to Project' }))
-    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('notes/proj.md', 1))
+    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('notes/proj.md'))
     // The new row's editor opens, ready to type.
     await view.findByTestId('task-editor')
     await view.unmount()
@@ -903,7 +900,6 @@ describe('TasksScreen', () => {
       expect(writeTask).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/proj.md', astPath: [2] }),
         [{ kind: 'remove' }],
-        1,
       ),
     )
     await view.unmount()
@@ -942,7 +938,7 @@ describe('TasksScreen', () => {
     await view.findByRole('button', { name: 'first' })
     await userEvent.keyboard('{Enter}')
     // Nothing was selected, so the new task lands in today's daily note.
-    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('daily/2026-06-14.md', 1))
+    await waitFor(() => expect(insertTask).toHaveBeenCalledWith('daily/2026-06-14.md'))
     // The optimistic empty row mounts its inline editor, ready to type into.
     await view.findByTestId('task-editor')
     await view.unmount()
@@ -972,7 +968,6 @@ describe('TasksScreen', () => {
       expect(writeTask).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'daily/2026-06-14.md' }),
         [{ kind: 'remove' }],
-        1,
       ),
     )
     await view.unmount()
@@ -1003,11 +998,9 @@ describe('TasksScreen', () => {
     await userEvent.click(view.getByRole('button', { name: 'delete-empty-edit' }))
 
     await waitFor(() =>
-      expect(writeTask).toHaveBeenCalledWith(
-        expect.objectContaining({ notePath: 'notes/b.md' }),
-        [{ kind: 'remove' }],
-        1,
-      ),
+      expect(writeTask).toHaveBeenCalledWith(expect.objectContaining({ notePath: 'notes/b.md' }), [
+        { kind: 'remove' },
+      ]),
     )
     // Lands on the previous row, whose editor now opens.
     await view.findByText('editing: first')
@@ -1063,7 +1056,6 @@ describe('TasksScreen', () => {
       expect(continueTaskInContext).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/a.md', astPath: [2] }),
         'edited content',
-        1,
       ),
     )
     expect(insertTask).not.toHaveBeenCalled()
@@ -1116,7 +1108,6 @@ describe('TasksScreen', () => {
           breadcrumbs: ['StartupToolbox', 'Reflections'],
         }),
         'edited content',
-        1,
       ),
     )
     expect(insertTask).not.toHaveBeenCalled()
@@ -1149,7 +1140,6 @@ describe('TasksScreen', () => {
       expect(writeTask).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/a.md', markdown: 'first' }),
         [{ kind: 'setMarkdown', markdown: 'edited content' }],
-        1,
       ),
     )
     expect(insertTask).not.toHaveBeenCalled()
@@ -1181,7 +1171,6 @@ describe('TasksScreen', () => {
       expect(continueTaskInContext).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/a.md', breadcrumbs: ['Project'] }),
         null,
-        1,
       ),
     )
     await view.unmount()
@@ -1208,7 +1197,6 @@ describe('TasksScreen', () => {
       expect(continueTaskInContext).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/a.md' }),
         '',
-        1,
       ),
     )
     expect(writeTask).not.toHaveBeenCalled()
@@ -1270,11 +1258,9 @@ describe('TasksScreen', () => {
     await userEvent.keyboard('{ControlOrMeta>}{Enter}{/ControlOrMeta}')
     // Only the open row toggles; the completed one is left untouched.
     await waitFor(() => expect(writesOf('toggle')).toHaveLength(1))
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.objectContaining({ notePath: 'notes/a.md' }),
-      [{ kind: 'toggle' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.objectContaining({ notePath: 'notes/a.md' }), [
+      { kind: 'toggle' },
+    ])
     await view.unmount()
   })
 
@@ -1304,11 +1290,9 @@ describe('TasksScreen', () => {
     await userEvent.click(await view.findByText('20'))
 
     await waitFor(() => expect(writesOf('setMarkdown')).toHaveLength(2))
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.objectContaining({ notePath: 'notes/a.md' }),
-      [{ kind: 'setMarkdown', markdown: 'plan [[2026-06-20]]' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.objectContaining({ notePath: 'notes/a.md' }), [
+      { kind: 'setMarkdown', markdown: 'plan [[2026-06-20]]' },
+    ])
     await view.unmount()
   })
 
@@ -1336,16 +1320,12 @@ describe('TasksScreen', () => {
     await userEvent.click(view.getByRole('button', { name: /Convert to bullet 2/ }))
 
     await waitFor(() => expect(writesOf('toBullet')).toHaveLength(2))
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.objectContaining({ notePath: 'notes/a.md' }),
-      [{ kind: 'toBullet' }],
-      1,
-    )
-    expect(writeTask).toHaveBeenCalledWith(
-      expect.objectContaining({ notePath: 'notes/b.md' }),
-      [{ kind: 'toBullet' }],
-      1,
-    )
+    expect(writeTask).toHaveBeenCalledWith(expect.objectContaining({ notePath: 'notes/a.md' }), [
+      { kind: 'toBullet' },
+    ])
+    expect(writeTask).toHaveBeenCalledWith(expect.objectContaining({ notePath: 'notes/b.md' }), [
+      { kind: 'toBullet' },
+    ])
     // The converted rows are no longer checkboxes, so they leave the view.
     await waitFor(() => expect(view.queryByText('plan')).toBeNull())
     expect(view.queryByText('ship')).toBeNull()
@@ -1402,7 +1382,6 @@ describe('TasksScreen', () => {
       expect(writeTask).toHaveBeenCalledWith(
         expect.objectContaining({ notePath: 'notes/a.md', astPath: [2] }),
         [{ kind: 'setMarkdown', markdown: 'edited content' }, { kind: 'toBullet' }],
-        1,
       ),
     )
     await waitFor(() => expect(view.queryByText('plan')).toBeNull())
@@ -1424,11 +1403,10 @@ describe('TasksScreen', () => {
     await userEvent.click(await view.findByRole('button', { name: 'plan' }))
     await userEvent.click(view.getByRole('button', { name: 'convert-edited' }))
     await waitFor(() =>
-      expect(writeTask).toHaveBeenCalledWith(
-        expect.anything(),
-        [{ kind: 'setMarkdown', markdown: 'edited content' }, { kind: 'toBullet' }],
-        1,
-      ),
+      expect(writeTask).toHaveBeenCalledWith(expect.anything(), [
+        { kind: 'setMarkdown', markdown: 'edited content' },
+        { kind: 'toBullet' },
+      ]),
     )
     expect(writesOf('setMarkdown')).toHaveLength(0)
     expect(writesOf('toBullet')).toHaveLength(0)
@@ -1511,7 +1489,6 @@ describe('TasksScreen', () => {
           markdown: 'project task',
         }),
         [{ kind: 'toggle' }],
-        1,
       ),
     )
     // V1's middle state: the row stays visible, struck, until archived.
@@ -1608,7 +1585,6 @@ describe('TasksScreen', () => {
           markdown: 'project task',
         }),
         [{ kind: 'toggle' }],
-        1,
       ),
     )
     await view.unmount()
@@ -1642,13 +1618,11 @@ describe('TasksScreen', () => {
       1,
       expect.objectContaining({ notePath: 'notes/a.md', astPath: [5], markdown: 'first task' }),
       [{ kind: 'toggle' }],
-      1,
     )
     expect(writeTask).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ notePath: 'notes/b.md', astPath: [9], markdown: 'second task' }),
       [{ kind: 'toggle' }],
-      1,
     )
     await view.findByRole('button', { name: 'Reopen: first task' })
     await view.findByRole('button', { name: 'Reopen: second task' })
@@ -1687,7 +1661,6 @@ describe('TasksScreen', () => {
     expect(writeTask).toHaveBeenCalledWith(
       expect.objectContaining({ notePath: 'notes/b.md', astPath: [9], markdown: 'done task' }),
       [{ kind: 'toggle' }],
-      1,
     )
     await view.findByRole('button', { name: 'Complete: open task' })
     await view.findByRole('button', { name: 'Complete: done task' })
@@ -1718,7 +1691,6 @@ describe('TasksScreen', () => {
           markdown: 'project task',
         }),
         [{ kind: 'setMarkdown', markdown: 'edited content' }, { kind: 'toggle' }],
-        1,
       ),
     )
     await view.unmount()
@@ -1783,7 +1755,6 @@ describe('TasksScreen', () => {
           markdown: 'project task',
         }),
         [{ kind: 'toggle' }],
-        1,
       ),
     )
     await view.findByRole('button', { name: 'Complete: project task' })
@@ -1815,7 +1786,6 @@ describe('TasksScreen', () => {
           markdown: 'project task',
         }),
         [{ kind: 'toggle' }],
-        1,
       ),
     )
     await view.findByRole('button', { name: 'Complete: project task' })
@@ -1918,7 +1888,6 @@ describe('TasksScreen', () => {
           markdown: 'project task',
         }),
         [{ kind: 'toggle' }],
-        1,
       ),
     )
     await view.unmount()
@@ -1951,7 +1920,6 @@ describe('TasksScreen', () => {
           markdown: 'project task',
         }),
         [{ kind: 'setMarkdown', markdown: 'edited content' }, { kind: 'toggle' }],
-        1,
       ),
     )
     await view.unmount()
