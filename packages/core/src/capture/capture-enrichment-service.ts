@@ -212,7 +212,8 @@ class CaptureEnrichmentServiceImpl implements CaptureEnrichmentService {
 
     let enriched = 0
     let skipped = 0
-    const deferredDates: string[] = []
+    // Capture base -> capture day, for every retitle still waiting for its Daily link.
+    const deferredCaptures = new Map<string, string>()
     let waitingForKey = false
     let transientStop: ReconcileStop | null = null
     const stale = (): boolean => input.isStale?.() === true
@@ -220,17 +221,24 @@ class CaptureEnrichmentServiceImpl implements CaptureEnrichmentService {
       pending: pending.length,
       enriched,
       skipped,
-      deferredDates: [...new Set(deferredDates)],
+      deferredDates: [...new Set(deferredCaptures.values())],
       stopped,
     })
-    const finished = (identity: CaptureIdentity, persisted: PersistedCapture): void => {
-      if (persisted.deferred) {
-        deferredDates.push(identity.date)
+    const trackDeferral = (identity: CaptureIdentity, deferred: boolean): void => {
+      if (deferred) {
+        deferredCaptures.set(identity.base, identity.date)
       } else {
+        deferredCaptures.delete(identity.base)
+      }
+    }
+    const finished = (identity: CaptureIdentity, persisted: PersistedCapture): void => {
+      trackDeferral(identity, persisted.deferred)
+      if (!persisted.deferred) {
         enriched += 1
       }
     }
     const markSkipped = async (source: string, identity: CaptureIdentity): Promise<void> => {
+      trackDeferral(identity, false)
       await noteFile.write(
         identity.notePath,
         upsertFrontmatter(source, {
@@ -284,8 +292,8 @@ class CaptureEnrichmentServiceImpl implements CaptureEnrichmentService {
             await skipPending(identity)
             continue
           }
+          trackDeferral(identity, finalized.kind === 'deferred')
           if (finalized.kind === 'deferred' && finalized.status === 'done') {
-            deferredDates.push(identity.date)
             continue
           }
           if (finalized.status === 'done') {
@@ -463,6 +471,7 @@ class CaptureEnrichmentServiceImpl implements CaptureEnrichmentService {
             await skipPending(identity)
             continue
           }
+          trackDeferral(identity, persisted.deferred)
           metadataHash = persisted.captureHash
         }
         if (stale()) {

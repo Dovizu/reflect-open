@@ -380,6 +380,63 @@ describe('CaptureService (triggers)', () => {
     session.dispose()
   })
 
+  it('runs again when a deferred daily arrives while the pass is still working', async () => {
+    const kit = setup()
+    const prepare = async (capturedAt: Date, id: string) => {
+      const identity = captureIdentity(capturedAt, id)
+      const prepared = await captureNoteSource(
+        {
+          version: 1,
+          id,
+          url: 'https://example.com/article',
+          title: 'A Cleaned Up Article',
+          capturedAt: capturedAt.toISOString(),
+          source: 'ios-share',
+        },
+        identity,
+        { hasScreenshot: false, status: 'pending' },
+      )
+      kit.noteFile.set(
+        identity.notePath,
+        upsertFrontmatter(prepared, {
+          captureMetadataStatus: 'done',
+          captureDailyFromTitle: 'example.com',
+          captureFinalizeStatus: 'done',
+        }),
+      )
+      return identity
+    }
+    const first = await prepare(CAPTURED_AT, '7c9e6679-7425-40de-944b-e07fc1f90ae7')
+    const second = await prepare(
+      new Date(2026, 5, 12, 9, 0, 0, 0),
+      '1b2c3d4e-7425-40de-944b-e07fc1f90ae7',
+    )
+    // The first capture has deferred by the time the pass re-reads the
+    // second one (its listing read comes first); the first daily arrives then.
+    const read = kit.noteFile.read.bind(kit.noteFile)
+    let secondReads = 0
+    vi.spyOn(kit.noteFile, 'read').mockImplementation(async (path, generation) => {
+      if (path === second.notePath && ++secondReads === 2) {
+        kit.noteFile.set(DAILY, `- [[${first.base}|example.com]]\n`)
+        kit.fileChanges.emit({
+          changes: [{ path: DAILY, kind: 'upsert', modifiedMs: 1 }],
+          source: 'external',
+        })
+      }
+      return await read(path, generation)
+    })
+
+    const session = kit.capture.openSession({ generation: 3 })
+    session.start()
+
+    await vi.waitFor(() => {
+      expect(kit.noteFile.files().get(first.notePath)).toContain('captureStatus: done')
+    })
+    expect(kit.drains).toHaveBeenCalledTimes(2)
+    expect(kit.noteFile.files().get(DAILY)).toBe(`- [[${first.base}|A Cleaned Up Article]]\n`)
+    session.dispose()
+  })
+
   it('retries on wake', async () => {
     const kit = setup()
     const session = kit.capture.openSession({ generation: 3 })

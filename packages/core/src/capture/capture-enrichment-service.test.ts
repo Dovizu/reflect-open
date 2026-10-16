@@ -1182,6 +1182,45 @@ describe('CaptureEnrichmentService', () => {
       expect(kit.noteFile.files().get(DAILY)).toBe(retitled)
     })
 
+    it('reports a metadata retitle that waits for the daily while the key is missing', async () => {
+      kit.installSecrets()
+      const synced = await drainThenStaleDaily({ source: 'ios-share', title: '' })
+      kit.scrapeMock.mockResolvedValue({
+        title: 'A title from metadata',
+        description: null,
+        siteName: null,
+      })
+
+      const outcome = await kit.reconcile()
+
+      expect(outcome.deferredDates).toEqual(['2026-06-11'])
+      expect(outcome.stopped?.reason).toBe('config')
+
+      kit.noteFile.set(DAILY, synced)
+      const retry = await kit.reconcile()
+
+      expect(retry.deferredDates).toEqual([])
+      expect(kit.noteFile.files().get(DAILY)).toContain(
+        `[[${IDENTITY.base}|A title from metadata]]`,
+      )
+      expect(kit.describeMock).not.toHaveBeenCalled()
+    })
+
+    it('reports a metadata retitle that waits for the daily when the provider fails', async () => {
+      await drainThenStaleDaily({ source: 'ios-share', title: '' })
+      kit.scrapeMock.mockResolvedValue({
+        title: 'A title from metadata',
+        description: null,
+        siteName: null,
+      })
+      kit.describeMock.mockRejectedValue(new ReflectError('network', 'provider unavailable'))
+
+      const outcome = await kit.reconcile()
+
+      expect(outcome.deferredDates).toEqual(['2026-06-11'])
+      expect(outcome.stopped?.reason).toBe('network')
+    })
+
     it('keeps the oldest link text across a metadata and an AI retitle', async () => {
       const synced = await drainThenStaleDaily({ source: 'ios-share', title: '' })
       expect(synced).toContain(`[[${IDENTITY.base}|example.com]]`)

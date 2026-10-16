@@ -142,6 +142,11 @@ class CaptureSessionImpl implements CaptureSession {
    * last enrichment pass. A change to one of these Dailies triggers a pass.
    */
   #deferredDates = new Set<string>()
+  /**
+   * Days whose Daily changed since the current pass started. A pass that
+   * defers one of them must run again: the change may have brought the link.
+   */
+  readonly #changedDailyDates = new Set<string>()
 
   constructor(deps: CaptureSessionDeps, options: CaptureSessionOptions) {
     this.#deps = deps
@@ -204,6 +209,9 @@ class CaptureSessionImpl implements CaptureSession {
             return false
           }
           const date = dateFromDailyPath(change.path)
+          if (date !== null) {
+            this.#changedDailyDates.add(date)
+          }
           return isCaptureSpoolPath(change.path) || (date !== null && this.#deferredDates.has(date))
         })
         if (needsPass) {
@@ -234,6 +242,7 @@ class CaptureSessionImpl implements CaptureSession {
   async #reconcile(isStale: () => boolean): Promise<void> {
     const { captureInbox, drain, enrichment, commitXPost, notifyXPostsWritten } = this.#deps
     const generation = this.#generation
+    this.#changedDailyDates.clear()
     if (this.#mobile) {
       let relayStop: ReconcileStop | null = null
       try {
@@ -268,6 +277,9 @@ class CaptureSessionImpl implements CaptureSession {
     // the very next pass.
     const enriched = await enrichment.reconcile({ generation, isStale })
     this.#deferredDates = new Set(enriched.deferredDates)
+    if (enriched.deferredDates.some((date) => this.#changedDailyDates.has(date))) {
+      this.#loop.schedule()
+    }
     this.#surfaceStop('Enriching link capture', enriched.stopped)
   }
 }
