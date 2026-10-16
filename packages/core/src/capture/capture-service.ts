@@ -1,6 +1,7 @@
 import { appendXPost } from './bookmark-capture.ts'
 import type { XPostEnvelope } from './bookmark-envelope.ts'
 import { isCaptureSpoolPath } from './capture-identity.ts'
+import { dateFromDailyPath } from '../graph/paths.ts'
 import type { AiCredentialService } from '../ai/ai-credential-service.ts'
 import type { AiProviderConfigService } from '../ai/ai-provider-config-service.ts'
 import type { PageDescriberService } from '../ai/page-describer-service.ts'
@@ -136,6 +137,11 @@ class CaptureSessionImpl implements CaptureSession {
    */
   readonly #surfacedStops = new Map<string, string>()
   readonly #loop: ReturnType<BackgroundReconcilerFactory['create']>
+  /**
+   * Capture days whose Daily retitle waits for the capture's link, from the
+   * last enrichment pass. A change to one of these Dailies triggers a pass.
+   */
+  #deferredDates = new Set<string>()
 
   constructor(deps: CaptureSessionDeps, options: CaptureSessionOptions) {
     this.#deps = deps
@@ -193,10 +199,14 @@ class CaptureSessionImpl implements CaptureSession {
     }
     loop.onDispose(
       fileChanges.subscribe(({ changes }) => {
-        const hasNewCapture = changes.some(
-          (change) => change.kind === 'upsert' && isCaptureSpoolPath(change.path),
-        )
-        if (hasNewCapture) {
+        const needsPass = changes.some((change) => {
+          if (change.kind !== 'upsert') {
+            return false
+          }
+          const date = dateFromDailyPath(change.path)
+          return isCaptureSpoolPath(change.path) || (date !== null && this.#deferredDates.has(date))
+        })
+        if (needsPass) {
           loop.schedule()
         }
       }),
@@ -257,6 +267,7 @@ class CaptureSessionImpl implements CaptureSession {
     // enrichment pass. A key added in Settings mid-session must be seen by
     // the very next pass.
     const enriched = await enrichment.reconcile({ generation, isStale })
+    this.#deferredDates = new Set(enriched.deferredDates)
     this.#surfaceStop('Enriching link capture', enriched.stopped)
   }
 }
@@ -287,6 +298,7 @@ class CaptureServiceImpl implements CaptureService {
       aiProviderConfig: deps.aiProviderConfig,
       aiCredentials: deps.aiCredentials,
       privacy: deps.privacy,
+      clock: deps.clock,
     })
   }
 

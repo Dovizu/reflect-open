@@ -2,7 +2,9 @@ import { createTestGraphSessionService } from '../testing/graph-session.ts'
 import { describe, expect, it, vi } from 'vitest'
 import type { XPostEnvelope } from './bookmark-envelope.ts'
 import type { TextCaptureEnvelope } from './capture-envelope.ts'
-import { captureLocalDate } from './capture-identity.ts'
+import { captureIdentity, captureLocalDate } from './capture-identity.ts'
+import { captureNoteSource } from './capture-note.ts'
+import { upsertFrontmatter } from '../markdown/frontmatter.ts'
 import { createBackgroundReconcilerFactory } from '../reconcile/background-reconciler.ts'
 import { ReflectError } from '../errors.ts'
 import { createAiCredentialService } from '../ai/ai-credential-service.ts'
@@ -315,6 +317,67 @@ describe('CaptureService (triggers)', () => {
 
     session.dispose()
     expect(kit.fileChanges.listenerCount().changes).toBe(0)
+  })
+
+  it('schedules a pass when the daily of a deferred retitle changes', async () => {
+    const kit = setup()
+    const identity = captureIdentity(CAPTURED_AT, '7c9e6679-7425-40de-944b-e07fc1f90ae7')
+    const prepared = await captureNoteSource(
+      {
+        version: 1,
+        id: '7c9e6679-7425-40de-944b-e07fc1f90ae7',
+        url: 'https://example.com/article',
+        title: 'A Cleaned Up Article',
+        capturedAt: CAPTURED_AT.toISOString(),
+        source: 'ios-share',
+      },
+      identity,
+      { hasScreenshot: false, status: 'pending' },
+    )
+    kit.noteFile.set(
+      identity.notePath,
+      upsertFrontmatter(prepared, {
+        captureMetadataStatus: 'done',
+        captureDailyFromTitle: 'example.com',
+        captureFinalizeStatus: 'done',
+      }),
+    )
+    const reads = vi.spyOn(kit.noteFile, 'read')
+    const session = kit.capture.openSession({ generation: 3 })
+    session.start()
+    // The launch pass has deferred the retitle once it read the empty daily.
+    await vi.waitFor(() => {
+      expect(reads).toHaveBeenCalledWith(DAILY, 3)
+    })
+    await flush()
+    expect(kit.drains).toHaveBeenCalledTimes(1)
+
+    kit.fileChanges.emit({
+      changes: [{ path: 'daily/2026-06-12.md', kind: 'upsert', modifiedMs: 1 }],
+      source: 'external',
+    })
+    await flush()
+    expect(kit.drains).toHaveBeenCalledTimes(1)
+
+    kit.noteFile.set(DAILY, `## [[Links]]\n\n- [[${identity.base}|example.com]]\n`)
+    kit.fileChanges.emit({
+      changes: [{ path: DAILY, kind: 'upsert', modifiedMs: 1 }],
+      source: 'external',
+    })
+    await vi.waitFor(() => {
+      expect(kit.noteFile.files().get(identity.notePath)).toContain('captureStatus: done')
+    })
+    await flush()
+    expect(kit.drains).toHaveBeenCalledTimes(2)
+    expect(kit.noteFile.files().get(DAILY)).toContain(`[[${identity.base}|A Cleaned Up Article]]`)
+
+    kit.fileChanges.emit({
+      changes: [{ path: DAILY, kind: 'upsert', modifiedMs: 2 }],
+      source: 'external',
+    })
+    await flush()
+    expect(kit.drains).toHaveBeenCalledTimes(2)
+    session.dispose()
   })
 
   it('retries on wake', async () => {
