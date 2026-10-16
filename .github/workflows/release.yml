@@ -26,18 +26,13 @@ jobs:
     name: Maintain the Release PRs
     if: github.repository == 'team-reflect/reflect-open'
     runs-on: ubuntu-latest
-    # The desktop package lives at the repo root ("."), so its outputs have
-    # no path prefix. The channels never release from the same push:
-    # a push merges at most one Release PR, and the two passes only create
-    # releases for merged PRs on their own head branch (the component in the
-    # branch name tells them apart).
+    # The stable and beta passes are folded into one set of desktop outputs
+    # by the last step below, so the downstream jobs handle both channels the
+    # same way.
     outputs:
-      stable_created: ${{ steps.stable.outputs.releases_created }}
-      stable_tag: ${{ steps.stable.outputs.tag_name }}
-      stable_commit: ${{ steps.stable.outputs.sha }}
-      beta_created: ${{ steps.beta.outputs.releases_created }}
-      beta_tag: ${{ steps.beta.outputs.tag_name }}
-      beta_commit: ${{ steps.beta.outputs.sha }}
+      desktop_created: ${{ steps.desktop.outputs.created }}
+      desktop_tag: ${{ steps.desktop.outputs.tag }}
+      desktop_commit: ${{ steps.desktop.outputs.commit }}
       extension_created: ${{ steps.extension.outputs['apps/extension--release_created'] }}
       extension_tag: ${{ steps.extension.outputs['apps/extension--tag_name'] }}
       extension_commit: ${{ steps.extension.outputs['apps/extension--sha'] }}
@@ -71,6 +66,42 @@ jobs:
           config-file: .github/release-please/config.extension.json
           manifest-file: .github/release-please/manifest.extension.json
 
+      # The desktop package lives at the repo root ("."), so the stable and
+      # beta outputs have no path prefix. The channels never release from the
+      # same push: a push merges at most one Release PR, and the two passes
+      # only create releases for merged PRs on their own head branch (the
+      # component in the branch name tells them apart). Fold them into a
+      # single channel-agnostic set of outputs; publish-finalize.yml derives
+      # the channel from the tag's prerelease suffix.
+      - name: Unify the desktop release outputs
+        id: desktop
+        env:
+          STABLE_CREATED: ${{ steps.stable.outputs.releases_created }}
+          STABLE_TAG: ${{ steps.stable.outputs.tag_name }}
+          STABLE_COMMIT: ${{ steps.stable.outputs.sha }}
+          BETA_CREATED: ${{ steps.beta.outputs.releases_created }}
+          BETA_TAG: ${{ steps.beta.outputs.tag_name }}
+          BETA_COMMIT: ${{ steps.beta.outputs.sha }}
+        run: |
+          if [[ "$STABLE_CREATED" == true && "$BETA_CREATED" == true ]]; then
+            echo "::error::Both the stable and beta passes created a release in the same push ($STABLE_TAG, $BETA_TAG)."
+            exit 1
+          elif [[ "$STABLE_CREATED" == true ]]; then
+            tag="$STABLE_TAG"
+            commit="$STABLE_COMMIT"
+          elif [[ "$BETA_CREATED" == true ]]; then
+            tag="$BETA_TAG"
+            commit="$BETA_COMMIT"
+          else
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          {
+            echo "created=true"
+            echo "tag=$tag"
+            echo "commit=$commit"
+          } >> "$GITHUB_OUTPUT"
+
   publish-browser-extension:
     name: Submit the Chrome extension
     needs: release-please
@@ -88,113 +119,66 @@ jobs:
   # and output its tag. Chain straight into the builds with the tag resolved to
   # its immutable commit once; the called workflows check out that SHA rather
   # than resolving the tag name again. The builds upload into the draft, and
-  # the finalize jobs at the end publish it.
-  publish-macos-stable:
-    name: Build the stable macOS release
+  # the finalize job at the end publishes it.
+  publish-macos:
+    name: Build the macOS release
     needs: release-please
-    if: needs.release-please.outputs.stable_created == 'true'
+    if: needs.release-please.outputs.desktop_created == 'true'
     uses: ./.github/workflows/publish-macos.yml
     with:
-      tag: ${{ needs.release-please.outputs.stable_tag }}
-      commit: ${{ needs.release-please.outputs.stable_commit }}
-    secrets: inherit
-
-  publish-macos-beta:
-    name: Build the beta macOS release
-    needs: release-please
-    if: needs.release-please.outputs.beta_created == 'true'
-    uses: ./.github/workflows/publish-macos.yml
-    with:
-      tag: ${{ needs.release-please.outputs.beta_tag }}
-      commit: ${{ needs.release-please.outputs.beta_commit }}
+      tag: ${{ needs.release-please.outputs.desktop_tag }}
+      commit: ${{ needs.release-please.outputs.desktop_commit }}
     secrets: inherit
 
   # Every release also ships to TestFlight. iOS needs no version bump of its
   # own: the marketing version follows apps/desktop/package.json with the
   # prerelease suffix stripped, so beta and stable builds stack under the same
   # version, told apart by the UTC-timestamp build number.
-  publish-testflight-stable:
-    name: Upload the stable release to TestFlight
+  publish-testflight:
+    name: Upload the release to TestFlight
     needs: release-please
-    if: needs.release-please.outputs.stable_created == 'true'
+    if: needs.release-please.outputs.desktop_created == 'true'
     uses: ./.github/workflows/publish-testflight.yml
     with:
-      commit: ${{ needs.release-please.outputs.stable_commit }}
-    secrets: inherit
-
-  publish-testflight-beta:
-    name: Upload the beta release to TestFlight
-    needs: release-please
-    if: needs.release-please.outputs.beta_created == 'true'
-    uses: ./.github/workflows/publish-testflight.yml
-    with:
-      commit: ${{ needs.release-please.outputs.beta_commit }}
+      commit: ${{ needs.release-please.outputs.desktop_commit }}
     secrets: inherit
 
   # The experimental Windows build rides every release too: x64 and arm64
   # installers plus their updater signatures go into the draft release. The
   # installers are not code-signed; the secrets are only for the updater
   # signature.
-  publish-windows-stable:
-    name: Build the Windows installer (stable)
+  publish-windows:
+    name: Build the Windows installer
     needs: release-please
-    if: needs.release-please.outputs.stable_created == 'true'
+    if: needs.release-please.outputs.desktop_created == 'true'
     uses: ./.github/workflows/publish-windows.yml
     with:
-      tag: ${{ needs.release-please.outputs.stable_tag }}
-      commit: ${{ needs.release-please.outputs.stable_commit }}
-    secrets: inherit
-
-  publish-windows-beta:
-    name: Build the Windows installer (beta)
-    needs: release-please
-    if: needs.release-please.outputs.beta_created == 'true'
-    uses: ./.github/workflows/publish-windows.yml
-    with:
-      tag: ${{ needs.release-please.outputs.beta_tag }}
-      commit: ${{ needs.release-please.outputs.beta_commit }}
+      tag: ${{ needs.release-please.outputs.desktop_tag }}
+      commit: ${{ needs.release-please.outputs.desktop_commit }}
     secrets: inherit
 
   # The experimental Linux build rides every release too: x64 and arm64
   # AppImages and `.deb` packages plus their updater signatures go into the
   # draft release. The packages are not code-signed; the secrets are only for
   # the updater signature.
-  publish-linux-stable:
-    name: Build the Linux packages (stable)
+  publish-linux:
+    name: Build the Linux packages
     needs: release-please
-    if: needs.release-please.outputs.stable_created == 'true'
+    if: needs.release-please.outputs.desktop_created == 'true'
     uses: ./.github/workflows/publish-linux.yml
     with:
-      tag: ${{ needs.release-please.outputs.stable_tag }}
-      commit: ${{ needs.release-please.outputs.stable_commit }}
-    secrets: inherit
-
-  publish-linux-beta:
-    name: Build the Linux packages (beta)
-    needs: release-please
-    if: needs.release-please.outputs.beta_created == 'true'
-    uses: ./.github/workflows/publish-linux.yml
-    with:
-      tag: ${{ needs.release-please.outputs.beta_tag }}
-      commit: ${{ needs.release-please.outputs.beta_commit }}
+      tag: ${{ needs.release-please.outputs.desktop_tag }}
+      commit: ${{ needs.release-please.outputs.desktop_commit }}
     secrets: inherit
 
   # The builds only fill the draft release. Publishing waits for both macOS
   # and Windows to succeed. It also waits for Linux to finish, but a Linux
   # failure does not block it: the release then ships without the missing
   # Linux packages.
-  publish-finalize-stable:
-    name: Finalize the stable release
-    needs: [release-please, publish-macos-stable, publish-windows-stable, publish-linux-stable]
-    if: ${{ !cancelled() && needs.publish-macos-stable.result == 'success' && needs.publish-windows-stable.result == 'success' }}
+  publish-finalize:
+    name: Finalize the release
+    needs: [release-please, publish-macos, publish-windows, publish-linux]
+    if: ${{ !cancelled() && needs.publish-macos.result == 'success' && needs.publish-windows.result == 'success' }}
     uses: ./.github/workflows/publish-finalize.yml
     with:
-      tag: ${{ needs.release-please.outputs.stable_tag }}
-
-  publish-finalize-beta:
-    name: Finalize the beta release
-    needs: [release-please, publish-macos-beta, publish-windows-beta, publish-linux-beta]
-    if: ${{ !cancelled() && needs.publish-macos-beta.result == 'success' && needs.publish-windows-beta.result == 'success' }}
-    uses: ./.github/workflows/publish-finalize.yml
-    with:
-      tag: ${{ needs.release-please.outputs.beta_tag }}
+      tag: ${{ needs.release-please.outputs.desktop_tag }}
