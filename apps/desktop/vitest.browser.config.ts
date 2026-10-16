@@ -16,9 +16,6 @@ export default defineDesktopProject({
     include: ['src/**/*.test.tsx'],
     sequence: { groupOrder: browserName === 'chromium' ? 300 : 100 },
     setupFiles: ['./src/test-utils/setup-console.ts', './src/test-utils/setup-browser.ts'],
-    // Real keyboard focus is a per-page global; parallel test files
-    // would steal it from each other.
-    fileParallelism: false,
     maxConcurrency: 1,
     browser: {
       enabled: true,
