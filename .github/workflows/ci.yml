@@ -70,12 +70,12 @@ jobs:
   test-webkit:
     if: github.event_name != 'merge_group'
     runs-on: macos-26
-    # DEBUG ONLY: repeat the job to catch a WebKit page crash.
+    # DEBUG ONLY: compare the page crash rate of two WebKit builds.
     strategy:
       fail-fast: false
       matrix:
-        repeat: [1, 2]
-        jsc: [default, dfg-off, jit-off]
+        webkit: ['2370', '2378']
+        repeat: [1, 2, 3, 4, 5]
     env:
       REFLECT_TEST_BROWSER: webkit
     steps:
@@ -88,14 +88,20 @@ jobs:
       - name: Install Playwright
         run: pnpm --filter @reflect/desktop test:install:webkit
 
-      # DEBUG ONLY: JSC options reach the WebContent XPC service through the
-      # __XPC_ prefix.
-      - name: Set JSC options
+      # DEBUG ONLY: Playwright 1.64.1 runs whatever build is in webkit-2370.
+      - name: Use WebKit ${{ matrix.webkit }}
+        if: matrix.webkit != '2370'
         run: |
-          case '${{ matrix.jsc }}' in
-            dfg-off) echo '__XPC_JSC_useDFGJIT=0' >> "$GITHUB_ENV" ;;
-            jit-off) echo '__XPC_JSC_useJIT=0' >> "$GITHUB_ENV" ;;
-          esac
+          dir=~/Library/Caches/ms-playwright/webkit-2370
+          curl -sfL -o "$RUNNER_TEMP/webkit.zip" \
+            "https://cdn.playwright.dev/dbazure/download/playwright/builds/webkit/${{ matrix.webkit }}/webkit-mac-26-arm64.zip"
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          unzip -q "$RUNNER_TEMP/webkit.zip" -d "$dir"
+          touch "$dir/INSTALLATION_COMPLETE" "$dir/DEPENDENCIES_VALIDATED"
+
+      - name: Show the WebKit version
+        run: plutil -p ~/Library/Caches/ms-playwright/webkit-2370/JavaScriptCore.framework/Versions/A/Resources/Info.plist | grep CFBundleVersion
 
       - name: Start the memory sampler
         run: |
@@ -104,28 +110,25 @@ jobs:
           touch "$dir/started"
           nohup .github/scripts/sample-webkit-memory.sh > "$dir/memory.log" 2>&1 < /dev/null &
 
-      # WebKit keeps the memory of every finished test file, so each shard
-      # runs in its own Vitest process to restart the browser.
-      - name: Test browser (shard 1/3)
-        if: ${{ !cancelled() }}
+      # DEBUG ONLY: run the browser tests 3 times and count page crashes.
+      - name: Test browser (3 rounds)
         run: |
-          set -o pipefail
-          pnpm run test run --project '*browser*' --shard=1/3 --reporter=verbose 2>&1 \
-            | tee "$RUNNER_TEMP/webkit-diagnostics/shard-1.log"
-
-      - name: Test browser (shard 2/3)
-        if: ${{ !cancelled() }}
-        run: |
-          set -o pipefail
-          pnpm run test run --project '*browser*' --shard=2/3 --reporter=verbose 2>&1 \
-            | tee "$RUNNER_TEMP/webkit-diagnostics/shard-2.log"
-
-      - name: Test browser (shard 3/3)
-        if: ${{ !cancelled() }}
-        run: |
-          set -o pipefail
-          pnpm run test run --project '*browser*' --shard=3/3 --reporter=verbose 2>&1 \
-            | tee "$RUNNER_TEMP/webkit-diagnostics/shard-3.log"
+          dir="$RUNNER_TEMP/webkit-diagnostics"
+          crashes=0
+          for round in 1 2 3; do
+            for shard in 1 2 3; do
+              log="$dir/round-$round-shard-$shard.log"
+              pnpm run test run --project '*browser*' --shard="$shard/3" --reporter=verbose > "$log" 2>&1 || true
+              echo "round $round shard $shard: $(grep -E '^ +Tests ' "$log" | tail -1)"
+              if grep -q VITEST_BROWSER_CONNECTION_CLOSED "$log"; then
+                crashes=$((crashes + 1))
+                echo "::warning::WebKit ${{ matrix.webkit }} page crash in round $round shard $shard"
+              fi
+            done
+          done
+          echo "$crashes" > "$dir/crashes.txt"
+          echo "crashes: $crashes"
+          [ "$crashes" = 0 ]
 
       # The termination reason of each WebKit content process, memory kill and
       # jetsam messages, and any crash report written during the job.
@@ -147,7 +150,7 @@ jobs:
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: webkit-diagnostics-${{ matrix.jsc }}-${{ matrix.repeat }}
+          name: webkit-${{ matrix.webkit }}-${{ matrix.repeat }}
           path: ${{ runner.temp }}/webkit-diagnostics/
           retention-days: 14
 
