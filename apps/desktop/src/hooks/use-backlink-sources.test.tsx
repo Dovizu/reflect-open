@@ -1,3 +1,4 @@
+import { act } from '@/test-utils/act.ts'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import type { BacklinkContext, BacklinkContextPage, BacklinkService } from '@reflect/core'
 import { createTestCoreServices, type TestCoreServices } from '@reflect/core/testing'
@@ -49,7 +50,7 @@ describe('useBacklinkSources', () => {
         : nextPage.promise,
     )
 
-    const { result, act } = await mount()
+    const { result } = await mount()
 
     await vi.waitFor(() => expect(result.current.groups).toHaveLength(1))
     expect(getBacklinksWithContext).toHaveBeenNthCalledWith(1, 'notes/target.md', {
@@ -112,7 +113,7 @@ describe('useBacklinkSources', () => {
       })
       .mockRejectedValueOnce(new Error('next page failed'))
 
-    const { result, act } = await mount()
+    const { result } = await mount()
     await vi.waitFor(() => expect(result.current.groups).toHaveLength(1))
 
     await act(() => result.current.loadMore())

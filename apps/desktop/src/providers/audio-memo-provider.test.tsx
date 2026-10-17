@@ -1,3 +1,4 @@
+import { act } from '@/test-utils/act.ts'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -14,7 +15,6 @@ import {
 } from '@reflect/core/testing'
 import { toast } from '@/components/ui/toast.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
-import { act } from '@/test-utils/act.ts'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { AudioMemoProvider, useAudioMemo } from './audio-memo-provider.tsx'
 

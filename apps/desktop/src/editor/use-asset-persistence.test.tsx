@@ -1,3 +1,4 @@
+import { act } from '@/test-utils/act.ts'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ReflectError, createAttachmentService, type AttachmentService } from '@reflect/core'
 import {
@@ -86,7 +87,7 @@ describe('useAssetPersistence', () => {
 
   it('opens attachments in the graph session', async () => {
     const attachments = installAttachments()
-    const { act } = await renderPersistence({ generation: 3 })
+    await renderPersistence({ generation: 3 })
 
     await act(async () => {
       await persistence!.openAsset('assets/q3-report.pdf')
@@ -97,7 +98,7 @@ describe('useAssetPersistence', () => {
 
   it('declines without a graph session', async () => {
     const attachments = installAttachments()
-    const { act } = await renderPersistence({ generation: null })
+    await renderPersistence({ generation: null })
 
     let saved: string | null = 'sentinel'
     await act(async () => {
@@ -115,7 +116,7 @@ describe('useAssetPersistence', () => {
 
   it('shows the latest failed save until the next success', async () => {
     const attachments = installAttachments()
-    const { act } = await renderPersistence({ generation: 3 })
+    await renderPersistence({ generation: 3 })
 
     attachments.failSaves({ kind: 'image', message: 'disk full' })
     await act(async () => {
@@ -150,13 +151,13 @@ describe('useAssetPersistence', () => {
     const view = await renderPersistence({ generation: 3, path: 'notes/a.md' })
 
     let savePromise: Promise<string | null> | null = null
-    await view.act(() => {
+    await act(() => {
       savePromise = persistence!.saveFile(fileOf('slow.pdf', 'application/pdf'))
     })
 
     // The user moves on; the save then fails for the note they left.
     await view.rerender({ path: 'notes/b.md' })
-    await view.act(async () => {
+    await act(async () => {
       upload.reject(new ReflectError('io', 'late failure'))
       await savePromise
     })

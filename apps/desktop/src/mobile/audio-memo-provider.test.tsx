@@ -1,3 +1,4 @@
+import { act } from '@/test-utils/act.ts'
 import { describe, expect, it, vi } from 'vitest'
 import {
   audioMemoIdentity,
@@ -12,7 +13,6 @@ import {
   createTestAudioRecorderService,
   createTestPlatformService,
 } from '@reflect/core/testing'
-import { act } from '@/test-utils/act.ts'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { MobileAudioMemoProvider, useMobileAudioMemo } from './audio-memo-provider.tsx'
 
