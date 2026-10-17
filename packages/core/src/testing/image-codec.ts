@@ -51,9 +51,9 @@ class TestDecodedImage implements DecodedImage {
     this.height = dimensions.height
   }
 
-  async encode(options: ImageEncodeOptions): Promise<Blob | null> {
+  encode(options: ImageEncodeOptions): Promise<Blob | null> {
     if (this.#host.isFailing()) {
-      return null
+      return Promise.resolve(null)
     }
     const width = options.width ?? this.width
     const height = options.height ?? this.height
@@ -64,7 +64,7 @@ class TestDecodedImage implements DecodedImage {
       width,
       height,
     })
-    return new Blob([`encoded ${width}x${height}`], { type: options.type })
+    return Promise.resolve(new Blob([`encoded ${width}x${height}`], { type: options.type }))
   }
 
   close(): void {
@@ -96,14 +96,16 @@ class TestImageCodecServiceImpl implements TestImageCodecService {
     }
   }
 
-  async decode(file: Blob): Promise<DecodedImage | null> {
-    const dimensions = this.#size(file)
-    if (dimensions === null) {
-      return null
-    }
-    this.#decoded.push(file)
-    this.#open += 1
-    return new TestDecodedImage(file, dimensions, this.#host)
+  decode(file: Blob): Promise<DecodedImage | null> {
+    return Promise.try(() => {
+      const dimensions = this.#size(file)
+      if (dimensions === null) {
+        return null
+      }
+      this.#decoded.push(file)
+      this.#open += 1
+      return new TestDecodedImage(file, dimensions, this.#host)
+    })
   }
 
   decodedFiles(): readonly Blob[] {

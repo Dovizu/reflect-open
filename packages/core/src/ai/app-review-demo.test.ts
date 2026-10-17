@@ -55,7 +55,7 @@ describe('createDemoModel', () => {
     const http = createTestHttpService()
     const noteFile = createTestNoteFileService()
     const xArchive = createTestXArchiveService()
-    const assetReferences = { notePaths: async () => [] }
+    const assetReferences = { notePaths: () => Promise.resolve([]) }
     const engine = createChatEngineService({
       logger: createTestLoggerService(),
       languageModel: createLanguageModelService({ http, sdk: createLazyAiSdkLoader() }),
@@ -63,7 +63,7 @@ describe('createDemoModel', () => {
         retrieval: createTestRetrievalService(),
         noteFile,
         noteList: createNoteListService({ database: createTestDatabaseService() }),
-        dailyNotes: { listDailyNotes: async () => [] },
+        dailyNotes: { listDailyNotes: () => Promise.resolve([]) },
         assetReferences,
         assetPrivacy: createAssetPrivacyService({ noteFile, xArchive, assetReferences }),
         xArchive,

@@ -89,13 +89,13 @@ afterEach(() => {
 function service(overrides: { watch?: boolean } = {}) {
   const indexLifecycle = createTestIndexLifecycleService()
   vi.spyOn(indexLifecycle, 'applyChanges').mockImplementation(
-    async (changes, generation, _fileGeneration, canApply) => {
+    (changes, generation, _fileGeneration, canApply) => {
       indexApplies.push({
         paths: changes.map((change) => change.path),
         generation,
         canApply: canApply?.() ?? true,
       })
-      return changes.length
+      return Promise.resolve(changes.length)
     },
   )
   const openDocuments = createOpenDocumentsService({ fileChanges: createTestFileChangeService() })

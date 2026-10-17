@@ -109,7 +109,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 7,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -136,7 +136,7 @@ describe('createSyncEngineFactory', () => {
     const git = fakeGit()
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => null,
+      getCredential: () => Promise.resolve(null),
       idleMs: 100,
       maxWaitMs: 250,
     })
@@ -163,7 +163,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -188,9 +188,7 @@ describe('createSyncEngineFactory', () => {
       const statuses: SyncStatus[] = []
       const engine = createSyncEngine({
         generation: 1,
-        getCredential: async () => {
-          throw new ReflectError(kind, 'refresh failed')
-        },
+        getCredential: () => Promise.reject(new ReflectError(kind, 'refresh failed')),
         onStatus: (status) => {
           statuses.push(status)
         },
@@ -211,7 +209,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -233,7 +231,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -255,7 +253,7 @@ describe('createSyncEngineFactory', () => {
         gate.release = () => resolve(PULLED)
       })
     })
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED })
+    const engine = createSyncEngine({ generation: 1, getCredential: () => Promise.resolve(CRED) })
 
     try {
       const full = engine.syncNow()
@@ -286,7 +284,7 @@ describe('createSyncEngineFactory', () => {
     })
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       canStartCycle: () => canStartCycle,
       idleMs: 100,
     })
@@ -308,7 +306,7 @@ describe('createSyncEngineFactory', () => {
     let canStartCycle = true
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       canStartCycle: () => canStartCycle,
     })
     const first = engine.syncNow()
@@ -346,7 +344,7 @@ describe('createSyncEngineFactory', () => {
     })
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       canStartCycle: () => canStartCycle,
     })
     const first = engine.syncNow()
@@ -363,7 +361,7 @@ describe('createSyncEngineFactory', () => {
 
   it('a full cycle fetches before it pulls, and never commits on its own', async () => {
     const git = fakeGit()
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED })
+    const engine = createSyncEngine({ generation: 1, getCredential: () => Promise.resolve(CRED) })
     await engine.syncNow()
     expect(methodsOf(git)).toEqual(['fetch', 'pull', 'push'])
     engine.stop()
@@ -377,7 +375,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -391,7 +389,7 @@ describe('createSyncEngineFactory', () => {
   it('pushes when the pull itself committed', async () => {
     const git = fakeGit()
     git.onPull(() => ({ ...PULLED, committed: true, ahead: 0 }))
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED })
+    const engine = createSyncEngine({ generation: 1, getCredential: () => Promise.resolve(CRED) })
     await engine.syncNow()
     expect(methodsOf(git)).toEqual(['fetch', 'pull', 'push'])
     engine.stop()
@@ -405,7 +403,11 @@ describe('createSyncEngineFactory', () => {
         gate.release = () => resolve(PULLED)
       })
     })
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED, idleMs: 10 })
+    const engine = createSyncEngine({
+      generation: 1,
+      getCredential: () => Promise.resolve(CRED),
+      idleMs: 10,
+    })
     const first = engine.syncNow()
     await vi.waitFor(() => expect(methodsOf(git)).toContain('pull'))
     engine.noteChanged() // the debounce asks for a push
@@ -422,7 +424,7 @@ describe('createSyncEngineFactory', () => {
     const git = fakeGit()
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       canStartCycle: () => false,
     })
     await engine.commitNow()
@@ -442,7 +444,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -477,7 +479,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -504,7 +506,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -530,7 +532,11 @@ describe('createSyncEngineFactory', () => {
       }
       return PUSHED
     })
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED, idleMs: 10 })
+    const engine = createSyncEngine({
+      generation: 1,
+      getCredential: () => Promise.resolve(CRED),
+      idleMs: 10,
+    })
 
     engine.noteChanged()
     await advance(10)
@@ -559,7 +565,7 @@ describe('createSyncEngineFactory', () => {
     const batches: Array<Array<{ path: string }>> = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onRemoteChanges: (changes) => {
         batches.push(changes)
       },
@@ -586,7 +592,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -626,7 +632,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -663,7 +669,7 @@ describe('createSyncEngineFactory', () => {
     let canStartCycle = true
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -700,13 +706,11 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
-      onRemoteChanges: async () => {
-        throw new Error('remote index failed')
-      },
+      onRemoteChanges: () => Promise.reject(new Error('remote index failed')),
     })
 
     const syncing = engine.syncNow()
@@ -736,7 +740,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -769,7 +773,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -799,7 +803,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -825,7 +829,7 @@ describe('createSyncEngineFactory', () => {
     const skipped: Array<{ path: string }[]> = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onLargeFilesSkipped: (files) => {
         skipped.push(files)
       },
@@ -849,7 +853,7 @@ describe('createSyncEngineFactory', () => {
     })
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       idleMs: 10,
     })
 
@@ -870,7 +874,11 @@ describe('createSyncEngineFactory', () => {
   it('skips the push when a debounced pass finds nothing committed and nothing ahead', async () => {
     const git = fakeGit()
     git.onCommitAll(() => CLEAN_COMMIT)
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED, idleMs: 10 })
+    const engine = createSyncEngine({
+      generation: 1,
+      getCredential: () => Promise.resolve(CRED),
+      idleMs: 10,
+    })
 
     engine.noteChanged()
     await runAllTimers()
@@ -882,7 +890,7 @@ describe('createSyncEngineFactory', () => {
   it('skips the push when a launch pull finds both sides already in step', async () => {
     const git = fakeGit()
     git.onPull(() => ({ ...PULLED, committed: false, ahead: 0 }))
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED })
+    const engine = createSyncEngine({ generation: 1, getCredential: () => Promise.resolve(CRED) })
 
     await engine.syncNow()
 
@@ -894,7 +902,7 @@ describe('createSyncEngineFactory', () => {
     const git = fakeGit()
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       idleMs: 100,
     })
 
@@ -910,7 +918,7 @@ describe('createSyncEngineFactory', () => {
     const git = fakeGit()
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => null,
+      getCredential: () => Promise.resolve(null),
       localOnly: true,
       idleMs: 10,
     })
@@ -925,7 +933,11 @@ describe('createSyncEngineFactory', () => {
 
   it('stop() cancels pending work', async () => {
     const git = fakeGit()
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED, idleMs: 10 })
+    const engine = createSyncEngine({
+      generation: 1,
+      getCredential: () => Promise.resolve(CRED),
+      idleMs: 10,
+    })
 
     engine.noteChanged()
     engine.stop()
@@ -942,7 +954,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => null,
+      getCredential: () => Promise.resolve(null),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -963,7 +975,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -987,7 +999,7 @@ describe('createSyncEngineFactory', () => {
         pushGates.push(resolve)
       })
     })
-    const engine = createSyncEngine({ generation: 1, getCredential: async () => CRED })
+    const engine = createSyncEngine({ generation: 1, getCredential: () => Promise.resolve(CRED) })
 
     const first = engine.syncNow()
     const second = engine.syncNow()
@@ -1015,7 +1027,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -1044,7 +1056,7 @@ describe('createSyncEngineFactory', () => {
     const statuses: SyncStatus[] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -1073,7 +1085,7 @@ describe('quiet mode', () => {
   ): SyncEngine {
     return createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onStatus: (status) => {
         statuses.push(status)
       },
@@ -1195,9 +1207,9 @@ describe('quiet mode', () => {
     const git = fakeGit()
     const asks: number[] = []
     const engine = quietEngine({
-      networkReady: async () => {
+      networkReady: () => {
         asks.push(clock.now())
-        return false
+        return Promise.resolve(false)
       },
     })
 
@@ -1216,9 +1228,9 @@ describe('quiet mode', () => {
     const asks: number[] = []
     let ready = false
     const engine = quietEngine({
-      networkReady: async () => {
+      networkReady: () => {
         asks.push(clock.now())
-        return ready
+        return Promise.resolve(ready)
       },
     })
 
@@ -1318,7 +1330,7 @@ describe('review paths', () => {
     const reviews: string[][] = []
     const engine = createSyncEngine({
       generation: 1,
-      getCredential: async () => CRED,
+      getCredential: () => Promise.resolve(CRED),
       onReview: (paths) => {
         reviews.push(paths)
       },

@@ -62,9 +62,9 @@ describe('resolveWikiLink', () => {
 describe('resolveWikiLinkAsync', () => {
   it('applies the same date → title → alias precedence', async () => {
     const lookup: AsyncWikiLookup = {
-      byDate: async (date) => (date === '2026-06-09' ? 'daily/2026-06-09.md' : undefined),
-      byTitle: async (key) => (key === 'project x' ? 'notes/project-x.md' : undefined),
-      byAlias: async (key) => (key === 'pjx' ? 'notes/project-x.md' : undefined),
+      byDate: (date) => Promise.resolve(date === '2026-06-09' ? 'daily/2026-06-09.md' : undefined),
+      byTitle: (key) => Promise.resolve(key === 'project x' ? 'notes/project-x.md' : undefined),
+      byAlias: (key) => Promise.resolve(key === 'pjx' ? 'notes/project-x.md' : undefined),
     }
     expect(await resolveWikiLinkAsync('2026-06-09', lookup)).toEqual({
       kind: 'resolved',
@@ -85,10 +85,10 @@ describe('resolveWikiLinkAsync', () => {
   })
 
   it('short-circuits: a title hit never queries the alias lookup', async () => {
-    const byAlias = vi.fn(async () => undefined)
+    const byAlias = vi.fn(() => Promise.resolve(undefined))
     const lookup: AsyncWikiLookup = {
-      byDate: async () => undefined,
-      byTitle: async () => 'notes/hit.md',
+      byDate: () => Promise.resolve(undefined),
+      byTitle: () => Promise.resolve('notes/hit.md'),
       byAlias,
     }
     expect(await resolveWikiLinkAsync('Anything', lookup)).toEqual({
@@ -99,11 +99,11 @@ describe('resolveWikiLinkAsync', () => {
   })
 
   it('skips the date lookup for a non-date target', async () => {
-    const byDate = vi.fn(async () => 'daily/should-not-be-used.md')
+    const byDate = vi.fn(() => Promise.resolve('daily/should-not-be-used.md'))
     const lookup: AsyncWikiLookup = {
       byDate,
-      byTitle: async () => undefined,
-      byAlias: async () => 'notes/alias.md',
+      byTitle: () => Promise.resolve(undefined),
+      byAlias: () => Promise.resolve('notes/alias.md'),
     }
     expect(await resolveWikiLinkAsync('Some Title', lookup)).toEqual({
       kind: 'resolved',

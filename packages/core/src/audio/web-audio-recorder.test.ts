@@ -110,7 +110,7 @@ beforeEach(() => {
 describe('createWebAudioRecorder', () => {
   it('records with the first supported container and returns the final segment', async () => {
     const track = fakeTrack()
-    mediaDevices.answer = async () => fakeStream([track])
+    mediaDevices.answer = () => Promise.resolve(fakeStream([track]))
     const recorder = createRecorder()
     const states: AudioRecorderState[] = []
     const elapsed: number[] = []
@@ -167,7 +167,7 @@ describe('createWebAudioRecorder', () => {
 
   it('cancel stops the tracks and discards without a result', async () => {
     const track = fakeTrack()
-    mediaDevices.answer = async () => fakeStream([track])
+    mediaDevices.answer = () => Promise.resolve(fakeStream([track]))
     const recorder = createRecorder()
     await recorder.start(START_OPTIONS)
 
@@ -180,7 +180,7 @@ describe('createWebAudioRecorder', () => {
 
   it('a recorder that fails to set up releases the stream and recovers to idle', async () => {
     const track = fakeTrack()
-    mediaDevices.answer = async () => fakeStream([track])
+    mediaDevices.answer = () => Promise.resolve(fakeStream([track]))
     FakeMediaRecorder.failConstruction = true
     const recorder = createRecorder()
 
@@ -190,7 +190,7 @@ describe('createWebAudioRecorder', () => {
 
     // The failure must not wedge the recorder: a later start records normally.
     FakeMediaRecorder.failConstruction = false
-    mediaDevices.answer = async () => fakeStream([fakeTrack()])
+    mediaDevices.answer = () => Promise.resolve(fakeStream([fakeTrack()]))
     await recorder.start(START_OPTIONS)
     expect(recorder.state()).toBe('recording')
   })

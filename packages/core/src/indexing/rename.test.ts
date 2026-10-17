@@ -19,24 +19,27 @@ function fakeIo(
 ) {
   const writes: Record<string, string> = {}
   const io = {
-    sources: async () => options?.sources ?? Object.keys(files).sort(),
-    backlinks: async () => options?.backlinks ?? [],
-    read: async (path) => {
+    sources: () => Promise.resolve(options?.sources ?? Object.keys(files).sort()),
+    backlinks: () => Promise.resolve(options?.backlinks ?? []),
+    read: (path) => {
       const content = files[path]
       if (content === undefined) {
-        throw new Error(`unreadable: ${path}`)
+        return Promise.reject(new Error(`unreadable: ${path}`))
       }
-      return content
+      return Promise.resolve(content)
     },
-    write: async (path, content) => {
+    write: (path, content) => {
       writes[path] = content
+      return Promise.resolve()
     },
-    resolve: async (target) => {
+    resolve: (target) => {
       const mapped = options?.resolveByTarget?.[target]
       if (mapped !== undefined) {
-        return resolved(mapped)
+        return Promise.resolve(resolved(mapped))
       }
-      return options?.resolveTo !== undefined ? resolved(options.resolveTo) : unresolved('x')
+      return Promise.resolve(
+        options?.resolveTo !== undefined ? resolved(options.resolveTo) : unresolved('x'),
+      )
     },
   } satisfies RenameIo & {
     backlinks: () => Promise<Array<{ sourcePath: string; targetRaw: string; alias: string | null }>>
@@ -125,7 +128,7 @@ describe('rewriteLinksForTitleChange', () => {
     const files: Record<string, string> = { 'notes/ok.md': '[[Old]] here\n' }
     const { io, writes } = fakeIo(files)
     const sources = ['notes/gone.md', 'notes/ok.md'] // gone.md read throws
-    io.sources = async () => sources
+    io.sources = () => Promise.resolve(sources)
     const progress: Array<[number, number]> = []
     const result = await rewriteLinksForTitleChange({
       path: 'notes/target.md',
@@ -696,16 +699,17 @@ describe('rewritePathLinksForMove', () => {
     return {
       writes,
       io: {
-        pathLinkSources: async () => sources,
-        read: async (path: string) => {
+        pathLinkSources: () => Promise.resolve(sources),
+        read: (path: string) => {
           const content = files[path]
           if (content === undefined) {
-            throw new Error(`unreadable: ${path}`)
+            return Promise.reject(new Error(`unreadable: ${path}`))
           }
-          return content
+          return Promise.resolve(content)
         },
-        write: async (path: string, content: string) => {
+        write: (path: string, content: string) => {
           writes[path] = content
+          return Promise.resolve()
         },
       },
     }

@@ -290,15 +290,15 @@ class WebAudioRecorderImpl implements AudioRecorderService {
     return Promise.resolve()
   }
 
-  async status(): Promise<RecordingStatus> {
-    return {
+  status(): Promise<RecordingStatus> {
+    return Promise.resolve({
       recording: this.#state === 'recording',
       elapsedMs: this.#state === 'recording' ? this.#deps.clock.now() - this.#startedAt : 0,
-    }
+    })
   }
 
-  async listStaged(): Promise<StagedRecordingFile[]> {
-    return []
+  listStaged(): Promise<StagedRecordingFile[]> {
+    return Promise.resolve([])
   }
 
   async deleteStaged(): Promise<void> {}

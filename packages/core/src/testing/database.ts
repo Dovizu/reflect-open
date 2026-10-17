@@ -287,14 +287,16 @@ class NodeTestDatabaseServiceImpl implements TestDatabaseService {
     this.db = createDb(this.runQuery)
   }
 
-  readonly runQuery = async (sql: string, params: readonly unknown[]): Promise<unknown> => {
+  readonly runQuery = (sql: string, params: readonly unknown[]): Promise<unknown> => {
     this.#queries.push({ sql, params: [...params] })
     try {
-      return this.#open()
-        .prepare(sql)
-        .all(...params.map(sqliteParameter))
+      return Promise.resolve(
+        this.#open()
+          .prepare(sql)
+          .all(...params.map(sqliteParameter)),
+      )
     } catch (error) {
-      throw toAppError(error)
+      return Promise.reject(toAppError(error))
     }
   }
 

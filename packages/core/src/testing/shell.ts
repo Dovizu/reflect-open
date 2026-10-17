@@ -81,20 +81,21 @@ class TestActivityPortImpl implements TestActivityPort {
     return this.#isHidden
   }
 
-  async beginBackgroundTask(): Promise<BackgroundTaskToken | null> {
+  beginBackgroundTask(): Promise<BackgroundTaskToken | null> {
     if (!(this.#options?.backgroundTasks ?? false)) {
-      return null
+      return Promise.resolve(null)
     }
     const token = `background-task-${this.#tasks.length + 1}`
     this.#tasks.push({ token, ended: false })
-    return token
+    return Promise.resolve(token)
   }
 
-  async endBackgroundTask(token: BackgroundTaskToken): Promise<void> {
+  endBackgroundTask(token: BackgroundTaskToken): Promise<void> {
     const task = this.#tasks.find((entry) => entry.token === token)
     if (task !== undefined) {
       task.ended = true
     }
+    return Promise.resolve()
   }
 
   emitResume(): void {

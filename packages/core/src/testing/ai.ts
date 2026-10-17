@@ -98,9 +98,9 @@ class TestAiKeyValidationServiceImpl implements TestAiKeyValidationService {
     this.#current = result
   }
 
-  async validate(input: ApiKeyValidationInput): Promise<ApiKeyValidation> {
+  validate(input: ApiKeyValidationInput): Promise<ApiKeyValidation> {
     this.#log.push(input)
-    return this.#current
+    return Promise.resolve(this.#current)
   }
 
   calls(): readonly ApiKeyValidationInput[] {

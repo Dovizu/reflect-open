@@ -260,17 +260,20 @@ class TestICloudNativeServiceImpl implements TestICloudNativeService {
     this.#pending = options?.pendingCount ?? 0
   }
 
-  async status(): Promise<IcloudStatus> {
+  status(): Promise<IcloudStatus> {
     this.#log.push({ method: 'status', args: [] })
-    return { ...this.#status, existingGraphRoots: [...this.#status.existingGraphRoots] }
+    return Promise.resolve({
+      ...this.#status,
+      existingGraphRoots: [...this.#status.existingGraphRoots],
+    })
   }
 
-  async adoptGraph(generation: number): Promise<string> {
+  adoptGraph(generation: number): Promise<string> {
     this.#log.push({ method: 'adoptGraph', args: [generation] })
     if (!this.#status.available || this.#status.documentsRoot === null) {
-      throw new ReflectError('io', 'test iCloud: the container is unavailable')
+      return Promise.reject(new ReflectError('io', 'test iCloud: the container is unavailable'))
     }
-    return `${this.#status.documentsRoot}/Notes`
+    return Promise.resolve(`${this.#status.documentsRoot}/Notes`)
   }
 
   async conflictsScan(scanOptions: IcloudScanOptions): Promise<IcloudSweepOutcome> {
@@ -278,27 +281,29 @@ class TestICloudNativeServiceImpl implements TestICloudNativeService {
     return await this.#scan(scanOptions)
   }
 
-  async watchStart(root: string): Promise<void> {
+  watchStart(root: string): Promise<void> {
     this.#log.push({ method: 'watchStart', args: [root] })
+    return Promise.resolve()
   }
 
-  async watchStop(): Promise<void> {
+  watchStop(): Promise<void> {
     this.#log.push({ method: 'watchStop', args: [] })
+    return Promise.resolve()
   }
 
-  async downloadPending(root: string, scope: IcloudDownloadScope): Promise<number> {
+  downloadPending(root: string, scope: IcloudDownloadScope): Promise<number> {
     this.#log.push({ method: 'downloadPending', args: [root, scope] })
-    return this.#pending
+    return Promise.resolve(this.#pending)
   }
 
-  async pendingCount(root: string, scope: IcloudDownloadScope): Promise<number> {
+  pendingCount(root: string, scope: IcloudDownloadScope): Promise<number> {
     this.#log.push({ method: 'pendingCount', args: [root, scope] })
-    return this.#pending
+    return Promise.resolve(this.#pending)
   }
 
-  async requestDownloads(paths: string[]): Promise<number> {
+  requestDownloads(paths: string[]): Promise<number> {
     this.#log.push({ method: 'requestDownloads', args: [paths] })
-    return paths.length
+    return Promise.resolve(paths.length)
   }
 
   subscribeConflicts(listener: (paths: string[]) => void): Unlisten {
@@ -498,16 +503,17 @@ class TestBackupServiceImpl implements TestBackupService {
   #state: BackupState
   readonly #listeners = new Set<() => void>()
   readonly #log: BackupCall[] = []
-  #connectNew: BackupService['connectNewRepo'] = async () => 'connected'
-  #connectExisting: BackupService['connectExistingRepo'] =
-    async (): Promise<ConnectExistingResult> => 'connected'
+  #connectNew: BackupService['connectNewRepo'] = () => Promise.resolve('connected')
+  #connectExisting: BackupService['connectExistingRepo'] = (): Promise<ConnectExistingResult> =>
+    Promise.resolve('connected')
 
   constructor(options?: { state?: BackupState }) {
     this.#state = options?.state ?? { phase: 'loading' }
   }
 
-  async start(): Promise<void> {
+  start(): Promise<void> {
     this.#log.push({ method: 'start' })
+    return Promise.resolve()
   }
 
   readonly getState = (): BackupState => this.#state
@@ -540,16 +546,19 @@ class TestBackupServiceImpl implements TestBackupService {
     return await this.#connectExisting(ref, connectOptions)
   }
 
-  async disconnectGraph(): Promise<void> {
+  disconnectGraph(): Promise<void> {
     this.#log.push({ method: 'disconnectGraph' })
+    return Promise.resolve()
   }
 
-  async signOut(): Promise<void> {
+  signOut(): Promise<void> {
     this.#log.push({ method: 'signOut' })
+    return Promise.resolve()
   }
 
-  async backUpNow(): Promise<void> {
+  backUpNow(): Promise<void> {
     this.#log.push({ method: 'backUpNow' })
+    return Promise.resolve()
   }
 
   dispose(): void {
@@ -593,8 +602,9 @@ export interface TestICloudSyncService extends ICloudSyncService {
 class TestICloudSyncServiceImpl implements TestICloudSyncService {
   readonly #log: ('start' | 'dispose')[] = []
 
-  async start(): Promise<void> {
+  start(): Promise<void> {
     this.#log.push('start')
+    return Promise.resolve()
   }
 
   dispose(): void {

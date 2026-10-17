@@ -215,14 +215,14 @@ describe('EmbedMediaService.resolveYouTubeVideo', () => {
     const logger = createTestLoggerService()
     const clock = createTestClockService()
     const webFetch = createTestWebFetchService()
-    vi.spyOn(webFetch, 'fetchOembed').mockImplementation(async (url) => {
+    vi.spyOn(webFetch, 'fetchOembed').mockImplementation((url) => {
       requests.push(url)
       const answer = answers.shift()
       if (typeof answer !== 'string') {
-        // eslint-disable-next-line @typescript-eslint/only-throw-error -- the bridge rejects with a plain `AppError`
-        throw answer
+        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- the bridge rejects with a plain `AppError`
+        return Promise.reject(answer)
       }
-      return answer
+      return Promise.resolve(answer)
     })
     const embedMedia = createTestEmbedMedia({
       webFetch,

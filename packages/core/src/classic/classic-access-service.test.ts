@@ -607,7 +607,7 @@ describe('start', () => {
     )
   })
 
-  it('does nothing off iOS', async () => {
+  it('does nothing off iOS', () => {
     withStored(storedAccess())
     const reads = vi.spyOn(secrets, 'get')
     const classic = service({ appPlatform: 'desktop' })

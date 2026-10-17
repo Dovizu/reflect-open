@@ -467,9 +467,9 @@ describe('AudioMemoTranscriptionService.reconcile', () => {
     const kit = await createAudioMemoTestKit()
     kit.addRecording(MEMO.audioPath)
     let closed = false
-    kit.enrichMock.mockImplementation(async () => {
+    kit.enrichMock.mockImplementation(() => {
       closed = true
-      return { title: 'Formatted title', body: 'Formatted transcript' }
+      return Promise.resolve({ title: 'Formatted title', body: 'Formatted transcript' })
     })
 
     const outcome = await kit.reconcile({ formatTranscript: true, isStale: () => closed })
@@ -483,9 +483,9 @@ describe('AudioMemoTranscriptionService.reconcile', () => {
     const kit = await createAudioMemoTestKit()
     kit.addRecording(MEMO.audioPath)
     let closed = false
-    kit.ensureBacklinkTargetMock.mockImplementation(async () => {
+    kit.ensureBacklinkTargetMock.mockImplementation(() => {
       closed = true
-      return 'Audio memos'
+      return Promise.resolve('Audio memos')
     })
 
     const outcome = await kit.reconcile({ isStale: () => closed })
@@ -601,9 +601,9 @@ describe('AudioMemoTranscriptionService.reconcile with the App Review demo key',
     const kit = await createDemoKit()
     kit.addRecording(MEMO.audioPath)
     let closed = false
-    kit.ensureBacklinkTargetMock.mockImplementation(async () => {
+    kit.ensureBacklinkTargetMock.mockImplementation(() => {
       closed = true
-      return 'Audio memos'
+      return Promise.resolve('Audio memos')
     })
 
     const outcome = await kit.reconcile({ isStale: () => closed })

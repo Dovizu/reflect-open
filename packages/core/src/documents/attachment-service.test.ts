@@ -70,9 +70,7 @@ function assetUrl(generation: number, path: string): string {
 }
 
 function failing(message: string): () => Promise<never> {
-  return async () => {
-    throw new ReflectError('io', message)
-  }
+  return () => Promise.reject(new ReflectError('io', message))
 }
 
 describe('saveFile', () => {

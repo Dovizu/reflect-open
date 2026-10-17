@@ -15,16 +15,18 @@ class TestSecretStoreServiceImpl implements TestSecretStoreService {
     this.#secrets = new Map<string, string>(Object.entries(initial))
   }
 
-  async get(name: string): Promise<string | null> {
-    return this.#secrets.get(name) ?? null
+  get(name: string): Promise<string | null> {
+    return Promise.resolve(this.#secrets.get(name) ?? null)
   }
 
-  async set(name: string, value: string): Promise<void> {
+  set(name: string, value: string): Promise<void> {
     this.#secrets.set(name, value)
+    return Promise.resolve()
   }
 
-  async delete(name: string): Promise<void> {
+  delete(name: string): Promise<void> {
     this.#secrets.delete(name)
+    return Promise.resolve()
   }
 
   snapshot(): Record<string, string> {
@@ -48,8 +50,8 @@ class TestAppInfoServiceImpl implements AppInfoService {
     this.#version = version
   }
 
-  async version(): Promise<string> {
-    return this.#version
+  version(): Promise<string> {
+    return Promise.resolve(this.#version)
   }
 }
 

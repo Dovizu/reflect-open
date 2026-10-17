@@ -62,9 +62,10 @@ describe('v1 subject alias flow', () => {
         io: {
           sources: (targets) => index.wikiResolver.getLinkSources(targets),
           backlinks: (path) => index.backlinks.getBacklinks(path),
-          read: async () => source,
-          write: async (path, content) => {
+          read: () => Promise.resolve(source),
+          write: (path, content) => {
             writes[path] = content
+            return Promise.resolve()
           },
           resolve: (target) => index.wikiResolver.resolveWikiTarget(target),
         },

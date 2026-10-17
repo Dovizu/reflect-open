@@ -95,8 +95,9 @@ class TestNoteSessionImpl implements TestNoteSession {
     this.#record('externalChanged')
   }
 
-  async flush(): Promise<void> {
+  flush(): Promise<void> {
     this.#record('flush')
+    return Promise.resolve()
   }
 
   content(): string {
@@ -115,9 +116,9 @@ class TestNoteSessionImpl implements TestNoteSession {
     return this.#options.unpersisted ?? false
   }
 
-  async prepareDelete(): Promise<boolean> {
+  prepareDelete(): Promise<boolean> {
     this.#record('prepareDelete')
-    return this.#options.unpersisted ?? false
+    return Promise.resolve(this.#options.unpersisted ?? false)
   }
 
   cancelDelete(): void {
@@ -133,31 +134,33 @@ class TestNoteSessionImpl implements TestNoteSession {
     return true
   }
 
-  async commitFrontmatter(patch: FrontmatterPatch): Promise<boolean> {
+  commitFrontmatter(patch: FrontmatterPatch): Promise<boolean> {
     this.#record('commitFrontmatter', patch)
     if (!this.#accepts) {
-      return false
+      return Promise.resolve(false)
     }
     this.#content = upsertFrontmatter(this.#content, frontmatterPatchToYaml(patch))
-    return true
+    return Promise.resolve(true)
   }
 
-  async commitBodyAppend(block: string): Promise<boolean> {
+  commitBodyAppend(block: string): Promise<boolean> {
     this.#record('commitBodyAppend', block)
     if (!this.#accepts || block.trim() === '') {
-      return false
+      return Promise.resolve(false)
     }
     this.#content = appendBlock(this.#content, block)
-    return true
+    return Promise.resolve(true)
   }
 
-  async commitSourceEdit(transform: (source: string) => string): Promise<boolean> {
-    this.#record('commitSourceEdit', transform)
-    if (!this.#accepts) {
-      return false
-    }
-    this.#content = transform(this.#content)
-    return true
+  commitSourceEdit(transform: (source: string) => string): Promise<boolean> {
+    return Promise.try(() => {
+      this.#record('commitSourceEdit', transform)
+      if (!this.#accepts) {
+        return false
+      }
+      this.#content = transform(this.#content)
+      return true
+    })
   }
 
   dispose(): void {

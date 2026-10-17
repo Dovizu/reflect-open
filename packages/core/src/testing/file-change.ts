@@ -83,12 +83,14 @@ class TestFileChangeServiceImpl implements TestFileChangeService {
     }
   }
 
-  async startWatcher(): Promise<void> {
+  startWatcher(): Promise<void> {
     this.#running = true
+    return Promise.resolve()
   }
 
-  async stopWatcher(): Promise<void> {
+  stopWatcher(): Promise<void> {
     this.#running = false
+    return Promise.resolve()
   }
 
   emitReconcile(): void {

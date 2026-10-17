@@ -10,16 +10,16 @@ describe('ChatGraphContextService', () => {
     const seen: GraphStatsOptions[] = []
     const service = createChatGraphContextService({
       graphStats: {
-        loadGraphStats: async (options) => {
+        loadGraphStats: (options) => {
           seen.push(options)
-          return {
+          return Promise.resolve({
             noteCount: 7,
             dailyNoteCount: 2,
             earliestDailyDate: '2026-06-01',
             latestDailyDate: '2026-06-10',
             tags: [{ tag: 'book', count: 2 }],
             tagsTruncated: false,
-          }
+          })
         },
       },
       privacy: createPrivacyService({

@@ -16,12 +16,13 @@ function setup(options?: { available?: boolean }) {
   const graphSession = createTestGraphSessionService({ graph: { generation: 4 } })
   const migration = createICloudMigrationService({ icloudNative, graphSession })
   const steps: string[] = []
-  const openGraph = vi.fn(async (root: string) => {
+  const openGraph = vi.fn((root: string) => {
     steps.push(`open ${root}`)
-    return true
+    return Promise.resolve(true)
   })
-  const disconnectBackup = vi.fn(async () => {
+  const disconnectBackup = vi.fn(() => {
     steps.push('disconnect')
+    return Promise.resolve()
   })
   const onCopied = vi.fn((failure: string | null) => {
     steps.push(`copied ${String(failure)}`)
@@ -66,9 +67,7 @@ describe('createICloudMigrationService', () => {
 
     await expect(
       migration.moveGraph({
-        disconnectBackup: async () => {
-          throw new ReflectError('io', 'remote locked')
-        },
+        disconnectBackup: () => Promise.reject(new ReflectError('io', 'remote locked')),
         openGraph,
         onCopied,
       }),
@@ -83,16 +82,14 @@ describe('createICloudMigrationService', () => {
 
     await expect(
       migration.moveGraph({
-        disconnectBackup: async () => {
-          throw new ReflectError('io', 'remote locked')
-        },
-        openGraph: async () => false,
+        disconnectBackup: () => Promise.reject(new ReflectError('io', 'remote locked')),
+        openGraph: () => Promise.resolve(false),
         onCopied,
       }),
     ).resolves.toBe(`${DISCONNECT_FAILURE} ${OPEN_FAILURE}`)
 
     await expect(
-      migration.moveGraph({ disconnectBackup: null, openGraph: async () => false }),
+      migration.moveGraph({ disconnectBackup: null, openGraph: () => Promise.resolve(false) }),
     ).resolves.toBe(OPEN_FAILURE)
   })
 
@@ -111,12 +108,8 @@ describe('createICloudMigrationService', () => {
 
     await expect(
       migration.moveGraph({
-        disconnectBackup: async () => {
-          throw new ReflectError('io', 'remote locked')
-        },
-        openGraph: async () => {
-          throw new ReflectError('io', 'graph vanished')
-        },
+        disconnectBackup: () => Promise.reject(new ReflectError('io', 'remote locked')),
+        openGraph: () => Promise.reject(new ReflectError('io', 'graph vanished')),
       }),
     ).resolves.toBe('graph vanished')
   })

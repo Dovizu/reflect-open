@@ -58,7 +58,7 @@ class TestChatHistoryServiceImpl implements TestChatHistoryService {
     }
   }
 
-  async saveTurn(input: SaveChatTurnInput): Promise<void> {
+  saveTurn(input: SaveChatTurnInput): Promise<void> {
     this.#saves.push(structuredClone(input))
     let entry = this.#stored.get(input.conversation.id)
     if (entry === undefined) {
@@ -74,23 +74,29 @@ class TestChatHistoryServiceImpl implements TestChatHistoryService {
     } else {
       entry.turns[index] = turn
     }
+    return Promise.resolve()
   }
 
-  async deleteConversation(id: string): Promise<void> {
+  deleteConversation(id: string): Promise<void> {
     this.#deletes.push(id)
     this.#stored.delete(id)
+    return Promise.resolve()
   }
 
-  async listRecent(limit = 50): Promise<ChatConversation[]> {
-    return [...this.#stored.values()]
-      .map((entry) => ({ ...entry.conversation }))
-      .sort((a, b) => b.updatedMs - a.updatedMs)
-      .slice(0, limit)
+  listRecent(limit = 50): Promise<ChatConversation[]> {
+    return Promise.resolve(
+      [...this.#stored.values()]
+        .map((entry) => ({ ...entry.conversation }))
+        .sort((a, b) => b.updatedMs - a.updatedMs)
+        .slice(0, limit),
+    )
   }
 
-  async loadConversation(conversationId: string): Promise<ChatTurn[]> {
+  loadConversation(conversationId: string): Promise<ChatTurn[]> {
     const entry = this.#stored.get(conversationId)
-    return (entry?.turns ?? []).map((turn) => ({ ...structuredClone(turn), status: 'done' }))
+    return Promise.resolve(
+      (entry?.turns ?? []).map((turn) => ({ ...structuredClone(turn), status: 'done' })),
+    )
   }
 
   getSaves(): readonly SaveChatTurnInput[] {
