@@ -105,6 +105,7 @@ jobs:
 
       # The termination reason of each WebKit content process, memory kill and
       # jetsam messages, and any crash report written during the job.
+      # "thresold" is the spelling in WebKit's log message.
       - name: Collect WebKit diagnostics
         if: failure()
         run: |
