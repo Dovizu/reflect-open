@@ -121,9 +121,10 @@ beforeEach(() => {
       currentNoteRowSettled ? Promise.resolve(currentNoteRow ?? undefined) : new Promise(() => {}),
     )
   noteSource.value = '# A\n'
-  readNoteSource.mockReset().mockImplementation(async () => noteSource.value)
-  commitNoteFrontmatter.mockReset().mockImplementation(async (_path, patch) => {
+  readNoteSource.mockReset().mockImplementation(() => Promise.resolve(noteSource.value))
+  commitNoteFrontmatter.mockReset().mockImplementation((_path, patch) => {
     noteSource.value = upsertFrontmatter(noteSource.value, frontmatterPatchToYaml(patch))
+    return Promise.resolve()
   })
   shareMock.mockReset().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'share', { configurable: true, value: shareMock })

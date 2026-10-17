@@ -40,8 +40,15 @@ describe('IpcDialect (Kysely → injected runner bridge)', () => {
   it('rejects transactions — writes go through the index_* commands', async () => {
     runQuery.mockResolvedValue([])
     const db = createDb(runQuery)
-    await expect(db.transaction().execute(async () => undefined)).rejects.toThrow(
+    await expect(db.transaction().execute(() => Promise.resolve())).rejects.toThrow(
       /transactions run in Rust/,
     )
+  })
+
+  it('rejects streaming on the first read', async () => {
+    const db = createDb(runQuery)
+    const rows = db.selectFrom('notes').selectAll().stream()
+    await expect(rows.next()).rejects.toThrow(/streaming is not supported/)
+    expect(runQuery).not.toHaveBeenCalled()
   })
 })

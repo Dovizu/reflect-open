@@ -1,12 +1,12 @@
 import type { DialogService } from '@reflect/app'
 
 class BrowserDialogServiceImpl implements DialogService {
-  async pickFiles(): Promise<readonly string[] | null> {
-    return null
+  pickFiles(): Promise<readonly string[] | null> {
+    return Promise.resolve(null)
   }
 
-  async pickFolder(): Promise<string | null> {
-    return null
+  pickFolder(): Promise<string | null> {
+    return Promise.resolve(null)
   }
 }
 

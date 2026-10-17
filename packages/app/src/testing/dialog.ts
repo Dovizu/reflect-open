@@ -26,14 +26,14 @@ class TestDialogServiceImpl implements TestDialogService {
     this.#folder = folder
   }
 
-  async pickFiles(options: PickFilesOptions): Promise<readonly string[] | null> {
+  pickFiles(options: PickFilesOptions): Promise<readonly string[] | null> {
     this.#log.push({ kind: 'files', options })
-    return this.#files
+    return Promise.resolve(this.#files)
   }
 
-  async pickFolder(options: PickFolderOptions): Promise<string | null> {
+  pickFolder(options: PickFolderOptions): Promise<string | null> {
     this.#log.push({ kind: 'folder', options })
-    return this.#folder
+    return Promise.resolve(this.#folder)
   }
 
   setFiles(files: readonly string[] | null): void {

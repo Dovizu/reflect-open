@@ -89,8 +89,9 @@ class TestLifecycleServiceImpl implements TestLifecycleService {
     return this.#quitRequested.add(listener)
   }
 
-  async confirmQuit(): Promise<void> {
+  confirmQuit(): Promise<void> {
     this.#confirmCalls += 1
+    return Promise.resolve()
   }
 
   beginBackgroundTask(): Promise<BackgroundTaskToken | null> {

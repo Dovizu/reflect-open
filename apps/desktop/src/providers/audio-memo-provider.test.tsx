@@ -14,6 +14,7 @@ import {
 } from '@reflect/core/testing'
 import { toast } from '@/components/ui/toast.tsx'
 import { SidebarProvider, useSidebar } from '@/providers/sidebar-provider.tsx'
+import { act } from '@/test-utils/act.ts'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { AudioMemoProvider, useAudioMemo } from './audio-memo-provider.tsx'
 
@@ -84,14 +85,14 @@ describe('AudioMemoProvider', () => {
   })
 
   it('toggle records, then stops and captures the recording into the open graph', async () => {
-    const { result, act, app } = await setup()
+    const { result, app } = await setup()
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
     expect(result.current.memo.phase).toBe('recording')
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
     await vi.waitFor(() => expect(result.current.memo.phase).toBe('idle'))
@@ -100,12 +101,12 @@ describe('AudioMemoProvider', () => {
   })
 
   it('is unavailable without an OpenAI or Gemini model', async () => {
-    const { result, act, app } = await setup(ANTHROPIC)
+    const { result, app } = await setup(ANTHROPIC)
 
     expect(result.current.memo.available).toBe(false)
     expect(result.current.memo.unavailableReason).toMatch(/OpenAI or Gemini/)
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
     expect(result.current.memo.phase).toBe('idle')
@@ -113,14 +114,14 @@ describe('AudioMemoProvider', () => {
   })
 
   it('collapsing the sidebar mid-recording stops and saves', async () => {
-    const { result, act, app } = await setup()
+    const { result, app } = await setup()
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
     expect(result.current.memo.phase).toBe('recording')
 
-    await act(async () => {
+    await act(() => {
       result.current.sidebar.toggleSidebar()
     })
 
@@ -129,16 +130,16 @@ describe('AudioMemoProvider', () => {
   })
 
   it('collapsing the sidebar during the permission prompt abandons the request', async () => {
-    const { result, act, app, cancels } = await setup()
+    const { result, app, cancels } = await setup()
     app.audioRecorder.holdNextStart()
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
     expect(result.current.memo.phase).toBe('requesting')
     const before = cancels()
 
-    await act(async () => {
+    await act(() => {
       result.current.sidebar.toggleSidebar()
     })
 
@@ -148,13 +149,13 @@ describe('AudioMemoProvider', () => {
   })
 
   it('starting from a collapsed sidebar expands it first, and the recording stays live', async () => {
-    const { result, act } = await setup()
-    await act(async () => {
+    const { result } = await setup()
+    await act(() => {
       result.current.sidebar.toggleSidebar()
     })
     expect(result.current.sidebar.collapsed).toBe(true)
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
 
@@ -163,16 +164,16 @@ describe('AudioMemoProvider', () => {
   })
 
   it('a capture failure while the sidebar is collapsed surfaces through operations', async () => {
-    const { result, act, app } = await setup()
+    const { result, app } = await setup()
     vi.spyOn(app.assetStore, 'uploadToPath').mockRejectedValue({
       kind: 'io',
       message: 'disk full',
     })
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
-    await act(async () => {
+    await act(() => {
       result.current.sidebar.toggleSidebar()
     })
 
@@ -189,9 +190,9 @@ describe('AudioMemoProvider', () => {
   it('shows the still-recording reminder as a toast, and stopping takes it down', async () => {
     const add = vi.spyOn(toast, 'add').mockReturnValue('audio-memo-reminder')
     const close = vi.spyOn(toast, 'close').mockReturnValue(undefined)
-    const { result, act, app } = await setup()
+    const { result, app } = await setup()
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
     app.audioRecorder.emitReminder(30 * 60_000)
@@ -199,7 +200,7 @@ describe('AudioMemoProvider', () => {
       expect.objectContaining({ id: 'audio-memo-reminder', title: 'Still recording' }),
     )
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
 
@@ -209,12 +210,12 @@ describe('AudioMemoProvider', () => {
   })
 
   it('cancel discards the recording without saving', async () => {
-    const { result, act, app } = await setup()
+    const { result, app } = await setup()
 
-    await act(async () => {
+    await act(() => {
       result.current.memo.toggle()
     })
-    await act(async () => {
+    await act(() => {
       result.current.memo.cancel()
     })
 
@@ -223,8 +224,8 @@ describe('AudioMemoProvider', () => {
   })
 
   it('unmounting closes the session and releases the microphone', async () => {
-    const { result, act, app, unmount } = await setup()
-    await act(async () => {
+    const { result, app, unmount } = await setup()
+    await act(() => {
       result.current.memo.toggle()
     })
     expect(app.audioRecorder.state()).toBe('recording')

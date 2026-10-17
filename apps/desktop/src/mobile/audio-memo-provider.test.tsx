@@ -12,6 +12,7 @@ import {
   createTestAudioRecorderService,
   createTestPlatformService,
 } from '@reflect/core/testing'
+import { act } from '@/test-utils/act.ts'
 import { renderHookInApp } from '@/test-utils/render-in-app.tsx'
 import { MobileAudioMemoProvider, useMobileAudioMemo } from './audio-memo-provider.tsx'
 
@@ -86,15 +87,15 @@ describe('MobileAudioMemoProvider', () => {
   })
 
   it('toggle records with the drawer open, then stops, captures, and deletes the staged file', async () => {
-    const { result, act, audioRecorder, assetStore } = await setup()
+    const { result, audioRecorder, assetStore } = await setup()
 
-    await act(async () => {
+    await act(() => {
       result.current.toggle()
     })
     expect(result.current.phase).toBe('recording')
     expect(result.current.drawerOpen).toBe(true)
 
-    await act(async () => {
+    await act(() => {
       result.current.toggle()
     })
     await vi.waitFor(() => expect(result.current.phase).toBe('idle'))
@@ -106,12 +107,12 @@ describe('MobileAudioMemoProvider', () => {
   })
 
   it('level events reach the waveform', async () => {
-    const { result, act, audioRecorder } = await setup()
-    await act(async () => {
+    const { result, audioRecorder } = await setup()
+    await act(() => {
       result.current.toggle()
     })
 
-    await act(async () => {
+    await act(() => {
       audioRecorder.emitLevel({ level: 0.5, elapsedMs: 1200 })
     })
 
@@ -120,12 +121,12 @@ describe('MobileAudioMemoProvider', () => {
   })
 
   it('dismissing the drawer mid-recording stops and saves, never drops', async () => {
-    const { result, act, assetStore, count } = await setup()
+    const { result, assetStore, count } = await setup()
 
-    await act(async () => {
+    await act(() => {
       result.current.toggle()
     })
-    await act(async () => {
+    await act(() => {
       result.current.onDrawerOpenChange(false)
     })
 
@@ -135,12 +136,12 @@ describe('MobileAudioMemoProvider', () => {
   })
 
   it('the drawer stop control commits the memo', async () => {
-    const { result, act, assetStore } = await setup()
+    const { result, assetStore } = await setup()
 
-    await act(async () => {
+    await act(() => {
       result.current.toggle()
     })
-    await act(async () => {
+    await act(() => {
       result.current.stopAndSave()
     })
 
@@ -148,12 +149,12 @@ describe('MobileAudioMemoProvider', () => {
   })
 
   it('the drawer Cancel discards the live recording without saving', async () => {
-    const { result, act, assetStore, count } = await setup()
+    const { result, assetStore, count } = await setup()
 
-    await act(async () => {
+    await act(() => {
       result.current.toggle()
     })
-    await act(async () => {
+    await act(() => {
       result.current.cancelRecording()
     })
 
@@ -163,23 +164,23 @@ describe('MobileAudioMemoProvider', () => {
   })
 
   it('a capture failure shows in the drawer with retry and discard', async () => {
-    const { result, act, assetStore, audioRecorder } = await setup()
+    const { result, assetStore, audioRecorder } = await setup()
     vi.spyOn(assetStore, 'importAudioMemo').mockRejectedValueOnce({
       kind: 'io',
       message: 'disk full',
     })
 
-    await act(async () => {
+    await act(() => {
       result.current.toggle()
     })
-    await act(async () => {
+    await act(() => {
       result.current.toggle()
     })
     await vi.waitFor(() => expect(result.current.phase).toBe('error'))
     expect(result.current.error).toBe('disk full')
     expect(result.current.canRetry).toBe(true)
 
-    await act(async () => {
+    await act(() => {
       result.current.retry()
     })
     await vi.waitFor(() => expect(result.current.phase).toBe('idle'))
@@ -187,14 +188,14 @@ describe('MobileAudioMemoProvider', () => {
   })
 
   it('without an OpenAI or Gemini model, toggle opens the drawer for key setup, never the mic', async () => {
-    const { result, act, count } = await setup(ANTHROPIC)
+    const { result, count } = await setup(ANTHROPIC)
 
     // The audio action stays available so the feature is discoverable; only
     // the recording itself waits for a key.
     expect(result.current.available).toBe(true)
     expect(result.current.hasTranscriptionConfig).toBe(false)
 
-    await act(async () => {
+    await act(() => {
       result.current.toggle()
     })
     expect(result.current.drawerOpen).toBe(true)
@@ -203,8 +204,8 @@ describe('MobileAudioMemoProvider', () => {
   })
 
   it('unmounting closes the session and leaves a live recording running', async () => {
-    const { result, act, app, audioRecorder, assetStore, unmount } = await setup()
-    await act(async () => {
+    const { result, app, audioRecorder, assetStore, unmount } = await setup()
+    await act(() => {
       result.current.toggle()
     })
 

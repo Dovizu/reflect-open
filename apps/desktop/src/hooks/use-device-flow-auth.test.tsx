@@ -24,9 +24,9 @@ describe('useDeviceFlowAuth', () => {
   it('surfaces the user code and resolves true on success', async () => {
     // No browser side effects here: the surface opens GitHub only after the
     // user has the code (copy first, then hand off).
-    mockFlow.mockImplementation(async (options) => {
+    mockFlow.mockImplementation((options) => {
       options.onCode({ userCode: 'ABCD-1234', verificationUri: 'https://github.com/login/device' })
-      return AUTH
+      return Promise.resolve(AUTH)
     })
     const { result, act } = await mount()
 
@@ -46,9 +46,9 @@ describe('useDeviceFlowAuth', () => {
   })
 
   it('returns to the idle view with a message when the flow fails', async () => {
-    mockFlow.mockImplementation(async (options) => {
+    mockFlow.mockImplementation((options) => {
       options.onCode({ userCode: 'ABCD-1234', verificationUri: 'https://github.com/login/device' })
-      throw new ReflectError('auth', 'GitHub sign-in was denied.')
+      return Promise.reject(new ReflectError('auth', 'GitHub sign-in was denied.'))
     })
     const { result, act } = await mount()
 
@@ -77,9 +77,9 @@ describe('useDeviceFlowAuth', () => {
 
   it('aborts the polling when the owning component unmounts', async () => {
     let signal: AbortSignal | undefined
-    mockFlow.mockImplementation(async (options) => {
+    mockFlow.mockImplementation((options) => {
       signal = options.signal
-      return null
+      return Promise.resolve(null)
     })
     const { result, act, unmount } = await mount()
 

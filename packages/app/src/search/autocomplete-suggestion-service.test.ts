@@ -81,22 +81,20 @@ async function setup(options?: SetupOptions) {
   const graphSession = createTestGraphSessionService({ graph: { generation: 7 } })
   const database = createTestDatabaseService()
   const suggestions = createSuggestionService({ database })
-  vi.spyOn(suggestions, 'suggestWikiLinkTargets').mockImplementation(
-    async (query, limit, dateGen) => {
-      linkQueries.push({
-        query,
-        ...(limit === undefined ? {} : { limit }),
-        ...(dateGen === undefined ? {} : { dateGen }),
-      })
-      return options?.wikiLinks ?? NO_SUGGESTIONS
-    },
-  )
-  vi.spyOn(suggestions, 'suggestTags').mockImplementation(async (query) => {
+  vi.spyOn(suggestions, 'suggestWikiLinkTargets').mockImplementation((query, limit, dateGen) => {
+    linkQueries.push({
+      query,
+      ...(limit === undefined ? {} : { limit }),
+      ...(dateGen === undefined ? {} : { dateGen }),
+    })
+    return Promise.resolve(options?.wikiLinks ?? NO_SUGGESTIONS)
+  })
+  vi.spyOn(suggestions, 'suggestTags').mockImplementation((query) => {
     tagQueries.push(query)
-    return [
+    return Promise.resolve([
       { tag: 'work', count: 3 },
       { tag: 'Home', count: 1 },
-    ]
+    ])
   })
   const noteCreation = createTestNoteCreationService()
   vi.spyOn(noteCreation, 'resolveOrCreateNoteWithTitle').mockImplementation(
@@ -119,17 +117,18 @@ async function setup(options?: SetupOptions) {
   })
   vi.spyOn(personNotes, 'resolvePersonContact').mockImplementation(
     options?.personNotes?.resolvePersonContact ??
-      (async (contact) => ({
-        kind: 'new',
-        contact,
-        insertText: contact.fullName,
-      })),
+      ((contact) =>
+        Promise.resolve({
+          kind: 'new',
+          contact,
+          insertText: contact.fullName,
+        })),
   )
   vi.spyOn(personNotes, 'ensurePersonNote').mockImplementation(
     options?.personNotes?.ensurePersonNote ??
-      (async (input) => {
+      ((input) => {
         ensured.push(input)
-        return { kind: 'created', path: 'notes/person.md' }
+        return Promise.resolve({ kind: 'created', path: 'notes/person.md' })
       }),
   )
   const service = createAutocompleteSuggestionService({
@@ -215,10 +214,11 @@ describe('AutocompleteSuggestionService.suggestLinks', () => {
 
   it('reports an ambiguous background create instead of silently doing nothing', async () => {
     const { suggest, operations, created } = await setup({
-      create: async () => ({
-        kind: 'ambiguous',
-        paths: ['notes/business-ideas.md', 'notes/business-ideas-2.md'],
-      }),
+      create: () =>
+        Promise.resolve({
+          kind: 'ambiguous',
+          paths: ['notes/business-ideas.md', 'notes/business-ideas-2.md'],
+        }),
     })
     const items = await suggest('Business ideas')
     expect(items).toMatchObject([{ target: 'Business ideas', label: 'Create “Business ideas”' }])
@@ -236,7 +236,7 @@ describe('AutocompleteSuggestionService.suggestLinks', () => {
 
   it('reports an unavailable background create distinctly from ambiguity', async () => {
     const { suggest, operations, created } = await setup({
-      create: async () => ({ kind: 'unavailable', paths: ['notes/business-ideas.md'] }),
+      create: () => Promise.resolve({ kind: 'unavailable', paths: ['notes/business-ideas.md'] }),
     })
     const items = await suggest('Business ideas')
 
@@ -409,7 +409,7 @@ describe('AutocompleteSuggestionService.suggestLinks', () => {
     const { suggest, ensured } = await setup({
       settings: { contactsEnabled: true },
       contacts: [ADA],
-      personNotes: { resolvePersonContact: async () => existing },
+      personNotes: { resolvePersonContact: () => Promise.resolve(existing) },
     })
 
     const items = await suggest('Ada', 'authorized')
@@ -435,11 +435,12 @@ describe('AutocompleteSuggestionService.suggestLinks', () => {
       settings: { contactsEnabled: true },
       contacts: [ADA],
       personNotes: {
-        resolvePersonContact: async (contact) => ({
-          kind: 'blocked',
-          contact,
-          reason: 'identity-conflict',
-        }),
+        resolvePersonContact: (contact) =>
+          Promise.resolve({
+            kind: 'blocked',
+            contact,
+            reason: 'identity-conflict',
+          }),
       },
     })
 
@@ -476,7 +477,7 @@ describe('AutocompleteSuggestionService.suggestLinks', () => {
     const { suggest, operations } = await setup({
       settings: { contactsEnabled: true },
       contacts: [ADA],
-      personNotes: { ensurePersonNote: async () => outcomes.shift()! },
+      personNotes: { ensurePersonNote: () => Promise.resolve(outcomes.shift()!) },
     })
     const items = await suggest('Ada Lovelace', 'authorized')
 

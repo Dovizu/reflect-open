@@ -91,12 +91,13 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
   const app = createTestCoreServices({
     suggestions: {
       suggestWikiTargets,
-      suggestWikiLinkTargets: async () => ({
-        suggestions: [],
-        claimedTargetKeys: [],
-        queryReadsAsDate: false,
-      }),
-      suggestTags: async () => [],
+      suggestWikiLinkTargets: () =>
+        Promise.resolve({
+          suggestions: [],
+          claimedTargetKeys: [],
+          queryReadsAsDate: false,
+        }),
+      suggestTags: () => Promise.resolve([]),
     },
     search: { searchWithFilters },
     retrieval: createTestRetrievalService({ retrieve }),

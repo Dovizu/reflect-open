@@ -81,9 +81,10 @@ beforeEach(() => {
   getPinnedNotes.mockReset().mockResolvedValue([])
   getNote.mockReset().mockResolvedValue(noteRow('notes/a.md', false))
   noteSource = '# A\n'
-  readNoteSource.mockReset().mockImplementation(async () => noteSource)
-  commitNoteFrontmatter.mockReset().mockImplementation(async (_path, patch) => {
+  readNoteSource.mockReset().mockImplementation(() => Promise.resolve(noteSource))
+  commitNoteFrontmatter.mockReset().mockImplementation((_path, patch) => {
     noteSource = upsertFrontmatter(noteSource, frontmatterPatchToYaml(patch))
+    return Promise.resolve()
   })
 })
 

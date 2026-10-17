@@ -237,18 +237,18 @@ class SingleWindowHostImpl implements WindowHost {
 
   async setTitle(_title: string): Promise<void> {}
 
-  async focusedWindowLabel(): Promise<string | null> {
-    return MAIN_WINDOW_LABEL
+  focusedWindowLabel(): Promise<string | null> {
+    return Promise.resolve(MAIN_WINDOW_LABEL)
   }
 
   async emitTo(_label: string, _event: string, _payload: unknown): Promise<void> {}
 
-  async listen(_event: string, _handler: (payload: unknown) => void): Promise<Unlisten> {
-    return () => {}
+  listen(_event: string, _handler: (payload: unknown) => void): Promise<Unlisten> {
+    return Promise.resolve(() => {})
   }
 
-  async onCloseRequested(_handler: CloseRequestedHandler): Promise<Unlisten> {
-    return () => {}
+  onCloseRequested(_handler: CloseRequestedHandler): Promise<Unlisten> {
+    return Promise.resolve(() => {})
   }
 
   async hide(): Promise<void> {}

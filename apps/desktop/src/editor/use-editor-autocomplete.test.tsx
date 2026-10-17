@@ -46,12 +46,14 @@ async function setup(options?: SetupOptions) {
   )
   const created: { title: string; generation: number }[] = []
   const noteCreation = {
-    resolveOrCreateNoteWithTitle: async (
+    resolveOrCreateNoteWithTitle: (
       title: string,
       generation: number,
     ): Promise<ResolveOrCreateNoteResult> => {
       created.push({ title, generation })
-      return options?.createOutcome ?? { kind: 'created', path: 'notes/created.md' }
+      return Promise.resolve(
+        options?.createOutcome ?? { kind: 'created', path: 'notes/created.md' },
+      )
     },
   }
   const contacts = createTestContactsService({
@@ -61,11 +63,12 @@ async function setup(options?: SetupOptions) {
   const base = createTestCoreServices()
   const personNotes: typeof base.personNotes = {
     ...base.personNotes,
-    resolvePersonContact: async (contact) => ({
-      kind: 'new',
-      contact,
-      insertText: contact.fullName,
-    }),
+    resolvePersonContact: (contact) =>
+      Promise.resolve({
+        kind: 'new',
+        contact,
+        insertText: contact.fullName,
+      }),
     ensurePersonNote: async (input) =>
       await noteCreation.resolveOrCreateNoteWithTitle(input.title, input.generation),
   }
@@ -74,12 +77,15 @@ async function setup(options?: SetupOptions) {
     graphSession,
     suggestions: {
       ...base.suggestions,
-      suggestWikiLinkTargets: async () =>
-        options?.wikiLinks ?? { suggestions: [], claimedTargetKeys: [], queryReadsAsDate: false },
-      suggestTags: async () => [
-        { tag: 'work', count: 2 },
-        { tag: 'home', count: 1 },
-      ],
+      suggestWikiLinkTargets: () =>
+        Promise.resolve(
+          options?.wikiLinks ?? { suggestions: [], claimedTargetKeys: [], queryReadsAsDate: false },
+        ),
+      suggestTags: () =>
+        Promise.resolve([
+          { tag: 'work', count: 2 },
+          { tag: 'home', count: 1 },
+        ]),
     },
     noteCreation: Object.assign(base.noteCreation, noteCreation),
     contacts,

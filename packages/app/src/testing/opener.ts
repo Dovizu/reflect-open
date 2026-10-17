@@ -27,17 +27,19 @@ class TestOpenerServiceImpl implements TestOpenerService {
   constructor(logger: LoggerService) {
     this.#inner = createOpenerService({
       transport: {
-        openUrl: async (url) => {
+        openUrl: (url) => {
           if (this.#failure !== null) {
-            throw this.#failure.error
+            return Promise.reject(this.#failure.error)
           }
           this.#opened.push(url)
+          return Promise.resolve()
         },
-        revealItemInDir: async (path) => {
+        revealItemInDir: (path) => {
           if (this.#failure !== null) {
-            throw this.#failure.error
+            return Promise.reject(this.#failure.error)
           }
           this.#revealed.push(path)
+          return Promise.resolve()
         },
       },
       logger,

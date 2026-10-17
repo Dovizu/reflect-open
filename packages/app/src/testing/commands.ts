@@ -45,22 +45,25 @@ class TestNativeMenuHostImpl implements TestNativeMenuHost {
   readonly #popups: (readonly NativeContextMenuItem[])[] = []
   #appMenu: readonly NativeSubmenu[] | null = null
 
-  async buildAppMenu(submenus: readonly NativeSubmenu[]): Promise<NativeAppMenu> {
+  buildAppMenu(submenus: readonly NativeSubmenu[]): Promise<NativeAppMenu> {
     this.calls.push('buildAppMenu')
-    return {
-      setAsAppMenu: async () => {
+    return Promise.resolve({
+      setAsAppMenu: () => {
         this.calls.push('setAsAppMenu')
         this.#appMenu = submenus
+        return Promise.resolve()
       },
-      assignNsAppRoles: async () => {
+      assignNsAppRoles: () => {
         this.calls.push('assignNsAppRoles')
+        return Promise.resolve()
       },
-    }
+    })
   }
 
-  async popup(items: readonly NativeContextMenuItem[]): Promise<void> {
+  popup(items: readonly NativeContextMenuItem[]): Promise<void> {
     this.calls.push('popup')
     this.#popups.push(items)
+    return Promise.resolve()
   }
 
   appMenu(): readonly NativeSubmenu[] | null {

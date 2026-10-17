@@ -45,9 +45,7 @@ describe('createWindowService', () => {
   })
 
   it('swallows a failed title change', async () => {
-    const setTitle = vi.fn(async () => {
-      throw new Error('gone')
-    })
+    const setTitle = vi.fn(() => Promise.reject(new Error('gone')))
     const { window } = setup({ host: { setTitle } })
     expect(() => window.setTitle('Note A')).not.toThrow()
     await settle()
@@ -155,9 +153,7 @@ describe('createWindowService', () => {
 
   it('logs a failed event registration', async () => {
     const ipc = createTestIpcBridgeService()
-    ipc.transport.listen = async () => {
-      throw new Error('denied')
-    }
+    ipc.transport.listen = () => Promise.reject(new Error('denied'))
     const { window, logger } = setup({ ipc })
 
     window.subscribeIndexWritten(() => {})
@@ -176,16 +172,16 @@ describe('createWindowService', () => {
     const hide = vi.fn(async () => {})
     const { window } = setup({
       host: {
-        focusedWindowLabel: async () => 'note-2',
+        focusedWindowLabel: () => Promise.resolve('note-2'),
         emitTo,
         hide,
-        listen: async (event, handler): Promise<Unlisten> => {
+        listen: (event, handler): Promise<Unlisten> => {
           handlers.set(event, handler)
-          return removed
+          return Promise.resolve(removed)
         },
-        onCloseRequested: async (handler) => {
+        onCloseRequested: (handler) => {
           closeHandler = handler
-          return removed
+          return Promise.resolve(removed)
         },
       },
     })

@@ -103,8 +103,9 @@ class TestUpdaterAdapterImpl implements TestUpdaterAdapter {
     return this.#options.available ? this.#offer(this.#options.available.version) : null
   }
 
-  async relaunch(): Promise<void> {
+  relaunch(): Promise<void> {
     this.calls.push('relaunch')
+    return Promise.resolve()
   }
 
   configure(options: TestUpdaterOptions): void {
@@ -217,16 +218,19 @@ class TestUpdateServiceImpl implements TestUpdateService {
     this.calls.push('start')
   }
 
-  async checkNow(): Promise<void> {
+  checkNow(): Promise<void> {
     this.calls.push('checkNow')
+    return Promise.resolve()
   }
 
-  async install(): Promise<void> {
+  install(): Promise<void> {
     this.calls.push('install')
+    return Promise.resolve()
   }
 
-  async restart(): Promise<void> {
+  restart(): Promise<void> {
     this.calls.push('restart')
+    return Promise.resolve()
   }
 
   retryAction(): Promise<void> {

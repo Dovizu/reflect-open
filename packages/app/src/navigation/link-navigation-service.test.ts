@@ -346,9 +346,9 @@ describe('followWikiLink', () => {
     const targets: string[] = []
     const { linkNavigation, host, noteLinkResolver } = setup({
       graph: null,
-      resolveWikiTarget: async (target) => {
+      resolveWikiTarget: (target) => {
         targets.push(target)
-        return { kind: 'resolved', ref: 'notes/2026-06-09.md' }
+        return Promise.resolve({ kind: 'resolved', ref: 'notes/2026-06-09.md' })
       },
     })
     linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
@@ -360,7 +360,7 @@ describe('followWikiLink', () => {
 
   it('opens the lazy daily route for an unindexed ISO date when read-only', async () => {
     const { linkNavigation, host } = setup({
-      resolveWikiTarget: async (target) => ({ kind: 'unresolved', text: target }),
+      resolveWikiTarget: (target) => Promise.resolve({ kind: 'unresolved', text: target }),
     })
     linkNavigation.followWikiLink(
       { target: '2026-06-09', openInNewWindow: false, readOnly: true },
@@ -373,11 +373,12 @@ describe('followWikiLink', () => {
   it('does not choose between ambiguous ISO-date targets', async () => {
     const { linkNavigation, host, noteCreation, operations } = setup({
       noteLinkResolver: {
-        resolveWikiTarget: async () => ({
-          kind: 'ambiguous',
-          paths: ['daily/2026-06-09.md', 'daily/2026-06-09-2.md'],
-        }),
-        resolveMarkdownHref: async () => ({ kind: 'missing' }),
+        resolveWikiTarget: () =>
+          Promise.resolve({
+            kind: 'ambiguous',
+            paths: ['daily/2026-06-09.md', 'daily/2026-06-09-2.md'],
+          }),
+        resolveMarkdownHref: () => Promise.resolve({ kind: 'missing' }),
       },
     })
     linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
@@ -393,8 +394,9 @@ describe('followWikiLink', () => {
   it('does not turn an unavailable ISO-date target into a lazy daily route', async () => {
     const { linkNavigation, host, operations } = setup({
       noteLinkResolver: {
-        resolveWikiTarget: async () => ({ kind: 'unavailable', paths: ['daily/2026-06-09.md'] }),
-        resolveMarkdownHref: async () => ({ kind: 'missing' }),
+        resolveWikiTarget: () =>
+          Promise.resolve({ kind: 'unavailable', paths: ['daily/2026-06-09.md'] }),
+        resolveMarkdownHref: () => Promise.resolve({ kind: 'missing' }),
       },
     })
     linkNavigation.followWikiLink({ target: '2026-06-09', openInNewWindow: false }, host)
@@ -408,10 +410,11 @@ describe('followWikiLink', () => {
 
   it('routes a resolved daily alias through the daily view', async () => {
     const { linkNavigation, host } = setup({
-      resolveOrCreateNoteWithTitle: async () => ({
-        kind: 'resolved',
-        path: 'daily/2026-06-09.md',
-      }),
+      resolveOrCreateNoteWithTitle: () =>
+        Promise.resolve({
+          kind: 'resolved',
+          path: 'daily/2026-06-09.md',
+        }),
     })
     linkNavigation.followWikiLink({ target: 'Project log', openInNewWindow: false }, host)
     await settle()
@@ -429,7 +432,7 @@ describe('followWikiLink', () => {
 
   it('does not create when read-only', async () => {
     const { linkNavigation, host, noteCreation } = setup({
-      resolveWikiTarget: async (target) => ({ kind: 'unresolved', text: target }),
+      resolveWikiTarget: (target) => Promise.resolve({ kind: 'unresolved', text: target }),
     })
     linkNavigation.followWikiLink(
       { target: 'Brand New', openInNewWindow: false, readOnly: true },
@@ -443,7 +446,7 @@ describe('followWikiLink', () => {
   it('opens an indexed title with no graph open', async () => {
     const { linkNavigation, host } = setup({
       graph: null,
-      resolveWikiTarget: async () => ({ kind: 'resolved', ref: 'notes/target.md' }),
+      resolveWikiTarget: () => Promise.resolve({ kind: 'resolved', ref: 'notes/target.md' }),
     })
     linkNavigation.followWikiLink({ target: 'Target', openInNewWindow: false }, host)
     await settle()
@@ -521,9 +524,7 @@ describe('followWikiLink', () => {
   it('surfaces a resolution failure instead of silently doing nothing', async () => {
     const failure = new Error('index unavailable')
     const { linkNavigation, host, operations, logger } = setup({
-      resolveOrCreateNoteWithTitle: async () => {
-        throw failure
-      },
+      resolveOrCreateNoteWithTitle: () => Promise.reject(failure),
     })
     linkNavigation.followWikiLink({ target: 'Business ideas', openInNewWindow: false }, host)
     await settle()
@@ -643,8 +644,8 @@ describe('followMarkdownNoteLink', () => {
   ])('refuses a target that resolves as $kind', async (resolution, message) => {
     const { linkNavigation, host, operations } = setup({
       noteLinkResolver: {
-        resolveWikiTarget: async () => ({ kind: 'missing' }),
-        resolveMarkdownHref: async () => resolution,
+        resolveWikiTarget: () => Promise.resolve({ kind: 'missing' }),
+        resolveMarkdownHref: () => Promise.resolve(resolution),
       },
     })
     linkNavigation.followMarkdownNoteLink(
@@ -660,10 +661,8 @@ describe('followMarkdownNoteLink', () => {
     const failure = new Error('index unavailable')
     const { linkNavigation, host, operations, logger } = setup({
       noteLinkResolver: {
-        resolveWikiTarget: async () => ({ kind: 'missing' }),
-        resolveMarkdownHref: async () => {
-          throw failure
-        },
+        resolveWikiTarget: () => Promise.resolve({ kind: 'missing' }),
+        resolveMarkdownHref: () => Promise.reject(failure),
       },
     })
     linkNavigation.followMarkdownNoteLink(
@@ -684,7 +683,7 @@ describe('followMarkdownNoteLink', () => {
     const pending = Promise.withResolvers<{ kind: 'resolved'; path: string }>()
     const { linkNavigation, host } = setup({
       noteLinkResolver: {
-        resolveWikiTarget: async () => ({ kind: 'missing' }),
+        resolveWikiTarget: () => Promise.resolve({ kind: 'missing' }),
         resolveMarkdownHref: () => pending.promise,
       },
     })

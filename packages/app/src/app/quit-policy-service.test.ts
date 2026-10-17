@@ -120,12 +120,13 @@ function setup(options?: {
           closeHandlers.delete(handler)
         }
       },
-      async hide() {
+      hide() {
         hides += 1
         log.push('hide')
         if (options?.failHide ?? false) {
-          throw new Error('hide failed')
+          return Promise.reject(new Error('hide failed'))
         }
+        return Promise.resolve()
       },
       hideCalls: () => hides,
     },
@@ -406,11 +407,10 @@ describe('installMobileBackgroundPolicy', () => {
     let ends = 0
     const { service, lifecycle, documents, backup } = setup({
       lifecycle: () => ({
-        beginBackgroundTask: async () => {
-          throw new Error('no native bridge')
-        },
-        endBackgroundTask: async () => {
+        beginBackgroundTask: () => Promise.reject(new Error('no native bridge')),
+        endBackgroundTask: () => {
           ends += 1
+          return Promise.resolve()
         },
       }),
     })
@@ -428,9 +428,10 @@ describe('installMobileBackgroundPolicy', () => {
     let ends = 0
     const { service, lifecycle, documents, backup } = setup({
       lifecycle: () => ({
-        beginBackgroundTask: async () => null,
-        endBackgroundTask: async () => {
+        beginBackgroundTask: () => Promise.resolve(null),
+        endBackgroundTask: () => {
           ends += 1
+          return Promise.resolve()
         },
       }),
     })
@@ -447,9 +448,7 @@ describe('installMobileBackgroundPolicy', () => {
   it('survives a failure to end the task', async () => {
     const { service, lifecycle, backup } = setup({
       lifecycle: () => ({
-        endBackgroundTask: async () => {
-          throw new Error('expired')
-        },
+        endBackgroundTask: () => Promise.reject(new Error('expired')),
       }),
     })
     install(service.installMobileBackgroundPolicy())

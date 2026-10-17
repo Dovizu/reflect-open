@@ -88,15 +88,16 @@ class TestWindowServiceImpl implements TestWindowService {
     return (await this.#options?.openNoteWindow?.(deepLink)) ?? true
   }
 
-  async closeSecondaryWindows(): Promise<void> {
+  closeSecondaryWindows(): Promise<void> {
     this.#closeCalls += 1
+    return Promise.resolve()
   }
 
-  async bootstrap(): Promise<WindowBootstrap> {
+  bootstrap(): Promise<WindowBootstrap> {
     if (this.#options?.bootstrap === undefined) {
-      throw new Error('test window: no bootstrap configured')
+      return Promise.reject(new Error('test window: no bootstrap configured'))
     }
-    return this.#options.bootstrap
+    return Promise.resolve(this.#options.bootstrap)
   }
 
   subscribeNavigate(listener: (url: string) => void): Unlisten {
@@ -116,12 +117,13 @@ class TestWindowServiceImpl implements TestWindowService {
     return listeners.add(listener)
   }
 
-  async focusedWindowLabel(): Promise<string | null> {
-    return this.#focused
+  focusedWindowLabel(): Promise<string | null> {
+    return Promise.resolve(this.#focused)
   }
 
-  async emitTo(target: string, event: string, payload: unknown): Promise<void> {
+  emitTo(target: string, event: string, payload: unknown): Promise<void> {
     this.#emittedEvents.push({ label: target, event, payload })
+    return Promise.resolve()
   }
 
   onCloseRequested(handler: CloseRequestedHandler): Unlisten {
@@ -131,12 +133,14 @@ class TestWindowServiceImpl implements TestWindowService {
     }
   }
 
-  async hide(): Promise<void> {
+  hide(): Promise<void> {
     this.#isHidden = true
+    return Promise.resolve()
   }
 
-  async toggleDevtools(): Promise<void> {
+  toggleDevtools(): Promise<void> {
     this.#toggles += 1
+    return Promise.resolve()
   }
 
   openedNoteWindows(): readonly string[] {

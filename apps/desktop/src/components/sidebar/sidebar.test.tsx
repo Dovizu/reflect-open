@@ -26,8 +26,9 @@ import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 import { Sidebar } from './sidebar.tsx'
 
-const openNativeContextMenu = vi.fn(async (options: NativeContextMenuOptions) => {
+const openNativeContextMenu = vi.fn((options: NativeContextMenuOptions) => {
   options.items[0]?.action()
+  return Promise.resolve()
 })
 
 const audioMemo = vi.hoisted(() => ({
@@ -84,7 +85,7 @@ beforeEach(() => {
 async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?: Route) {
   const navigate = vi.fn()
   const openPalette = vi.fn()
-  const readSource = async (): Promise<string> => '# Rust\n'
+  const readSource = (): Promise<string> => Promise.resolve('# Rust\n')
   operations = createTestOperationsService()
   const app = createTestCoreServices({
     progress: operations,
