@@ -70,11 +70,11 @@ jobs:
   test-webkit:
     if: github.event_name != 'merge_group'
     runs-on: macos-26
-    # DEBUG ONLY: compare the page crash rate of two WebKit builds.
+    # DEBUG ONLY: page crash rate of WebKit 2359, and of 2370 without the JIT.
     strategy:
       fail-fast: false
       matrix:
-        webkit: ['2370', '2378']
+        webkit: ['2359', '2370-jit-off']
         repeat: [1, 2, 3, 4, 5]
     env:
       REFLECT_TEST_BROWSER: webkit
@@ -89,8 +89,12 @@ jobs:
         run: pnpm --filter @reflect/desktop test:install:webkit
 
       # DEBUG ONLY: Playwright 1.64.1 runs whatever build is in webkit-2370.
+      - name: Turn off the JSC JIT
+        if: matrix.webkit == '2370-jit-off'
+        run: echo '__XPC_JSC_useJIT=0' >> "$GITHUB_ENV"
+
       - name: Use WebKit ${{ matrix.webkit }}
-        if: matrix.webkit != '2370'
+        if: matrix.webkit == '2359'
         run: |
           dir=~/Library/Caches/ms-playwright/webkit-2370
           curl -sfL -o "$RUNNER_TEMP/webkit.zip" \
