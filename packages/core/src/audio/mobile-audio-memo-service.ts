@@ -348,12 +348,12 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
     })()
   }
 
-  /** Cancels a recording that is still requesting permission; a failure is ignored. */
+  /** Cancels a recording that is still requesting permission; a failure is logged. */
   async #cancelRecorder(): Promise<void> {
     try {
       await this.#deps.audioRecorder.cancel()
-    } catch {
-      // Nothing was recorded yet.
+    } catch (cause: unknown) {
+      this.#deps.logger.warn('cancelling a recording that was still starting failed:', cause)
     }
   }
 
