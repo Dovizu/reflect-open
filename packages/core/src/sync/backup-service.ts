@@ -269,7 +269,7 @@ class BackupServiceImpl implements BackupService {
               const token = await githubAuth.getToken()
               return token === null ? null : githubCredential(token)
             }
-          : () => Promise.resolve(null)
+          : async () => null
       const coexisting = isICloudRoot(this.#root)
       const next = syncEngines.create({
         generation: this.#generation,
@@ -566,7 +566,7 @@ class BackupServiceImpl implements BackupService {
       const next = syncEngines.create({
         generation: this.#generation,
         localOnly: true,
-        getCredential: () => Promise.resolve(null),
+        getCredential: async () => null,
         onStatus: (engineStatus) => {
           // No UI surfaces local history, so a failing commit loop (disk full,
           // corrupted repo) must at least leave a trace for diagnosis.

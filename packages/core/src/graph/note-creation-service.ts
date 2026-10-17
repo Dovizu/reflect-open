@@ -146,7 +146,7 @@ class NoteCreationServiceImpl implements NoteCreationService {
       slugForTitle(title),
       this.#newNoteSource(title, body),
       generation,
-      () => Promise.resolve(null),
+      async () => null,
     )
     return claimed.path
   }

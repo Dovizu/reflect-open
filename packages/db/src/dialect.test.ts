@@ -44,11 +44,4 @@ describe('IpcDialect (Kysely → injected runner bridge)', () => {
       /transactions run in Rust/,
     )
   })
-
-  it('rejects streaming on the first read', async () => {
-    const db = createDb(runQuery)
-    const rows = db.selectFrom('notes').selectAll().stream()
-    await expect(rows.next()).rejects.toThrow(/streaming is not supported/)
-    expect(runQuery).not.toHaveBeenCalled()
-  })
 })

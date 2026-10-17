@@ -300,6 +300,7 @@ export default defineESLintConfig(
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/only-throw-error': 'off',
       '@typescript-eslint/prefer-promise-reject-errors': 'off',
+      '@typescript-eslint/require-await': 'off',
       'no-var': 'off',
       'react-hooks/exhaustive-deps': 'off',
       'react-hooks/globals': 'off',
@@ -316,6 +317,18 @@ export default defineESLintConfig(
     files: [`**/*.test.${SOURCE_EXTENSIONS}`],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
+    },
+  },
+  {
+    // Tests, test fakes and test helpers.
+    files: [
+      `**/*.test.${SOURCE_EXTENSIONS}`,
+      `**/testing/**/*.${SOURCE_EXTENSIONS}`,
+      `**/test-utils/**/*.${SOURCE_EXTENSIONS}`,
+      `**/*-test-kit.${SOURCE_EXTENSIONS}`,
+    ],
+    rules: {
+      '@typescript-eslint/require-await': 'error',
     },
   },
   // Rule: core is platform-agnostic. It imports no Tauri, React, TanStack or app code.

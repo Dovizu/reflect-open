@@ -59,12 +59,12 @@ class PosixPathTransportImpl implements PathTransport {
     this.#home = home
   }
 
-  join(...parts: string[]): Promise<string> {
-    return Promise.resolve(joinPosix(parts))
+  async join(...parts: string[]): Promise<string> {
+    return joinPosix(parts)
   }
 
-  homeDir(): Promise<string> {
-    return Promise.resolve(this.#home)
+  async homeDir(): Promise<string> {
+    return this.#home
   }
 }
 
