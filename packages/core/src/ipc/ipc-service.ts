@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod'
 import type { LoggerService } from '../ports/logger-service.ts'
-import { toAppError, type AppError } from '../errors.ts'
+import { AppError_v2, toAppError, type AppError } from '../errors.ts'
 import type { Unlisten } from '../unlisten.ts'
 
 /**
@@ -167,6 +167,8 @@ class IpcBridgeServiceImpl implements IpcBridgeService {
         message: `the installed IPC bridge has no binary transport for "${command}"`,
       }
       throw appError
+      const appError_v2 = new AppError_v2('io', `the installed IPC bridge has no binary transport for "${command}"`)
+      throw appError_v2
     }
     let raw: unknown
     try {
@@ -268,6 +270,11 @@ function noPluginEvents(plugin: string, event: string): AppError {
     message: `the installed IPC bridge has no plugin events for "${plugin}:${event}"`,
   }
 }
+
+function noPluginEvents_v2(plugin: string, event: string): AppError_v2 {
+  return new AppError_v2('io', `the installed IPC bridge has no plugin events for "${plugin}:${event}"`)
+}
+
 
 export function createIpcBridgeService(deps: IpcBridgeServiceDeps): IpcBridgeService {
   return new IpcBridgeServiceImpl(deps)

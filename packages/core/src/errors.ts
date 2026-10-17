@@ -18,6 +18,22 @@ export const appErrorSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('unknown'), message: z.string() }),
 ])
 
+type AppErrorKind_v2 = "io" | "notFound" | "traversal" | "noGraph" | "parse" | "auth" | "network" | "unknown"
+
+export class AppError_v2 extends Error {
+  readonly kind: AppErrorKind_v2
+
+  constructor(kind: AppErrorKind_v2, message: string, options?: ErrorOptions) {
+    super(message, options)
+    this.name = 'ReflectError'
+    this.kind = kind
+  }
+}
+
+export function isAppError_v2(value: unknown): value is AppError_v2 {
+  return value instanceof AppError_v2
+}
+
 export type AppError = z.infer<typeof appErrorSchema>
 
 /**
