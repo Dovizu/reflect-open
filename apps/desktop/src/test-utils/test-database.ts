@@ -22,7 +22,7 @@ export async function createWasmTestDatabaseService(): Promise<TestDatabaseServi
       if (closed) {
         throw new Error('the test database is closed')
       }
-      return index.query(sql, params)
+      return index.execute(sql, params)
     } catch (error) {
       throw toAppError(error)
     }

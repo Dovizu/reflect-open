@@ -1,4 +1,8 @@
-import sqlite3InitModule, { type Database, type SqlValue } from '@sqlite.org/sqlite-wasm'
+import sqlite3InitModule, {
+  type Database,
+  type PreparedStatement,
+  type SqlValue,
+} from '@sqlite.org/sqlite-wasm'
 import {
   CLAIM_TIER,
   dateFromDailyPath,
@@ -19,6 +23,10 @@ import {
 export interface DevIndexDb {
   /** Execute a read query (the `db_query` contract): rows as column-keyed objects. */
   query: (sql: string, params: readonly unknown[]) => Record<string, SqlValue>[]
+  /** Execute any SQL, writes included, without the `query` restrictions. */
+  execute: (sql: string, params: readonly unknown[]) => Record<string, SqlValue>[]
+  /** Every `notes` row's reconcile facts (the `scan.rs` read); throws on a mistyped column. */
+  noteScanFacts: () => NoteScanFact[]
   /** Replace all rows for `note.path` with its projection (`index_apply`). */
   applyNote: (note: IndexedNote) => void
   /** Drop every row belonging to `path` (`index_remove`). */
@@ -39,6 +47,13 @@ export interface DevIndexDb {
    * Release the database.
    */
   close: () => void
+}
+
+/** One stored `notes` row as `scan.rs` reads it. */
+export interface NoteScanFact {
+  path: string
+  mtime: number
+  fileHash: string
 }
 
 /** Mirrors `chat_write.rs`'s `ChatConversation` (camelCased over IPC). */
@@ -113,12 +128,90 @@ export async function createDevIndexDb(): Promise<DevIndexDb> {
     db.exec(stubVectorTables(source))
   }
 
+  const { capi, wasm } = sqlite3
+  // Mirrors `read_only_authorization` in `query.rs`; only `query` turns it on, around its prepare.
+  let authorizeReadsOnly = false
+  capi.sqlite3_set_authorizer(
+    db,
+    (_, action) =>
+      authorizeReadsOnly &&
+      (action === capi.SQLITE_ATTACH ||
+        action === capi.SQLITE_DETACH ||
+        action === capi.SQLITE_PRAGMA)
+        ? capi.SQLITE_DENY
+        : capi.SQLITE_OK,
+    0,
+  )
+
+  // Whether `sql` holds a statement, not only whitespace and comments.
+  const holdsStatement = (sql: string): boolean => {
+    const stack = wasm.pstack.pointer
+    try {
+      const ppStmt = wasm.pstack.allocPtr()
+      db.checkRc(capi.sqlite3_prepare_v2(db, sql, -1, ppStmt, 0))
+      const pStmt = wasm.peekPtr(ppStmt)
+      if (pStmt === 0) {
+        return false
+      }
+      capi.sqlite3_finalize(pStmt)
+      return true
+    } finally {
+      wasm.pstack.restore(stack)
+    }
+  }
+
+  // Mirrors `run_query`: one statement, prepared under the authorizer, read-only.
+  const prepareQuery = (sql: string): PreparedStatement => {
+    authorizeReadsOnly = true
+    try {
+      const stmt = db.prepare(sql)
+      try {
+        if (holdsStatement(sql.slice(capi.sqlite3_sql(stmt).length))) {
+          throw new AppError('io', 'Multiple statements provided')
+        }
+        if (capi.sqlite3_stmt_readonly(stmt) === 0) {
+          throw new AppError('io', 'db_query only executes read-only statements')
+        }
+        return stmt
+      } catch (cause) {
+        stmt.finalize()
+        throw cause
+      }
+    } finally {
+      authorizeReadsOnly = false
+    }
+  }
+
   return {
     query: (sql, params) => {
+      const stmt = prepareQuery(sql)
+      try {
+        if (params.length > 0) {
+          stmt.bind(params.map(bindValue))
+        }
+        const resultRows: Record<string, SqlValue>[] = []
+        while (stmt.step()) {
+          resultRows.push(stmt.get({}))
+        }
+        return resultRows
+      } finally {
+        stmt.finalize()
+      }
+    },
+
+    execute: (sql, params) => {
       const resultRows: Record<string, SqlValue>[] = []
       db.exec({ sql, bind: params.map(bindValue), rowMode: 'object', resultRows })
       return resultRows
     },
+
+    noteScanFacts: () =>
+      db.selectArrays('SELECT path, mtime, file_hash FROM notes').map(([path, mtime, fileHash]) => {
+        if (typeof path !== 'string' || typeof mtime !== 'number' || typeof fileHash !== 'string') {
+          throw new AppError('io', 'notes row has an unexpected column type')
+        }
+        return { path, mtime, fileHash }
+      }),
 
     applyNote: (note) => {
       removeNote(db, note.path)

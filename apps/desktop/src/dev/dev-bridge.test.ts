@@ -68,6 +68,18 @@ describe('dev bridge index_reconcile_scan', () => {
       { path: 'notes/gone.md', storedMtime: 1_000, storedHash: 'gone-hash' },
     ])
   })
+
+  it('returns the empty scan for a stale generation', async () => {
+    const files = createDevFileStore({ 'notes/a.md': '# A' })
+    const bridge = createDevBridge({ files, index: await createDevIndexDb() })
+
+    await expect(bridge.invoke('index_reconcile_scan', { generation: 0 })).resolves.toEqual({
+      total: 0,
+      candidates: [],
+      orphans: [],
+      stalePlaceholders: [],
+    })
+  })
 })
 
 describe('dev bridge desktop boot surface', () => {

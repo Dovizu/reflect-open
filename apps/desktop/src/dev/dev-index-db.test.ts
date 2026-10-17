@@ -669,6 +669,36 @@ describe('createDevIndexDb', () => {
     expect(pinned).toEqual([{ path: 'notes/sample.md' }])
   })
 
+  it('rejects what run_query rejects: writes, multiple statements, ATTACH, and PRAGMA', async () => {
+    const db = await openDb()
+    db.applyNote(sampleNote())
+
+    expect(() => db.query('DELETE FROM notes', [])).toThrowError(
+      'db_query only executes read-only statements',
+    )
+    expect(() => db.query('SELECT 1; DELETE FROM notes', [])).toThrowError(
+      'Multiple statements provided',
+    )
+    expect(() => db.query("ATTACH DATABASE ':memory:' AS other", [])).toThrowError(/authorized/)
+    expect(() => db.query('PRAGMA foreign_keys', [])).toThrowError(/authorized/)
+    expect(db.query('SELECT count(*) AS rows FROM notes', [])).toEqual([{ rows: 1 }])
+    expect(db.query('SELECT path FROM notes; -- trailing comment\n', [])).toEqual([
+      { path: 'notes/sample.md' },
+    ])
+    // The authorizer is scoped to the read path; writes still use PRAGMA.
+    db.moveNote('notes/sample.md', 'notes/renamed.md')
+    expect(db.query('SELECT path FROM notes', [])).toEqual([{ path: 'notes/renamed.md' }])
+  })
+
+  it('reads note scan facts with their column types checked', async () => {
+    const db = await openDb()
+    db.applyNote(sampleNote())
+
+    expect(db.noteScanFacts()).toEqual([
+      { path: 'notes/sample.md', mtime: sampleNote().mtime, fileHash: sampleNote().fileHash },
+    ])
+  })
+
   it('chat writes mirror chat_write.rs: seq assignment, upsert-by-id, cascade delete', async () => {
     const db = await openDb()
     const conversation = { id: 'c1', title: 'first question', createdMs: 1, updatedMs: 1 }

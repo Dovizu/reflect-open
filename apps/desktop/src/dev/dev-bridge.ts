@@ -18,6 +18,7 @@ export interface DevBridgeBackend {
 
 const dbQueryArgsSchema = z.object({ sql: z.string(), params: z.array(z.unknown()) })
 const pathArgsSchema = z.object({ path: z.string() })
+const generationArgsSchema = z.object({ generation: z.number().int().nonnegative() })
 const writeArgsSchema = z.object({
   path: z.string(),
   contents: z.string(),
@@ -272,8 +273,13 @@ class DevBridgeImpl implements IpcBridge {
         }
         return null
       }
-      case 'index_reconcile_scan':
+      case 'index_reconcile_scan': {
+        const { generation } = generationArgsSchema.parse(args)
+        if (generation !== this.#graphInfo.generation) {
+          return { total: 0, candidates: [], orphans: [], stalePlaceholders: [] }
+        }
         return reconcileScan(files, index)
+      }
       case 'index_clear': {
         index.clear()
         return null
@@ -376,12 +382,7 @@ const MTIME_TRUST_AGE_MS = 5_000
  */
 function reconcileScan(files: DevFileStore, index: DevIndexDb) {
   const stored = new Map(
-    index
-      .query('SELECT path, mtime, file_hash FROM notes', [])
-      .map((row) => [
-        String(row['path']),
-        { mtime: Number(row['mtime']), hash: String(row['file_hash']) },
-      ]),
+    index.noteScanFacts().map((fact) => [fact.path, { mtime: fact.mtime, hash: fact.fileHash }]),
   )
   const now = Date.now()
   const listing = files.list()
