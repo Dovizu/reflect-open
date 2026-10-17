@@ -1,3 +1,4 @@
+import type { MaybePromise } from '@reflect/utils'
 import { AUDIO_MEMO_REMINDER_MS, AUDIO_MEMO_SEGMENT_MS } from './audio-memo-session.ts'
 import { audioMemoIdentity, audioMemoPartPath } from './audio-memo.ts'
 import type { ActivityPort } from '../ports/activity-port.ts'
@@ -111,7 +112,7 @@ export interface MobileAudioMemoSession {
   /**
    * The drawer's discard control — drop the live recording.
    */
-  cancelRecording(): void
+  cancelRecording(): MaybePromise<void>
   /**
    * Drawer dismissal: a live recording stops-and-saves, never silently drops.
    */
@@ -316,7 +317,7 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
     void this.#stopAndSave()
   }
 
-  cancelRecording(): void {
+  async cancelRecording(): Promise<void> {
     const { audioRecorder, logger } = this.#deps
     this.#setDrawerOpen(false)
     const session = this.#live
@@ -335,17 +336,15 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
         logger.error('discarding the recorded segments failed:', cause)
       })
     }
-    void (async () => {
-      try {
-        await audioRecorder.cancel()
-      } catch (cause: unknown) {
-        logger.warn('cancel raced a native finalize:', cause)
-      } finally {
-        if (this.#live === session) {
-          this.#live = null
-        }
+    try {
+      await audioRecorder.cancel()
+    } catch (cause: unknown) {
+      logger.warn('cancel raced a native finalize:', cause)
+    } finally {
+      if (this.#live === session) {
+        this.#live = null
       }
-    })()
+    }
   }
 
   /** Cancels a recording that is still requesting permission; a failure is logged. */
