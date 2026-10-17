@@ -1,3 +1,4 @@
+import { act } from '@/test-utils/act.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ReflectError, type GithubAuth, type GithubAuthService } from '@reflect/core'
 import { createTestCoreServices } from '@reflect/core/testing'
@@ -28,7 +29,7 @@ describe('useDeviceFlowAuth', () => {
       options.onCode({ userCode: 'ABCD-1234', verificationUri: 'https://github.com/login/device' })
       return AUTH
     })
-    const { result, act } = await mount()
+    const { result } = await mount()
 
     let authed = false
     await act(async () => {
@@ -50,7 +51,7 @@ describe('useDeviceFlowAuth', () => {
       options.onCode({ userCode: 'ABCD-1234', verificationUri: 'https://github.com/login/device' })
       throw new ReflectError('auth', 'GitHub sign-in was denied.')
     })
-    const { result, act } = await mount()
+    const { result } = await mount()
 
     let authed = true
     await act(async () => {
@@ -64,7 +65,7 @@ describe('useDeviceFlowAuth', () => {
 
   it('resolves false without an error when the flow is aborted (dialog closed)', async () => {
     mockFlow.mockResolvedValue(null)
-    const { result, act } = await mount()
+    const { result } = await mount()
 
     let authed = true
     await act(async () => {
@@ -81,7 +82,7 @@ describe('useDeviceFlowAuth', () => {
       signal = options.signal
       return null
     })
-    const { result, act, unmount } = await mount()
+    const { result, unmount } = await mount()
 
     await act(async () => {
       await result.current.signIn()

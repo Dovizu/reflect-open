@@ -1,10 +1,11 @@
+import { act } from '@/test-utils/act.ts'
 import { describe, expect, it } from 'vitest'
 import { renderHook } from 'vitest-browser-react'
 import { useAsyncAction } from './use-async-action.ts'
 
 describe('useAsyncAction', () => {
   it('flips pending for the duration of the action', async () => {
-    const { result, act } = await renderHook(() => useAsyncAction())
+    const { result } = await renderHook(() => useAsyncAction())
     const gate = Promise.withResolvers<void>()
 
     let running: Promise<void> = Promise.resolve()
@@ -22,7 +23,7 @@ describe('useAsyncAction', () => {
   })
 
   it('captures a failure as a message and clears it on the next run', async () => {
-    const { result, act } = await renderHook(() => useAsyncAction())
+    const { result } = await renderHook(() => useAsyncAction())
 
     await act(async () => {
       await result.current.run(async () => {
@@ -39,7 +40,7 @@ describe('useAsyncAction', () => {
   })
 
   it('setError surfaces a validation message without running anything', async () => {
-    const { result, act } = await renderHook(() => useAsyncAction())
+    const { result } = await renderHook(() => useAsyncAction())
     await act(() => {
       result.current.setError('Name the new repository.')
     })

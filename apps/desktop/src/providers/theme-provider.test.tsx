@@ -59,22 +59,13 @@ async function renderTheme() {
     </>,
     { app, appServices: { theme }, servicesOnly: true },
   )
-  return {
-    result,
-    act: async (callback: () => unknown): Promise<void> => {
-      await act(async () => {
-        await callback()
-      })
-    },
-  }
+  return { result }
 }
-
-type Act = (callback: () => unknown) => Promise<void>
 
 /**
  * Runs the settings load to completion inside `act`, so its updates land attached.
  */
-async function settleLoad(act: Act): Promise<void> {
+async function settleLoad(): Promise<void> {
   await act(async () => {
     await theme.whenSettled()
   })
@@ -105,12 +96,12 @@ describe('ThemeEffect', () => {
     paintDarkFirstFrame()
     install({ theme: 'light' }, { gateLoad: true })
 
-    const { act } = await renderTheme()
+    await renderTheme()
     expect(document.documentElement.classList.contains('dark')).toBe(true)
     expect(document.documentElement.style.colorScheme).toBe('dark')
 
     releaseLoad()
-    await settleLoad(act)
+    await settleLoad()
     expect(document.documentElement.classList.contains('dark')).toBe(false)
     expect(document.documentElement.style.colorScheme).toBe('light')
   })
@@ -118,8 +109,8 @@ describe('ThemeEffect', () => {
   it('exposes the loaded preference and its resolved theme', async () => {
     install({ theme: 'system' })
 
-    const { result, act } = await renderTheme()
-    await settleLoad(act)
+    const { result } = await renderTheme()
+    await settleLoad()
     expect(result.current.theme).toBe('system')
     expect(result.current.resolvedTheme).toBe('light')
   })
@@ -127,8 +118,8 @@ describe('ThemeEffect', () => {
   it('applies and persists a preference chosen during the session', async () => {
     install({ theme: 'light' })
 
-    const { result, act } = await renderTheme()
-    await settleLoad(act)
+    const { result } = await renderTheme()
+    await settleLoad()
     await act(() => {
       result.current.setTheme('dark')
     })
@@ -145,8 +136,8 @@ describe('ThemeEffect', () => {
     install({})
     settings.failLoad()
 
-    const { result, act } = await renderTheme()
-    await settleLoad(act)
+    const { result } = await renderTheme()
+    await settleLoad()
     expect(document.documentElement.style.colorScheme).toBe('light')
 
     await act(() => {
