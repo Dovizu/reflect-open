@@ -105,9 +105,13 @@ class NativeActionServiceImpl implements NativeActionService {
         // still confirms, or the queue would re-surface the same failure
         // every launch.
         confirmTimer = clock.setTimeout(() => {
-          void audioRecorder.actionPerformed().catch((cause: unknown) => {
-            logger.warn('confirming a native action failed:', cause)
-          })
+          void (async () => {
+            try {
+              await audioRecorder.actionPerformed()
+            } catch (cause: unknown) {
+              logger.warn('confirming a native action failed:', cause)
+            }
+          })()
         }, ACTION_CONFIRM_DELAY_MS)
       })
       try {

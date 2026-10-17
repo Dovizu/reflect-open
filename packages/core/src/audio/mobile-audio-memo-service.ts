@@ -301,7 +301,7 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
     if (recorderState === 'recording') {
       void this.#stopAndSave()
     } else if (recorderState === 'requesting') {
-      void audioRecorder.cancel().catch(() => {})
+      void this.#cancelRecorder()
       this.#setDrawerOpen(false)
     } else if (this.#pipeline.getState().error !== null) {
       // A parked error must never invisibly block recording. The audio
@@ -335,16 +335,26 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
         logger.error('discarding the recorded segments failed:', cause)
       })
     }
-    void audioRecorder
-      .cancel()
-      .catch((cause: unknown) => {
+    void (async () => {
+      try {
+        await audioRecorder.cancel()
+      } catch (cause: unknown) {
         logger.warn('cancel raced a native finalize:', cause)
-      })
-      .finally(() => {
+      } finally {
         if (this.#live === session) {
           this.#live = null
         }
-      })
+      }
+    })()
+  }
+
+  /** Cancels a recording that is still requesting permission; a failure is ignored. */
+  async #cancelRecorder(): Promise<void> {
+    try {
+      await this.#deps.audioRecorder.cancel()
+    } catch {
+      // Nothing was recorded yet.
+    }
   }
 
   setDrawerOpen(open: boolean): void {
@@ -359,7 +369,7 @@ class MobileAudioMemoSessionImpl implements MobileAudioMemoSession {
     if (recorderState === 'recording') {
       void this.#stopAndSave()
     } else if (recorderState === 'requesting') {
-      void audioRecorder.cancel().catch(() => {})
+      void this.#cancelRecorder()
     }
     this.#setDrawerOpen(false)
   }
