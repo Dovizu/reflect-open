@@ -64,7 +64,7 @@ describe('attachOperationToasts', () => {
         id: 'operation-1',
         timeout: 0,
         data: { dismissible: false },
-        actionProps: expect.objectContaining({ children: 'Install' }),
+        actionProps: expect.objectContaining({ children: 'Install' }) as unknown,
       }),
     )
 
@@ -77,7 +77,7 @@ describe('attachOperationToasts', () => {
     const handle = operations.start('Saving settings')
 
     expect(toast.add).toHaveBeenLastCalledWith(
-      expect.not.objectContaining({ onClose: expect.any(Function) }),
+      expect.not.objectContaining({ onClose: expect.any(Function) as unknown }),
     )
 
     handle.fail('disk full')

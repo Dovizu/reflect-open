@@ -30,7 +30,7 @@ describe('attachUpdateToasts', () => {
         description: 'Reflect 1.2.3 is ready to install.',
         timeout: 0,
         data: { dismissible: false },
-        actionProps: expect.objectContaining({ children: 'Install' }),
+        actionProps: expect.objectContaining({ children: 'Install' }) as unknown,
       }),
     )
 
@@ -68,7 +68,7 @@ describe('attachUpdateToasts', () => {
         id: 'reflect-update',
         title: 'Update ready',
         type: 'success',
-        actionProps: expect.objectContaining({ children: 'Restart' }),
+        actionProps: expect.objectContaining({ children: 'Restart' }) as unknown,
       }),
     )
   })
@@ -88,7 +88,7 @@ describe('attachUpdateToasts', () => {
         title: 'Update failed',
         description: 'signature failed',
         type: 'error',
-        actionProps: expect.objectContaining({ children: 'Retry install' }),
+        actionProps: expect.objectContaining({ children: 'Retry install' }) as unknown,
       }),
     )
 

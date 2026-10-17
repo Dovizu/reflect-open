@@ -106,8 +106,8 @@ describe('EmbedMediaService.loadXPost', () => {
         post: expect.objectContaining({
           kind: 'x-post',
           capturedAt: '2026-10-13T08:00:00.000Z',
-          data: expect.objectContaining({ id: '123' }),
-        }),
+          data: expect.objectContaining({ id: '123' }) as unknown,
+        }) as unknown,
       },
     ])
   })
@@ -294,8 +294,8 @@ describe('EmbedMediaService.resolveYouTubeVideo', () => {
       {
         message: `YouTube video fetch failed: ${URL}`,
         cause: expect.objectContaining({
-          message: expect.stringContaining('invalid oEmbed answer'),
-        }),
+          message: expect.stringContaining('invalid oEmbed answer') as unknown,
+        }) as unknown,
       },
     ])
     expect(await embedMedia.resolveYouTubeVideo(URL)).toEqual(VIDEO)

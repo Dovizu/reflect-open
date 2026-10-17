@@ -336,7 +336,7 @@ describe('signIn', () => {
     expect(logger.getWarnings()).toEqual([
       {
         message: 'Reflect Classic returned a body that is not JSON (/api/users/me)',
-        cause: expect.any(SyntaxError),
+        cause: expect.any(SyntaxError) as unknown,
       },
     ])
   })
@@ -351,7 +351,7 @@ describe('signIn', () => {
     expect(logger.getWarnings()).toEqual([
       {
         message: 'Reflect Classic returned an unexpected body (/api/users/me)',
-        cause: expect.anything(),
+        cause: expect.anything() as unknown,
       },
     ])
   })
@@ -367,7 +367,7 @@ describe('signIn', () => {
     expect(logger.getWarnings()).toEqual([
       {
         message: 'Reflect Classic returned an unexpected body (/api/users/me/invoices)',
-        cause: expect.anything(),
+        cause: expect.anything() as unknown,
       },
     ])
   })

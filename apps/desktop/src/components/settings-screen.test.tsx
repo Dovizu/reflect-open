@@ -798,7 +798,7 @@ describe('SettingsScreen', () => {
           ...DEFAULT_SETTINGS,
           aiPrompts: [
             {
-              id: expect.any(String),
+              id: expect.any(String) as unknown,
               label: 'Translate to French',
               body: 'Translate to French.\n\n{{selectedText}}',
               mode: 'replace',

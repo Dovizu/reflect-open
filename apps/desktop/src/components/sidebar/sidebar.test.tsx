@@ -190,7 +190,10 @@ describe('Sidebar', () => {
     await newNote.click()
     await vi.waitFor(() =>
       expect(navigate).toHaveBeenCalledWith(
-        expect.objectContaining({ kind: 'note', path: expect.stringMatching(/^notes\/.+\.md$/) }),
+        expect.objectContaining({
+          kind: 'note',
+          path: expect.stringMatching(/^notes\/.+\.md$/) as unknown,
+        }),
       ),
     )
   })

@@ -184,7 +184,7 @@ describe('useWikiLinkNavigation', () => {
       expect(operations.snapshot()).toContainEqual(
         expect.objectContaining({
           status: 'failed',
-          message: expect.stringContaining('currently unavailable'),
+          message: expect.stringContaining('currently unavailable') as unknown,
         }),
       ),
     )
@@ -300,7 +300,7 @@ describe('useWikiLinkNavigation', () => {
       expect(operations.snapshot()).toContainEqual(
         expect.objectContaining({
           status: 'failed',
-          message: expect.stringContaining('currently unavailable'),
+          message: expect.stringContaining('currently unavailable') as unknown,
         }),
       ),
     )

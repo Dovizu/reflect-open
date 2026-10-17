@@ -382,7 +382,7 @@ describe('CaptureEnrichmentService', () => {
       pending: 1,
       enriched: 0,
       skipped: 0,
-      stopped: expect.objectContaining({ reason: 'config' }),
+      stopped: expect.objectContaining({ reason: 'config' }) as unknown,
     })
     expect(kit.scrapeMock).not.toHaveBeenCalled()
     expect(kit.describeMock).not.toHaveBeenCalled()
@@ -581,7 +581,7 @@ describe('CaptureEnrichmentService', () => {
       pending: 2,
       enriched: 1,
       skipped: 0,
-      stopped: expect.objectContaining({ reason: 'network' }),
+      stopped: expect.objectContaining({ reason: 'network' }) as unknown,
     })
     expect(kit.noteFile.files().get(IDENTITY.notePath)).toContain('captureStatus: pending')
     expect(kit.noteFile.files().get(laterIdentity.notePath)).toContain('captureStatus: done')
@@ -664,7 +664,7 @@ describe('CaptureEnrichmentService', () => {
       pending: 2,
       enriched: 1,
       skipped: 0,
-      stopped: expect.objectContaining({ reason: 'network' }),
+      stopped: expect.objectContaining({ reason: 'network' }) as unknown,
     })
     expect(kit.noteFile.files().get(IDENTITY.notePath)).toContain('captureStatus: pending')
     expect(kit.noteFile.files().get(IDENTITY.notePath)).toContain('captureMetadataStatus: done')
@@ -911,7 +911,7 @@ describe('CaptureEnrichmentService', () => {
       pending: 1,
       enriched: 0,
       skipped: 0,
-      stopped: expect.objectContaining({ reason: 'config' }),
+      stopped: expect.objectContaining({ reason: 'config' }) as unknown,
     })
     expect(kit.scrapeMock).not.toHaveBeenCalled()
     expect(kit.describeMock).not.toHaveBeenCalled()

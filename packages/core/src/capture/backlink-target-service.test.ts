@@ -103,7 +103,7 @@ describe('BacklinkTargetService', () => {
 
     await expect(backlinkTarget.ensure('Links', 3)).rejects.toMatchObject({
       kind: 'unknown',
-      message: expect.stringContaining('could not be resolved'),
+      message: expect.stringContaining('could not be resolved') as unknown,
     })
     expect(noteFile.getReads()).toEqual([])
   })

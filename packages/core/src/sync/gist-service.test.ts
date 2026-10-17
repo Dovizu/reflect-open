@@ -33,7 +33,7 @@ describe('GistService.create', () => {
       createGistService({ http }).create('tok', { name: 'A.md', content: 'x' }),
     ).rejects.toMatchObject({
       kind: 'auth',
-      message: expect.stringMatching(/reconnect/i),
+      message: expect.stringMatching(/reconnect/i) as unknown,
     })
   })
 
@@ -50,7 +50,7 @@ describe('GistService.create', () => {
       createGistService({ http }).create('tok', { name: 'A.md', content: 'x' }),
     ).rejects.toMatchObject({
       kind: 'io',
-      message: expect.stringContaining('422'),
+      message: expect.stringContaining('422') as unknown,
     })
   })
 })

@@ -1,6 +1,7 @@
 import { createTestWindowService } from '@reflect/app/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
+  BacklinkContext,
   BacklinkContextPage,
   BacklinkService,
   NoteCreationService,
@@ -15,16 +16,21 @@ import { BacklinksPanel } from './backlinks-panel.tsx'
 import { deepLinkForRoute } from '@/lib/deep-links/format.ts'
 
 // What the app's fakes answer; each test sets them before `renderPanel`.
-const getBacklinksWithContext = vi.fn()
+const getBacklinksWithContext =
+  vi.fn<
+    (
+      ...args: Parameters<BacklinkService['getBacklinksWithContext']>
+    ) => Promise<BacklinkContext[] | BacklinkContextPage>
+  >()
 const resolveOrCreateNoteWithTitle = vi.fn<NoteCreationService['resolveOrCreateNoteWithTitle']>()
 const resolveMarkdownHref = vi.fn<NoteLinkResolverService['resolveMarkdownHref']>()
 const openNoteWindow = vi.fn<(deepLink: string) => boolean | Promise<boolean>>()
 
 const getBacklinksPage: BacklinkService['getBacklinksWithContext'] = async (path, options) => {
-  const result: unknown = await getBacklinksWithContext(path, options)
+  const result = await getBacklinksWithContext(path, options)
   return Array.isArray(result)
     ? { contexts: result, nextCursor: null, indexedLinkCount: result.length }
-    : (result as BacklinkContextPage)
+    : result
 }
 
 function createApp() {

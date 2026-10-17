@@ -138,8 +138,8 @@ it('fetches, saves, and renders a post that has no archive', async () => {
       generation: 7,
       post: expect.objectContaining({
         kind: 'x-post',
-        data: expect.objectContaining({ id: '123' }),
-      }),
+        data: expect.objectContaining({ id: '123' }) as unknown,
+      }) as unknown,
     },
   ])
 })

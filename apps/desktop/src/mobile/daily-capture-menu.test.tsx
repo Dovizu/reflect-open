@@ -100,8 +100,8 @@ describe('DailyCaptureMenu', () => {
       {
         route: expect.objectContaining({
           kind: 'note',
-          path: expect.stringMatching(/^notes\/.+\.md$/),
-        }),
+          path: expect.stringMatching(/^notes\/.+\.md$/) as unknown,
+        }) as unknown,
         options: undefined,
       },
     ])

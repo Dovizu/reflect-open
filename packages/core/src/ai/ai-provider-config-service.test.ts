@@ -186,7 +186,7 @@ describe('AiProviderConfigService', () => {
 
     await expect(service.add(draft())).rejects.toMatchObject({
       kind: 'io',
-      message: expect.stringMatching(/could not be loaded/),
+      message: expect.stringMatching(/could not be loaded/) as unknown,
     })
 
     expect(secretStore.snapshot()).toEqual({})

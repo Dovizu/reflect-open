@@ -109,7 +109,7 @@ describe('TranscriptEnrichmentService.generateTitle', () => {
         id: config.id,
         provider: config.provider,
         model: titleModel,
-      }),
+      }) as unknown,
       apiKey: 'sk-live-key',
     })
   })

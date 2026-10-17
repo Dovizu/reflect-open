@@ -120,7 +120,9 @@ describe('TranscriptionService (openai)', () => {
     const failure: unknown = await transcribe(fetchFn, request()).catch((cause: unknown) => cause)
 
     expect(isTranscriptionRejected(failure)).toBe(true)
-    expect(failure).toMatchObject({ message: expect.stringContaining('Invalid file format.') })
+    expect(failure).toMatchObject({
+      message: expect.stringContaining('Invalid file format.') as unknown,
+    })
     expect(calls).toHaveLength(1)
   })
 
@@ -199,7 +201,7 @@ describe('TranscriptionService (openai)', () => {
 
     await expect(transcribe(fetchFn, request())).rejects.toMatchObject({
       kind: 'network',
-      message: expect.stringContaining('timed out'),
+      message: expect.stringContaining('timed out') as unknown,
     })
   })
 })
@@ -280,7 +282,7 @@ describe('TranscriptionService (google)', () => {
 
     await expect(transcribe(fetchFn, request({ provider: 'google' }))).rejects.toMatchObject({
       kind: 'network',
-      message: expect.stringContaining('quota exhausted'),
+      message: expect.stringContaining('quota exhausted') as unknown,
     })
     expect(calls).toHaveLength(1)
   })
