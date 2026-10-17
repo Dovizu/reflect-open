@@ -103,8 +103,8 @@ jobs:
       - name: Test others
         run: pnpm run test run --project '!*browser*'
 
-      # The termination reason and the exit signal of a crashed WebKit content
-      # process, plus any crash report written during the job.
+      # The termination reason of each WebKit content process, memory kill and
+      # jetsam messages, and any crash report written during the job.
       - name: Collect WebKit diagnostics
         if: failure()
         run: |
@@ -114,7 +114,6 @@ jobs:
           log show --style compact \
             --start "$(date -r "$dir/started" '+%Y-%m-%d %H:%M:%S')" \
             --predicate '(process == "Playwright" AND category == "Process")
-              OR (process == "launchd" AND eventMessage CONTAINS "com.apple.WebKit.WebContent" AND eventMessage CONTAINS "exited")
               OR eventMessage CONTAINS "kill thresold"
               OR eventMessage CONTAINS[c] "jetsam"' \
             > "$dir/system.log" || true
