@@ -1,6 +1,6 @@
 import type { RenderResult } from 'vitest-browser-react'
 import { page, userEvent } from 'vitest/browser'
-import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { StrictMode, type ReactElement } from 'react'
 import { act } from '@/test-utils/act.ts'
 import type { AppServices } from '@reflect/app'
@@ -713,7 +713,23 @@ describe('MobileStack transitions & back-swipe', () => {
   // sets the other answer for itself.
   beforeEach(() => {
     app.platform.setReducedMotion(false)
+    document.addEventListener('transitionend', swallowBrowserTransitionEnd, { capture: true })
   })
+
+  afterEach(() => {
+    document.removeEventListener('transitionend', swallowBrowserTransitionEnd, { capture: true })
+  })
+
+  // The app stylesheet collapses every transition to 0.01ms under the
+  // context's pinned reduced motion, so a style change such as a layer's
+  // z-index fires a real transitionend. WebKit can deliver one late, during a
+  // swipe's settle, which would end the settle early. Swallow the browser's
+  // events and keep the tests' own `finishTransition` dispatches.
+  function swallowBrowserTransitionEnd(event: Event): void {
+    if (event.isTrusted) {
+      event.stopPropagation()
+    }
+  }
 
   /** Navigate to the probe note and complete the push animation. */
   async function pushProbeNote(view: BrowserView): Promise<void> {
