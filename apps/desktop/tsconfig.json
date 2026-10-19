@@ -1,12 +1,12 @@
 {
   "extends": "@ocavue/tsconfig/dom/app.json",
   "compilerOptions": {
-    "jsx": "react-jsx",
     "noUnusedParameters": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-
-    /* Path aliases */
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"],
       "@platform-root": ["./src/platform-root.unknown.tsx"]
