@@ -24,7 +24,7 @@ function graphDeps(core: TestCoreServices): GraphServicesDeps {
       syncEngines: core.syncEngines,
       credentials: core.credentials,
       githubAuth: core.githubAuth,
-      githubRepos: core.githubRepos,
+      hostCredentials: core.hostCredentials,
       fileChanges,
       indexLifecycle,
       progress: core.progress,
@@ -35,6 +35,8 @@ function graphDeps(core: TestCoreServices): GraphServicesDeps {
       icloudNative,
       logger,
     },
+    githubConnector: { githubAuth: core.githubAuth, githubRepos: core.githubRepos },
+    hostConnector: { git: core.gitRepository, hostCredentials: core.hostCredentials },
     icloudSync: {
       icloudNative,
       fileChanges,

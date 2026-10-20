@@ -52,7 +52,7 @@ function githubRepoBrowserUrl(repo: GithubRepoRef): string {
  * git sync state in product language, back up on demand, and disconnect.
  */
 export function GitSyncSettingsField(): ReactElement {
-  const { state, disconnectGraph, signOut, syncNow } = useGitSync()
+  const { state, disconnectGraph, syncNow } = useGitSync()
   const { graph } = useGraph()
   const { indexQuery } = useCoreServices()
   const { opener } = useAppServices()
@@ -134,10 +134,7 @@ export function GitSyncSettingsField(): ReactElement {
                 </p>
               ) : null}
               {githubConnected ? (
-                <GithubSignOutRow
-                  signOut={signOut}
-                  description="Signed in to GitHub. Sign out to connect a different account."
-                />
+                <GithubSignOutRow description="Signed in to GitHub. Sign out to connect a different account." />
               ) : null}
             </>
           ) : null}
@@ -176,10 +173,7 @@ export function GitSyncSettingsField(): ReactElement {
                 ) : null}
               </div>
               {repo !== null ? (
-                <GithubSignOutRow
-                  signOut={signOut}
-                  description="Sign out on this machine; connected graphs stop backing up."
-                />
+                <GithubSignOutRow description="Sign out on this machine; connected graphs stop backing up." />
               ) : null}
             </>
           ) : null}

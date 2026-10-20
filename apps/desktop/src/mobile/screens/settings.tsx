@@ -51,7 +51,7 @@ import {
 } from '@/mobile/use-classic-access.ts'
 import { useGraph } from '@/providers/graph-provider.tsx'
 import { useMobileAppServices } from '@/mobile/mobile-services.ts'
-import { useAppServices } from '@/services/services-provider.tsx'
+import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 import { formatFullDate } from '@/lib/dates.ts'
 import { useSettings } from '@/providers/settings-provider.tsx'
 import { CountdownText } from '@/components/countdown-text.tsx'
@@ -120,6 +120,7 @@ export function MobileSettings(): ReactElement {
   const classicSignOut = useClassicSignOut()
   const { paywall, noteList, logger } = useMobileAppServices()
   const { opener } = useAppServices()
+  const { githubAuth } = useCoreServices()
   const [, setPaywallRequested] = usePaywallRequested()
   const [restorePending, setRestorePending] = useState(false)
   const [redeemPending, setRedeemPending] = useState(false)
@@ -203,7 +204,7 @@ export function MobileSettings(): ReactElement {
     setDisconnecting(true)
     try {
       await sync.disconnectGraph()
-      await sync.signOut()
+      await githubAuth.clear()
     } catch (err) {
       logger.error('GitHub disconnect failed:', errorMessage(err))
     } finally {
