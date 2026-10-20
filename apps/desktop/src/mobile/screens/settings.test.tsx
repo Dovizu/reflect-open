@@ -353,7 +353,7 @@ describe('MobileSettings', () => {
     await mount()
 
     await expect.element(page.getByText('alex/notes')).toBeVisible()
-    await expect.element(page.getByText('Backed up')).toBeVisible()
+    await expect.element(page.getByText('Up to date')).toBeVisible()
     // Never git terms.
     await expect.element(page.getByText(/commit|branch|merge|push|pull/i)).not.toBeInTheDocument()
   })
@@ -417,7 +417,7 @@ describe('MobileSettings', () => {
     await expect.element(page.getByText('Field Notes')).toBeVisible()
     await expect.element(page.getByText('1.2.3')).toBeVisible()
     await expect.element(page.getByText('2', { exact: true })).toBeVisible() // the note count
-    await expect.element(page.getByText('Backed up')).not.toBeInTheDocument()
+    await expect.element(page.getByText('Up to date')).not.toBeInTheDocument()
     await expect
       .element(page.getByRole('button', { name: 'Disconnect GitHub' }))
       .not.toBeInTheDocument()

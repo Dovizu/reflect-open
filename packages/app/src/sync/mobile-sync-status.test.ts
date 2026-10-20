@@ -27,16 +27,24 @@ describe('engine state', () => {
     expect(statusFor({ phase: 'disconnected' })).toBeNull()
   })
 
-  it('rests on Backed up — the quiet tone the pill hides on', () => {
+  it('rests on Up to date — the quiet tone the pill hides on', () => {
     const status = statusFor(connected({ state: 'idle' }))
-    expect(status).toEqual({ label: 'Backed up', tone: 'ok', detail: null })
+    expect(status).toEqual({ label: 'Up to date', tone: 'ok', detail: null })
   })
 
-  it('maps a waiting window to Backed up with the time the backup is due', () => {
+  it('maps a waiting window to Up to date with the time the sync is due', () => {
     expect(statusFor(connected({ state: 'waiting', until: 2 * 60_000 + 1 }))).toEqual({
-      label: 'Backed up',
+      label: 'Up to date',
       tone: 'ok',
       detail: { kind: 'countdown', until: 2 * 60_000 + 1 },
+    })
+  })
+  it('speaks of backup beside iCloud', () => {
+    const state = connected({ state: 'idle' })
+    expect(getMobileSyncStatus({ ...state, coexisting: true })).toEqual({
+      label: 'Backed up',
+      tone: 'ok',
+      detail: null,
     })
   })
 

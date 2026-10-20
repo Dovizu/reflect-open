@@ -96,19 +96,20 @@ beforeEach(() => {
 })
 
 describe('SyncSection', () => {
-  it('combines iCloud Drive and GitHub sync under Sync for local graphs', async () => {
+  it('combines iCloud Drive, a Git repository and the GitHub account under Sync', async () => {
     await renderSection()
 
     const section = page.getByRole('region', { name: 'Sync' })
     await expect.element(legend(section, 'iCloud Drive')).toBeInTheDocument()
     await expect.element(section.getByText('1 graph in iCloud Drive.')).toBeInTheDocument()
-    await expect.element(legend(section, 'GitHub sync')).toBeInTheDocument()
+    await expect.element(legend(section, 'Git repository')).toBeInTheDocument()
     await expect
       .element(section.getByRole('button', { name: /connect github/i }))
       .toBeInTheDocument()
+    await expect.element(legend(section, 'GitHub account')).toBeInTheDocument()
   })
 
-  it('keeps GitHub sync visible when the graph syncs through iCloud', async () => {
+  it('keeps the Git repository visible when the graph syncs through iCloud', async () => {
     graph = ICLOUD_GRAPH
 
     await renderSection()
@@ -117,7 +118,7 @@ describe('SyncSection', () => {
     await expect.element(legend(section, 'iCloud Drive')).toBeInTheDocument()
     await expect.element(section.getByText('All note files are downloaded.')).toBeInTheDocument()
     await expect.element(section.getByText('No sync forks.')).toBeInTheDocument()
-    await expect.element(legend(section, 'GitHub sync')).toBeInTheDocument()
+    await expect.element(legend(section, 'Git repository')).toBeInTheDocument()
     await expect
       .element(section.getByRole('button', { name: /connect github/i }))
       .toBeInTheDocument()
@@ -218,6 +219,6 @@ describe('SyncSection off macOS desktop', () => {
 
     const section = page.getByRole('region', { name: 'Sync' })
     expect(legend(section, 'iCloud Drive').query()).toBeNull()
-    await expect.element(legend(section, 'GitHub sync')).toBeInTheDocument()
+    await expect.element(legend(section, 'Git repository')).toBeInTheDocument()
   })
 })
