@@ -41,6 +41,9 @@ describe('engine state', () => {
   })
   it('speaks of backup beside iCloud', () => {
     const state = connected({ state: 'idle' })
+    if (state.phase !== 'connected') {
+      throw new Error('fixture')
+    }
     expect(getMobileSyncStatus({ ...state, coexisting: true })).toEqual({
       label: 'Backed up',
       tone: 'ok',
