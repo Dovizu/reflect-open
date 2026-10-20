@@ -1,4 +1,10 @@
-import type { GithubRepoRef } from './github-repo-service.ts'
+/**
+ * A GitHub repository, as `owner/name`.
+ */
+export interface GithubRepoRef {
+  owner: string
+  name: string
+}
 
 /**
  * What a graph's `origin` points at, which decides where its sign-in comes
