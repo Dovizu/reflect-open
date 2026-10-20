@@ -24,9 +24,10 @@ The GitHub account can exist with no graph connected.
 `classifyRemote` in `packages/core/src/sync/remote-url.ts` maps `origin` to
 one of four kinds:
 
-- `github`: github.com over HTTPS or SSH. The GitHub account serves it.
-- `https`: any other HTTPS host. A per-host sign-in serves it.
-- `ssh`: the ssh-agent serves it. Reflect stores nothing.
+- `github`: `https://github.com/owner/repo`. The GitHub account serves it.
+- `https`: any other `http(s)://` host. A per-host sign-in serves it.
+- `ssh`: `git@host:…` or `ssh://`, github.com included. The ssh-agent serves
+  it; Reflect stores nothing.
 - `path`: a local or mounted path. It needs no credential.
 
 ## The `needsCredential` state
@@ -39,7 +40,8 @@ iCloud-hosted graphs.
 The old model had two bad states for this case. `disconnected` hid a remote
 that was in fact set. `connected` with a rejected error looked healthy but
 could never push. Now the UI shows "Sign-in needed" and an "Add sign-in…"
-button, and the sync loop does not run.
+button, and the sync loop does not run (desktop keeps the local history
+commits).
 
 ## Credential invariants
 
