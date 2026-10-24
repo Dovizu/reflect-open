@@ -298,8 +298,14 @@ class GithubAuthServiceImpl implements GithubAuthService {
     if (clock.now() < auth.expiresAt - REFRESH_MARGIN_MS) {
       return auth.accessToken
     }
+    const before = this.#writes
     const refreshed = await this.#refresh(auth)
     if (refreshed === null) {
+      return null
+    }
+    // A sign-out or sign-in that landed during the refresh has the last word:
+    // storing the refreshed pair would bring a cleared credential back.
+    if (this.#writes !== before) {
       return null
     }
     // A refresh keeps the machine connected, so subscribers are not notified.

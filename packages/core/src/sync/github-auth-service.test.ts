@@ -163,6 +163,28 @@ describe('GithubAuthService.getToken', () => {
     expect(listener).not.toHaveBeenCalled()
   })
 
+  it('does not store a refreshed pair over a sign-out that landed during the refresh', async () => {
+    const { auth, http, secretStore } = setup({
+      now: 2_000,
+      secrets: {
+        'github-auth': JSON.stringify({
+          kind: 'app',
+          accessToken: 'ghu_old',
+          refreshToken: 'ghr_old',
+          expiresAt: 1_000,
+        }),
+      },
+    })
+    http.on('POST', TOKEN_URL, async () => {
+      await auth.clear()
+      return jsonResponse({ access_token: 'ghu_new', refresh_token: 'ghr_new', expires_in: 28800 })
+    })
+
+    expect(await auth.getToken()).toBeNull()
+    expect(secretStore.snapshot()).toEqual({})
+    expect(auth.getState().connected).toBe(false)
+  })
+
   it('returns null when the refresh token has lapsed (re-auth required)', async () => {
     const { auth, http } = setup({
       now: 2_000,
