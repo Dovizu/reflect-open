@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { errorMessage, type ConnectHostInput } from '@reflect/core'
+import { errorMessage, type ConnectGitHostInput } from '@reflect/core'
 import { useGitSync } from '@/providers/sync-provider.tsx'
 
 export interface UseConnectGitHostSubmitValue {
@@ -7,7 +7,7 @@ export interface UseConnectGitHostSubmitValue {
   /** The host's refusal, or the connector's own check, shown inline. */
   submitError: string | null
   /** Probe the host with the sign-in, store it, and connect; `onDone` on success. */
-  submit: (input: ConnectHostInput) => Promise<void>
+  submit: (input: ConnectGitHostInput) => Promise<void>
 }
 
 /**
@@ -21,16 +21,16 @@ export function useConnectGitHostSubmit({
 }: {
   onDone: () => void
 }): UseConnectGitHostSubmitValue {
-  const { connectHost } = useGitSync()
+  const { connectGitHost } = useGitSync()
   const [pending, setPending] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
 
   const submit = useCallback(
-    async (input: ConnectHostInput): Promise<void> => {
+    async (input: ConnectGitHostInput): Promise<void> => {
       setSubmitError(null)
       setPending(true)
       try {
-        await connectHost(input)
+        await connectGitHost(input)
         onDone()
       } catch (error: unknown) {
         setSubmitError(errorMessage(error))
@@ -38,7 +38,7 @@ export function useConnectGitHostSubmit({
         setPending(false)
       }
     },
-    [connectHost, onDone],
+    [connectGitHost, onDone],
   )
 
   return { pending, submitError, submit }

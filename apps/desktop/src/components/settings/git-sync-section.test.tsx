@@ -7,10 +7,10 @@ import {
   type TestOpenGraph,
   createTestCoreServices,
   createTestGitSyncService,
-  createTestHostConnector,
+  createTestGitHostConnector,
   type TestGitSyncService,
   type TestCoreServices,
-  type TestHostConnector,
+  type TestGitHostConnector,
 } from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
@@ -24,14 +24,14 @@ import { GitSyncSettingsField } from './git-sync-section.tsx'
 // The services of the app under test; created fresh for each test.
 let opener: TestOpenerService
 let gitSync: TestGitSyncService
-let hostConnector: TestHostConnector
+let gitHostConnector: TestGitHostConnector
 let openUrl: MockInstance<OpenerService['openUrl']>
 
 beforeEach(() => {
   opener = createTestOpenerService()
   openUrl = vi.spyOn(opener, 'openUrl')
   gitSync = createTestGitSyncService()
-  hostConnector = createTestHostConnector()
+  gitHostConnector = createTestGitHostConnector()
 })
 
 async function renderSection(
@@ -42,7 +42,7 @@ async function renderSection(
   const app = createTestCoreServices({
     database: createWasmTestDatabaseService(),
     gitSync,
-    hostConnector,
+    gitHostConnector,
   })
   await renderInApp(<GitSyncSettingsField />, {
     app,
@@ -236,7 +236,7 @@ describe('GitSyncSettingsField', () => {
     await userEvent.click(page.getByRole('button', { name: 'Connect' }))
 
     await vi.waitFor(() => {
-      expect(hostConnector.calls()).toEqual([
+      expect(gitHostConnector.calls()).toEqual([
         { remoteUrl: GITLAB.remoteUrl, username: 'alex', token: 'glpat-1' },
       ])
     })

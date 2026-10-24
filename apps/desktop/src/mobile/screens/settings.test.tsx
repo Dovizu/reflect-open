@@ -6,7 +6,7 @@ import {
   createTestAppInfoService,
   createTestCoreServices,
   createTestGitSyncService,
-  createTestHostConnector,
+  createTestGitHostConnector,
   seedNotes,
 } from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
@@ -69,12 +69,12 @@ async function mount(options?: MountOptions) {
   const gitSync = createTestGitSyncService({
     state: options?.gitSync ?? connected({ state: 'idle' }),
   })
-  const hostConnector = createTestHostConnector()
+  const gitHostConnector = createTestGitHostConnector()
   const app = createTestCoreServices({
     database: createWasmTestDatabaseService(),
     appInfo: createTestAppInfoService('1.2.3-beta.4'),
     gitSync,
-    hostConnector,
+    gitHostConnector,
     // A note window's graph runs no sync lifecycle.
     role: options?.gitSync === null ? 'note-window' : 'main',
   })
@@ -94,7 +94,7 @@ async function mount(options?: MountOptions) {
     route: { kind: 'settings' },
     ...(options?.settings === undefined ? {} : { settings: options.settings }),
   })
-  return Object.assign(view, { gitSync, hostConnector, updateSettings })
+  return Object.assign(view, { gitSync, gitHostConnector, updateSettings })
 }
 
 type MountedSettings = Awaited<ReturnType<typeof mount>>
@@ -443,7 +443,7 @@ describe('MobileSettings', () => {
     await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
 
     await vi.waitFor(() => {
-      return expect(view.hostConnector.calls()).toEqual([
+      return expect(view.gitHostConnector.calls()).toEqual([
         {
           remoteUrl: 'https://alex:token@gitlab.com/alex/notes.git',
           username: 'alex',
@@ -497,7 +497,7 @@ describe('MobileSettings', () => {
     await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
 
     await vi.waitFor(() => {
-      return expect(view.hostConnector.calls()).toEqual([
+      return expect(view.gitHostConnector.calls()).toEqual([
         { remoteUrl: 'https://gitlab.com/alex/notes.git', username: 'alex', token: 'glpat-1' },
       ])
     })

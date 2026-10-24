@@ -19,7 +19,7 @@ async function fill(): Promise<void> {
 describe('ConnectGitHostDialog', () => {
   it('hands the fields to the host connector and closes once connected', async () => {
     const onClose = vi.fn()
-    const { hostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
+    const { gitHostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
       sync: { phase: 'disconnected' },
     })
 
@@ -28,15 +28,17 @@ describe('ConnectGitHostDialog', () => {
     await userEvent.click(page.getByRole('button', { name: 'Connect' }))
 
     await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
-    expect(hostConnector?.calls()).toEqual([{ remoteUrl: URL, username: 'alex', token: 'glpat-1' }])
+    expect(gitHostConnector?.calls()).toEqual([
+      { remoteUrl: URL, username: 'alex', token: 'glpat-1' },
+    ])
   })
 
   it('shows a refusal inline and keeps the fields', async () => {
     const onClose = vi.fn()
-    const { hostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
+    const { gitHostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
       sync: { phase: 'disconnected' },
     })
-    hostConnector?.onConnectHost(() => {
+    gitHostConnector?.onConnectGitHost(() => {
       throw new AppError('auth', 'the host rejected the sign-in')
     })
 
@@ -71,10 +73,10 @@ describe('ConnectGitHostDialog', () => {
   it('locks the dialog while the connect is pending', async () => {
     const pending = Promise.withResolvers<void>()
     const onClose = vi.fn()
-    const { hostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
+    const { gitHostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
       sync: { phase: 'disconnected' },
     })
-    hostConnector?.onConnectHost(() => pending.promise)
+    gitHostConnector?.onConnectGitHost(() => pending.promise)
 
     await fill()
     await userEvent.click(page.getByRole('button', { name: 'Connect' }))

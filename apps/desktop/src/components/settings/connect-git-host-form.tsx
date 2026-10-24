@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
-import { classifyRemote, type ConnectHostInput } from '@reflect/core'
+import { classifyRemote, type ConnectGitHostInput } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Input } from '@/components/ui/input.tsx'
 import type { UseConnectGitHostSubmitValue } from '@/hooks/use-connect-git-host-submit.ts'
@@ -34,7 +34,7 @@ export function ConnectGitHostForm({
   flow,
   actions,
 }: ConnectGitHostFormProps): ReactElement {
-  const { register, handleSubmit, formState } = useForm<ConnectHostInput>({
+  const { register, handleSubmit, formState } = useForm<ConnectGitHostInput>({
     mode: 'onChange',
     defaultValues: { remoteUrl: remoteUrl ?? '', username: '', token: '' },
   })
