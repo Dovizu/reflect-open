@@ -227,6 +227,7 @@ export function GitSyncSettingsField(): ReactElement {
         />
       ) : null}
       {dialog?.kind === 'host' ? (
+        // FIXME: rename "ConnectHostDialog" to "ConnectGitHostDialog"
         <ConnectHostDialog remoteUrl={dialog.remoteUrl} onClose={() => setDialog(null)} />
       ) : null}
     </>

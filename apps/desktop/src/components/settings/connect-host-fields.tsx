@@ -36,6 +36,7 @@ export function ConnectHostFields({ form, onSubmit }: ConnectHostFieldsProps): R
           id={urlId}
           autoFocus
           value={form.remoteUrl}
+          // FIXME: do not use "https://…", use "https://git.example.com/user/repo.git"
           placeholder="https://…"
           autoCapitalize="none"
           autoCorrect="off"
