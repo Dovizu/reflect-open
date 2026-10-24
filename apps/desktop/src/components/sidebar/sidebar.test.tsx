@@ -97,12 +97,12 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
     },
     gitSync: createTestGitSyncService({ state: { phase: 'disconnected' } }),
   })
-  const appLayer = createTestAppServices(core, {
+  const app = createTestAppServices(core, {
     window: createTestWindowService({ openNoteWindow }),
   })
   const context: CommandContext = {
     services: core,
-    app: appLayer,
+    app,
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,
@@ -127,17 +127,17 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
     ...overrides,
   }
   vi.spyOn(core.indexQuery, 'getPinnedNotes').mockImplementation(getPinnedNotes)
-  vi.spyOn(appLayer.nativeMenu, 'openContextMenu').mockImplementation(openNativeContextMenu)
+  vi.spyOn(app.nativeMenu, 'openContextMenu').mockImplementation(openNativeContextMenu)
   openRecent = vi.spyOn(core.graphSession, 'openRecent').mockResolvedValue(true)
-  pickAndOpen = vi.spyOn(appLayer.graphBoot, 'pickAndOpen').mockResolvedValue()
-  chooseGraph = vi.spyOn(appLayer.graphBoot, 'chooseGraph').mockResolvedValue()
+  pickAndOpen = vi.spyOn(app.graphBoot, 'pickAndOpen').mockResolvedValue()
+  chooseGraph = vi.spyOn(app.graphBoot, 'chooseGraph').mockResolvedValue()
   updateSettingsWith = vi.spyOn(core.settings, 'updateWith')
-  opener = appLayer.opener
+  opener = app.opener
   // The app constrains the sidebar to its rail width; without it the graph
   // menu's anchor spans the viewport and popper pushes the submenu off-screen.
   const view = await renderInApp(<Sidebar graph={GRAPH} context={context} />, {
     core,
-    appServices: appLayer,
+    app,
     graph: GRAPH,
     graphState: {
       recents: [

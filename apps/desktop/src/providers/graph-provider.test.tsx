@@ -38,7 +38,7 @@ function tree(children: ReactNode, platform?: AppPlatform): ReactElement {
 async function renderGraph<Core extends CoreServices>(
   core: Core,
   platform?: AppPlatform,
-  appServices?: Partial<AppServices>,
+  app?: Partial<AppServices>,
 ) {
   const result = {} as { current: ReturnType<typeof useGraph> }
   function Probe(): null {
@@ -48,11 +48,11 @@ async function renderGraph<Core extends CoreServices>(
   const view = await renderInApp(tree(<Probe />, platform), {
     core,
     servicesOnly: true,
-    ...(appServices === undefined ? {} : { appServices }),
+    ...(app === undefined ? {} : { app }),
   })
   return {
     core,
-    appServices: view.appServices,
+    app: view.app,
     result,
   }
 }
@@ -92,10 +92,10 @@ describe('GraphProvider', () => {
   })
 
   it('opens a picked folder and seeds the empty graph', async () => {
-    const { core, appServices, result } = await renderGraph(
+    const { core, app, result } = await renderGraph(
       createTestCoreServices({ database: createWasmTestDatabaseService() }),
     )
-    appServices.dialog.setFolder('/fresh')
+    app.dialog.setFolder('/fresh')
     await vi.waitFor(() => expect(result.current.status).toBe('choosing'))
 
     await act(async () => {
@@ -184,7 +184,7 @@ describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
   })
 
   it('publishes the app’s mobile onboarding and passes completeOnboarding through', async () => {
-    const { core, appServices, result } = await renderGraph(
+    const { core, app, result } = await renderGraph(
       createTestCoreServices({
         database: createWasmTestDatabaseService(),
         platform: createTestPlatformService({ appPlatform: 'ios' }),
@@ -202,7 +202,7 @@ describe('GraphProvider mobile onboarding (Plans 19/21)', () => {
     expect(result.current.needsOnboarding).toBe(false)
     expect(result.current.graph?.root).toBe('/local/Documents')
     expect(result.current.mobileStorageKind).toBe('local')
-    expect(appServices.mobileOnboarding.getState().kind).toBe('local')
+    expect(app.mobileOnboarding.getState().kind).toBe('local')
     await vi.waitFor(() => expect(core.settings.saves().at(-1)?.mobileOnboarded).toBe(true))
   })
 })

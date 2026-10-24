@@ -63,7 +63,7 @@ async function renderTheme() {
       <ThemeEffect />
       <Probe />
     </>,
-    { core, appServices: { theme }, servicesOnly: true },
+    { core, app: { theme }, servicesOnly: true },
   )
   return { result }
 }

@@ -48,14 +48,14 @@ async function renderSection(path = 'notes/a.md') {
   publish = vi
     .spyOn(core.gistPublish, 'publish')
     .mockResolvedValue({ url: 'https://gist.github.com/alex/g1', stale: false })
-  const appLayer = createTestAppServices(core)
-  ;({ clipboard, opener } = appLayer)
+  const app = createTestAppServices(core)
+  ;({ clipboard, opener } = app)
   if (clipboardFailure !== null) {
     clipboard.failWith(clipboardFailure)
   }
   return await renderInApp(<PublishedUrlSection path={path} />, {
     core,
-    appServices: appLayer,
+    app,
     graph: { root: '/g', name: 'g', generation: 7 },
   })
 }

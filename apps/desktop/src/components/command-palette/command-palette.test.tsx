@@ -101,12 +101,12 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
     }),
     noteFile: createTestNoteFileService({ files }),
   })
-  const appLayer = createTestAppServices(core, {
+  const app = createTestAppServices(core, {
     window: createTestWindowService({ openNoteWindow }),
   })
   const fullContext: CommandContext = {
     services: core,
-    app: appLayer,
+    app,
     navigate,
     route: () => ({ kind: 'today' }),
     notePath: () => null,
@@ -138,7 +138,7 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
     </PaletteProvider>,
     {
       core,
-      appServices: appLayer,
+      app,
       graph: { root: '/g', name: 'g', generation: 1 },
       settings: { semanticSearchEnabled: semanticEnabled, dateFormat: 'mdy' },
     },

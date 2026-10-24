@@ -58,13 +58,13 @@ async function mount(storage: MobileStorageInfo = STORAGE): Promise<void> {
     platform: createTestPlatformService(MOBILE_PLATFORM),
     mobileStorage: createTestMobileStorageService({ storage }),
   })
-  const appServices = createTestAppServices(core)
+  const app = createTestAppServices(core)
   completeOnboarding = vi
-    .spyOn(appServices.mobileOnboarding, 'completeOnboarding')
+    .spyOn(app.mobileOnboarding, 'completeOnboarding')
     .mockImplementation(completeOnboardingResult)
   await renderInApp(<MobileGraphs />, {
     core,
-    appServices,
+    app,
     graph: { root: '/iCloud/Documents/Notes', name: 'Notes' },
     route: { kind: 'graphs' },
   })

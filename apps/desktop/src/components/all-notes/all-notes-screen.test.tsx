@@ -151,11 +151,11 @@ async function renderScreen(options: RenderScreenOptions = {}) {
 }
 
 function probedRoute(view: Awaited<ReturnType<typeof renderScreen>>): unknown {
-  return view.appServices.navigation.getState().route
+  return view.app.navigation.getState().route
 }
 
 function openedNoteWindows(view: Awaited<ReturnType<typeof renderScreen>>): readonly string[] {
-  return view.appServices.window.openedNoteWindows()
+  return view.app.window.openedNoteWindows()
 }
 
 describe('AllNotesScreen', () => {

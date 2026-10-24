@@ -173,7 +173,7 @@ function renderScreen() {
     </>,
     {
       core,
-      appServices: { window: noteWindows },
+      app: { window: noteWindows },
       graph: { root: '/g', name: 'g', generation: 1 },
       settings: { dateFormat: 'mdy' },
     },

@@ -71,7 +71,7 @@ const commitNoteFrontmatter = vi.fn<NoteDocumentService['commitFrontmatter']>()
 let platform: TestPlatformOptions
 // The services of the rendered app; set by `shortcutsHook`.
 let core: TestCoreServices
-let appLayer: AppServices
+let app: AppServices
 let openRecent: MockInstance<GraphSessionService['openRecent']>
 let openRouteInNewWindow: MockInstance<LinkNavigationService['openRouteInNewWindow']>
 let isNativeMenuInstalled: MockInstance<NativeMenuService['isInstalled']>
@@ -100,12 +100,12 @@ async function shortcutsHook() {
     },
   })
   core = services
-  appLayer = createTestAppServices(services)
+  app = createTestAppServices(services)
   openRecent = vi.spyOn(services.graphSession, 'openRecent').mockResolvedValue(true)
   openRouteInNewWindow = vi
-    .spyOn(appLayer.linkNavigation, 'openRouteInNewWindow')
+    .spyOn(app.linkNavigation, 'openRouteInNewWindow')
     .mockResolvedValue(true)
-  isNativeMenuInstalled = vi.spyOn(appLayer.nativeMenu, 'isInstalled').mockReturnValue(false)
+  isNativeMenuInstalled = vi.spyOn(app.nativeMenu, 'isInstalled').mockReturnValue(false)
   const createChatSession = services.chatSessions.create.bind(services.chatSessions)
   vi.spyOn(services.chatSessions, 'create').mockImplementation((options) => {
     const session = createChatSession(options)
@@ -127,7 +127,7 @@ async function shortcutsHook() {
     },
     {
       core: services,
-      appServices: appLayer,
+      app,
       graph: GRAPH,
       graphState: {
         recents: [
@@ -576,7 +576,7 @@ describe('app shortcuts on macOS', () => {
     expect(event.defaultPrevented).toBe(false)
     expect(result.current.sidebar.collapsed).toBe(false)
 
-    await act(() => appLayer.nativeMenu.dispatchCommand('sidebar.toggle'))
+    await act(() => app.nativeMenu.dispatchCommand('sidebar.toggle'))
     expect(result.current.sidebar.collapsed).toBe(true)
   })
 })

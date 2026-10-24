@@ -65,7 +65,7 @@ function createCore(storage: TestStorageService = createTestStorageService()) {
 async function renderSidebar(date: string, core = createCore()) {
   return await renderInApp(sidebar(date), {
     core,
-    appServices: { window: createTestWindowService({ openNoteWindow }) },
+    app: { window: createTestWindowService({ openNoteWindow }) },
     graph: { root: '/g', name: 'g' },
     settings: { semanticSearchEnabled: true, dateFormat: 'mdy', weekStartDay: 'monday' },
   })

@@ -33,7 +33,7 @@ async function renderSection(stored: Partial<Settings> = {}): Promise<void> {
   })
   ;({ settings } = core)
   const view = await renderInApp(<IntegrationsSection />, { core, settings: stored })
-  opener = view.appServices.opener
+  opener = view.app.opener
 }
 
 beforeEach(() => {

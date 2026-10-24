@@ -46,7 +46,7 @@ async function renderSection(
   })
   await renderInApp(<GitSyncSettingsField />, {
     core,
-    appServices: { opener },
+    app: { opener },
     graph,
   })
   return core

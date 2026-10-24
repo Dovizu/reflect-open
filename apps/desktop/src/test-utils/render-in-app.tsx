@@ -88,7 +88,7 @@ export interface RenderInAppOptions {
    * Replaces fields of the app layer built over `core`, e.g. `{ update }` or a whole
    * `createTestAppServices(core)` a test must share with the render.
    */
-  appServices?: Partial<AppServices>
+  app?: Partial<AppServices>
   /**
    * Wraps `ui` inside every provider, for providers this helper does not mount.
    */
@@ -107,7 +107,7 @@ interface InAppHandles<Core extends CoreServices> {
   /**
    * The app layer built over `core`.
    */
-  readonly appServices: TestAppServices
+  readonly app: TestAppServices
   readonly queryClient: QueryClient
   /**
    * The scripted git sync service when `sync` was a `GitSyncState`, else `null`.
@@ -219,14 +219,14 @@ async function prepare(options: AnyOptions | undefined): Promise<
 
   const queryClient =
     options?.queryClient ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const appLayer = createTestAppServices(core, options?.appServices)
+  const app = createTestAppServices(core, options?.app)
   if (options?.mobile !== undefined) {
-    if (!('setState' in appLayer.mobileOnboarding)) {
+    if (!('setState' in app.mobileOnboarding)) {
       throw new Error('renderInApp: `mobile` needs a test mobile onboarding service')
     }
-    appLayer.mobileOnboarding.setState(options.mobile)
+    app.mobileOnboarding.setState(options.mobile)
   }
-  registerAppCommands(appLayer.commands)
+  registerAppCommands(app.commands)
 
   const route = options?.route
   const wrap = (children: ReactNode): ReactElement => {
@@ -234,7 +234,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
     if (servicesOnly) {
       return (
         <CoreServicesProvider services={core}>
-          <AppServicesProvider services={appLayer}>
+          <AppServicesProvider services={app}>
             <QueryClientProvider client={queryClient}>{wrapped}</QueryClientProvider>
           </AppServicesProvider>
         </CoreServicesProvider>
@@ -242,7 +242,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
     }
     return (
       <CoreServicesProvider services={core}>
-        <AppServicesProvider services={appLayer}>
+        <AppServicesProvider services={app}>
           <QueryClientProvider client={queryClient}>
             <GraphProvider platform={core.platform.appPlatform}>
               <TooltipProvider>
@@ -260,7 +260,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   }
   return {
     core,
-    appServices: appLayer,
+    app,
     queryClient,
     gitSync,
     githubConnector: sync?.githubConnector ?? null,
@@ -278,7 +278,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
  * client, and the real `GraphProvider` (which provides
  * the graph services) and `RouterProvider`. All of them read `core`, which defaults to test doubles. Tests drive and observe
  * the app through the returned `core`: `core.graphSession.setGraph()`,
- * `core.settings.get()`, `appServices.navigation.navigations()`,
+ * `core.settings.get()`, `app.navigation.navigations()`,
  * `core.progress.getAll()`.
  *
  * Pass your own `core` to replace or spy on a service before the first render.

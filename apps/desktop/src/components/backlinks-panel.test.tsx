@@ -54,7 +54,7 @@ function RouteProbe(): ReactNode {
 function renderInGraph(ui: ReactNode) {
   return renderInApp(ui, {
     core,
-    appServices: { window: createTestWindowService({ openNoteWindow }) },
+    app: { window: createTestWindowService({ openNoteWindow }) },
     graph: { root: '/g', name: 'g', generation: 1 },
   })
 }

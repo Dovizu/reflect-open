@@ -98,7 +98,7 @@ describe('DailyCaptureMenu', () => {
 
     await view.getByRole('button', { name: 'New note' }).click()
 
-    const navigations = view.appServices.navigation.navigations()
+    const navigations = view.app.navigation.navigations()
     expect(navigations).toHaveLength(1)
     expect(navigations[0]?.route).toMatchObject({
       kind: 'note',

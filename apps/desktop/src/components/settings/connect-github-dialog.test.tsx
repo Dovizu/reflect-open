@@ -84,7 +84,7 @@ async function renderWizard(onClose = vi.fn()): Promise<ReturnType<typeof vi.fn>
   })
   await renderInApp(
     <ConnectGithubDialog suggestedRepoName="g-backup" onClose={onClose} pollIntervalMs={15} />,
-    { core, appServices: { opener } },
+    { core, app: { opener } },
   )
   return onClose
 }

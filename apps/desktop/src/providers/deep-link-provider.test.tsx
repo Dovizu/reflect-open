@@ -37,7 +37,7 @@ function setup() {
     graphSession,
     deepLinkIntake,
   })
-  const appServices = createTestAppServices(core)
+  const app = createTestAppServices(core)
 
   function tree(): ReactElement {
     return <DeepLinkProvider>{null}</DeepLinkProvider>
@@ -47,13 +47,13 @@ function setup() {
    * Render under the app's router with `GRAPH` open, as the workspace mounts the provider.
    */
   async function render(ui: ReactNode) {
-    return await renderInApp(ui, { core, appServices, graph: GRAPH })
+    return await renderInApp(ui, { core, app, graph: GRAPH })
   }
 
   /**
    * The routes navigated to so far, in order.
    */
-  const navigated = () => appServices.navigation.navigations().map((call) => call.route)
+  const navigated = () => app.navigation.navigations().map((call) => call.route)
 
   /**
    * Dispatch a note link whose resolution stays pending until it is resolved.
@@ -73,7 +73,7 @@ function setup() {
 
   return {
     core,
-    appServices,
+    app,
     deepLinkIntake,
     captureInbox,
     resolveNoteTarget,
@@ -133,22 +133,22 @@ describe('DeepLinkProvider', () => {
   })
 
   it('drops a note resolve when navigation changes meanwhile', async () => {
-    const { appServices, tree, navigated, dispatchPendingNote, render } = setup()
+    const { app, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
-    appServices.navigation.navigate({ kind: 'tasks' })
+    app.navigation.navigate({ kind: 'tasks' })
     await pending.resolve()
 
     expect(navigated()).toEqual([{ kind: 'tasks' }])
   })
 
   it('drops a note resolve when a newer note-link intent starts meanwhile', async () => {
-    const { appServices, tree, navigated, dispatchPendingNote, render } = setup()
+    const { app, tree, navigated, dispatchPendingNote, render } = setup()
     await render(tree())
     const pending = dispatchPendingNote('x')
 
-    appServices.linkNavigation.beginIntent()
+    app.linkNavigation.beginIntent()
     await pending.resolve()
 
     expect(navigated()).toEqual([])

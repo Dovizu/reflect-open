@@ -14,11 +14,11 @@ import type { CommandContext } from '@/lib/commands/types.ts'
 import { attachFilesToNote } from './attach-files.ts'
 
 let core: TestCoreServices
-let appLayer: TestAppServices
+let app: TestAppServices
 
 beforeEach(() => {
   core = createTestCoreServices({ database: createNodeTestDatabaseService() })
-  appLayer = createTestAppServices(core)
+  app = createTestAppServices(core)
   core.graphSession.setGraph({ generation: 4 })
 })
 
@@ -29,7 +29,7 @@ afterEach(() => {
 function contextFor(notePath: string | null): CommandContext {
   return {
     services: core,
-    app: appLayer,
+    app,
     navigate: vi.fn(),
     route: () => ({ kind: 'today' }),
     notePath: () => notePath,
@@ -76,11 +76,11 @@ describe('attachFilesToNote', () => {
   it("attaches the picked files into the routed note's editor, looked up on every call", async () => {
     const handle = editorHandle()
     registerNoteEditorHandle('notes/plan.md', handle)
-    appLayer.dialog.setFiles(['/tmp/a.pdf'])
+    app.dialog.setFiles(['/tmp/a.pdf'])
 
     await attachFilesToNote(contextFor('notes/plan.md'))
 
-    expect(appLayer.dialog.calls()).toEqual([
+    expect(app.dialog.calls()).toEqual([
       { kind: 'files', options: { multiple: true, title: 'Attach files' } },
     ])
     const [request] = core.attachments.attachRequests()
@@ -91,7 +91,7 @@ describe('attachFilesToNote', () => {
   })
 
   it('does nothing without a routed note, an editor, a graph session or a pick', async () => {
-    appLayer.dialog.setFiles(['/tmp/a.pdf'])
+    app.dialog.setFiles(['/tmp/a.pdf'])
     await attachFilesToNote(contextFor(null))
     await attachFilesToNote(contextFor('notes/plan.md'))
     const handle = editorHandle()
@@ -99,11 +99,11 @@ describe('attachFilesToNote', () => {
     core.graphSession.setGraph(null)
     await attachFilesToNote(contextFor('notes/plan.md'))
     core.graphSession.setGraph({ generation: 4 })
-    appLayer.dialog.setFiles(null)
+    app.dialog.setFiles(null)
     await attachFilesToNote(contextFor('notes/plan.md'))
     unregisterNoteEditorHandle('notes/plan.md', handle)
 
     expect(core.attachments.attachRequests()).toEqual([])
-    expect(appLayer.dialog.calls()).toHaveLength(1)
+    expect(app.dialog.calls()).toHaveLength(1)
   })
 })

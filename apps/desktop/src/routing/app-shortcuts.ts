@@ -49,10 +49,10 @@ function doNothing(): void {}
 
 export function useAppShortcuts(): CommandContext {
   const services = useCoreServices()
-  const appServices = useAppServices()
+  const app = useAppServices()
   const { route, navigate, back, forward, clearScrollState } = useRouter()
   const { platform, semanticSearch } = services
-  const { commands, nativeMenu } = appServices
+  const { commands, nativeMenu } = app
   const focusedDailyDate = useFocusedDailyDate()
   const { resolvedTheme, setTheme } = useTheme()
   const { graph, recents, openRecent } = useGraph()
@@ -107,7 +107,7 @@ export function useAppShortcuts(): CommandContext {
   const context = useMemo<CommandContext>(
     () => ({
       services,
-      app: appServices,
+      app,
       navigate,
       route: () => routeRef.current,
       // Resolve through the focused stream day so a note-scoped command targets
@@ -170,7 +170,7 @@ export function useAppShortcuts(): CommandContext {
     }),
     [
       services,
-      appServices,
+      app,
       navigate,
       back,
       forward,
