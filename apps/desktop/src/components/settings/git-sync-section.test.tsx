@@ -231,18 +231,14 @@ describe('GitSyncSettingsField', () => {
 
     await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
     await expect.element(page.getByLabelText('Repository address')).toHaveValue(GITLAB.remoteUrl)
+    await expect.element(page.getByLabelText('Repository address')).toHaveAttribute('readonly')
     await userEvent.fill(page.getByLabelText('Username'), 'alex')
     await userEvent.fill(page.getByLabelText('Access token or password'), 'glpat-1')
-    await userEvent.click(page.getByRole('button', { name: 'Connect' }))
+    await userEvent.click(page.getByRole('button', { name: 'Update sign-in', exact: true }))
 
     await vi.waitFor(() => {
       expect(gitHostConnector.calls()).toEqual([
-        {
-          method: 'updateGitHostSignIn',
-          remoteUrl: GITLAB.remoteUrl,
-          username: 'alex',
-          token: 'glpat-1',
-        },
+        { method: 'updateGitHostSignIn', username: 'alex', token: 'glpat-1' },
       ])
     })
   })

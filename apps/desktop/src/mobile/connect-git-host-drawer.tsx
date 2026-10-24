@@ -58,20 +58,28 @@ function ConnectGitHostSheet({
 }): ReactElement {
   const { form, submit } = useConnectGitHostForm({ remoteUrl, onDone: onClose })
   const pending = form.formState.isSubmitting
+  const updating = remoteUrl !== undefined
   useEffect(() => {
     onPendingChange(pending)
   }, [pending, onPendingChange])
 
   return (
     <>
-      <DrawerTitle>{remoteUrl === undefined ? 'Other host' : 'Update sign-in'}</DrawerTitle>
+      <DrawerTitle>{updating ? 'Update sign-in' : 'Other host'}</DrawerTitle>
       <DrawerBody>
         <FormProvider {...form}>
           <ConnectGitHostFields
             onSubmit={submit}
+            updating={updating}
             actions={({ pending, canSubmit }) => (
               <Button type="submit" disabled={!canSubmit}>
-                {pending ? 'Connecting…' : 'Connect'}
+                {updating
+                  ? pending
+                    ? 'Updating…'
+                    : 'Update sign-in'
+                  : pending
+                    ? 'Connecting…'
+                    : 'Connect'}
               </Button>
             )}
           />

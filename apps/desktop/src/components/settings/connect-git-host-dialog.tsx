@@ -33,6 +33,7 @@ export function ConnectGitHostDialog({
 }: ConnectGitHostDialogProps): ReactElement {
   const { form, submit } = useConnectGitHostForm({ remoteUrl, onDone: onClose })
   const pending = form.formState.isSubmitting
+  const updating = remoteUrl !== undefined
 
   return (
     <Dialog
@@ -45,11 +46,12 @@ export function ConnectGitHostDialog({
     >
       <DialogContent showCloseButton={!pending} className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{remoteUrl === undefined ? 'Other host' : 'Update sign-in'}</DialogTitle>
+          <DialogTitle>{updating ? 'Update sign-in' : 'Other host'}</DialogTitle>
         </DialogHeader>
         <FormProvider {...form}>
           <ConnectGitHostFields
             onSubmit={submit}
+            updating={updating}
             actions={({ pending, canSubmit }) => (
               <DialogFooter>
                 <DialogClose
@@ -60,7 +62,13 @@ export function ConnectGitHostDialog({
                   }
                 />
                 <Button type="submit" size="sm" disabled={!canSubmit}>
-                  {pending ? 'Connecting…' : 'Connect'}
+                  {updating
+                    ? pending
+                      ? 'Updating…'
+                      : 'Update sign-in'
+                    : pending
+                      ? 'Connecting…'
+                      : 'Connect'}
                 </Button>
               </DialogFooter>
             )}

@@ -440,16 +440,11 @@ describe('MobileSettings', () => {
       .toHaveValue('https://gitlab.com/alex/notes.git')
     await userEvent.fill(page.getByLabelText('Username'), 'alex')
     await userEvent.fill(page.getByLabelText('Access token or password'), 'glpat-1')
-    await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
+    await userEvent.click(page.getByRole('button', { name: 'Update sign-in', exact: true }))
 
     await vi.waitFor(() => {
       return expect(view.gitHostConnector.calls()).toEqual([
-        {
-          method: 'updateGitHostSignIn',
-          remoteUrl: 'https://gitlab.com/alex/notes.git',
-          username: 'alex',
-          token: 'glpat-1',
-        },
+        { method: 'updateGitHostSignIn', username: 'alex', token: 'glpat-1' },
       ])
     })
     await expect

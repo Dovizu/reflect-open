@@ -8,6 +8,12 @@ interface ConnectGitHostFieldsProps {
   /** The form's submit handler ({@link useConnectGitHostForm}). */
   onSubmit: (event?: React.BaseSyntheticEvent) => Promise<void>
   /**
+   * True when the form updates the sign-in of the remote already set: the
+   * address is shown but not editable, since the connector signs in to the
+   * configured remote.
+   */
+  updating: boolean
+  /**
    * The submit controls, rendered inside the form so Enter in any field
    * submits. `canSubmit` is false while pending or while the address is one
    * the form cannot take.
@@ -50,6 +56,7 @@ function checkAddress(value: string): true | string {
  */
 export function ConnectGitHostFields({
   onSubmit,
+  updating,
   actions,
 }: ConnectGitHostFieldsProps): ReactElement {
   const { register } = useFormContext<ConnectGitHostInput>()
@@ -70,10 +77,11 @@ export function ConnectGitHostFields({
         <label className="flex flex-col gap-1">
           <span className={FIELD_LABEL_CLASS}>Repository address</span>
           <Input
-            {...register('remoteUrl', { validate: checkAddress })}
+            {...register('remoteUrl', updating ? {} : { validate: checkAddress })}
+            readOnly={updating}
             aria-invalid={addressError !== undefined || undefined}
             aria-describedby={addressError !== undefined ? addressErrorId : undefined}
-            autoFocus
+            autoFocus={!updating}
             placeholder="https://git.example.com/user/repo.git"
             autoCapitalize="none"
             autoCorrect="off"
@@ -93,6 +101,7 @@ export function ConnectGitHostFields({
           <span className={FIELD_LABEL_CLASS}>Username</span>
           <Input
             {...register('username')}
+            autoFocus={updating}
             autoComplete="username"
             autoCapitalize="none"
             autoCorrect="off"

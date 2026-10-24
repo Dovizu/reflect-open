@@ -29,8 +29,12 @@ export function useConnectGitHostForm({
   onDone: () => void
 }): ConnectGitHostForm {
   const { connectGitHost, updateGitHostSignIn } = useGitSync()
-  // A remote that is already set keeps its branch: only the sign-in changes.
-  const send = remoteUrl === undefined ? connectGitHost : updateGitHostSignIn
+  // A remote that is already set keeps its address and branch: only the
+  // sign-in changes, and the connector probes the configured remote itself.
+  const send =
+    remoteUrl === undefined
+      ? connectGitHost
+      : ({ username, token }: ConnectGitHostInput) => updateGitHostSignIn({ username, token })
   const form = useForm<ConnectGitHostInput>({
     mode: 'onBlur',
     // A remote set by hand may carry a sign-in in its URL; the form never
