@@ -5,9 +5,9 @@ import { SettingsSection } from './section.tsx'
 
 /**
  * Settings → Sync: where this graph syncs. iCloud Drive and a Git repository
- * live together here, and both stay visible so an iCloud-hosted graph can
+ * live together here, // FIXME: <delete comment after> and both stay visible so an iCloud-hosted graph can
  * still keep a repository. The GitHub account is under Accounts: it belongs
- * to the machine, not to the graph.
+ * to the machine, not to the graph. // FIXME: <delete comment before>
  */
 export function SyncSection(): ReactElement {
   return (
