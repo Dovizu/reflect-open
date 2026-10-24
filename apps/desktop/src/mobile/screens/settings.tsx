@@ -29,7 +29,7 @@ import { AddAiProviderDrawer } from '@/mobile/add-ai-provider-drawer.tsx'
 import { AiPromptDrawer } from '@/mobile/ai-prompt-drawer.tsx'
 import { AiProviderActionsDrawer } from '@/mobile/ai-provider-actions-drawer.tsx'
 import { ConnectGithubDrawer } from '@/mobile/connect-github-drawer.tsx'
-import { ConnectHostDrawer } from '@/mobile/connect-host-drawer.tsx'
+import { ConnectGitHostDrawer } from '@/mobile/connect-git-host-drawer.tsx'
 import { ConnectRepositoryDrawer } from '@/mobile/connect-repository-drawer.tsx'
 import { GithubSignInDrawer } from '@/mobile/github-sign-in-drawer.tsx'
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/mobile/legal-urls.ts'
@@ -113,7 +113,7 @@ function SyncDetail({ detail }: { detail: MobileSyncDetail }): ReactNode {
  * exposes); the Git repository group mirrors the status pill's engine state,
  * connects a repository for the local graph through one door (the
  * {@link ConnectRepositoryDrawer} choice, then the {@link ConnectGithubDrawer}
- * or {@link ConnectHostDrawer} sheet — iCloud graphs sync through the
+ * or {@link ConnectGitHostDrawer} sheet — iCloud graphs sync through the
  * container instead, Plan 21), and can stop. The Accounts group is the
  * device's GitHub sign-in, independent of the graph.
  */
@@ -596,7 +596,7 @@ export function MobileSettings(): ReactElement {
           }
         }}
       />
-      <ConnectHostDrawer
+      <ConnectGitHostDrawer
         open={sheet?.kind === 'host'}
         onOpenChange={(open) => {
           if (!open) {

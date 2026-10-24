@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { ConnectHostForm } from '@/components/settings/connect-host-form.tsx'
+import { ConnectGitHostForm } from '@/components/settings/connect-git-host-form.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import {
   Dialog,
@@ -10,9 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog.tsx'
-import { useConnectHostSubmit } from '@/hooks/use-connect-host-submit.ts'
+import { useConnectGitHostSubmit } from '@/hooks/use-connect-git-host-submit.ts'
 
-interface ConnectHostDialogProps {
+interface ConnectGitHostDialogProps {
   /**
    * The remote to prefill: an HTTPS remote that needs a sign-in. Empty for
    * a new connection.
@@ -27,8 +27,11 @@ interface ConnectHostDialogProps {
  * answers before anything is stored, so a wrong address or sign-in fails
  * here, inline.
  */
-export function ConnectHostDialog({ remoteUrl, onClose }: ConnectHostDialogProps): ReactElement {
-  const flow = useConnectHostSubmit({ onDone: onClose })
+export function ConnectGitHostDialog({
+  remoteUrl,
+  onClose,
+}: ConnectGitHostDialogProps): ReactElement {
+  const flow = useConnectGitHostSubmit({ onDone: onClose })
 
   return (
     <Dialog
@@ -46,7 +49,7 @@ export function ConnectHostDialog({ remoteUrl, onClose }: ConnectHostDialogProps
             Reflect checks the sign-in with the host before it stores anything.
           </DialogDescription>
         </DialogHeader>
-        <ConnectHostForm
+        <ConnectGitHostForm
           remoteUrl={remoteUrl}
           flow={flow}
           actions={({ pending, canSubmit }) => (

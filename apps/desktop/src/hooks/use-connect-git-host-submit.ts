@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { errorMessage, type ConnectHostInput } from '@reflect/core'
 import { useGitSync } from '@/providers/sync-provider.tsx'
 
-export interface UseConnectHostSubmitValue {
+export interface UseConnectGitHostSubmitValue {
   pending: boolean
   /** The host's refusal, or the connector's own check, shown inline. */
   submitError: string | null
@@ -16,11 +16,11 @@ export interface UseConnectHostSubmitValue {
  * checks the sign-in with the host before it stores anything, so a refusal
  * lands inline with the fields intact and nothing saved.
  */
-export function useConnectHostSubmit({
+export function useConnectGitHostSubmit({
   onDone,
 }: {
   onDone: () => void
-}): UseConnectHostSubmitValue {
+}): UseConnectGitHostSubmitValue {
   const { connectHost } = useGitSync()
   const [pending, setPending] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)

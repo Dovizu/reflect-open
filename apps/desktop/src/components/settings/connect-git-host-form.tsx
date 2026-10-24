@@ -3,13 +3,13 @@ import { useForm } from 'react-hook-form'
 import { classifyRemote, type ConnectHostInput } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Input } from '@/components/ui/input.tsx'
-import type { UseConnectHostSubmitValue } from '@/hooks/use-connect-host-submit.ts'
+import type { UseConnectGitHostSubmitValue } from '@/hooks/use-connect-git-host-submit.ts'
 
-interface ConnectHostFormProps {
+interface ConnectGitHostFormProps {
   /** The remote to prefill: a remote that is already set and needs a sign-in. */
   remoteUrl?: string | undefined
-  /** The submit flow of the shell ({@link useConnectHostSubmit}). */
-  flow: UseConnectHostSubmitValue
+  /** The submit flow of the shell ({@link useConnectGitHostSubmit}). */
+  flow: UseConnectGitHostSubmitValue
   /**
    * The submit controls, rendered inside the form so Enter in any field
    * submits. `canSubmit` is false while pending or while the address is one
@@ -29,7 +29,11 @@ const SSH_NOTE =
  * password the host takes. No help text: each mistake gets its own message
  * when it happens.
  */
-export function ConnectHostForm({ remoteUrl, flow, actions }: ConnectHostFormProps): ReactElement {
+export function ConnectGitHostForm({
+  remoteUrl,
+  flow,
+  actions,
+}: ConnectGitHostFormProps): ReactElement {
   const { register, handleSubmit, formState } = useForm<ConnectHostInput>({
     mode: 'onChange',
     defaultValues: { remoteUrl: remoteUrl ?? '', username: '', token: '' },
@@ -53,7 +57,7 @@ export function ConnectHostForm({ remoteUrl, flow, actions }: ConnectHostFormPro
             })}
             aria-invalid={addressError !== undefined || undefined}
             autoFocus
-            placeholder="https://…"
+            placeholder="https://git.example.com/user/repo.git"
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}

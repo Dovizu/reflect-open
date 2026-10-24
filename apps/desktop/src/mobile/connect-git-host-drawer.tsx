@@ -1,10 +1,10 @@
 import type { ReactElement } from 'react'
-import { ConnectHostForm } from '@/components/settings/connect-host-form.tsx'
+import { ConnectGitHostForm } from '@/components/settings/connect-git-host-form.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { Drawer, DrawerBody, DrawerContent, DrawerTitle } from '@/components/ui/drawer.tsx'
-import { useConnectHostSubmit } from '@/hooks/use-connect-host-submit.ts'
+import { useConnectGitHostSubmit } from '@/hooks/use-connect-git-host-submit.ts'
 
-interface ConnectHostDrawerProps {
+interface ConnectGitHostDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** The remote to prefill: an HTTPS remote that needs a sign-in. */
@@ -13,34 +13,34 @@ interface ConnectHostDrawerProps {
 
 /**
  * The mobile "Other host" bottom sheet: a Drawer shell over
- * {@link useConnectHostSubmit}, the same form as desktop's dialog. The body
+ * {@link useConnectGitHostSubmit}, the same form as desktop's dialog. The body
  * mounts per open cycle, so a dismissed half-filled form never leaks into
  * the next.
  */
-export function ConnectHostDrawer({
+export function ConnectGitHostDrawer({
   open,
   onOpenChange,
   remoteUrl,
-}: ConnectHostDrawerProps): ReactElement {
+}: ConnectGitHostDrawerProps): ReactElement {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent aria-label="Other host">
         {open ? (
-          <ConnectHostSheet remoteUrl={remoteUrl} onClose={() => onOpenChange(false)} />
+          <ConnectGitHostSheet remoteUrl={remoteUrl} onClose={() => onOpenChange(false)} />
         ) : null}
       </DrawerContent>
     </Drawer>
   )
 }
 
-function ConnectHostSheet({
+function ConnectGitHostSheet({
   remoteUrl,
   onClose,
 }: {
   remoteUrl: string | undefined
   onClose: () => void
 }): ReactElement {
-  const flow = useConnectHostSubmit({ onDone: onClose })
+  const flow = useConnectGitHostSubmit({ onDone: onClose })
 
   return (
     <>
@@ -49,7 +49,7 @@ function ConnectHostSheet({
         <p className="text-xs text-text-muted">
           Reflect checks the sign-in with the host before it stores anything.
         </p>
-        <ConnectHostForm
+        <ConnectGitHostForm
           remoteUrl={remoteUrl}
           flow={flow}
           actions={({ pending, canSubmit }) => (

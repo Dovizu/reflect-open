@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AppError } from '@reflect/core'
 import '@/test-utils/locator.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
-import { ConnectHostDialog } from './connect-host-dialog.tsx'
+import { ConnectGitHostDialog } from './connect-git-host-dialog.tsx'
 
 // The dialog owns the three fields and the busy/error envelope only; the
 // host connector (scripted here) does the probe and the connect.
@@ -16,10 +16,10 @@ async function fill(): Promise<void> {
   await userEvent.fill(page.getByLabelText('Access token or password'), 'glpat-1')
 }
 
-describe('ConnectHostDialog', () => {
+describe('ConnectGitHostDialog', () => {
   it('hands the fields to the host connector and closes once connected', async () => {
     const onClose = vi.fn()
-    const { hostConnector } = await renderInApp(<ConnectHostDialog onClose={onClose} />, {
+    const { hostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
       sync: { phase: 'disconnected' },
     })
 
@@ -33,7 +33,7 @@ describe('ConnectHostDialog', () => {
 
   it('shows a refusal inline and keeps the fields', async () => {
     const onClose = vi.fn()
-    const { hostConnector } = await renderInApp(<ConnectHostDialog onClose={onClose} />, {
+    const { hostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
       sync: { phase: 'disconnected' },
     })
     hostConnector?.onConnectHost(() => {
@@ -49,7 +49,7 @@ describe('ConnectHostDialog', () => {
   })
 
   it('prefills the remote when a sign-in is being added or updated', async () => {
-    await renderInApp(<ConnectHostDialog remoteUrl={URL} onClose={vi.fn()} />, {
+    await renderInApp(<ConnectGitHostDialog remoteUrl={URL} onClose={vi.fn()} />, {
       sync: { phase: 'disconnected' },
     })
 
@@ -58,7 +58,9 @@ describe('ConnectHostDialog', () => {
   })
 
   it('refuses an SSH address with a note and keeps Connect disabled', async () => {
-    await renderInApp(<ConnectHostDialog onClose={vi.fn()} />, { sync: { phase: 'disconnected' } })
+    await renderInApp(<ConnectGitHostDialog onClose={vi.fn()} />, {
+      sync: { phase: 'disconnected' },
+    })
 
     await userEvent.fill(page.getByLabelText('Repository address'), 'git@gitlab.com:alex/notes.git')
 
@@ -69,7 +71,7 @@ describe('ConnectHostDialog', () => {
   it('locks the dialog while the connect is pending', async () => {
     const pending = Promise.withResolvers<void>()
     const onClose = vi.fn()
-    const { hostConnector } = await renderInApp(<ConnectHostDialog onClose={onClose} />, {
+    const { hostConnector } = await renderInApp(<ConnectGitHostDialog onClose={onClose} />, {
       sync: { phase: 'disconnected' },
     })
     hostConnector?.onConnectHost(() => pending.promise)

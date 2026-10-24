@@ -5,7 +5,7 @@ import { remoteLabel, signInNeededText } from '@reflect/app'
 import { githubRepoOf, isICloudRoot, suggestRepoName, type GithubRepoRef } from '@reflect/core'
 import { CountdownText } from '@/components/countdown-text.tsx'
 import { ConnectGithubDialog } from '@/components/settings/connect-github-dialog.tsx'
-import { ConnectHostDialog } from '@/components/settings/connect-host-dialog.tsx'
+import { ConnectGitHostDialog } from '@/components/settings/connect-git-host-dialog.tsx'
 import { ConnectRepositoryDialog } from '@/components/settings/connect-repository-dialog.tsx'
 import { SettingsField } from '@/components/settings/field.tsx'
 import { SyncForkNotice } from '@/components/settings/sync-fork-notice.tsx'
@@ -227,8 +227,7 @@ export function GitSyncSettingsField(): ReactElement {
         />
       ) : null}
       {dialog?.kind === 'host' ? (
-        // FIXME: rename "ConnectHostDialog" to "ConnectGitHostDialog"
-        <ConnectHostDialog remoteUrl={dialog.remoteUrl} onClose={() => setDialog(null)} />
+        <ConnectGitHostDialog remoteUrl={dialog.remoteUrl} onClose={() => setDialog(null)} />
       ) : null}
     </>
   )
