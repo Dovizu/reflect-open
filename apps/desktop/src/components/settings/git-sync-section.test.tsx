@@ -219,11 +219,11 @@ describe('GitSyncSettingsField', () => {
     await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
     await userEvent.click(page.getByRole('button', { name: 'Connect' }))
 
-    await vi.waitFor(() =>
-      expect(hostConnector.calls()).toEqual([
+    await vi.waitFor(() => {
+      return expect(hostConnector.calls()).toEqual([
         { remoteUrl: GITLAB.remoteUrl, username: 'alex', token: 'glpat-1' },
-      ]),
-    )
+      ])
+    })
   })
 
   it('names a plain-HTTP remote without its user info and offers no sign-in', async () => {

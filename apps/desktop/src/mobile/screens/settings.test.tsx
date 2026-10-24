@@ -440,15 +440,15 @@ describe('MobileSettings', () => {
     await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
     await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
 
-    await vi.waitFor(() =>
-      expect(view.hostConnector.calls()).toEqual([
+    await vi.waitFor(() => {
+      return expect(view.hostConnector.calls()).toEqual([
         {
           remoteUrl: 'https://alex:token@gitlab.com/alex/notes.git',
           username: 'alex',
           token: 'glpat-1',
         },
-      ]),
-    )
+      ])
+    })
     await expect
       .element(page.getByRole('heading', { name: 'Update sign-in' }))
       .not.toBeInTheDocument()
@@ -488,11 +488,11 @@ describe('MobileSettings', () => {
     await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
     await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
 
-    await vi.waitFor(() =>
-      expect(view.hostConnector.calls()).toEqual([
+    await vi.waitFor(() => {
+      return expect(view.hostConnector.calls()).toEqual([
         { remoteUrl: 'https://gitlab.com/alex/notes.git', username: 'alex', token: 'glpat-1' },
-      ]),
-    )
+      ])
+    })
   })
 
   it('hides the connect rows once the local graph is connected', async () => {
