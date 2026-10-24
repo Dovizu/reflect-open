@@ -225,14 +225,14 @@ describe('GitSyncSettingsField', () => {
 
     await expect.element(page.getByText('gitlab.com/alex/notes')).toBeVisible()
     await expect
-      .element(page.getByText('gitlab.com needs a username and access token.'))
+      .element(page.getByText('gitlab.com needs a username and an access token or password.'))
       .toBeVisible()
     await userEvent.click(page.getByRole('button', { name: 'Add sign-in…' }))
 
     await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
     await expect.element(page.getByLabelText('Repository address')).toHaveValue(GITLAB.remoteUrl)
     await userEvent.fill(page.getByLabelText('Username'), 'alex')
-    await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
+    await userEvent.fill(page.getByLabelText('Access token or password'), 'glpat-1')
     await userEvent.click(page.getByRole('button', { name: 'Connect' }))
 
     await vi.waitFor(() => {

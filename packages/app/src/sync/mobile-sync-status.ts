@@ -91,5 +91,5 @@ export function signInNeededText(remote: GitRemote): string {
     return 'Reflect does not send sign-ins over plain http. Use the https address of this repository.'
   }
   const host = remote.kind === 'https' ? new URL(remote.origin).host : 'This host'
-  return `${host} needs a username and access token.`
+  return `${host} needs a username and an access token or password.`
 }

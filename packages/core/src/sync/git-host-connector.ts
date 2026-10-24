@@ -17,7 +17,7 @@ export interface ConnectGitHostInput {
 /**
  * Connects the open graph to an HTTPS git host other than github.com
  * (GitLab, Gitea, Codeberg, a server of your own) with a username and an
- * access token.
+ * access token or password.
  */
 export interface GitHostConnector {
   /**
@@ -71,7 +71,7 @@ class GitHostConnectorImpl implements GitHostConnector {
     }
     const credential = { username: username.trim(), secret: token.trim() }
     if (credential.username.length === 0 || credential.secret.length === 0) {
-      throw new AppError('parse', 'Enter the username and the access token.')
+      throw new AppError('parse', 'Enter the username and the access token or password.')
     }
     await git.setup(null, null, generation) // the repository the probe runs from
     const tip = await git.remoteHead(credential, generation, url)

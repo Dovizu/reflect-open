@@ -1,9 +1,8 @@
 import type { ReactElement } from 'react'
-import { InlineAlert } from '@/components/inline-alert.tsx'
-import { ConnectHostFields } from '@/components/settings/connect-host-fields.tsx'
+import { ConnectHostForm } from '@/components/settings/connect-host-form.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { Drawer, DrawerBody, DrawerContent, DrawerTitle } from '@/components/ui/drawer.tsx'
-import { useConnectHost } from '@/hooks/use-connect-host.ts'
+import { useConnectHostSubmit } from '@/hooks/use-connect-host-submit.ts'
 
 interface ConnectHostDrawerProps {
   open: boolean
@@ -14,8 +13,9 @@ interface ConnectHostDrawerProps {
 
 /**
  * The mobile "Other host" bottom sheet: a Drawer shell over
- * {@link useConnectHost}, the same form as desktop's dialog. The body mounts
- * per open cycle, so a dismissed half-filled form never leaks into the next.
+ * {@link useConnectHostSubmit}, the same form as desktop's dialog. The body
+ * mounts per open cycle, so a dismissed half-filled form never leaks into
+ * the next.
  */
 export function ConnectHostDrawer({
   open,
@@ -40,29 +40,24 @@ function ConnectHostSheet({
   remoteUrl: string | undefined
   onClose: () => void
 }): ReactElement {
-  const form = useConnectHost(remoteUrl ?? '')
-  const updating = remoteUrl !== undefined
-
-  async function submit(): Promise<void> {
-    if (await form.submit()) {
-      onClose()
-    }
-  }
+  const flow = useConnectHostSubmit({ onDone: onClose })
 
   return (
     <>
-      <DrawerTitle>{updating ? 'Update sign-in' : 'Other host'}</DrawerTitle>
+      <DrawerTitle>{remoteUrl === undefined ? 'Other host' : 'Update sign-in'}</DrawerTitle>
       <DrawerBody>
         <p className="text-xs text-text-muted">
-          {updating
-            ? 'Enter the username and access token for this repository.'
-            : 'Reflect checks the sign-in with the host before it stores anything.'}
+          Reflect checks the sign-in with the host before it stores anything.
         </p>
-        <ConnectHostFields form={form} onSubmit={() => void submit()} />
-        {form.error !== null ? <InlineAlert tone="error">{form.error}</InlineAlert> : null}
-        <Button disabled={form.pending || form.addressNote !== null} onClick={() => void submit()}>
-          {form.pending ? 'Connecting…' : 'Connect'}
-        </Button>
+        <ConnectHostForm
+          remoteUrl={remoteUrl}
+          flow={flow}
+          actions={({ pending, canSubmit }) => (
+            <Button type="submit" disabled={!canSubmit}>
+              {pending ? 'Connecting…' : 'Connect'}
+            </Button>
+          )}
+        />
       </DrawerBody>
     </>
   )

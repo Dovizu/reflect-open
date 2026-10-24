@@ -43,7 +43,7 @@ export function ConnectRepositoryDialog({
       value: 'other',
       label: 'Other host',
       detail:
-        'Any git host that speaks https. You enter the address, a username and an access token.',
+        'Any git host that speaks https. You enter the address, a username and an access token or password.',
     },
   ]
 

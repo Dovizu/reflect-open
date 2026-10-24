@@ -55,7 +55,7 @@ describe('engine state', () => {
       tone: 'attention',
       detail: {
         kind: 'message',
-        text: 'gitlab.com needs a username and access token.',
+        text: 'gitlab.com needs a username and an access token or password.',
       },
     })
     expect(statusFor(waiting('http://gitea.local'))?.detail).toEqual({

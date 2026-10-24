@@ -13,7 +13,7 @@ const URL = 'https://gitlab.com/alex/notes.git'
 async function fill(): Promise<void> {
   await userEvent.fill(page.getByLabelText('Repository address'), URL)
   await userEvent.fill(page.getByLabelText('Username'), 'alex')
-  await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
+  await userEvent.fill(page.getByLabelText('Access token or password'), 'glpat-1')
 }
 
 describe('ConnectHostDialog', () => {

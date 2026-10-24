@@ -430,7 +430,7 @@ describe('MobileSettings', () => {
     await expect.element(page.getByText(/alex:token/)).not.toBeInTheDocument()
     await expect.element(page.getByText('Sign-in needed')).toBeVisible()
     await expect
-      .element(page.getByText('gitlab.com needs a username and access token.'))
+      .element(page.getByText('gitlab.com needs a username and an access token or password.'))
       .toBeVisible()
 
     await userEvent.click(page.getByRole('button', { name: 'Add sign-in' }))
@@ -439,7 +439,7 @@ describe('MobileSettings', () => {
       .element(page.getByLabelText('Repository address'))
       .toHaveValue('https://alex:token@gitlab.com/alex/notes.git')
     await userEvent.fill(page.getByLabelText('Username'), 'alex')
-    await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
+    await userEvent.fill(page.getByLabelText('Access token or password'), 'glpat-1')
     await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
 
     await vi.waitFor(() => {
@@ -493,7 +493,7 @@ describe('MobileSettings', () => {
       'https://gitlab.com/alex/notes.git',
     )
     await userEvent.fill(page.getByLabelText('Username'), 'alex')
-    await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
+    await userEvent.fill(page.getByLabelText('Access token or password'), 'glpat-1')
     await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
 
     await vi.waitFor(() => {
