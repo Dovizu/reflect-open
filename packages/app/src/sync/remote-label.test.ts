@@ -1,15 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { gitSyncWording, remoteLabel } from './git-sync-wording.ts'
-
-describe('gitSyncWording', () => {
-  it('speaks of sync when the repository is the primary channel', () => {
-    expect(gitSyncWording(true)).toMatchObject({ idle: 'Up to date', now: 'Sync now' })
-  })
-
-  it('speaks of backup beside iCloud', () => {
-    expect(gitSyncWording(false)).toMatchObject({ idle: 'Backed up', now: 'Back up now' })
-  })
-})
+import { remoteLabel } from './remote-label.ts'
 
 describe('remoteLabel', () => {
   it('names a GitHub repository by owner and name', () => {

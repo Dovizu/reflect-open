@@ -39,10 +39,11 @@ export { type KeyboardService } from './mobile/keyboard-service.ts'
 export { type ShareService } from './mobile/share-service.ts'
 export {
   getMobileSyncStatus,
+  signInNeededText,
   type MobileSyncDetail,
   type MobileSyncStatus,
 } from './sync/mobile-sync-status.ts'
-export { gitSyncWording, remoteLabel, type GitSyncWording } from './sync/git-sync-wording.ts'
+export { remoteLabel } from './sync/remote-label.ts'
 export {
   createConnectGithubWizardService,
   type ConnectAuthKind,

@@ -1,5 +1,4 @@
-import type { GitSyncState } from '@reflect/core'
-import { gitSyncWording } from './git-sync-wording.ts'
+import type { GitRemote, GitSyncState } from '@reflect/core'
 
 /**
  * The plain-language sync status mobile shows (Plan 19, step 10). The phone
@@ -49,22 +48,13 @@ export function getMobileSyncStatus(state: GitSyncState | null): MobileSyncStatu
     return {
       label: 'Sign-in needed',
       tone: 'attention',
-      detail: {
-        kind: 'message',
-        text:
-          state.remote.kind === 'github'
-            ? 'Sign in to GitHub to resume syncing.'
-            : state.remote.kind === 'https' && state.remote.origin.startsWith('http:')
-              ? 'A sign-in is never sent over plain HTTP. Switch the remote to its SSH form to resume.'
-              : 'Add the username and access token for this host to resume.',
-      },
+      detail: { kind: 'message', text: signInNeededText(state.remote) },
     }
   }
   if (state.phase !== 'connected') {
     return null
   }
   const status = state.status
-  const wording = gitSyncWording(state.isPrimaryChannel)
   if (status.state === 'syncing') {
     return { label: 'Syncing', tone: 'active', detail: null }
   }
@@ -83,7 +73,23 @@ export function getMobileSyncStatus(state: GitSyncState | null): MobileSyncStatu
     }
   }
   if (status.state === 'waiting') {
-    return { label: wording.idle, tone: 'ok', detail: { kind: 'countdown', until: status.until } }
+    return { label: 'Up to date', tone: 'ok', detail: { kind: 'countdown', until: status.until } }
   }
-  return { label: wording.idle, tone: 'ok', detail: null }
+  return { label: 'Up to date', tone: 'ok', detail: null }
+}
+
+/**
+ * Why the remote waits, and what resumes it. A host sign-in is added in
+ * Settings; the GitHub account lives under Accounts; plain http never gets
+ * a sign-in, so the fix is the https address.
+ */
+export function signInNeededText(remote: GitRemote): string {
+  if (remote.kind === 'github') {
+    return 'Signed out of GitHub. Sign in under Accounts to resume.'
+  }
+  if (remote.kind === 'https' && remote.origin.startsWith('http:')) {
+    return 'Reflect does not send sign-ins over plain http. Use the https address of this repository.'
+  }
+  const host = remote.kind === 'https' ? new URL(remote.origin).host : 'This host'
+  return `${host} needs a username and access token.`
 }

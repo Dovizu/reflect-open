@@ -7,15 +7,12 @@ import { getMobileSyncStatus, type MobileSyncStatus } from './mobile-sync-status
  * become the words mobile shows, never git terms.
  */
 
-function connected(
-  status: Extract<GitSyncState, { phase: 'connected' }>['status'],
-  isPrimaryChannel = true,
-): GitSyncState {
+function connected(status: Extract<GitSyncState, { phase: 'connected' }>['status']): GitSyncState {
   return {
     phase: 'connected',
     remoteUrl: 'https://github.com/alex/notes.git',
     remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-    isPrimaryChannel,
+    isPrimaryChannel: true,
     status,
   }
 }
@@ -40,7 +37,10 @@ describe('engine state', () => {
     ).toEqual({
       label: 'Sign-in needed',
       tone: 'attention',
-      detail: { kind: 'message', text: 'Sign in to GitHub to resume syncing.' },
+      detail: {
+        kind: 'message',
+        text: 'Signed out of GitHub. Sign in under Accounts to resume.',
+      },
     })
   })
 
@@ -55,22 +55,18 @@ describe('engine state', () => {
       tone: 'attention',
       detail: {
         kind: 'message',
-        text: 'Add the username and access token for this host to resume.',
+        text: 'gitlab.com needs a username and access token.',
       },
     })
     expect(statusFor(waiting('http://gitea.local'))?.detail).toEqual({
       kind: 'message',
-      text: 'A sign-in is never sent over plain HTTP. Switch the remote to its SSH form to resume.',
+      text: 'Reflect does not send sign-ins over plain http. Use the https address of this repository.',
     })
   })
 
   it('rests on Up to date — the quiet tone the pill hides on', () => {
     const status = statusFor(connected({ state: 'idle' }))
     expect(status).toEqual({ label: 'Up to date', tone: 'ok', detail: null })
-  })
-
-  it('rests on Backed up when iCloud is the channel', () => {
-    expect(statusFor(connected({ state: 'idle' }, false))?.label).toBe('Backed up')
   })
 
   it('maps a waiting window to Up to date with the time the next sync is due', () => {

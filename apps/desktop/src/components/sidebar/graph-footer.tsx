@@ -1,5 +1,4 @@
 import { useRef, useState, type ReactElement } from 'react'
-import { gitSyncWording } from '@reflect/app'
 import type { GraphInfo } from '@reflect/core'
 import { FolderOpen, GraduationCap, LocateFixed, PanelsTopLeft, Settings } from 'lucide-react'
 import { CountdownText } from '@/components/countdown-text.tsx'
@@ -39,12 +38,11 @@ function GitSyncDot({ state }: { state: GitSyncState }): ReactElement | null {
     return null
   }
   const status = state.status
-  const wording = gitSyncWording(state.isPrimaryChannel)
   const { className, label } = {
-    syncing: { className: 'bg-accent motion-safe:animate-pulse', label: wording.syncing },
-    waiting: { className: 'bg-text-muted', label: `${wording.now} scheduled` },
-    offline: { className: 'bg-amber-500', label: `${wording.failed}: waiting for a connection` },
-    error: { className: 'bg-red-500', label: `${wording.failed}: see Settings` },
+    syncing: { className: 'bg-accent motion-safe:animate-pulse', label: 'Syncing' },
+    waiting: { className: 'bg-text-muted', label: 'Sync scheduled' },
+    offline: { className: 'bg-amber-500', label: 'Sync waiting for a connection' },
+    error: { className: 'bg-red-500', label: 'Sync failed — see Settings' },
   }[status.state]
   return (
     <>
@@ -54,7 +52,7 @@ function GitSyncDot({ state }: { state: GitSyncState }): ReactElement | null {
       </span>
       {status.state === 'waiting' ? (
         <span className="sr-only">
-          {wording.waiting} <CountdownText until={status.until} />
+          Syncs in <CountdownText until={status.until} />
         </span>
       ) : null}
     </>
