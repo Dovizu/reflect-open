@@ -21,12 +21,12 @@ import {
   createTestPlatformService,
   createTestGitSyncService,
   createTestGithubConnector,
-  createTestHostConnector,
+  createTestGitHostConnector,
   type TestCoreServices,
   type TestDatabaseService,
   type TestGitSyncService,
   type TestGithubConnector,
-  type TestHostConnector,
+  type TestGitHostConnector,
   type TestOpenGraph,
   type TestPlatformOptions,
 } from '@reflect/core/testing'
@@ -117,7 +117,7 @@ interface InAppHandles<App extends CoreServices> {
    * The scripted connectors beside `gitSync`, else `null`.
    */
   readonly githubConnector: TestGithubConnector | null
-  readonly hostConnector: TestHostConnector | null
+  readonly gitHostConnector: TestGitHostConnector | null
 }
 
 export interface InAppRenderResult<App extends CoreServices>
@@ -150,7 +150,7 @@ function createApp(
 interface SyncFakes {
   readonly gitSync: TestGitSyncService
   readonly githubConnector: TestGithubConnector
-  readonly hostConnector: TestHostConnector
+  readonly gitHostConnector: TestGitHostConnector
 }
 
 /**
@@ -168,7 +168,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
       : {
           gitSync: createTestGitSyncService({ state: options.sync }),
           githubConnector: createTestGithubConnector(),
-          hostConnector: createTestHostConnector(),
+          gitHostConnector: createTestGitHostConnector(),
         }
   const gitSync = sync?.gitSync ?? null
   if (options?.app !== undefined && (sync !== null || options.platform !== undefined)) {
@@ -264,7 +264,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
     queryClient,
     gitSync,
     githubConnector: sync?.githubConnector ?? null,
-    hostConnector: sync?.hostConnector ?? null,
+    gitHostConnector: sync?.gitHostConnector ?? null,
     wrap,
     dispose: () => {
       queryClient.clear()

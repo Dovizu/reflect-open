@@ -122,7 +122,7 @@ export {
 export {
   createTestGitSyncService,
   createTestGithubConnector,
-  createTestHostConnector,
+  createTestGitHostConnector,
   createTestGitRepositoryService,
   createTestGithubAuthService,
   createTestICloudNativeService,
@@ -130,7 +130,7 @@ export {
   type GitSyncCall,
   type GithubConnectorCall,
   type TestGithubConnector,
-  type TestHostConnector,
+  type TestGitHostConnector,
   type GitRepositoryCall,
   type GitRepositoryHandler,
   type ICloudNativeCall,

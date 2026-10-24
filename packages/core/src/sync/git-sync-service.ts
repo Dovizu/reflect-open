@@ -137,7 +137,7 @@ export interface GitSyncServiceDeps {
  * feeds its debounce, the resume triggers (launch, window focus, visibility →
  * visible for mobile app resume, and back-online pulls), the quit-commit
  * hook, and the connect / disconnect / sync-now actions. Which remote to
- * connect is the connectors' business (`GithubConnector`, `HostConnector`).
+ * connect is the connectors' business (`GithubConnector`, `GitHostConnector`).
  */
 export interface GitSyncService {
   /**

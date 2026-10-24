@@ -21,7 +21,7 @@ import type { ActivityPort } from '../ports/activity-port.ts'
 import type { ProgressPort } from '../ports/progress-port.ts'
 import type { GitSyncService } from '../sync/git-sync-service.ts'
 import type { GithubConnector } from '../sync/github-connector.ts'
-import type { HostConnector } from '../sync/host-connector.ts'
+import type { GitHostConnector } from '../sync/git-host-connector.ts'
 import {
   createTestAiKeyValidationService,
   createTestAssetDescriberService,
@@ -109,7 +109,7 @@ export type TestCoreServiceOverrides = Partial<CoreServices & CoreInternalServic
   /**
    * The host connector of every main-window graph session.
    */
-  readonly hostConnector?: HostConnector
+  readonly gitHostConnector?: GitHostConnector
   /**
    * The activity signals the services follow.
    */
@@ -275,7 +275,7 @@ export type TestCoreServices = Override<
 const TEST_ADAPTER_KEYS = new Set([
   'gitSync',
   'githubConnector',
-  'hostConnector',
+  'gitHostConnector',
   'progress',
   'role',
   'createGraphServices',
@@ -293,7 +293,7 @@ export function createTestCoreServices<
   const platform = edge.platform ?? createTestPlatformService()
   const gitSync = overrides.gitSync
   const githubConnector = overrides.githubConnector
-  const hostConnector = overrides.hostConnector
+  const gitHostConnector = overrides.gitHostConnector
   const adapters: CoreAdapters = {
     ipc: edge.ipc ?? createTestIpcBridgeService({ logger: edge.logger }),
     platform,
@@ -313,7 +313,7 @@ export function createTestCoreServices<
         return createGraphServices(session, deps, testGraphLifecycles(session, platform), {
           ...(gitSync === undefined ? {} : { gitSync: () => gitSync }),
           ...(githubConnector === undefined ? {} : { githubConnector: () => githubConnector }),
-          ...(hostConnector === undefined ? {} : { hostConnector: () => hostConnector }),
+          ...(gitHostConnector === undefined ? {} : { gitHostConnector: () => gitHostConnector }),
         })
       }),
   }

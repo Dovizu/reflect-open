@@ -4,7 +4,7 @@ import { createTestLoggerService } from '../testing/logger.ts'
 import { createTestSecretStoreService } from '../testing/secrets.ts'
 import { createTestGitRepositoryService, createTestGitSyncService } from '../testing/sync.ts'
 import { createGitHostCredentialService } from './git-host-credential-service.ts'
-import { createHostConnector } from './host-connector.ts'
+import { createGitHostConnector } from './git-host-connector.ts'
 
 const GENERATION = 3
 const URL = 'https://gitlab.com/alex/notes.git'
@@ -24,16 +24,21 @@ function setup({ keychainLocked = false } = {}) {
     logger: createTestLoggerService(),
   })
   const gitSync = createTestGitSyncService()
-  const connector = createHostConnector({ git, hostCredentials, gitSync, generation: GENERATION })
+  const connector = createGitHostConnector({
+    git,
+    hostCredentials,
+    gitSync,
+    generation: GENERATION,
+  })
   return { git, secretStore, gitSync, connector }
 }
 
-describe('HostConnector', () => {
+describe('GitHostConnector', () => {
   it('probes the host with the sign-in, then stores it and connects', async () => {
     const { git, secretStore, gitSync, connector } = setup()
     git.onRemoteHead(() => ({ remoteOid: 'a', trackingOid: null, defaultBranch: 'master' }))
 
-    await connector.connectHost({ ...INPUT, remoteUrl: `  ${URL}  `, token: ' glpat-1 ' })
+    await connector.connectGitHost({ ...INPUT, remoteUrl: `  ${URL}  `, token: ' glpat-1 ' })
 
     expect(git.calls().map((call) => call.method)).toEqual(['setup', 'remoteHead'])
     expect(git.calls()[1]?.args).toEqual([{ username: 'alex', secret: 'glpat-1' }, GENERATION, URL])
@@ -50,7 +55,7 @@ describe('HostConnector', () => {
       throw new AppError('auth', 'the host rejected the stored sign-in')
     })
 
-    await expect(connector.connectHost(INPUT)).rejects.toThrow('rejected')
+    await expect(connector.connectGitHost(INPUT)).rejects.toThrow('rejected')
     expect(secretStore.snapshot()).toEqual({})
     expect(gitSync.calls()).toEqual([])
   })
@@ -58,14 +63,14 @@ describe('HostConnector', () => {
   it('connects nothing when the keychain refuses the sign-in', async () => {
     const { git, gitSync, connector } = setup({ keychainLocked: true })
 
-    await expect(connector.connectHost(INPUT)).rejects.toThrow('keychain locked')
+    await expect(connector.connectGitHost(INPUT)).rejects.toThrow('keychain locked')
     expect(git.calls().map((call) => call.method)).toEqual(['setup', 'remoteHead'])
     expect(gitSync.calls()).toEqual([])
   })
 
   it('accepts an upper-case scheme', async () => {
     const { gitSync, connector } = setup()
-    await connector.connectHost({ ...INPUT, remoteUrl: 'HTTPS://gitlab.com/alex/notes.git' })
+    await connector.connectGitHost({ ...INPUT, remoteUrl: 'HTTPS://gitlab.com/alex/notes.git' })
     expect(gitSync.calls()).toEqual([
       { method: 'connectRemote', remoteUrl: 'HTTPS://gitlab.com/alex/notes.git', branch: null },
     ])
@@ -83,7 +88,7 @@ describe('HostConnector', () => {
       { ...INPUT, token: '' },
     ]
     for (const input of refused) {
-      await expect(connector.connectHost(input)).rejects.toThrow(AppError)
+      await expect(connector.connectGitHost(input)).rejects.toThrow(AppError)
     }
     expect(git.calls()).toEqual([])
     expect(secretStore.snapshot()).toEqual({})
@@ -91,7 +96,7 @@ describe('HostConnector', () => {
 
   it('connects an empty remote without a branch to align', async () => {
     const { gitSync, connector } = setup()
-    await connector.connectHost(INPUT)
+    await connector.connectGitHost(INPUT)
     expect(gitSync.calls()).toEqual([{ method: 'connectRemote', remoteUrl: URL, branch: null }])
   })
 })

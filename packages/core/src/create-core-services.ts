@@ -1023,7 +1023,7 @@ export function composeCoreServices(
       return adapters.createGraphServices(session, {
         gitSync: gitSyncDeps,
         githubConnector: { githubAuth, githubRepos },
-        hostConnector: { git: gitRepository, hostCredentials },
+        gitHostConnector: { git: gitRepository, hostCredentials },
         icloudSync: icloudSyncDeps,
         icloudDownload: icloudDownloadDeps,
         capture: services.capture,

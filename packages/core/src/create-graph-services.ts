@@ -14,10 +14,10 @@ import {
   type GithubConnectorDeps,
 } from './sync/github-connector.ts'
 import {
-  createHostConnector,
-  type HostConnector,
-  type HostConnectorDeps,
-} from './sync/host-connector.ts'
+  createGitHostConnector,
+  type GitHostConnector,
+  type GitHostConnectorDeps,
+} from './sync/git-host-connector.ts'
 import {
   createICloudDownloadService,
   type ICloudDownloadServiceDeps,
@@ -40,7 +40,7 @@ export interface GraphServicesDeps {
   /**
    * The deps of the host connector, without the per-session parts.
    */
-  readonly hostConnector: Omit<HostConnectorDeps, 'gitSync' | 'generation'>
+  readonly gitHostConnector: Omit<GitHostConnectorDeps, 'gitSync' | 'generation'>
   /**
    * The deps of the iCloud conflict service.
    */
@@ -112,7 +112,7 @@ export type GraphLifecycle = 'assetDescription' | 'icloudDownload'
 export const graphServiceFactories = {
   gitSync: createGitSyncService,
   githubConnector: createGithubConnector,
-  hostConnector: createHostConnector,
+  gitHostConnector: createGitHostConnector,
   icloudSync: createICloudSyncService,
   icloudDownload: createICloudDownloadService,
 }
@@ -156,7 +156,7 @@ export interface GraphServices {
   /**
    * Connects this graph to another HTTPS git host; `null` when git sync does not run.
    */
-  readonly hostConnector: HostConnector | null
+  readonly gitHostConnector: GitHostConnector | null
 }
 
 /**
@@ -206,7 +206,7 @@ export function createGraphServices(
   let chat: GraphServices['chat']
   let gitSync: GitSyncService | null = null
   let githubConnector: GithubConnector | null = null
-  let hostConnector: HostConnector | null = null
+  let gitHostConnector: GitHostConnector | null = null
   try {
     chat = chatSessions.create({ session })
     disposers.push(chat.attach())
@@ -219,8 +219,8 @@ export function createGraphServices(
         sessionGitSync.dispose()
       })
       githubConnector = create.githubConnector({ ...deps.githubConnector, gitSync: sessionGitSync })
-      hostConnector = create.hostConnector({
-        ...deps.hostConnector,
+      gitHostConnector = create.gitHostConnector({
+        ...deps.gitHostConnector,
         gitSync: sessionGitSync,
         generation,
       })
@@ -261,5 +261,5 @@ export function createGraphServices(
     signal.addEventListener('abort', dispose, { once: true })
   }
 
-  return { session, role: session.role, chat, gitSync, githubConnector, hostConnector }
+  return { session, role: session.role, chat, gitSync, githubConnector, gitHostConnector }
 }

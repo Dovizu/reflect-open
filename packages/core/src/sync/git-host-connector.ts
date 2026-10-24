@@ -8,7 +8,7 @@ import { classifyRemote } from './remote-url.ts'
 /**
  * What the "Another host" form submits.
  */
-export interface ConnectHostInput {
+export interface ConnectGitHostInput {
   remoteUrl: string
   username: string
   token: string
@@ -19,7 +19,7 @@ export interface ConnectHostInput {
  * (GitLab, Gitea, Codeberg, a server of your own) with a username and an
  * access token.
  */
-export interface HostConnector {
+export interface GitHostConnector {
   /**
    * Validate the URL, make sure the repository exists, probe the host with
    * the sign-in, and only then store the sign-in and point `origin` at the
@@ -27,10 +27,10 @@ export interface HostConnector {
    * with the host's own answer. A remote that already holds notes on
    * another branch keeps it: the local branch takes that name.
    */
-  connectHost(input: ConnectHostInput): Promise<void>
+  connectGitHost(input: ConnectGitHostInput): Promise<void>
 }
 
-export interface HostConnectorDeps {
+export interface GitHostConnectorDeps {
   readonly git: GitRepositoryService
   readonly hostCredentials: GitHostCredentialService
   readonly gitSync: Pick<GitSyncService, 'connectRemote'>
@@ -40,14 +40,14 @@ export interface HostConnectorDeps {
   readonly generation: number
 }
 
-class HostConnectorImpl implements HostConnector {
-  readonly #deps: HostConnectorDeps
+class GitHostConnectorImpl implements GitHostConnector {
+  readonly #deps: GitHostConnectorDeps
 
-  constructor(deps: HostConnectorDeps) {
+  constructor(deps: GitHostConnectorDeps) {
     this.#deps = deps
   }
 
-  async connectHost({ remoteUrl, username, token }: ConnectHostInput): Promise<void> {
+  async connectGitHost({ remoteUrl, username, token }: ConnectGitHostInput): Promise<void> {
     const { git, hostCredentials, gitSync, generation } = this.#deps
     const url = remoteUrl.trim()
     const remote = classifyRemote(url)
@@ -80,6 +80,6 @@ class HostConnectorImpl implements HostConnector {
   }
 }
 
-export function createHostConnector(deps: HostConnectorDeps): HostConnector {
-  return new HostConnectorImpl(deps)
+export function createGitHostConnector(deps: GitHostConnectorDeps): GitHostConnector {
+  return new GitHostConnectorImpl(deps)
 }

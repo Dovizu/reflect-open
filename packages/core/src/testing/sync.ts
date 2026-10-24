@@ -12,7 +12,7 @@ import type { ClockService } from '../ports/clock-service.ts'
 import type { HttpService } from '../ports/http-service.ts'
 import type { GitSyncService, GitSyncState } from '../sync/git-sync-service.ts'
 import type { ConnectExistingResult, GithubConnector } from '../sync/github-connector.ts'
-import type { ConnectHostInput, HostConnector } from '../sync/host-connector.ts'
+import type { ConnectGitHostInput, GitHostConnector } from '../sync/git-host-connector.ts'
 import type { ICloudSyncService } from '../sync/icloud-sync-service.ts'
 import type { SecretStoreService } from '../secrets/secret-store-service.ts'
 import type {
@@ -615,40 +615,40 @@ export function createTestGithubConnector(): TestGithubConnector {
   return new TestGithubConnectorImpl()
 }
 
-export interface TestHostConnector extends HostConnector {
+export interface TestGitHostConnector extends GitHostConnector {
   /**
-   * Every `connectHost` input, in order.
+   * Every `connectGitHost` input, in order.
    */
-  calls(): readonly ConnectHostInput[]
+  calls(): readonly ConnectGitHostInput[]
   /**
-   * Answer `connectHost`; it resolves by default.
+   * Answer `connectGitHost`; it resolves by default.
    */
-  onConnectHost(handler: HostConnector['connectHost']): void
+  onConnectGitHost(handler: GitHostConnector['connectGitHost']): void
 }
 
 /**
- * A scripted {@link HostConnector}: it probes nothing and records every input.
+ * A scripted {@link GitHostConnector}: it probes nothing and records every input.
  */
-class TestHostConnectorImpl implements TestHostConnector {
-  readonly #log: ConnectHostInput[] = []
-  #connect: HostConnector['connectHost'] = () => Promise.resolve()
+class TestGitHostConnectorImpl implements TestGitHostConnector {
+  readonly #log: ConnectGitHostInput[] = []
+  #connect: GitHostConnector['connectGitHost'] = () => Promise.resolve()
 
-  async connectHost(input: ConnectHostInput): Promise<void> {
+  async connectGitHost(input: ConnectGitHostInput): Promise<void> {
     this.#log.push(input)
     await this.#connect(input)
   }
 
-  calls(): readonly ConnectHostInput[] {
+  calls(): readonly ConnectGitHostInput[] {
     return [...this.#log]
   }
 
-  onConnectHost(handler: HostConnector['connectHost']): void {
+  onConnectGitHost(handler: GitHostConnector['connectGitHost']): void {
     this.#connect = handler
   }
 }
 
-export function createTestHostConnector(): TestHostConnector {
-  return new TestHostConnectorImpl()
+export function createTestGitHostConnector(): TestGitHostConnector {
+  return new TestGitHostConnectorImpl()
 }
 
 export interface TestICloudSyncService extends ICloudSyncService {

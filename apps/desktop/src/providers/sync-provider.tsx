@@ -4,7 +4,7 @@ import {
   type GithubConnector,
   type GitSyncService,
   type GitSyncState,
-  type HostConnector,
+  type GitHostConnector,
 } from '@reflect/core'
 import { useMaybeGraphServices } from '@/services/services-provider.tsx'
 import { useServiceState } from '@/services/use-service-state.ts'
@@ -16,7 +16,7 @@ type GitSyncContextValue = { state: GitSyncState } & Pick<
   'disconnectGraph' | 'syncNow'
 > &
   Pick<GithubConnector, 'connectNewRepo' | 'connectExistingRepo'> &
-  Pick<HostConnector, 'connectHost'>
+  Pick<GitHostConnector, 'connectGitHost'>
 
 const LOADING: GitSyncState = { phase: 'loading' }
 
@@ -37,7 +37,7 @@ export function useGitSync(): GitSyncContextValue {
   const graph = useMaybeGraphServices()
   const controller = graph?.gitSync ?? null
   const githubConnector = graph?.githubConnector ?? null
-  const hostConnector = graph?.hostConnector ?? null
+  const gitHostConnector = graph?.gitHostConnector ?? null
   const store = controller ?? NO_GIT_SYNC
   const state = useServiceState(store, store.getState)
 
@@ -54,11 +54,11 @@ export function useGitSync(): GitSyncContextValue {
       connectExistingRepo: (ref, options) => {
         return require(githubConnector).connectExistingRepo(ref, options)
       },
-      connectHost: (input) => require(hostConnector).connectHost(input),
+      connectGitHost: (input) => require(gitHostConnector).connectGitHost(input),
       disconnectGraph: () => require(controller).disconnectGraph(),
       syncNow: () => require(controller).syncNow(),
     }
-  }, [controller, githubConnector, hostConnector, state])
+  }, [controller, githubConnector, gitHostConnector, state])
 }
 
 /**

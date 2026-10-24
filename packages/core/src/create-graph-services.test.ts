@@ -75,7 +75,7 @@ function sessionDeps(app: TestCoreServices) {
       logger,
     },
     githubConnector: { githubAuth: app.githubAuth, githubRepos: app.githubRepos },
-    hostConnector: { git: app.gitRepository, hostCredentials: app.hostCredentials },
+    gitHostConnector: { git: app.gitRepository, hostCredentials: app.hostCredentials },
     icloudSync: {
       icloudNative,
       fileChanges,
