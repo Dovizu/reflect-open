@@ -1,15 +1,12 @@
 import type { ReactElement, ReactNode } from 'react'
-import { useForm } from 'react-hook-form'
+import { useFormContext, useFormState } from 'react-hook-form'
 import { classifyRemote, type ConnectGitHostInput } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
 import { Input } from '@/components/ui/input.tsx'
-import type { UseConnectGitHostSubmitValue } from '@/hooks/use-connect-git-host-submit.ts'
 
-interface ConnectGitHostFormProps {
-  /** The remote to prefill: a remote that is already set and needs a sign-in. */
-  remoteUrl?: string | undefined
-  /** The submit flow of the shell ({@link useConnectGitHostSubmit}). */
-  flow: UseConnectGitHostSubmitValue
+interface ConnectGitHostFieldsProps {
+  /** The form's submit handler ({@link useConnectGitHostForm}). */
+  onSubmit: (event?: React.BaseSyntheticEvent) => Promise<void>
   /**
    * The submit controls, rendered inside the form so Enter in any field
    * submits. `canSubmit` is false while pending or while the address is one
@@ -24,31 +21,30 @@ const SSH_NOTE =
   'This is an SSH address; the form takes https. Add it with git and Reflect picks it up.'
 
 /**
- * The "Other host" form, shared by desktop's dialog and mobile's drawer: the
+ * The "Other host" fields, shared by desktop's dialog and mobile's drawer,
+ * inside the `FormProvider` of {@link useConnectGitHostForm}: the
  * repository's https address, the username, and the access token or
  * password the host takes. No help text: each mistake gets its own message
  * when it happens.
  */
-export function ConnectGitHostForm({
-  remoteUrl,
-  flow,
+export function ConnectGitHostFields({
+  onSubmit,
   actions,
-}: ConnectGitHostFormProps): ReactElement {
-  const { register, handleSubmit, formState } = useForm<ConnectGitHostInput>({
-    mode: 'onChange',
-    defaultValues: { remoteUrl: remoteUrl ?? '', username: '', token: '' },
-  })
-  const addressError = formState.errors.remoteUrl?.message
-  const submitForm = handleSubmit(flow.submit)
+}: ConnectGitHostFieldsProps): ReactElement {
+  const { register } = useFormContext<ConnectGitHostInput>()
+  // Nested in a `FormProvider`, the form state is subscribed through this hook.
+  const { isSubmitting: pending, errors } = useFormState<ConnectGitHostInput>()
+  const addressError = errors.remoteUrl?.message
+  const refusal = errors.root?.message
 
   return (
     <form
       className="flex flex-col gap-3"
       onSubmit={(event) => {
-        void submitForm(event)
+        void onSubmit(event)
       }}
     >
-      <fieldset disabled={flow.pending} className="flex min-w-0 flex-col gap-3">
+      <fieldset disabled={pending} className="flex min-w-0 flex-col gap-3">
         <label className="flex flex-col gap-1">
           <span className={FIELD_LABEL_CLASS}>Repository address</span>
           <Input
@@ -81,10 +77,8 @@ export function ConnectGitHostForm({
           <Input {...register('token')} type="password" autoComplete="current-password" />
         </label>
       </fieldset>
-      {flow.submitError !== null ? (
-        <InlineAlert tone="error">{flow.submitError}</InlineAlert>
-      ) : null}
-      {actions({ pending: flow.pending, canSubmit: !flow.pending && addressError === undefined })}
+      {refusal !== undefined ? <InlineAlert tone="error">{refusal}</InlineAlert> : null}
+      {actions({ pending, canSubmit: !pending && addressError === undefined })}
     </form>
   )
 }

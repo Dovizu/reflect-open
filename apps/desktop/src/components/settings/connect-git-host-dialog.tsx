@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react'
-import { ConnectGitHostForm } from '@/components/settings/connect-git-host-form.tsx'
+import { FormProvider } from 'react-hook-form'
+import { ConnectGitHostFields } from '@/components/settings/connect-git-host-form.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import {
   Dialog,
@@ -10,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog.tsx'
-import { useConnectGitHostSubmit } from '@/hooks/use-connect-git-host-submit.ts'
+import { useConnectGitHostForm } from '@/hooks/use-connect-git-host-form.ts'
 
 interface ConnectGitHostDialogProps {
   /**
@@ -31,42 +32,44 @@ export function ConnectGitHostDialog({
   remoteUrl,
   onClose,
 }: ConnectGitHostDialogProps): ReactElement {
-  const flow = useConnectGitHostSubmit({ onDone: onClose })
+  const { form, submit } = useConnectGitHostForm({ remoteUrl, onDone: onClose })
+  const pending = form.formState.isSubmitting
 
   return (
     <Dialog
       open
       onOpenChange={(isOpen) => {
-        if (!isOpen && !flow.pending) {
+        if (!isOpen && !pending) {
           onClose()
         }
       }}
     >
-      <DialogContent showCloseButton={!flow.pending} className="max-w-sm">
+      <DialogContent showCloseButton={!pending} className="max-w-sm">
         <DialogHeader>
           <DialogTitle>{remoteUrl === undefined ? 'Other host' : 'Update sign-in'}</DialogTitle>
           <DialogDescription>
             Reflect checks the sign-in with the host before it stores anything.
           </DialogDescription>
         </DialogHeader>
-        <ConnectGitHostForm
-          remoteUrl={remoteUrl}
-          flow={flow}
-          actions={({ pending, canSubmit }) => (
-            <DialogFooter>
-              <DialogClose
-                render={
-                  <Button type="button" variant="ghost" size="sm" disabled={pending}>
-                    Cancel
-                  </Button>
-                }
-              />
-              <Button type="submit" size="sm" disabled={!canSubmit}>
-                {pending ? 'Connecting…' : 'Connect'}
-              </Button>
-            </DialogFooter>
-          )}
-        />
+        <FormProvider {...form}>
+          <ConnectGitHostFields
+            onSubmit={submit}
+            actions={({ pending, canSubmit }) => (
+              <DialogFooter>
+                <DialogClose
+                  render={
+                    <Button type="button" variant="ghost" size="sm" disabled={pending}>
+                      Cancel
+                    </Button>
+                  }
+                />
+                <Button type="submit" size="sm" disabled={!canSubmit}>
+                  {pending ? 'Connecting…' : 'Connect'}
+                </Button>
+              </DialogFooter>
+            )}
+          />
+        </FormProvider>
       </DialogContent>
     </Dialog>
   )

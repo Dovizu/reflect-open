@@ -1,8 +1,9 @@
 import type { ReactElement } from 'react'
-import { ConnectGitHostForm } from '@/components/settings/connect-git-host-form.tsx'
+import { FormProvider } from 'react-hook-form'
+import { ConnectGitHostFields } from '@/components/settings/connect-git-host-form.tsx'
 import { Button } from '@/components/ui/button.tsx'
 import { Drawer, DrawerBody, DrawerContent, DrawerTitle } from '@/components/ui/drawer.tsx'
-import { useConnectGitHostSubmit } from '@/hooks/use-connect-git-host-submit.ts'
+import { useConnectGitHostForm } from '@/hooks/use-connect-git-host-form.ts'
 
 interface ConnectGitHostDrawerProps {
   open: boolean
@@ -13,7 +14,7 @@ interface ConnectGitHostDrawerProps {
 
 /**
  * The mobile "Other host" bottom sheet: a Drawer shell over
- * {@link useConnectGitHostSubmit}, the same form as desktop's dialog. The body
+ * {@link useConnectGitHostForm}, the same form as desktop's dialog. The body
  * mounts per open cycle, so a dismissed half-filled form never leaks into
  * the next.
  */
@@ -40,7 +41,7 @@ function ConnectGitHostSheet({
   remoteUrl: string | undefined
   onClose: () => void
 }): ReactElement {
-  const flow = useConnectGitHostSubmit({ onDone: onClose })
+  const { form, submit } = useConnectGitHostForm({ remoteUrl, onDone: onClose })
 
   return (
     <>
@@ -49,15 +50,16 @@ function ConnectGitHostSheet({
         <p className="text-xs text-text-muted">
           Reflect checks the sign-in with the host before it stores anything.
         </p>
-        <ConnectGitHostForm
-          remoteUrl={remoteUrl}
-          flow={flow}
-          actions={({ pending, canSubmit }) => (
-            <Button type="submit" disabled={!canSubmit}>
-              {pending ? 'Connecting…' : 'Connect'}
-            </Button>
-          )}
-        />
+        <FormProvider {...form}>
+          <ConnectGitHostFields
+            onSubmit={submit}
+            actions={({ pending, canSubmit }) => (
+              <Button type="submit" disabled={!canSubmit}>
+                {pending ? 'Connecting…' : 'Connect'}
+              </Button>
+            )}
+          />
+        </FormProvider>
       </DrawerBody>
     </>
   )
