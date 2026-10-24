@@ -1,5 +1,5 @@
 import { useForm, type UseFormReturn } from 'react-hook-form'
-import { errorMessage, type ConnectGitHostInput } from '@reflect/core'
+import { errorMessage, redactRemoteUrl, type ConnectGitHostInput } from '@reflect/core'
 import { useGitSync } from '@/providers/sync-provider.tsx'
 
 export interface ConnectGitHostForm {
@@ -28,7 +28,13 @@ export function useConnectGitHostForm({
   const { connectGitHost } = useGitSync()
   const form = useForm<ConnectGitHostInput>({
     mode: 'onBlur',
-    defaultValues: { remoteUrl: remoteUrl ?? '', username: '', token: '' },
+    // A remote set by hand may carry a sign-in in its URL; the form never
+    // shows one, and the connector refuses one.
+    defaultValues: {
+      remoteUrl: remoteUrl === undefined ? '' : redactRemoteUrl(remoteUrl),
+      username: '',
+      token: '',
+    },
   })
   const submit = form.handleSubmit(async (values) => {
     form.clearErrors('root')

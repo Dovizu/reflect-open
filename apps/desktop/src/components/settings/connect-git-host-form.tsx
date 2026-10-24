@@ -1,4 +1,4 @@
-import type { ReactElement, ReactNode } from 'react'
+import { useId, type ReactElement, type ReactNode } from 'react'
 import { useFormContext, useFormState } from 'react-hook-form'
 import { classifyRemote, type ConnectGitHostInput } from '@reflect/core'
 import { InlineAlert } from '@/components/inline-alert.tsx'
@@ -17,8 +17,29 @@ interface ConnectGitHostFieldsProps {
 
 const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
 
-const SSH_NOTE =
-  'This is an SSH address; the form takes https. Add it with git and Reflect picks it up.'
+/**
+ * What the address field says about an address the form cannot take. `true`
+ * passes. The connector checks again on submit; this is the early word.
+ */
+function checkAddress(value: string): true | string {
+  const url = value.trim()
+  if (url === '') {
+    return 'Enter the repository’s https address.'
+  }
+  const remote = classifyRemote(url)
+  switch (remote.kind) {
+    case 'github':
+      return 'This is a GitHub repository: go back and choose GitHub.'
+    case 'ssh':
+      return 'This is an SSH address; the form takes https. Add it with git and Reflect picks it up.'
+    case 'path':
+      return 'Enter the repository’s https address.'
+    case 'https':
+      return remote.origin.startsWith('http:')
+        ? 'Reflect does not send sign-ins over plain http. Use the https address.'
+        : true
+  }
+}
 
 /**
  * The "Other host" fields, shared by desktop's dialog and mobile's drawer,
@@ -32,6 +53,7 @@ export function ConnectGitHostFields({
   actions,
 }: ConnectGitHostFieldsProps): ReactElement {
   const { register } = useFormContext<ConnectGitHostInput>()
+  const addressErrorId = useId()
   // Nested in a `FormProvider`, the form state is subscribed through this hook.
   const { isSubmitting: pending, errors } = useFormState<ConnectGitHostInput>()
   const addressError = errors.remoteUrl?.message
@@ -48,10 +70,9 @@ export function ConnectGitHostFields({
         <label className="flex flex-col gap-1">
           <span className={FIELD_LABEL_CLASS}>Repository address</span>
           <Input
-            {...register('remoteUrl', {
-              validate: (value) => classifyRemote(value.trim()).kind !== 'ssh' || SSH_NOTE,
-            })}
+            {...register('remoteUrl', { validate: checkAddress })}
             aria-invalid={addressError !== undefined || undefined}
+            aria-describedby={addressError !== undefined ? addressErrorId : undefined}
             autoFocus
             placeholder="https://git.example.com/user/repo.git"
             autoCapitalize="none"
@@ -59,7 +80,13 @@ export function ConnectGitHostFields({
             spellCheck={false}
           />
           {addressError !== undefined ? (
-            <span className="text-xs text-red-700 dark:text-red-300">{addressError}</span>
+            <span
+              id={addressErrorId}
+              role="alert"
+              className="text-xs text-red-700 dark:text-red-300"
+            >
+              {addressError}
+            </span>
           ) : null}
         </label>
         <label className="flex flex-col gap-1">

@@ -92,7 +92,7 @@ describe('GitSyncSettingsField', () => {
     await expect.element(page.getByRole('heading', { name: 'Connect GitHub' })).toBeVisible()
   })
 
-  it('connects a repository through one door: another host by address', async () => {
+  it('opens the Other host form from the chooser', async () => {
     await renderSection({ phase: 'disconnected' })
 
     await userEvent.click(page.getByRole('button', { name: 'Connect a repository…' }))
@@ -245,12 +245,12 @@ describe('GitSyncSettingsField', () => {
   it('names a plain-HTTP remote without its user info and offers no sign-in', async () => {
     await renderSection({
       phase: 'needsCredential',
-      remoteUrl: 'http://alex:token@gitea.local/alex/notes.git',
+      remoteUrl: 'http://alex:s3cret@gitea.local/alex/notes.git',
       remote: { kind: 'https', origin: 'http://gitea.local' },
     })
 
     await expect.element(page.getByText('gitea.local/alex/notes')).toBeVisible()
-    await expect.element(page.getByText(/alex:token/)).not.toBeInTheDocument()
+    await expect.element(page.getByText(/s3cret/)).not.toBeInTheDocument()
     await expect.element(page.getByText(/does not send sign-ins over plain http/)).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Add sign-in…' })).not.toBeInTheDocument()
   })

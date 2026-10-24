@@ -50,10 +50,14 @@ describe('ConnectGitHostDialog', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('prefills the remote when a sign-in is being added or updated', async () => {
-    await renderInApp(<ConnectGitHostDialog remoteUrl={URL} onClose={vi.fn()} />, {
-      sync: { phase: 'disconnected' },
-    })
+  it('prefills the remote, less any sign-in in it, when a sign-in is being updated', async () => {
+    await renderInApp(
+      <ConnectGitHostDialog
+        remoteUrl="https://alex:s3cret@gitlab.com/alex/notes.git"
+        onClose={vi.fn()}
+      />,
+      { sync: { phase: 'disconnected' } },
+    )
 
     await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
     await expect.element(page.getByLabelText('Repository address')).toHaveValue(URL)
@@ -69,6 +73,23 @@ describe('ConnectGitHostDialog', () => {
     await userEvent.tab()
 
     await expect.element(page.getByText(/This is an SSH address/)).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Connect' })).toBeDisabled()
+  })
+
+  it('names the reason for a GitHub or plain-http address and keeps Connect disabled', async () => {
+    await renderInApp(<ConnectGitHostDialog onClose={vi.fn()} />, {
+      sync: { phase: 'disconnected' },
+    })
+    const address = page.getByLabelText('Repository address')
+
+    await userEvent.fill(address, 'https://github.com/alex/notes.git')
+    await userEvent.tab()
+    await expect.element(page.getByText(/choose GitHub/)).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Connect' })).toBeDisabled()
+
+    await userEvent.fill(address, 'http://gitea.local/alex/notes.git')
+    await userEvent.tab()
+    await expect.element(page.getByText(/plain http/)).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Connect' })).toBeDisabled()
   })
 
