@@ -18,6 +18,18 @@ describe('remoteLabel', () => {
         'https://alex:glpat-1@gitlab.com/alex/notes.git',
       ),
     ).toBe('gitlab.com/alex/notes')
+    expect(
+      remoteLabel(
+        { kind: 'https', origin: 'https://gitlab.com' },
+        'https://gitlab.com/alex/notes.GIT/',
+      ),
+    ).toBe('gitlab.com/alex/notes')
+    expect(
+      remoteLabel(
+        { kind: 'https', origin: 'https://gitlab.com' },
+        'https://gitlab.com/alex/notes.git?token=glpat-1#x',
+      ),
+    ).toBe('gitlab.com/alex/notes')
   })
 
   it('keeps SSH and path remotes as written, less any sign-in', () => {

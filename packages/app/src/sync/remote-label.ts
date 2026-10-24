@@ -10,9 +10,11 @@ export function remoteLabel(remote: GitRemote, remoteUrl: string): string {
     case 'github':
       return `${remote.repo.owner}/${remote.repo.name} on GitHub`
     case 'https':
+      // Host and path only: no scheme, no query or fragment, no `.git` suffix.
       return redactRemoteUrl(remoteUrl)
+        .replace(/[?#].*$/, '')
         .replace(/^https?:\/\//i, '')
-        .replace(/\.git$/, '')
+        .replace(/\.git\/?$/i, '')
     case 'ssh':
     case 'path':
       return redactRemoteUrl(remoteUrl)
