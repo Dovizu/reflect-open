@@ -65,6 +65,8 @@ describe('ConnectGitHostDialog', () => {
     })
 
     await userEvent.fill(page.getByLabelText('Repository address'), 'git@gitlab.com:alex/notes.git')
+    // The address is checked when the field loses focus.
+    await userEvent.tab()
 
     await expect.element(page.getByText(/This is an SSH address/)).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Connect' })).toBeDisabled()

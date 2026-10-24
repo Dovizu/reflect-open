@@ -27,7 +27,7 @@ export function useConnectGitHostForm({
 }): ConnectGitHostForm {
   const { connectGitHost } = useGitSync()
   const form = useForm<ConnectGitHostInput>({
-    mode: 'onChange', // FIXME: use `node: onBlur`
+    mode: 'onBlur',
     defaultValues: { remoteUrl: remoteUrl ?? '', username: '', token: '' },
   })
   const submit = form.handleSubmit(async (values) => {
