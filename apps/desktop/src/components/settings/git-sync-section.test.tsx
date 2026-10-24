@@ -2,38 +2,36 @@ import { page, userEvent } from 'vitest/browser'
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest'
 import { createTestOpenerService, type TestOpenerService } from '@reflect/app/testing'
 import type { OpenerService } from '@reflect/app'
-import type { GithubAuthService, GitSyncState } from '@reflect/core'
+import type { GitSyncState } from '@reflect/core'
 import {
   type TestOpenGraph,
   createTestCoreServices,
   createTestGitSyncService,
+  createTestHostConnector,
   type TestGitSyncService,
   type TestCoreServices,
+  type TestHostConnector,
 } from '@reflect/core/testing'
-import { expectLocatorToHaveCount } from '@/test-utils/expect.ts'
 import '@/test-utils/locator.ts'
 import { renderInApp } from '@/test-utils/render-in-app.tsx'
 import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 import { GitSyncSettingsField } from './git-sync-section.tsx'
 
-// The section's GitHub-vs-generic split (Plan 16): a hand-wired remote must
-// render host-neutrally, and its auth errors must surface the engine's
-// actionable message — "reconnect GitHub" can't fix an ssh-agent problem.
-
-// Whether a GitHub credential is stored; each test sets it before `renderSection`.
-let githubConnected: boolean
+// The card names the remote and speaks the channel's words: sync for a folder
+// graph, backup beside iCloud. GitHub keeps its account row elsewhere; a host
+// remote gets its sign-in here; an SSH remote's auth error names its own fix.
 
 // The services of the app under test; created fresh for each test.
 let opener: TestOpenerService
 let gitSync: TestGitSyncService
+let hostConnector: TestHostConnector
 let openUrl: MockInstance<OpenerService['openUrl']>
-let signOut: MockInstance<GithubAuthService['clear']>
 
 beforeEach(() => {
-  githubConnected = false
   opener = createTestOpenerService()
   openUrl = vi.spyOn(opener, 'openUrl')
   gitSync = createTestGitSyncService()
+  hostConnector = createTestHostConnector()
 })
 
 async function renderSection(
@@ -41,11 +39,11 @@ async function renderSection(
   graph?: TestOpenGraph,
 ): Promise<TestCoreServices> {
   gitSync.setState(state)
-  const app = createTestCoreServices({ database: createWasmTestDatabaseService(), gitSync })
-  signOut = vi.spyOn(app.githubAuth, 'clear')
-  if (githubConnected) {
-    await app.githubAuth.save({ kind: 'pat', token: 'ghp_test' })
-  }
+  const app = createTestCoreServices({
+    database: createWasmTestDatabaseService(),
+    gitSync,
+    hostConnector,
+  })
   await renderInApp(<GitSyncSettingsField />, {
     app,
     appServices: { opener },
@@ -53,6 +51,16 @@ async function renderSection(
   })
   return app
 }
+
+const GITHUB = {
+  remoteUrl: 'https://github.com/alex/notes.git',
+  remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
+} as const
+
+const GITLAB = {
+  remoteUrl: 'https://gitlab.com/alex/notes.git',
+  remote: { kind: 'https', origin: 'https://gitlab.com' },
+} as const
 
 const AUTH_ERROR = {
   state: 'error',
@@ -66,48 +74,66 @@ const ICLOUD_GRAPH: TestOpenGraph = {
 }
 
 describe('GitSyncSettingsField', () => {
-  it('explains the quiet window on an iCloud graph', async () => {
-    await renderSection({ phase: 'disconnected' }, ICLOUD_GRAPH)
+  it('offers GitHub and another host to a disconnected graph', async () => {
+    await renderSection({ phase: 'disconnected' })
+
+    await expect.element(page.locate('legend').getByText('Git repository')).toBeVisible()
+    await expect.element(page.getByText(/Sync this graph with your other devices/)).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Connect GitHub…' })).toBeVisible()
     await expect
-      .element(page.getByText(/This graph already syncs through iCloud Drive/))
-      .toBeVisible()
+      .element(page.getByRole('button', { name: /Sign out of GitHub/ }))
+      .not.toBeInTheDocument()
+
+    await userEvent.click(page.getByRole('button', { name: 'Another host…' }))
+
+    await expect.element(page.getByRole('heading', { name: 'Connect another host' })).toBeVisible()
+    await expect.element(page.getByLabelText('Repository URL')).toHaveValue('')
   })
 
-  it('describes the quiet window when an iCloud graph is connected', async () => {
+  it('explains the quiet window on a disconnected iCloud graph', async () => {
+    await renderSection({ phase: 'disconnected' }, ICLOUD_GRAPH)
+    await expect.element(page.getByText(/This graph syncs through iCloud Drive/)).toBeVisible()
+  })
+
+  it('speaks of backup when iCloud is the channel', async () => {
     await renderSection(
-      {
-        phase: 'connected',
-        remoteUrl: 'https://github.com/alex/notes.git',
-        remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-        isPrimaryChannel: true,
-        status: { state: 'idle' },
-      },
+      { phase: 'connected', ...GITHUB, isPrimaryChannel: false, status: { state: 'idle' } },
       ICLOUD_GRAPH,
     )
-    await expect
-      .element(
-        page.getByText(/Backs up to GitHub five minutes after iCloud and your edits go quiet/),
-      )
-      .toBeVisible()
+    await expect.element(page.getByText(/iCloud syncs your notes/)).toBeVisible()
+    await expect.element(page.getByText('Backed up')).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Back up now' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Stop backing up' })).toBeVisible()
+  })
+
+  it('speaks of sync when the repository is the channel', async () => {
+    await renderSection({
+      phase: 'connected',
+      ...GITHUB,
+      isPrimaryChannel: true,
+      status: { state: 'idle' },
+    })
+    await expect.element(page.getByText(/Syncs this graph with your other devices/)).toBeVisible()
+    await expect.element(page.getByText('Up to date')).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Sync now' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Stop syncing' })).toBeVisible()
   })
 
   it('shows the waiting countdown', async () => {
     await renderSection({
       phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
+      ...GITHUB,
       isPrimaryChannel: true,
       status: { state: 'waiting', until: 2 * 60_000 + 1 },
     })
-    await expect.element(page.getByText('Backs up in 2 minutes')).toBeVisible()
+    await expect.element(page.getByText('Syncs in 2 minutes')).toBeVisible()
   })
 
   it('counts the waiting countdown down as time passes', async () => {
     const app = await renderSection({
       phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-      isPrimaryChannel: true,
+      ...GITHUB,
+      isPrimaryChannel: false,
       status: { state: 'waiting', until: 3 * 60_000 },
     })
     await expect.element(page.getByText('Backs up in 3 minutes')).toBeVisible()
@@ -115,24 +141,7 @@ describe('GitSyncSettingsField', () => {
     await expect.element(page.getByText('Backs up in 2 minutes')).toBeVisible()
   })
 
-  it('names no host for an iCloud graph with a generic remote', async () => {
-    await renderSection(
-      {
-        phase: 'connected',
-        remoteUrl: 'git@gitlab.com:alex/notes.git',
-        remote: { kind: 'ssh', host: 'gitlab.com' },
-        isPrimaryChannel: true,
-        status: { state: 'idle' },
-      },
-      ICLOUD_GRAPH,
-    )
-    await expect
-      .element(page.getByText(/Pushes to the backup five minutes after iCloud/))
-      .toBeVisible()
-    await expect.element(page.getByText(/GitHub/)).not.toBeInTheDocument()
-  })
-
-  it('renders a generic remote host-neutrally with the engine’s own auth message', async () => {
+  it('names an SSH remote and keeps the engine’s own auth message', async () => {
     await renderSection({
       phase: 'connected',
       remoteUrl: 'git@gitlab.com:alex/notes.git',
@@ -141,93 +150,99 @@ describe('GitSyncSettingsField', () => {
       status: AUTH_ERROR,
     })
 
-    await expect.element(page.locate('legend').getByText('Backup')).toBeVisible()
-    await expect.element(page.getByText('GitHub sync')).not.toBeInTheDocument()
     await expect.element(page.getByText('git@gitlab.com:alex/notes.git')).toBeVisible()
-    // The actionable message, not a GitHub reconnect that can't help.
-    await expect.element(page.getByText(/ssh-add/)).toBeVisible()
-    await expect.element(page.getByText(/reconnect GitHub/)).not.toBeInTheDocument()
-    // Machine-level GitHub sign-out is noise next to a non-GitHub graph.
+    // The actionable message, not a GitHub sign-in that can't help.
+    await expect.element(page.getByText(/Sync failed: .*ssh-add/)).toBeVisible()
+    await expect.element(page.getByText(/GitHub/)).not.toBeInTheDocument()
     await expect
-      .element(page.getByRole('button', { name: /Sign out of GitHub/ }))
-      .not.toBeInTheDocument()
-    await expect
-      .element(page.getByRole('button', { name: 'Open GitHub repo' }))
+      .element(page.getByRole('button', { name: 'Update sign-in…' }))
       .not.toBeInTheDocument()
   })
 
-  it('names a GitHub remote that waits for its sign-in and offers to sign in', async () => {
+  it('points a GitHub remote with a bad sign-in at the account row', async () => {
     await renderSection({
-      phase: 'needsCredential',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
+      phase: 'connected',
+      ...GITHUB,
+      isPrimaryChannel: true,
+      status: AUTH_ERROR,
     })
 
-    await expect.element(page.getByText('alex/notes')).toBeVisible()
+    await expect.element(page.getByText('alex/notes on GitHub')).toBeVisible()
+    await expect.element(page.getByText('Sync failed: sign in to GitHub again')).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Open GitHub repo' })).toBeVisible()
+    await expect
+      .element(page.getByRole('button', { name: /Sign out of GitHub/ }))
+      .not.toBeInTheDocument()
+  })
+
+  it('offers to update the sign-in of a host remote that was refused', async () => {
+    await renderSection({
+      phase: 'connected',
+      ...GITLAB,
+      isPrimaryChannel: true,
+      status: { state: 'error', errorKind: 'auth', message: 'the host rejected the sign-in' },
+    })
+
+    await expect.element(page.getByText('gitlab.com/alex/notes')).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: 'Update sign-in…' }))
+
+    await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
+    await expect.element(page.getByLabelText('Repository URL')).toHaveValue(GITLAB.remoteUrl)
+  })
+
+  it('tells a GitHub remote that waits for its sign-in to use the account row', async () => {
+    await renderSection({ phase: 'needsCredential', ...GITHUB })
+
+    await expect.element(page.getByText('alex/notes on GitHub')).toBeVisible()
     await expect.element(page.getByText('Sign-in needed')).toBeVisible()
-    await expect.element(page.getByRole('button', { name: 'Stop backing up' })).toBeVisible()
+    await expect.element(page.getByText(/Sign in to GitHub below to resume/)).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Stop syncing' })).toBeVisible()
     // Not the connect wizard: the remote is already there.
     await expect
       .element(page.getByRole('button', { name: 'Connect GitHub…' }))
       .not.toBeInTheDocument()
-
-    await userEvent.click(page.getByRole('button', { name: 'Sign in to GitHub…' }))
-    await expect.element(page.getByRole('heading', { name: 'Sign in to GitHub' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Add sign-in…' })).not.toBeInTheDocument()
   })
 
-  it('explains the SSH form for a host remote that waits for its sign-in', async () => {
-    await renderSection({
-      phase: 'needsCredential',
-      remoteUrl: 'https://gitlab.com/alex/notes.git',
-      remote: { kind: 'https', origin: 'https://gitlab.com' },
-    })
+  it('adds the sign-in of a host remote that waits for it', async () => {
+    await renderSection({ phase: 'needsCredential', ...GITLAB })
 
-    await expect.element(page.locate('legend').getByText('Backup')).toBeVisible()
-    await expect.element(page.getByText('https://gitlab.com/alex/notes.git')).toBeVisible()
+    await expect.element(page.getByText('gitlab.com/alex/notes')).toBeVisible()
     await expect
-      .element(page.getByText(/cannot sign in to gitlab\.com over HTTPS yet/))
+      .element(page.getByText(/Add the username and access token for gitlab\.com/))
       .toBeVisible()
-    await expect.element(page.getByRole('button', { name: 'Stop backing up' })).toBeVisible()
-    await expect
-      .element(page.getByRole('button', { name: 'Sign in to GitHub…' }))
-      .not.toBeInTheDocument()
+    await userEvent.click(page.getByRole('button', { name: 'Add sign-in…' }))
+
+    await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
+    await expect.element(page.getByLabelText('Repository URL')).toHaveValue(GITLAB.remoteUrl)
+    await userEvent.fill(page.getByLabelText('Username'), 'alex')
+    await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
+    await userEvent.click(page.getByRole('button', { name: 'Connect' }))
+
+    await vi.waitFor(() =>
+      expect(hostConnector.calls()).toEqual([
+        { remoteUrl: GITLAB.remoteUrl, username: 'alex', token: 'glpat-1' },
+      ]),
+    )
   })
 
-  it('names a plain-HTTP remote without its user info and says no sign-in is sent', async () => {
+  it('names a plain-HTTP remote without its user info and offers no sign-in', async () => {
     await renderSection({
       phase: 'needsCredential',
       remoteUrl: 'http://alex:token@gitea.local/alex/notes.git',
       remote: { kind: 'https', origin: 'http://gitea.local' },
     })
 
-    await expect.element(page.getByText('http://gitea.local/alex/notes.git')).toBeVisible()
+    await expect.element(page.getByText('gitea.local/alex/notes')).toBeVisible()
     await expect.element(page.getByText(/token/)).not.toBeInTheDocument()
-    await expect.element(page.getByText(/never sends a sign-in to gitea\.local/)).toBeVisible()
-  })
-
-  it('renders a GitHub remote with the reconnect affordances', async () => {
-    await renderSection({
-      phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-      isPrimaryChannel: true,
-      status: AUTH_ERROR,
-    })
-
-    await expect.element(page.getByText('GitHub sync')).toBeVisible()
-    await expect.element(page.getByText('alex/notes')).toBeVisible()
-    await expect.element(page.getByText(/reconnect GitHub/)).toBeVisible()
-    await expect.element(page.getByText('GitHub account')).toBeVisible()
-    await expect.element(page.getByText(/connected graphs stop backing up/i)).toBeVisible()
-    await expect.element(page.getByRole('button', { name: 'Open GitHub repo' })).toBeVisible()
-    await expect.element(page.getByRole('button', { name: /Sign out of GitHub/ })).toBeVisible()
+    await expect.element(page.getByText(/never sent to gitea\.local over plain HTTP/)).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Add sign-in…' })).not.toBeInTheDocument()
   })
 
   it('opens the connected GitHub repository', async () => {
     await renderSection({
       phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
+      ...GITHUB,
       isPrimaryChannel: true,
       status: { state: 'idle' },
     })
@@ -237,33 +252,11 @@ describe('GitSyncSettingsField', () => {
     expect(openUrl).toHaveBeenCalledWith('https://github.com/alex/notes')
   })
 
-  it('keeps unrelated action errors out of the sign-out dialog', async () => {
-    openUrl.mockRejectedValueOnce(new Error('No browser'))
-    await renderSection({
-      phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-      isPrimaryChannel: true,
-      status: { state: 'idle' },
-    })
-
-    await userEvent.click(page.getByRole('button', { name: 'Open GitHub repo' }))
-
-    await expect.element(page.getByText(/Couldn’t open the browser/)).toBeVisible()
-
-    await userEvent.click(page.getByRole('button', { name: /Sign out of GitHub/ }))
-
-    await expect
-      .element(page.getByRole('dialog').getByText(/Couldn’t open the browser/))
-      .not.toBeInTheDocument()
-  })
-
   it('clears stale open-repo errors before retrying', async () => {
     openUrl.mockRejectedValueOnce(new Error('No browser'))
     await renderSection({
       phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
+      ...GITHUB,
       isPrimaryChannel: true,
       status: { state: 'idle' },
     })
@@ -288,8 +281,7 @@ describe('GitSyncSettingsField', () => {
       .mockResolvedValueOnce()
     await renderSection({
       phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
+      ...GITHUB,
       isPrimaryChannel: true,
       status: { state: 'idle' },
     })
@@ -302,104 +294,5 @@ describe('GitSyncSettingsField', () => {
     rejectFirstOpen(new Error('Old failure'))
 
     await expect.element(page.getByText(/Couldn’t open the browser/)).not.toBeInTheDocument()
-  })
-
-  it('confirms before signing out of GitHub', async () => {
-    await renderSection({
-      phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-      isPrimaryChannel: true,
-      status: { state: 'idle' },
-    })
-
-    await userEvent.click(page.getByRole('button', { name: /Sign out of GitHub/ }))
-
-    await expect.element(page.getByRole('heading', { name: 'Sign out of GitHub?' })).toBeVisible()
-    await expect
-      .element(page.getByText(/Every GitHub-backed graph will stop backing up/i))
-      .toBeVisible()
-    expect(signOut).not.toHaveBeenCalled()
-
-    await userEvent.click(page.getByRole('button', { name: 'Sign out' }))
-
-    await vi.waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
-    await expect
-      .element(page.getByRole('heading', { name: 'Sign out of GitHub?' }))
-      .not.toBeInTheDocument()
-  })
-
-  it('shows sign-out failures inside the confirmation dialog', async () => {
-    await renderSection({
-      phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-      isPrimaryChannel: true,
-      status: { state: 'idle' },
-    })
-    signOut.mockRejectedValueOnce(new Error('Keychain denied'))
-
-    await userEvent.click(page.getByRole('button', { name: /Sign out of GitHub/ }))
-    await userEvent.click(page.getByRole('button', { name: 'Sign out' }))
-
-    await expect.element(page.getByRole('heading', { name: 'Sign out of GitHub?' })).toBeVisible()
-    await expect.element(page.getByRole('dialog').getByText('Keychain denied')).toBeVisible()
-    await expectLocatorToHaveCount(page.getByText('Keychain denied'), 1)
-  })
-
-  it('does not close the sign-out dialog while sign-out is pending', async () => {
-    const pendingSignOut = Promise.withResolvers<void>()
-    await renderSection({
-      phase: 'connected',
-      remoteUrl: 'https://github.com/alex/notes.git',
-      remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-      isPrimaryChannel: true,
-      status: { state: 'idle' },
-    })
-    signOut.mockImplementationOnce(() => pendingSignOut.promise)
-
-    await userEvent.click(page.getByRole('button', { name: /Sign out of GitHub/ }))
-    await userEvent.click(page.getByRole('button', { name: 'Sign out' }))
-    await expect.element(page.getByRole('button', { name: 'Cancel' })).toBeDisabled()
-
-    await expect.element(page.getByRole('heading', { name: 'Sign out of GitHub?' })).toBeVisible()
-
-    pendingSignOut.resolve()
-
-    await expect
-      .element(page.getByRole('heading', { name: 'Sign out of GitHub?' }))
-      .not.toBeInTheDocument()
-  })
-
-  it('offers sign-out with no connected graph when signed in to GitHub', async () => {
-    githubConnected = true
-    await renderSection({ phase: 'disconnected' })
-
-    await expect.element(page.getByRole('button', { name: /Connect GitHub/ })).toBeVisible()
-    await expect.element(page.getByText('GitHub account')).toBeVisible()
-    await expect.element(page.getByText(/Sign out to connect a different account/i)).toBeVisible()
-    await expect.element(page.getByRole('button', { name: /Sign out of GitHub/ })).toBeVisible()
-  })
-
-  it('hides sign-out with no connected graph when not signed in to GitHub', async () => {
-    githubConnected = false
-    await renderSection({ phase: 'disconnected' })
-
-    await expect.element(page.getByRole('button', { name: /Connect GitHub/ })).toBeVisible()
-    await expect
-      .element(page.getByRole('button', { name: /Sign out of GitHub/ }))
-      .not.toBeInTheDocument()
-  })
-
-  it('signs out of GitHub from the disconnected state', async () => {
-    githubConnected = true
-    await renderSection({ phase: 'disconnected' })
-
-    await userEvent.click(page.getByRole('button', { name: /Sign out of GitHub/ }))
-    await expect.element(page.getByRole('heading', { name: 'Sign out of GitHub?' })).toBeVisible()
-
-    await userEvent.click(page.getByRole('button', { name: 'Sign out' }))
-
-    await vi.waitFor(() => expect(signOut).toHaveBeenCalledTimes(1))
   })
 })

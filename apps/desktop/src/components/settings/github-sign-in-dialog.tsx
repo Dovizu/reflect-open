@@ -13,10 +13,10 @@ interface GithubSignInDialogProps {
 }
 
 /**
- * Sign in to GitHub on its own, without connecting a repository: the fix for
- * a GitHub remote whose sign-in is gone. The step is the connect wizard's
- * own; the stored sign-in restarts every graph that waits for it, and the
- * dialog closes once GitHub has confirmed the credential.
+ * Sign in to GitHub on its own, without connecting a repository. The stored
+ * sign-in serves every GitHub repository this machine syncs and the gist
+ * publishing of every graph. The step is the connect wizard's own; it closes
+ * once GitHub has confirmed the credential.
  */
 export function GithubSignInDialog({ onClose }: GithubSignInDialogProps): ReactElement {
   return (
@@ -32,7 +32,8 @@ export function GithubSignInDialog({ onClose }: GithubSignInDialogProps): ReactE
         <DialogHeader>
           <DialogTitle>Sign in to GitHub</DialogTitle>
           <DialogDescription>
-            This graph resumes backing up to its repository once you are signed in.
+            For GitHub repositories and for sharing notes as gists. Connecting a repository is a
+            separate step.
           </DialogDescription>
         </DialogHeader>
         <GithubAuthStep onAuthed={onClose} />
