@@ -98,8 +98,7 @@ export function ConnectRepositoryDialog({
           <DialogFooter>
             <DialogClose
               render={
-                <Button type="button" variant="ghost" size="sm">
-                  Cancel
+                <Button type="button" variant="ghost" size="sm">Cancel
                 </Button>
               }
             />
