@@ -1,28 +1,55 @@
 import { once } from '@ocavue/utils'
 import { z } from 'zod'
 
-const LicenseEntrySchema = z.object({
-  name: z.string(),
-  ecosystem: z.enum(['npm', 'cargo', 'other']),
-  license: z.string(),
-  url: z.string().optional(),
-  /** Keys into {@link Licenses.texts}; empty when the package ships no license file. */
-  texts: z.array(z.string()),
-})
+export interface LicenseEntry {
+  name: string
+  ecosystem: 'npm' | 'cargo' | 'other'
+  license: string
+  url?: string
+  /** Indexes into {@link Licenses.texts}; empty when the package ships no license file. */
+  texts: number[]
+}
 
-const LicensesSchema = z.object({
-  entries: z.array(LicenseEntrySchema),
-  /** License texts keyed by a hash of their content. */
-  texts: z.record(z.string(), z.string()),
-})
+export interface Licenses {
+  entries: LicenseEntry[]
+  texts: string[]
+}
 
-export type LicenseEntry = z.infer<typeof LicenseEntrySchema>
-export type Licenses = z.infer<typeof LicensesSchema>
+/**
+ * The compact shape that `scripts/generate-licenses.ts` writes. Each entry is
+ * a `[name, ecosystem, license, url, texts]` tuple, where `license` indexes
+ * `licenses` and `texts` indexes `texts`. Each text is a list of indexes into
+ * `paragraphs`.
+ */
+const LicensesFileSchema = z.object({
+  licenses: z.array(z.string()),
+  paragraphs: z.array(z.string()),
+  texts: z.array(z.array(z.int())),
+  entries: z.array(
+    z.tuple([
+      z.string(),
+      z.enum(['npm', 'cargo', 'other']),
+      z.int(),
+      z.string().nullable(),
+      z.array(z.int()),
+    ]),
+  ),
+})
 
 /** Loads the generated notices, which Vite splits into their own lazy chunk. */
 async function loadLicenses(): Promise<Licenses> {
   const { default: data } = await import('./licenses.gen.json')
-  return LicensesSchema.parse(data)
+  const file = LicensesFileSchema.parse(data)
+  return {
+    entries: file.entries.map(([name, ecosystem, license, url, texts]) => ({
+      name,
+      ecosystem,
+      license: file.licenses[license]!,
+      ...(url === null ? {} : { url }),
+      texts,
+    })),
+    texts: file.texts.map((text) => text.map((i) => file.paragraphs[i]!).join('\n\n')),
+  }
 }
 
 /**

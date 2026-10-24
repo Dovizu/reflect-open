@@ -12,21 +12,18 @@ const LICENSES: Licenses = {
       ecosystem: 'npm',
       license: 'MIT',
       url: 'https://alpha.example',
-      texts: ['mit-alpha'],
+      texts: [1],
     },
     {
       name: 'beta',
       ecosystem: 'cargo',
       license: 'BSD-3-Clause AND MIT',
       url: 'https://beta.example',
-      texts: ['mit-alpha', 'bsd-beta'],
+      texts: [0, 1],
     },
     { name: 'gamma', ecosystem: 'npm', license: 'ISC', texts: [] },
   ],
-  texts: {
-    'bsd-beta': 'BSD 3-Clause License\n\nCopyright (c) Beta',
-    'mit-alpha': 'MIT License\n\nCopyright (c) Alpha',
-  },
+  texts: ['BSD 3-Clause License\n\nCopyright (c) Beta', 'MIT License\n\nCopyright (c) Alpha'],
 }
 
 async function mount() {

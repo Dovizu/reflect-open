@@ -153,31 +153,86 @@ function compareEntries(a: Entry, b: Entry): number {
   )
 }
 
-/** The key a license text is stored under: the first 16 hex digits of its SHA-256. */
+/** The key a license text is sorted by: the first 16 hex digits of its SHA-256. */
 function hashText(text: string): string {
   return createHash('sha256').update(text).digest('hex').slice(0, 16)
+}
+
+/**
+ * Splits a license text into paragraphs at blank lines and joins each
+ * paragraph's hard-wrapped lines with one space. The same clause wrapped at
+ * different widths then becomes the same paragraph. A paragraph that holds
+ * list items or ASCII rules and tables keeps its line breaks.
+ */
+function splitParagraphs(text: string): string[] {
+  return text
+    .replaceAll('\r\n', '\n')
+    .split(/(?:\n[ \t]*){2,}/)
+    .map((paragraph) => {
+      return keepsLineBreaks(paragraph)
+        ? paragraph.trim()
+        : paragraph.replaceAll(/[ \t]*\n[ \t]*/g, ' ').trim()
+    })
+    .filter((paragraph) => paragraph !== '')
+}
+
+function keepsLineBreaks(paragraph: string): boolean {
+  const lines = paragraph.split('\n')
+  return (
+    lines.slice(1).some((line) => /^\s*(?:[-*•]|\(?[0-9a-z]{1,3}[.)])\s/.test(line)) ||
+    lines.some((line) => /[-=_*]{5,}|\|.*\|/.test(line))
+  )
+}
+
+/** Writes each item of each top-level array on its own line. */
+function formatOutput(data: Record<string, unknown[]>): string {
+  const sections = Object.entries(data).map(([key, items]) => {
+    return `  ${JSON.stringify(key)}: [\n${items.map((item) => `    ${JSON.stringify(item)}`).join(',\n')}\n  ]`
+  })
+  return `{\n${sections.join(',\n')}\n}\n`
 }
 
 async function main(): Promise<void> {
   const collected = [...(await collectNpm()), ...(await collectCargo()), collectInter()]
   const entries = mergeEntries(collected).toSorted(compareEntries)
 
-  // Each distinct text is stored once under its hash, and entries refer to
-  // texts by hash. Adding or removing a text changes no other key.
-  const texts = Object.fromEntries(
-    [...new Set(entries.flatMap((entry) => entry.texts))]
-      .map((text) => [hashText(text), text] as const)
-      .toSorted(([a], [b]) => a.localeCompare(b)),
-  )
+  // Each text becomes a list of paragraphs, and each distinct paragraph is
+  // stored once. Texts that differ only in line wrapping merge into one.
+  const reflowedTexts = new Map<string, string>()
+  const textParagraphs = new Map<string, string[]>()
+  for (const text of new Set(entries.flatMap((entry) => entry.texts))) {
+    const paragraphs = splitParagraphs(text)
+    reflowedTexts.set(text, paragraphs.join('\n\n'))
+    textParagraphs.set(paragraphs.join('\n\n'), paragraphs)
+  }
+  const paragraphs = [...new Set([...textParagraphs.values()].flat())].toSorted()
+  const paragraphIndexes = new Map(paragraphs.map((paragraph, i) => [paragraph, i]))
+  // Paragraphs, texts, and licenses are sorted, so the output does not depend
+  // on the tools' order.
+  const texts = [...textParagraphs.keys()].toSorted((a, b) => {
+    return hashText(a).localeCompare(hashText(b))
+  })
+  const textIndexes = new Map(texts.map((text, i) => [text, i]))
+  const licenses = [...new Set(entries.map((entry) => entry.license))].toSorted()
+  const licenseIndexes = new Map(licenses.map((license, i) => [license, i]))
 
   const data = {
-    entries: entries.map((entry) => ({
-      ...entry,
-      texts: entry.texts.map(hashText).toSorted(),
-    })),
-    texts,
+    licenses,
+    paragraphs,
+    texts: texts.map((text) => {
+      return textParagraphs.get(text)!.map((paragraph) => paragraphIndexes.get(paragraph)!)
+    }),
+    entries: entries.map((entry) => [
+      entry.name,
+      entry.ecosystem,
+      licenseIndexes.get(entry.license)!,
+      entry.url ?? null,
+      [...new Set(entry.texts.map((text) => textIndexes.get(reflowedTexts.get(text)!)!))].toSorted(
+        (a, b) => a - b,
+      ),
+    ]),
   }
-  writeFileSync(OUTPUT, JSON.stringify(data, null, 2))
+  writeFileSync(OUTPUT, formatOutput(data))
   console.log(`[licenses] ${entries.length} entries → ${OUTPUT}`)
 }
 
