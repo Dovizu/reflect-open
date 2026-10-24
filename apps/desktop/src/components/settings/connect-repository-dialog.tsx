@@ -48,7 +48,10 @@ export function ConnectRepositoryDialog({
       value: 'other',
       label: 'Other host',
       detail:
-        'Any git host that speaks https. You enter the address, a username and an access token or password.',
+        // FIXME:
+        // 1. remove "You enter the address, a username and an access token or password"
+        // 2. in all UI typing that user can see , use "Git" instead of "git" and "GitHub" instead of "github" or "gitHub" or "Github"
+        /*'Any git host that speaks https. You enter the address, a username and an access token or password.',*/ "Any HTTPS Git repository."
     },
   ]
 
