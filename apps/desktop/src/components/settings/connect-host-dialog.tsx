@@ -50,6 +50,7 @@ export function ConnectHostDialog({ remoteUrl, onClose }: ConnectHostDialogProps
         <DialogHeader>
           <DialogTitle>{updating ? 'Update sign-in' : 'Other host'}</DialogTitle>
           <DialogDescription>
+            {/*FIXME: just use  */}
             {updating
               ? 'Enter the username and access token for this repository.'
               : 'Reflect checks the sign-in with the host before it stores anything.'}

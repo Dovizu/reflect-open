@@ -60,10 +60,12 @@ export function ConnectHostFields({ form, onSubmit }: ConnectHostFieldsProps): R
         />
       </label>
       <label htmlFor={tokenId} className="flex flex-col gap-1">
+        {/*FIXME: ensure that for every UI message that users can see, use "access token or password" instead of "access token" */}
         <span className={FIELD_LABEL_CLASS}>Access token</span>
         <Input
           id={tokenId}
           type="password"
+          // FIXME: remove this placeholder
           placeholder="A token with write access to the repository"
           value={form.token}
           onChange={(event) => form.setToken(event.target.value)}
