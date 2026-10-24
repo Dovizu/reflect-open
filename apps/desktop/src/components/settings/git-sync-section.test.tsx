@@ -184,7 +184,11 @@ describe('GitSyncSettingsField', () => {
       status: AUTH_ERROR,
     })
 
-    await expect.element(page.getByText(/GitHub rejected the sign-in/)).toBeVisible()
+    await expect
+      .element(
+        page.getByText('Sync failed: GitHub rejected the sign-in. Sign in again under Accounts.'),
+      )
+      .toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Open on GitHub' })).toBeVisible()
     await expect
       .element(page.getByRole('button', { name: /Sign out of GitHub/ }))
