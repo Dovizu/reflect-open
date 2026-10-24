@@ -15,16 +15,16 @@ export function GithubAccountField(): ReactElement {
   const connected = useGithubConnected()
   const [signInOpen, setSignInOpen] = useState(false)
   const signInButtonRef = useRef<HTMLButtonElement>(null)
-  const wasConnected = useRef(connected)
+  const wasConnectedRef = useRef(connected)
 
   // Signing out unmounts the focused sign-out button and its dialog, so
   // keyboard focus would land on the body; hand it to the button that took
   // their place.
   useEffect(() => {
-    if (wasConnected.current && !connected) {
+    if (wasConnectedRef.current && !connected) {
       signInButtonRef.current?.focus()
     }
-    wasConnected.current = connected
+    wasConnectedRef.current = connected
   }, [connected])
 
   return (
