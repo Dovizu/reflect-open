@@ -1,4 +1,5 @@
-import { useState, type ReactElement } from 'react'
+import type { ReactElement } from 'react'
+import { useForm } from 'react-hook-form'
 import { Button } from '@/components/ui/button.tsx'
 import {
   Dialog,
@@ -10,7 +11,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog.tsx'
 import { useGithubConnected } from '@/hooks/use-github-connected.ts'
-import { cn } from '@/lib/utils.ts'
 
 /** Where a repository can be: GitHub, through the account, or any other git host, by address. */
 export type RepositoryHost = 'github' | 'other'
@@ -30,7 +30,12 @@ export function ConnectRepositoryDialog({
   onClose,
 }: ConnectRepositoryDialogProps): ReactElement {
   const githubConnected = useGithubConnected()
-  const [host, setHost] = useState<RepositoryHost>('github')
+  const { register, handleSubmit } = useForm<{ host: RepositoryHost }>({
+    defaultValues: { host: 'github' },
+  })
+  const submit = handleSubmit((values) => {
+    onChoose(values.host)
+  })
   const options: { value: RepositoryHost; label: string; detail: string }[] = [
     {
       value: 'github',
@@ -61,42 +66,45 @@ export function ConnectRepositoryDialog({
           <DialogTitle>Connect a repository</DialogTitle>
           <DialogDescription>Where is the repository?</DialogDescription>
         </DialogHeader>
-        <div
-          role="radiogroup"
-          aria-label="Where is the repository?"
-          className="flex flex-col gap-2"
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            void submit(event)
+          }}
         >
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={host === option.value}
-              onClick={() => setHost(option.value)}
-              className={cn(
-                'rounded-md border px-3 py-2 text-left transition-colors',
-                host === option.value
-                  ? 'border-accent ring-1 ring-accent'
-                  : 'border-border hover:bg-surface-hover',
-              )}
-            >
-              <span className="block text-sm font-medium text-text">{option.label}</span>
-              <span className="block text-xs text-text-muted">{option.detail}</span>
-            </button>
-          ))}
-        </div>
-        <DialogFooter>
-          <DialogClose
-            render={
-              <Button variant="ghost" size="sm">
-                Cancel
-              </Button>
-            }
-          />
-          <Button size="sm" onClick={() => onChoose(host)}>
-            Continue
-          </Button>
-        </DialogFooter>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="sr-only">Where is the repository?</legend>
+            {options.map((option) => (
+              <label
+                key={option.value}
+                className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2 transition-colors hover:bg-surface-hover has-checked:border-accent has-checked:ring-1 has-checked:ring-accent"
+              >
+                <input
+                  type="radio"
+                  value={option.value}
+                  {...register('host')}
+                  className="mt-1 accent-accent"
+                />
+                <span className="flex flex-col">
+                  <span className="text-sm font-medium text-text">{option.label}</span>
+                  <span className="text-xs text-text-muted">{option.detail}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+          <DialogFooter>
+            <DialogClose
+              render={
+                <Button type="button" variant="ghost" size="sm">
+                  Cancel
+                </Button>
+              }
+            />
+            <Button type="submit" size="sm">
+              Continue
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   )
