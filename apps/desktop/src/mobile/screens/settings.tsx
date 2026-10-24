@@ -168,6 +168,7 @@ export function MobileSettings(): ReactElement {
   const githubConnected = useGithubConnected()
   const [disconnecting, setDisconnecting] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const [signOutError, setSignOutError] = useState<string | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
   // Which connect sheet is open: the host choice, or one host's own flow.
   // `remoteUrl` prefills the host form for a remote that is already set.
@@ -209,6 +210,12 @@ export function MobileSettings(): ReactElement {
     remote?.phase === 'needsCredential' &&
     remote.remote.kind === 'https' &&
     !remote.remote.origin.startsWith('http:')
+  // A host remote whose sign-in the host refused gets a new one here.
+  const canUpdateSignIn =
+    remote?.phase === 'connected' &&
+    remote.remote.kind === 'https' &&
+    remote.status.state === 'error' &&
+    remote.status.errorKind === 'auth'
   // The connect entry points are local-graph-only (iCloud sync and a Git remote
   // are mutually exclusive per graph, Plan 21) and wait out the controller's
   // `loading` phase so the rows never flash on a graph that turns out to be
@@ -235,9 +242,11 @@ export function MobileSettings(): ReactElement {
   // syncing until the next sign-in.
   async function signOut(): Promise<void> {
     setSigningOut(true)
+    setSignOutError(null)
     try {
       await githubAuth.clear()
     } catch (err) {
+      setSignOutError(errorMessage(err))
       logger.error('GitHub sign-out failed:', errorMessage(err))
     } finally {
       setSigningOut(false)
@@ -427,6 +436,12 @@ export function MobileSettings(): ReactElement {
                   onPress={() => setSheet({ kind: 'host', remoteUrl: remote.remoteUrl })}
                 />
               ) : null}
+              {canUpdateSignIn ? (
+                <SettingsActionRow
+                  label="Update sign-in"
+                  onPress={() => setSheet({ kind: 'host', remoteUrl: remote.remoteUrl })}
+                />
+              ) : null}
               {canConnect ? (
                 <SettingsActionRow
                   label="Connect a repository"
@@ -446,7 +461,10 @@ export function MobileSettings(): ReactElement {
 
           <SettingsGroup
             header="Accounts"
-            footer="GitHub is used for GitHub repositories and for sharing notes as gists."
+            footer={
+              signOutError ??
+              'GitHub is used for GitHub repositories and for sharing notes as gists.'
+            }
           >
             {githubConnected ? (
               <SettingsActionRow

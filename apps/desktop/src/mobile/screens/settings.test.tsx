@@ -421,13 +421,13 @@ describe('MobileSettings', () => {
     const view = await mount({
       gitSync: {
         phase: 'needsCredential',
-        remoteUrl: 'https://alex:token@gitlab.com/alex/notes.git',
+        remoteUrl: 'https://alex:s3cret@gitlab.com/alex/notes.git',
         remote: { kind: 'https', origin: 'https://gitlab.com' },
       },
     })
 
     await expect.element(page.getByText('gitlab.com/alex/notes')).toBeVisible()
-    await expect.element(page.getByText(/alex:token/)).not.toBeInTheDocument()
+    await expect.element(page.getByText(/s3cret/)).not.toBeInTheDocument()
     await expect.element(page.getByText('Sign-in needed')).toBeVisible()
     await expect
       .element(page.getByText('gitlab.com needs a username and an access token or password.'))
@@ -437,7 +437,7 @@ describe('MobileSettings', () => {
     await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
     await expect
       .element(page.getByLabelText('Repository address'))
-      .toHaveValue('https://alex:token@gitlab.com/alex/notes.git')
+      .toHaveValue('https://gitlab.com/alex/notes.git')
     await userEvent.fill(page.getByLabelText('Username'), 'alex')
     await userEvent.fill(page.getByLabelText('Access token or password'), 'glpat-1')
     await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
@@ -445,7 +445,7 @@ describe('MobileSettings', () => {
     await vi.waitFor(() => {
       return expect(view.gitHostConnector.calls()).toEqual([
         {
-          remoteUrl: 'https://alex:token@gitlab.com/alex/notes.git',
+          remoteUrl: 'https://gitlab.com/alex/notes.git',
           username: 'alex',
           token: 'glpat-1',
         },
@@ -454,6 +454,62 @@ describe('MobileSettings', () => {
     await expect
       .element(page.getByRole('heading', { name: 'Update sign-in' }))
       .not.toBeInTheDocument()
+  })
+
+  it('stops syncing a host remote and keeps its sign-in', async () => {
+    const view = await mount({
+      gitSync: {
+        phase: 'connected',
+        remoteUrl: 'https://gitlab.com/alex/notes.git',
+        remote: { kind: 'https', origin: 'https://gitlab.com' },
+        isPrimaryChannel: true,
+        status: { state: 'idle' },
+      },
+    })
+    await view.app.gitHostCredentials.save('https://gitlab.com', {
+      username: 'alex',
+      secret: 'glpat-1',
+    })
+
+    await userEvent.click(page.getByRole('button', { name: 'Stop syncing' }))
+
+    await vi.waitFor(() => {
+      const methods = view.gitSync.calls().map((call) => call.method)
+      expect(methods.filter((method) => method === 'disconnectGraph')).toHaveLength(1)
+    })
+    expect(await view.app.gitHostCredentials.load('https://gitlab.com')).toEqual({
+      username: 'alex',
+      secret: 'glpat-1',
+    })
+    expect(view.app.githubAuth.getState().connected).toBe(true)
+  })
+
+  it('offers to update the sign-in of a host remote the host refused', async () => {
+    await mount({
+      gitSync: {
+        phase: 'connected',
+        remoteUrl: 'https://gitlab.com/alex/notes.git',
+        remote: { kind: 'https', origin: 'https://gitlab.com' },
+        isPrimaryChannel: true,
+        status: { state: 'error', errorKind: 'auth', message: 'the host rejected the sign-in' },
+      },
+    })
+
+    await userEvent.click(page.getByRole('button', { name: 'Update sign-in' }))
+    await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
+    await expect
+      .element(page.getByLabelText('Repository address'))
+      .toHaveValue('https://gitlab.com/alex/notes.git')
+  })
+
+  it('shows a GitHub sign-out that failed under Accounts', async () => {
+    const view = await mount({ gitSync: { phase: 'disconnected' } })
+    vi.spyOn(view.app.githubAuth, 'clear').mockRejectedValueOnce(new Error('Keychain denied'))
+
+    await userEvent.click(page.getByRole('button', { name: 'Sign out of GitHub' }))
+
+    await expect.element(page.getByText('Keychain denied')).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Sign out of GitHub' })).toBeVisible()
   })
 
   it('offers no sign-in for a plain-HTTP remote', async () => {

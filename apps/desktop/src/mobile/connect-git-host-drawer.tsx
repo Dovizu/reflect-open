@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { FormProvider } from 'react-hook-form'
 import { ConnectGitHostFields } from '@/components/settings/connect-git-host-form.tsx'
 import { Button } from '@/components/ui/button.tsx'
@@ -23,11 +23,24 @@ export function ConnectGitHostDrawer({
   onOpenChange,
   remoteUrl,
 }: ConnectGitHostDrawerProps): ReactElement {
+  // A swipe cannot dismiss the sheet while the host is being asked.
+  const [pending, setPending] = useState(false)
   return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
+    <Drawer
+      open={open}
+      onOpenChange={(next) => {
+        if (next || !pending) {
+          onOpenChange(next)
+        }
+      }}
+    >
       <DrawerContent aria-label="Other host">
         {open ? (
-          <ConnectGitHostSheet remoteUrl={remoteUrl} onClose={() => onOpenChange(false)} />
+          <ConnectGitHostSheet
+            remoteUrl={remoteUrl}
+            onClose={() => onOpenChange(false)}
+            onPendingChange={setPending}
+          />
         ) : null}
       </DrawerContent>
     </Drawer>
@@ -37,11 +50,17 @@ export function ConnectGitHostDrawer({
 function ConnectGitHostSheet({
   remoteUrl,
   onClose,
+  onPendingChange,
 }: {
   remoteUrl: string | undefined
   onClose: () => void
+  onPendingChange: (pending: boolean) => void
 }): ReactElement {
   const { form, submit } = useConnectGitHostForm({ remoteUrl, onDone: onClose })
+  const pending = form.formState.isSubmitting
+  useEffect(() => {
+    onPendingChange(pending)
+  }, [pending, onPendingChange])
 
   return (
     <>
