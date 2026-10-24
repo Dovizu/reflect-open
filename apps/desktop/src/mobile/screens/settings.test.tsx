@@ -19,8 +19,8 @@ import { MobileSettings } from './settings.tsx'
  * sheet): the graph row disclosing into the Graphs screen, appearance and
  * editor preferences writing the shared settings document, the Git repository
  * group's plain-language status + Stop syncing through the sync controller, the
- * device's GitHub account group, and graceful degradation where the graph runs
- * no sync lifecycle.
+ * one door to a repository, the device's Accounts group, and graceful
+ * degradation where the graph runs no sync lifecycle.
  */
 
 // The prompt editor's state and save wiring render through this open-state shell.
@@ -384,7 +384,7 @@ describe('MobileSettings', () => {
   it('signs in to and out of GitHub from the account group, on any graph', async () => {
     const view = await mount({ gitSync: { phase: 'disconnected' }, githubSignedIn: false })
 
-    await expect.element(page.getByText('GitHub account')).toBeVisible()
+    await expect.element(page.getByText('Accounts')).toBeVisible()
     await userEvent.click(page.getByRole('button', { name: 'Sign in to GitHub' }))
     await expect.element(page.getByRole('heading', { name: 'Sign in to GitHub' })).toBeVisible()
 
@@ -395,7 +395,7 @@ describe('MobileSettings', () => {
     await expect.element(page.getByRole('button', { name: 'Sign in to GitHub' })).toBeVisible()
   })
 
-  it('points a GitHub remote that waits for its sign-in at the account group', async () => {
+  it('points a GitHub remote that waits for its sign-in at Accounts', async () => {
     await mount({
       gitSync: {
         phase: 'needsCredential',
@@ -407,9 +407,9 @@ describe('MobileSettings', () => {
 
     await expect.element(page.getByText('alex/notes on GitHub')).toBeVisible()
     await expect.element(page.getByText('Sign-in needed')).toBeVisible()
-    await expect.element(page.getByText(/Sign in to GitHub to resume/)).toBeVisible()
+    await expect.element(page.getByText(/Sign in under Accounts to resume/)).toBeVisible()
     await expect
-      .element(page.getByRole('button', { name: 'Connect GitHub', exact: true }))
+      .element(page.getByRole('button', { name: 'Connect a repository' }))
       .not.toBeInTheDocument()
     await expect.element(page.getByRole('button', { name: 'Add sign-in' })).not.toBeInTheDocument()
 
@@ -429,12 +429,14 @@ describe('MobileSettings', () => {
     await expect.element(page.getByText('gitlab.com/alex/notes')).toBeVisible()
     await expect.element(page.getByText(/alex:token/)).not.toBeInTheDocument()
     await expect.element(page.getByText('Sign-in needed')).toBeVisible()
-    await expect.element(page.getByText(/Add the username and access token/)).toBeVisible()
+    await expect
+      .element(page.getByText('gitlab.com needs a username and access token.'))
+      .toBeVisible()
 
     await userEvent.click(page.getByRole('button', { name: 'Add sign-in' }))
     await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
     await expect
-      .element(page.getByLabelText('Repository URL'))
+      .element(page.getByLabelText('Repository address'))
       .toHaveValue('https://alex:token@gitlab.com/alex/notes.git')
     await userEvent.fill(page.getByLabelText('Username'), 'alex')
     await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
@@ -463,27 +465,33 @@ describe('MobileSettings', () => {
       },
     })
 
-    await expect.element(page.getByText(/never sent over plain HTTP/)).toBeVisible()
+    await expect.element(page.getByText(/does not send sign-ins over plain http/)).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Add sign-in' })).not.toBeInTheDocument()
     await expect.element(page.getByRole('button', { name: 'Stop syncing' })).toBeVisible()
   })
 
-  it('offers Connect GitHub and another host for a disconnected local graph', async () => {
+  it('connects a repository through one door: GitHub', async () => {
     await mount({ storageKind: 'local', gitSync: { phase: 'disconnected' } })
 
     await expect
       .element(page.getByText('Sync notes with Reflect on your other devices.'))
       .toBeVisible()
-    await userEvent.click(page.getByRole('button', { name: 'Connect GitHub' }))
+    await userEvent.click(page.getByRole('button', { name: 'Connect a repository' }))
+    await expect.element(page.getByText('Where is the repository?')).toBeVisible()
+    await userEvent.click(page.getByRole('button', { name: /^GitHub/ }))
     await expect.element(page.getByRole('heading', { name: 'Connect GitHub' })).toBeVisible()
   })
 
-  it('connects another host from its sheet', async () => {
+  it('connects a repository through one door: another host', async () => {
     const view = await mount({ storageKind: 'local', gitSync: { phase: 'disconnected' } })
 
-    await userEvent.click(page.getByRole('button', { name: 'Connect another host' }))
-    await expect.element(page.getByRole('heading', { name: 'Connect another host' })).toBeVisible()
-    await userEvent.fill(page.getByLabelText('Repository URL'), 'https://gitlab.com/alex/notes.git')
+    await userEvent.click(page.getByRole('button', { name: 'Connect a repository' }))
+    await userEvent.click(page.getByRole('button', { name: 'Other host' }))
+    await expect.element(page.getByRole('heading', { name: 'Other host' })).toBeVisible()
+    await userEvent.fill(
+      page.getByLabelText('Repository address'),
+      'https://gitlab.com/alex/notes.git',
+    )
     await userEvent.fill(page.getByLabelText('Username'), 'alex')
     await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
     await userEvent.click(page.getByRole('button', { name: 'Connect', exact: true }))
@@ -495,16 +503,13 @@ describe('MobileSettings', () => {
     })
   })
 
-  it('hides the connect rows once the local graph is connected', async () => {
+  it('hides the connect row once the local graph is connected', async () => {
     await mount({ storageKind: 'local' })
 
     await expect.element(page.getByText('alex/notes on GitHub')).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Stop syncing' })).toBeVisible()
     await expect
-      .element(page.getByRole('button', { name: 'Connect GitHub', exact: true }))
-      .not.toBeInTheDocument()
-    await expect
-      .element(page.getByRole('button', { name: 'Connect another host' }))
+      .element(page.getByRole('button', { name: 'Connect a repository' }))
       .not.toBeInTheDocument()
   })
 
@@ -512,7 +517,7 @@ describe('MobileSettings', () => {
     await mount({ gitSync: { phase: 'disconnected' } })
 
     await expect
-      .element(page.getByRole('button', { name: 'Connect GitHub' }))
+      .element(page.getByRole('button', { name: 'Connect a repository' }))
       .not.toBeInTheDocument()
     await expect.element(page.getByText('Git repository')).not.toBeInTheDocument()
   })
@@ -521,7 +526,7 @@ describe('MobileSettings', () => {
     await mount({ storageKind: 'local', gitSync: { phase: 'loading' } })
 
     await expect
-      .element(page.getByRole('button', { name: 'Connect GitHub' }))
+      .element(page.getByRole('button', { name: 'Connect a repository' }))
       .not.toBeInTheDocument()
     await expect.element(page.getByText('Git repository')).not.toBeInTheDocument()
   })

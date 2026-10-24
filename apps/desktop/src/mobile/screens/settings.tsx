@@ -1,10 +1,5 @@
 import { useId, useState, type ReactElement, type ReactNode } from 'react'
-import {
-  getMobileSyncStatus,
-  gitSyncWording,
-  remoteLabel,
-  type MobileSyncDetail,
-} from '@reflect/app'
+import { getMobileSyncStatus, remoteLabel, type MobileSyncDetail } from '@reflect/app'
 import { useQuery } from '@tanstack/react-query'
 import {
   aiProvider,
@@ -35,6 +30,7 @@ import { AiPromptDrawer } from '@/mobile/ai-prompt-drawer.tsx'
 import { AiProviderActionsDrawer } from '@/mobile/ai-provider-actions-drawer.tsx'
 import { ConnectGithubDrawer } from '@/mobile/connect-github-drawer.tsx'
 import { ConnectHostDrawer } from '@/mobile/connect-host-drawer.tsx'
+import { ConnectRepositoryDrawer } from '@/mobile/connect-repository-drawer.tsx'
 import { GithubSignInDrawer } from '@/mobile/github-sign-in-drawer.tsx'
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/mobile/legal-urls.ts'
 import { MobileScreenHeader } from '@/mobile/screen-header.tsx'
@@ -98,19 +94,13 @@ const TIME_FORMAT_OPTIONS: readonly SegmentedOption<TimeFormat>[] = [
   { value: '24h', label: '24-hour' },
 ]
 
-function SyncDetail({
-  detail,
-  isPrimaryChannel,
-}: {
-  detail: MobileSyncDetail
-  isPrimaryChannel: boolean
-}): ReactNode {
+function SyncDetail({ detail }: { detail: MobileSyncDetail }): ReactNode {
   if (detail.kind === 'message') {
     return detail.text
   }
   return (
     <>
-      {gitSyncWording(isPrimaryChannel).waiting} <CountdownText until={detail.until} />
+      Syncs in <CountdownText until={detail.until} />
     </>
   )
 }
@@ -121,10 +111,11 @@ function SyncDetail({
  * graph row discloses into the Graphs switcher screen; appearance and editor
  * preferences edit the shared settings document (the same keys desktop
  * exposes); the Git repository group mirrors the status pill's engine state,
- * connects GitHub or another host for the local graph (the
- * {@link ConnectGithubDrawer} and {@link ConnectHostDrawer} sheets — iCloud
- * graphs sync through the container instead, Plan 21), and can stop. The
- * GitHub account group is the device's sign-in, independent of the graph.
+ * connects a repository for the local graph through one door (the
+ * {@link ConnectRepositoryDrawer} choice, then the {@link ConnectGithubDrawer}
+ * or {@link ConnectHostDrawer} sheet — iCloud graphs sync through the
+ * container instead, Plan 21), and can stop. The Accounts group is the
+ * device's GitHub sign-in, independent of the graph.
  */
 export function MobileSettings(): ReactElement {
   const { back, canBack, navigate } = useRouter()
@@ -177,10 +168,12 @@ export function MobileSettings(): ReactElement {
   const githubConnected = useGithubConnected()
   const [disconnecting, setDisconnecting] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
-  const [connectOpen, setConnectOpen] = useState(false)
   const [signInOpen, setSignInOpen] = useState(false)
-  // `null` = closed; a string = open, prefilled with that remote (may be empty).
-  const [connectHostUrl, setConnectHostUrl] = useState<string | null>(null)
+  // Which connect sheet is open: the host choice, or one host's own flow.
+  // `remoteUrl` prefills the host form for a remote that is already set.
+  const [sheet, setSheet] = useState<
+    { kind: 'choose' } | { kind: 'github' } | { kind: 'host'; remoteUrl?: string } | null
+  >(null)
   const { providers, defaultProvider, addProvider, removeProvider, makeDefault, setDefaultModel } =
     useAiProviders()
   const [addProviderOpen, setAddProviderOpen] = useState(false)
@@ -210,10 +203,6 @@ export function MobileSettings(): ReactElement {
     gitSync !== null && (gitSync.phase === 'connected' || gitSync.phase === 'needsCredential')
       ? gitSync
       : null
-  // An iCloud graph cannot connect a repository on this platform, so a remote
-  // here is always the channel; before one is adopted the words are sync too.
-  const isPrimaryChannel = gitSync?.phase === 'connected' ? gitSync.isPrimaryChannel : true
-  const wording = gitSyncWording(isPrimaryChannel)
   // A host remote that waits for its sign-in can get one here. Plain HTTP
   // cannot: the resolver never sends a sign-in in the clear.
   const canAddSignIn =
@@ -421,7 +410,7 @@ export function MobileSettings(): ReactElement {
                 canConnect ? (
                   'Sync notes with Reflect on your other devices.'
                 ) : status === null || status.detail === null ? null : (
-                  <SyncDetail detail={status.detail} isPrimaryChannel={isPrimaryChannel} />
+                  <SyncDetail detail={status.detail} />
                 )
               }
             >
@@ -435,21 +424,18 @@ export function MobileSettings(): ReactElement {
               {canAddSignIn ? (
                 <SettingsActionRow
                   label="Add sign-in"
-                  onPress={() => setConnectHostUrl(remote.remoteUrl)}
+                  onPress={() => setSheet({ kind: 'host', remoteUrl: remote.remoteUrl })}
                 />
               ) : null}
               {canConnect ? (
-                <SettingsActionRow label="Connect GitHub" onPress={() => setConnectOpen(true)} />
-              ) : null}
-              {canConnect ? (
                 <SettingsActionRow
-                  label="Connect another host"
-                  onPress={() => setConnectHostUrl('')}
+                  label="Connect a repository"
+                  onPress={() => setSheet({ kind: 'choose' })}
                 />
               ) : null}
               {remote !== null ? (
                 <SettingsActionRow
-                  label={wording.stop}
+                  label="Stop syncing"
                   tone="destructive"
                   pending={disconnecting}
                   onPress={() => void disconnect()}
@@ -459,8 +445,8 @@ export function MobileSettings(): ReactElement {
           ) : null}
 
           <SettingsGroup
-            header="GitHub account"
-            footer="Used for GitHub repositories and for sharing notes as gists."
+            header="Accounts"
+            footer="GitHub is used for GitHub repositories and for sharing notes as gists."
           >
             {githubConnected ? (
               <SettingsActionRow
@@ -593,15 +579,31 @@ export function MobileSettings(): ReactElement {
           ) : null}
         </div>
       </main>
-      <ConnectGithubDrawer open={connectOpen} onOpenChange={setConnectOpen} />
-      <ConnectHostDrawer
-        open={connectHostUrl !== null}
+      <ConnectRepositoryDrawer
+        open={sheet?.kind === 'choose'}
         onOpenChange={(open) => {
           if (!open) {
-            setConnectHostUrl(null)
+            setSheet(null)
           }
         }}
-        remoteUrl={connectHostUrl === null || connectHostUrl === '' ? undefined : connectHostUrl}
+        onChoose={(host) => setSheet(host === 'github' ? { kind: 'github' } : { kind: 'host' })}
+      />
+      <ConnectGithubDrawer
+        open={sheet?.kind === 'github'}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSheet(null)
+          }
+        }}
+      />
+      <ConnectHostDrawer
+        open={sheet?.kind === 'host'}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSheet(null)
+          }
+        }}
+        remoteUrl={sheet?.kind === 'host' ? sheet.remoteUrl : undefined}
       />
       <GithubSignInDrawer open={signInOpen} onOpenChange={setSignInOpen} />
       <AddAiProviderDrawer
