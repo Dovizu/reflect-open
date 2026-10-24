@@ -7,12 +7,15 @@ import { getMobileSyncStatus, type MobileSyncStatus } from './mobile-sync-status
  * become the words mobile shows, never git terms.
  */
 
-function connected(status: Extract<GitSyncState, { phase: 'connected' }>['status']): GitSyncState {
+function connected(
+  status: Extract<GitSyncState, { phase: 'connected' }>['status'],
+  isPrimaryChannel = true,
+): GitSyncState {
   return {
     phase: 'connected',
     remoteUrl: 'https://github.com/alex/notes.git',
     remote: { kind: 'github', repo: { owner: 'alex', name: 'notes' } },
-    isPrimaryChannel: true,
+    isPrimaryChannel,
     status,
   }
 }
@@ -37,11 +40,11 @@ describe('engine state', () => {
     ).toEqual({
       label: 'Sign-in needed',
       tone: 'attention',
-      detail: { kind: 'message', text: 'Sign in to GitHub to resume backing up.' },
+      detail: { kind: 'message', text: 'Sign in to GitHub to resume syncing.' },
     })
   })
 
-  it('points a host remote at its SSH form, and plain HTTP at the reason', () => {
+  it('asks a host remote for its sign-in, and names the reason for plain HTTP', () => {
     const waiting = (origin: string): GitSyncState => ({
       phase: 'needsCredential',
       remoteUrl: `${origin}/alex/notes.git`,
@@ -52,7 +55,7 @@ describe('engine state', () => {
       tone: 'attention',
       detail: {
         kind: 'message',
-        text: 'This host needs a sign-in, which is not available on this device yet. Switch the remote to its SSH form to resume.',
+        text: 'Add the username and access token for this host to resume.',
       },
     })
     expect(statusFor(waiting('http://gitea.local'))?.detail).toEqual({
@@ -61,14 +64,18 @@ describe('engine state', () => {
     })
   })
 
-  it('rests on Backed up — the quiet tone the pill hides on', () => {
+  it('rests on Up to date — the quiet tone the pill hides on', () => {
     const status = statusFor(connected({ state: 'idle' }))
-    expect(status).toEqual({ label: 'Backed up', tone: 'ok', detail: null })
+    expect(status).toEqual({ label: 'Up to date', tone: 'ok', detail: null })
   })
 
-  it('maps a waiting window to Backed up with the time the backup is due', () => {
+  it('rests on Backed up when iCloud is the channel', () => {
+    expect(statusFor(connected({ state: 'idle' }, false))?.label).toBe('Backed up')
+  })
+
+  it('maps a waiting window to Up to date with the time the next sync is due', () => {
     expect(statusFor(connected({ state: 'waiting', until: 2 * 60_000 + 1 }))).toEqual({
-      label: 'Backed up',
+      label: 'Up to date',
       tone: 'ok',
       detail: { kind: 'countdown', until: 2 * 60_000 + 1 },
     })
