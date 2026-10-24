@@ -62,6 +62,8 @@ describe('GithubAccountField', () => {
       .element(page.getByRole('heading', { name: 'Sign out of GitHub?' }))
       .not.toBeInTheDocument()
     await expect.element(page.getByRole('button', { name: 'Sign in to GitHub…' })).toBeVisible()
+    // Keyboard focus moves to the button that replaced the sign-out row.
+    await expect.element(page.getByRole('button', { name: 'Sign in to GitHub…' })).toHaveFocus()
   })
 
   it('shows sign-out failures inside the confirmation dialog', async () => {

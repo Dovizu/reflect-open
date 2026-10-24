@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { SettingsField } from '@/components/settings/field.tsx'
 import { GithubSignInDialog } from '@/components/settings/github-sign-in-dialog.tsx'
 import { GithubSignOutRow } from '@/components/settings/github-sign-out-row.tsx'
@@ -14,6 +14,18 @@ import { useGithubConnected } from '@/hooks/use-github-connected.ts'
 export function GithubAccountField(): ReactElement {
   const connected = useGithubConnected()
   const [signInOpen, setSignInOpen] = useState(false)
+  const signInButtonRef = useRef<HTMLButtonElement>(null)
+  const wasConnected = useRef(connected)
+
+  // Signing out unmounts the focused sign-out button and its dialog, so
+  // keyboard focus would land on the body; hand it to the button that took
+  // their place.
+  useEffect(() => {
+    if (wasConnected.current && !connected) {
+      signInButtonRef.current?.focus()
+    }
+    wasConnected.current = connected
+  }, [connected])
 
   return (
     <>
@@ -29,7 +41,7 @@ export function GithubAccountField(): ReactElement {
           {connected ? (
             <GithubSignOutRow />
           ) : (
-            <Button size="sm" onClick={() => setSignInOpen(true)}>
+            <Button ref={signInButtonRef} size="sm" onClick={() => setSignInOpen(true)}>
               Sign in to GitHub…
             </Button>
           )}
