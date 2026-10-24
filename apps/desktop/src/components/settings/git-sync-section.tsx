@@ -132,7 +132,7 @@ export function GitSyncSettingsField(): ReactElement {
               ? 'Syncs this graph with your other devices and keeps its history.'
               : hosted
                 ? 'This graph syncs through iCloud Drive. A repository adds a history that updates after five quiet minutes.'
-                : 'Sync this graph with your other devices through a git repository, and keep its history.'
+                : 'Sync this graph with your other devices through a Git repository, and keep its history.'
         }
       >
         <div className="mt-3 flex flex-col gap-2">

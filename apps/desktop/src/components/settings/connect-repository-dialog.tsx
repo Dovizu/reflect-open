@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog.tsx'
 import { useGithubConnected } from '@/hooks/use-github-connected.ts'
 
-/** Where a repository can be: GitHub, through the account, or any other git host, by address. */
+/** Where a repository can be: GitHub, through the account, or any other Git host, by address. */
 export type RepositoryHost = 'github' | 'other'
 
 interface ConnectRepositoryDialogProps {
@@ -47,11 +47,7 @@ export function ConnectRepositoryDialog({
     {
       value: 'other',
       label: 'Other host',
-      detail:
-        // FIXME:
-        // 1. remove "You enter the address, a username and an access token or password"
-        // 2. in all UI typing that user can see , use "Git" instead of "git" and "GitHub" instead of "github" or "gitHub" or "Github"
-        /*'Any git host that speaks https. You enter the address, a username and an access token or password.',*/ "Any HTTPS Git repository."
+      detail: 'Any HTTPS Git repository.',
     },
   ]
 
@@ -98,7 +94,8 @@ export function ConnectRepositoryDialog({
           <DialogFooter>
             <DialogClose
               render={
-                <Button type="button" variant="ghost" size="sm">Cancel
+                <Button type="button" variant="ghost" size="sm">
+                  Cancel
                 </Button>
               }
             />
