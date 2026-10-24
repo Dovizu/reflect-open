@@ -615,13 +615,20 @@ export function createTestGithubConnector(): TestGithubConnector {
   return new TestGithubConnectorImpl()
 }
 
+/**
+ * One recorded {@link TestGitHostConnector} action.
+ */
+export type GitHostConnectorCall = {
+  readonly method: 'connectGitHost' | 'updateGitHostSignIn'
+} & ConnectGitHostInput
+
 export interface TestGitHostConnector extends GitHostConnector {
   /**
-   * Every `connectGitHost` input, in order.
+   * Every action called, in order.
    */
-  calls(): readonly ConnectGitHostInput[]
+  calls(): readonly GitHostConnectorCall[]
   /**
-   * Answer `connectGitHost`; it resolves by default.
+   * Answer `connectGitHost` and `updateGitHostSignIn`; they resolve by default.
    */
   onConnectGitHost(handler: GitHostConnector['connectGitHost']): void
 }
@@ -630,15 +637,20 @@ export interface TestGitHostConnector extends GitHostConnector {
  * A scripted {@link GitHostConnector}: it probes nothing and records every input.
  */
 class TestGitHostConnectorImpl implements TestGitHostConnector {
-  readonly #log: ConnectGitHostInput[] = []
+  readonly #log: GitHostConnectorCall[] = []
   #connect: GitHostConnector['connectGitHost'] = () => Promise.resolve()
 
   async connectGitHost(input: ConnectGitHostInput): Promise<void> {
-    this.#log.push(input)
+    this.#log.push({ method: 'connectGitHost', ...input })
     await this.#connect(input)
   }
 
-  calls(): readonly ConnectGitHostInput[] {
+  async updateGitHostSignIn(input: ConnectGitHostInput): Promise<void> {
+    this.#log.push({ method: 'updateGitHostSignIn', ...input })
+    await this.#connect(input)
+  }
+
+  calls(): readonly GitHostConnectorCall[] {
     return [...this.#log]
   }
 

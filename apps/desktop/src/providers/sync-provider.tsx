@@ -16,7 +16,7 @@ type GitSyncContextValue = { state: GitSyncState } & Pick<
   'disconnectGraph' | 'syncNow'
 > &
   Pick<GithubConnector, 'connectNewRepo' | 'connectExistingRepo'> &
-  Pick<GitHostConnector, 'connectGitHost'>
+  Pick<GitHostConnector, 'connectGitHost' | 'updateGitHostSignIn'>
 
 const LOADING: GitSyncState = { phase: 'loading' }
 
@@ -55,6 +55,7 @@ export function useGitSync(): GitSyncContextValue {
         return require(githubConnector).connectExistingRepo(ref, options)
       },
       connectGitHost: (input) => require(gitHostConnector).connectGitHost(input),
+      updateGitHostSignIn: (input) => require(gitHostConnector).updateGitHostSignIn(input),
       disconnectGraph: () => require(controller).disconnectGraph(),
       syncNow: () => require(controller).syncNow(),
     }

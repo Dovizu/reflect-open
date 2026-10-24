@@ -29,7 +29,7 @@ describe('ConnectGitHostDialog', () => {
 
     await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
     expect(gitHostConnector?.calls()).toEqual([
-      { remoteUrl: URL, username: 'alex', token: 'glpat-1' },
+      { method: 'connectGitHost', remoteUrl: URL, username: 'alex', token: 'glpat-1' },
     ])
   })
 

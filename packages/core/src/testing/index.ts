@@ -129,6 +129,7 @@ export {
   createTestICloudSyncService,
   type GitSyncCall,
   type GithubConnectorCall,
+  type GitHostConnectorCall,
   type TestGithubConnector,
   type TestGitHostConnector,
   type GitRepositoryCall,

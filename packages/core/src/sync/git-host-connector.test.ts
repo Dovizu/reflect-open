@@ -94,6 +94,29 @@ describe('GitHostConnector', () => {
     expect(secretStore.snapshot()).toEqual({})
   })
 
+  it('updates a sign-in without touching the remote or the branch', async () => {
+    const { git, secretStore, gitSync, connector } = setup()
+    git.onRemoteHead(() => ({ remoteOid: 'a', trackingOid: null, defaultBranch: 'main' }))
+
+    await connector.updateGitHostSignIn({ ...INPUT, token: 'glpat-2' })
+
+    expect(git.calls().map((call) => call.method)).toEqual(['remoteHead'])
+    expect(secretStore.snapshot()).toEqual({
+      'git-credential:https://gitlab.com': JSON.stringify({ username: 'alex', secret: 'glpat-2' }),
+    })
+    // No `connectRemote`: the stored sign-in restarts the lifecycle by itself.
+    expect(gitSync.calls()).toEqual([])
+  })
+
+  it('stores nothing when the host refuses an updated sign-in', async () => {
+    const { git, secretStore, connector } = setup()
+    git.onRemoteHead(() => {
+      throw new AppError('auth', 'the host rejected the stored sign-in')
+    })
+    await expect(connector.updateGitHostSignIn(INPUT)).rejects.toThrow('rejected')
+    expect(secretStore.snapshot()).toEqual({})
+  })
+
   it('connects an empty remote without a branch to align', async () => {
     const { gitSync, connector } = setup()
     await connector.connectGitHost(INPUT)

@@ -445,6 +445,7 @@ describe('MobileSettings', () => {
     await vi.waitFor(() => {
       return expect(view.gitHostConnector.calls()).toEqual([
         {
+          method: 'updateGitHostSignIn',
           remoteUrl: 'https://gitlab.com/alex/notes.git',
           username: 'alex',
           token: 'glpat-1',
@@ -554,7 +555,12 @@ describe('MobileSettings', () => {
 
     await vi.waitFor(() => {
       return expect(view.gitHostConnector.calls()).toEqual([
-        { remoteUrl: 'https://gitlab.com/alex/notes.git', username: 'alex', token: 'glpat-1' },
+        {
+          method: 'connectGitHost',
+          remoteUrl: 'https://gitlab.com/alex/notes.git',
+          username: 'alex',
+          token: 'glpat-1',
+        },
       ])
     })
   })

@@ -20,12 +20,17 @@ export function useConnectGitHostForm({
   remoteUrl,
   onDone,
 }: {
-  /** The remote to prefill: a remote that is already set and needs a sign-in. */
+  /**
+   * The remote that is already set and needs a new sign-in. With it the form
+   * updates the sign-in only; without it the form connects a repository.
+   */
   remoteUrl: string | undefined
   /** Called once the host accepted the sign-in and the graph is connected. */
   onDone: () => void
 }): ConnectGitHostForm {
-  const { connectGitHost } = useGitSync()
+  const { connectGitHost, updateGitHostSignIn } = useGitSync()
+  // A remote that is already set keeps its branch: only the sign-in changes.
+  const send = remoteUrl === undefined ? connectGitHost : updateGitHostSignIn
   const form = useForm<ConnectGitHostInput>({
     mode: 'onBlur',
     // A remote set by hand may carry a sign-in in its URL; the form never
@@ -39,7 +44,7 @@ export function useConnectGitHostForm({
   const submit = form.handleSubmit(async (values) => {
     form.clearErrors('root')
     try {
-      await connectGitHost(values)
+      await send(values)
       onDone()
     } catch (error: unknown) {
       form.setError('root', { message: errorMessage(error) })

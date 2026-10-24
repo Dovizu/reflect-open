@@ -1,7 +1,7 @@
 import { parseUrl } from '@reflect/utils'
 import { AppError } from '../errors.ts'
 import type { GitHostCredentialService } from './git-host-credential-service.ts'
-import type { GitRepositoryService } from './git-repository-service.ts'
+import type { GitCredential, GitRepositoryService } from './git-repository-service.ts'
 import type { GitSyncService } from './git-sync-service.ts'
 import { classifyRemote } from './remote-url.ts'
 
@@ -28,6 +28,13 @@ export interface GitHostConnector {
    * another branch keeps it: the local branch takes that name.
    */
   connectGitHost(input: ConnectGitHostInput): Promise<void>
+  /**
+   * Replace or add the sign-in of a host whose repository is already this
+   * graph's remote: probe the host with it, then store it. The remote and
+   * the branch stay as they are; the sync lifecycle restarts by itself when
+   * the stored sign-in changes.
+   */
+  updateGitHostSignIn(input: ConnectGitHostInput): Promise<void>
 }
 
 export interface GitHostConnectorDeps {
@@ -47,37 +54,57 @@ class GitHostConnectorImpl implements GitHostConnector {
     this.#deps = deps
   }
 
-  async connectGitHost({ remoteUrl, username, token }: ConnectGitHostInput): Promise<void> {
+  async connectGitHost(input: ConnectGitHostInput): Promise<void> {
     const { git, gitHostCredentials, gitSync, generation } = this.#deps
-    const url = remoteUrl.trim()
-    const remote = classifyRemote(url)
-    if (remote.kind === 'github') {
-      throw new AppError('parse', 'This is a GitHub repository: connect it with GitHub.')
-    }
-    // The token travels encrypted and lives in the keychain only: plain
-    // http, and a sign-in written into the URL, are refused.
-    const parsed = parseUrl(url)
-    if (
-      remote.kind !== 'https' ||
-      parsed === null ||
-      parsed.protocol !== 'https:' ||
-      parsed.username !== '' ||
-      parsed.password !== ''
-    ) {
-      throw new AppError(
-        'parse',
-        'Enter the repository’s https:// URL, without a username or token in it.',
-      )
-    }
-    const credential = { username: username.trim(), secret: token.trim() }
-    if (credential.username.length === 0 || credential.secret.length === 0) {
-      throw new AppError('parse', 'Enter the username and the access token or password.')
-    }
+    const { url, origin, credential } = checkInput(input)
     await git.setup(null, null, generation) // the repository the probe runs from
     const tip = await git.remoteHead(credential, generation, url)
-    await gitHostCredentials.save(remote.origin, credential)
+    await gitHostCredentials.save(origin, credential)
     await gitSync.connectRemote(url, tip.defaultBranch)
   }
+
+  async updateGitHostSignIn(input: ConnectGitHostInput): Promise<void> {
+    const { git, gitHostCredentials, generation } = this.#deps
+    const { url, origin, credential } = checkInput(input)
+    await git.remoteHead(credential, generation, url)
+    await gitHostCredentials.save(origin, credential)
+  }
+}
+
+/**
+ * The address and sign-in a form submitted, trimmed and checked, or the
+ * `AppError` that names what is wrong with them.
+ */
+function checkInput({ remoteUrl, username, token }: ConnectGitHostInput): {
+  url: string
+  origin: string
+  credential: GitCredential
+} {
+  const url = remoteUrl.trim()
+  const remote = classifyRemote(url)
+  if (remote.kind === 'github') {
+    throw new AppError('parse', 'This is a GitHub repository: connect it with GitHub.')
+  }
+  // The token travels encrypted and lives in the keychain only: plain
+  // http, and a sign-in written into the URL, are refused.
+  const parsed = parseUrl(url)
+  if (
+    remote.kind !== 'https' ||
+    parsed === null ||
+    parsed.protocol !== 'https:' ||
+    parsed.username !== '' ||
+    parsed.password !== ''
+  ) {
+    throw new AppError(
+      'parse',
+      'Enter the repository’s https:// URL, without a username or token in it.',
+    )
+  }
+  const credential = { username: username.trim(), secret: token.trim() }
+  if (credential.username.length === 0 || credential.secret.length === 0) {
+    throw new AppError('parse', 'Enter the username and the access token or password.')
+  }
+  return { url, origin: remote.origin, credential }
 }
 
 export function createGitHostConnector(deps: GitHostConnectorDeps): GitHostConnector {
