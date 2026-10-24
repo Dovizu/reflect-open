@@ -47,9 +47,6 @@ function ConnectGitHostSheet({
     <>
       <DrawerTitle>{remoteUrl === undefined ? 'Other host' : 'Update sign-in'}</DrawerTitle>
       <DrawerBody>
-        <p className="text-xs text-text-muted">
-          Reflect checks the sign-in with the host before it stores anything.
-        </p>
         <FormProvider {...form}>
           <ConnectGitHostFields
             onSubmit={submit}

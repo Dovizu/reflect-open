@@ -21,10 +21,6 @@ export function GithubSignInDrawer({ open, onOpenChange }: GithubSignInDrawerPro
           <>
             <DrawerTitle>Sign in to GitHub</DrawerTitle>
             <DrawerBody>
-              <p className="text-xs text-text-muted">
-                For GitHub repositories and for sharing notes as gists. Connecting a repository is a
-                separate step.
-              </p>
               <GithubAuthStep onAuthed={() => onOpenChange(false)} />
             </DrawerBody>
           </>

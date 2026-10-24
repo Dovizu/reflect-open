@@ -6,7 +6,6 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -47,9 +46,6 @@ export function ConnectGitHostDialog({
       <DialogContent showCloseButton={!pending} className="max-w-sm">
         <DialogHeader>
           <DialogTitle>{remoteUrl === undefined ? 'Other host' : 'Update sign-in'}</DialogTitle>
-          <DialogDescription>
-            Reflect checks the sign-in with the host before it stores anything.
-          </DialogDescription>
         </DialogHeader>
         <FormProvider {...form}>
           <ConnectGitHostFields

@@ -1,12 +1,6 @@
 import type { ReactElement } from 'react'
 import { GithubAuthStep } from '@/components/settings/github-auth-step.tsx'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog.tsx'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog.tsx'
 
 interface GithubSignInDialogProps {
   onClose: () => void
@@ -31,10 +25,6 @@ export function GithubSignInDialog({ onClose }: GithubSignInDialogProps): ReactE
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Sign in to GitHub</DialogTitle>
-          <DialogDescription>
-            For GitHub repositories and for sharing notes as gists. Connecting a repository is a
-            separate step.
-          </DialogDescription>
         </DialogHeader>
         <GithubAuthStep onAuthed={onClose} />
       </DialogContent>
