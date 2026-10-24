@@ -29,8 +29,8 @@ describe('GithubAccountField', () => {
   it('offers to sign in when no credential is stored', async () => {
     await renderField({ signedIn: false })
 
-    await expect.element(page.locate('legend').getByText('GitHub account')).toBeVisible()
-    await expect.element(page.getByText(/Sign in to sync with a GitHub repository/)).toBeVisible()
+    await expect.element(page.locate('legend').getByText('GitHub')).toBeVisible()
+    await expect.element(page.getByText(/Sign in to connect a GitHub repository/)).toBeVisible()
     await expect
       .element(page.getByRole('button', { name: /Sign out of GitHub/ }))
       .not.toBeInTheDocument()

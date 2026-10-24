@@ -96,7 +96,7 @@ beforeEach(() => {
 })
 
 describe('SyncSection', () => {
-  it('combines iCloud Drive, a Git repository and the GitHub account under Sync', async () => {
+  it('combines iCloud Drive and a Git repository under Sync', async () => {
     await renderSection()
 
     const section = page.getByRole('region', { name: 'Sync' })
@@ -104,9 +104,9 @@ describe('SyncSection', () => {
     await expect.element(section.getByText('1 graph in iCloud Drive.')).toBeInTheDocument()
     await expect.element(legend(section, 'Git repository')).toBeInTheDocument()
     await expect
-      .element(section.getByRole('button', { name: /connect github/i }))
+      .element(section.getByRole('button', { name: 'Connect a repository…' }))
       .toBeInTheDocument()
-    await expect.element(legend(section, 'GitHub account')).toBeInTheDocument()
+    expect(legend(section, 'GitHub').query()).toBeNull()
   })
 
   it('keeps the Git repository visible when the graph syncs through iCloud', async () => {
@@ -120,7 +120,7 @@ describe('SyncSection', () => {
     await expect.element(section.getByText('No sync forks.')).toBeInTheDocument()
     await expect.element(legend(section, 'Git repository')).toBeInTheDocument()
     await expect
-      .element(section.getByRole('button', { name: /connect github/i }))
+      .element(section.getByRole('button', { name: 'Connect a repository…' }))
       .toBeInTheDocument()
   })
 

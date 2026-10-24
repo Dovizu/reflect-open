@@ -1,11 +1,12 @@
 import { useRef, useState, type ReactElement, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
-import { gitSyncWording, remoteLabel } from '@reflect/app'
+import { remoteLabel, signInNeededText } from '@reflect/app'
 import { githubRepoOf, isICloudRoot, suggestRepoName, type GithubRepoRef } from '@reflect/core'
 import { CountdownText } from '@/components/countdown-text.tsx'
 import { ConnectGithubDialog } from '@/components/settings/connect-github-dialog.tsx'
 import { ConnectHostDialog } from '@/components/settings/connect-host-dialog.tsx'
+import { ConnectRepositoryDialog } from '@/components/settings/connect-repository-dialog.tsx'
 import { SettingsField } from '@/components/settings/field.tsx'
 import { SyncForkNotice } from '@/components/settings/sync-fork-notice.tsx'
 import { Button } from '@/components/ui/button.tsx'
@@ -15,33 +16,39 @@ import { useGraph } from '@/providers/graph-provider.tsx'
 import { useGitSync, type GitSyncState } from '@/providers/sync-provider.tsx'
 import { useAppServices, useCoreServices } from '@/services/services-provider.tsx'
 
+/** Which dialog is open: the host chooser, or one host's own flow. */
+type OpenDialog =
+  | { kind: 'choose' }
+  | { kind: 'github' }
+  // `remoteUrl` prefills the form for a remote that is already set.
+  | { kind: 'host'; remoteUrl?: string }
+
 /** A short, plain-language line for each git sync state, never Git jargon. */
 function GitSyncStatusLine({
   state,
 }: {
   state: Extract<GitSyncState, { phase: 'connected' }>
 }): ReactNode {
-  const wording = gitSyncWording(state.isPrimaryChannel)
   switch (state.status.state) {
     case 'idle':
-      return wording.idle
+      return 'Up to date'
     case 'waiting':
       return (
         <>
-          {wording.waiting} <CountdownText until={state.status.until} />
+          Syncs in <CountdownText until={state.status.until} />
         </>
       )
     case 'syncing':
-      return wording.syncing
+      return 'Syncing…'
     case 'offline':
       return state.status.message
     case 'error':
-      // The GitHub account row below the cards is the fix for a GitHub
-      // remote. A host remote gets "Update sign-in…" beside this line; an
-      // SSH remote's message already names the fix (ssh-add, known_hosts…).
+      // The account under Accounts is the fix for a GitHub remote. A host
+      // remote gets "Update sign-in…" beside this line; an SSH remote's
+      // message already names the fix (ssh-add, known_hosts…).
       return state.status.errorKind === 'auth' && state.remote.kind === 'github'
-        ? `${wording.failed}: sign in to GitHub again`
-        : `${wording.failed}: ${state.status.message}`
+        ? 'Sync failed: signed out of GitHub'
+        : `Sync failed: ${state.status.message}`
   }
 }
 
@@ -50,65 +57,16 @@ function githubRepoBrowserUrl(repo: GithubRepoRef): string {
 }
 
 /**
- * A remote that waits for its sign-in (Plan 25): the GitHub account signed
- * out, or a host whose sign-in is not stored. Named, with the one action
- * that resumes it, and the option to stop. Never hidden: a graph whose
- * remote vanished from Settings looks disconnected, and the user would
- * connect a second one.
- */
-function NeedsCredentialRows({
-  state,
-  onAddSignIn,
-  stopButton,
-}: {
-  state: Extract<GitSyncState, { phase: 'needsCredential' }>
-  onAddSignIn: () => void
-  stopButton: ReactNode
-}): ReactElement {
-  const github = state.remote.kind === 'github'
-  const host = state.remote.kind === 'https' ? new URL(state.remote.origin).host : null
-  // The resolver never sends a sign-in in the clear, so there is nothing to add.
-  const plainHttp = state.remote.kind === 'https' && state.remote.origin.startsWith('http:')
-  return (
-    <>
-      <p className="text-sm text-text">
-        <span className="font-medium">{remoteLabel(state.remote, state.remoteUrl)}</span>
-        <span className="ml-2 text-xs text-text-muted">Sign-in needed</span>
-      </p>
-      <p className="text-xs text-text-muted">
-        {github
-          ? 'Sign in to GitHub below to resume. Your notes keep their local history meanwhile.'
-          : plainHttp
-            ? `A sign-in is never sent to ${host ?? 'this host'} over plain HTTP. Switch the remote to its SSH form to resume.`
-            : `Add the username and access token for ${host ?? 'this host'} to resume.`}
-      </p>
-      <div className="flex flex-wrap gap-2">
-        {!github && !plainHttp ? (
-          <Button size="sm" onClick={onAddSignIn}>
-            Add sign-in…
-          </Button>
-        ) : null}
-        {stopButton}
-      </div>
-    </>
-  )
-}
-
-/**
  * Settings → Sync → Git repository: connect this graph to a repository on
- * GitHub or any other HTTPS host, see the current state in product language,
- * sync on demand, and stop. The wording follows the channel: a folder graph
- * syncs through its repository; an iCloud-hosted one only keeps a history
- * there.
+ * GitHub or any other https host through one door, see the current state in
+ * product language, sync on demand, and stop.
  */
 export function GitSyncSettingsField(): ReactElement {
   const { state, disconnectGraph, syncNow } = useGitSync()
   const { graph } = useGraph()
   const { indexQuery } = useCoreServices()
   const { opener } = useAppServices()
-  const [connectGithubOpen, setConnectGithubOpen] = useState(false)
-  // `null` = closed; a string = open, prefilled with that remote (may be empty).
-  const [connectHostUrl, setConnectHostUrl] = useState<string | null>(null)
+  const [dialog, setDialog] = useState<OpenDialog | null>(null)
   const openRepoAttemptRef = useRef(0)
   const action = useAsyncAction()
 
@@ -122,10 +80,13 @@ export function GitSyncSettingsField(): ReactElement {
   const forkGroups = duplicateIds.data ?? []
 
   const hosted = graph !== null && isICloudRoot(graph.root)
-  // Before a remote is adopted the channel is not known yet: the graph's
-  // hosting says which words it will get.
-  const wording = gitSyncWording(state.phase === 'connected' ? state.isPrimaryChannel : !hosted)
   const repo = state.phase === 'connected' ? githubRepoOf(state.remote) : null
+  // A remote that waits for its sign-in: a host sign-in is added here, a
+  // GitHub one under Accounts, and plain http never gets one.
+  const canAddSignIn =
+    state.phase === 'needsCredential' &&
+    state.remote.kind === 'https' &&
+    !state.remote.origin.startsWith('http:')
 
   function openGithubRepo(): void {
     if (repo === null) {
@@ -156,21 +117,22 @@ export function GitSyncSettingsField(): ReactElement {
       title="This graph stops syncing; its history and your sign-ins stay"
       onClick={() => void action.run(disconnectGraph)}
     >
-      {wording.stop}
+      Stop syncing
     </Button>
   )
 
   return (
     <>
       <SettingsField
-        variant="card"
         legend="Git repository"
         description={
-          state.phase === 'connected' || state.phase === 'needsCredential'
-            ? wording.description
-            : hosted
-              ? 'This graph syncs through iCloud Drive. A repository adds a history that updates after five quiet minutes.'
-              : 'Sync this graph with your other devices through a repository on GitHub or any git host, and keep its history.'
+          state.phase === 'connected' && !state.isPrimaryChannel
+            ? 'Syncs this graph’s history to the repository five minutes after iCloud and your edits go quiet.'
+            : state.phase === 'connected'
+              ? 'Syncs this graph with your other devices and keeps its history.'
+              : hosted
+                ? 'This graph syncs through iCloud Drive. A repository adds a history that updates after five quiet minutes.'
+                : 'Sync this graph with your other devices through a git repository, and keep its history.'
         }
       >
         <div className="mt-3 flex flex-col gap-2">
@@ -179,22 +141,32 @@ export function GitSyncSettingsField(): ReactElement {
           ) : null}
 
           {state.phase === 'disconnected' ? (
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => setConnectGithubOpen(true)}>
-                Connect GitHub…
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setConnectHostUrl('')}>
-                Another host…
+            <div>
+              <Button size="sm" onClick={() => setDialog({ kind: 'choose' })}>
+                Connect a repository…
               </Button>
             </div>
           ) : null}
 
           {state.phase === 'needsCredential' ? (
-            <NeedsCredentialRows
-              state={state}
-              onAddSignIn={() => setConnectHostUrl(state.remoteUrl)}
-              stopButton={stopButton}
-            />
+            <>
+              <p className="text-sm text-text">
+                <span className="font-medium">{remoteLabel(state.remote, state.remoteUrl)}</span>
+                <span className="ml-2 text-xs text-text-muted">Sign-in needed</span>
+              </p>
+              <p className="text-xs text-text-muted">{signInNeededText(state.remote)}</p>
+              <div className="flex flex-wrap gap-2">
+                {canAddSignIn ? (
+                  <Button
+                    size="sm"
+                    onClick={() => setDialog({ kind: 'host', remoteUrl: state.remoteUrl })}
+                  >
+                    Add sign-in…
+                  </Button>
+                ) : null}
+                {stopButton}
+              </div>
+            </>
           ) : null}
 
           {state.phase === 'connected' ? (
@@ -213,13 +185,13 @@ export function GitSyncSettingsField(): ReactElement {
                   disabled={state.status.state === 'syncing' || action.pending}
                   onClick={() => void action.run(syncNow)}
                 >
-                  {wording.now}
+                  Sync now
                 </Button>
                 {stopButton}
                 {repo !== null ? (
                   <Button variant="ghost" size="sm" onClick={openGithubRepo}>
                     <ExternalLink aria-hidden />
-                    Open GitHub repo
+                    Open on GitHub
                   </Button>
                 ) : null}
                 {state.remote.kind === 'https' &&
@@ -228,7 +200,7 @@ export function GitSyncSettingsField(): ReactElement {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setConnectHostUrl(state.remoteUrl)}
+                    onClick={() => setDialog({ kind: 'host', remoteUrl: state.remoteUrl })}
                   >
                     Update sign-in…
                   </Button>
@@ -242,17 +214,20 @@ export function GitSyncSettingsField(): ReactElement {
           ) : null}
         </div>
       </SettingsField>
-      {connectGithubOpen ? (
-        <ConnectGithubDialog
-          suggestedRepoName={suggestRepoName(graph?.name)}
-          onClose={() => setConnectGithubOpen(false)}
+      {dialog?.kind === 'choose' ? (
+        <ConnectRepositoryDialog
+          onChoose={(host) => setDialog(host === 'github' ? { kind: 'github' } : { kind: 'host' })}
+          onClose={() => setDialog(null)}
         />
       ) : null}
-      {connectHostUrl !== null ? (
-        <ConnectHostDialog
-          remoteUrl={connectHostUrl === '' ? undefined : connectHostUrl}
-          onClose={() => setConnectHostUrl(null)}
+      {dialog?.kind === 'github' ? (
+        <ConnectGithubDialog
+          suggestedRepoName={suggestRepoName(graph?.name)}
+          onClose={() => setDialog(null)}
         />
+      ) : null}
+      {dialog?.kind === 'host' ? (
+        <ConnectHostDialog remoteUrl={dialog.remoteUrl} onClose={() => setDialog(null)} />
       ) : null}
     </>
   )

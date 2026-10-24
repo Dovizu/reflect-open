@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button.tsx'
 import { useGithubConnected } from '@/hooks/use-github-connected.ts'
 
 /**
- * Settings → Sync → GitHub account: the one GitHub sign-in of this machine.
+ * Settings → Accounts → GitHub: the one GitHub sign-in of this machine.
  * It serves GitHub repositories and gist publishing, and never depends on
  * whether the open graph syncs. Signing in here resumes every GitHub
  * repository that was waiting for it; signing out stops them.
@@ -18,11 +18,11 @@ export function GithubAccountField(): ReactElement {
   return (
     <>
       <SettingsField
-        legend="GitHub account"
+        legend="GitHub"
         description={
           connected
             ? 'Signed in. Used for GitHub repositories and for sharing notes as gists.'
-            : 'Sign in to sync with a GitHub repository or to share notes as gists.'
+            : 'Sign in to connect a GitHub repository or to share notes as gists.'
         }
       >
         <div className="mt-3">
