@@ -430,6 +430,7 @@ class GithubAuthServiceImpl implements GithubAuthService {
   }
 
   async getSignedInUser(): Promise<GithubUser | null> {
+    const before = this.#writes
     const token = await this.getToken()
     if (token === null) {
       return null
@@ -437,8 +438,11 @@ class GithubAuthServiceImpl implements GithubAuthService {
     try {
       const user = await this.getAuthenticatedUser(token)
       // A stored credential GitHub accepts is a connected machine, even when
-      // the first keychain read never answered.
-      this.#setConnected(true)
+      // the first keychain read never answered. A save or clear that landed
+      // meanwhile has the last word.
+      if (this.#writes === before) {
+        this.#setConnected(true)
+      }
       return user
     } catch (error: unknown) {
       if (isAppError(error) && error.kind === 'auth') {
