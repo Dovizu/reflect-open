@@ -22,7 +22,7 @@ function statusFor(gitSync: GitSyncState): MobileSyncStatus | null {
 }
 
 describe('engine state', () => {
-  it('has nothing to say without a configured backup', () => {
+  it('has nothing to say without a configured remote', () => {
     expect(statusFor({ phase: 'loading' })).toBeNull()
     expect(statusFor({ phase: 'disconnected' })).toBeNull()
   })
@@ -105,7 +105,7 @@ describe('engine state', () => {
 })
 
 describe('getMobileSyncStatus', () => {
-  it('has nothing to say without a backup lifecycle', () => {
+  it('has nothing to say without a sync lifecycle', () => {
     expect(getMobileSyncStatus(null)).toBeNull()
   })
 

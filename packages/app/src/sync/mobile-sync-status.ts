@@ -19,7 +19,7 @@ export interface MobileSyncStatus {
   tone: 'ok' | 'active' | 'attention'
   /**
    * More detail, if any: a plain-language line (offline and error states), or
-   * the time the next backup is due (waiting state), which the surface counts
+   * the time the next sync is due (waiting state), which the surface counts
    * down itself.
    */
   detail: MobileSyncDetail | null
@@ -34,7 +34,7 @@ export type MobileSyncDetail =
 
 /**
  * Map the engine's product state to the mobile wording. `null` when no sync
- * lifecycle is mounted (dev harness, tests) or the graph has no backup
+ * lifecycle is mounted (dev harness, tests) or the graph has no remote
  * configured: there is no status to speak of. A remote that waits for its
  * sign-in wants a look.
  *
