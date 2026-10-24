@@ -11,7 +11,7 @@ import { ConnectHostDialog } from './connect-host-dialog.tsx'
 const URL = 'https://gitlab.com/alex/notes.git'
 
 async function fill(): Promise<void> {
-  await userEvent.fill(page.getByLabelText('Repository URL'), URL)
+  await userEvent.fill(page.getByLabelText('Repository address'), URL)
   await userEvent.fill(page.getByLabelText('Username'), 'alex')
   await userEvent.fill(page.getByLabelText('Access token'), 'glpat-1')
 }
@@ -23,7 +23,7 @@ describe('ConnectHostDialog', () => {
       sync: { phase: 'disconnected' },
     })
 
-    await expect.element(page.getByRole('heading', { name: 'Connect another host' })).toBeVisible()
+    await expect.element(page.getByRole('heading', { name: 'Other host' })).toBeVisible()
     await fill()
     await userEvent.click(page.getByRole('button', { name: 'Connect' }))
 
@@ -44,7 +44,7 @@ describe('ConnectHostDialog', () => {
     await userEvent.click(page.getByRole('button', { name: 'Connect' }))
 
     await expect.element(page.getByRole('alert')).toHaveTextContent('the host rejected the sign-in')
-    await expect.element(page.getByLabelText('Repository URL')).toHaveValue(URL)
+    await expect.element(page.getByLabelText('Repository address')).toHaveValue(URL)
     expect(onClose).not.toHaveBeenCalled()
   })
 
@@ -54,7 +54,16 @@ describe('ConnectHostDialog', () => {
     })
 
     await expect.element(page.getByRole('heading', { name: 'Update sign-in' })).toBeVisible()
-    await expect.element(page.getByLabelText('Repository URL')).toHaveValue(URL)
+    await expect.element(page.getByLabelText('Repository address')).toHaveValue(URL)
+  })
+
+  it('refuses an SSH address with a note and keeps Connect disabled', async () => {
+    await renderInApp(<ConnectHostDialog onClose={vi.fn()} />, { sync: { phase: 'disconnected' } })
+
+    await userEvent.fill(page.getByLabelText('Repository address'), 'git@gitlab.com:alex/notes.git')
+
+    await expect.element(page.getByText(/This is an SSH address/)).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Connect' })).toBeDisabled()
   })
 
   it('locks the dialog while the connect is pending', async () => {

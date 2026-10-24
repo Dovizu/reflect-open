@@ -11,9 +11,10 @@ interface ConnectHostFieldsProps {
 const FIELD_LABEL_CLASS = 'text-xs font-medium text-text-secondary'
 
 /**
- * The three inputs of the "Another host" form, shared by desktop's dialog and
- * mobile's drawer: the repository's https:// URL, the username, and the
- * access token the host issued.
+ * The three inputs of the "Other host" form, shared by desktop's dialog and
+ * mobile's drawer: the repository's https address, the username, and the
+ * access token the host issued. No help text: each mistake gets its own
+ * message when it happens.
  */
 export function ConnectHostFields({ form, onSubmit }: ConnectHostFieldsProps): ReactElement {
   const urlId = useId()
@@ -30,18 +31,21 @@ export function ConnectHostFields({ form, onSubmit }: ConnectHostFieldsProps): R
   return (
     <div className="flex flex-col gap-3">
       <label htmlFor={urlId} className="flex flex-col gap-1">
-        <span className={FIELD_LABEL_CLASS}>Repository URL</span>
+        <span className={FIELD_LABEL_CLASS}>Repository address</span>
         <Input
           id={urlId}
           autoFocus
           value={form.remoteUrl}
-          placeholder="https://gitlab.com/you/notes.git"
+          placeholder="https://…"
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
           onChange={(event) => form.setRemoteUrl(event.target.value)}
           onKeyDown={submitOnEnter}
         />
+        {form.addressNote !== null ? (
+          <span className="text-xs text-red-700 dark:text-red-300">{form.addressNote}</span>
+        ) : null}
       </label>
       <label htmlFor={usernameId} className="flex flex-col gap-1">
         <span className={FIELD_LABEL_CLASS}>Username</span>
@@ -60,16 +64,12 @@ export function ConnectHostFields({ form, onSubmit }: ConnectHostFieldsProps): R
         <Input
           id={tokenId}
           type="password"
+          placeholder="A token with write access to the repository"
           value={form.token}
           onChange={(event) => form.setToken(event.target.value)}
           onKeyDown={submitOnEnter}
         />
       </label>
-      <p className="text-xs text-text-muted">
-        GitLab: a token with <code>write_repository</code>. Gitea, Forgejo and Codeberg: a token
-        with <code>write:repository</code>. The token is checked against the host, then kept in your
-        OS keychain and only ever sent to this host. SSH remotes are set up in a terminal.
-      </p>
     </div>
   )
 }

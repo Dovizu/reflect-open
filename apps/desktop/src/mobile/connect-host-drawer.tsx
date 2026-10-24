@@ -13,7 +13,7 @@ interface ConnectHostDrawerProps {
 }
 
 /**
- * The mobile "Connect another host" bottom sheet: a Drawer shell over
+ * The mobile "Other host" bottom sheet: a Drawer shell over
  * {@link useConnectHost}, the same form as desktop's dialog. The body mounts
  * per open cycle, so a dismissed half-filled form never leaks into the next.
  */
@@ -24,7 +24,7 @@ export function ConnectHostDrawer({
 }: ConnectHostDrawerProps): ReactElement {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent aria-label="Connect another host">
+      <DrawerContent aria-label="Other host">
         {open ? (
           <ConnectHostSheet remoteUrl={remoteUrl} onClose={() => onOpenChange(false)} />
         ) : null}
@@ -51,16 +51,16 @@ function ConnectHostSheet({
 
   return (
     <>
-      <DrawerTitle>{updating ? 'Update sign-in' : 'Connect another host'}</DrawerTitle>
+      <DrawerTitle>{updating ? 'Update sign-in' : 'Other host'}</DrawerTitle>
       <DrawerBody>
         <p className="text-xs text-text-muted">
           {updating
             ? 'Enter the username and access token for this repository.'
-            : 'Sync this graph with a repository on GitLab, Gitea, Codeberg or a server of your own.'}
+            : 'Reflect checks the sign-in with the host before it stores anything.'}
         </p>
         <ConnectHostFields form={form} onSubmit={() => void submit()} />
         {form.error !== null ? <InlineAlert tone="error">{form.error}</InlineAlert> : null}
-        <Button disabled={form.pending} onClick={() => void submit()}>
+        <Button disabled={form.pending || form.addressNote !== null} onClick={() => void submit()}>
           {form.pending ? 'Connecting…' : 'Connect'}
         </Button>
       </DrawerBody>

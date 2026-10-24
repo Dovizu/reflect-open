@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { classifyRemote } from '@reflect/core'
 import { useAsyncAction } from '@/hooks/use-async-action.ts'
 import { useGitSync } from '@/providers/sync-provider.tsx'
 
@@ -9,6 +10,11 @@ export interface ConnectHostForm {
   setUsername: (value: string) => void
   token: string
   setToken: (value: string) => void
+  /**
+   * Set while the address is an SSH one: the form takes https only, and the
+   * note says where SSH goes instead.
+   */
+  addressNote: string | null
   pending: boolean
   error: string | null
   /**
@@ -40,9 +46,15 @@ export function useConnectHost(initialRemoteUrl = ''): ConnectHostForm {
     return connected
   }
 
+  const addressNote =
+    classifyRemote(remoteUrl.trim()).kind === 'ssh'
+      ? 'This is an SSH address; the form takes https. Add it with git and Reflect picks it up.'
+      : null
+
   return {
     remoteUrl,
     setRemoteUrl,
+    addressNote,
     username,
     setUsername,
     token,

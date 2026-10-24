@@ -23,10 +23,9 @@ interface ConnectHostDialogProps {
 }
 
 /**
- * The desktop "Another host" dialog: connect this graph to a GitLab, Gitea,
- * Codeberg or self-hosted repository over HTTPS with a username and an
- * access token. The host answers before anything is stored, so a wrong URL
- * or token fails here, inline.
+ * The desktop "Other host" dialog: connect this graph to a repository on any
+ * https git host with a username and an access token. The host answers
+ * before anything is stored, so a wrong address or token fails here, inline.
  */
 export function ConnectHostDialog({ remoteUrl, onClose }: ConnectHostDialogProps): ReactElement {
   const form = useConnectHost(remoteUrl ?? '')
@@ -49,11 +48,11 @@ export function ConnectHostDialog({ remoteUrl, onClose }: ConnectHostDialogProps
     >
       <DialogContent showCloseButton={!form.pending} className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{updating ? 'Update sign-in' : 'Connect another host'}</DialogTitle>
+          <DialogTitle>{updating ? 'Update sign-in' : 'Other host'}</DialogTitle>
           <DialogDescription>
             {updating
               ? 'Enter the username and access token for this repository.'
-              : 'Sync this graph with a repository on GitLab, Gitea, Codeberg or a server of your own.'}
+              : 'Reflect checks the sign-in with the host before it stores anything.'}
           </DialogDescription>
         </DialogHeader>
         <ConnectHostFields form={form} onSubmit={() => void submit()} />
@@ -66,7 +65,11 @@ export function ConnectHostDialog({ remoteUrl, onClose }: ConnectHostDialogProps
               </Button>
             }
           />
-          <Button size="sm" disabled={form.pending} onClick={() => void submit()}>
+          <Button
+            size="sm"
+            disabled={form.pending || form.addressNote !== null}
+            onClick={() => void submit()}
+          >
             {form.pending ? 'Connecting…' : 'Connect'}
           </Button>
         </DialogFooter>
