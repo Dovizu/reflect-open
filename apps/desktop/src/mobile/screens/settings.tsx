@@ -1,12 +1,15 @@
 import { useId, useState, type ReactElement, type ReactNode } from 'react'
-import { getMobileSyncStatus, type MobileSyncDetail } from '@reflect/app'
+import {
+  getMobileSyncStatus,
+  gitSyncWording,
+  remoteLabel,
+  type MobileSyncDetail,
+} from '@reflect/app'
 import { useQuery } from '@tanstack/react-query'
 import {
   aiProvider,
   aiProviderRequiresApiKey,
   errorMessage,
-  githubRepoOf,
-  redactRemoteUrl,
   marketingVersion,
   CHAT_SYSTEM_PROMPT_MAX_LENGTH,
   TRANSCRIPTION_PROMPT_MAX_LENGTH,
@@ -22,6 +25,7 @@ import {
 } from '@reflect/core'
 import { useAiPrompts } from '@/hooks/use-ai-prompts.ts'
 import { useAiProviders } from '@/hooks/use-ai-providers.ts'
+import { useGithubConnected } from '@/hooks/use-github-connected.ts'
 import { useAppVersion } from '@/hooks/use-app-version.ts'
 import { usePaywallRequested } from '@/hooks/use-paywall-requested.ts'
 import { useCrashTest, useDebugUnlockTap } from '@/hooks/use-debug-unlock.ts'
@@ -30,6 +34,7 @@ import { AddAiProviderDrawer } from '@/mobile/add-ai-provider-drawer.tsx'
 import { AiPromptDrawer } from '@/mobile/ai-prompt-drawer.tsx'
 import { AiProviderActionsDrawer } from '@/mobile/ai-provider-actions-drawer.tsx'
 import { ConnectGithubDrawer } from '@/mobile/connect-github-drawer.tsx'
+import { ConnectHostDrawer } from '@/mobile/connect-host-drawer.tsx'
 import { GithubSignInDrawer } from '@/mobile/github-sign-in-drawer.tsx'
 import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '@/mobile/legal-urls.ts'
 import { MobileScreenHeader } from '@/mobile/screen-header.tsx'
@@ -93,13 +98,19 @@ const TIME_FORMAT_OPTIONS: readonly SegmentedOption<TimeFormat>[] = [
   { value: '24h', label: '24-hour' },
 ]
 
-function SyncDetail({ detail }: { detail: MobileSyncDetail }): ReactNode {
+function SyncDetail({
+  detail,
+  isPrimaryChannel,
+}: {
+  detail: MobileSyncDetail
+  isPrimaryChannel: boolean
+}): ReactNode {
   if (detail.kind === 'message') {
     return detail.text
   }
   return (
     <>
-      Backs up in <CountdownText until={detail.until} />
+      {gitSyncWording(isPrimaryChannel).waiting} <CountdownText until={detail.until} />
     </>
   )
 }
@@ -109,9 +120,11 @@ function SyncDetail({ detail }: { detail: MobileSyncDetail }): ReactNode {
  * iOS inset-grouped idiom, replacing the old bottom-sheet hodgepodge. The
  * graph row discloses into the Graphs switcher screen; appearance and editor
  * preferences edit the shared settings document (the same keys desktop
- * exposes); the backup group mirrors the status pill's engine state, connects
- * GitHub for the local graph (the {@link ConnectGithubDrawer} sheet — iCloud
- * graphs sync through the container instead, Plan 21), and can disconnect.
+ * exposes); the Git repository group mirrors the status pill's engine state,
+ * connects GitHub or another host for the local graph (the
+ * {@link ConnectGithubDrawer} and {@link ConnectHostDrawer} sheets — iCloud
+ * graphs sync through the container instead, Plan 21), and can stop. The
+ * GitHub account group is the device's sign-in, independent of the graph.
  */
 export function MobileSettings(): ReactElement {
   const { back, canBack, navigate } = useRouter()
@@ -161,9 +174,13 @@ export function MobileSettings(): ReactElement {
   const crashTest = useCrashTest()
   const environment = useAppStoreEnvironment()
   const sync = useGitSyncContext()
+  const githubConnected = useGithubConnected()
   const [disconnecting, setDisconnecting] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
   const [signInOpen, setSignInOpen] = useState(false)
+  // `null` = closed; a string = open, prefilled with that remote (may be empty).
+  const [connectHostUrl, setConnectHostUrl] = useState<string | null>(null)
   const { providers, defaultProvider, addProvider, removeProvider, makeDefault, setDefaultModel } =
     useAiProviders()
   const [addProviderOpen, setAddProviderOpen] = useState(false)
@@ -193,21 +210,24 @@ export function MobileSettings(): ReactElement {
     gitSync !== null && (gitSync.phase === 'connected' || gitSync.phase === 'needsCredential')
       ? gitSync
       : null
-  const repo = remote !== null ? githubRepoOf(remote.remote) : null
-  // A GitHub remote whose sign-in is gone resumes with a sign-in alone.
-  const needsGithubSignIn =
-    gitSync !== null && gitSync.phase === 'needsCredential' && gitSync.remote.kind === 'github'
-  // The connect entry point is local-graph-only (iCloud sync and a Git remote
-  // are mutually exclusive per graph, Plan 21) and waits out the controller's
-  // `loading` phase so the row never flashes on a graph that turns out to be
+  // An iCloud graph cannot connect a repository on this platform, so a remote
+  // here is always the channel; before one is adopted the words are sync too.
+  const isPrimaryChannel = gitSync?.phase === 'connected' ? gitSync.isPrimaryChannel : true
+  const wording = gitSyncWording(isPrimaryChannel)
+  // A host remote that waits for its sign-in can get one here. Plain HTTP
+  // cannot: the resolver never sends a sign-in in the clear.
+  const canAddSignIn =
+    remote?.phase === 'needsCredential' &&
+    remote.remote.kind === 'https' &&
+    !remote.remote.origin.startsWith('http:')
+  // The connect entry points are local-graph-only (iCloud sync and a Git remote
+  // are mutually exclusive per graph, Plan 21) and wait out the controller's
+  // `loading` phase so the rows never flash on a graph that turns out to be
   // connected.
   const canConnect = mobileStorageKind === 'local' && gitSync?.phase === 'disconnected'
 
-  // Stop backing this graph up and, for a GitHub remote, forget the GitHub
-  // credential (one graph per device — unlinking is signing out). A host
-  // sign-in stays in the keychain, as on desktop. The local clone stays; the
-  // controller restarts into its disconnected state, and re-connecting
-  // re-onboards.
+  // Stop syncing this graph: drop its remote. The local clone and every
+  // sign-in stay; the controller restarts into its disconnected state.
   async function disconnect(): Promise<void> {
     if (sync === null) {
       return
@@ -215,13 +235,23 @@ export function MobileSettings(): ReactElement {
     setDisconnecting(true)
     try {
       await sync.disconnectGraph()
-      if (repo !== null) {
-        await githubAuth.clear()
-      }
     } catch (err) {
-      logger.error('Disconnect failed:', errorMessage(err))
+      logger.error('stop syncing failed:', errorMessage(err))
     } finally {
       setDisconnecting(false)
+    }
+  }
+
+  // Forget the GitHub sign-in of this device; every GitHub repository stops
+  // syncing until the next sign-in.
+  async function signOut(): Promise<void> {
+    setSigningOut(true)
+    try {
+      await githubAuth.clear()
+    } catch (err) {
+      logger.error('GitHub sign-out failed:', errorMessage(err))
+    } finally {
+      setSigningOut(false)
     }
   }
 
@@ -384,32 +414,42 @@ export function MobileSettings(): ReactElement {
             />
           </SettingsGroup>
 
-          {remote !== null || status !== null || canConnect ? (
+          {remote !== null || canConnect ? (
             <SettingsGroup
-              header="Backup"
+              header="Git repository"
               footer={
                 canConnect ? (
                   'Sync notes with Reflect on your other devices.'
                 ) : status === null || status.detail === null ? null : (
-                  <SyncDetail detail={status.detail} />
+                  <SyncDetail detail={status.detail} isPrimaryChannel={isPrimaryChannel} />
                 )
               }
             >
-              {repo !== null ? (
-                <SettingsValueRow label="GitHub" value={`${repo.owner}/${repo.name}`} />
-              ) : remote !== null ? (
-                <SettingsValueRow label="Remote" value={redactRemoteUrl(remote.remoteUrl)} />
+              {remote !== null ? (
+                <SettingsValueRow
+                  label="Remote"
+                  value={remoteLabel(remote.remote, remote.remoteUrl)}
+                />
               ) : null}
               {status !== null ? <SettingsValueRow label="Status" value={status.label} /> : null}
+              {canAddSignIn ? (
+                <SettingsActionRow
+                  label="Add sign-in"
+                  onPress={() => setConnectHostUrl(remote.remoteUrl)}
+                />
+              ) : null}
               {canConnect ? (
                 <SettingsActionRow label="Connect GitHub" onPress={() => setConnectOpen(true)} />
               ) : null}
-              {needsGithubSignIn ? (
-                <SettingsActionRow label="Sign in to GitHub" onPress={() => setSignInOpen(true)} />
+              {canConnect ? (
+                <SettingsActionRow
+                  label="Connect another host"
+                  onPress={() => setConnectHostUrl('')}
+                />
               ) : null}
               {remote !== null ? (
                 <SettingsActionRow
-                  label={repo !== null ? 'Disconnect GitHub' : 'Stop backing up'}
+                  label={wording.stop}
                   tone="destructive"
                   pending={disconnecting}
                   onPress={() => void disconnect()}
@@ -417,6 +457,22 @@ export function MobileSettings(): ReactElement {
               ) : null}
             </SettingsGroup>
           ) : null}
+
+          <SettingsGroup
+            header="GitHub account"
+            footer="Used for GitHub repositories and for sharing notes as gists."
+          >
+            {githubConnected ? (
+              <SettingsActionRow
+                label="Sign out of GitHub"
+                tone="destructive"
+                pending={signingOut}
+                onPress={() => void signOut()}
+              />
+            ) : (
+              <SettingsActionRow label="Sign in to GitHub" onPress={() => setSignInOpen(true)} />
+            )}
+          </SettingsGroup>
 
           {isIos ? (
             <SettingsGroup
@@ -538,6 +594,15 @@ export function MobileSettings(): ReactElement {
         </div>
       </main>
       <ConnectGithubDrawer open={connectOpen} onOpenChange={setConnectOpen} />
+      <ConnectHostDrawer
+        open={connectHostUrl !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setConnectHostUrl(null)
+          }
+        }}
+        remoteUrl={connectHostUrl === null || connectHostUrl === '' ? undefined : connectHostUrl}
+      />
       <GithubSignInDrawer open={signInOpen} onOpenChange={setSignInOpen} />
       <AddAiProviderDrawer
         open={addProviderOpen}
