@@ -65,7 +65,7 @@ export function ConnectHostFields({ form, onSubmit }: ConnectHostFieldsProps): R
         <Input
           id={tokenId}
           type="password"
-          // FIXME: remove this placeholder
+          // FIXME: remove this placeholder.
           placeholder="A token with write access to the repository"
           value={form.token}
           onChange={(event) => form.setToken(event.target.value)}
