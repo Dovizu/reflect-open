@@ -43,11 +43,12 @@ function GitSyncStatusLine({
     case 'offline':
       return state.status.message
     case 'error':
-      // The account under Accounts is the fix for a GitHub remote. A host
-      // remote gets "Update sign-in…" beside this line; an SSH remote's
-      // message already names the fix (ssh-add, known_hosts…).
+      // A rejected GitHub sign-in (expired or revoked; the account is still
+      // stored) is fixed under Accounts. A host remote gets "Update sign-in…"
+      // beside this line; an SSH remote's message already names the fix
+      // (ssh-add, known_hosts…).
       return state.status.errorKind === 'auth' && state.remote.kind === 'github'
-        ? 'Sync failed: signed out of GitHub'
+        ? 'Sync failed: GitHub rejected the sign-in. Sign in again under Accounts.'
         : `Sync failed: ${state.status.message}`
   }
 }
@@ -179,13 +180,20 @@ export function GitSyncSettingsField(): ReactElement {
               </p>
               <SyncForkNotice groups={forkGroups} />
               <div className="flex flex-wrap gap-2">
+                {/* Beside iCloud the engine only commits now; the repository
+                    updates after the quiet window, so the button says so. */}
                 <Button
                   variant="outline"
                   size="sm"
                   disabled={state.status.state === 'syncing' || action.pending}
+                  title={
+                    state.isPrimaryChannel
+                      ? undefined
+                      : 'Saves the history now; the repository updates after five quiet minutes'
+                  }
                   onClick={() => void action.run(syncNow)}
                 >
-                  Sync now
+                  {state.isPrimaryChannel ? 'Sync now' : 'Save history now'}
                 </Button>
                 {stopButton}
                 {repo !== null ? (

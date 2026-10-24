@@ -117,7 +117,7 @@ describe('GitSyncSettingsField', () => {
       .element(page.getByText(/Syncs this graph’s history to the repository five minutes/))
       .toBeVisible()
     await expect.element(page.getByText('Up to date')).toBeVisible()
-    await expect.element(page.getByRole('button', { name: 'Sync now' })).toBeVisible()
+    await expect.element(page.getByRole('button', { name: 'Save history now' })).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Stop syncing' })).toBeVisible()
   })
 
@@ -184,7 +184,7 @@ describe('GitSyncSettingsField', () => {
       status: AUTH_ERROR,
     })
 
-    await expect.element(page.getByText('Sync failed: signed out of GitHub')).toBeVisible()
+    await expect.element(page.getByText(/GitHub rejected the sign-in/)).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Open on GitHub' })).toBeVisible()
     await expect
       .element(page.getByRole('button', { name: /Sign out of GitHub/ }))
@@ -237,7 +237,12 @@ describe('GitSyncSettingsField', () => {
 
     await vi.waitFor(() => {
       expect(gitHostConnector.calls()).toEqual([
-        { remoteUrl: GITLAB.remoteUrl, username: 'alex', token: 'glpat-1' },
+        {
+          method: 'updateGitHostSignIn',
+          remoteUrl: GITLAB.remoteUrl,
+          username: 'alex',
+          token: 'glpat-1',
+        },
       ])
     })
   })
