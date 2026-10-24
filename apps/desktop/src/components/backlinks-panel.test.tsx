@@ -28,15 +28,13 @@ function wrapBacklinkContexts(contexts: BacklinkContext[]): BacklinkContextPage 
 }
 
 function createCore() {
-  const services = createTestCoreServices({ database: createWasmTestDatabaseService() })
-  vi.spyOn(services.backlinks, 'getBacklinksWithContext').mockImplementation(
-    getBacklinksWithContext,
-  )
-  vi.spyOn(services.noteCreation, 'resolveOrCreateNoteWithTitle').mockImplementation(
+  const core = createTestCoreServices({ database: createWasmTestDatabaseService() })
+  vi.spyOn(core.backlinks, 'getBacklinksWithContext').mockImplementation(getBacklinksWithContext)
+  vi.spyOn(core.noteCreation, 'resolveOrCreateNoteWithTitle').mockImplementation(
     resolveOrCreateNoteWithTitle,
   )
-  vi.spyOn(services.noteLinkResolver, 'resolveMarkdownHref').mockImplementation(resolveMarkdownHref)
-  return services
+  vi.spyOn(core.noteLinkResolver, 'resolveMarkdownHref').mockImplementation(resolveMarkdownHref)
+  return core
 }
 
 // One app per test, so a panel rendered twice shares its session storage.

@@ -62,7 +62,7 @@ function fakeContext(overrides?: Partial<CommandContext>) {
   const route: () => Route = overrides?.route ?? (() => ({ kind: 'today' }))
   const app = createTestAppServices(core, { window: windows })
   const context: CommandContext = {
-    services: core,
+    core,
     app,
     navigate: (target, options) => {
       navigated.push(target)
@@ -445,7 +445,7 @@ describe('app commands', () => {
       database: createNodeTestDatabaseService(),
       platform: createTestPlatformService({ isNativeShell: false }),
     })
-    const { context } = fakeContext({ services: browser })
+    const { context } = fakeContext({ core: browser })
     await expect(command('dev.toggleDevtools').run(context)).resolves.toBeUndefined()
     expect(windows.devtoolsToggles()).toBe(0)
     browser.database.close()

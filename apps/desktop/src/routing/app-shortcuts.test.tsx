@@ -88,7 +88,7 @@ beforeEach(() => {
 
 async function shortcutsHook() {
   const readSource = (): Promise<string> => Promise.resolve('# A\n')
-  const services = createTestCoreServices({
+  core = createTestCoreServices({
     database: createWasmTestDatabaseService(),
     platform: createTestPlatformService(platform),
     noteDocuments: {
@@ -99,15 +99,14 @@ async function shortcutsHook() {
       isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
     },
   })
-  core = services
-  app = createTestAppServices(services)
-  openRecent = vi.spyOn(services.graphSession, 'openRecent').mockResolvedValue(true)
+  app = createTestAppServices(core)
+  openRecent = vi.spyOn(core.graphSession, 'openRecent').mockResolvedValue(true)
   openRouteInNewWindow = vi
     .spyOn(app.linkNavigation, 'openRouteInNewWindow')
     .mockResolvedValue(true)
   isNativeMenuInstalled = vi.spyOn(app.nativeMenu, 'isInstalled').mockReturnValue(false)
-  const createChatSession = services.chatSessions.create.bind(services.chatSessions)
-  vi.spyOn(services.chatSessions, 'create').mockImplementation((options) => {
+  const createChatSession = core.chatSessions.create.bind(core.chatSessions)
+  vi.spyOn(core.chatSessions, 'create').mockImplementation((options) => {
     const session = createChatSession(options)
     newChat = vi.spyOn(session, 'newChat')
     return session
@@ -126,7 +125,7 @@ async function shortcutsHook() {
       }
     },
     {
-      core: services,
+      core,
       app,
       graph: GRAPH,
       graphState: {

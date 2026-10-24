@@ -105,7 +105,7 @@ async function renderPalette(query: string, context?: Partial<CommandContext>) {
     window: createTestWindowService({ openNoteWindow }),
   })
   const fullContext: CommandContext = {
-    services: core,
+    core,
     app,
     navigate,
     route: () => ({ kind: 'today' }),

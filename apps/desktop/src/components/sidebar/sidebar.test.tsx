@@ -101,7 +101,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
     window: createTestWindowService({ openNoteWindow }),
   })
   const context: CommandContext = {
-    services: core,
+    core,
     app,
     navigate,
     route: () => ({ kind: 'today' }),
