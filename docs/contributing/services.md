@@ -352,6 +352,6 @@ switch (`chatSessions.create({ session })`), or one instance per note pane
       `AppServices`, built in `createAppServices`
 - [ ] A test double only for a fake or a recording wrapper (§6)
 - [ ] Read with `useCoreServices()` / `useAppServices()`, module parameters, or
-      `CommandContext.services` / `.app`
+      `CommandContext.core` / `.app`
 - [ ] A platform API through `CoreAdapters`, `AppHost`, or a port (§9)
 - [ ] `pnpm typecheck && pnpm lint && pnpm test --run <touched paths>`

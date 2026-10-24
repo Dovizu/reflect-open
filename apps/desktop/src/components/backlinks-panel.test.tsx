@@ -37,7 +37,7 @@ function createCore() {
   return core
 }
 
-// One app per test, so a panel rendered twice shares its session storage.
+// One set of core services per test, so a panel rendered twice shares its session storage.
 let core: ReturnType<typeof createCore>
 
 function RouteProbe(): ReactNode {

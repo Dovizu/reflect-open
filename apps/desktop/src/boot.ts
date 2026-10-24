@@ -49,15 +49,15 @@ export const coreServices = createCoreServices({
     return createAppGraphServices(session, deps, {
       platform: coreServices.platform,
       settings: coreServices.settings,
-      mobileOnboarding: app.mobileOnboarding,
+      mobileOnboarding: appServices.mobileOnboarding,
     })
   },
 })
 
-export const app = createAppServices(coreServices, host)
+export const appServices = createAppServices(coreServices, host)
 
 // Runs before every module imported after this one, so exception telemetry
 // exists while the rest of the app's modules evaluate.
-app.exceptionTelemetry.install()
-installQueryInvalidation(coreServices, app)
+appServices.exceptionTelemetry.install()
+installQueryInvalidation(coreServices, appServices)
 void coreServices.contacts.refresh()

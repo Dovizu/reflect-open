@@ -126,7 +126,7 @@ builds the app itself.
 `DESKTOP_VI_MOCK_ALLOW` and `DESKTOP_VI_MOCK_ALLOW_BY_FILE`: pure UI children,
 heavy children, and `@tauri-apps/*` in adapter tests. `packages/` allows none.
 Never mock `@reflect/core`, `@reflect/app`, a service, or a provider that
-reads a service. Seed or spy on `app` instead. A new entry needs a reason next
+reads a service. Seed or spy on `core` instead. A new entry needs a reason next
 to it.
 
 ## Timing pitfall

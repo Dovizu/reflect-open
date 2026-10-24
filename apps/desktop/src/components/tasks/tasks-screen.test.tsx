@@ -224,7 +224,7 @@ let core: TestCoreServices
 let noteWindows: TestWindowService
 
 beforeEach(() => {
-  // A fresh app per test, so its task service's recently-completed set starts empty.
+  // Fresh core services per test, so its task service's recently-completed set starts empty.
   core = createTestCoreServices({ database: createWasmTestDatabaseService() })
   noteWindows = createTestWindowService()
   operations = core.progress

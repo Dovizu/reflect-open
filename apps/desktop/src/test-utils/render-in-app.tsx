@@ -186,7 +186,7 @@ async function prepare(options: AnyOptions | undefined): Promise<
   ) {
     throw new Error('renderInApp: `servicesOnly` mounts no graph, router or sync')
   }
-  // The database of an app this helper builds; `dispose` closes it. A caller's `core` keeps its own.
+  // The database of the core services this helper builds; `dispose` closes it. A caller's `core` keeps its own.
   let database: TestDatabaseService | null = null
   let core: CoreServices
   if (options?.core === undefined) {

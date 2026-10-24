@@ -187,8 +187,10 @@ The services only a mobile platform builds (`haptics`, `subscription`, `paywall`
 
 - **Names:** a variable, parameter or field that holds a whole container is
   named after it: `core` for `CoreServices`, `app` for `AppServices`, `graph` for
-  `GraphServices`. Do not name a container `services`. The provider props and the
-  roots in `boot.ts` (`coreServices`, `appServices`) keep their names.
+  `GraphServices`. Do not name a container `services`. Three names stay: the
+  provider props (`services`), the roots in `boot.ts` (`coreServices`,
+  `appServices`), and the graph session's published `getState().services` (see
+  §3), whose state already has a `graph` field.
 - **Commands:** `CommandContext` (`apps/desktop/src/lib/commands/types.ts`) has
   `core: CoreServices` and `app: AppServices`. A command that calls a service reads it from the
   context it runs with, never from an import.

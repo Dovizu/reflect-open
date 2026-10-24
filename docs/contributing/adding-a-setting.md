@@ -130,7 +130,7 @@ the common shapes). Add the test at the narrowest useful level:
 - For a section with its own branching behavior, add a focused section test
   next to it (for example `backup-section.test.tsx` or
   `rebuild-index-field.test.tsx`), also with `renderInApp`. Drive the services
-  it reads through `app`; do not mock the providers. See
+  it reads through `core`; do not mock the providers. See
   [testing](testing.md).
 
 ## Checklist
