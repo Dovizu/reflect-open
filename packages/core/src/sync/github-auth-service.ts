@@ -435,7 +435,11 @@ class GithubAuthServiceImpl implements GithubAuthService {
       return null
     }
     try {
-      return await this.getAuthenticatedUser(token)
+      const user = await this.getAuthenticatedUser(token)
+      // A stored credential GitHub accepts is a connected machine, even when
+      // the first keychain read never answered.
+      this.#setConnected(true)
+      return user
     } catch (error: unknown) {
       if (isAppError(error) && error.kind === 'auth') {
         const current = await this.#readStored()

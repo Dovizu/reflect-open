@@ -291,6 +291,7 @@ describe('GithubAuthService.getSignedInUser', () => {
     http.on('GET', USER_URL, jsonResponse({ login: 'alex' }))
 
     expect(await auth.getSignedInUser()).toEqual({ login: 'alex', avatarUrl: null })
+    expect(auth.getState().connected).toBe(true)
   })
 
   it('returns null without network when nothing is stored', async () => {
