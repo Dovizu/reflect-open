@@ -106,7 +106,7 @@ export interface GitSyncServiceDeps {
    * needed a sign-in picks it up and one that lost it stops.
    */
   readonly githubAuth: GithubAuthService
-  readonly hostCredentials: GitHostCredentialService
+  readonly gitHostCredentials: GitHostCredentialService
   readonly fileChanges: FileChangeService
   /**
    * Applies the notes a pull changed.
@@ -363,7 +363,7 @@ class GitSyncServiceImpl implements GitSyncService {
     }
     this.#credentialDisposers.push(
       this.#deps.githubAuth.subscribe(onChange),
-      this.#deps.hostCredentials.subscribe(onChange),
+      this.#deps.gitHostCredentials.subscribe(onChange),
     )
   }
 

@@ -13,7 +13,7 @@ const INPUT = { remoteUrl: URL, username: 'alex', token: 'glpat-1' }
 function setup({ keychainLocked = false } = {}) {
   const git = createTestGitRepositoryService({ initialized: false, remoteUrl: null })
   const secretStore = createTestSecretStoreService()
-  const hostCredentials = createGitHostCredentialService({
+  const gitHostCredentials = createGitHostCredentialService({
     secretStore: keychainLocked
       ? {
           get: (name) => secretStore.get(name),
@@ -26,7 +26,7 @@ function setup({ keychainLocked = false } = {}) {
   const gitSync = createTestGitSyncService()
   const connector = createGitHostConnector({
     git,
-    hostCredentials,
+    gitHostCredentials,
     gitSync,
     generation: GENERATION,
   })

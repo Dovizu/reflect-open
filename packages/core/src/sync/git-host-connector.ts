@@ -32,7 +32,7 @@ export interface GitHostConnector {
 
 export interface GitHostConnectorDeps {
   readonly git: GitRepositoryService
-  readonly hostCredentials: GitHostCredentialService
+  readonly gitHostCredentials: GitHostCredentialService
   readonly gitSync: Pick<GitSyncService, 'connectRemote'>
   /**
    * The open graph's generation — every git command is pinned to it.
@@ -48,7 +48,7 @@ class GitHostConnectorImpl implements GitHostConnector {
   }
 
   async connectGitHost({ remoteUrl, username, token }: ConnectGitHostInput): Promise<void> {
-    const { git, hostCredentials, gitSync, generation } = this.#deps
+    const { git, gitHostCredentials, gitSync, generation } = this.#deps
     const url = remoteUrl.trim()
     const remote = classifyRemote(url)
     if (remote.kind === 'github') {
@@ -75,7 +75,7 @@ class GitHostConnectorImpl implements GitHostConnector {
     }
     await git.setup(null, null, generation) // the repository the probe runs from
     const tip = await git.remoteHead(credential, generation, url)
-    await hostCredentials.save(remote.origin, credential)
+    await gitHostCredentials.save(remote.origin, credential)
     await gitSync.connectRemote(url, tip.defaultBranch)
   }
 }

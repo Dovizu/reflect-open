@@ -284,13 +284,13 @@ function fakeServices(options: FakeOptions = {}) {
 
   const progress = createTestProgressPort()
   const githubAuth = createTestGithubAuthService({ secretStore, http, clock })
-  const hostCredentials = createGitHostCredentialService({ secretStore, logger })
+  const gitHostCredentials = createGitHostCredentialService({ secretStore, logger })
   gitSyncDeps = {
     git,
     syncEngines: createSyncEngineFactory({ git, clock }),
-    credentials: createCredentialResolver({ githubAuth, hostCredentials, logger }),
+    credentials: createCredentialResolver({ githubAuth, gitHostCredentials, logger }),
     githubAuth,
-    hostCredentials,
+    gitHostCredentials,
     fileChanges,
     indexLifecycle,
     progress,
@@ -562,7 +562,7 @@ describe('createGitSyncService', () => {
     await gitSync.start()
     expect(gitSync.getState()).toMatchObject({ phase: 'needsCredential' })
 
-    await gitSyncDeps.hostCredentials.save('https://gitlab.com', {
+    await gitSyncDeps.gitHostCredentials.save('https://gitlab.com', {
       username: 'alex',
       secret: 'glpat-1',
     })
