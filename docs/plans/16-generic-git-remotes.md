@@ -18,12 +18,16 @@ and deserves its own wave (and spike) rather than holding V1 hostage.
 story). **Status:** V1 implemented (SSH agent + path remotes; see
 [docs/generic-git-remotes.md](../generic-git-remotes.md) for the user contract).
 Outstanding V1 validation, manual by nature: agent auth from the *packaged* app
-against a real host (the Phase 0 spike items). V2 (HTTPS credential helpers) not
-started.
+against a real host (the Phase 0 spike items). V2 shipped as per-host sign-ins
+entered in Settings and stored in the OS keychain, not as git credential helpers
+(the helper phases below were never built). See [Plan 25](./25-sync-model.md). The
+design and phase sections below that speak of credential helpers are historical.
 
-**Explicitly not in scope:** host pickers, a "custom remote" wizard, per-host settings
-UI, or per-host REST sugar (repo creation, visibility checks, install links — those
-stay GitHub-only conveniences). File-sync providers were unsupported by design when
+**Explicitly not in scope:** host-specific pickers beyond the GitHub / Other host
+choice, a "custom remote" wizard, or per-host REST
+sugar (repo creation, visibility checks, install links — those stay GitHub-only
+conveniences). The one Settings form for a host sign-in (address, username, token or
+password) shipped with Plan 25; per-host settings beyond it stay out. File-sync providers were unsupported by design when
 this was written — [Plan 21](./21-icloud-drive-sync.md) has since shipped iCloud Drive
 as the primary sync path (Dropbox et al. remain unsupported); either way, this plan is
 about other *git hosts*, not other *sync mechanisms*.
@@ -167,6 +171,10 @@ external volume, GHES over SSH if reachable.
 
 ## V2 phases (HTTPS via credential helpers)
 
+> **Historical.** V2 shipped as per-host sign-ins entered in Settings and kept
+> in the OS keychain ([Plan 25](./25-sync-model.md)). The helper design below
+> was never built; it stays as the record of the option that was rejected.
+
 **Phase 0 — Spike.** `Cred::credential_helper` from inside the GUI app on macOS:
 helpers resolve via `git` on a GUI-app `PATH` (`/usr/bin` has Apple git, but CLT
 presence and helper discovery need proving — same class of gotcha as the CLI
@@ -196,11 +204,10 @@ GCM.
 
 ## Deferred (beyond V2)
 
-- Per-host token entry UI / per-host keychain entries (the moment we want "no
-  terminal ever" for non-GitHub hosts).
+See also [Plan 25](./25-sync-model.md) for the shipped sign-in model and its deferred items.
+
 - Default key-file fallback (`~/.ssh/id_ed25519`, `id_rsa`) if agent-only proves too
   strict in practice; SSH passphrase prompting (agent covers passphrase keys).
-- Writing credentials back to helpers.
 - GitLab/Gitea REST sugar (repo creation, visibility checks) behind the same
   one-module-per-host pattern as `github.ts`.
 - `git://` and proxy edge cases beyond what libgit2 defaults handle.
