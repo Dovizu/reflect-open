@@ -346,15 +346,9 @@ describe('Sidebar', () => {
     const { view } = await renderSidebar()
     const rust = view.getByRole('button', { name: 'Rust' })
 
-    // Right-click at a known client point, which the iPad's menu points at.
-    rust.element().dispatchEvent(
-      new MouseEvent('contextmenu', {
-        bubbles: true,
-        cancelable: true,
-        clientX: 40,
-        clientY: 120,
-      }),
-    )
+    // Right-click a known point inside the row: the iPad's menu points at it.
+    const row = rust.element().getBoundingClientRect()
+    await userEvent.click(rust, { button: 'right', position: { x: 12, y: 6 } })
 
     await vi.waitFor(() => {
       expect(openNativeContextMenu).toHaveBeenCalledWith(
@@ -367,7 +361,9 @@ describe('Sidebar', () => {
         }),
       )
     })
-    expect(openNativeContextMenu.mock.lastCall?.[0].at).toEqual({ x: 40, y: 120 })
+    const at = openNativeContextMenu.mock.lastCall?.[0].at
+    expect(at?.x).toBeCloseTo(row.left + 12, 0)
+    expect(at?.y).toBeCloseTo(row.top + 6, 0)
     await expectLocatorToHaveCount(view.getByRole('button', { name: 'Rust' }), 0)
     expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/rust.md', { pinned: false }, 1)
   })
@@ -378,15 +374,7 @@ describe('Sidebar', () => {
     const { view } = await renderSidebar()
     const rust = view.getByRole('button', { name: 'Rust' })
 
-    // Right-click at a known client point, which the iPad's menu points at.
-    rust.element().dispatchEvent(
-      new MouseEvent('contextmenu', {
-        bubbles: true,
-        cancelable: true,
-        clientX: 40,
-        clientY: 120,
-      }),
-    )
+    await userEvent.click(rust, { button: 'right' })
 
     await vi.waitFor(() => {
       expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/rust.md', { pinned: false }, 1)
