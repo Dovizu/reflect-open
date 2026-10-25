@@ -72,7 +72,8 @@ export function GitSyncSettingsField(): ReactElement {
   // The iOS app (the iPad's desktop workspace) connects a repository only to
   // a graph kept on the device, like the phone settings (Plan 21): an iCloud
   // graph syncs through the container. A remote such a graph already carries
-  // still runs, as the engine's secondary history channel.
+  // still runs, as the engine's secondary history channel, once its sign-in
+  // resolves; without one it waits and only local history runs.
   const connectable = !(hosted && platform.appPlatform === 'ios')
   const repo = state.phase === 'connected' ? githubRepoOf(state.remote) : null
   // A remote that waits for its sign-in: a host sign-in is added here, a

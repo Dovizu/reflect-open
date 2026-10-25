@@ -12,8 +12,10 @@ export type SettingsSectionEntry = (typeof SETTINGS_SECTIONS)[number]
  * `unavailable` elsewhere). Agents is macOS-only. The iOS app (the iPad's
  * desktop settings) trades Import and the Danger zone, which assume a graph
  * folder of the user's choosing, for its Graph and Subscription sections. The
- * page, the navigator and the active-section tracker must agree, so all of
- * them decide through here rather than reading the registry directly.
+ * navigator lists through this rule, the active-section tracker takes its
+ * first and last sections from it, and the page gates the platform-specific
+ * Graph, Import, Subscription and Danger zone sections with it. Agents and
+ * Integrations still hide themselves on the page.
  */
 export function useIsSettingsSectionVisible(): (id: SettingsSectionId) => boolean {
   const { authorization } = useContactsState()
