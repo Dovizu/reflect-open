@@ -283,12 +283,13 @@ extension NativeMenuPlugin: UIEditMenuInteractionDelegate {
     animator: UIEditMenuInteractionAnimating
   ) {
     // A chosen action settles first; this only catches a dismissal. The
-    // anchor goes once the menu is gone.
+    // anchor goes once the menu is gone. A menu replaced by a newer one
+    // (`presentContextMenu` already settled it) leaves the newer request and
+    // anchor alone.
     animator.addCompletion { [weak self] in
-      self?.finishContextMenu(choosing: nil)
-      if self?.contextMenuAnchor === interaction.view {
-        self?.removeContextMenuAnchor()
-      }
+      guard let self, self.contextMenuAnchor === interaction.view else { return }
+      self.finishContextMenu(choosing: nil)
+      self.removeContextMenuAnchor()
     }
   }
 }

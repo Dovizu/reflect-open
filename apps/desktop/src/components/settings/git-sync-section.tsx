@@ -69,9 +69,10 @@ export function GitSyncSettingsField(): ReactElement {
   const action = useAsyncAction()
 
   const hosted = graph !== null && isICloudRoot(graph.root)
-  // The iOS app (the iPad's desktop workspace) syncs a graph through iCloud
-  // Drive or a repository, never both (Plan 21): its sync engine has no
-  // second history channel to run beside iCloud.
+  // The iOS app (the iPad's desktop workspace) connects a repository only to
+  // a graph kept on the device, like the phone settings (Plan 21): an iCloud
+  // graph syncs through the container. A remote such a graph already carries
+  // still runs, as the engine's secondary history channel.
   const connectable = !(hosted && platform.appPlatform === 'ios')
   const repo = state.phase === 'connected' ? githubRepoOf(state.remote) : null
   // A remote that waits for its sign-in: a host sign-in is added here, a

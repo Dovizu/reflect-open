@@ -215,6 +215,10 @@ class NativeMenuServiceImpl implements NativeMenuService {
   #installed = false
   #menu: NativeAppMenu | null = null
   #current: MenuCommandDispatch | null = null
+  /** The tail of the queued availability updates; see `#publishAvailability`. */
+  #availability: Promise<void> = Promise.resolve()
+  /** What the menu last showed: `null` until the first update lands. */
+  #publishedAvailable: boolean | null = null
   readonly #mainWindow: boolean
 
   constructor(deps: NativeMenuServiceDeps) {
@@ -238,7 +242,7 @@ class NativeMenuServiceImpl implements NativeMenuService {
     this.#installed = true
     this.#menu = menu
     // A workspace may have published its dispatcher while the menu was building.
-    await menu.setCommandsAvailable?.(this.#current !== null)
+    await this.#publishAvailability()
     if (!platform.isMacosDesktop) {
       return
     }
@@ -267,14 +271,31 @@ class NativeMenuServiceImpl implements NativeMenuService {
   }
 
   setCommandDispatch(dispatch: MenuCommandDispatch | null): void {
-    const availabilityChanged = (dispatch === null) !== (this.#current === null)
     this.#current = dispatch
-    const menu = this.#menu
-    if (availabilityChanged && menu?.setCommandsAvailable !== undefined) {
-      Promise.resolve(menu.setCommandsAvailable(dispatch !== null)).catch((error: unknown) => {
+    void this.#publishAvailability()
+  }
+
+  /**
+   * Tell the menu whether a workspace can run its commands. Updates run one
+   * at a time and each reads the dispatcher when it runs, so the menu never
+   * ends on a stale state, and a dispatcher swapped within one tick (an
+   * effect's cleanup, then its re-run) publishes nothing.
+   */
+  #publishAvailability(): Promise<void> {
+    this.#availability = this.#availability
+      .then(async () => {
+        const menu = this.#menu
+        const available = this.#current !== null
+        if (menu?.setCommandsAvailable === undefined || available === this.#publishedAvailable) {
+          return
+        }
+        await menu.setCommandsAvailable(available)
+        this.#publishedAvailable = available
+      })
+      .catch((error: unknown) => {
         this.#deps.logger.warn('failed to update the menu commands:', error)
       })
-    }
+    return this.#availability
   }
 
   readonly dispatchCommand = (commandId: string): void => {

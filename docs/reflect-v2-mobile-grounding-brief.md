@@ -33,7 +33,7 @@ A capture-and-recall companion to the desktop app, sharing one product identity:
 ### 2.2 What it is not
 
 - Not a viewer. Editing ships in v1, on the same document machinery as desktop (sessions, debounced atomic saves, title rename, round-trip protection).
-- Not a parity port. No copilot, no semantic search, no ⌘K palette, no CLI sidecar, no map, no publishing. (The container can hold several graphs — the settings sheet switches between them — but only one graph is open at a time; there is no desktop-style chooser.)
+- Not a parity port. No copilot, no semantic search, no ⌘K palette on the phone shell, no CLI sidecar, no map, no publishing. (A regular-width iPad window is the exception: it renders the desktop workspace, palette and shortcuts included; see [TDR 0005](decisions/0005-ipad-desktop-class.md).) (The container can hold several graphs — the settings sheet switches between them — but only one graph is open at a time; there is no desktop-style chooser.)
 - Not a separate codebase, schema, or design system.
 - Not a cloud client. The phone is a peer device operating on its own copy of the graph; network egress *from the app* is GitHub sync only — iCloud document sync happens OS-side, below the app.
 
@@ -179,7 +179,7 @@ Aligned with Plan 19's risks, ordered by product impact:
 
 Keyboard-native is desktop identity; mobile translates it rather than imports it:
 
-- **Touch-native, capture-first.** Thumb-reachable core actions; search as a visible surface, not a chord; the keyboard never occludes the caret. Full shortcut surfaces (⌘K palette) are explicitly out of v1 — hardware-keyboard iPad users fall back to visible affordances for now.
+- **Touch-native, capture-first.** Thumb-reachable core actions; search as a visible surface, not a chord; the keyboard never occludes the caret. Full shortcut surfaces (⌘K palette) stay out of the phone shell. A regular-width iPad window has them all through the desktop workspace and the iPadOS menu bar ([TDR 0005](decisions/0005-ipad-desktop-class.md)); a compact one falls back to the phone shell's visible affordances.
 - **Minimal UI applies double.** Six screens, a tab/stack shell, a sync-status pill. No settings sprawl: storage, switch graph, GitHub connect/disconnect, and version.
 - **Same visual language.** Design-system tokens, safe-area-aware layout (`viewport-fit=cover`), 16px minimum input font (blocks iOS auto-zoom), dark mode. iPad shipped as "a big phone" in v1; a regular-width iPad window now renders the desktop workspace ([TDR 0005](decisions/0005-ipad-desktop-class.md)).
 - **Plain-language sync.** "Backed up / Syncing / Offline", never commits, branches, or merges.
@@ -212,7 +212,7 @@ Beyond Plan 19's settled scope, these remain genuinely open:
 5. **Deep links and the command registry**: when external automation (shortcuts, widgets) arrives, does `reflect://` map onto the same typed command layer as desktop?
 6. **Graph-at-scale on iCloud**: full-download-by-policy plus O(all-notes) watch diffing and pending-walks are fine at today's graph sizes; what size forces delta-based intake or selective download?
 
-Two of the original questions closed since the first draft: the daily-note append/append merge driver shipped as Plan 21's append-union rung, and the formatting toolbar shipped webview-drawn (Plan 19 decision 8).
+Three of the original questions closed since the first draft: the daily-note append/append merge driver shipped as Plan 21's append-union rung, the formatting toolbar shipped webview-drawn (Plan 19 decision 8), and the iPad posture is settled by TDR 0005.
 
 ---
 

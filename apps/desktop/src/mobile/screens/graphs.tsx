@@ -14,6 +14,14 @@ import { useGraph } from '@/providers/graph-provider.tsx'
 import { useRouter } from '@/routing/router.tsx'
 import { useCoreServices } from '@/services/services-provider.tsx'
 
+interface MobileGraphsProps {
+  /**
+   * Clear the screen's safe-area insets. Off inside the iPad's desktop
+   * workspace, whose main pane already clears them.
+   */
+  safeAreaInsets?: boolean
+}
+
 /**
  * The Graphs screen (route kind `graphs`) — the mobile graph switcher as an
  * iOS checkmark-selection list, pushed from Settings. iCloud Drive graphs
@@ -25,14 +33,6 @@ import { useCoreServices } from '@/services/services-provider.tsx'
  * paths must never be cached across sessions, and another device may have
  * added a graph since the last look.
  */
-interface MobileGraphsProps {
-  /**
-   * Clear the screen's safe-area insets. Off inside the iPad's desktop
-   * workspace, whose main pane already clears them.
-   */
-  safeAreaInsets?: boolean
-}
-
 export function MobileGraphs({ safeAreaInsets = true }: MobileGraphsProps): ReactElement {
   const { back, canBack, navigate } = useRouter()
   const { graph, completeOnboarding } = useGraph()

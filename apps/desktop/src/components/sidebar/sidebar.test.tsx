@@ -19,7 +19,12 @@ import {
   type TestOpenerService,
   type TestOperationsService,
 } from '@reflect/app/testing'
-import { createTestCoreServices, createTestGitSyncService } from '@reflect/core/testing'
+import {
+  createTestCoreServices,
+  createTestGitSyncService,
+  createTestPlatformService,
+  type TestPlatformOptions,
+} from '@reflect/core/testing'
 import type { CommandContext } from '@/lib/commands/types.ts'
 import type { Route } from '@/routing/route.ts'
 import { AudioMemoProvider } from '@/providers/audio-memo-provider.tsx'
@@ -80,7 +85,11 @@ beforeEach(() => {
   openNativeContextMenu.mockClear()
 })
 
-async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?: Route) {
+async function renderSidebar(
+  overrides?: Partial<CommandContext>,
+  initialRoute?: Route,
+  platform?: TestPlatformOptions,
+) {
   const navigate = vi.fn()
   const openPalette = vi.fn()
   const readSource = (): Promise<string> => Promise.resolve('# Rust\n')
@@ -96,6 +105,7 @@ async function renderSidebar(overrides?: Partial<CommandContext>, initialRoute?:
       isOstensiblyEmpty: isOstensiblyEmptyNoteSource,
     },
     gitSync: createTestGitSyncService({ state: { phase: 'disconnected' } }),
+    ...(platform === undefined ? {} : { platform: createTestPlatformService(platform) }),
   })
   const appLayer = createTestAppServices(app, {
     window: createTestWindowService({ openNoteWindow }),
@@ -336,7 +346,15 @@ describe('Sidebar', () => {
     const { view } = await renderSidebar()
     const rust = view.getByRole('button', { name: 'Rust' })
 
-    await rust.click({ button: 'right' })
+    // Right-click at a known client point, which the iPad's menu points at.
+    rust.element().dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 40,
+        clientY: 120,
+      }),
+    )
 
     await vi.waitFor(() => {
       expect(openNativeContextMenu).toHaveBeenCalledWith(
@@ -349,10 +367,7 @@ describe('Sidebar', () => {
         }),
       )
     })
-    // The click's client point, which the iPad's menu points at.
-    const at = openNativeContextMenu.mock.lastCall?.[0].at
-    expect(typeof at?.x).toBe('number')
-    expect(typeof at?.y).toBe('number')
+    expect(openNativeContextMenu.mock.lastCall?.[0].at).toEqual({ x: 40, y: 120 })
     await expectLocatorToHaveCount(view.getByRole('button', { name: 'Rust' }), 0)
     expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/rust.md', { pinned: false }, 1)
   })
@@ -363,7 +378,15 @@ describe('Sidebar', () => {
     const { view } = await renderSidebar()
     const rust = view.getByRole('button', { name: 'Rust' })
 
-    await rust.click({ button: 'right' })
+    // Right-click at a known client point, which the iPad's menu points at.
+    rust.element().dispatchEvent(
+      new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 40,
+        clientY: 120,
+      }),
+    )
 
     await vi.waitFor(() => {
       expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/rust.md', { pinned: false }, 1)
@@ -411,6 +434,24 @@ describe('Sidebar', () => {
     await page.getByRole('menuitem', { name: /open another graph/i }).click()
     expect(chooseGraph).toHaveBeenCalled()
     expect(pickAndOpen).not.toHaveBeenCalled()
+  })
+
+  it('the graph footer switches graphs through the iOS graph list in the iOS app', async () => {
+    const { view } = await renderSidebar(undefined, undefined, {
+      appPlatform: 'ios',
+      isMacosDesktop: false,
+    })
+
+    await view.getByRole('button', { name: /Notes/ }).click()
+    await page.getByRole('menuitem', { name: 'Switch graph…' }).click()
+
+    expect(view.appServices.navigation.navigations()).toEqual([
+      { route: { kind: 'graphs' }, options: undefined },
+    ])
+    await view.getByRole('button', { name: /Notes/ }).click()
+    await expect.element(page.getByRole('menuitem', { name: 'Switch graph…' })).toBeVisible()
+    expect(page.getByRole('menuitem', { name: /open another graph/i }).query()).toBeNull()
+    expect(page.getByRole('menuitem', { name: /reveal graph/i }).query()).toBeNull()
   })
 
   it('the graph footer opens preferences from the graph menu', async () => {

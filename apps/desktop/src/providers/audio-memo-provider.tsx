@@ -66,6 +66,9 @@ const CLOSED_STATE: AudioMemoSessionState = {
   recorderState: 'idle',
 }
 
+/** Why the iPad's mic is off where there is no native recorder, in the desktop's words. */
+const NATIVE_RECORDER_MISSING = 'Audio recording is not supported on this platform'
+
 const CLOSED_SESSION = {
   subscribe: () => () => {},
   getState: () => CLOSED_STATE,
@@ -98,9 +101,10 @@ function NativeAudioMemoBridge({ children }: { children: ReactNode }): ReactElem
       stream: null,
       pendingCount: memo.pendingCount,
       // The sheet explains a missing transcription model itself, so the mic
-      // always opens it rather than going inert.
-      available: true,
-      unavailableReason: null,
+      // opens it rather than going inert; only a missing native recorder (a
+      // plain browser) disables it.
+      available: memo.available,
+      unavailableReason: memo.available ? null : NATIVE_RECORDER_MISSING,
       error: memo.error,
       canRetry: memo.canRetry,
       recorderState:

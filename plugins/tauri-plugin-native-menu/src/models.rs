@@ -10,13 +10,35 @@ pub enum KeyModifier {
     Control,
 }
 
+/// A key the plugin names rather than spells as a character.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NamedKey {
+    Enter,
+    Escape,
+    Tab,
+    Delete,
+    UpArrow,
+    DownArrow,
+    LeftArrow,
+    RightArrow,
+}
+
+/// A `UIKeyCommand` input: a named key, or one character. Any other string
+/// fails to deserialize, so the request is rejected instead of the key
+/// command going missing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum KeyInput {
+    Named(NamedKey),
+    Character(char),
+}
+
 /// The key equivalent of a `UIKeyCommand`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct KeyEquivalent {
-    /// One character, or a named key (`enter`, `escape`, `tab`, `delete`,
-    /// `upArrow`, `downArrow`, `leftArrow`, `rightArrow`).
-    pub input: String,
+    pub input: KeyInput,
     pub modifiers: Vec<KeyModifier>,
 }
 
@@ -93,4 +115,37 @@ pub struct PresentContextMenuRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ContextMenuChoice {
     pub id: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn key_input_takes_a_named_key_or_one_character() {
+        let named: KeyInput = serde_json::from_value(json!("upArrow")).unwrap();
+        assert_eq!(named, KeyInput::Named(NamedKey::UpArrow));
+        let character: KeyInput = serde_json::from_value(json!("\\")).unwrap();
+        assert_eq!(character, KeyInput::Character('\\'));
+        assert_eq!(serde_json::to_value(named).unwrap(), json!("upArrow"));
+        assert_eq!(serde_json::to_value(character).unwrap(), json!("\\"));
+    }
+
+    #[test]
+    fn key_input_rejects_any_other_string() {
+        assert!(serde_json::from_value::<KeyInput>(json!("UIKeyInputUpArrow")).is_err());
+        assert!(serde_json::from_value::<KeyInput>(json!("")).is_err());
+    }
+
+    #[test]
+    fn a_dismissed_context_menu_reaches_the_webview_as_a_null_id() {
+        // Swift encodes `ContextMenuChoice(id: nil)` without the key.
+        let dismissed: ContextMenuChoice = serde_json::from_value(json!({})).unwrap();
+        assert_eq!(dismissed.id, None);
+        assert_eq!(
+            serde_json::to_value(dismissed).unwrap(),
+            json!({ "id": null })
+        );
+    }
 }

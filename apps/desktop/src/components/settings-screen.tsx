@@ -1,5 +1,4 @@
 import type { ReactElement } from 'react'
-import { useCoreServices } from '@/services/services-provider.tsx'
 import { AboutSection } from './settings/about-section.tsx'
 import { AccountsSection } from './settings/accounts-section.tsx'
 import { AgentsSection } from './settings/agents-section.tsx'
@@ -19,22 +18,22 @@ import { SearchSection } from './settings/search-section.tsx'
 import { SubscriptionSection } from './settings/subscription-section.tsx'
 import { SyncSection } from './settings/sync-section.tsx'
 import { TemplatesSection } from './settings/templates-section.tsx'
+import { useIsSettingsSectionVisible } from './settings/use-visible-settings-sections.ts'
 
 /**
  * The settings screen (a routed view, like notes — reached via ⌘, or the
  * palette's "Open settings"). Every control applies instantly through the
- * settings provider; there is no save button. In the iOS app (the iPad's
- * desktop workspace) the graph and subscription sections replace the import
- * and the danger zone, which assume a graph folder of the user's choosing.
+ * settings provider; there is no save button. Which platform-specific
+ * sections show comes from {@link useIsSettingsSectionVisible}, the rule the
+ * navigator follows too.
  */
 export function SettingsScreen(): ReactElement {
-  const { platform } = useCoreServices()
-  const ios = platform.appPlatform === 'ios'
+  const isVisible = useIsSettingsSectionVisible()
   return (
     <div aria-label="Settings" data-testid="settings-screen">
       <h1 className="text-lg font-semibold text-text">Settings</h1>
       <div className="mt-6">
-        {ios ? <GraphSection /> : null}
+        {isVisible('graph') ? <GraphSection /> : null}
         <AppearanceSection />
         <EditorSection />
         <DateTimeSection />
@@ -49,10 +48,10 @@ export function SettingsScreen(): ReactElement {
         <IntegrationsSection />
         <SyncSection />
         <AccountsSection />
-        {ios ? null : <ImportSection />}
-        {ios ? <SubscriptionSection /> : null}
+        {isVisible('import') ? <ImportSection /> : null}
+        {isVisible('subscription') ? <SubscriptionSection /> : null}
         <AboutSection />
-        {ios ? null : <DestructiveSection />}
+        {isVisible('destructive') ? <DestructiveSection /> : null}
       </div>
     </div>
   )

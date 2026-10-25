@@ -13,9 +13,23 @@ import { definePluginCommand, definePluginEvent, ignoredResult } from './plugin.
 /** A `UIKeyModifierFlags` member. */
 export type MainMenuModifier = 'command' | 'shift' | 'alternate' | 'control'
 
+/** A key the plugin names rather than spells as a character. */
+export type MainMenuNamedKey =
+  | 'enter'
+  | 'escape'
+  | 'tab'
+  | 'delete'
+  | 'upArrow'
+  | 'downArrow'
+  | 'leftArrow'
+  | 'rightArrow'
+
 /** The key equivalent of a `UIKeyCommand`. */
 export interface MainMenuKeyEquivalent {
-  /** The `UIKeyCommand` input: one character, or a named input like `UIKeyInputUpArrow`. */
+  /**
+   * One character, or a {@link MainMenuNamedKey}. The plugin rejects any
+   * other string, so a menu with one fails to install.
+   */
   readonly input: string
   readonly modifiers: readonly MainMenuModifier[]
 }

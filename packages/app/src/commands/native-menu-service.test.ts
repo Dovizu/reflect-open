@@ -59,6 +59,13 @@ function setup(options?: { label?: string; platform?: TestPlatformOptions; failP
   return { menu, windows, ipc, logger }
 }
 
+/**
+ * Let the queued menu availability updates land.
+ */
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 describe('install', () => {
   it('builds each submenu from the layout and the command registry', async () => {
     const { menu } = setup()
@@ -128,7 +135,7 @@ describe('install', () => {
     expect(menu.isInstalled()).toBe(false)
   })
 
-  it('installs nothing off the macOS desktop and the iPad', async () => {
+  it('installs nothing on platforms other than the macOS desktop and the iPad', async () => {
     const { menu } = setup({ platform: { isMacosDesktop: false } })
 
     await menu.install(LAYOUT)
@@ -153,12 +160,30 @@ describe('install', () => {
     await menu.install(LAYOUT)
     expect(menu.host.availability()).toEqual([false])
 
-    const dispatch = vi.fn()
-    menu.setCommandDispatch(dispatch)
+    menu.setCommandDispatch(vi.fn())
+    await settle()
+    expect(menu.host.availability()).toEqual([false, true])
     // A replaced dispatcher keeps the items; only a gap withdraws them.
     menu.setCommandDispatch(vi.fn())
+    await settle()
+    expect(menu.host.availability()).toEqual([false, true])
     menu.setCommandDispatch(null)
+    await settle()
     expect(menu.host.availability()).toEqual([false, true, false])
+  })
+
+  it('publishes nothing when a workspace swaps its dispatcher within one tick', async () => {
+    const { menu } = setup({ platform: IPAD })
+    await menu.install(LAYOUT)
+    menu.setCommandDispatch(vi.fn())
+    await settle()
+
+    // An effect's cleanup, then its re-run.
+    menu.setCommandDispatch(null)
+    menu.setCommandDispatch(vi.fn())
+    await settle()
+
+    expect(menu.host.availability()).toEqual([false, true])
   })
 
   it('offers the command items at once when a workspace published its dispatcher first', async () => {

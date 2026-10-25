@@ -319,6 +319,7 @@ export {
   type MainMenuItem,
   type MainMenuKeyEquivalent,
   type MainMenuModifier,
+  type MainMenuNamedKey,
   type MainMenuPlacement,
   type MainMenuSection,
 } from './ipc/native-menu-plugin.ts'

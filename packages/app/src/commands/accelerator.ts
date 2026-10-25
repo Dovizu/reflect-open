@@ -1,4 +1,4 @@
-import type { MainMenuKeyEquivalent, MainMenuModifier } from '@reflect/core'
+import type { MainMenuKeyEquivalent, MainMenuModifier, MainMenuNamedKey } from '@reflect/core'
 
 /**
  * Converts a keymap-registry binding (`Mod-d`, `Mod-\`, …) into the
@@ -28,7 +28,8 @@ const KEY_EQUIVALENT_MODIFIERS: Record<string, MainMenuModifier> = {
   ctrl: 'control',
 }
 
-const KEY_EQUIVALENT_NAMED_INPUTS: Record<string, string> = {
+// Space is a character to UIKit, so it maps to one rather than to a name.
+const KEY_EQUIVALENT_NAMED_INPUTS: Record<string, MainMenuNamedKey | ' '> = {
   enter: 'enter',
   escape: 'escape',
   tab: 'tab',

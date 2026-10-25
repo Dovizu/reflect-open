@@ -119,7 +119,15 @@ describe('AudioMemoButton', () => {
       memo.presentation = 'sheet'
     })
 
-    it('starts and stops from the mic, leaving the recording UI to the sheet', async () => {
+    it('starts from the mic without a popover of its own', async () => {
+      const view = await renderButton()
+
+      await userEvent.click(view.getByRole('button', { name: 'Record audio memo' }))
+      expect(memo.toggle).toHaveBeenCalledTimes(1)
+      expect(view.getByRole('dialog').query()).toBeNull()
+    })
+
+    it('stops from the mic, leaving the recording UI to the sheet', async () => {
       memo.phase = 'recording'
       const view = await renderButton()
 
