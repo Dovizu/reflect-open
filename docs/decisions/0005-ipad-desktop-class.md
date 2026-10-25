@@ -54,9 +54,9 @@ browser dev (`?platform=ipad`) approximates it with a 640px media query.
 and app service keeps its iOS behaviour. The shared desktop components adapt
 where they assumed a desktop host:
 
-- The frame stays inside the safe area and ends at the software keyboard,
-  with the touch formatting toolbar on its edge, because the webview is
-  pinned (Plan 19, decision 8).
+- The frame ends at the software keyboard, because the webview is pinned
+  (Plan 19, decision 8), and its columns clear the safe-area insets inside
+  their own backgrounds. Like the desktop app, it has no formatting toolbar.
 - Audio memos borrow the native recording session that already lives above
   the workspace, and the iOS recording sheet presents them.
 - Graphs live in the iOS app's fixed roots: no recents, no folder picker, no

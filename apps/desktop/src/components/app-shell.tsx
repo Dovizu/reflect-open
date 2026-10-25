@@ -15,6 +15,9 @@ interface AppShellProps {
   className?: string
 }
 
+/** Every column clears the frame's top and bottom insets (none on desktop). */
+const INSETS = 'pt-(--app-shell-inset-top,0px) pb-(--app-shell-inset-bottom,0px)'
+
 /**
  * The application frame, in the original app's shape: a sunken sidebar beside
  * the raised note pane, no header bar — the document is the chrome. Layout
@@ -28,8 +31,10 @@ interface AppShellProps {
  * position on the aside's leading edge. The frame never scrolls: every route
  * mounts its own scroll container, so the center region clips instead of
  * growing a second scrollbar around a route's own. It fills the window unless
- * `--app-shell-height` / `--app-shell-width` say otherwise: the iPad sets
- * them to fill the safe area above the software keyboard.
+ * `--app-shell-height` / `--app-shell-width` say otherwise, and each column
+ * clears `--app-shell-inset-top` / `--app-shell-inset-bottom` inside its own
+ * background: the iPad sets them to the safe-area insets, so the columns run
+ * under the status bar or the window controls without a band across the top.
  */
 export function AppShell({
   sidebar,
@@ -50,20 +55,26 @@ export function AppShell({
         <aside
           id="workspace-sidebar"
           aria-label="Workspace"
-          className="relative flex w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden border-r border-border bg-surface-sunken"
+          className={cn(
+            'relative flex w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden border-r border-border bg-surface-sunken',
+            INSETS,
+          )}
         >
           {sidebar}
           {sidebarEdge}
         </aside>
       ) : null}
 
-      <main className="min-w-0 flex-1 overflow-hidden bg-surface">{children}</main>
+      <main className={cn('min-w-0 flex-1 overflow-hidden bg-surface', INSETS)}>{children}</main>
 
       {context ? (
         <aside
           id="context-sidebar"
           aria-label="Context"
-          className="relative hidden w-[var(--context-sidebar-width)] shrink-0 border-l border-border bg-surface-sunken lg:block"
+          className={cn(
+            'relative hidden w-[var(--context-sidebar-width)] shrink-0 border-l border-border bg-surface-sunken lg:block',
+            INSETS,
+          )}
         >
           {contextEdge}
           <div className="h-full overflow-auto">{context}</div>

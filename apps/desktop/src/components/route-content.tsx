@@ -68,7 +68,11 @@ function RouteContentBody(): ReactElement {
     // open in a dialog, so both render as settings. The iPad's graphs live in
     // the iOS app's fixed roots, so it keeps the iOS graph list.
     case 'graphs':
-      return platform.appPlatform === 'ios' ? <MobileGraphs /> : <SettingsRoute />
+      return platform.appPlatform === 'ios' ? (
+        <MobileGraphs safeAreaInsets={false} />
+      ) : (
+        <SettingsRoute />
+      )
     case 'licenses':
     case 'settings':
       return <SettingsRoute />

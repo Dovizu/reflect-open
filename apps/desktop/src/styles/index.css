@@ -46,6 +46,16 @@ Cascade layer order, low to high priority.
       --value(integer)
   );
 }
+/* The iPad's desktop workspace: AppShell's columns clear these insets inside
+   their own backgrounds, so nothing bands across the window, and the bottom
+   one sits under the software keyboard while it is up. */
+@utility app-shell-safe-insets {
+  --app-shell-inset-top: env(safe-area-inset-top, 0px);
+  --app-shell-inset-bottom: max(
+    0px,
+    calc(env(safe-area-inset-bottom, 0px) - var(--keyboard-height, 0px))
+  );
+}
 
 /* Controls that sit inside the overlaid macOS title-bar drag strip must share
    the strip's z-index so they win by tree order without jumping above overlays. */
