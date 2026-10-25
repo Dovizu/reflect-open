@@ -339,14 +339,20 @@ describe('Sidebar', () => {
     await rust.click({ button: 'right' })
 
     await vi.waitFor(() => {
-      expect(openNativeContextMenu).toHaveBeenCalledWith({
-        items: [
-          expect.objectContaining({
-            text: 'Unpin Note',
-          }),
-        ],
-      })
+      expect(openNativeContextMenu).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              text: 'Unpin Note',
+            }),
+          ],
+        }),
+      )
     })
+    // The click's client point, which the iPad's menu points at.
+    const at = openNativeContextMenu.mock.lastCall?.[0].at
+    expect(typeof at?.x).toBe('number')
+    expect(typeof at?.y).toBe('number')
     await expectLocatorToHaveCount(view.getByRole('button', { name: 'Rust' }), 0)
     expect(commitNoteFrontmatter).toHaveBeenCalledWith('notes/rust.md', { pinned: false }, 1)
   })

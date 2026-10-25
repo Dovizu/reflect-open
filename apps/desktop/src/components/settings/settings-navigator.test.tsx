@@ -4,20 +4,25 @@ import {
   createTestCoreServices,
   createTestContactsService,
   createTestPlatformService,
+  type TestPlatformOptions,
 } from '@reflect/core/testing'
 import '@/test-utils/locator.ts'
-import { renderInApp } from '@/test-utils/render-in-app.tsx'
+import { IPAD_PLATFORM, renderInApp } from '@/test-utils/render-in-app.tsx'
 import { createWasmTestDatabaseService } from '@/test-utils/test-database.ts'
 import { SETTINGS_SECTIONS, settingsSectionDomId } from './sections.ts'
 import { SettingsNavigator } from './settings-navigator.tsx'
 
-// The app here is not macOS desktop and has no Contacts framework, so the
-// platform-gated entries are hidden (Integrations needs the contacts answer;
-// Agents needs `isMacosDesktop`) — the navigator lists the sections every
-// platform shows.
-const VISIBLE_SECTIONS = SETTINGS_SECTIONS.filter(
-  (section) => section.id !== 'integrations' && section.id !== 'agents',
-)
+// The app here is not macOS desktop, not the iOS app, and has no Contacts
+// framework, so the platform-gated entries are hidden (Integrations needs the
+// contacts answer; Agents needs `isMacosDesktop`; Graph and Subscription are
+// the iOS app's) — the navigator lists the sections every desktop shows.
+const HIDDEN_SECTION_IDS: ReadonlySet<string> = new Set([
+  'integrations',
+  'agents',
+  'graph',
+  'subscription',
+])
+const VISIBLE_SECTIONS = SETTINGS_SECTIONS.filter((section) => !HIDDEN_SECTION_IDS.has(section.id))
 
 /**
  * Real page geometry: the scroll container is an 800px viewport whose content
@@ -34,10 +39,12 @@ function sectionTop(index: number): number {
   return PAGE_PADDING_PX + index * SECTION_STRIDE_PX
 }
 
-async function renderNavigatorPage(): Promise<HTMLElement> {
+async function renderNavigatorPage(
+  platform: TestPlatformOptions = { isMacosDesktop: false },
+): Promise<HTMLElement> {
   const app = createTestCoreServices({
     database: createWasmTestDatabaseService(),
-    platform: createTestPlatformService({ isMacosDesktop: false }),
+    platform: createTestPlatformService(platform),
     contacts: createTestContactsService({ status: 'unavailable' }),
   })
   const view = await renderInApp(
@@ -76,6 +83,18 @@ describe('SettingsNavigator', () => {
       .elements()
       .map((button) => button.textContent)
     expect(labels).toEqual(VISIBLE_SECTIONS.map((section) => section.title))
+  })
+
+  it('trades Import and the Danger zone for Graph and Subscription in the iOS app', async () => {
+    await renderNavigatorPage(IPAD_PLATFORM)
+    const labels = page
+      .getByRole('button')
+      .elements()
+      .map((button) => button.textContent)
+    expect(labels[0]).toBe('Graph')
+    expect(labels).toContain('Subscription')
+    expect(labels).not.toContain('Import')
+    expect(labels).not.toContain('Danger zone')
   })
 
   it('marks the section under the reading line as the page scrolls', async () => {

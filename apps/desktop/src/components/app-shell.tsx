@@ -27,7 +27,9 @@ interface AppShellProps {
  * separator precedes the panel's controls in tab order, matching its visual
  * position on the aside's leading edge. The frame never scrolls: every route
  * mounts its own scroll container, so the center region clips instead of
- * growing a second scrollbar around a route's own.
+ * growing a second scrollbar around a route's own. It fills the window unless
+ * `--app-shell-height` / `--app-shell-width` say otherwise: the iPad sets
+ * them to fill the safe area above the software keyboard.
  */
 export function AppShell({
   sidebar,
@@ -39,7 +41,10 @@ export function AppShell({
 }: AppShellProps): ReactElement {
   return (
     <div
-      className={cn('flex h-screen w-screen overflow-hidden bg-surface-app text-text', className)}
+      className={cn(
+        'flex h-(--app-shell-height,100vh) w-(--app-shell-width,100vw) overflow-hidden bg-surface-app text-text',
+        className,
+      )}
     >
       {sidebar ? (
         <aside

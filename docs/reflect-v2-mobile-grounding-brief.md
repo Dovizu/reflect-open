@@ -181,7 +181,7 @@ Keyboard-native is desktop identity; mobile translates it rather than imports it
 
 - **Touch-native, capture-first.** Thumb-reachable core actions; search as a visible surface, not a chord; the keyboard never occludes the caret. Full shortcut surfaces (⌘K palette) are explicitly out of v1 — hardware-keyboard iPad users fall back to visible affordances for now.
 - **Minimal UI applies double.** Six screens, a tab/stack shell, a sync-status pill. No settings sprawl: storage, switch graph, GitHub connect/disconnect, and version.
-- **Same visual language.** Design-system tokens, safe-area-aware layout (`viewport-fit=cover`), 16px minimum input font (blocks iOS auto-zoom), dark mode. iPad ships as "a big phone" in v1; a desktop-class iPad layout is an explicit later decision.
+- **Same visual language.** Design-system tokens, safe-area-aware layout (`viewport-fit=cover`), 16px minimum input font (blocks iOS auto-zoom), dark mode. iPad shipped as "a big phone" in v1; a regular-width iPad window now renders the desktop workspace ([TDR 0005](decisions/0005-ipad-desktop-class.md)).
 - **Plain-language sync.** "Backed up / Syncing / Offline", never commits, branches, or merges.
 
 ---
@@ -208,7 +208,7 @@ Beyond Plan 19's settled scope, these remain genuinely open:
 1. **App Group + capture-inbox schema** for the audio/share waves: file layout, ingest semantics, `private: true` handling at the inbox boundary, and when to provision the App Group + extension targets in the Xcode template (cheap early, annoying to retrofit — but not needed for v1).
 2. **Semantic search graduation** (inherited from the indexing strategy): what battery/storage/latency evidence gates local embeddings on iOS, and does sqlite-vec/fastembed ever run there or does mobile stay lexical until a different runtime appears?
 3. **AI-assisted conflict resolution**: Plan 21 defers it by design — the ladder hands AI the same base/local/remote triple it uses itself. When it arrives, how does mobile apply resolutions that require BYOK calls (the sync strategy's open question)?
-4. **iPad posture**: how long does "big phone" hold before a two-pane layout is worth building?
+4. ~~**iPad posture**: how long does "big phone" hold before a two-pane layout is worth building?~~ Settled by [TDR 0005](decisions/0005-ipad-desktop-class.md): the desktop workspace in regular-width windows, the phone shell in compact ones.
 5. **Deep links and the command registry**: when external automation (shortcuts, widgets) arrives, does `reflect://` map onto the same typed command layer as desktop?
 6. **Graph-at-scale on iCloud**: full-download-by-policy plus O(all-notes) watch diffing and pending-walks are fine at today's graph sizes; what size forces delta-based intake or selective download?
 

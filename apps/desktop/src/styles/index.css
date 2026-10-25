@@ -21,6 +21,12 @@ Cascade layer order, low to high priority.
    ThemeEffect on <html>. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* The iOS app — the iPad's desktop workspace included — is touch-first even
+   with a trackpad attached, so controls the desktop reveals on hover show up
+   front there. Keyed to `data-touch-app`, which the mobile platform root sets
+   on <html>, rather than to a pointer media query. */
+@custom-variant touch-app (&:where([data-touch-app], [data-touch-app] *));
+
 /* `tailwindcss-safe-area` knows neither the software keyboard nor the tab bar.
    These clear the home indicator, or the keyboard while it is up
    (`--keyboard-height`, mobile/use-keyboard.ts), or the tab bar

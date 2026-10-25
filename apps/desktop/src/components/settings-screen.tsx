@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react'
+import { useCoreServices } from '@/services/services-provider.tsx'
 import { AboutSection } from './settings/about-section.tsx'
 import { AccountsSection } from './settings/accounts-section.tsx'
 import { AgentsSection } from './settings/agents-section.tsx'
@@ -11,22 +12,29 @@ import { AudioMemosSection } from './settings/audio-memos-section.tsx'
 import { DateTimeSection } from './settings/date-time-section.tsx'
 import { DestructiveSection } from './settings/destructive-section.tsx'
 import { EditorSection } from './settings/editor-section.tsx'
+import { GraphSection } from './settings/graph-section.tsx'
 import { ImportSection } from './settings/import-section.tsx'
 import { IntegrationsSection } from './settings/integrations-section.tsx'
 import { SearchSection } from './settings/search-section.tsx'
+import { SubscriptionSection } from './settings/subscription-section.tsx'
 import { SyncSection } from './settings/sync-section.tsx'
 import { TemplatesSection } from './settings/templates-section.tsx'
 
 /**
  * The settings screen (a routed view, like notes — reached via ⌘, or the
  * palette's "Open settings"). Every control applies instantly through the
- * settings provider; there is no save button.
+ * settings provider; there is no save button. In the iOS app (the iPad's
+ * desktop workspace) the graph and subscription sections replace the import
+ * and the danger zone, which assume a graph folder of the user's choosing.
  */
 export function SettingsScreen(): ReactElement {
+  const { platform } = useCoreServices()
+  const ios = platform.appPlatform === 'ios'
   return (
     <div aria-label="Settings" data-testid="settings-screen">
       <h1 className="text-lg font-semibold text-text">Settings</h1>
       <div className="mt-6">
+        {ios ? <GraphSection /> : null}
         <AppearanceSection />
         <EditorSection />
         <DateTimeSection />
@@ -41,9 +49,10 @@ export function SettingsScreen(): ReactElement {
         <IntegrationsSection />
         <SyncSection />
         <AccountsSection />
-        <ImportSection />
+        {ios ? null : <ImportSection />}
+        {ios ? <SubscriptionSection /> : null}
         <AboutSection />
-        <DestructiveSection />
+        {ios ? null : <DestructiveSection />}
       </div>
     </div>
   )
