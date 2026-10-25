@@ -64,9 +64,11 @@ class NativeMenuPlugin: Plugin {
 
   private weak var webview: WKWebView?
   private var sections: [MenuSectionArgs] = []
-  /// The `UIEditMenuInteraction` (iOS 16+) context menus present through,
-  /// added to the webview on first use.
-  private var contextMenuInteraction: UIInteraction?
+  /// A 1-point view at the menu's point, carrying the `UIEditMenuInteraction`
+  /// (iOS 16+) the menu presents through, for as long as the menu is up. The
+  /// interaction never sits on the webview itself: there it would answer the
+  /// clicks and long-presses meant for the page with menus of its own.
+  private var contextMenuAnchor: UIView?
   fileprivate var pendingContextMenu: (items: [ContextMenuItemArgs], invoke: Invoke)?
 
   override init() {
@@ -100,17 +102,15 @@ class NativeMenuPlugin: Plugin {
       }
       // A menu still up (the user right-clicked again) settles as dismissed.
       self.finishContextMenu(choosing: nil)
-      let interaction =
-        (self.contextMenuInteraction as? UIEditMenuInteraction) ?? {
-          let created = UIEditMenuInteraction(delegate: self)
-          webview.addInteraction(created)
-          self.contextMenuInteraction = created
-          return created
-        }()
+      self.removeContextMenuAnchor()
+      let anchor = UIView(frame: CGRect(x: args.x, y: args.y, width: 1, height: 1))
+      let interaction = UIEditMenuInteraction(delegate: self)
+      anchor.addInteraction(interaction)
+      webview.addSubview(anchor)
+      self.contextMenuAnchor = anchor
       self.pendingContextMenu = (args.items, invoke)
-      let configuration = UIEditMenuConfiguration(
-        identifier: nil, sourcePoint: CGPoint(x: args.x, y: args.y))
-      interaction.presentEditMenu(with: configuration)
+      interaction.presentEditMenu(
+        with: UIEditMenuConfiguration(identifier: nil, sourcePoint: .zero))
     }
   }
 
@@ -118,6 +118,11 @@ class NativeMenuPlugin: Plugin {
     guard let pending = pendingContextMenu else { return }
     pendingContextMenu = nil
     pending.invoke.resolve(ContextMenuChoice(id: id))
+  }
+
+  fileprivate func removeContextMenuAnchor() {
+    contextMenuAnchor?.removeFromSuperview()
+    contextMenuAnchor = nil
   }
 
   fileprivate func perform(commandId: String) {
@@ -277,9 +282,13 @@ extension NativeMenuPlugin: UIEditMenuInteractionDelegate {
     willDismissMenuFor configuration: UIEditMenuConfiguration,
     animator: UIEditMenuInteractionAnimating
   ) {
-    // A chosen action settles first; this only catches a dismissal.
+    // A chosen action settles first; this only catches a dismissal. The
+    // anchor goes once the menu is gone.
     animator.addCompletion { [weak self] in
       self?.finishContextMenu(choosing: nil)
+      if self?.contextMenuAnchor === interaction.view {
+        self?.removeContextMenuAnchor()
+      }
     }
   }
 }
