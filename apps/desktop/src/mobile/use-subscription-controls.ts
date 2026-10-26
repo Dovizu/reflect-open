@@ -21,7 +21,10 @@ import { useAppServices } from '@/services/services-provider.tsx'
 export interface SubscriptionControls {
   /** The plan as one line: Monthly, Yearly, a Reflect Classic grant, or none. */
   readonly planLabel: string
-  /** Not subscribed and no Classic grant: offer the paywall. */
+  /**
+   * No App Store plan and no active Classic grant, so offer the paywall. Also
+   * true while the lookup is still loading and the plan reads "Checking…".
+   */
   readonly canSubscribe: boolean
   /** An App Store subscription the system's account page can manage. */
   readonly canManage: boolean
