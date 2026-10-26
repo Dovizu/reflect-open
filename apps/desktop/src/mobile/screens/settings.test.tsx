@@ -630,7 +630,9 @@ describe('MobileSettings subscription', () => {
 
     await expect.element(page.getByText('Not subscribed')).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Subscribe' })).toBeVisible()
-    expect(page.getByRole('button', { name: 'Manage Subscription' }).query()).toBeNull()
+    await expect
+      .element(page.getByRole('button', { name: 'Manage Subscription' }))
+      .not.toBeInTheDocument()
   })
 
   it('names an App Store plan and opens its management page', async () => {
@@ -640,7 +642,7 @@ describe('MobileSettings subscription', () => {
     })
 
     await expect.element(page.getByText('Yearly')).toBeVisible()
-    expect(page.getByRole('button', { name: 'Subscribe' }).query()).toBeNull()
+    await expect.element(page.getByRole('button', { name: 'Subscribe' })).not.toBeInTheDocument()
     await userEvent.click(page.getByRole('button', { name: 'Manage Subscription' }))
     expect(view.appServices.opener.openedUrls()).toContain(
       'https://apps.apple.com/account/subscriptions',
@@ -691,7 +693,7 @@ describe('MobileSettings subscription', () => {
 
     await expect.element(page.getByText(/Reflect Classic, until /)).toBeVisible()
     await expect.element(page.getByText('alex@example.com')).toBeVisible()
-    expect(page.getByRole('button', { name: 'Subscribe' }).query()).toBeNull()
+    await expect.element(page.getByRole('button', { name: 'Subscribe' })).not.toBeInTheDocument()
     await userEvent.click(page.getByRole('button', { name: 'Remove Reflect Classic Verification' }))
 
     await vi.waitFor(() => expect(classicAccess.calls()).toContain('signOut'))
