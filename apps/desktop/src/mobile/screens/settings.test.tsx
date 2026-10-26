@@ -698,9 +698,9 @@ describe('MobileSettings subscription', () => {
     // The grant is gone, so the group offers the paywall again.
     await expect.element(page.getByText('Not subscribed')).toBeVisible()
     await expect.element(page.getByRole('button', { name: 'Subscribe' })).toBeVisible()
-    expect(page.getByText('alex@example.com').query()).toBeNull()
-    expect(
-      page.getByRole('button', { name: 'Remove Reflect Classic Verification' }).query(),
-    ).toBeNull()
+    await expect.element(page.getByText('alex@example.com')).not.toBeInTheDocument()
+    await expect
+      .element(page.getByRole('button', { name: 'Remove Reflect Classic Verification' }))
+      .not.toBeInTheDocument()
   })
 })
