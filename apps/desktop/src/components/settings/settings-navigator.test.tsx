@@ -48,7 +48,7 @@ async function renderNavigatorPage(
   platform: TestPlatformOptions = { isMacosDesktop: false },
   sections: readonly SettingsSectionEntry[] = VISIBLE_SECTIONS,
 ): Promise<HTMLElement> {
-  const app = createTestCoreServices({
+  const core = createTestCoreServices({
     database: createWasmTestDatabaseService(),
     platform: createTestPlatformService(platform),
     contacts: createTestContactsService({ status: 'unavailable' }),
@@ -68,7 +68,7 @@ async function renderNavigatorPage(
         ))}
       </div>
     </div>,
-    { app },
+    { core },
   )
   return view.getByTestId('scroller').element() as HTMLElement
 }
