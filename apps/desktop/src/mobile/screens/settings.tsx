@@ -461,7 +461,7 @@ export function MobileSettings(): ReactElement {
                   <SettingsActionRow
                     label="Remove Reflect Classic Verification"
                     tone="destructive"
-                    pending={subscriptionControls.classicSignOutPending}
+                    pending={subscriptionControls.removeClassicVerificationPending}
                     onPress={subscriptionControls.removeClassicVerification}
                   />
                 </>

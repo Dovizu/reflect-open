@@ -34,7 +34,7 @@ export interface SubscriptionControls {
   readonly message: string | null
   readonly restorePending: boolean
   readonly redeemPending: boolean
-  readonly classicSignOutPending: boolean
+  readonly removeClassicVerificationPending: boolean
   /** Show the paywall, which replaces the app until a purchase or dismissal. */
   subscribe: () => void
   manage: () => void
@@ -75,7 +75,7 @@ export function useSubscriptionControls(): SubscriptionControls {
     message: subscriptionMessage ?? classicAccessMessage(classicAccess),
     restorePending,
     redeemPending,
-    classicSignOutPending: classicSignOut.isPending,
+    removeClassicVerificationPending: classicSignOut.isPending,
     // The request flips usePaywallGate to 'show', so the gate in
     // mobile-app.tsx replaces the app with the paywall immediately. It is
     // what makes that work outside the App Store, where the gate otherwise
