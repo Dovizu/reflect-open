@@ -498,25 +498,37 @@ fn shared_inbox_dir() -> Option<PathBuf> {
     None
 }
 
+/// One relay at a time, across graph sessions. A graph switch can start the
+/// new session's pass while the old session's relay is still running, and
+/// two relays sharing the inbox could split a screenshot from its envelope
+/// across the two graphs.
+static SHARED_RELAY: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Relay what the sandboxed capture extensions spooled into the App Group
 /// inbox into the open graph's capture inbox, where the normal drain
 /// materializes it. Returns how many envelopes moved; zero without a shared
 /// container. Called before every capture pass.
 #[tauri::command]
-pub async fn capture_shared_inbox_relay(
-    generation: u64,
-    state: State<'_, GraphState>,
-) -> AppResult<u32> {
-    let root = root_for_generation(&state, generation)?;
-    match shared_inbox_dir() {
-        // App Group directory IO belongs on the blocking pool: this fires on
-        // every launch and foreground, on what is the touch-delivery thread
-        // for sync commands on iOS.
-        Some(shared) => {
-            crate::blocking::run_blocking(move || relay_shared_spools(&shared, &root)).await
-        }
-        None => Ok(0),
-    }
+pub async fn capture_shared_inbox_relay(app: tauri::AppHandle, generation: u64) -> AppResult<u32> {
+    use tauri::Manager;
+    let Some(shared) = shared_inbox_dir() else {
+        return Ok(0);
+    };
+    // App Group directory IO belongs on the blocking pool: this fires on
+    // every launch and foreground, on what is the touch-delivery thread for
+    // sync commands on iOS.
+    crate::blocking::run_blocking(move || {
+        // The guard protects no data, so a relay that panicked leaves
+        // nothing to distrust.
+        let _relay = SHARED_RELAY
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Checked under the lock: a pass that waited out a graph switch
+        // must not relay into a graph it no longer belongs to.
+        let root = root_for_generation(&app.state::<GraphState>(), generation)?;
+        relay_shared_spools(&shared, &root)
+    })
+    .await
 }
 
 // ---- screenshot promote ---------------------------------------------------------
@@ -850,7 +862,10 @@ mod tests {
         assert_eq!(relayed, 1);
         let inbox = graph.path().join(INBOX_DIR);
         assert_eq!(fs::read(inbox.join("7c9e6679.jpg")).unwrap(), b"jpeg-bytes");
-        assert!(inbox.join("7c9e6679.json").is_file());
+        assert_eq!(
+            fs::read_to_string(inbox.join("7c9e6679.json")).unwrap(),
+            r#"{"screenshotRef":"7c9e6679.jpg"}"#
+        );
         assert_eq!(fs::read_dir(&shared_inbox).unwrap().count(), 0);
     }
 
