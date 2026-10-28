@@ -875,6 +875,37 @@ mod tests {
     }
 
     #[test]
+    fn relay_keeps_the_screenshot_until_its_envelope_moves() {
+        let shared = tempfile::tempdir().unwrap();
+        let graph = tempfile::tempdir().unwrap();
+        let shared_inbox = shared.path().join(SHARED_INBOX_DIR);
+        fs::create_dir_all(&shared_inbox).unwrap();
+        fs::write(shared_inbox.join("7c9e6679.jpg"), b"jpeg-bytes").unwrap();
+        fs::write(
+            shared_inbox.join("7c9e6679.json"),
+            r#"{"screenshotRef":"7c9e6679.jpg"}"#,
+        )
+        .unwrap();
+        // A directory where the envelope lands fails its write after the
+        // screenshot has copied.
+        let inbox = graph.path().join(INBOX_DIR);
+        let blocked = inbox.join("7c9e6679.json");
+        fs::create_dir_all(&blocked).unwrap();
+
+        assert!(relay_shared_spools(&shared_inbox, graph.path()).is_err());
+        assert!(shared_inbox.join("7c9e6679.jpg").is_file());
+        assert!(shared_inbox.join("7c9e6679.json").is_file());
+
+        fs::remove_dir(&blocked).unwrap();
+        let relayed = relay_shared_spools(&shared_inbox, graph.path()).unwrap();
+
+        assert_eq!(relayed, 1);
+        assert_eq!(fs::read(inbox.join("7c9e6679.jpg")).unwrap(), b"jpeg-bytes");
+        assert!(inbox.join("7c9e6679.json").is_file());
+        assert_eq!(fs::read_dir(&shared_inbox).unwrap().count(), 0);
+    }
+
+    #[test]
     fn relay_quarantines_an_oversized_screenshot_with_its_envelope() {
         let shared = tempfile::tempdir().unwrap();
         let graph = tempfile::tempdir().unwrap();
