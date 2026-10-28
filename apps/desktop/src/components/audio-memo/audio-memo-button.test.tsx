@@ -124,7 +124,7 @@ describe('AudioMemoButton', () => {
 
       await userEvent.click(view.getByRole('button', { name: 'Record audio memo' }))
       expect(memo.toggle).toHaveBeenCalledTimes(1)
-      expect(view.getByRole('dialog').query()).toBeNull()
+      await expect.element(view.getByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('stops from the mic, leaving the recording UI to the sheet', async () => {
@@ -133,7 +133,7 @@ describe('AudioMemoButton', () => {
 
       await userEvent.click(view.getByRole('button', { name: 'Stop recording' }))
       expect(memo.toggle).toHaveBeenCalledTimes(1)
-      expect(view.getByRole('dialog').query()).toBeNull()
+      await expect.element(view.getByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('stops a pending permission request from the same control', async () => {
@@ -142,7 +142,9 @@ describe('AudioMemoButton', () => {
 
       await userEvent.click(view.getByRole('button', { name: 'Stop recording' }))
       expect(memo.toggle).toHaveBeenCalledTimes(1)
-      expect(view.getByRole('button', { name: 'Record audio memo' }).query()).toBeNull()
+      await expect
+        .element(view.getByRole('button', { name: 'Record audio memo' }))
+        .not.toBeInTheDocument()
     })
 
     it('keeps the plain mic while transcribing, leaving the progress to the sheet', async () => {
@@ -151,7 +153,7 @@ describe('AudioMemoButton', () => {
 
       await userEvent.click(view.getByRole('button', { name: 'Record audio memo' }))
       expect(memo.toggle).toHaveBeenCalledTimes(1)
-      expect(view.getByRole('dialog').query()).toBeNull()
+      await expect.element(view.getByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('offers to show a parked error, which the sheet presents', async () => {
@@ -161,8 +163,8 @@ describe('AudioMemoButton', () => {
 
       await userEvent.click(view.getByRole('button', { name: 'Show audio memo error' }))
       expect(memo.toggle).toHaveBeenCalledTimes(1)
-      expect(view.getByRole('dialog').query()).toBeNull()
-      expect(view.getByText('provider down').query()).toBeNull()
+      await expect.element(view.getByRole('dialog')).not.toBeInTheDocument()
+      await expect.element(view.getByText('provider down')).not.toBeInTheDocument()
     })
   })
 
