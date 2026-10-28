@@ -136,6 +136,15 @@ describe('AudioMemoButton', () => {
       expect(view.getByRole('dialog').query()).toBeNull()
     })
 
+    it('stops a pending permission request from the same control', async () => {
+      memo.phase = 'requesting'
+      const view = await renderButton()
+
+      await userEvent.click(view.getByRole('button', { name: 'Stop recording' }))
+      expect(memo.toggle).toHaveBeenCalledTimes(1)
+      expect(view.getByRole('button', { name: 'Record audio memo' }).query()).toBeNull()
+    })
+
     it('keeps the plain mic while transcribing, leaving the progress to the sheet', async () => {
       memo.phase = 'transcribing'
       const view = await renderButton()

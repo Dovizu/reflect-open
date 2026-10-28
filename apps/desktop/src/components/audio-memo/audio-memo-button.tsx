@@ -38,7 +38,9 @@ export function AudioMemoButton(): ReactElement {
   // and a recording never stands in the way of queueing the next one.
   const sheetPresented = memo.presentation === 'sheet'
 
-  if (sheetPresented && memo.phase === 'recording') {
+  // Like the phone's capture menu, a pending permission prompt stops (cancels)
+  // from the same control as a live recording.
+  if (sheetPresented && (memo.phase === 'recording' || memo.phase === 'requesting')) {
     return (
       <Button
         variant="destructive"
