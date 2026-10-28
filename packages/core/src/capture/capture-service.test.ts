@@ -232,14 +232,14 @@ describe('CaptureService (shared-inbox relay)', () => {
     session.dispose()
   })
 
-  it('on desktop, passes run drain-then-enrich only', async () => {
+  it('on desktop, relays the shared inbox (Safari) before the drain too', async () => {
     const kit = setup()
 
     const session = kit.capture.openSession({ generation: 3 })
     session.start()
     await flush()
 
-    expect(kit.relays).not.toHaveBeenCalled()
+    expect(kit.relays).toHaveBeenCalledWith(3)
     expect(kit.drains).toHaveBeenCalledTimes(1)
     expect(kit.enrichments).toHaveBeenCalledTimes(2)
     expect(kit.progress.getAll()).toEqual([])
