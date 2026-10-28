@@ -415,8 +415,11 @@ fn relay_shared_spools(shared_inbox: &Path, root: &Path) -> AppResult<u32> {
 }
 
 /// Relay one committed envelope, its screenshot first, so the drain never
-/// reads an envelope whose screenshot is still in the App Group. False when
-/// the pair was quarantined (or the name is not a spool filename) instead.
+/// reads an envelope whose screenshot is still in the App Group. The shared
+/// screenshot is removed only once the envelope has moved: a pass that fails
+/// in between retries the whole pair, possibly into another graph, instead
+/// of leaving the envelope without its screenshot. False when the pair was
+/// quarantined (or the name is not a spool filename) instead.
 fn relay_shared_spool(shared_inbox: &Path, root: &Path, name: &str) -> AppResult<bool> {
     let Ok(target) = inbox_file(root, name) else {
         return Ok(false); // not a spool filename this app would ever address
@@ -443,10 +446,12 @@ fn relay_shared_spool(shared_inbox: &Path, root: &Path, name: &str) -> AppResult
             &inbox_file(root, &screenshot_name)?,
             &fs::read(&screenshot)?,
         )?;
-        fs::remove_file(&screenshot)?;
     }
     atomic_write_bytes_to(&target, &fs::read(&envelope)?)?;
     fs::remove_file(&envelope)?;
+    if screenshot_len.is_some() {
+        fs::remove_file(&screenshot)?;
+    }
     Ok(true)
 }
 
