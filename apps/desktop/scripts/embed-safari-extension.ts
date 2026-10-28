@@ -4,6 +4,8 @@
 //
 //   pnpm --filter @reflect/desktop safari:embed --app=<path> [flags]
 //
+// Needs Xcode and XcodeGen (`brew install xcodegen`).
+//
 //   --app=<path>        The built app, for example from `pnpm tauri:build:dev`
 //   --identity=<name>   Codesign identity. Default: $APPLE_SIGNING_IDENTITY,
 //                       else ad-hoc. Use the identity the app was signed
@@ -58,9 +60,25 @@ async function readPlist(path: string): Promise<Entitlements> {
   return EntitlementsSchema.parse(JSON.parse(json.stdout))
 }
 
-/** The entitlements `path` is signed with; empty when it is unsigned. */
+/**
+ * The entitlements `path` is signed with; empty when it is unsigned. Any
+ * other `codesign` failure throws, so a failed read never re-signs the app
+ * without its entitlements.
+ */
 async function readEntitlements(path: string, tempDir: string): Promise<Entitlements> {
-  const { stdout } = await exec('codesign', ['-d', '--entitlements', '-', '--xml', path])
+  const { exitCode, stdout, stderr } = await exec('codesign', [
+    '-d',
+    '--entitlements',
+    '-',
+    '--xml',
+    path,
+  ])
+  if (exitCode !== 0) {
+    if (/not signed at all/.test(stderr)) {
+      return {}
+    }
+    throw new Error(`Cannot read the entitlements of ${path}: ${stderr.trim()}`)
+  }
   if (stdout.trim() === '') {
     return {}
   }
@@ -166,6 +184,10 @@ async function main(): Promise<void> {
   const identity = values.identity ?? process.env.APPLE_SIGNING_IDENTITY ?? '-'
   const identifier = await readInfo(app, 'CFBundleIdentifier')
   const group = `${values.team}.${identifier}`
+  // Not part of Xcode or its command-line tools; fail before any build step.
+  if ((await exec('which', ['xcodegen'])).exitCode !== 0) {
+    throw new Error('safari:embed needs XcodeGen: brew install xcodegen')
+  }
 
   log('Building the Safari web extension')
   await exec('pnpm', ['--filter', '@reflect/extension', 'build:safari'], INHERIT)
