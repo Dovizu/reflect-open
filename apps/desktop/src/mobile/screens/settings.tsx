@@ -114,7 +114,7 @@ export function MobileSettings(): ReactElement {
   const { back, canBack, navigate } = useRouter()
   const { graph, mobileStorageKind, platform } = useGraph()
   const isIos = platform === 'ios'
-  const subscription = useSubscriptionControls()
+  const subscriptionControls = useSubscriptionControls()
   const { opener } = useAppServices()
   const { githubAuth, platform: platformService, noteList, logger } = useCoreServices()
   const { settings, updateSettings } = useSettings()
@@ -442,39 +442,45 @@ export function MobileSettings(): ReactElement {
           </SettingsGroup>
 
           {isIos ? (
-            <SettingsGroup header="Subscription" footer={subscription.message}>
-              <SettingsValueRow label="Plan" value={subscription.planLabel} />
-              {subscription.canSubscribe ? (
-                <SettingsActionRow label="Subscribe" onPress={subscription.subscribe} />
-              ) : subscription.canManage ? (
-                <SettingsActionRow label="Manage Subscription" onPress={subscription.manage} />
+            <SettingsGroup header="Subscription" footer={subscriptionControls.message}>
+              <SettingsValueRow label="Plan" value={subscriptionControls.planLabel} />
+              {subscriptionControls.canSubscribe ? (
+                <SettingsActionRow label="Subscribe" onPress={subscriptionControls.subscribe} />
+              ) : subscriptionControls.canManage ? (
+                <SettingsActionRow
+                  label="Manage Subscription"
+                  onPress={subscriptionControls.manage}
+                />
               ) : null}
-              {subscription.classicAccount !== null ? (
+              {subscriptionControls.classicAccount !== null ? (
                 <>
-                  <SettingsValueRow label="Verified Account" value={subscription.classicAccount} />
+                  <SettingsValueRow
+                    label="Verified Account"
+                    value={subscriptionControls.classicAccount}
+                  />
                   <SettingsActionRow
                     label="Remove Reflect Classic Verification"
                     tone="destructive"
-                    pending={subscription.classicSignOutPending}
-                    onPress={subscription.removeClassicVerification}
+                    pending={subscriptionControls.removeClassicVerificationPending}
+                    onPress={subscriptionControls.removeClassicVerification}
                   />
                 </>
               ) : null}
               <SettingsActionRow
                 label="Redeem Code"
-                pending={subscription.redeemPending}
+                pending={subscriptionControls.redeemPending}
                 onPress={() => {
-                  void subscription.redeem()
+                  void subscriptionControls.redeem()
                 }}
               />
               <SettingsActionRow
                 label="Restore Purchases"
-                pending={subscription.restorePending}
+                pending={subscriptionControls.restorePending}
                 onPress={() => {
-                  void subscription.restore()
+                  void subscriptionControls.restore()
                 }}
               />
-              <SettingsActionRow label="Terms of Use" onPress={subscription.openTerms} />
+              <SettingsActionRow label="Terms of Use" onPress={subscriptionControls.openTerms} />
             </SettingsGroup>
           ) : null}
 

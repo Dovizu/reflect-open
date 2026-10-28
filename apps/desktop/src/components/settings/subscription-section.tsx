@@ -12,40 +12,42 @@ import { SettingsSection } from './section.tsx'
  * section only there (see use-visible-settings-sections).
  */
 export function SubscriptionSection(): ReactElement {
-  const subscription = useSubscriptionControls()
+  const subscriptionControls = useSubscriptionControls()
   return (
     <SettingsSection id="subscription">
       <div className="flex items-center justify-between gap-4 px-4 py-3.5">
         <div className="min-w-0">
           <div className="text-sm font-medium text-text">Plan</div>
-          {subscription.message !== null ? (
-            <p className="mt-0.5 text-xs text-text-muted">{subscription.message}</p>
+          {subscriptionControls.message !== null ? (
+            <p className="mt-0.5 text-xs text-text-muted">{subscriptionControls.message}</p>
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <span className="text-sm text-text-secondary">{subscription.planLabel}</span>
-          {subscription.canSubscribe ? (
-            <Button size="sm" onClick={subscription.subscribe}>
+          <span className="text-sm text-text-secondary">{subscriptionControls.planLabel}</span>
+          {subscriptionControls.canSubscribe ? (
+            <Button size="sm" onClick={subscriptionControls.subscribe}>
               Subscribe
             </Button>
-          ) : subscription.canManage ? (
-            <Button variant="secondary" size="sm" onClick={subscription.manage}>
+          ) : subscriptionControls.canManage ? (
+            <Button variant="secondary" size="sm" onClick={subscriptionControls.manage}>
               Manage
             </Button>
           ) : null}
         </div>
       </div>
-      {subscription.classicAccount !== null ? (
+      {subscriptionControls.classicAccount !== null ? (
         <div className="flex items-center justify-between gap-4 px-4 py-3.5">
           <div className="min-w-0">
             <div className="text-sm font-medium text-text">Reflect Classic</div>
-            <p className="mt-0.5 truncate text-xs text-text-muted">{subscription.classicAccount}</p>
+            <p className="mt-0.5 truncate text-xs text-text-muted">
+              {subscriptionControls.classicAccount}
+            </p>
           </div>
           <Button
             variant="destructive"
             size="sm"
-            disabled={subscription.classicSignOutPending}
-            onClick={subscription.removeClassicVerification}
+            disabled={subscriptionControls.removeClassicVerificationPending}
+            onClick={subscriptionControls.removeClassicVerification}
           >
             Remove verification
           </Button>
@@ -57,9 +59,9 @@ export function SubscriptionSection(): ReactElement {
           <Button
             variant="secondary"
             size="sm"
-            disabled={subscription.redeemPending}
+            disabled={subscriptionControls.redeemPending}
             onClick={() => {
-              void subscription.redeem()
+              void subscriptionControls.redeem()
             }}
           >
             Redeem code
@@ -67,9 +69,9 @@ export function SubscriptionSection(): ReactElement {
           <Button
             variant="secondary"
             size="sm"
-            disabled={subscription.restorePending}
+            disabled={subscriptionControls.restorePending}
             onClick={() => {
-              void subscription.restore()
+              void subscriptionControls.restore()
             }}
           >
             Restore purchases
@@ -78,7 +80,7 @@ export function SubscriptionSection(): ReactElement {
       </div>
       <button
         type="button"
-        onClick={subscription.openTerms}
+        onClick={subscriptionControls.openTerms}
         className="flex w-full items-center justify-between gap-4 px-4 py-3.5 text-left"
       >
         <span className="text-sm font-medium text-text">Terms of Use</span>

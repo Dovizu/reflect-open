@@ -14,14 +14,17 @@ import { useAppServices } from '@/services/services-provider.tsx'
 
 /**
  * The iOS app's subscription state and the controls App Review requires
- * beside it (restore, manage, redeem, terms), shared by the phone's settings
- * list and the iPad's desktop settings page so both offer the same set.
- * Actions are function properties so rows can take them unbound.
+ * beside it (restore, manage, redeem, terms), in one hook so every settings
+ * surface offers the same set. Actions are function properties so rows can
+ * take them unbound.
  */
 export interface SubscriptionControls {
   /** The plan as one line: Monthly, Yearly, a Reflect Classic grant, or none. */
   readonly planLabel: string
-  /** Not subscribed and no Classic grant: offer the paywall. */
+  /**
+   * No App Store plan and no active Classic grant, so offer the paywall. Also
+   * true while the lookup is still loading and the plan reads "Checking…".
+   */
   readonly canSubscribe: boolean
   /** An App Store subscription the system's account page can manage. */
   readonly canManage: boolean
@@ -31,7 +34,7 @@ export interface SubscriptionControls {
   readonly message: string | null
   readonly restorePending: boolean
   readonly redeemPending: boolean
-  readonly classicSignOutPending: boolean
+  readonly removeClassicVerificationPending: boolean
   /** Show the paywall, which replaces the app until a purchase or dismissal. */
   subscribe: () => void
   manage: () => void
@@ -72,7 +75,7 @@ export function useSubscriptionControls(): SubscriptionControls {
     message: subscriptionMessage ?? classicAccessMessage(classicAccess),
     restorePending,
     redeemPending,
-    classicSignOutPending: classicSignOut.isPending,
+    removeClassicVerificationPending: classicSignOut.isPending,
     // The request flips usePaywallGate to 'show', so the gate in
     // mobile-app.tsx replaces the app with the paywall immediately. It is
     // what makes that work outside the App Store, where the gate otherwise
