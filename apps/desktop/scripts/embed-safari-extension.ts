@@ -19,7 +19,7 @@
 // The relay in `src-tauri/src/capture.rs` reads it back from the app
 // extension's Info.plist.
 
-import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { exec } from 'tinyexec'
@@ -32,9 +32,18 @@ const APPEX = 'SafariExtension.appex'
 const PROJECT_DIR = join(TAURI_SRC_DIR, 'safari-extension')
 const WEB_EXTENSION_DIR = join(APP_DIR, '..', 'extension', '.output', 'safari-mv3')
 const APP_GROUPS_KEY = 'com.apple.security.application-groups'
+const FLAVOR_OVERLAYS = ['tauri.dev.conf.json', 'tauri.beta.conf.json']
 
 const EntitlementsSchema = z.record(z.string(), z.unknown())
 type Entitlements = z.infer<typeof EntitlementsSchema>
+
+const TauriConfigSchema = z.object({
+  identifier: z.string().optional(),
+  bundle: z
+    .object({ macOS: z.object({ entitlements: z.string().optional() }).optional() })
+    .optional(),
+})
+type TauriConfig = z.infer<typeof TauriConfigSchema>
 
 async function readInfo(app: string, key: string): Promise<string> {
   const plist = join(app, 'Contents', 'Info.plist')
@@ -42,6 +51,11 @@ async function readInfo(app: string, key: string): Promise<string> {
     throwOnError: true,
   })
   return stdout.trim()
+}
+
+async function readPlist(path: string): Promise<Entitlements> {
+  const json = await exec('plutil', ['-convert', 'json', '-o', '-', path], { throwOnError: true })
+  return EntitlementsSchema.parse(JSON.parse(json.stdout))
 }
 
 /** The entitlements `path` is signed with; empty when it is unsigned. */
@@ -52,8 +66,29 @@ async function readEntitlements(path: string, tempDir: string): Promise<Entitlem
   }
   const plist = join(tempDir, 'signed.entitlements')
   writeFileSync(plist, stdout)
-  const json = await exec('plutil', ['-convert', 'json', '-o', '-', plist], { throwOnError: true })
-  return EntitlementsSchema.parse(JSON.parse(json.stdout))
+  return await readPlist(plist)
+}
+
+function readTauriConfig(name: string): TauriConfig {
+  return TauriConfigSchema.parse(JSON.parse(readFileSync(join(TAURI_SRC_DIR, name), 'utf8')))
+}
+
+/**
+ * The entitlements file Tauri configures for the flavor with `identifier`:
+ * its overlay's, else the macOS config's. A `tauri build` without a signing
+ * identity signs ad-hoc with none, so the app's own signature may lack them.
+ */
+function configuredEntitlementsPath(identifier: string): string {
+  const overlay = FLAVOR_OVERLAYS.map(readTauriConfig).find(
+    (config) => config.identifier === identifier,
+  )
+  const file =
+    overlay?.bundle?.macOS?.entitlements ??
+    readTauriConfig('tauri.macos.conf.json').bundle?.macOS?.entitlements
+  if (file === undefined) {
+    throw new Error('tauri.macos.conf.json configures no entitlements file')
+  }
+  return join(TAURI_SRC_DIR, file)
 }
 
 /** Signs `path` with the hardened runtime and `entitlements`. */
@@ -85,8 +120,12 @@ async function sign(
   )
 }
 
-async function buildAppex(app: string, group: string, tempDir: string): Promise<string> {
-  const identifier = await readInfo(app, 'CFBundleIdentifier')
+async function buildAppex(
+  app: string,
+  identifier: string,
+  group: string,
+  tempDir: string,
+): Promise<string> {
   await exec('xcodegen', ['generate', '--spec', join(PROJECT_DIR, 'project.yml')], INHERIT)
   await exec(
     'xcodebuild',
@@ -125,14 +164,15 @@ async function main(): Promise<void> {
   }
   const app = resolve(values.app)
   const identity = values.identity ?? process.env.APPLE_SIGNING_IDENTITY ?? '-'
-  const group = `${values.team}.${await readInfo(app, 'CFBundleIdentifier')}`
+  const identifier = await readInfo(app, 'CFBundleIdentifier')
+  const group = `${values.team}.${identifier}`
 
   log('Building the Safari web extension')
   await exec('pnpm', ['--filter', '@reflect/extension', 'build:safari'], INHERIT)
 
   await runWithTempDir(async (tempDir) => {
     log('Building the Safari app extension')
-    const appex = await buildAppex(app, group, tempDir)
+    const appex = await buildAppex(app, identifier, group, tempDir)
 
     log(`Signing with ${identity === '-' ? 'an ad-hoc signature' : identity}`)
     // Nested code first: re-signing the app seals the app extension's signature.
@@ -146,10 +186,15 @@ async function main(): Promise<void> {
     rmSync(join(plugIns, APPEX), { recursive: true, force: true })
     mkdirSync(plugIns, { recursive: true })
     await exec('ditto', [appex, join(plugIns, APPEX)], INHERIT)
-    // The app joins the group too, so it can read the container without a
-    // macOS access prompt.
-    const entitlements = await readEntitlements(app, tempDir)
-    await sign(app, identity, { ...entitlements, [APP_GROUPS_KEY]: [group] }, tempDir)
+    // The app keeps its flavor's entitlements plus what it was signed with
+    // (a release build's profile identity), and joins the group, so it can
+    // read the container without a macOS access prompt.
+    const entitlements = {
+      ...(await readPlist(configuredEntitlementsPath(identifier))),
+      ...(await readEntitlements(app, tempDir)),
+      [APP_GROUPS_KEY]: [group],
+    }
+    await sign(app, identity, entitlements, tempDir)
   })
   await exec('codesign', ['--verify', '--deep', '--strict', app], INHERIT)
   log(`Embedded ${APPEX} in ${app} (App Group ${group})`)
