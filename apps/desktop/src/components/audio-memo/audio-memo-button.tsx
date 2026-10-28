@@ -53,6 +53,10 @@ export function AudioMemoButton(): ReactElement {
   }
 
   if (memo.phase === 'idle' || memo.phase === 'requesting' || sheetPresented) {
+    // A parked error makes the mic reopen the iOS sheet with Retry and Discard
+    // instead of recording, so it says so, like the phone's capture menu.
+    const label =
+      sheetPresented && memo.phase === 'error' ? 'Show audio memo error' : 'Record audio memo'
     return (
       <Tooltip>
         <TooltipTrigger
@@ -60,7 +64,7 @@ export function AudioMemoButton(): ReactElement {
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="Record audio memo"
+              aria-label={label}
               aria-disabled={!memo.available || undefined}
               onClick={() => {
                 if (memo.available) {
@@ -76,9 +80,7 @@ export function AudioMemoButton(): ReactElement {
             </Button>
           }
         />
-        <TooltipContent side="bottom">
-          {memo.unavailableReason ?? 'Record audio memo'}
-        </TooltipContent>
+        <TooltipContent side="bottom">{memo.unavailableReason ?? label}</TooltipContent>
       </Tooltip>
     )
   }

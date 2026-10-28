@@ -66,7 +66,10 @@ const CLOSED_STATE: AudioMemoSessionState = {
   recorderState: 'idle',
 }
 
-/** Why the iOS app's mic is off without a native recorder (a plain browser), in the desktop's words. */
+/**
+ * Why the iOS app's mic is off without a native recorder (a plain browser),
+ * in the desktop's words.
+ */
 const NATIVE_RECORDER_MISSING = 'Audio recording is not supported on this platform'
 
 const CLOSED_SESSION = {

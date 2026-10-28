@@ -10,6 +10,7 @@ import {
   AppError,
 } from '@reflect/core'
 import {
+  createTestAudioRecorderService,
   createTestCoreServices,
   createTestPlatformService,
   createTestSettingsService,
@@ -246,29 +247,48 @@ describe('AudioMemoProvider', () => {
 
 describe('AudioMemoProvider under the iOS app', () => {
   async function renderBridge(isNativeShell: boolean) {
+    const audioRecorder = createTestAudioRecorderService()
     const core = createTestCoreServices({
       database: createWasmTestDatabaseService(),
       platform: createTestPlatformService({ ...MOBILE_PLATFORM, isNativeShell }),
+      audioRecorder,
     })
-    return await renderHookInApp(() => useAudioMemo(), {
+    const hook = await renderHookInApp(() => useAudioMemo(), {
       core,
       graph: GRAPH,
+      settings: { aiProviders: [OPENAI], defaultAiProviderId: OPENAI.id },
       wrapper: (children: ReactNode) => (
         <MobileAudioMemoProvider graph={GRAPH}>
           <AudioMemoProvider graph={GRAPH}>{children}</AudioMemoProvider>
         </MobileAudioMemoProvider>
       ),
     })
+    const methods = (): string[] => audioRecorder.calls().map((call) => call.method)
+    return { ...hook, methods }
   }
 
   it('borrows the native recording session, presented in the iOS sheet', async () => {
-    const { result } = await renderBridge(true)
-
+    const { result, methods } = await renderBridge(true)
     expect(result.current).toMatchObject({
       presentation: 'sheet',
+      phase: 'idle',
       available: true,
       unavailableReason: null,
     })
+
+    // The mic starts the native recorder through the bridge…
+    await act(() => {
+      result.current.toggle()
+    })
+    expect(result.current.phase).toBe('recording')
+    expect(methods()).toContain('start')
+
+    // …and cancelling drops that same recording.
+    await act(() => {
+      result.current.cancel()
+    })
+    await vi.waitFor(() => expect(result.current.phase).toBe('idle'))
+    expect(methods()).toContain('cancel')
   })
 
   it('turns the mic off where there is no native recorder', async () => {

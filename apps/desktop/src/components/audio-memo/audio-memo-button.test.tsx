@@ -136,17 +136,24 @@ describe('AudioMemoButton', () => {
       expect(view.getByRole('dialog').query()).toBeNull()
     })
 
-    it('keeps the plain mic for every other phase, the sheet presenting errors and progress', async () => {
-      for (const phase of ['transcribing', 'error'] as const) {
-        memo.phase = phase
-        memo.error = phase === 'error' ? 'provider down' : null
-        const view = await renderButton()
+    it('keeps the plain mic while transcribing, leaving the progress to the sheet', async () => {
+      memo.phase = 'transcribing'
+      const view = await renderButton()
 
-        await userEvent.click(view.getByRole('button', { name: 'Record audio memo' }))
-        expect(view.getByText('provider down').query()).toBeNull()
-        await view.unmount()
-      }
-      expect(memo.toggle).toHaveBeenCalledTimes(2)
+      await userEvent.click(view.getByRole('button', { name: 'Record audio memo' }))
+      expect(memo.toggle).toHaveBeenCalledTimes(1)
+      expect(view.getByRole('dialog').query()).toBeNull()
+    })
+
+    it('offers to show a parked error, which the sheet presents', async () => {
+      memo.phase = 'error'
+      memo.error = 'provider down'
+      const view = await renderButton()
+
+      await userEvent.click(view.getByRole('button', { name: 'Show audio memo error' }))
+      expect(memo.toggle).toHaveBeenCalledTimes(1)
+      expect(view.getByRole('dialog').query()).toBeNull()
+      expect(view.getByText('provider down').query()).toBeNull()
     })
   })
 
