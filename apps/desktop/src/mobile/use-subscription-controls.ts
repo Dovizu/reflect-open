@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useAsyncAction } from '@/hooks/use-async-action.ts'
 import { usePaywallRequested } from '@/hooks/use-paywall-requested.ts'
 import { formatFullDate } from '@/lib/dates.ts'
 import { TERMS_OF_USE_URL } from '@/mobile/legal-urls.ts'
@@ -52,9 +52,8 @@ export function useSubscriptionControls(): SubscriptionControls {
   const { opener } = useAppServices()
   const { settings } = useSettings()
   const [, setPaywallRequested] = usePaywallRequested()
-  const [restorePending, setRestorePending] = useState(false)
-  const [redeemPending, setRedeemPending] = useState(false)
-  const [subscriptionMessage, setSubscriptionMessage] = useState<string | null>(null)
+  const restoreAction = useAsyncAction()
+  const redeemAction = useAsyncAction()
 
   const planLabel =
     subscription.value === 'monthly'
@@ -72,9 +71,9 @@ export function useSubscriptionControls(): SubscriptionControls {
     canSubscribe: subscription.value === null && !classicAccess.active,
     canManage: subscription.value !== null,
     classicAccount: classicAccess.value === null ? null : (classicAccess.value.email ?? 'Unknown'),
-    message: subscriptionMessage ?? classicAccessMessage(classicAccess),
-    restorePending,
-    redeemPending,
+    message: restoreAction.error ?? redeemAction.error ?? classicAccessMessage(classicAccess),
+    restorePending: restoreAction.pending,
+    redeemPending: redeemAction.pending,
     removeClassicVerificationPending: classicSignOut.isPending,
     // The request flips usePaywallGate to 'show', so the gate in
     // mobile-app.tsx replaces the app with the paywall immediately. It is
@@ -87,29 +86,28 @@ export function useSubscriptionControls(): SubscriptionControls {
       opener.openUrlSync('https://apps.apple.com/account/subscriptions')
     },
     restore: async () => {
-      setRestorePending(true)
-      setSubscriptionMessage(null)
-      try {
-        const found = await paywall.restore()
-        if (found === null) {
-          setSubscriptionMessage('No previous purchase found for this Apple account.')
+      redeemAction.setError(null)
+      await restoreAction.run(async () => {
+        let found
+        try {
+          found = await paywall.restore()
+        } catch (error: unknown) {
+          throw new Error('Restore failed. Check your connection and try again.', { cause: error })
         }
-      } catch {
-        setSubscriptionMessage('Restore failed. Check your connection and try again.')
-      } finally {
-        setRestorePending(false)
-      }
+        if (found === null) {
+          restoreAction.setError('No previous purchase found for this Apple account.')
+        }
+      })
     },
     redeem: async () => {
-      setRedeemPending(true)
-      setSubscriptionMessage(null)
-      try {
-        await paywall.redeemCode()
-      } catch {
-        setSubscriptionMessage('Could not open the redemption sheet. Try again.')
-      } finally {
-        setRedeemPending(false)
-      }
+      restoreAction.setError(null)
+      await redeemAction.run(async () => {
+        try {
+          await paywall.redeemCode()
+        } catch (error: unknown) {
+          throw new Error('Could not open the redemption sheet. Try again.', { cause: error })
+        }
+      })
     },
     removeClassicVerification: () => {
       classicSignOut.mutate()
